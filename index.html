@@ -1912,8 +1912,8 @@ const CONFIG = {
     initialCount: 3,             // wandering worms seeded per sandbox map
     seedMinColonyDistFrac: 0.25, // seed at least this fraction of the map from the colony
     sightRadius: 500,            // detection range (matches the mould's); rock blocks line of sight (SLIDER)
-    crawlSpeed: 0.75,            // cells/tick toward a sensed strand — RT: slowed 75% (was 3.0) so worms creep in (SLIDER)
-    wanderSpeed: 0.25,           // cells/tick while searching — RT: slowed 75% (was 1.0) to match
+    crawlSpeed: 0.375,           // cells/tick toward a sensed strand — RT: 3.0 → 0.75 → 0.375 (halved again) so worms barely creep (SLIDER)
+    wanderSpeed: 0.125,          // cells/tick while searching — RT: 1.0 → 0.25 → 0.125 (halved again) to match
     reach: 0.7,                  // cells: how close to a strand before it feeds
     eatEveryTicks: 0,            // cooldown ticks between bites: a feeding worm eats a strand,
                                  //   then waits this many ticks — so it devours one every N+1
@@ -17678,20 +17678,30 @@ function drawAnts(time) {
       ctx.stroke();
 
       if (!nest.dormant) {
-        const count = Math.min(28, Math.max(4, Math.round(weave.len / (cs * 0.95))));
         const laneGap = cs * 0.15;
-        const flow = (time * 0.001) * (cs * 1.7) / weave.len;   // fraction/sec along trail
-        for (let i = 0; i < count; i++) {
-          const lane = (i % 2) ? -1 : 1;                         // +1 to food, -1 returning
-          const j = (i * 0.6180339887) % 1;                      // even golden-ratio spread
-          const u = lane > 0 ? (j + flow) % 1 : ((j - flow) % 1 + 1) % 1;
-          const sa = sampleTrail(weave.pts, u * weave.len);
-          const off = laneGap * lane;
-          let ax = sa.x - Math.sin(sa.ang) * off, ay = sa.y + Math.cos(sa.ang) * off;
-          const ac = sub.cellAtWorld(ax, ay);              // keep the ant off rock cells
-          if (ac && ac.rock) { ax = sa.x; ay = sa.y; }      // drop the lane offset rather than walk onto rock
-          const sp = camera.worldToScreen(ax, ay);
-          drawAnt(ctx, sp.x, sp.y, lane > 0 ? sa.ang : sa.ang + Math.PI, Math.max(1.6, 2.3 * z), 1);
+        // Ants march by ABSOLUTE arc-length at a CONSTANT world speed, anchored at the nest.
+        // (The old code spaced them by FRACTION of the trail length, so while the trail grew
+        // out to a new pile the ants were dragged forward — the line looked like it sped up.
+        // Absolute spacing means growing the trail just adds ants at the far end.)
+        const SP = cs * 1.9;                                    // spacing between ants in a lane (world units)
+        const speed = cs * 1.7;                                 // marching speed (world units / sec) — length-independent
+        const march = ((time * 0.001 * speed) % SP + SP) % SP;  // 0..SP, advances at constant speed
+        const slots = Math.floor(weave.len / SP) + 2;
+        let drawn = 0;
+        for (let slot = 0; slot < slots && drawn < 28; slot++) {
+          for (let lane = 1; lane >= -1 && drawn < 28; lane -= 2) {
+            // lane +1 streams toward the food end; lane -1 streams back toward the nest.
+            const s = lane > 0 ? (slot * SP + march) : (slot * SP + (SP - march));
+            if (s < 0 || s > weave.len) continue;
+            const sa = sampleTrail(weave.pts, s);
+            const off = laneGap * lane;
+            let ax = sa.x - Math.sin(sa.ang) * off, ay = sa.y + Math.cos(sa.ang) * off;
+            const ac = sub.cellAtWorld(ax, ay);              // keep the ant off rock cells
+            if (ac && ac.rock) { ax = sa.x; ay = sa.y; }      // drop the lane offset rather than walk onto rock
+            const sp = camera.worldToScreen(ax, ay);
+            drawAnt(ctx, sp.x, sp.y, lane > 0 ? sa.ang : sa.ang + Math.PI, Math.max(1.6, 2.3 * z), 1);
+            drawn++;
+          }
         }
       }
     }
