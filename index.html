@@ -1990,11 +1990,16 @@ const CONFIG = {
     trich: '#8aa23e',
     trichSpore: '#d2e074',
     infected: '#a6c63a',         // a strand the mould has overrun (green/dead)
-    infectFadeMs: 2500,          // ms a newly-overrun strand takes to fade from cream → infected green — long, so
-                                 //   the rot eases in very gradually (overlapping fades read as a continuous creep)
-    infectStaggerMs: 220,        // extra ms each strand waits after its (still-fading) parent before it starts —
-                                 //   makes the green flow OUTWARD along the strands, one after another, not as a chunk
-                                 //   (fade + stagger are detail-zoom rendering only; the zoomed-out LOD still snaps)
+    infectFadeMs: 240,           // ms one strand takes to turn cream → infected green. SHORT + crisp: each strand
+                                 //   flips cleanly (no long washed-out pale-green state); the gradual look comes from
+                                 //   the CREEP below — strands turning one after another along the filaments.
+    infectCreepMs: 300,          // ms the rot takes to travel ONE strand step along the mycelium. The renderer gives
+                                 //   each rotten strand a moment to turn, one creep-step after the strand the rot came
+                                 //   from, so the green flows continuously BETWEEN world ticks instead of a whole ring
+                                 //   popping in per tick. ~matched to the sim's spread rate (1.5 rings/tick @ 2/sec).
+    infectMaxLagMs: 2500,        // cap on how far behind the sim the visible creep may fall (safety valve if the rot
+                                 //   ever outruns the creep — e.g. a big first-touch burst)
+                                 //   (creep + fade are detail-zoom rendering only; the zoomed-out LOD still snaps)
     warded: '#2f5fe6',           // a strand hardened/warded by a defense card — a deep blue "crust",
                                  //   distinct from the pale-mint colony and yellow-green mould
     // the living network (luminous accent — the brightest thing on screen)
@@ -10918,6 +10923,48 @@ class NetworkRenderer {
   // unit line widths rasterise directly at native device resolution — no bitmap
   // upscale, no blur. `cull` is the visible world rect (+ decoration margin);
   // `detail` draws the sub-pixel cottony fuzz/fan only when it's big enough to see.
+  // --- infection wavefront (render-side timing only) -------------------------
+  // The sim flips whole RINGS of strands to `infected` on each world tick, so colouring
+  // straight off that flag pops a chunk of green in at once ("ticking in"). Here every
+  // newly-rotten strand is handed a wall-clock moment to turn (`_infAt`): one creep-step
+  // AFTER whichever neighbouring strand the rot came from. The green therefore travels
+  // along the filaments continuously between ticks. Purely visual — the sim's infected
+  // set (and every gameplay rule keyed off it) is untouched.
+  _scheduleInfection(now) {
+    const net = this.network, byId = net.byId, r = this.config.render;
+    const creep = r.infectCreepMs != null ? r.infectCreepMs : 300;
+    const ceiling = now + (r.infectMaxLagMs != null ? r.infectMaxLagMs : 2500);
+    let pending = null;
+    for (const n of net.nodes) {
+      if (!n.infected) { if (n._infAt != null) n._infAt = null; continue; }   // amputated/healed → forget its turn
+      if (n._infAt == null) (pending || (pending = [])).push(n);
+    }
+    if (!pending) return;
+    // The moment a neighbouring strand turns, or Infinity if it has no turn scheduled yet.
+    const turnOf = (id) => { const p = byId.get(id); return (p && p.infected && p._infAt != null) ? p._infAt : Infinity; };
+    const left = new Set(pending);
+    for (let pass = 0; left.size && pass < 400; pass++) {
+      let progressed = false;
+      for (const n of left) {
+        let src = Infinity;
+        if (n.parentId != null) { const t = turnOf(n.parentId); if (t < src) src = t; }
+        for (const cid of n.children) { const t = turnOf(cid); if (t < src) src = t; }
+        if (src === Infinity) continue;                       // no scheduled rot adjacent (yet)
+        n._infAt = Math.min(ceiling, Math.max(now, src + creep));
+        left.delete(n); progressed = true;
+      }
+      if (!progressed) {
+        // A fresh breach: nothing adjacent has a turn yet, so start the wave at one strand
+        // (lowest id — deterministic) and let the following passes creep outward from it.
+        let seed = null;
+        for (const n of left) if (!seed || n.id < seed.id) seed = n;
+        if (!seed) break;
+        seed._infAt = now; left.delete(seed);
+      }
+    }
+    for (const n of left) n._infAt = now;   // safety: never leave rotten tissue unscheduled
+  }
+
   _strokeStructure(ctx, brightness, cull, detailAmt) {
     const network = this.network;
     const r = this.config.render;
@@ -10928,25 +10975,19 @@ class NetworkRenderer {
     // infectFadeMs (stamped renderer-side the first frame it's seen infected), so the rot
     // eases in continuously instead of a chunk of strands snapping green each world tick.
     const infRgb = hexToRgb(r.infected);
-    const fadeMs = r.infectFadeMs != null ? r.infectFadeMs : 2500;
-    const staggerMs = r.infectStaggerMs != null ? r.infectStaggerMs : 0;
+    const fadeMs = Math.max(1, r.infectFadeMs != null ? r.infectFadeMs : 240);
     const now = this._now || 0;
+    // Each rotten strand turns at its own scheduled moment (`_infAt`, set by
+    // _scheduleInfection — one creep-step after the strand the rot came from), then flips
+    // cream → green over the SHORT fadeMs. So the rot travels visibly along the filaments
+    // instead of a whole ring appearing at once.
     const strandColor = (n) => {
       if (n._protected) return warded;
-      if (!n.infected) { if (n._infShownAt != null) n._infShownAt = null; return cream; }
-      if (n._infShownAt == null) {
-        // Creep: if this strand's PARENT is itself still fading in (same wavefront), start a
-        // step after it so the green flows OUTWARD strand-by-strand; an isolated breach starts now.
-        let start = now;
-        if (staggerMs > 0 && n.parentId != null) {
-          const p = network.byId.get(n.parentId);
-          if (p && p.infected && p._infShownAt != null && p._infShownAt + fadeMs > now) start = p._infShownAt + staggerMs;
-        }
-        n._infShownAt = start;
-      }
-      const k = (now - n._infShownAt) / fadeMs;
+      if (!n.infected) return cream;
+      const at = n._infAt;
+      if (at == null || now < at) return cream;     // the creeping front hasn't reached this strand yet
+      const k = (now - at) / fadeMs;
       if (k >= 1) return r.infected;
-      if (k <= 0) return cream;                 // staggered — the creeping wave hasn't reached this strand yet
       return `rgb(${Math.round(fil[0] + (infRgb[0] - fil[0]) * k)},${Math.round(fil[1] + (infRgb[1] - fil[1]) * k)},${Math.round(fil[2] + (infRgb[2] - fil[2]) * k)})`;
     };
     const AGE_FULL = 7;
@@ -11070,6 +11111,7 @@ class NetworkRenderer {
     // the array — so index/count assumptions misfire and would flash the new growth.
     // Keying off identity is robust to any add+remove mix in one frame gap.
     this._now = time;
+    this._scheduleInfection(time);   // hand each newly-rotten strand its moment to turn green (creeping front)
     const nodes = net.nodes;
     if (!this._revealReady) {
       for (const n of nodes) n._revSeen = true;     // first frame: everything present is baseline (instant)
@@ -16988,12 +17030,27 @@ function needsFullRate(time) {
 // played (run over / win resolving / a level intro / the tutorial / a full-screen menu).
 // Otherwise it just keeps moving.
 let _lastSimTime = -1, _simAccum = 0, _lastMouldBakeAt = -1e9;
+// True once THIS offer's draft is actually on screen (or on its way in): updateDraftIntro
+// runs the pile → draft intro as wait → leaf → done, and only at 'done' does it hand off to
+// ui.releaseOffer — the glyph rising and morphing into the card panel. Before that the offer
+// is merely queued (the pile was just finished), so the game shouldn't be frozen yet.
+// An offer with no captured pile centre skips the intro (phase 'done' immediately).
+function draftSequenceStarted(offer) {
+  if (!offer) return false;
+  if (!offer.center) return true;                       // no intro to play — the panel shows at once
+  if (!draftIntro || draftIntro.offer !== offer) return false;
+  return draftIntro.phase === 'done';
+}
 function simPaused() {
   if (!state || !state.substrate || !state.active) return true;
   if (state.runOver || state.winPending) return true;
-  // The explicit rule: a pending card DRAFT freezes time until the player picks one.
+  // The explicit rule: a card DRAFT freezes time until the player picks one — but only once
+  // the draft SEQUENCE has actually begun. Finishing a pile queues the offer immediately,
+  // while the intro still has to let the grow animation finish and the glyph rise
+  // (updateDraftIntro's wait → leaf → done machine); time keeps running through that, and
+  // only stops when the cards are actually on screen waiting to be chosen.
   const c = state.cards;
-  if (c && c.pendingOffers && c.pendingOffers.length) return true;
+  if (c && c.pendingOffers && c.pendingOffers.length && draftSequenceStarted(c.pendingOffers[0])) return true;
   // Non-gameplay overlays: the "Level N" intro, the scripted tutorial, full-screen menus.
   if (pendingLevelIntro || levelIntro) return true;
   if (tutorial && tutorial.active) return true;
