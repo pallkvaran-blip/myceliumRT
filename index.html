@@ -12775,21 +12775,17 @@ class UI {
         + `<h2>Choose one</h2>`
         + `<div class="offerrow">${cards}</div>`
         + `<div class="handpreview offerpreview hidden" id="offerpreview"></div>`
-        + `<p class="small dim offerhelp">Double-click a card to draft it.</p>`
+        + `<p class="small dim offerhelp">Click a card to draft it.</p>`
         + `</div>`;
-      // Single click selects/previews; a DOUBLE click drafts it straight to hand
-      // (mirrors the hand's double-tap-to-play). Detected off `click` so it behaves
-      // the same on mouse and touch.
+      // ONE click drafts the card straight to hand. (It used to need a double click, with
+      // the first click only selecting — an easy thing to miss while the world is frozen
+      // waiting on you.) Hovering still previews what a card grants, on desktop; touch has
+      // no hover, so a tap simply drafts.
       el.querySelectorAll('.offercard').forEach((btn) => {
-        btn.onclick = () => {
-          const name = btn.dataset.name;
-          const now = Date.now();
-          const last = this._lastOfferTap;
-          const isDouble = last && last.name === name && now - last.t < 320;
-          this._lastOfferTap = isDouble ? null : { name, t: now };
-          if (isDouble) this.pickOffer(name);
-          else this.armOffer(name);
-        };
+        const name = btn.dataset.name;
+        btn.onclick = () => this.pickOffer(name);
+        btn.onmouseenter = () => { if (this.armedOffer !== name) { this.armedOffer = name; this._paintOffer(); } };
+        btn.onmouseleave = () => { if (this.armedOffer === name) { this.armedOffer = null; this._paintOffer(); } };
       });
       const minBtn = el.querySelector('#offerminbtn');
       if (minBtn) minBtn.onclick = () => this.minimizeOffer();
@@ -15699,9 +15695,13 @@ let lastTapTime = 0, lastTapX = 0, lastTapY = 0; // double-tap-to-refit
 // direction. Null when not aiming. See beginAim/updateAim/fireAim + drawAimLine.
 let aim = null;
 const AIM_MIN_PX = 12;                // drag this far (screen) to register a direction
-// Press within this (screen px) of the colony to AIM; press farther and the gesture
-// PANS the map instead — so the player can reposition the view without cancelling.
-const AIM_NEAR_PX = 90;
+// Press within this radius of a living strand to AIM; press farther and the gesture PANS the
+// map instead — so the player can still reposition the view without cancelling. Growth starts
+// from the strand NEAREST the press, so you never have to hit the colony exactly, just get
+// near it: the radius is deliberately generous, and grows with zoom so it stays a comfortable
+// grab area at any scale (zoomed out, 170px already covers a wide swathe of the world). It
+// only applies while a directional grow is armed, so ordinary panning is unaffected.
+const aimNearPx = () => Math.max(170, Math.min(420, 260 * camera.zoom));
 // CANCELLING an aim. Dragging FAR no longer cancels (you often want to grow a long way):
 // the only two ways out are to drag off the screen entirely, or — having already aimed —
 // to pull back to within this radius of where you pressed. Coming back out past it re-arms
@@ -16977,11 +16977,13 @@ function beginAim(e) {
   const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
   const w = camera.screenToWorld(sx, sy);
   const src = (state.active && state.active.nearestNode(w.x, w.y)) || { x: w.x, y: w.y };
-  // Press FAR from the colony → don't aim; let the gesture PAN the map instead (the
-  // player repositions the view without having to cancel the armed card first). Only
-  // a press near a living strand starts an aim, snapping the origin to that strand.
+  // Press well away from the colony → don't aim; let the gesture PAN the map instead (the
+  // player repositions the view without having to cancel the armed card first). Anywhere
+  // WITHIN the (generous, zoom-aware) radius of a living strand starts an aim and snaps the
+  // origin to that strand — so pressing "near enough" is all it takes, rather than having to
+  // land exactly on a filament, which was easy to miss when zoomed out.
   const ss = camera.worldToScreen(src.x, src.y);
-  if (Math.hypot(sx - ss.x, sy - ss.y) > AIM_NEAR_PX) { aim = null; return; }
+  if (Math.hypot(sx - ss.x, sy - ss.y) > aimNearPx()) { aim = null; return; }
   const reachRef = t.kind === 'card' ? t.ref.name : state.cards.actions[t.ref];
   aim = {
     kind: t.kind, ref: t.ref,
@@ -17247,6 +17249,12 @@ function needsFullRate(time) {
 // played (run over / win resolving / a level intro / the tutorial / a full-screen menu).
 // Otherwise it just keeps moving.
 let _lastSimTime = -1, _simAccum = 0, _lastMouldBakeAt = -1e9;
+// WORLD ANIMATION CLOCK: accumulated UNPAUSED time. Creature motion that reads as the world
+// moving (the ant column marching, the worms' wriggle) is driven off this instead of the raw
+// frame time, so when the clock stops for a draft they visibly stop too — otherwise ants keep
+// streaming along their trails and it looks like time is still running.
+let _worldTime = 0;
+function worldAnimTime() { return _worldTime; }
 // True once THIS offer's draft is actually on screen (or on its way in): updateDraftIntro
 // runs the pile → draft intro as wait → leaf → done, and only at 'done' does it hand off to
 // ui.releaseOffer — the glyph rising and morphing into the card panel. Before that the offer
@@ -17286,6 +17294,9 @@ function advanceSim(time) {
   // so the render interpolation (renderAlpha) freezes in place instead of snapping back.
   const paused = simPaused();
   state._simPaused = paused;   // the HUD's cadence bars hold their fill while time is frozen
+  // Advance the world animation clock only while unpaused (clamped so a tab-away doesn't
+  // teleport the ant column), so every creature freezes together with the sim.
+  if (!paused && dt > 0) _worldTime += Math.min(dt, 250);
   if (!(dt > 0) || paused) return;
   const step = rt.stepMs || 500;
   const maxN = rt.maxCatchUpTicks || 3;
@@ -18006,7 +18017,8 @@ function drawAnts(time) {
         // Absolute spacing means growing the trail just adds ants at the far end.)
         const SP = cs * 1.9;                                    // spacing between ants in a lane (world units)
         const speed = cs * 1.7;                                 // marching speed (world units / sec) — length-independent
-        const march = ((time * 0.001 * speed) % SP + SP) % SP;  // 0..SP, advances at constant speed
+        const wt = worldAnimTime();                             // frozen while the world clock is
+        const march = ((wt * 0.001 * speed) % SP + SP) % SP;    // 0..SP, advances at constant speed
         const pts = weave.pts, vw = camera.viewW, vh = camera.viewH;
         // Walk each lane along the WHOLE trail. A trail now grows cumulatively pile-to-pile, so
         // it can get very long — capping the ant COUNT (as this did) left the far half of the
@@ -19539,7 +19551,7 @@ function drawNematodes(time) {
     for (let i = 0; i <= segs; i++) {
       const f = i / segs;
       const along = (f - 0.5) * len;
-      const off = Math.sin(time * 0.0035 + (w.phase || 0) + f * 6) * wig;   // gentle wriggle (~50% slower = less frantic)
+      const off = Math.sin(worldAnimTime() * 0.0035 + (w.phase || 0) + f * 6) * wig;   // gentle wriggle (~50% slower = less frantic); frozen while the world clock is
       const x = sp.x + dx * along + px * off, y = sp.y + dy * along + py * off;
       if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
