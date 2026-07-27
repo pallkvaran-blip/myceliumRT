@@ -6261,7 +6261,13 @@ class Network {
     }
     if (!liveCount) return 0;
 
-    const isFood = (cell) => cell && cell.maxNutrient > 0 && !cell.rock && !cell.hazard;
+    // LIVE food only. This used to test `maxNutrient` — the pile's ORIGINAL footprint — so a
+    // pile a threat had already stripped (ants drain `nutrient` and leave the footprint behind;
+    // the leaves have visibly faded out) still read as food: the colony would bridge a runner in
+    // and spray a mat through empty ground "as if it were still there". Keying off the live
+    // `nutrient` means what's gone is gone, and a part-eaten pile claims only the cells that
+    // actually still hold food.
+    const isFood = (cell) => cell && cell.nutrient > 0 && !cell.rock && !cell.hazard;
     const seen = new Set();
     let created = 0;
     for (let idx = 0; idx < substrate.cells.length; idx++) {
@@ -9292,6 +9298,14 @@ function tickWorld(state) {
 
   for (const net of state.networks) {
     if (!net.alive) continue;
+
+    // 0) REAL-TIME: re-decide where the colony spreads EVERY tick, not just at the moment a
+    //    grow is played. The old turn-based flow settled colonisation once per grow and then
+    //    merely animated it in, so a pile a threat ate during that window was still claimed.
+    //    Deciding here — right after the threats have acted — means the choice is always made
+    //    against the food that is actually still on the map: a pile just finished off by ants
+    //    or mould is no longer claimable, and one that has come into reach is taken promptly.
+    net.colonizeReachablePiles(substrate, state.rng);
 
     // 1) Passive income from occupied substrate (depletes those patches).
     resolveIncome(net, substrate, config);
