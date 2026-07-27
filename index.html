@@ -6782,10 +6782,11 @@ const __m_engine_threats = (function () {
 // Threats — Trichoderma, the one Phase 1 threat (A2/A5, B6).
 //
 // Trichoderma is modelled as a small number of discrete, roughly fixed-size
-// CLOUDS that roam the cross-section:
+// CLOUDS scattered through the cross-section:
 //   - Each cloud PREFERS your mycelium: if a strand is in sight it heads there;
 //     otherwise it creeps toward the nearest food source it can SEE (rock blocks
 //     a cloud's line of sight, so food/strands behind a boulder stay hidden).
+//     With NOTHING in sensing range a cloud simply sits still — it never wanders.
 //   - It devours the substrate it passes over a couple of cells ("leaves") per
 //     round (config leavesPerRound), so a pile takes several rounds to finish —
 //     the more leaves in the pile, the longer. Eating barely grows the cloud.
@@ -6973,7 +6974,7 @@ function spreadTrichoderma(state) {
     // a cloud's senses): PREFER mycelium — if any colony strand is visible, head for
     // the nearest one even when a food pile is closer (you're tastier). Only when no
     // strand is in range does it home in on the nearest visible FOOD pile. Nothing
-    // visible → roam. (sightRadius is shown on screen; LOS tested on improvement.)
+    // visible → it STAYS PUT. (sightRadius is shown on screen; LOS tested on improvement.)
     const step = t.moveSpeed * cs;
     let tx = null, ty = null, best = t.sightRadius * t.sightRadius;
     for (const nd of nodes) {   // (1) mycelium preference
@@ -6995,12 +6996,13 @@ function spreadTrichoderma(state) {
       cloud.heading = Math.atan2(dy, dx);
       moveCloud(cloud, dx / dist, dy / dist, Math.min(dist, step), sub);
     } else {
-      // Nothing sensed — roam; turn away when a rock or the world edge blocks it.
-      if (cloud.heading == null) cloud.heading = rng.range(0, Math.PI * 2);
-      cloud.heading += rng.range(-0.4, 0.4);
-      const moved = moveCloud(cloud, Math.cos(cloud.heading), Math.sin(cloud.heading), step, sub);
-      if (!moved) cloud.heading += rng.range(2, 4); // blocked — pick a new way
+      // Nothing within sensing range — HOLD POSITION. A cloud only ever moves toward a
+      // target it can actually see (food or your mycelium, with clear line of sight); it no
+      // longer drifts around at random, so an idle cloud stays put until something comes
+      // into range (same rule the nematodes follow).
+      cloud.sees = false;
     }
+    if (tx != null) cloud.sees = true;
 
     // Devour the substrate it covers: cells within reach are eaten WHOLE, so the
     // pile visibly shrinks cell-by-cell as the cloud crawls across it. Eating
@@ -7326,7 +7328,19 @@ function stepAnts(state) {
       let cell = nest.target ? sub.cellAt(nest.target.col, nest.target.row) : null;
       if (!cell || cell.nutrient <= 0 || cell.antProof > 0) {
         retarget(sub, nest);
-        nest.dormant = !nest.target;                        // dormant only if no food is reachable at all
+        if (!nest.target) {
+          // Nothing reachable from out here — the column WALKS HOME instead of standing on a
+          // dead trail: retract the far end a little each tick. That keeps ants on whatever
+          // line is still drawn (never a trail with no ants on it, running nowhere), and
+          // because the next retarget searches from the new, closer end, a nest that was
+          // boxed in behind rock finds food again as it backs out. Empty trail → dormant.
+          nest.path = plan.slice(0, Math.max(0, plan.length - extend));
+          nest.built = Math.max(0, nest.path.length - 1);
+          if (nest.path.length < 2) { nest.path = []; nest.built = 0; nest.dormant = true; }
+          else nest.dormant = false;
+        } else {
+          nest.dormant = false;
+        }
       } else {
         cell.nutrient = Math.max(0, cell.nutrient - a.harvestRate);
         nest.dormant = false;
@@ -7395,8 +7409,9 @@ function retarget(sub, nest) {
     }
     nest.dormant = false;
   } else {
+    // Nothing reachable from here. The line is left as-is; stepAnts then RETRACTS it a little
+    // each tick (the column walking home) and re-runs this search from the new, closer end.
     nest.target = null;
-    nest.dormant = true;                                                   // keep nest.path — the line holds where it is
   }
 }
 
