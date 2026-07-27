@@ -5184,6 +5184,13 @@ class Network {
       health: 1,
       age: 0,
       infected: false,   // overrun by Trichoderma (green/dead)
+      // REAL-TIME: a grow commits its WHOLE path at once and the render layer then animates
+      // it in over ~1–3s. So a strand is not PHYSICALLY there yet — Infinity keeps it out of
+      // every "the colony reaches here" decision until the render layer's reveal scheduler
+      // (NetworkRenderer.scheduleReveal) replaces this with the moment it finishes growing in.
+      // Without it, a long grow would claim and digest a pile at the far end of its path the
+      // instant the card was played, and a run of piles would all pop at once.
+      _liveAt: Infinity,
     };
     this.nodes.push(node);
     this.byId.set(node.id, node);
@@ -6250,11 +6257,21 @@ class Network {
     const reachCells = Math.ceil(g.sensingRadius / cs) + 1;
     const key = (c, r) => c + ',' + r;
 
+    // Only strands that have actually GROWN IN can reach a pile. A grow commits its whole
+    // path in one go and the render layer animates it in afterwards, so without this a pile
+    // at the far end would be claimed and digested the instant the card was played — and a
+    // long grow crossing several piles would pop them all at once instead of one at a time
+    // as the front passes each. `_liveAt` is when a strand finishes appearing (set by
+    // NetworkRenderer.scheduleReveal); `_nowMs` is unset until the render layer has
+    // scheduled at least once (headless), in which case nothing is gated.
+    const nowMs = this._nowMs;
+    const grownIn = (n) => nowMs == null || n._liveAt == null || nowMs >= n._liveAt;
+
     // Bucket living strands by cell for a bounded nearest-node search.
     const buckets = new Map();
     let liveCount = 0;
     for (const n of this.nodes) {
-      if (n.infected) continue;
+      if (n.infected || !grownIn(n)) continue;
       liveCount++;
       const b = key(substrate.colAtX(n.x), substrate.rowAtY(n.y));
       let arr = buckets.get(b); if (!arr) buckets.set(b, (arr = [])); arr.push(n);
@@ -11126,25 +11143,7 @@ class NetworkRenderer {
     // Keying off identity is robust to any add+remove mix in one frame gap.
     this._now = time;
     this._scheduleInfection(time);   // hand each newly-rotten strand its moment to turn green (creeping front)
-    const nodes = net.nodes;
-    if (!this._revealReady) {
-      for (const n of nodes) n._revSeen = true;     // first frame: everything present is baseline (instant)
-      this._revealReady = true;
-    } else {
-      let count = 0;
-      for (const n of nodes) if (!n._revSeen) count++;
-      if (count > 0) {
-        const spread = Math.min(REVEAL_SPREAD_MAX, Math.max(REVEAL_SPREAD_MIN, count * 55));
-        let k = 0;
-        for (const n of nodes) {                    // array order = base→tip among the new nodes
-          if (n._revSeen) continue;
-          n._appearAt = time + (k / count) * spread;
-          n._revSeen = true;
-          k++;
-        }
-        playGrowBurst(count, spread);               // layered grow SFX, staggered across the same reveal window
-      }
-    }
+    this.scheduleReveal(time);       // stagger freshly-grown strands in, and record when each is really there
     // Steady brightness — no global "breathing" (the constant brightening/dimming
     // made the whole map pulse and was hard to look at). Appearance is also
     // INDEPENDENT of vitality (that stays a HUD/gameplay stat only), so the
@@ -11214,6 +11213,45 @@ class NetworkRenderer {
     }
     ctx.restore();
     ctx.globalAlpha = 1;
+  }
+
+  // --- Growth reveal scheduling ---------------------------------------------
+  // Stamp freshly-grown nodes with a staggered `_appearAt` so a grow animates in over
+  // ~1–3s. New nodes are detected by IDENTITY (a per-node `_revSeen` flag), not by a
+  // node-count delta: a grow and a threat-removal can both land between the same two
+  // frames (the action appends nodes, then tickWorld lets nematodes/ants/starvation prune
+  // others in the same handler), and _removeNodes compacts the array — so index/count
+  // assumptions misfire and would flash the new growth. Keying off identity is robust to
+  // any add+remove mix in one frame gap.
+  //
+  // It also records, per strand, the moment it finishes growing in (`node._liveAt`) plus
+  // the current clock on the NETWORK (`net._nowMs`). The engine reads those to gate "the
+  // colony reaches here" decisions (see colonizeReachablePiles), so a long grow's effects
+  // land as the front arrives rather than the instant the card is played. Called from
+  // draw() and — crucially — from advanceSim() BEFORE the world ticks, so growth added
+  // since the last frame is scheduled before the sim acts on it.
+  scheduleReveal(time) {
+    const net = this.network;
+    net._nowMs = time;
+    const nodes = net.nodes;
+    if (!this._revealReady) {
+      for (const n of nodes) { n._revSeen = true; n._liveAt = 0; }   // first frame: baseline, already grown in
+      this._revealReady = true;
+      return;
+    }
+    let count = 0;
+    for (const n of nodes) if (!n._revSeen) count++;
+    if (count === 0) return;
+    const spread = Math.min(REVEAL_SPREAD_MAX, Math.max(REVEAL_SPREAD_MIN, count * 55));
+    let k = 0;
+    for (const n of nodes) {                    // array order = base→tip among the new nodes
+      if (n._revSeen) continue;
+      n._appearAt = time + (k / count) * spread;
+      n._liveAt = n._appearAt + REVEAL_SEG;     // physically there only once it has finished growing in
+      n._revSeen = true;
+      k++;
+    }
+    playGrowBurst(count, spread);               // layered grow SFX, staggered across the same reveal window
   }
 
   // Reveal factor for a node at the current frame time, matching the strand
@@ -17084,6 +17122,13 @@ function advanceSim(time) {
   if (!(dt > 0) || simPaused()) return;
   const step = rt.stepMs || 500;
   const maxN = rt.maxCatchUpTicks || 3;
+  // Schedule the reveal for any growth added since the last frame BEFORE the world ticks:
+  // the engine gates "the colony reaches here" on when each strand finishes growing in
+  // (Network node `_liveAt`), so it must be stamped before the sim can act on it.
+  for (const net of state.networks) {
+    const rend = networkRenderers.get(net.id);
+    if (rend && rend.scheduleReveal) rend.scheduleReveal(time);
+  }
   _simAccum += dt;
   let ticks = 0;
   while (_simAccum >= step && ticks < maxN && !simPaused()) {
