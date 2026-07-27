@@ -1823,12 +1823,11 @@ const CONFIG = {
     cloudRadiusMax: 1.3,         // HARD cap — a cloud never grows big, however much it eats
     growthPerEat: 0.02,          // radius gained per action it's eating (tiny — stays ~the same size)
     sightRadius: 500,            // how far (world units) a cloud senses food/you and heads for it; rock blocks line of sight (SLIDER); shown on screen as a soft ring
-    moveSpeed: 1.5,              // cells per ACTION a cloud creeps toward its nearest target (SLIDER)
+    moveSpeed: 0.75,             // cells per tick a cloud creeps toward its nearest target — RT: slowed 50% (was 1.5) (SLIDER)
     consumeReachMult: 2.2,       // cells within (cloud radius × this) are eligible to be eaten each action
-    leavesPerRound: 0.25,        // AVERAGE food cells ("leaves") a cloud clears per round/tick (may be fractional —
-                                 //   accumulated in a per-cloud budget, nearest cells first). RT-tuned: ~1 cell every
-                                 //   4 ticks, so a typical ~5-cell pile is devoured in ~20 ticks ≈ 10 s at the
-                                 //   500 ms real-time step (scales with pile size).
+    leavesPerRound: 0.175,       // AVERAGE food cells ("leaves") a cloud clears per round/tick (may be fractional —
+                                 //   accumulated in a per-cloud budget, nearest cells first). RT: eating slowed 30%
+                                 //   (was 0.25), so a typical ~5-cell pile now takes ~14 s of mould contact to devour.
     fadeTurns: 3,                // after infecting you, a cloud dies off and vanishes over this many steps (actions or end-turns)
     seedMinColonyDistFrac: 0.2,  // clouds seed in OPEN ground at least this fraction of the map-width from the colony, so they visibly creep IN toward food/you
     respawnChance: 0.12,         // per action, chance a faded cloud is replaced by a fresh one creeping in (keeps the threat present)
@@ -1910,8 +1909,8 @@ const CONFIG = {
     initialCount: 3,             // wandering worms seeded per sandbox map
     seedMinColonyDistFrac: 0.25, // seed at least this fraction of the map from the colony
     sightRadius: 500,            // detection range (matches the mould's); rock blocks line of sight (SLIDER)
-    crawlSpeed: 3.0,             // cells/tick toward a sensed strand — fast (SLIDER)
-    wanderSpeed: 1.0,            // cells/tick while searching
+    crawlSpeed: 0.75,            // cells/tick toward a sensed strand — RT: slowed 75% (was 3.0) so worms creep in (SLIDER)
+    wanderSpeed: 0.25,           // cells/tick while searching — RT: slowed 75% (was 1.0) to match
     reach: 0.7,                  // cells: how close to a strand before it feeds
     eatEveryTicks: 0,            // cooldown ticks between bites: a feeding worm eats a strand,
                                  //   then waits this many ticks — so it devours one every N+1
@@ -10084,7 +10083,7 @@ class SubstrateRenderer {
     // behind the tilted sprites as stray dark slabs. Without the sprites we bake
     // the procedural rock as the fallback so it's never invisible.
     let haveForm = false;
-    for (let i = 1; i <= 22; i++) { if (hasAsset('rockform' + i)) { haveForm = true; break; } }
+    for (let i = 1; i <= 14; i++) { if (hasAsset('rockform' + i)) { haveForm = true; break; } }
     if (haveForm) return;
     sub.forEachCell((cell, col, row) => { if (cell.rock && !cell.water) cells.push([col, row]); });
     if (!cells.length) return;
@@ -18137,7 +18136,7 @@ function drawBoulder(c, palette, k, mult, cs, z) {
 // to the patch's footprint and embedded into the earth so its base melts into
 // the soil rather than sitting on top. Distinct sprites per map (seeded), no
 // piling. Falls back to piled boulders when the sprites are absent.
-const ROCKFORM_KEYS = Array.from({ length: 22 }, (_, i) => 'rockform' + (i + 1));
+const ROCKFORM_KEYS = Array.from({ length: 14 }, (_, i) => 'rockform' + (i + 1));
 let _formState = null, _formGroups = null;
 function formationGroups() {
   if (_formState === state) return _formGroups;
