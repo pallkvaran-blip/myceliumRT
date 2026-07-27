@@ -1696,6 +1696,9 @@ const CONFIG = {
     softCapPhosphorus: 999,      //   keeps paying off and you can bank resources for big plays
 
     engineEnergyClamp: 11,       // total installed energy-engine output/round is clamped below skip
+    engineSlow: 3,               // RT: income engines produce once every N world ticks (not every tick), so all
+                                 //   engine income (energy/water/phosphorus + every/dig cadences + Magic conjure)
+                                 //   accrues ~3x slower — it was ramping too fast at the 500 ms real-time step
     // resource harvest amounts (used by harvest-card effects)
     harvestWaterLake: 9,         // Hyphal Osmosis at a lake edge
     harvestWaterSoil: 3,         // …off a lake
@@ -1838,7 +1841,8 @@ const CONFIG = {
     growInfectThreshold: 0.05,   // a strand standing in a trich-field cell ≥ this is infected on the spot (growing INTO mould) — so it can't fruit/win at the goal
     contactChunk: 4,             // the breach instantly claims this many rings of mycelium
     growInfectBurst: 18,         // growing a strand INTO mould instantly rots this many rings (≈6 grow-steps) in EVERY direction from each caught node, so a long grow can't outrun the rot with a white tip past the cloud (SLIDER)
-    spreadDepthPerTurn: 3,       // once inside, the rot races this many rings along your filaments each tick — RT: halved from 6 so the rot spreads 50% slower
+    spreadDepthPerTurn: 1.5,     // rings/tick the rot races along your filaments — RT: 6 → 3 → 1.5 (halved again). May be
+                                 //   fractional; infectNetwork accumulates it and advances whole rings only, carrying the rest.
     infectionSpreadChance: 0.85, // chance the rot takes each step of that race (SLIDER) — high = real consequences
   },
 
@@ -1986,9 +1990,11 @@ const CONFIG = {
     trich: '#8aa23e',
     trichSpore: '#d2e074',
     infected: '#a6c63a',         // a strand the mould has overrun (green/dead)
-    infectFadeMs: 800,           // ms a newly-overrun strand takes to fade from cream → infected green,
-                                 //   so the rot creeps in gradually instead of popping in a chunk each tick
-                                 //   (detail-zoom rendering only; the zoomed-out LOD still snaps)
+    infectFadeMs: 2500,          // ms a newly-overrun strand takes to fade from cream → infected green — long, so
+                                 //   the rot eases in very gradually (overlapping fades read as a continuous creep)
+    infectStaggerMs: 220,        // extra ms each strand waits after its (still-fading) parent before it starts —
+                                 //   makes the green flow OUTWARD along the strands, one after another, not as a chunk
+                                 //   (fade + stagger are detail-zoom rendering only; the zoomed-out LOD still snaps)
     warded: '#2f5fe6',           // a strand hardened/warded by a defense card — a deep blue "crust",
                                  //   distinct from the pale-mint colony and yellow-green mould
     // the living network (luminous accent — the brightest thing on screen)
@@ -7086,9 +7092,16 @@ function infectNetwork(net, state) {
   }
 
   // 2) Internal spread — the rot races along the filaments from the whole front.
-  const front = [];
-  for (const n of net.nodes) if (n.infected) front.push(n);
-  for (const n of front) infectAround(net, n, t.spreadDepthPerTurn, t.infectionSpreadChance, rng, sub);
+  // spreadDepthPerTurn may be FRACTIONAL (< 1 ring/tick) for a slow creep, so accumulate it
+  // and only advance whole rings when at least one has built up (carry the remainder).
+  net._spreadAccum = (net._spreadAccum || 0) + t.spreadDepthPerTurn;
+  const rings = Math.floor(net._spreadAccum);
+  if (rings > 0) {
+    net._spreadAccum -= rings;
+    const front = [];
+    for (const n of net.nodes) if (n.infected) front.push(n);
+    for (const n of front) infectAround(net, n, rings, t.infectionSpreadChance, rng, sub);
+  }
 }
 
 // Growing INTO active mould infects you FIRST. Any healthy strand standing in a
@@ -8394,8 +8407,16 @@ function produceCardEngines(state) {
   const net = state.active; if (!net || !net.alive) return;
   const cc = state.config.cards;
   updateWaterSourceEngine(state);        // sync the lake/reservoir water trickle before producing
+  // RT: run the income engines on a SLOWER clock than the world — resources accrued ~3x too
+  // fast at 2 ticks/sec. Only every `engineSlow` world ticks do the engines produce (and their
+  // every/dig/Magic cadences advance), uniformly slowing all engine income. Player-activated
+  // ability cooldowns (further down) still tick every world turn.
+  const slow = Math.max(1, cc.engineSlow || 1);
+  C._engTick = (C._engTick || 0) + 1;
+  const engineDue = C._engTick >= slow;
+  if (engineDue) C._engTick = 0;
   let energySum = 0;
-  for (const e of C.engines) {
+  if (engineDue) for (const e of C.engines) {
     // Cadence: an engine with `every > 1` produces only every N rounds (ticks).
     let due = true;
     if (e.every && e.every > 1) {
@@ -8426,7 +8447,7 @@ function produceCardEngines(state) {
   // in hand — free, and immune to tempo upgrades because it lives here on the tick clock
   // (not in the engines/actions lists), so nothing can hurry it. produceCardEngines runs
   // exactly once per tick (turn.js), and a tick is the only way turns advance.
-  if (C.special === 'magic') {
+  if (engineDue && C.special === 'magic') {
     const every = C.magicEvery || 4;
     C.magicCountdown = (C.magicCountdown != null ? C.magicCountdown : every) - 1;
     if (C.magicCountdown <= 0) {
@@ -10907,16 +10928,26 @@ class NetworkRenderer {
     // infectFadeMs (stamped renderer-side the first frame it's seen infected), so the rot
     // eases in continuously instead of a chunk of strands snapping green each world tick.
     const infRgb = hexToRgb(r.infected);
-    const fadeMs = r.infectFadeMs != null ? r.infectFadeMs : 800;
+    const fadeMs = r.infectFadeMs != null ? r.infectFadeMs : 2500;
+    const staggerMs = r.infectStaggerMs != null ? r.infectStaggerMs : 0;
     const now = this._now || 0;
     const strandColor = (n) => {
       if (n._protected) return warded;
       if (!n.infected) { if (n._infShownAt != null) n._infShownAt = null; return cream; }
-      if (n._infShownAt == null) n._infShownAt = now;
+      if (n._infShownAt == null) {
+        // Creep: if this strand's PARENT is itself still fading in (same wavefront), start a
+        // step after it so the green flows OUTWARD strand-by-strand; an isolated breach starts now.
+        let start = now;
+        if (staggerMs > 0 && n.parentId != null) {
+          const p = network.byId.get(n.parentId);
+          if (p && p.infected && p._infShownAt != null && p._infShownAt + fadeMs > now) start = p._infShownAt + staggerMs;
+        }
+        n._infShownAt = start;
+      }
       const k = (now - n._infShownAt) / fadeMs;
       if (k >= 1) return r.infected;
-      const t = k > 0 ? k : 0;
-      return `rgb(${Math.round(fil[0] + (infRgb[0] - fil[0]) * t)},${Math.round(fil[1] + (infRgb[1] - fil[1]) * t)},${Math.round(fil[2] + (infRgb[2] - fil[2]) * t)})`;
+      if (k <= 0) return cream;                 // staggered — the creeping wave hasn't reached this strand yet
+      return `rgb(${Math.round(fil[0] + (infRgb[0] - fil[0]) * k)},${Math.round(fil[1] + (infRgb[1] - fil[1]) * k)},${Math.round(fil[2] + (infRgb[2] - fil[2]) * k)})`;
     };
     const AGE_FULL = 7;
     const { minX, maxX, minY, maxY } = cull;
