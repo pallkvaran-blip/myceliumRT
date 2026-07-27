@@ -1,0 +1,241 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mycelium RT — card timing review</title>
+<style>
+  :root {
+    --bg: #0a0e14; --panel: #131a24; --panel-2: #0f151d; --line: #243040;
+    --ink: #dce7df; --dim: #8fa398; --accent: #7fe6a3; --warn: #e0a85a;
+    --water: #7fd0e0; --phos: #c79be6; --energy: #7fe6a3; --danger: #e06a6a;
+  }
+  * { box-sizing: border-box; }
+  /* The game's own display serif, so the tool reads as part of it; system faces only, since
+     the artifact CSP blocks font CDNs and a silent fallback would undo the pairing. */
+  :root { --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+          --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+  h1, .sum-n { font-family: var(--serif); font-weight: 600; }
+  a { color: var(--accent); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 22px 18px 120px; }
+  h1 { font-size: 25px; margin: 0 0 5px; letter-spacing: .005em; text-wrap: balance; }
+
+  /* Summary before detail: what needs attention, in form as well as number. */
+  .sum { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 16px; }
+  .sum > div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 14px; min-width: 116px; }
+  .sum-n { font-size: 23px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .sum-l { font-size: 11.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--dim); margin-top: 3px; }
+  .sum .hi .sum-n { color: var(--danger); }
+  .sum .md .sum-n { color: var(--warn); }
+  .sum .dn .sum-n { color: var(--accent); }
+
+  .sevpill { font-family: var(--mono); font-size: 10.5px; letter-spacing: .04em; border-radius: 5px;
+    padding: 1px 6px; border: 1px solid var(--line); color: var(--dim); }
+  .sevpill.high { color: var(--danger); border-color: rgba(224,106,106,.45); background: rgba(224,106,106,.10); }
+  .sevpill.mid { color: var(--warn); border-color: rgba(224,168,90,.42); background: rgba(224,168,90,.08); }
+  .card.sev-high { border-left: 3px solid rgba(224,106,106,.65); }
+  .card.sev-mid { border-left: 3px solid rgba(224,168,90,.55); }
+  .sub { color: var(--dim); font-size: 13px; margin: 0 0 18px; }
+  .sub b { color: var(--ink); font-weight: 600; }
+
+  .bar { position: sticky; top: 0; z-index: 5; background: rgba(10,14,20,.94);
+    backdrop-filter: blur(6px); border-bottom: 1px solid var(--line);
+    margin: 0 -18px 18px; padding: 12px 18px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .bar input[type=search] { flex: 1 1 200px; min-width: 160px; background: var(--panel-2);
+    border: 1px solid var(--line); color: var(--ink); border-radius: 7px; padding: 7px 10px; font: inherit; }
+  .chip { background: var(--panel-2); border: 1px solid var(--line); color: var(--dim);
+    border-radius: 999px; padding: 6px 12px; font-size: 12.5px; cursor: pointer; }
+  .chip.on { border-color: var(--accent); color: var(--accent); background: rgba(127,230,163,.08); }
+  .count { color: var(--dim); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .count b { color: var(--accent); }
+  .btn { background: var(--panel); border: 1px solid var(--line); color: var(--ink);
+    border-radius: 7px; padding: 7px 12px; font: inherit; font-size: 12.5px; cursor: pointer; }
+  .btn:hover { border-color: var(--accent); }
+  .btn.ghost { color: var(--dim); }
+
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 13px 14px; }
+  .card.decided { border-color: rgba(127,230,163,.42); box-shadow: 0 0 0 1px rgba(127,230,163,.10) inset; }
+  .card.hidden { display: none; }
+  .hd { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+  .nm { font-weight: 650; font-size: 14.5px; }
+  .tag { font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim);
+    border: 1px solid var(--line); border-radius: 5px; padding: 1px 6px; }
+  .tag.cooldown { color: var(--warn); border-color: rgba(224,168,90,.4); }
+  .tag.income { color: var(--accent); border-color: rgba(127,230,163,.4); }
+  .tag.duration { color: var(--water); border-color: rgba(127,208,224,.4); }
+  .tag.modifier { color: var(--phos); border-color: rgba(199,155,230,.4); }
+  .eff { color: var(--ink); font-size: 13px; margin: 4px 0 8px; }
+  .meta { display: flex; gap: 12px; flex-wrap: wrap; color: var(--dim); font-size: 12px; margin-bottom: 9px;
+    font-variant-numeric: tabular-nums; }
+  .meta .e { color: var(--energy); } .meta .w { color: var(--water); } .meta .p { color: var(--phos); }
+  .time { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 11.5px; }
+  .time b { color: var(--warn); font-weight: 650; }
+  .hot { color: var(--danger); }
+
+  /* One row of five, always — a wrapped fifth button reads as a different control. */
+  .choices { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px;
+    border-top: 1px solid var(--line); padding-top: 10px; }
+  .choices button { background: var(--panel-2); border: 1px solid var(--line); white-space: nowrap;
+    color: var(--dim); border-radius: 7px; padding: 7px 2px; font: inherit; font-size: 11.5px; cursor: pointer; }
+  .choices button:hover { color: var(--ink); border-color: #35455a; }
+  .choices button.sel { background: rgba(127,230,163,.14); border-color: var(--accent); color: var(--accent); font-weight: 650; }
+  .choices button.sel.keep { background: rgba(224,168,90,.14); border-color: var(--warn); color: var(--warn); }
+
+  .out { margin-top: 22px; }
+  textarea { width: 100%; min-height: 190px; background: var(--panel-2); color: var(--ink);
+    border: 1px solid var(--line); border-radius: 9px; padding: 11px; font: 12.5px/1.5 ui-monospace, monospace; }
+  .foot { color: var(--dim); font-size: 12px; margin-top: 8px; }
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="wrap">
+  <h1>Card timing review</h1>
+  <p class="sub">Every cadence below is the <b>real time</b> the card now takes: one “round” is
+    <b>10s</b> (20 world ticks at 500ms).
+    <b>37</b> of 71 cards have a timing. Mark the overpowered ones as
+    <b>N× per level</b> instead of a timer — or leave them on the clock.
+    <br><span style="opacity:.8">Buttons: <b>Timer</b> keeps the clock; <b>1×–4×</b> means that many
+    uses per level, no cooldown. Click a chosen button again to clear it.</span></p>
+
+  <div class="sum">
+    <div><div class="sum-n">37</div><div class="sum-l">on a clock</div></div>
+    <div class="hi"><div class="sum-n">4</div><div class="sum-l">6×+ per level</div></div>
+    <div class="md"><div class="sum-n">0</div><div class="sum-l">3–5× per level</div></div>
+    <div class="dn"><div class="sum-n" id="sumDone">0</div><div class="sum-l">decided</div></div>
+  </div>
+
+  <div class="bar">
+    <input type="search" id="q" placeholder="Search name or effect…">
+    <button class="chip on" data-f="all">All</button>
+    <button class="chip" data-f="cooldown">Cooldowns</button>
+    <button class="chip" data-f="income">Income</button>
+    <button class="chip" data-f="duration">Durations</button>
+    <button class="chip" data-f="modifier">Speed-ups</button>
+    <button class="chip" data-f="hot">Fires 6×+</button>
+    <button class="chip" data-f="todo">Undecided</button>
+    <button class="chip" data-f="done">Decided</button>
+    <span class="count" id="count"></span>
+    <button class="btn" id="copy">Copy decisions</button>
+    <button class="btn ghost" id="reset">Reset</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="out">
+    <h1 style="font-size:15px">Decisions</h1>
+    <p class="sub">Paste this back to me and I'll implement it.</p>
+    <textarea id="json" readonly></textarea>
+    <p class="foot">Saved in this browser as you click, so you can close the page and come back.</p>
+  </div>
+</div>
+
+<script>
+const ROUND_SECONDS = 10;
+const ROWS = [{"name":"Metabolic Reroute","type":"action","cat":"engine","family":"phosphorus","threat":"none","energy":8,"buyP":0,"w":0,"p":0,"effect":"Once per 10s: choose Water or Phosphorus — spend 2 of the other to gain 1 of the other.","raw":"Once per round: choose Water or Phosphorus — spend 2 of the other to gain 1 of the other.","produces":"","kind":"cooldown","rounds":1,"seconds":10,"label":"10s","per2min":12,"sev":"high"},{"name":"Acorn Fall","type":"action","cat":"engine","family":"installs","threat":"none","energy":10,"buyP":1,"w":1,"p":0,"effect":"Once per 60s: pay 1 W to bury a small nut cache at the sensing edge.","raw":"Once per 6 rounds: pay 1 W to bury a small nut cache at the sensing edge.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Bulk-Flow Cord","type":"action","cat":"engine","family":"installs","threat":"none","energy":14,"buyP":4,"w":0,"p":1,"effect":"Once per 60s: pay 1 P to grow 5 steps in a chosen direction.","raw":"Once per 6 rounds: pay 1 P to grow 5 steps in a chosen direction.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Colonizing Front","type":"action","cat":"engine","family":"installs","threat":"none","energy":7,"buyP":1,"w":1,"p":0,"effect":"Once per 60s: pay 1 W to grow 2 steps toward all food in range.","raw":"Once per 6 rounds: pay 1 W to grow 2 steps toward all food in range.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Constricting Ring","type":"action","cat":"engine","family":"phosphorus","threat":"worm","energy":16,"buyP":4,"w":0,"p":3,"effect":"Once per 60s: tap a point where no nematode is within range; the first to enter is digested for +2 P.","raw":"Once per 6 rounds: tap a point where no nematode is within range; the first to enter is digested for +2 P.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Crust Reserve","type":"action","cat":"engine","family":"installs","threat":"none","energy":16,"buyP":3,"w":0,"p":2,"effect":"Once per 60s: pay 2 P to harden a patch, clearing mold and making it immune to infection for 100s.","raw":"Once per 6 rounds: pay 2 P to harden a patch, clearing mold and making it immune to infection for 10 rounds.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Explorer Cord","type":"action","cat":"engine","family":"installs","threat":"none","energy":17,"buyP":3,"w":1,"p":0,"effect":"Once per 60s: pay 1 W to grow 5 steps in a chosen direction.","raw":"Once per 6 rounds: pay 1 W to grow 5 steps in a chosen direction.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Forager Bloom","type":"action","cat":"engine","family":"installs","threat":"none","energy":4,"buyP":1,"w":1,"p":0,"effect":"Once per 60s: pay 1 W to grow 3 steps, fanning out in a chosen direction.","raw":"Once per 6 rounds: pay 1 W to grow 3 steps, fanning out in a chosen direction.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Leading Cord","type":"action","cat":"engine","family":"installs","threat":"none","energy":9,"buyP":3,"w":1,"p":0,"effect":"Once per 60s: pay 1 W to grow 3 steps in a chosen direction.","raw":"Once per 6 rounds: pay 1 W to grow 3 steps in a chosen direction.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Questing Front","type":"action","cat":"engine","family":"installs","threat":"none","energy":8,"buyP":0,"w":2,"p":0,"effect":"Once per 60s: pay 2 W to grow 5 steps toward the nearest food, even out of range.","raw":"Once per 6 rounds: pay 2 W to grow 5 steps toward the nearest food, even out of range.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Rhizomorph Cable","type":"action","cat":"engine","family":"installs","threat":"none","energy":20,"buyP":4,"w":2,"p":0,"effect":"Once per 60s: pay 2 W to grow 6 steps in a chosen direction.","raw":"Once per 6 rounds: pay 2 W to grow 6 steps in a chosen direction.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Sclerotial Rind","type":"action","cat":"engine","family":"defense","threat":"none","energy":10,"buyP":2,"w":0,"p":1,"effect":"Once per 60s: Pay 1 P to harden strands in a radius — immune to infection and eating for 100s.","raw":"Once per 6 rounds: Pay 1 P to harden strands in a radius — immune to infection and eating for 10 rounds.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Turgor Line","type":"action","cat":"engine","family":"installs","threat":"none","energy":13,"buyP":3,"w":1,"p":0,"effect":"Once per 60s: pay 1 W to grow 4 steps in a chosen direction.","raw":"Once per 6 rounds: pay 1 W to grow 4 steps in a chosen direction.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Vesicle Supply Line","type":"action","cat":"engine","family":"installs","threat":"none","energy":10,"buyP":3,"w":0,"p":1,"effect":"Once per 60s: pay 1 P to grow 4 steps in a chosen direction.","raw":"Once per 6 rounds: pay 1 P to grow 4 steps in a chosen direction.","produces":"","kind":"cooldown","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Melanized Wall","type":"action","cat":"engine","family":"defense","threat":"mould","energy":13,"buyP":2,"w":0,"p":3,"effect":"Once per 80s: Pay 3 P to tap a point to clear all infection and protect from reinfection for 100s.","raw":"Once per 8 rounds: Pay 3 P to tap a point to clear all infection and protect from reinfection for 10 rounds.","produces":"","kind":"cooldown","rounds":8,"seconds":80,"label":"80s","per2min":1.5,"sev":"low"},{"name":"Perennial Decoy","type":"action","cat":"engine","family":"defense","threat":"all","energy":10,"buyP":1,"w":1,"p":0,"effect":"Once per 80s: pay 1 W to drop a 1⚡ leaf-litter cache anywhere in sight.","raw":"Once per 8 rounds: pay 1 W to drop a 1⚡ leaf-litter cache anywhere in sight.","produces":"","kind":"cooldown","rounds":8,"seconds":80,"label":"80s","per2min":1.5,"sev":"low"},{"name":"Severing Cords","type":"action","cat":"engine","family":"defense","threat":"none","energy":8,"buyP":0,"w":0,"p":2,"effect":"Once per 80s: Pay 2P to tap to remove all mycelium within a radius.","raw":"Once per 8 rounds: Pay 2P to tap to remove all mycelium within a radius.","produces":"","kind":"cooldown","rounds":8,"seconds":80,"label":"80s","per2min":1.5,"sev":"low"},{"name":"Toxocyst Array","type":"action","cat":"engine","family":"defense","threat":"worm","energy":13,"buyP":3,"w":0,"p":0,"effect":"Once per 80s: tap a point — every nematode within a radius is digested.","raw":"Once per 8 rounds: tap a point — every nematode within a radius is digested.","produces":"","kind":"cooldown","rounds":8,"seconds":80,"label":"80s","per2min":1.5,"sev":"low"},{"name":"Cordyceps Stroma","type":"action","cat":"engine","family":"defense","threat":"ant","energy":18,"buyP":0,"w":0,"p":0,"effect":"Once per 100s: destroy the nearest ant nest within sensing range.","raw":"Once per 10 rounds: destroy the nearest ant nest within sensing range.","produces":"","kind":"cooldown","rounds":10,"seconds":100,"label":"100s","per2min":1.2,"sev":"low"},{"name":"Sclerotial Seal","type":"action","cat":"engine","family":"defense","threat":"ant","energy":8,"buyP":1,"w":0,"p":1,"effect":"Once per 100s: Pay 1 P to seal any food pile from ants; they reroute to other food.","raw":"Once per 10 rounds: Pay 1 P to seal any food pile from ants; they reroute to other food.","produces":"","kind":"cooldown","rounds":10,"seconds":100,"label":"100s","per2min":1.2,"sev":"low"},{"name":"Sinker Rhizomorph","type":"action","cat":"engine","family":"growth","threat":"none","energy":12,"buyP":0,"w":0,"p":2,"effect":"Once per 100s: Pay 2 P to grow through an in-range rock.","raw":"Once per 10 rounds: Pay 2 P to grow through an in-range rock.","produces":"grow through 1 in-range rock per use (every 100s, 2 P)","kind":"cooldown","rounds":10,"seconds":100,"label":"100s","per2min":1.2,"sev":"low"},{"name":"Cord Capillary","type":"engine","cat":"engine","family":"energy","threat":"none","energy":4,"buyP":0,"w":2,"p":6,"effect":"Gain +1 energy every 10s.","raw":"Gain +1 energy every round.","produces":"+1 energy/10s","kind":"income","rounds":1,"seconds":10,"label":"10s","per2min":12,"sev":"high"},{"name":"Rhizomorph Dynamo","type":"engine","cat":"engine","family":"energy","threat":"none","energy":9,"buyP":0,"w":3,"p":19,"effect":"Gain +3 energy every 10s.","raw":"Gain +3 energy every round.","produces":"+3 energy/10s","kind":"income","rounds":1,"seconds":10,"label":"10s","per2min":12,"sev":"high"},{"name":"Rhizomorph Trunkline","type":"engine","cat":"engine","family":"energy","threat":"none","energy":8,"buyP":0,"w":0,"p":6,"effect":"Gain +2 energy every 10s.","raw":"Gain +2 energy every round.","produces":"+2 energy/10s","kind":"income","rounds":1,"seconds":10,"label":"10s","per2min":12,"sev":"high"},{"name":"Mineralizing Saprobe","type":"engine","cat":"engine","family":"phosphorus","threat":"none","energy":14,"buyP":0,"w":0,"p":0,"effect":"Gain +1 Phosphorus every 50s.","raw":"Gain +1 Phosphorus every 5 rounds.","produces":"+1 Phosphorus / 50s","kind":"income","rounds":5,"seconds":50,"label":"50s","per2min":2.4,"sev":"low"},{"name":"Aquaporin Channels","type":"engine","cat":"engine","family":"water","threat":"none","energy":20,"buyP":0,"w":0,"p":6,"effect":"Gain +1 Water every 60s.","raw":"Gain +1 Water every 6 rounds.","produces":"+1 Water / 20s","kind":"income","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Capillary Runners","type":"engine","cat":"engine","family":"installs","threat":"none","energy":30,"buyP":0,"w":0,"p":16,"effect":"Gain +3 Water every 60s.","raw":"Gain +3 Water every 6 rounds.","produces":"","kind":"income","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Dew Traps","type":"engine","cat":"engine","family":"installs","threat":"none","energy":25,"buyP":0,"w":0,"p":12,"effect":"Gain +2 Water every 60s.","raw":"Gain +2 Water every 6 rounds.","produces":"+2 Water / 30s","kind":"income","rounds":6,"seconds":60,"label":"60s","per2min":2,"sev":"low"},{"name":"Phosphatase Reserve","type":"engine","cat":"engine","family":"phosphorus","threat":"none","energy":12,"buyP":0,"w":0,"p":0,"effect":"Gain +2 Phosphorus every 80s.","raw":"Gain +2 Phosphorus every 8 rounds.","produces":"+2 Phosphorus / 80s","kind":"income","rounds":8,"seconds":80,"label":"80s","per2min":1.5,"sev":"low"},{"name":"Prospecting Cords","type":"engine","cat":"engine","family":"installs","threat":"none","energy":12,"buyP":0,"w":0,"p":0,"effect":"Gain +1 Phosphorus every 80s.","raw":"Gain +1 Phosphorus every 8 rounds.","produces":"+1 Phosphorus / 80s","kind":"income","rounds":8,"seconds":80,"label":"80s","per2min":1.5,"sev":"low"},{"name":"Sclerotial Crust","type":"basic","cat":"event","family":"basics","threat":"all","energy":1,"buyP":0,"w":0,"p":3,"effect":"Tap a point: strands nearby harden — immune to infection and eating for 100s.","raw":"Tap a point: strands nearby harden — immune to infection and eating for 10 rounds.","produces":"","kind":"duration","rounds":10,"seconds":100,"label":"100s","per2min":1.2,"sev":null},{"name":"Brisk Metabolism","type":"event","cat":"engine","family":"tempo","threat":"none","energy":10,"buyP":0,"w":2,"p":2,"effect":"Permanently speed up one installed resource generation card: it becomes ready 10s faster. Max 1 per card.","raw":"Permanently speed up one installed resource generation card: it becomes ready 1 round faster. Max 1 per card.","produces":"","kind":"modifier","rounds":1,"seconds":10,"label":"10s","per2min":12,"sev":null},{"name":"Quickened Reflex","type":"event","cat":"engine","family":"tempo","threat":"none","energy":10,"buyP":0,"w":2,"p":2,"effect":"Permanently speed up one installed \"use\" card: it becomes ready 10s faster. Max 1 per card.","raw":"Permanently speed up one installed \"use\" card: it becomes ready 1 round faster. Max 1 per card.","produces":"","kind":"modifier","rounds":1,"seconds":10,"label":"10s","per2min":12,"sev":null},{"name":"Enzyme Overclock","type":"event","cat":"engine","family":"tempo","threat":"none","energy":18,"buyP":0,"w":4,"p":4,"effect":"Permanently speed up one installed resource generation card: it becomes ready 20s faster. Max 1 per card.","raw":"Permanently speed up one installed resource generation card: it becomes ready 2 rounds faster. Max 1 per card.","produces":"","kind":"modifier","rounds":2,"seconds":20,"label":"20s","per2min":6,"sev":null},{"name":"Impulse Relay","type":"event","cat":"engine","family":"tempo","threat":"none","energy":18,"buyP":0,"w":4,"p":4,"effect":"Permanently speed up one installed \"use\" card: it becomes ready 20s faster. Max 1 per card.","raw":"Permanently speed up one installed \"use\" card: it becomes ready 2 rounds faster. Max 1 per card.","produces":"","kind":"modifier","rounds":2,"seconds":20,"label":"20s","per2min":6,"sev":null},{"name":"Hair-Trigger Hyphae","type":"event","cat":"engine","family":"tempo","threat":"none","energy":28,"buyP":0,"w":6,"p":6,"effect":"Permanently speed up one installed \"use\" card: it becomes ready 30s faster. Max 1 per card.","raw":"Permanently speed up one installed \"use\" card: it becomes ready 3 rounds faster. Max 1 per card.","produces":"","kind":"modifier","rounds":3,"seconds":30,"label":"30s","per2min":4,"sev":null},{"name":"Metabolic Surge","type":"event","cat":"engine","family":"tempo","threat":"none","energy":28,"buyP":0,"w":6,"p":6,"effect":"Permanently speed up one installed resource generation card: it becomes ready 30s faster. Max 1 per card.","raw":"Permanently speed up one installed resource generation card: it becomes ready 3 rounds faster. Max 1 per card.","produces":"","kind":"modifier","rounds":3,"seconds":30,"label":"30s","per2min":4,"sev":null},{"name":"Acorn Cache","type":"basic","cat":"basic","family":"basics","threat":"none","energy":0,"buyP":0,"w":1,"p":0,"effect":"Pick a direction; drop a small (2⚡) nut cache at the edge of sensing range.","raw":"Pick a direction; drop a small (2⚡) nut cache at the edge of sensing range.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Amputate","type":"basic","cat":"event","family":"defense","threat":"none","energy":3,"buyP":0,"w":0,"p":3,"effect":"Tap a point: remove all mycelium within a radius — cut off infection.","raw":"Tap a point: remove all mycelium within a radius — cut off infection.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Apical Drive","type":"basic","cat":"basic","family":"basics","threat":"none","energy":0,"buyP":0,"w":1,"p":0,"effect":"Grow 3 steps: choose a direction.","raw":"Grow 3 steps: choose a direction.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Appressorial Punch","type":"basic","cat":"event","family":"basics","threat":"none","energy":1,"buyP":0,"w":1,"p":1,"effect":"Grow through one in-range rock.","raw":"Grow through one in-range rock.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Condense","type":"basic","cat":"event","family":"water","threat":"none","energy":3,"buyP":0,"w":0,"p":0,"effect":"Gain 5 Water.","raw":"Gain 5 Water.","produces":"+3 Water","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Constricting Snap","type":"event","cat":"event","family":"phosphorus","threat":"worm","energy":5,"buyP":0,"w":0,"p":0,"effect":"Tap a point: the nearest nematode within range is digested for +3 P.","raw":"Tap a point: the nearest nematode within range is digested for +3 P.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Cord Weave","type":"extender","cat":"extender","family":"extenders","threat":"none","energy":9,"buyP":0,"w":0,"p":0,"effect":"Shuffle 5 copies of Humic Mat into your draw deck.","raw":"Shuffle 5 copies of Humic Mat into your draw deck.","produces":"Humic Mat basics","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Cordyceps Bloom","type":"event","cat":"event","family":"defense","threat":"ant","energy":7,"buyP":0,"w":0,"p":0,"effect":"Destroy the nearest ant nest within sensing range.","raw":"Destroy the nearest ant nest within sensing range.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Cytoplasmic Cascade","type":"event","cat":"event","family":"energy","threat":"none","energy":0,"buyP":0,"w":0,"p":14,"effect":"Gain +82 energy.","raw":"Gain +82 energy.","produces":"+82 energy","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Decoy Cache","type":"event","cat":"event","family":"defense","threat":"all","energy":2,"buyP":0,"w":1,"p":0,"effect":"Drop a 1⚡ food cache anywhere in sight.","raw":"Drop a 1⚡ food cache anywhere in sight.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Enzyme Priming","type":"extender","cat":"extender","family":"extenders","threat":"none","energy":8,"buyP":0,"w":0,"p":0,"effect":"Shuffle 5 copies of Saprotrophic Digest into your draw deck.","raw":"Shuffle 5 copies of Saprotrophic Digest into your draw deck.","produces":"Saprotrophic Digest basics","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Foraging Fan","type":"basic","cat":"basic","family":"basics","threat":"none","energy":0,"buyP":0,"w":1,"p":0,"effect":"Grow 3 steps: choose a direction and fan out.","raw":"Grow 3 steps: choose a direction and fan out.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Fruiting Vigil","type":"basic","cat":"basic","family":"events","threat":"none","energy":2,"buyP":0,"w":1,"p":2,"effect":"Grow up to 8 steps: choose a direction.","raw":"Grow up to 8 steps: choose a direction.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Glycogen Crush","type":"event","cat":"event","family":"energy","threat":"none","energy":0,"buyP":0,"w":0,"p":10,"effect":"Gain +54 energy.","raw":"Gain +54 energy.","produces":"+54 energy","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Guerrilla Runners","type":"basic","cat":"basic","family":"basics","threat":"none","energy":1,"buyP":0,"w":1,"p":1,"effect":"Grow 5 steps: choose a direction.","raw":"Grow 5 steps: choose a direction.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Humic Mat","type":"basic","cat":"basic","family":"basics","threat":"none","energy":0,"buyP":0,"w":2,"p":0,"effect":"Pick a direction; drop a LARGE patch at the edge of sensing range.","raw":"Pick a direction; drop a LARGE patch at the edge of sensing range.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Humus Bed","type":"basic","cat":"basic","family":"basics","threat":"none","energy":0,"buyP":0,"w":1,"p":0,"effect":"Pick a direction; drop a MEDIUM patch at the edge of sensing range.","raw":"Pick a direction; drop a MEDIUM patch at the edge of sensing range.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Humus Cache","type":"extender","cat":"extender","family":"extenders","threat":"none","energy":8,"buyP":0,"w":0,"p":0,"effect":"Shuffle 5 copies of Humus Bed into your draw deck.","raw":"Shuffle 5 copies of Humus Bed into your draw deck.","produces":"Humus Bed basics","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Hyphal Extension","type":"basic","cat":"basic","family":"basics","threat":"none","energy":0,"buyP":0,"w":1,"p":0,"effect":"Grow 2 steps: toward all food sources in range.","raw":"Grow 2 steps: toward all food sources in range.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Hyphal Osmosis","type":"basic","cat":"event","family":"water","threat":"none","energy":5,"buyP":0,"w":0,"p":0,"effect":"If your network touches a lake edge, harvest +9 Water. Otherwise gain +3 Water from soil.","raw":"If your network touches a lake edge, harvest +9 Water. Otherwise gain +3 Water from soil.","produces":"+9 Water lakeside / +3 Water from soil","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Leaf Fall","type":"extender","cat":"extender","family":"extenders","threat":"none","energy":8,"buyP":0,"w":0,"p":0,"effect":"Shuffle 5 copies of Leaf Litter Cache into your draw deck.","raw":"Shuffle 5 copies of Leaf Litter Cache into your draw deck.","produces":"Leaf Litter Cache basics","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Leaf Litter Cache","type":"basic","cat":"basic","family":"basics","threat":"none","energy":0,"buyP":0,"w":1,"p":0,"effect":"Pick a direction; drop a SMALL nutrient patch at the edge of sensing range.","raw":"Pick a direction; drop a SMALL nutrient patch at the edge of sensing range.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Osmotic Cashout","type":"event","cat":"event","family":"energy","threat":"none","energy":0,"buyP":0,"w":0,"p":5,"effect":"Gain +22 energy.","raw":"Gain +22 energy.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Phosphate Tap","type":"basic","cat":"event","family":"phosphorus","threat":"none","energy":4,"buyP":0,"w":0,"p":0,"effect":"If your network contacts any mineral, crystal, or boulder, harvest +5 Phosphorus.","raw":"If your network contacts any mineral, crystal, or boulder, harvest +5 Phosphorus.","produces":"+3 Phosphorus on harvest","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Rehydration Pulse","type":"event","cat":"event","family":"water","threat":"all","energy":15,"buyP":0,"w":3,"p":3,"effect":"Pay 3 Water: tap a point; heal all mold damage in a wide area.","raw":"Pay 3 Water: tap a point; heal all mold damage in a wide area.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Rhizomorph Lance","type":"event","cat":"basic","family":"events","threat":"none","energy":2,"buyP":0,"w":2,"p":0,"effect":"Grow up to 6 steps: choose a direction.","raw":"Grow up to 6 steps: choose a direction.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Saprotrophic Digest","type":"basic","cat":"basic","family":"basics","threat":"none","energy":0,"buyP":0,"w":0,"p":1,"effect":"Drain 1 nutrient from every occupied food source, doubling the energy received.","raw":"Drain 1 nutrient from every occupied food source, doubling the energy received.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Toxocyst Burst","type":"event","cat":"event","family":"defense","threat":"worm","energy":10,"buyP":0,"w":0,"p":0,"effect":"Tap a point: every nematode within a radius is digested (+1 P each, max 10 P).","raw":"Tap a point: every nematode within a radius is digested (+1 P each, max 10 P).","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Translocation Cord","type":"basic","cat":"basic","family":"basics","threat":"none","energy":2,"buyP":0,"w":0,"p":2,"effect":"Grow 5 steps: choose a direction.","raw":"Grow 5 steps: choose a direction.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Tropic Lunge","type":"basic","cat":"basic","family":"basics","threat":"none","energy":0,"buyP":0,"w":2,"p":0,"effect":"Grow 5 steps toward the nearest food source, even if out of range.","raw":"Grow 5 steps toward the nearest food source, even if out of range.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Turgor Spark","type":"event","cat":"event","family":"energy","threat":"none","energy":0,"buyP":0,"w":0,"p":3,"effect":"Gain +13 energy.","raw":"Gain +13 energy.","produces":"+13 energy","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Turgor Thrust","type":"basic","cat":"basic","family":"basics","threat":"none","energy":2,"buyP":0,"w":1,"p":0,"effect":"Grow 4 steps: choose a direction.","raw":"Grow 4 steps: choose a direction.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Vacuolar Burst","type":"event","cat":"event","family":"energy","threat":"none","energy":0,"buyP":0,"w":0,"p":7,"effect":"Gain +33 energy.","raw":"Gain +33 energy.","produces":"+33 energy","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null},{"name":"Vesicle Surge","type":"basic","cat":"basic","family":"basics","threat":"none","energy":3,"buyP":0,"w":0,"p":1,"effect":"Grow 4 steps: choose a direction.","raw":"Grow 4 steps: choose a direction.","produces":"","kind":"none","rounds":null,"seconds":null,"label":"","per2min":null,"sev":null}];
+const KEY = 'myceliumRT.cardReview.v1';
+const CHOICES = [
+  { id: 'keep', label: 'Timer' },
+  { id: '1x', label: '1×' },
+  { id: '2x', label: '2×' },
+  { id: '3x', label: '3×' },
+  { id: '4x', label: '4×' },
+];
+let picks = {};
+try { picks = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (_) { picks = {}; }
+
+let filter = 'all', query = '';
+const grid = document.getElementById('grid');
+
+// A cue for "how strong is this on the clock": how many times it could fire in a 2-minute level.
+grid.innerHTML = ROWS.map((r, i) => {
+  const cost = [
+    r.energy ? '<span class="e">' + r.energy + '⚡ buy</span>' : '',
+    r.buyP ? '<span class="p">' + r.buyP + '✦ buy</span>' : '',
+    r.w ? '<span class="w">' + r.w + '💧 use</span>' : '',
+    r.p ? '<span class="p">' + r.p + '✦ use</span>' : '',
+  ].filter(Boolean).join('');
+  const timing = r.kind === 'none' ? '<span style="color:var(--dim)">no timer</span>'
+    : '<span class="time">' + (r.kind === 'duration' ? 'lasts ' : r.kind === 'cooldown' ? 'usable every ' : r.kind === 'modifier' ? 'shortens a wait by ' : 'pays every ')
+      + '<b>' + r.label + '</b>'
+
+      + '</span>';
+  return '<div class="card' + (r.sev ? ' sev-' + r.sev : '') + '" data-i="' + i + '">'
+    + '<div class="hd"><span class="nm">' + esc(r.name) + '</span>'
+    + '<span class="tag">' + esc(r.cat) + '</span>'
+    + (r.kind !== 'none' ? '<span class="tag ' + r.kind + '">' + r.kind + '</span>' : '')
+        + (r.sev === 'high' || r.sev === 'mid' ? '<span class="sevpill ' + r.sev + '">' + r.per2min + '×/level</span>' : '')
+    + '</div>'
+    + '<div class="eff">' + esc(r.effect) + '</div>'
+    + '<div class="meta">' + timing + (cost ? '<span>' + cost + '</span>' : '') + '</div>'
+    + '<div class="choices">' + CHOICES.map((c) =>
+        '<button data-c="' + c.id + '"' + (c.id === 'keep' ? ' class="keep"' : '') + '>' + c.label + '</button>').join('')
+    + '</div></div>';
+}).join('');
+
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m])); }
+
+function save() { try { localStorage.setItem(KEY, JSON.stringify(picks)); } catch (_) {} }
+
+function refresh() {
+  let shown = 0;
+  grid.querySelectorAll('.card').forEach((el) => {
+    const r = ROWS[+el.dataset.i];
+    const pick = picks[r.name];
+    el.classList.toggle('decided', !!pick);
+    el.querySelectorAll('.choices button').forEach((b) => {
+      const on = b.dataset.c === pick;
+      b.classList.toggle('sel', on);
+      b.classList.toggle('keep', b.dataset.c === 'keep');
+    });
+    const hay = (r.name + ' ' + r.effect + ' ' + r.cat).toLowerCase();
+    const okQ = !query || hay.includes(query);
+    const okF = filter === 'all' ? true
+      : filter === 'todo' ? (r.kind !== 'none' && !pick)
+      : filter === 'done' ? !!pick
+      : filter === 'hot' ? r.sev === 'high'
+      : r.kind === filter;
+    const show = okQ && okF;
+    el.classList.toggle('hidden', !show);
+    if (show) shown++;
+  });
+  const decided = Object.keys(picks).length;
+  const tally = {};
+  for (const v of Object.values(picks)) tally[v] = (tally[v] || 0) + 1;
+  const parts = CHOICES.filter((c) => tally[c.id]).map((c) => tally[c.id] + '× ' + c.label);
+  document.getElementById('sumDone').textContent = decided;
+  document.getElementById('count').innerHTML = shown + ' shown'
+    + (parts.length ? ' · ' + esc(parts.join(', ')) : '');
+  document.getElementById('json').value = JSON.stringify({
+    roundSeconds: ROUND_SECONDS,
+    decided,
+    cards: ROWS.filter((r) => picks[r.name]).map((r) => ({
+      name: r.name, kind: r.kind, currentSeconds: r.seconds, decision: picks[r.name],
+    })),
+  }, null, 2);
+}
+
+grid.addEventListener('click', (e) => {
+  const b = e.target.closest('.choices button'); if (!b) return;
+  const card = b.closest('.card'), r = ROWS[+card.dataset.i];
+  picks[r.name] = picks[r.name] === b.dataset.c ? undefined : b.dataset.c;   // click again to clear
+  if (!picks[r.name]) delete picks[r.name];
+  save(); refresh();
+});
+document.querySelectorAll('.chip').forEach((c) => c.addEventListener('click', () => {
+  document.querySelectorAll('.chip').forEach((o) => o.classList.toggle('on', o === c));
+  filter = c.dataset.f; refresh();
+}));
+document.getElementById('q').addEventListener('input', (e) => { query = e.target.value.trim().toLowerCase(); refresh(); });
+document.getElementById('copy').addEventListener('click', async () => {
+  const ta = document.getElementById('json');
+  try { await navigator.clipboard.writeText(ta.value); } catch (_) { ta.select(); document.execCommand('copy'); }
+  const b = document.getElementById('copy'); const t = b.textContent;
+  b.textContent = 'Copied ✓'; setTimeout(() => { b.textContent = t; }, 1200);
+});
+document.getElementById('reset').addEventListener('click', () => {
+  if (!confirm('Clear every decision?')) return;
+  picks = {}; save(); refresh();
+});
+refresh();
+</script>

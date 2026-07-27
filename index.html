@@ -2078,6 +2078,32 @@ const SLIDERS = [
   { path: 'render.ambientLight',          label: 'Ambient Light',       min: 0.1, max: 1,   step: 0.05 },
 ];
 
+// --- ROUNDS → SECONDS in player-facing text ---------------------------------
+// Every card description (and a few log messages) is authored in ROUNDS — the old turn-based
+// unit — e.g. "Gain +1 Water every 6 rounds". A round is now a fixed slice of wall-clock time
+// (cards.roundSeconds), so those phrases are rewritten to SECONDS at DISPLAY time rather than
+// edited in the card data, which is generated from docs/cards.json and would be overwritten.
+// One source of truth: retune cards.roundSeconds and every description follows.
+const roundSecs = () => (CONFIG.cards && CONFIG.cards.roundSeconds != null ? CONFIG.cards.roundSeconds : 10);
+// A round count as a readable duration: "10s", "60s", "2 min" for the long ones.
+function roundsToTime(rounds) {
+  const s = Math.round((Number(rounds) || 0) * roundSecs());
+  if (s >= 120 && s % 60 === 0) return `${s / 60} min`;
+  return `${s}s`;
+}
+// Rewrite the round/turn phrasings a card description can use into seconds.
+function timeify(text) {
+  if (!text) return text;
+  const rs = roundSecs();
+  return String(text)
+    // "every 6 rounds", "for 10 rounds", "2 rounds faster", "/ 3 rounds", "every 4 turns"
+    .replace(/(\d+(?:\.\d+)?)\s*\b(rounds?|turns?)\b/gi, (_m, n) => roundsToTime(n))
+    // "+2 energy/round", "+1 Water / round"
+    .replace(/\/\s*\b(round|turn)\b/gi, `/${rs}s`)
+    // "every round", "per round", "each round", "a round"
+    .replace(/\b(every|per|each|a)\s+\b(round|turn)\b/gi, (_m, w) => `${w} ${rs}s`);
+}
+
 // Read/write CONFIG by dotted path (used by the dev sliders).
 function getByPath(obj, path) {
   return path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj);
@@ -2089,7 +2115,7 @@ function setByPath(obj, path, value) {
   target[last] = value;
 }
 
-  return { CONFIG, SLIDERS, getByPath, setByPath };
+  return { CONFIG, SLIDERS, getByPath, setByPath, timeify, roundsToTime };
 })();
 
 // ===================== src/cards-data.js =====================
@@ -8018,6 +8044,7 @@ function newRun(config, seed) {
 // ===================== src/engine/cards.js =====================
 const __m_engine_cards = (function () {
   const { CARD_DATA, CARD_BY_NAME } = __m_cards_data;
+  const { roundsToTime } = __m_config;
   const { attackNest, recalibrateAnts } = __m_engine_ants;
   const { infectStrandsInMould } = __m_engine_threats;
 // =============================================================================
@@ -8567,7 +8594,7 @@ function activateAction(state, i, ctx) {
   const net = state.active;
   if (!actionUsable(state, a)) {
     let msg = 'That action isn’t ready.';
-    if ((a.cd || 0) > 0) msg = `On cooldown — ${a.cd} round${a.cd > 1 ? 's' : ''} left.`;
+    if ((a.cd || 0) > 0) msg = `On cooldown — ${roundsToTime(a.cd)} left.`;
     else if (a.per && (a.used || 0) >= a.per) msg = 'No uses left this round.';
     else if (a.cost && (net[a.res] || 0) < a.cost) msg = `Need ${a.cost - Math.floor(net[a.res] || 0)} more ${RES_LABEL[a.res] || a.res}.`;
     return { ok: false, message: msg };
@@ -8913,7 +8940,7 @@ const abilityUpgrade = (scope, n) => ({
     const before = t.every;
     t.every = Math.max(1, t.every - n);
     t.tempoUsed = true;
-    return { ok: true, message: `${t.name}: wait ${before} → ${t.every} round${t.every > 1 ? 's' : ''}.` };
+    return { ok: true, message: `${t.name}: wait ${roundsToTime(before)} → ${roundsToTime(t.every)}.` };
   },
 });
 // action(): a card that, when PLAYED, installs a repeatable ability into the
@@ -9105,7 +9132,7 @@ const EFFECTS = {
     // ants skip these cells) for immuneRounds rounds — no longer permanent.
     const R = s.config.cards;
     const h = hardenPatch(s, ctx, R.crustRadius, R.immuneRounds, true);
-    return { ok: true, message: h ? `Hardened & cleared ${h} strands — immune for ${R.immuneRounds} rounds.` : `Hardened the patch — immune for ${R.immuneRounds} rounds.` };
+    return { ok: true, message: h ? `Hardened & cleared ${h} strands — immune for ${roundsToTime(R.immuneRounds)}.` : `Hardened the patch — immune for ${roundsToTime(R.immuneRounds)}.` };
   }),
   'Rehydration Pulse': targeted((s, c, ctx) => {
     const R = s.config.cards;
@@ -9121,7 +9148,7 @@ const EFFECTS = {
   'Melanized Wall': action({ effect: 'clear mould + ward (immune)', every: 8, cost: 3, res: 'phosphorus', target: true }, (s, ctx) => {
     const R = s.config.cards;
     const h = hardenPatch(s, ctx, R.suberinRadius, R.immuneRounds, false);
-    return { ok: true, message: h ? `Cured ${h} strands; warded for ${R.immuneRounds} rounds.` : `Warded the area against mould for ${R.immuneRounds} rounds.` };
+    return { ok: true, message: h ? `Cured ${h} strands; warded for ${roundsToTime(R.immuneRounds)}.` : `Warded the area against mould for ${roundsToTime(R.immuneRounds)}.` };
   }),
   // Constricting Ring: every 6 rounds, pay 3 P, tap empty ground → lay a trap; the first
   // nematode to enter its radius is digested for +2 Phosphorus (resolved in tickWorld).
@@ -11748,7 +11775,7 @@ function isMusicMuted() { return muted; }
 // ===================== src/render/ui.js =====================
 const __m_render_ui = (function () {
   const { ACTIONS, actionCost } = __m_engine_actions;
-  const { SLIDERS, getByPath, setByPath } = __m_config;
+  const { SLIDERS, getByPath, setByPath, timeify, roundsToTime } = __m_config;
   const { CARD_BY_NAME } = __m_cards_data;
   const { cardDeckAdditions, actionUsable, cardBlockedReason } = __m_engine_cards;
   const { toggleMusic, isMusicMuted } = __m_render_music;
@@ -12692,7 +12719,7 @@ class UI {
       const cls = 'cardbtn ' + catClass(c) + (affordable ? '' : ' unaff') + (pending || armed ? ' selected' : '');
       const b = button(cls, cardFaceHTML(g.name, c, g.count));
       b.setAttribute('data-name', g.name);
-      b.title = c.effect;
+      b.title = timeify(c.effect);
       b.onclick = () => this.onCardTap(g.firstIndex, g.name);
       list.appendChild(b);
     });
@@ -13043,7 +13070,7 @@ class UI {
       const adds = this.armedOffer ? cardDeckAdditions(this.armedOffer) : null;
       if (adds) {
         const ac = CARD_BY_NAME[adds.name] || { effect: '' };
-        prev.innerHTML = `<div class="hpdesc"><b class="hpname">${escapeHtml(adds.name)}</b>: ${escapeHtml(ac.effect || '')}</div>`;
+        prev.innerHTML = `<div class="hpdesc"><b class="hpname">${escapeHtml(adds.name)}</b>: ${escapeHtml(timeify(ac.effect) || '')}</div>`;
         prev.classList.remove('hidden');
       } else {
         prev.classList.add('hidden');
@@ -13070,7 +13097,7 @@ class UI {
     const noun = scope === 'action' ? 'action' : 'engine';
     const rows = eligible.map((a) => {
       const next = Math.max(1, a.every - amount);
-      const rd = (n) => `${n} round${n > 1 ? 's' : ''}`;
+      const rd = (n) => roundsToTime(n);   // the picker shows the real wait, in seconds
       return `<button class="pickrow" data-i="${a.i}">`
         + `<span class="picknm">${escapeHtml(a.name)}</span>`
         + `<span class="pickwait"><span class="pw-old">${rd(a.every)}</span>`
@@ -13197,7 +13224,7 @@ class UI {
     const adds = armed ? cardDeckAdditions(armed.name) : null;
     if (adds) {
       const ac = CARD_BY_NAME[adds.name] || { effect: '' };
-      prev.innerHTML = `<div class="hpdesc"><b class="hpname">${escapeHtml(adds.name)}</b>: ${escapeHtml(ac.effect || '')}</div>`;
+      prev.innerHTML = `<div class="hpdesc"><b class="hpname">${escapeHtml(adds.name)}</b>: ${escapeHtml(timeify(ac.effect) || '')}</div>`;
       prev.classList.remove('hidden');
     } else {
       prev.classList.add('hidden');
@@ -13286,7 +13313,7 @@ function cadenceLightsHTML(cad, elapsed, ck = 't', title, key = '') {
   // A steady, every-round producer has no countdown to track, so its bar simply fills across
   // each round and resets — a live "next payout in…" readout.
   const done = (!cad || cad <= 1) ? 0 : Math.max(0, Math.min(rounds, elapsed || 0));
-  const t = title != null ? title : (rounds > 1 ? `every ${rounds} rounds` : 'every round');
+  const t = title != null ? title : `every ${roundsToTime(rounds)}`;
   const k = key || (ck + '|' + rounds);
   _cadProg.set(k, { rounds, done });
   return `<span class="ecad cad ck-${ck}" title="${escapeHtml(String(t))}">`
@@ -13337,12 +13364,12 @@ function actionRowHTML(a, i, state) {
   // Round time as a CHARGE bar (same widget as the left ledger): full = ready to use, so
   // an installed/off-cooldown action reads full. `cd` counts down from `every` (just used)
   // to 0 (ready), so `every − cd` is how much of the cooldown has already recharged.
-  if (a.every) meta.push(cadenceLightsHTML(a.every, a.every - (a.cd || 0), a.cost ? ACT_DOT[a.res] : 't', (a.cd || 0) > 0 ? `ready in ${a.cd} round${a.cd > 1 ? 's' : ''}` : 'ready', 'act|' + a.name + '|' + i));
+  if (a.every) meta.push(cadenceLightsHTML(a.every, a.every - (a.cd || 0), a.cost ? ACT_DOT[a.res] : 't', (a.cd || 0) > 0 ? `ready in ${roundsToTime(a.cd)}` : 'ready', 'act|' + a.name + '|' + i));
   const dot = a.cost ? ACT_DOT[a.res] : (a.every ? 't' : 'e');
   return `<div class="actrow${usable ? '' : ' off'}" data-card="${escapeHtml(a.name)}">`
     + `<span class="edot ${dot}"></span>`
     + `<div class="acttxt"><div class="actnm">${escapeHtml(a.name)}</div>`
-    + `<div class="acteff">${escapeHtml(a.effect || '')}</div>`
+    + `<div class="acteff">${escapeHtml(timeify(a.effect) || '')}</div>`
     + (meta.length ? `<div class="actmeta">${meta.join('')}</div>` : '')
     + `</div>`
     + `<button class="use${usable ? '' : ' off'}" data-i="${i}">Use</button></div>`;   // clickable even when not usable, so it can explain WHY (e.g. "Need 2 more Water")
@@ -13421,7 +13448,7 @@ function cardFaceHTML(name, c, count) {
     + (count > 1 ? `<span class="stackn">×${count}</span>` : '')
     + `<span class="pips">${gateChips(c) || '<span class="cc free">free</span>'}</span>`
     + `<span class="cplate"><span class="cn">${escapeHtml(name)}</span><span class="ct">${escapeHtml(c.displayCategory || c.type || '')}</span></span>`
-    + `<span class="crules">${escapeHtml(c.effect || '')}</span>`;
+    + `<span class="crules">${escapeHtml(timeify(c.effect) || '')}</span>`;
 }
 function vitalityColor(v) {
   const r = Math.round(200 - v * 140), g = Math.round(70 + v * 150), b = Math.round(60 + v * 40);
@@ -13623,7 +13650,7 @@ function growMyceliumTitle(container, opts = {}) {
 const __m_render_species_select = (function () {
   const { SPECIES, LOCKED_TIERS, isRevealed, isPlayable, unlockCost, sporesBalance, purchaseSpecies, loadProgress, devUnlockAll, levelFromUnlock, startLevelRange, defaultStartLevel, loadDeathCarry } = __m_species;
   const { CARD_DATA } = __m_cards_data;
-  const { CONFIG } = __m_config;
+  const { CONFIG, timeify } = __m_config;
   const { cardSlug, SPORE_ICON } = __m_render_ui;
   const { logEvent } = __m_net_scores;
   const { growMyceliumTitle } = __m_render_mycelium_title;
@@ -13706,7 +13733,7 @@ function cardFace(entry) {
       (c.type ? '<span class="ss-gc-type">' + esc(c.type) + '</span>' : '') +
     '</div>' +
     '<div class="ss-gc-name">' + esc(c.name) + '</div>' +
-    '<div class="ss-gc-eff">' + esc(c.effect || '') + '</div>' +
+    '<div class="ss-gc-eff">' + esc(timeify(c.effect) || '') + '</div>' +
   '</div>';
 }
 
@@ -13796,7 +13823,7 @@ function openSpeciesDetail(species, opts = {}) {
   }
   ins.wrap.querySelector('#ssIName').textContent = species.name;
   ins.wrap.querySelector('#ssILatin').textContent = species.latin;
-  ins.wrap.querySelector('#ssIBlurb').innerHTML = species.blurb;
+  ins.wrap.querySelector('#ssIBlurb').innerHTML = timeify(species.blurb);   // "every 4 turns" → seconds
   // Special-power callout (e.g. Magic Mushroom's conjure clock), shown only when set.
   const specialEl = ins.wrap.querySelector('#ssISpecial');
   if (species.specialText) {
