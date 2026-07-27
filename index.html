@@ -1696,9 +1696,14 @@ const CONFIG = {
     softCapPhosphorus: 999,      //   keeps paying off and you can bank resources for big plays
 
     engineEnergyClamp: 11,       // total installed energy-engine output/round is clamped below skip
-    engineSlow: 3,               // RT: income engines produce once every N world ticks (not every tick), so all
-                                 //   engine income (energy/water/phosphorus + every/dig cadences + Magic conjure)
-                                 //   accrues ~3x slower — it was ramping too fast at the 500 ms real-time step
+    roundSeconds: 10,            // RT: how long ONE "round" lasts in wall-clock seconds — i.e. what a single
+                                 //   cadence DOT on a card is worth (the ledger draws one dot per round; see
+                                 //   "Cadence lights" in the CSS). Every card cadence is written in rounds, so
+                                 //   this drives them all: engine income (`every N`), the dig cadence, ability
+                                 //   cooldowns, per-round use caps and the Magic Mushroom conjure clock. At 10 s
+                                 //   a dot, a card that used to fire "every 6 rounds" now fires once a minute,
+                                 //   and a water body (every 3) pays every 30 s. Converted to world ticks via
+                                 //   realtime.stepMs, so changing the tick rate keeps these timings intact.
     // resource harvest amounts (used by harvest-card effects)
     harvestWaterLake: 9,         // Hyphal Osmosis at a lake edge
     harvestWaterSoil: 3,         // …off a lake
@@ -8454,13 +8459,15 @@ function produceCardEngines(state) {
   const net = state.active; if (!net || !net.alive) return;
   const cc = state.config.cards;
   updateWaterSourceEngine(state);        // sync the lake/reservoir water trickle before producing
-  // RT: run the income engines on a SLOWER clock than the world — resources accrued ~3x too
-  // fast at 2 ticks/sec. Only every `engineSlow` world ticks do the engines produce (and their
-  // every/dig/Magic cadences advance), uniformly slowing all engine income. Player-activated
-  // ability cooldowns (further down) still tick every world turn.
-  const slow = Math.max(1, cc.engineSlow || 1);
+  // RT: the card layer keeps its own ROUND clock, decoupled from the world tick. Every cadence
+  // on a card is written in rounds — one dot per round — so one round of wall-clock time
+  // (cards.roundSeconds, 10 s) advances all of them together: engine income and its `every N`
+  // / dig cadences below, ability cooldowns and per-round use caps, and the Magic conjure
+  // clock. A card that used to fire "every 6 rounds" therefore fires once a minute.
+  const stepMs = (state.config.realtime && state.config.realtime.stepMs) || 500;
+  const roundTicks = Math.max(1, Math.round(((cc.roundSeconds != null ? cc.roundSeconds : 10) * 1000) / stepMs));
   C._engTick = (C._engTick || 0) + 1;
-  const engineDue = C._engTick >= slow;
+  const engineDue = C._engTick >= roundTicks;   // a full round has elapsed
   if (engineDue) C._engTick = 0;
   let energySum = 0;
   if (engineDue) for (const e of C.engines) {
@@ -8483,9 +8490,11 @@ function produceCardEngines(state) {
   // The engine energy ceiling: installed energy income is clamped below SKIP.
   if (energySum > 0) net.energy += Math.min(energySum, cc.engineEnergyClamp);
 
-  // Player-activated actions: a world tick is one "round", so per-round use limits
-  // reset and cooldowns tick down (the Actions-menu buttons refresh from this).
-  for (const a of (C.actions || [])) {
+  // Player-activated actions: their cooldowns (`every`) and per-round use caps (`per`) are
+  // written in the SAME rounds the cadence dots show, so they advance on the round clock too —
+  // one dot of cooldown = cards.roundSeconds. (These used to tick every world tick, which made
+  // a "once every 6 rounds" ability recover in 3 s instead of a minute.)
+  if (engineDue) for (const a of (C.actions || [])) {
     a.used = 0;
     if (a.cd > 0) a.cd -= 1;
   }
