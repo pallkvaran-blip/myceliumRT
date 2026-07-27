@@ -1740,6 +1740,11 @@ const CONFIG = {
     suberinRadius: 80,           // Melanized Wall: clear + ward radius
     rehydrateRadius: 90,         // Rehydration Pulse: heal radius (was 60 → +50%)
     sealReach: 8,                // Sclerotial Seal: seal the whole nearest food pile within this many cells (forgiving)
+    goalSurfaceDepth: 24,        // WIN: how close to the soil line a strand must get at the goal to count as having
+                                 //   BROKEN THE SURFACE. Under one cell (36), so the colony has to grow right up to
+                                 //   the grass rather than win from deep underground (the Fruit action keeps its own,
+                                 //   far more forgiving actions.fruit.reachDepth for placing fruiting bodies).
+                                 //   Growth can be placed to within 2 units of the surface, so this is reachable.
   },
 
   // ---- Growth: 2D space-colonization (A8, B2) ----------------------------
@@ -6212,6 +6217,17 @@ class Network {
   // --- Occupancy: which cells the network sits in (income + held ground) ---
   // Updates cell.held (firmly-held ground resists Trichoderma) and returns the
   // list of occupied cells that still carry nutrient (income sources).
+  // --- "has this strand actually grown in yet?" ------------------------------
+  // A grow commits its WHOLE path in one go and the render layer then animates it in over
+  // ~1–3s (each node's `_liveAt` is the moment it finishes appearing — see
+  // NetworkRenderer.scheduleReveal). Until then the strand is not physically there, so the
+  // world must not act on it: threats can't see or eat it, it can't claim a food pile, and
+  // it can't reach the goal. Ungated (everything counts) until the render layer has
+  // scheduled at least once — e.g. headless — so the sim still works with no renderer.
+  grownIn(n) {
+    return this._nowMs == null || !n || n._liveAt == null || this._nowMs >= n._liveAt;
+  }
+
   collectOccupiedCells(substrate) {
     // Clear previously-held cells.
     for (const idx of this.occupiedIdx) {
@@ -6257,15 +6273,11 @@ class Network {
     const reachCells = Math.ceil(g.sensingRadius / cs) + 1;
     const key = (c, r) => c + ',' + r;
 
-    // Only strands that have actually GROWN IN can reach a pile. A grow commits its whole
-    // path in one go and the render layer animates it in afterwards, so without this a pile
-    // at the far end would be claimed and digested the instant the card was played — and a
-    // long grow crossing several piles would pop them all at once instead of one at a time
-    // as the front passes each. `_liveAt` is when a strand finishes appearing (set by
-    // NetworkRenderer.scheduleReveal); `_nowMs` is unset until the render layer has
-    // scheduled at least once (headless), in which case nothing is gated.
-    const nowMs = this._nowMs;
-    const grownIn = (n) => nowMs == null || n._liveAt == null || nowMs >= n._liveAt;
+    // Only strands that have actually GROWN IN can reach a pile (see grownIn) — otherwise a
+    // long grow would claim and digest a pile at the far end of its path the instant the card
+    // was played, and a grow crossing several piles would pop them all at once instead of one
+    // at a time as the front passes each.
+    const grownIn = (n) => this.grownIn(n);
 
     // Bucket living strands by cell for a bounded nearest-node search.
     const buckets = new Map();
@@ -6592,7 +6604,9 @@ function stepNematodes(state) {
   if (!state.nematodes) state.nematodes = [];
   const net = state.active;
   const cs = sub.cellSize;
-  const nodes = net && net.alive ? net.nodes : [];
+  // Worms can only sense and eat strands that have actually GROWN IN (net.grownIn): a grow
+  // commits its whole path at once, so tissue still animating in isn't there to be found yet.
+  const nodes = net && net.alive ? net.nodes.filter((n) => net.grownIn(n)) : [];
   const claimed = new Set();    // node ids eaten this tick (one worm per strand)
   const targeted = new Set();   // node ids a worm is already HEADING for this tick (fan-out)
   const newborns = [];
@@ -6934,7 +6948,10 @@ function spreadTrichoderma(state) {
   });
   // Your colony counts as a food source too, so a cloud always heads for the
   // CLOSEST of (substrate, you) and never sits idle while a target exists.
-  const nodes = state.active && state.active.alive ? state.active.nodes : [];
+  // Only strands that have actually GROWN IN are visible to a cloud (net.grownIn) — tissue
+  // still animating in from a committed grow isn't physically there to be sensed yet.
+  const act = state.active;
+  const nodes = act && act.alive ? act.nodes.filter((n) => act.grownIn(n)) : [];
 
   const survivors = [];
   for (const cloud of state.clouds) {
@@ -7107,6 +7124,7 @@ function infectNetwork(net, state) {
     const reach = cloud.r * cs;
     let hit = null, best = Infinity, touched = false;
     for (const n of net.nodes) {
+      if (!net.grownIn(n)) continue;               // hasn't grown in yet — nothing there to touch
       const d = (n.x - cloud.cx) ** 2 + (n.y - cloud.cy) ** 2;
       if (d > reach * reach) continue;
       touched = true;                          // in contact with the colony
@@ -7148,6 +7166,7 @@ function infectStrandsInMould(net, state) {
   const seeds = [];
   for (const n of net.nodes) {
     if (n.infected || n.side) continue;             // already rot / decorative fuzz
+    if (!net.grownIn(n)) continue;                  // still growing in — it hasn't reached the mould yet
     const cell = sub.cellAtWorld(n.x, n.y);
     if (cell && cell.trich >= th && !cellProofed(sub, n)) { n.infected = true; hit++; seeds.push(n); }
   }
@@ -7197,7 +7216,7 @@ function checkPuzzleGoal(state) {
   if (!chest) return;
   const r2 = chest.r * chest.r;
   for (const n of state.active.nodes) {
-    if (n.infected) continue;
+    if (n.infected || !state.active.grownIn(n)) continue;   // only growth that has actually arrived
     const dx = n.x - chest.x, dy = n.y - chest.y;
     if (dx * dx + dy * dy <= r2) {
       state.won = true;
@@ -8556,13 +8575,18 @@ function checkGoalReached(state) {
   // A strand that grew INTO the Trichoderma gets infected FIRST, so a fruiting body
   // pushed through mould sitting on the finish line is dead tissue and can't win.
   infectStrandsInMould(net, state);
-  const f = state.config.actions.fruit;
+  // The win must land when the growth ACTUALLY GETS THERE, at the SURFACE:
+  //   • grownIn — a grow commits its whole path at once, so an un-revealed strand sitting on
+  //     the finish line hasn't arrived yet; the win waits for it to finish growing in.
+  //   • goalSurfaceDepth — the strand has to reach the soil line itself (under one cell),
+  //     not merely get within the Fruit action's far deeper reachDepth.
+  const goalDepth = state.config.cards.goalSurfaceDepth != null ? state.config.cards.goalSurfaceDepth : 24;
   for (const n of net.nodes) {
-    if (n.infected) continue;
+    if (n.infected || !net.grownIn(n)) continue;
     const surf = sub.surfaceColumnAtX(n.x);
     if (surf && surf.goal) {
       const depth = n.y - sub.surfaceY;
-      if (depth >= 0 && depth <= f.reachDepth) {
+      if (depth >= 0 && depth <= goalDepth) {
         // WIN — but first FINISH HARVESTING every food pile the colony still occupies
         // (bank its Energy) and hand out any resulting card drafts. The victory sequence
         // only begins once those are resolved: if a draft is now pending we mark the win
