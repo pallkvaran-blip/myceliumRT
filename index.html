@@ -354,17 +354,23 @@
     .erow.t .eval { color: var(--warn); }
     .erow.magic .enm { color: #d9b8f0; font-weight: 600; }   /* Magic Mushroom special-power row (no lead glyph) */
     .ecad { color: var(--ink-dim); font-size: 10px; font-weight: 600; flex: 0 0 auto; }
-    /* Cadence lights: one dot per round of the cadence. Lit dots = rounds left
-       until the event (a producer's next payout, or an action coming off cooldown);
-       they count DOWN, then recharge. Same widget on BOTH corners. */
-    .ecad.cad { display: inline-flex; align-items: center; gap: 3px; margin-left: 2px; }
-    .clight { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto;
+    /* Cadence bar: a TIME BAR that fills gradually toward the event (a producer's next
+       payout, or an action coming off cooldown), replacing the old one-dot-per-round
+       lights. The fill is a CSS animation spanning the whole cadence, phased with a
+       negative animation-delay — so it advances smoothly in real time no matter how
+       often the HUD refreshes, and picks up mid-fill if the row is re-rendered.
+       Full (no animation) = steady/ready. Same widget on BOTH corners. */
+    .ecad.cad { display: inline-flex; align-items: center; margin-left: 4px; }
+    .cbar { position: relative; width: 36px; height: 5px; border-radius: 3px; overflow: hidden; flex: 0 0 auto;
       background: rgba(220,235,225,0.13); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); }
-    .clight.on { background: radial-gradient(circle at 35% 35%, #fff2d0, var(--warn)); box-shadow: 0 0 5px var(--warn); }
-    .ck-e .clight.on { background: radial-gradient(circle at 35% 35%, #d7ffe8, var(--accent)); box-shadow: 0 0 5px var(--accent); }
-    .ck-w .clight.on { background: radial-gradient(circle at 35% 35%, #dff6fb, #7fd0e0); box-shadow: 0 0 5px #7fd0e0; }
-    .ck-p .clight.on { background: radial-gradient(circle at 35% 35%, #efe0fb, #c79be6); box-shadow: 0 0 5px #c79be6; }
-    .ck-t .clight.on { background: radial-gradient(circle at 35% 35%, #fff2d0, var(--warn)); box-shadow: 0 0 5px var(--warn); }
+    .cbar > i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px;
+      background: linear-gradient(90deg, rgba(255,242,208,0.55), var(--warn));
+      transition: width 520ms linear; }   /* glides between HUD refreshes → a gradual fill */
+    .cbar.full > i { width: 100%; }
+    .ck-e .cbar > i { background: linear-gradient(90deg, rgba(215,255,232,0.55), var(--accent)); }
+    .ck-w .cbar > i { background: linear-gradient(90deg, rgba(223,246,251,0.55), #7fd0e0); }
+    .ck-p .cbar > i { background: linear-gradient(90deg, rgba(239,224,251,0.55), #c79be6); }
+    .ck-t .cbar > i { background: linear-gradient(90deg, rgba(255,242,208,0.55), var(--warn)); }
     .lgdiv { height: 1px; background: var(--panel-border); margin: 6px 0; }
 
     /* glow dots — shared by ledger rows (full keys energy/water/phosphorus/t) and
@@ -12245,7 +12251,7 @@ class UI {
     const hasLeft = sum.energy.rows.size || sum.phosphorus.rows.size || sum.water.rows.size || sum.mods.length || !!special;
     const show = !!hasLeft && this.ledgerOpen;   // collapsible via the pill on every screen
     led.classList.toggle('hidden', !show);
-    if (!show) { led.innerHTML = ''; return; }
+    if (!show) { led.innerHTML = ''; this._ledgerHTML = null; return; }   // clear the cache so re-opening rebuilds
     // Cadence indicator (shared with the Actions menu): a steady producer shows a
     // single always-on light; one that fires every N rounds shows N lights counting
     // DOWN to the payout — all lit when freshly charged, one lit when it fires next round.
@@ -12261,7 +12267,7 @@ class UI {
         + `<span class="eval lead">+${r.amt}${glyph}</span>`
         + `${r.n > 1 ? `<span class="exn">×${r.n}</span>` : ''}`
         + `<span class="enm">${r.name}</span>`
-        + cadenceLightsHTML(r.cad, r.left, CK[key]) + `</div>`).join('');
+        + cadenceLightsHTML(r.cad, r.et || 0, CK[key], null, 'eng|' + r.raw + '|' + r.cad) + `</div>`).join('');
     };
     // Use the SAME resource marks as the top pill (RES_ICON SVGs) rather than emoji,
     // so all three are the same size, aligned, and match the HUD (just smaller).
@@ -12271,10 +12277,20 @@ class UI {
       h += '<div class="lgdiv"></div><div class="lgblock"><div class="lghead m"><span>Modifiers</span></div>'
         + sum.mods.map((m) => `<div class="erow" data-card="${escapeHtml(m.raw)}"><span class="enm dim">${m.name} · ${m.text}</span></div>`).join('') + '</div>';
     }
-    led.innerHTML = h;
-    // Click any installed-engine row to preview that card (see _showCardPopup).
-    led.querySelectorAll('.erow[data-card]').forEach((row) =>
-      row.addEventListener('click', () => this._showCardPopup(row.dataset.card)));
+    // Only touch the DOM when the markup actually changed. The HUD refreshes on every world
+    // tick now, and re-creating these rows twice a second both flickers whatever is under the
+    // cursor and can swallow a click (the row is replaced between press and release). The
+    // cadence bars don't need the rebuild either — their fill is a CSS animation that keeps
+    // advancing in real time on its own.
+    const rebuilt = h !== this._ledgerHTML;
+    if (rebuilt) {
+      this._ledgerHTML = h;
+      led.innerHTML = h;
+      // Click any installed-engine row to preview that card (see _showCardPopup).
+      led.querySelectorAll('.erow[data-card]').forEach((row) =>
+        row.addEventListener('click', () => this._showCardPopup(row.dataset.card)));
+    }
+    syncCadenceBars(led, rebuilt);   // advance the time bars without touching the rows
   }
 
   _renderActions() {
@@ -12286,23 +12302,32 @@ class UI {
     const timed = summarizeEngines((C && C.engines) || []).timed;
     const hasAny = actions.length > 0 || timed.length > 0;
     dock.classList.toggle('hidden', !hasAny);
-    if (!hasAny) { menu.innerHTML = ''; return; }
+    if (!hasAny) { menu.innerHTML = ''; this._actMenuHTML = null; return; }
     const ready = actions.filter((a) => actionUsable(this.state, a)).length;   // player-usable now (autos don't count)
     badge.textContent = ready; badge.classList.toggle('zero', ready === 0);
     const show = this.actionsOpen;   // collapsible via the Actions pill on every screen
     btn.classList.toggle('open', show);
     menu.classList.toggle('hidden', !show);
-    if (!show) { menu.innerHTML = ''; return; }
-    menu.innerHTML = actions.map((a, i) => actionRowHTML(a, i, this.state)).join('')
+    if (!show) { menu.innerHTML = ''; this._actMenuHTML = null; return; }
+    const mh = actions.map((a, i) => actionRowHTML(a, i, this.state)).join('')
       + timed.map((t) => autoActionRowHTML(t)).join('');
-    menu.querySelectorAll('.use').forEach((b) => {
-      // Wire EVERY Use button, including unusable ones — activateAction returns the reason
-      // (e.g. "Need 2 more Water" / "On cooldown") which onActivateAction toasts.
-      b.onclick = (e) => { e.stopPropagation(); this.handlers.onActivateAction(+b.dataset.i); };  // don't also open the preview
-    });
-    // Click a row (anywhere but its Use button) to preview that card.
-    menu.querySelectorAll('.actrow[data-card]').forEach((row) =>
-      row.addEventListener('click', (e) => { if (e.target.closest('.use')) return; this._showCardPopup(row.dataset.card); }));
+    // Same rebuild guard as the ledger: re-creating these rows on every world tick flickers
+    // the row under the cursor and can swallow a click on Use (the button is replaced between
+    // press and release). The cadence bars animate on their own, so nothing is lost.
+    const mRebuilt = mh !== this._actMenuHTML;
+    if (mRebuilt) {
+      this._actMenuHTML = mh;
+      menu.innerHTML = mh;
+      menu.querySelectorAll('.use').forEach((b) => {
+        // Wire EVERY Use button, including unusable ones — activateAction returns the reason
+        // (e.g. "Need 2 more Water" / "On cooldown") which onActivateAction toasts.
+        b.onclick = (e) => { e.stopPropagation(); this.handlers.onActivateAction(+b.dataset.i); };  // don't also open the preview
+      });
+      // Click a row (anywhere but its Use button) to preview that card.
+      menu.querySelectorAll('.actrow[data-card]').forEach((row) =>
+        row.addEventListener('click', (e) => { if (e.target.closest('.use')) return; this._showCardPopup(row.dataset.card); }));
+    }
+    syncCadenceBars(menu, mRebuilt);   // advance the time bars without touching the rows
   }
 
   // Preview an installed card (from either corner panel) as a compact, fixed-shape
@@ -12536,6 +12561,7 @@ class UI {
   update() {
     const s = this.state;
     const net = s.active;
+    refreshCadenceClock(s);   // phase the cadence bars' fill against the card layer's round clock
     text('hud-energy', Math.floor(net.energy));
     text('hud-spores', Math.floor(s.spores));
 
@@ -12631,6 +12657,18 @@ class UI {
       this.el.handhint.classList.toggle('hidden', !showHint);
     }
 
+    // The HUD now refreshes on every world tick (real time), and rebuilding the carousel
+    // buttons twice a second destroyed the element under the cursor — so a hovered card
+    // flickered. Rebuild ONLY when something the buttons actually render has changed
+    // (which cards, how many, affordability, the selection, the filter, and each card's
+    // hand index, since that is what a click plays).
+    const sig = s.cards.hand.length + '#' + this.handFilter + '#' + filtered.map((g) =>
+      g.name + ':' + g.count + ':' + g.firstIndex + (isPlayable(g) ? '+' : '-')
+      + (((this.pendingCard && this.pendingCard.name === g.name)
+        || (this.armed && this.armed.kind === 'hand' && this.armed.name === g.name)) ? '*' : '')).join('|');
+    if (sig === this._handSig && list.childElementCount) { this._updateHandNav(); return; }
+    this._handSig = sig;
+
     const prevScroll = list.scrollLeft;
     if (!s.cards.hand.length) { list.innerHTML = '<div class="handempty">No cards in hand — wait for income, draw, or use actions.</div>'; return; }
     list.innerHTML = '';
@@ -12675,6 +12713,11 @@ class UI {
     const chip = (key, label, n, on) => `<button class="fchip${on ? ' on' : ''}" data-f="${key}">${escapeHtml(label)}<span class="fn">${n}</span></button>`;
     // Only worth showing filters when there's more than one group.
     fbar.style.display = ordered.length > 1 ? '' : 'none';
+    // Same rebuild guard as the carousel: don't re-create the chips on every world tick, or
+    // the one under the cursor flickers.
+    const fsig = this.handFilter + '#' + total + '#' + ordered.map((e) => e.key + ':' + e.n).join('|');
+    if (fsig === this._filterSig && fbar.childElementCount) return;
+    this._filterSig = fsig;
     fbar.innerHTML = chip('all', 'All', total, this.handFilter === 'all') + ordered.map((e) => chip(e.key, e.label, e.n, this.handFilter === e.key)).join('');
     fbar.querySelectorAll('.fchip').forEach((b) => { b.onclick = () => { this.handFilter = b.dataset.f; this._renderHand(); }; });
   }
@@ -13187,12 +13230,15 @@ function summarizeEngines(engines) {
     if (res) {
       const amt = e[res], cad = (e.every && e.every > 1) ? e.every : 1, g = out[res];
       if (cad > 1) g.cad += amt; else g.steady += amt;
-      const key = e.name + '|' + cad, row = g.rows.get(key) || { name: escapeHtml(e.name), raw: e.name, amt: 0, n: 0, cad, left: cad };
+      const key = e.name + '|' + cad, row = g.rows.get(key) || { name: escapeHtml(e.name), raw: e.name, amt: 0, n: 0, cad, left: cad, et: 0 };
       row.amt += amt; row.n += 1;
-      // Cadence lights. Most producers count DOWN (rounds remaining until payout = `cad - _et`,
-      // soonest across duplicates). The Aquifer Tap counts UP instead — the lights FILL as it
-      // charges, so touching one water source shows 1 light next round, not `cad - 1`.
-      if (cad > 1) row.left = e._waterSource ? (e._et || 0) : Math.min(row.left, cad - (e._et || 0));
+      // `_et` is the rounds a producer has charged toward its next payout, so it IS the
+      // cadence bar's progress (take the furthest along across duplicates). `left` (rounds
+      // remaining) is kept for the tooltip/legacy readouts.
+      if (cad > 1) {
+        row.left = e._waterSource ? (e._et || 0) : Math.min(row.left, cad - (e._et || 0));
+        row.et = Math.max(row.et || 0, e._et || 0);
+      }
       g.rows.set(key, row);
     } else if (e.digEvery) {
       out.timed.push({ name: escapeHtml(e.name), raw: e.name, every: e.digEvery, left: Math.max(0, e.digEvery - (e._t || 0)) });
@@ -13210,15 +13256,57 @@ function summarizeEngines(engines) {
 // meter — full = ready to use (so a freshly-installed, usable action shows all dots
 // lit), draining to empty right after a use and refilling as the cooldown ticks.
 // `ck` tints the lit dots: 'e'/'w'/'p' by resource, 't' for a timed ability.
-function cadenceLightsHTML(cad, lit, ck = 't', title) {
-  // A steady, every-round item shows a single ALWAYS-ON light (the same glowing dot
-  // as the cadenced meter, resource-tinted) instead of a "/rd" tag — so every row on
-  // both pills reads with a light.
-  if (!cad || cad <= 1) return `<span class="ecad cad ck-${ck}" title="${title != null ? title : 'every round'}"><i class="clight on"></i></span>`;
-  let dots = '';
-  for (let i = 0; i < cad; i++) dots += `<i class="clight${i < lit ? ' on' : ''}"></i>`;
-  const t = title != null ? title : `every ${cad} rounds · ${lit} left`;
-  return `<span class="ecad cad ck-${ck}" title="${t}">${dots}</span>`;
+// Cadence clock, refreshed once per HUD update (UI.update): how long one round lasts and
+// how far into the current round we are, so every bar can PHASE its fill animation and so
+// the fill advances smoothly between HUD refreshes instead of stepping once per round.
+let _cadRoundMs = 10000, _cadFrac = 0;
+const _cadProg = new Map();   // stable bar key -> { rounds, done } for this HUD update
+function refreshCadenceClock(s) {
+  const cc = (s && s.config && s.config.cards) || {};
+  const stepMs = (s && s.config && s.config.realtime && s.config.realtime.stepMs) || 500;
+  _cadRoundMs = Math.max(200, (cc.roundSeconds != null ? cc.roundSeconds : 10) * 1000);
+  const roundTicks = Math.max(1, Math.round(_cadRoundMs / stepMs));
+  // Part-round progress. Frozen automatically while the world clock is (the round clock
+  // only advances on world ticks), so a paused game holds its bars where they are.
+  _cadFrac = Math.max(0, Math.min(1, ((s && s.cards && s.cards._engTick) || 0) / roundTicks));
+  _cadProg.clear();
+}
+// `elapsed` = whole rounds of progress already made toward the event (0 = just fired / just
+// used, `cad` = due now / ready). `key` must be STABLE for this row across refreshes: the
+// markup deliberately carries no progress, so the row's HTML only changes when its real
+// content does (see the rebuild guards in _renderEngines/_renderActions) and the fill is
+// written afterwards by syncCadenceBars — which is what keeps the bar from being re-created,
+// and lets a CSS width transition glide it between refreshes.
+function cadenceLightsHTML(cad, elapsed, ck = 't', title, key = '') {
+  const rounds = (!cad || cad <= 1) ? 1 : cad;
+  // A steady, every-round producer has no countdown to track, so its bar simply fills across
+  // each round and resets — a live "next payout in…" readout.
+  const done = (!cad || cad <= 1) ? 0 : Math.max(0, Math.min(rounds, elapsed || 0));
+  const t = title != null ? title : (rounds > 1 ? `every ${rounds} rounds` : 'every round');
+  const k = key || (ck + '|' + rounds);
+  _cadProg.set(k, { rounds, done });
+  return `<span class="ecad cad ck-${ck}" title="${escapeHtml(String(t))}">`
+    + `<span class="cbar" data-cadkey="${escapeHtml(k)}"><i></i></span></span>`;
+}
+// Write every visible bar's fill from the current round clock. Runs on EVERY HUD refresh
+// (unlike the row markup, which is only rebuilt when its content changes), so the fill
+// advances a step each world tick and the CSS transition glides it smoothly in between.
+// `justBuilt` suppresses the transition for one frame after a rebuild, so a fresh bar
+// appears already filled instead of sliding up from zero.
+function syncCadenceBars(root, justBuilt) {
+  if (!root) return;
+  root.querySelectorAll('.cbar[data-cadkey]').forEach((bar) => {
+    const p = _cadProg.get(bar.dataset.cadkey);
+    const fill = bar.firstElementChild;
+    if (!p || !fill) return;
+    const ready = p.done >= p.rounds;
+    bar.classList.toggle('full', ready);
+    const frac = ready ? 1 : Math.max(0, Math.min(1, (p.done + _cadFrac) / p.rounds));
+    const pct = (frac * 100).toFixed(1) + '%';
+    if (fill.style.width === pct) return;
+    if (justBuilt) { fill.style.transition = 'none'; fill.style.width = pct; void fill.offsetWidth; fill.style.transition = ''; }
+    else fill.style.width = pct;
+  });
 }
 
 // A species SPECIAL-power row for the top-left ledger. Magic Mushroom: a random
@@ -13231,7 +13319,7 @@ function specialRowHTML(C) {
   const title = `Special: every ${every} turns a random basic or event card magically appears in your hand. Cannot be sped up.`;
   return `<div class="erow magic" title="${escapeHtml(title)}">`
     + `<span class="enm">Magic</span>`
-    + cadenceLightsHTML(every, left, 'p', title) + `</div>`;
+    + cadenceLightsHTML(every, every - left, 'p', title, 'magic') + `</div>`;   // countdown → rounds charged
 }
 
 // --- actions-menu row -------------------------------------------------------
@@ -13242,10 +13330,10 @@ function actionRowHTML(a, i, state) {
   const meta = [];
   if (a.cost) meta.push(`<span class="acost ${ACT_DOT[a.res]}">${a.cost}${ACT_GLYPH[a.res]}</span>`);
   if (a.per) meta.push(`<span class="aleft">${(a.per - (a.used || 0))} / ${a.per} left</span>`);
-  // Round time as a CHARGE meter (same widget as the left ledger): full = ready to
-  // use, so an installed/off-cooldown action shows all dots lit. `cd` counts down
-  // from `every` (just used) to 0 (ready), so lit = every − cd fills as it recharges.
-  if (a.every) meta.push(cadenceLightsHTML(a.every, a.every - (a.cd || 0), a.cost ? ACT_DOT[a.res] : 't', (a.cd || 0) > 0 ? `ready in ${a.cd}` : 'ready'));
+  // Round time as a CHARGE bar (same widget as the left ledger): full = ready to use, so
+  // an installed/off-cooldown action reads full. `cd` counts down from `every` (just used)
+  // to 0 (ready), so `every − cd` is how much of the cooldown has already recharged.
+  if (a.every) meta.push(cadenceLightsHTML(a.every, a.every - (a.cd || 0), a.cost ? ACT_DOT[a.res] : 't', (a.cd || 0) > 0 ? `ready in ${a.cd} round${a.cd > 1 ? 's' : ''}` : 'ready', 'act|' + a.name + '|' + i));
   const dot = a.cost ? ACT_DOT[a.res] : (a.every ? 't' : 'e');
   return `<div class="actrow${usable ? '' : ' off'}" data-card="${escapeHtml(a.name)}">`
     + `<span class="edot ${dot}"></span>`
@@ -13263,7 +13351,7 @@ function autoActionRowHTML(t) {
     + `<span class="edot t"></span>`
     + `<div class="acttxt"><div class="actnm">${escapeHtml(t.name)}</div>`
     + `<div class="acteff">clears a rock formation/column</div>`
-    + `<div class="actmeta">${cadenceLightsHTML(t.every, t.left != null ? t.left : t.every, 't')}</div></div>`
+    + `<div class="actmeta">${cadenceLightsHTML(t.every, t.every - (t.left != null ? t.left : t.every), 't', null, 'auto|' + (t.raw || t.name))}</div></div>`
     + `<span class="autotag">auto</span></div>`;
 }
 // Card art slug — MUST match scripts/gen_card_art.py (lowercase, non-alphanumeric -> '-').
@@ -16388,6 +16476,9 @@ function begin(newState) {
       previewFruit: !!previewFruit, tutorial: !!(tutorial && tutorial.active),
       revealing: (() => { try { return !!anyRevealing(lastTime); } catch (_) { return null; } })(),
     }),
+    // Ant-column trace (off by default): where the marching ants were drawn last frame.
+    traceAnts: (on) => { _antTrace = !!on; if (!_antTrace) _antMarks = []; return _antTrace; },
+    antMarks: () => _antMarks.slice(),
     // Tutorial hooks (used by the future "replay tutorial" button + tests).
     startTutorial: () => beginTutorial(),
     resetTutorial: () => { try { localStorage.removeItem(TUT_KEY); } catch (_) {} },
@@ -17167,7 +17258,9 @@ function advanceSim(time) {
   _lastSimTime = time;
   // Frozen (paused, or a zero/negative dt): advance nothing and LEAVE _simAccum where it is,
   // so the render interpolation (renderAlpha) freezes in place instead of snapping back.
-  if (!(dt > 0) || simPaused()) return;
+  const paused = simPaused();
+  state._simPaused = paused;   // the HUD's cadence bars hold their fill while time is frozen
+  if (!(dt > 0) || paused) return;
   const step = rt.stepMs || 500;
   const maxN = rt.maxCatchUpTicks || 3;
   // Schedule the reveal for any growth added since the last frame BEFORE the world ticks:
@@ -17715,6 +17808,11 @@ function drawColonyLos() {
 
 // --- Ant rendering helpers --------------------------------------------------
 
+// Invisible trace hook (off by default, zero cost when off): records where the marching
+// ants were drawn this frame, so tests can check the column covers the WHOLE trail however
+// long it has grown. Toggled via window.__game.traceAnts(true).
+let _antTrace = false, _antMarks = [];
+
 // Tiny deterministic PRNG so a nest's dug-out colony + ant placement stay
 // STABLE every frame (no flicker) yet differ between nests.
 function antRand(seed) {
@@ -17849,6 +17947,7 @@ function sampleTrail(pts, L) {
 // A dormant nest (no reachable food) is dimmed; an HP bar shows bombs remaining.
 function drawAnts(time) {
   const ants = state.ants;
+  if (_antTrace) _antMarks = [];
   if (!ants || !ants.length) return;
   const sub = state.substrate;
   const z = camera.zoom;
@@ -17881,20 +17980,30 @@ function drawAnts(time) {
         const SP = cs * 1.9;                                    // spacing between ants in a lane (world units)
         const speed = cs * 1.7;                                 // marching speed (world units / sec) — length-independent
         const march = ((time * 0.001 * speed) % SP + SP) % SP;  // 0..SP, advances at constant speed
-        const slots = Math.floor(weave.len / SP) + 2;
-        let drawn = 0;
-        for (let slot = 0; slot < slots && drawn < 28; slot++) {
-          for (let lane = 1; lane >= -1 && drawn < 28; lane -= 2) {
-            // lane +1 streams toward the food end; lane -1 streams back toward the nest.
-            const s = lane > 0 ? (slot * SP + march) : (slot * SP + (SP - march));
-            if (s < 0 || s > weave.len) continue;
-            const sa = sampleTrail(weave.pts, s);
+        const pts = weave.pts, vw = camera.viewW, vh = camera.viewH;
+        // Walk each lane along the WHOLE trail. A trail now grows cumulatively pile-to-pile, so
+        // it can get very long — capping the ant COUNT (as this did) left the far half of the
+        // line completely bare, reading as "a trail with no ants that goes nowhere". Instead the
+        // spacing stays fixed (so the column never speeds up when the trail extends) and we
+        // simply skip ants that are off screen, with a monotonic cursor into the weave so the
+        // walk stays cheap however long the trail is.
+        if (pts.length >= 2) for (let lane = 1; lane >= -1; lane -= 2) {
+          // lane +1 streams toward the food end; lane -1 streams back toward the nest.
+          let i = 0, drawn = 0;
+          for (let s = lane > 0 ? march : SP - march; s <= weave.len && drawn < 400; s += SP) {
+            while (i < pts.length - 2 && pts[i + 1].s < s) i++;
+            const a = pts[i], b = pts[i + 1];
+            const span = (b.s - a.s) || 1, f = (s - a.s) / span;
+            const ang = Math.atan2(b.y - a.y, b.x - a.x);
+            const bx = a.x + (b.x - a.x) * f, by = a.y + (b.y - a.y) * f;
             const off = laneGap * lane;
-            let ax = sa.x - Math.sin(sa.ang) * off, ay = sa.y + Math.cos(sa.ang) * off;
+            let ax = bx - Math.sin(ang) * off, ay = by + Math.cos(ang) * off;
             const ac = sub.cellAtWorld(ax, ay);              // keep the ant off rock cells
-            if (ac && ac.rock) { ax = sa.x; ay = sa.y; }      // drop the lane offset rather than walk onto rock
+            if (ac && ac.rock) { ax = bx; ay = by; }          // drop the lane offset rather than walk onto rock
             const sp = camera.worldToScreen(ax, ay);
-            drawAnt(ctx, sp.x, sp.y, lane > 0 ? sa.ang : sa.ang + Math.PI, Math.max(1.6, 2.3 * z), 1);
+            if (sp.x < -24 || sp.x > vw + 24 || sp.y < -24 || sp.y > vh + 24) continue;   // off screen
+            drawAnt(ctx, sp.x, sp.y, lane > 0 ? ang : ang + Math.PI, Math.max(1.6, 2.3 * z), 1);
+            if (_antTrace) _antMarks.push({ x: ax, y: ay, s, lane, len: weave.len, sp: SP });
             drawn++;
           }
         }
