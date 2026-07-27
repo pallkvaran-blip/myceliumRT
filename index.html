@@ -7436,11 +7436,19 @@ function buildTrail(sub, nestCol, nestRow) {
     const cell = sub.cells[cur];
     if (cell.nutrient > 0 && cur !== start && !(cell.antProof > 0)) { foodIdx = cur; break; }  // nearest UNSEALED food (BFS order)
     const c = cur % W, r = (cur / W) | 0;
+    const here = sub.cellCenter(c, r);
     for (const [dc, dr] of nbrs) {
       const nc = c + dc, nr = r + dr;
       if (nc < 0 || nr < 0 || nc >= W || nr >= H) continue;
       const ni = nr * W + nc;
       if (parent[ni] !== -2 || sub.cells[ni].rock) continue;
+      // Rock SPRITES cover more ground than the cells they're flagged on (that's why growth
+      // collides against the fine `solidAtWorld` mask, which matches the visible art). Test
+      // the step against it too — the destination AND the midpoint — or the trail threads
+      // cells that are visually inside a boulder and the ants appear to crawl over it.
+      const to = sub.cellCenter(nc, nr);
+      if (sub.solidAtWorld(to.x, to.y)) continue;
+      if (sub.solidAtWorld((here.x + to.x) / 2, (here.y + to.y) / 2)) continue;
       parent[ni] = cur;
       q.push(ni);
     }
@@ -15694,8 +15702,11 @@ const AIM_MIN_PX = 12;                // drag this far (screen) to register a di
 // Press within this (screen px) of the colony to AIM; press farther and the gesture
 // PANS the map instead — so the player can reposition the view without cancelling.
 const AIM_NEAR_PX = 90;
-// Drag past this (screen) to CANCEL — the line vanishes and releasing does nothing.
-const aimCancelPx = () => Math.max(220, Math.min(window.innerWidth, window.innerHeight) * 0.55);
+// CANCELLING an aim. Dragging FAR no longer cancels (you often want to grow a long way):
+// the only two ways out are to drag off the screen entirely, or — having already aimed —
+// to pull back to within this radius of where you pressed. Coming back out past it re-arms
+// the aim, so a stray wobble never costs you the gesture.
+const AIM_CANCEL_BACK_PX = 26;
 
 // --- setup / restart --------------------------------------------------------
 // Per-level config: procedural map as always, but the number of each threat is
@@ -16476,6 +16487,18 @@ function begin(newState) {
       previewFruit: !!previewFruit, tutorial: !!(tutorial && tutorial.active),
       revealing: (() => { try { return !!anyRevealing(lastTime); } catch (_) { return null; } })(),
     }),
+    // Aim-drag hooks (invisible): arm a directional grow, and read the live drag state, so
+    // the press-drag rules (what counts as aimed / cancelled) are testable.
+    armAim: (name) => {
+      const C = state.cards; if (!C || !ui || !ui.setPendingCard) return false;
+      let i = C.hand.findIndex((h) => h.name === name);
+      if (i < 0) { C.hand.push({ id: C.seq++, name }); i = C.hand.length - 1; }
+      ui.setPendingCard(i); uiDirty = true; return true;
+    },
+    aimState: () => (aim ? {
+      armed: true, dragged: !!aim.dragged, cancelled: !!aim.cancelled,
+      d: Math.hypot(aim.curScreen.x - aim.startScreen.x, aim.curScreen.y - aim.startScreen.y),
+    } : { armed: false }),
     // Ant-column trace (off by default): where the marching ants were drawn last frame.
     traceAnts: (on) => { _antTrace = !!on; if (!_antTrace) _antMarks = []; return _antTrace; },
     antMarks: () => _antMarks.slice(),
@@ -16972,16 +16995,19 @@ function beginAim(e) {
   uiDirty = true;
 }
 
-// Track the drag point: refresh the end, and flag whether it's far enough to
-// register a direction (dragged) or so far it should CANCEL (line vanishes).
+// Track the drag point: refresh the end, note once it's far enough to register a direction,
+// and decide whether it should CANCEL (line vanishes). Distance ALONE never cancels — you
+// often want to grow right across the map. Only leaving the screen, or pulling back to where
+// you pressed, does; and once you've aimed, `dragged` stays set so releasing still fires.
 function updateAim(e) {
   const rect = canvas.getBoundingClientRect();
   const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
   aim.curScreen = { x: sx, y: sy };
   aim.cur = camera.screenToWorld(sx, sy);
   const d = Math.hypot(sx - aim.startScreen.x, sy - aim.startScreen.y);
-  aim.dragged = d >= AIM_MIN_PX;
-  aim.cancelled = d >= aimCancelPx();
+  if (d >= AIM_MIN_PX) aim.dragged = true;
+  const offScreen = sx < 0 || sy < 0 || sx > camera.viewW || sy > camera.viewH;
+  aim.cancelled = offScreen || (aim.dragged && d <= AIM_CANCEL_BACK_PX);
   uiDirty = true;
 }
 
@@ -17922,8 +17948,9 @@ function weaveTrail(path, sub, amp, wavelen, phase) {
       const off = Math.sin(ss / wavelen + phase) * amp * taper;
       const baseX = a.x + (b.x - a.x) * f, baseY = a.y + (b.y - a.y) * f;
       let wx = baseX + px * off, wy = baseY + py * off;
-      const wc = sub.cellAtWorld(wx, wy);              // never weave the trail onto a rock cell
-      if (wc && wc.rock) { wx = baseX; wy = baseY; }   // fall back to the (rock-free) path centreline
+      // Never weave the line onto DRAWN rock (the fine mask matches the visible sprite, so
+      // the wobble can't wander under a boulder that overhangs its cells).
+      if (sub.solidAtWorld(wx, wy)) { wx = baseX; wy = baseY; }   // fall back to the path centreline
       pts.push({ x: wx, y: wy, s: ss });
     }
   }
@@ -17998,8 +18025,8 @@ function drawAnts(time) {
             const bx = a.x + (b.x - a.x) * f, by = a.y + (b.y - a.y) * f;
             const off = laneGap * lane;
             let ax = bx - Math.sin(ang) * off, ay = by + Math.cos(ang) * off;
-            const ac = sub.cellAtWorld(ax, ay);              // keep the ant off rock cells
-            if (ac && ac.rock) { ax = bx; ay = by; }          // drop the lane offset rather than walk onto rock
+            // Keep the ant off DRAWN rock (fine mask = the visible sprite, not just the cell).
+            if (sub.solidAtWorld(ax, ay)) { ax = bx; ay = by; }   // drop the lane offset rather than walk onto rock
             const sp = camera.worldToScreen(ax, ay);
             if (sp.x < -24 || sp.x > vw + 24 || sp.y < -24 || sp.y > vh + 24) continue;   // off screen
             drawAnt(ctx, sp.x, sp.y, lane > 0 ? ang : ang + Math.PI, Math.max(1.6, 2.3 * z), 1);
@@ -19643,9 +19670,10 @@ function drawTargetingCursor(time) {
 
 // The directional press-drag aim overlay: an origin ring where growth starts, a
 // bright arrow showing the projected reach + direction, and a faint guide out to
-// the finger. When the player drags too far it flips to a red "cancel" marker and
-// the arrow vanishes (releasing then does nothing). Screen-space; recomputed each
-// frame from the live world coords so it stays put under zoom.
+// the finger. It flips to a red "cancel" marker (arrow gone, releasing does nothing)
+// only when the drag leaves the screen or is pulled back to where it started —
+// dragging far is fine. Screen-space; recomputed each frame from the live world
+// coords so it stays put under zoom.
 function drawAimLine(time) {
   const o = camera.worldToScreen(aim.origin.x, aim.origin.y);
   const glow = 0.55 + 0.45 * Math.sin(time * 0.006);
@@ -19653,7 +19681,7 @@ function drawAimLine(time) {
   ctx.save();
 
   if (aim.cancelled) {
-    // Dragged too far → cancel: red ring + cross-out, no aim line.
+    // Off screen, or pulled back to the press point → cancel: red ring + cross-out, no line.
     ctx.strokeStyle = `rgba(${RED},0.95)`; ctx.lineWidth = 1.8;
     ctx.beginPath(); ctx.arc(o.x, o.y, 8, 0, Math.PI * 2); ctx.stroke();
     ctx.beginPath();
