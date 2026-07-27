@@ -1838,7 +1838,7 @@ const CONFIG = {
     growInfectThreshold: 0.05,   // a strand standing in a trich-field cell ≥ this is infected on the spot (growing INTO mould) — so it can't fruit/win at the goal
     contactChunk: 4,             // the breach instantly claims this many rings of mycelium
     growInfectBurst: 18,         // growing a strand INTO mould instantly rots this many rings (≈6 grow-steps) in EVERY direction from each caught node, so a long grow can't outrun the rot with a white tip past the cloud (SLIDER)
-    spreadDepthPerTurn: 6,       // once inside, the rot races this many rings along your filaments each step (runs on every action AND on end-turn)
+    spreadDepthPerTurn: 3,       // once inside, the rot races this many rings along your filaments each tick — RT: halved from 6 so the rot spreads 50% slower
     infectionSpreadChance: 0.85, // chance the rot takes each step of that race (SLIDER) — high = real consequences
   },
 
@@ -1897,8 +1897,8 @@ const CONFIG = {
   ants: {
     nestCount: 2,                // nests seeded per (sandbox) map
     maxHp: 100,
-    harvestRate: 13,             // nutrient an active nest carries off its target food per tick (SLIDER) — RT-tuned so a
-                                 //   ~250-nutrient pile is stripped in ~20 ticks ≈ 10 s at the 500 ms real-time step
+    harvestRate: 6.5,            // nutrient an active nest carries off its target food per tick (SLIDER) — RT: halved
+                                 //   from 13 so ants strip a ~250-nutrient pile in ~40 ticks ≈ 20 s once the line arrives
     extendSpeed: 2,              // cells/tick the ant LINE creeps out toward its target. When a pile empties the trail
                                  //   EXTENDS from that pile to the next food (it doesn't re-route from the nest), and the
                                  //   line grows out at this pace — so the ant line gets longer and longer over the run.
@@ -1986,6 +1986,9 @@ const CONFIG = {
     trich: '#8aa23e',
     trichSpore: '#d2e074',
     infected: '#a6c63a',         // a strand the mould has overrun (green/dead)
+    infectFadeMs: 800,           // ms a newly-overrun strand takes to fade from cream → infected green,
+                                 //   so the rot creeps in gradually instead of popping in a chunk each tick
+                                 //   (detail-zoom rendering only; the zoomed-out LOD still snaps)
     warded: '#2f5fe6',           // a strand hardened/warded by a defense card — a deep blue "crust",
                                  //   distinct from the pale-mint colony and yellow-green mould
     // the living network (luminous accent — the brightest thing on screen)
@@ -2014,7 +2017,7 @@ const CONFIG = {
     // updateDevWinBtn) AND the picker's Dev quick-start / Dev: unlock all buttons
     // (render/species_select.js). ON for owner testing — set to FALSE before cutting an
     // itch zip, and confirm with scratchpad/verify-nodev.mjs.
-    enabled: false,
+    enabled: true,
     cheatEnergy: 100,
     cheatSpores: 100,
   },
@@ -10900,7 +10903,21 @@ class NetworkRenderer {
     const fil = hexToRgb(r.filament);
     const cream = `rgb(${fil[0]},${fil[1]},${fil[2]})`;
     const warded = r.warded;   // strands hardened/immune by a defense card (cool cyan crust)
-    const strandColor = (n) => (n._protected ? warded : (n.infected ? r.infected : cream));
+    // Infection creeps in GRADUALLY: a newly-overrun strand fades cream → infected green over
+    // infectFadeMs (stamped renderer-side the first frame it's seen infected), so the rot
+    // eases in continuously instead of a chunk of strands snapping green each world tick.
+    const infRgb = hexToRgb(r.infected);
+    const fadeMs = r.infectFadeMs != null ? r.infectFadeMs : 800;
+    const now = this._now || 0;
+    const strandColor = (n) => {
+      if (n._protected) return warded;
+      if (!n.infected) { if (n._infShownAt != null) n._infShownAt = null; return cream; }
+      if (n._infShownAt == null) n._infShownAt = now;
+      const k = (now - n._infShownAt) / fadeMs;
+      if (k >= 1) return r.infected;
+      const t = k > 0 ? k : 0;
+      return `rgb(${Math.round(fil[0] + (infRgb[0] - fil[0]) * t)},${Math.round(fil[1] + (infRgb[1] - fil[1]) * t)},${Math.round(fil[2] + (infRgb[2] - fil[2]) * t)})`;
+    };
     const AGE_FULL = 7;
     const { minX, maxX, minY, maxY } = cull;
 
