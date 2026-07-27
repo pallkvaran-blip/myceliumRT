@@ -1899,6 +1899,9 @@ const CONFIG = {
     maxHp: 100,
     harvestRate: 13,             // nutrient an active nest carries off its target food per tick (SLIDER) — RT-tuned so a
                                  //   ~250-nutrient pile is stripped in ~20 ticks ≈ 10 s at the 500 ms real-time step
+    extendSpeed: 2,              // cells/tick the ant LINE creeps out toward its target. When a pile empties the trail
+                                 //   EXTENDS from that pile to the next food (it doesn't re-route from the nest), and the
+                                 //   line grows out at this pace — so the ant line gets longer and longer over the run.
   },
 
   // ---- Nematodes (A2, B6) — fungivorous worms that graze your frontier ----
@@ -7203,7 +7206,7 @@ function seedAnts(substrate, config, rng, network) {
     const nest = {
       col, x: ctr.x, y: substrate.surfaceY,
       hp: a.maxHp, maxHp: a.maxHp,
-      target: null, path: [], phase: 0, dormant: false,
+      target: null, path: [], built: 0, phase: 0, dormant: false,
     };
     retarget(substrate, nest);
     nests.push(nest);
@@ -7224,7 +7227,7 @@ function placeAntNests(substrate, config, cols) {
     const nest = {
       col, x: ctr.x, y: substrate.surfaceY,
       hp: a.maxHp, maxHp: a.maxHp,
-      target: null, path: [], phase: 0, dormant: false,
+      target: null, path: [], built: 0, phase: 0, dormant: false,
     };
     retarget(substrate, nest);
     return nest;
@@ -7239,19 +7242,27 @@ function stepAnts(state) {
   const sub = state.substrate;
   const nests = state.ants;
   if (!nests || !nests.length) return;
+  const a = state.config.ants;
+  const extend = a.extendSpeed != null ? a.extendSpeed : 2;
   for (const nest of nests) {
-    let cell = nest.target ? sub.cellAt(nest.target.col, nest.target.row) : null;
-    // Retarget when the target is empty OR has been SEALED against ants (Sclerotial
-    // Seal): buildTrail skips sealed food, so the nest reroutes to the next pile.
-    if (!cell || cell.nutrient <= 0 || cell.antProof > 0) {
-      retarget(sub, nest);
-      cell = nest.target ? sub.cellAt(nest.target.col, nest.target.row) : null;
-    }
-    if (cell && cell.nutrient > 0 && !(cell.antProof > 0)) {
-      cell.nutrient = Math.max(0, cell.nutrient - state.config.ants.harvestRate);
+    const plan = nest.path || [];
+    if (nest.built == null) nest.built = 0;
+    const maxBuilt = Math.max(0, plan.length - 1);          // fractional path index the line's tip has reached
+    if (nest.built < maxBuilt - 1e-6) {
+      // TRAVELING: the ant line hasn't reached its target yet — creep it out a few cells.
+      nest.built = Math.min(maxBuilt, nest.built + extend);
       nest.dormant = false;
     } else {
-      nest.dormant = true;   // no reachable UNSEALED food left
+      // ARRIVED at the trail's end: harvest the target, or EXTEND to the next food when it's
+      // empty / sealed (retarget appends a new leg; the line then travels it next ticks).
+      let cell = nest.target ? sub.cellAt(nest.target.col, nest.target.row) : null;
+      if (!cell || cell.nutrient <= 0 || cell.antProof > 0) {
+        retarget(sub, nest);
+        nest.dormant = !nest.target;                        // dormant only if no food is reachable at all
+      } else {
+        cell.nutrient = Math.max(0, cell.nutrient - a.harvestRate);
+        nest.dormant = false;
+      }
     }
     nest.phase = (nest.phase || 0) + 1;
   }
@@ -7286,17 +7297,39 @@ function attackNest(state, x, y, radius, frac) {
 function recalibrateAnts(state) {
   const sub = state.substrate, nests = state.ants || [];
   if (!sub || !nests.length) return;
-  for (const nest of nests) retarget(sub, nest);
+  // Only re-plan nests whose CURRENT target was the one just sealed/emptied — otherwise
+  // retarget would spuriously extend a nest whose trail is still valid.
+  for (const nest of nests) {
+    const cell = nest.target ? sub.cellAt(nest.target.col, nest.target.row) : null;
+    if (!cell || cell.nutrient <= 0 || cell.antProof > 0) retarget(sub, nest);
+  }
   setTrailFields(sub, nests);
 }
 
 // --- internals --------------------------------------------------------------
 
-// Point a nest at the nearest reachable food and lay its trail there.
+// Point a nest at the next reachable food and EXTEND its trail there. Instead of
+// re-routing from the nest, the new leg is planned from where the trail currently ENDS
+// (the pile that just emptied) and APPENDED — so the ant line snakes pile-to-pile and
+// grows longer and longer over the run. The very first trail (no path yet) starts at the
+// nest. If nothing is reachable from the trail's end, the line stays put and goes dormant.
 function retarget(sub, nest) {
-  const t = buildTrail(sub, nest.col, 0);
-  if (t) { nest.target = t.target; nest.path = t.path; nest.dormant = false; }
-  else { nest.target = null; nest.path = []; nest.dormant = true; }
+  const hasPath = nest.path && nest.path.length > 0;
+  const from = hasPath ? nest.path[nest.path.length - 1] : { col: nest.col, row: 0 };
+  const t = buildTrail(sub, from.col, from.row);
+  if (t) {
+    nest.target = t.target;
+    if (hasPath) {
+      for (let i = 1; i < t.path.length; i++) nest.path.push(t.path[i]);   // append the new leg (skip its first cell — it's the current trail end)
+    } else {
+      nest.path = t.path;
+      nest.built = 0;                                                      // grow the first leg out from the nest
+    }
+    nest.dormant = false;
+  } else {
+    nest.target = null;
+    nest.dormant = true;                                                   // keep nest.path — the line holds where it is
+  }
 }
 
 // BFS from the nest cell (around rock) to the nearest food cell; returns the
@@ -7336,7 +7369,11 @@ function setTrailFields(sub, nests) {
   for (const c of sub.cells) c.antTrail = false;
   for (const nest of nests) {
     if (!nest.path) continue;
-    for (let k = 0; k < nest.path.length - 1; k++) {
+    // Only the BUILT portion of the trail is actually laid down (the line hasn't reached
+    // beyond `built` yet), so mark cells up to that tip.
+    const built = nest.built != null ? nest.built : nest.path.length;
+    const upto = Math.min(nest.path.length - 1, Math.floor(built));
+    for (let k = 0; k < upto; k++) {
       const p = nest.path[k];
       const cell = sub.cellAt(p.col, p.row);
       if (cell && !cell.rock) cell.antTrail = true;
@@ -16955,6 +16992,28 @@ function advanceSim(time) {
 function snapshotThreatPositions() {
   if (state.clouds) for (const c of state.clouds) { c.rx0 = c.cx; c.ry0 = c.cy; }
   if (state.nematodes) for (const w of state.nematodes) { w.rx0 = w.x; w.ry0 = w.y; w.rh0 = w.heading; }
+  if (state.ants) for (const n of state.ants) { n.rbuilt0 = n.built; }   // ant-trail growth (for a smooth creeping tip)
+}
+// The world-space points of a nest's trail up to its GROWN length (nest.built, tweened
+// between ticks) — the ant line only exists where it has crept to, so the tip advances
+// smoothly toward the next food. Returns {col,row} cells (fractional at the tip) that
+// weaveTrail turns into a weaving centreline.
+function antBuiltPath(nest) {
+  const plan = nest.path || [];
+  if (plan.length < 2) return [];
+  const maxBuilt = plan.length - 1;
+  const b0 = nest.rbuilt0 != null ? nest.rbuilt0 : (nest.built || 0);
+  const b1 = nest.built != null ? nest.built : maxBuilt;
+  let built = Math.max(0, Math.min(maxBuilt, lerp(b0, b1, renderAlpha())));
+  const whole = Math.floor(built);
+  const pts = [];
+  for (let i = 0; i <= whole && i < plan.length; i++) pts.push(plan[i]);
+  const frac = built - whole;
+  if (frac > 1e-4 && whole + 1 < plan.length) {
+    const p = plan[whole], q = plan[whole + 1];
+    pts.push({ col: p.col + (q.col - p.col) * frac, row: p.row + (q.row - p.row) * frac });   // fractional tip → interpolated centre
+  }
+  return pts;
 }
 // 0 just after a tick → 1 just before the next. Frozen (with _simAccum) while paused.
 function renderAlpha() {
@@ -17586,7 +17645,7 @@ function drawAnts(time) {
   ctx.lineCap = 'round';
   for (const nest of ants) {
     const dim = nest.dormant ? 0.6 : 1;
-    const path = nest.path || [];
+    const path = antBuiltPath(nest);   // only the grown portion of the trail (tip creeps out smoothly)
 
     // === the marching trail (drawn first, beneath the colony) ===
     if (path.length >= 2) {
