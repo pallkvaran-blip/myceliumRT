@@ -10453,9 +10453,14 @@ class SubstrateRenderer {
       octx.arc(cx, cy, rad, 0, Math.PI * 2);
       octx.fill();
       octx.fillStyle = withAlpha(hexToRgb(r.trichSpore), a * 0.7);
+      // Speckles are DETERMINISTIC per cell (a hash of col/row/k), not from the sequential
+      // this.rng(): the RT mould interp re-bakes this layer every frame, and a fresh rng draw
+      // each bake would make the spores flicker. Fixed-per-cell spores just fade with the
+      // field's alpha as a cloud slides over them. Visually identical to the old random spray.
+      const spk = (x, y) => { let h = Math.imul((x + 1) * 374761393 ^ (y + 1) * 668265263, 1274126177); h ^= h >>> 15; return ((h >>> 0) % 100000) / 100000; };
       for (let k = 0; k < 4; k++) {
         octx.beginPath();
-        octx.arc(col * cs + this.rng() * cs, sy + row * cs + this.rng() * cs, this.rng() * 1.3 + 0.4, 0, Math.PI * 2);
+        octx.arc(col * cs + spk(col, row * 4 + k) * cs, sy + row * cs + spk(col * 4 + k + 1, row) * cs, spk(col + k, row + k * 7) * 1.3 + 0.4, 0, Math.PI * 2);
         octx.fill();
       }
       octx.fillStyle = r.trichSpore;
@@ -16898,7 +16903,7 @@ function needsFullRate(time) {
 // choosing a card from a draft (the explicit rule), and while the game isn't really being
 // played (run over / win resolving / a level intro / the tutorial / a full-screen menu).
 // Otherwise it just keeps moving.
-let _lastSimTime = -1, _simAccum = 0;
+let _lastSimTime = -1, _simAccum = 0, _lastMouldBakeAt = -1e9;
 function simPaused() {
   if (!state || !state.substrate || !state.active) return true;
   if (state.runOver || state.winPending) return true;
@@ -16919,13 +16924,16 @@ function advanceSim(time) {
   if (_lastSimTime < 0) _lastSimTime = time;
   const dt = time - _lastSimTime;
   _lastSimTime = time;
-  if (!(dt > 0) || simPaused()) { _simAccum = 0; return; }   // frozen — advance nothing
+  // Frozen (paused, or a zero/negative dt): advance nothing and LEAVE _simAccum where it is,
+  // so the render interpolation (renderAlpha) freezes in place instead of snapping back.
+  if (!(dt > 0) || simPaused()) return;
   const step = rt.stepMs || 500;
   const maxN = rt.maxCatchUpTicks || 3;
   _simAccum += dt;
   let ticks = 0;
   while (_simAccum >= step && ticks < maxN && !simPaused()) {
     _simAccum -= step; ticks++;
+    snapshotThreatPositions();   // record pre-move positions so the renderer can interpolate this tick
     tickWorld(state);
   }
   if (_simAccum > step) _simAccum = step;   // drop any backlog beyond the cap (post-stall)
@@ -16937,6 +16945,60 @@ function advanceSim(time) {
     maybeFinalizePendingWin();        // a goal-reach this tick may already be a clean win
     if (state.runOver) presentRunOver();
     uiDirty = true;
+  }
+}
+
+// --- render interpolation (smooth threat movement between 500ms world ticks) --
+// The world moves in discrete ticks, but drawing threats only at their tick positions
+// makes them JUMP. So each tick we snapshot every mover's pre-move position, and the
+// renderer draws it partway between that and its new position, by how far we are through
+// the current tick interval (renderAlpha). Result: continuous motion from a discrete sim.
+function snapshotThreatPositions() {
+  if (state.clouds) for (const c of state.clouds) { c.rx0 = c.cx; c.ry0 = c.cy; }
+  if (state.nematodes) for (const w of state.nematodes) { w.rx0 = w.x; w.ry0 = w.y; w.rh0 = w.heading; }
+}
+// 0 just after a tick → 1 just before the next. Frozen (with _simAccum) while paused.
+function renderAlpha() {
+  const step = (CONFIG.realtime && CONFIG.realtime.stepMs) || 500;
+  return Math.max(0, Math.min(1, _simAccum / step));
+}
+function lerp(a, b, t) { return a + (b - a) * t; }
+function lerpAngle(a, b, t) { let d = b - a; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return a + d * t; }
+// Interpolated world position of a mover, from its snapshot (rx0/ry0) to its current spot.
+function interpPos(o, cx, cy, rxk, ryk) {
+  const t = renderAlpha();
+  const x0 = o[rxk] != null ? o[rxk] : cx, y0 = o[ryk] != null ? o[ryk] : cy;
+  return { x: lerp(x0, cx, t), y: lerp(y0, cy, t) };
+}
+// Re-stamp the Trichoderma field (cell.trich) at INTERPOLATED cloud centres, so the baked
+// mould visual slides smoothly between ticks instead of snapping a cell at a time. Mirrors
+// the engine's stampCloudField (threats.js) but with the tweened centre. The sim re-stamps
+// true positions on each tick; this overwrites it for the draw, which is consistent (at
+// alpha→1 it equals the true field) and, if a grow reads it between ticks, matches the visuals.
+function stampMouldInterp() {
+  const sub = state.substrate, clouds = state.clouds;
+  if (!sub) return;
+  const cs = sub.cellSize, t = renderAlpha();
+  for (const cell of sub.cells) cell.trich = 0;
+  if (!clouds || !clouds.length) return;
+  for (const cloud of clouds) {
+    const ccx = lerp(cloud.rx0 != null ? cloud.rx0 : cloud.cx, cloud.cx, t);
+    const ccy = lerp(cloud.ry0 != null ? cloud.ry0 : cloud.cy, cloud.cy, t);
+    const c0 = sub.colAtX(ccx), r0 = sub.rowAtY(ccy);
+    const radCells = Math.ceil(cloud.r) + 1;
+    const reach = cloud.r * cs;
+    const strength = cloud.strength == null ? 1 : cloud.strength;
+    for (let row = r0 - radCells; row <= r0 + radCells; row++)
+      for (let col = c0 - radCells; col <= c0 + radCells; col++) {
+        if (!sub.inBounds(col, row)) continue;
+        const cell = sub.cells[sub.index(col, row)];
+        if (cell.rock) continue;
+        const ctr = sub.cellCenter(col, row);
+        const d = Math.hypot(ctr.x - ccx, ctr.y - ccy);
+        if (d > reach) continue;
+        const inten = strength * (1 - d / (reach + cs * 0.5));
+        if (inten > cell.trich) cell.trich = inten;
+      }
   }
 }
 
@@ -17015,6 +17077,13 @@ function renderFrame(time, dtFrames = 1) {
   ctx.fillStyle = '#05070d';
   ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
+  // REAL-TIME: slide the baked mould field to the interpolated cloud centres so the mould
+  // creeps smoothly between world ticks (skipped while paused — it freezes in place). Throttled
+  // to ~30fps: it re-bakes the dynamic layer, and the slow creep needs no more than that, which
+  // keeps the extra per-frame work modest on weak machines.
+  if (state.clouds && state.clouds.length && !simPaused() && time - _lastMouldBakeAt >= 33) {
+    _lastMouldBakeAt = time; stampMouldInterp(); substrateRenderer.markDirty();
+  }
   substrateRenderer.draw(ctx, camera, time);
   drawMoon();                   // luminous moon high in the twilight sky
   drawHomeBackdrop();           // half a green "home" hill hugging the LEFT frame over the colony start
@@ -19042,8 +19111,11 @@ function drawNematodes(time) {
   ctx.lineCap = 'round';
   const len = Math.max(7, cs * 0.55 * z);           // worm body length, px
   for (const w of worms) {
-    const sp = camera.worldToScreen(w.x, w.y);
-    const ang = w.heading || 0;
+    // REAL-TIME: draw the worm partway between its previous and current tick positions
+    // (and turn its heading smoothly) so it crawls instead of teleporting each 500ms tick.
+    const wp = interpPos(w, w.x, w.y, 'rx0', 'ry0');
+    const sp = camera.worldToScreen(wp.x, wp.y);
+    const ang = lerpAngle(w.rh0 != null ? w.rh0 : (w.heading || 0), w.heading || 0, renderAlpha());
     const dx = Math.cos(ang), dy = Math.sin(ang), px = -dy, py = dx;
     const wig = (w.stuck > 0 ? 0.2 : 1) * len * 0.14;
     const segs = 5;
