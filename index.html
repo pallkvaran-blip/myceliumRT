@@ -4515,11 +4515,15 @@ class Substrate {
   cellAtWorld(x, y) {
     return this.cellAt(this.colAtX(x), this.rowAtY(y));
   }
-  // Tutorial helper: guarantee a small LOW-VALUE yellow "duff" food pile in clear
-  // ground around (col,row) — mirrors the duff piles generate() makes (energy only,
-  // no card draft) so the "grow into substrate" step always has a pile to point at
-  // near the start. Returns the pile's world centre, or null if nothing clear fit.
-  injectDuffPile(col, row, radius, energyValue, cellNutrient) {
+  // Tutorial helper: guarantee a small food pile in clear ground around (col,row), so the
+  // "grow into substrate" step always has one to point at near the start. Mirrors the piles
+  // generate() makes. Returns the pile's world centre, or null if nothing clear fit.
+  // `kind` picks the tier: 'normal' → an ORANGE cache that drafts a basic/event card on
+  // digest (what the tutorial plants beside the colony), 'duff' → low-value yellow litter,
+  // Energy only and no draft.
+  injectFoodPile(col, row, radius, energyValue, cellNutrient, kind) {
+    const K = kind === 'duff' ? 'duff' : 'normal';
+    const leaf = K === 'duff' ? 'duff' : 'cache';
     const N = cellNutrient || 50;
     const cells = [];
     for (let dr = -radius; dr <= radius; dr++) {
@@ -4529,14 +4533,14 @@ class Substrate {
         if (r < 0) continue;                                           // underground only
         const cell = this.cellAt(c, r);
         if (!cell || cell.rock || cell.water || cell.hazard) continue;
-        if (cell.nutrient > 0 && cell.foodKind && cell.foodKind !== 'duff') continue;
+        if (cell.nutrient > 0 && cell.foodKind && cell.foodKind !== leaf) continue;
         if (this.rockNear(c, r, 1.5)) continue;                        // clear of rock sprites
-        cell.nutrient = N; cell.maxNutrient = N; cell.foodKind = 'duff';
+        cell.nutrient = N; cell.maxNutrient = N; cell.foodKind = leaf;
         cells.push(this.index(c, r));
       }
     }
     if (!cells.length) return null;
-    const pile = { cells, rewarded: false, kind: 'duff', energyValue };
+    const pile = { cells, rewarded: false, kind: K, energyValue };
     const per = energyValue / Math.max(1, cells.length * N);
     let sx = 0, sy = 0;
     for (const idx of cells) {
@@ -15067,6 +15071,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
 
 // ===================== src/render/tutorial.js =====================
 const __m_render_tutorial = (function () {
+  const { isRealtime } = __m_config;
 // =============================================================================
 // First-run TUTORIAL — a scripted series of clean black-and-white popups that
 // zoom in on what they describe and, where relevant, FORCE an interaction
@@ -15090,7 +15095,7 @@ const __m_render_tutorial = (function () {
 //   threats()             → { ant:{x,y}|null, nematode:{x,y}|null, trich:{x,y}|null }
 //   colonyRoot()          → {x,y} of the colony entry node (or null)
 //   goalPoint()           → {x,y} at the surface of the goal zone (or null)
-//   duffPile()            → {x,y} of the tutorial's guaranteed yellow pile (or null)
+//   starterPile()         → {x,y} of the tutorial's guaranteed ORANGE cache pile (or null)
 //   onDone()              → called once when the tutorial ends (finish OR End)
 // =============================================================================
 
@@ -15117,6 +15122,8 @@ const desktopWide = () => {
 const el = (t, c, h) => { const n = document.createElement(t); if (c) n.className = c; if (h != null) n.innerHTML = h; return n; };
 
 function startTutorial(deps) {
+  // Real time? A couple of lines only make sense there — turn-based has no clock to stop.
+  const rt = () => isRealtime();
   // ---- step script --------------------------------------------------------
   // Each step: { text, focus(s), target(s), image, gate(s,mem), interactive,
   //              place, glowCard, demo, onEnter(s,mem) }
@@ -15158,14 +15165,32 @@ function startTutorial(deps) {
       gate: (s, mem) => nodeCount(s) > (mem.baseNodes || 0),
     },
     {
-      text: 'Grow into <b>substrate</b> to consume it — for energy, and&nbsp;<i>sometimes</i>&nbsp;new cards.',
-      focus: (s) => world(deps.duffPile() || deps.colonyRoot(), 1.5),
-      target: (s) => worldTarget(deps.duffPile()),
+      // The pile beside the colony is an ORANGE cache (injectTutorialHelpers plants it), so
+      // finishing it hands out a real draft — which the next step then explains. Forced: the
+      // player grows into it and the step ends when that draft actually appears.
+      // `live` lets the real-time clock RUN here (the tutorial otherwise freezes it): the pile
+      // is only digested by world ticks, and time has to be moving for "time stops when
+      // drafts happen" to mean anything. Turn-based ticks on the action itself, so it's moot.
+      text: 'Grow into <b>substrate</b> to consume it — for energy, and&nbsp;<i>sometimes</i>&nbsp;new cards.'
+        + '<br><b>Grow into the orange leaves.</b>',
+      focus: (s) => world(deps.starterPile() || deps.colonyRoot(), 1.5),
+      target: (s) => worldTarget(deps.starterPile()),
       place: 'bottom',
+      live: true,
+      gate: (s) => !!(s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length),
     },
     {
-      text: '<b>Orange</b> leaves let you draft basic action cards and event cards.<br><b>Red</b> leaves give you engine cards — <b>very rare</b>.',
-      focus: (s) => world(deps.enginePile() || deps.duffPile() || deps.colonyRoot(), 1.5),
+      // Shown WHILE the draft is on screen. Gated (so no click-catcher) → the player's clicks
+      // reach the cards, and the step ends when they've chosen one.
+      text: 'Orange piles let you draft new basic/event cards.'
+        + (rt() ? '<br><b>Time stops when drafts happen</b> — take a breath and make a smart choice.' : ''),
+      focus: (s) => world(deps.starterPile() || deps.colonyRoot(), 1.5),
+      place: 'top',
+      gate: (s) => !(s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length),
+    },
+    {
+      text: '<b>Red</b> leaves give you engine cards — <b>very rare</b>.',
+      focus: (s) => world(deps.enginePile() || deps.starterPile() || deps.colonyRoot(), 1.5),
       target: (s) => worldTarget(deps.enginePile()),
       skip: (s) => !(deps.enginePile && deps.enginePile()),   // no red pile on this map → skip cleanly
       place: 'bottom',
@@ -15380,6 +15405,10 @@ function startTutorial(deps) {
     tick,
     destroy: finish,
     get active() { return alive; },
+    // The tutorial freezes the real-time clock while it runs, EXCEPT on steps marked
+    // `live` — those need the world moving (see the "grow into the orange leaves" step,
+    // which waits on the pile actually being digested). main.js simPaused reads this.
+    get liveStep() { const st = steps[idx]; return !!(alive && st && st.live); },
   };
 }
 
@@ -15845,7 +15874,7 @@ const networkRenderers = new Map();
 let tutorial = null;
 let tutorialPending = false;
 let tutorialDevForce = false;          // TEMP dev title button: fire the tutorial (random species) without marking it seen
-let tutorialDuff = null;               // world centre of the tutorial's guaranteed yellow pile
+let tutorialStarterPile = null;        // world centre of the tutorial's guaranteed orange cache pile
 const TUT_KEY = 'mycelium.tutorial.v1';
 function markTutorialSeen() { try { localStorage.setItem(TUT_KEY, '1'); } catch (_) {} }
 
@@ -16605,23 +16634,27 @@ function updateCamFocus(time) {
 }
 
 // Guarantee the two scripted props the tutorial points at: an Apical Drive in the
-// opening hand (whatever species was picked) and a low-value YELLOW pile in clear
-// soil a few cells from the colony root.
+// opening hand (whatever species was picked) and an ORANGE cache pile in clear soil a
+// few cells from the colony root. Orange (not the yellow duff it used to be) because the
+// tutorial has the player grow into it and then DRAFT from it — which is also how it
+// teaches that time stops while a draft is on screen.
 function injectTutorialHelpers() {
   const c = state.cards;
   if (c && Array.isArray(c.hand) && !c.hand.some((h) => h.name === 'Apical Drive')) {
     if (c.seq == null) c.seq = 1;
     c.hand.unshift({ id: c.seq++, name: 'Apical Drive' });
   }
-  tutorialDuff = null;
+  tutorialStarterPile = null;
   const sub = state.substrate;
   const root = (state.active && state.active.root) || (state.networks[0] && state.networks[0].nodes[0]);
-  if (root && sub.injectDuffPile) {
+  if (root && sub.injectFoodPile) {
     const rc = sub.colAtX(root.x), rr = Math.max(0, sub.rowAtY(root.y));
-    const N = (state.config.substrate && state.config.substrate.foodCellNutrient) || 50;
+    const ss = state.config.substrate || {};
+    const N = ss.foodCellNutrient || 50;
+    const E = ss.foodEnergyMax != null ? ss.foodEnergyMax : 3;   // a normal orange pile's Energy tier
     for (const [dc, dr] of [[3, 0], [4, 1], [3, 2], [5, 0], [2, 2], [4, 3], [6, 1], [3, 3]]) {
-      const p = sub.injectDuffPile(rc + dc, Math.max(0, rr + dr), 1, 2, N);
-      if (p) { tutorialDuff = p; substrateRenderer.markDirty(); break; }
+      const p = sub.injectFoodPile(rc + dc, Math.max(0, rr + dr), 1, E, N, 'normal');
+      if (p) { tutorialStarterPile = p; substrateRenderer.markDirty(); break; }
     }
   }
 }
@@ -16639,7 +16672,7 @@ function tutorialDeps() {
     setHandFilter: (key) => { if (ui && ui.setHandFilter) ui.setHandFilter(key); },
     colonyRoot: () => { const r = (state.active && state.active.root) || (state.networks[0] && state.networks[0].nodes[0]); return r ? { x: r.x, y: r.y } : null; },
     goalPoint: () => { const g = goalCol0(); if (g < 0) return null; return { x: (g + 3.5) * state.substrate.cellSize, y: surf() - 8 }; },
-    duffPile: () => tutorialDuff,
+    starterPile: () => tutorialStarterPile,
     // Centre of the map's RED engine cache (for the "orange vs red leaves" step).
     enginePile: () => {
       const sub = state.substrate; const piles = sub && sub.foodPiles;
@@ -17527,7 +17560,10 @@ function simPaused() {
   if (c && c.pendingOffers && c.pendingOffers.length && draftSequenceStarted(c.pendingOffers[0])) return true;
   // Non-gameplay overlays: the "Level N" intro, the scripted tutorial, full-screen menus.
   if (pendingLevelIntro || levelIntro) return true;
-  if (tutorial && tutorial.active) return true;
+  // The tutorial freezes the clock so the player can read — except on a step marked `live`,
+  // which needs the world actually running (the "grow into the orange leaves" step waits for
+  // the pile to be digested, and only world ticks do that).
+  if (tutorial && tutorial.active && !tutorial.liveStep) return true;
   if (document.getElementById('titleScreen') || document.getElementById('speciesSelect') || document.getElementById('loadoutSelect')) return true;
   return false;
 }
