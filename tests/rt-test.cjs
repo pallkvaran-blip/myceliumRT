@@ -679,14 +679,11 @@ let base;
     });
     ok('the old cadence dots are gone', (bars.oldDots || 0) === 0, `${bars.oldDots} dot element(s) left`);
     ok('the pills show a cadence time BAR', !bars.noBar, bars.noBar ? `no .cbar found (ledger html: ${bars.html})` : `bar ${Math.round(bars.barW)}px wide`);
-    ok('the bar FILLS as the rounds pass', bars.noBar || bars.p2 > bars.p1, bars.noBar ? 'n/a' : `fill ${bars.p1}% → ${bars.p2}%`);
-    ok('the fill glides (CSS transition) rather than jumping', bars.noBar || parseFloat(bars.trans) > 0, `transition ${bars.trans}`);
-    ok('the bar element survives HUD refreshes (no re-creation)', bars.noBar || bars.same, `same element: ${bars.same}`);
-
-    // (The "a hovered card survives a HUD refresh" assertion lives in hover-check.cjs, which
-    // isolates the HUD properly. The copy that used to be here shared this file's long-running
-    // page, where a draft or an affordability change mid-probe re-renders the carousel for
-    // legitimate reasons and looked like flicker — it reported failures it couldn't justify.)
+    // Everything else about the bar — that its fill CLIMBS, that it glides on a CSS
+    // transition, and that the element survives HUD refreshes — is hover-check.cjs's, along
+    // with the same property for a hovered card. Those need an isolated page: on this file's
+    // long-running one a draft or an affordability change mid-probe re-renders the row for
+    // legitimate reasons, so copies here reported failures they couldn't justify.
 
     ok('no console/page errors across the #dev run', errors.length === 0, errors.slice(0,4).join(' | '));
     await page.close();

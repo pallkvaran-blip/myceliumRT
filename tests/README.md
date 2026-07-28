@@ -40,10 +40,12 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
-One assertion deliberately lives in only one place: "a hovered card survives a HUD refresh" is
-`hover-check`'s. `rt-test` used to carry a copy, but on its long-running page a draft or an
-affordability change mid-probe re-renders the carousel for legitimate reasons, so the copy
-reported failures it couldn't justify. If you add a HUD-churn assertion, isolate the page.
+**HUD-survival assertions live only in `hover-check`** — that a hovered card and a cadence bar
+survive refreshes, that the bar's fill climbs, that it glides on a CSS transition. `rt-test`
+used to carry copies, but on its long-running page a draft or an affordability change mid-probe
+re-renders the row for legitimate reasons, and the copies reported failures they couldn't
+justify. `rt-test` keeps only the structural claims (the old dots are gone, a bar is drawn).
+If you add a churn assertion, give it a fresh page and pin resources.
 
 `shot.cjs`, `hs-shot.cjs`, `lure-shot.cjs` aren't checks — they just capture screenshots of the
 title screen, the leaderboard and the pointer lure for eyeballing.

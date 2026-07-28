@@ -29,16 +29,24 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
     const bar=document.querySelector('.engledger .cbar[data-cadkey]');
     const fill=bar&&bar.firstElementChild;
     if(!card)return{noCard:true};
+    // Start the round clock from zero so the fill can only climb over the probe (it resets
+    // once a full round elapses, and 5 ticks is far short of that).
+    st.cards._engTick=0;
+    await raf2();
+    const fill0=fill?fill.style.width:'n/a';
+    const trans=fill?getComputedStyle(fill).transitionDuration:'n/a';
     const t0=st.turn;let refreshed=0;
     for(let i=0;i<5;i++){st.runOver=false;st.winPending=false;net.alive=true;g.tickWorld(st);await raf2();refreshed++;}
     return{refreshed,ticks:st.turn-t0,
       cardSame:document.contains(card)&&document.querySelector('.handlist').firstElementChild===card,
       barSame:!!fill&&document.contains(fill),
-      fillPct:fill?fill.style.width:'n/a'};
+      fill0,trans,fillPct:fill?fill.style.width:'n/a'};
   });
   ok('the world actually advanced during the probe',!res.noCard&&res.ticks>=4,`${res.ticks} ticks over ${res.refreshed} HUD refreshes`);
   ok('the hovered card element is NOT re-created by HUD refreshes',!res.noCard&&res.cardSame,`same element: ${res.cardSame}`);
   ok('the ledger cadence bar element is NOT re-created either',!res.noCard&&res.barSame,`same element: ${res.barSame}, fill ${res.fillPct}`);
+  ok('the bar FILLS as the round clock advances',!res.noCard&&parseFloat(res.fillPct)>parseFloat(res.fill0),`fill ${res.fill0} → ${res.fillPct}`);
+  ok('the fill GLIDES (a CSS transition) rather than jumping',!res.noCard&&parseFloat(res.trans)>0,`transition-duration ${res.trans}`);
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   await browser.close();srv.close();process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});
