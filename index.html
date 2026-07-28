@@ -354,13 +354,22 @@
     .erow.t .eval { color: var(--warn); }
     .erow.magic .enm { color: #d9b8f0; font-weight: 600; }   /* Magic Mushroom special-power row (no lead glyph) */
     .ecad { color: var(--ink-dim); font-size: 10px; font-weight: 600; flex: 0 0 auto; }
-    /* Cadence bar: a TIME BAR that fills gradually toward the event (a producer's next
-       payout, or an action coming off cooldown), replacing the old one-dot-per-round
-       lights. The fill is a CSS animation spanning the whole cadence, phased with a
-       negative animation-delay — so it advances smoothly in real time no matter how
-       often the HUD refreshes, and picks up mid-fill if the row is re-rendered.
-       Full (no animation) = steady/ready. Same widget on BOTH corners. */
-    .ecad.cad { display: inline-flex; align-items: center; margin-left: 4px; }
+    /* Cadence meter — how far a producer has charged toward its next payout (or an action
+       toward coming off cooldown). TWO forms, one per game mode:
+         DOTS (turn-based) — one per round of the cadence, lit as it charges. A round there
+           IS a player action, so the meter steps in whole notches.
+         BAR (real time)   — a time bar that fills gradually, because a round is 10 s of wall
+           clock; the fill is written by syncCadenceBars each HUD refresh and a CSS width
+           transition glides it in between, so it advances smoothly. Full = ready/steady.
+       Same widget on BOTH corners. */
+    .ecad.cad { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; }
+    .clight { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto;
+      background: rgba(220,235,225,0.13); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); }
+    .clight.on { background: radial-gradient(circle at 35% 35%, #fff2d0, var(--warn)); box-shadow: 0 0 5px var(--warn); }
+    .ck-e .clight.on { background: radial-gradient(circle at 35% 35%, #d7ffe8, var(--accent)); box-shadow: 0 0 5px var(--accent); }
+    .ck-w .clight.on { background: radial-gradient(circle at 35% 35%, #dff6fb, #7fd0e0); box-shadow: 0 0 5px #7fd0e0; }
+    .ck-p .clight.on { background: radial-gradient(circle at 35% 35%, #efe0fb, #c79be6); box-shadow: 0 0 5px #c79be6; }
+    .ck-t .clight.on { background: radial-gradient(circle at 35% 35%, #fff2d0, var(--warn)); box-shadow: 0 0 5px var(--warn); }
     .cbar { position: relative; width: 36px; height: 5px; border-radius: 3px; overflow: hidden; flex: 0 0 auto;
       background: rgba(220,235,225,0.13); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1); }
     .cbar > i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 3px;
@@ -926,8 +935,13 @@
     #titleScreen .ts-side { display:flex; flex-direction:column; align-items:center; gap:clamp(10px,1.5vh,18px); }
     #titleScreen .ts-actions.ts-split > .ts-side:first-child { justify-self:end; }
     #titleScreen .ts-actions.ts-split > .ts-side:last-child { justify-self:start; }
+    #titleScreen .ts-actions.ts-split > .ts-side-mid { justify-self:center; }
     #titleScreen .ts-kind { font-size:clamp(10px,1.25vw,13px); letter-spacing:.34em; text-indent:.34em; line-height:1;
       text-transform:uppercase; font-weight:600; color:rgba(191,238,203,0.62); text-shadow:0 0 14px rgba(127,230,163,0.28); }
+    /* SURVIVAL belongs on the NEW/OLD line, not halfway up between the kind labels and the
+       buttons. Giving its column the same two-row shape — an invisible kind label of the same
+       text above it — drops it onto that line exactly, and keeps it there at any font size. */
+    #titleScreen .ts-kind-ghost { visibility:hidden; }
     #titleScreen .ts-pair { display:flex; align-items:center; gap:clamp(10px,2vw,34px); }
     /* Smaller New/Old (and smaller captions to match). Kept above ~26px: the consume
        animation's strand step is scaled off the font size and stalls below that. */
@@ -939,7 +953,8 @@
       #titleScreen .ts-actions.ts-split { grid-template-columns:minmax(0,1fr); row-gap:clamp(10px,2vh,20px); justify-items:center; }
       #titleScreen .ts-actions.ts-split > .ts-side:first-child,
       #titleScreen .ts-actions.ts-split > .ts-side:last-child { justify-self:center; }
-      #titleScreen .ts-actions.ts-split > .ts-mode { order:-1; }
+      #titleScreen .ts-actions.ts-split > .ts-side-mid { order:-1; }
+      #titleScreen .ts-side-mid > .ts-kind-ghost { display:none; }   /* stacked: nothing to line up with */
     }
     /* Campaign in the centre column, CENTRED on the NEW/OLD midline (matching SURVIVAL
        in the top row); "coming soon" is tucked directly beneath it (absolute, so it
@@ -1780,10 +1795,11 @@ const CONFIG = {
     suberinRadius: 80,           // Melanized Wall: clear + ward radius
     rehydrateRadius: 90,         // Rehydration Pulse: heal radius (was 60 → +50%)
     sealReach: 8,                // Sclerotial Seal: seal the whole nearest food pile within this many cells (forgiving)
-    goalSurfaceDepth: 24,        // WIN: how close to the soil line a strand must get at the goal to count as having
-                                 //   BROKEN THE SURFACE. Under one cell (36), so the colony has to grow right up to
-                                 //   the grass rather than win from deep underground (the Fruit action keeps its own,
-                                 //   far more forgiving actions.fruit.reachDepth for placing fruiting bodies).
+    goalSurfaceDepth: 24,        // WIN (BOTH MODES): how close to the soil line a strand must get at the goal to count
+                                 //   as having BROKEN THE SURFACE. Under one cell (36), so the colony has to be
+                                 //   ACTUALLY TOUCHING the surface rather than winning from deep underground (the
+                                 //   Fruit action keeps its own, far more forgiving actions.fruit.reachDepth for
+                                 //   placing fruiting bodies — that's cosmetic placement, not the win).
                                  //   Growth can be placed to within 2 units of the surface, so this is reachable.
   },
 
@@ -8752,13 +8768,13 @@ function checkGoalReached(state) {
   // A strand that grew INTO the Trichoderma gets infected FIRST, so a fruiting body
   // pushed through mould sitting on the finish line is dead tissue and can't win.
   infectStrandsInMould(net, state);
-  // REAL-TIME: the win must land when the growth ACTUALLY GETS THERE, at the SURFACE:
-  //   • grownIn — a grow commits its whole path at once, so an un-revealed strand sitting on
-  //     the finish line hasn't arrived yet; the win waits for it to finish growing in.
-  //   • goalSurfaceDepth — the strand has to reach the soil line itself (under one cell),
-  //     not merely get within the Fruit action's far deeper reachDepth. Turn-based keeps the
-  //     original, far more forgiving reachDepth (there is no arrival delay to exploit).
-  const goalDepth = isRealtime(state.config) && state.config.cards.goalSurfaceDepth != null
+  // The win must land at the SURFACE, in BOTH modes: the strand has to reach the soil line
+  // itself (goalSurfaceDepth — under one cell), not merely get within the Fruit action's far
+  // deeper reachDepth. You only fruit when you're actually touching the surface.
+  // In REAL TIME it must also have GOT there: a grow commits its whole path at once, so an
+  // un-revealed strand sitting on the finish line hasn't arrived yet (grownIn) and the win
+  // waits for it to finish growing in.
+  const goalDepth = state.config.cards.goalSurfaceDepth != null
     ? state.config.cards.goalSurfaceDepth
     : state.config.actions.fruit.reachDepth;
   for (const n of net.nodes) {
@@ -9521,14 +9537,23 @@ function tickWorld(state) {
   for (const net of state.networks) {
     if (!net.alive) continue;
 
-    // 0) REAL-TIME: re-decide where the colony spreads EVERY tick, not just at the moment a
-    //    grow is played. The turn-based flow settles colonisation once per grow and then
-    //    merely animates it in — fine when nothing happens in between, but in real time a
-    //    pile a threat ate during that window was still claimed. Deciding here — right after
-    //    the threats have acted — means the choice is always made against the food that is
-    //    actually still on the map: a pile just finished off by ants or mould is no longer
-    //    claimable, and one that has come into reach is taken promptly.
-    if (isRealtime(config)) net.colonizeReachablePiles(substrate, state.rng);
+    // 0) REAL-TIME, WHILE A GROW IS STILL TRAVELLING: re-decide where the colony spreads
+    //    each tick. A grow commits its whole path at once and the front then takes ~1–3s to
+    //    arrive, so settling colonisation at play time (as turn-based does — nothing happens
+    //    in between there) would claim a pile a threat ate during the flight. Re-deciding
+    //    here, right after the threats have acted, means the choice is always made against
+    //    the food actually still on the map, and each pile falls as the front reaches it.
+    //
+    //    ONLY inside that window (`_colonizePending` until the last strand has landed at
+    //    `_arriveUntil`, both stamped by the reveal scheduler). The colony must never reach
+    //    out and take a pile on its own: running this every tick had it bridge into anything
+    //    within sensing range unprompted — most visibly the instant the tutorial ended, where
+    //    it looked like a free grow the player never played. The flag always buys at least one
+    //    pass, so growth committed just as the clock froze still lands on resume.
+    if (isRealtime(config) && net._colonizePending) {
+      net.colonizeReachablePiles(substrate, state.rng);
+      if ((net._nowMs || 0) >= (net._arriveUntil || 0)) net._colonizePending = false;
+    }
 
     // 1) Passive income from occupied substrate (depletes those patches).
     resolveIncome(net, substrate, config);
@@ -11439,6 +11464,13 @@ class NetworkRenderer {
   // land as the front arrives rather than the instant the card is played. Called from
   // draw() and — crucially — from advanceSim() BEFORE the world ticks, so growth added
   // since the last frame is scheduled before the sim acts on it.
+  //
+  // `net._arriveUntil` is when the LAST scheduled strand lands, and `net._colonizePending`
+  // says there is growth still on its way whose arrival the sim hasn't acted on yet. Together
+  // they bound the window in which colonisation is re-decided each tick (see tickWorld). The
+  // FLAG is what makes it correct across a pause: the reveal runs on the raw frame clock, so
+  // a grow committed just as a draft freezes the game would otherwise have "arrived" long
+  // before the player picks a card, and its pile would never be claimed.
   scheduleReveal(time) {
     const net = this.network;
     net._nowMs = time;
@@ -11457,6 +11489,8 @@ class NetworkRenderer {
       if (n._revSeen) continue;
       n._appearAt = time + (k / count) * spread;
       n._liveAt = n._appearAt + REVEAL_SEG;     // physically there only once it has finished growing in
+      if (n._liveAt > (net._arriveUntil || 0)) net._arriveUntil = n._liveAt;
+      net._colonizePending = true;
       n._revSeen = true;
       k++;
     }
@@ -13424,8 +13458,8 @@ function refreshCadenceClock(s) {
   const cc = (s && s.config && s.config.cards) || {};
   const stepMs = (s && s.config && s.config.realtime && s.config.realtime.stepMs) || 500;
   _cadRoundMs = Math.max(200, (cc.roundSeconds != null ? cc.roundSeconds : 10) * 1000);
-  // TURN-BASED: one world tick IS one round, so there is no part-round to show — the bars
-  // step a whole notch per action. REAL-TIME: a round spans many ticks, so show how far into
+  // TURN-BASED: one world tick IS one round, so there is no part-round to show — the dots
+  // light a whole notch per action. REAL-TIME: a round spans many ticks, so show how far into
   // the current one we are. Frozen automatically while the world clock is (the round clock
   // only advances on world ticks), so a paused game holds its bars where they are.
   const roundTicks = isRealtime(s && s.config) ? Math.max(1, Math.round(_cadRoundMs / stepMs)) : 1;
@@ -13433,20 +13467,35 @@ function refreshCadenceClock(s) {
   _cadProg.clear();
 }
 // `elapsed` = whole rounds of progress already made toward the event (0 = just fired / just
-// used, `cad` = due now / ready). `key` must be STABLE for this row across refreshes: the
-// markup deliberately carries no progress, so the row's HTML only changes when its real
-// content does (see the rebuild guards in _renderEngines/_renderActions) and the fill is
-// written afterwards by syncCadenceBars — which is what keeps the bar from being re-created,
-// and lets a CSS width transition glide it between refreshes.
+// used, `cad` = due now / ready).
+//
+// TURN-BASED draws DOTS — one per round, lit as the meter charges. A round is a player action
+// there, so the meter genuinely does step in whole notches and the progress can live right in
+// the markup (the HUD only refreshes when the world ticks, i.e. when you act, so no churn).
+//
+// REAL-TIME draws a BAR, because a round is 10 s of wall clock and the meter has to move
+// continuously. For that, `key` must be STABLE for this row across refreshes: the markup
+// deliberately carries NO progress, so the row's HTML only changes when its real content does
+// (see the rebuild guards in _renderEngines/_renderActions) and the fill is written afterwards
+// by syncCadenceBars — which is what keeps the bar from being re-created twice a second, and
+// lets a CSS width transition glide it between refreshes.
 function cadenceLightsHTML(cad, elapsed, ck = 't', title, key = '') {
   const rounds = (!cad || cad <= 1) ? 1 : cad;
-  // A steady, every-round producer has no countdown to track, so its bar simply fills across
-  // each round and resets — a live "next payout in…" readout.
+  // A steady, every-round producer has no countdown to track, so its meter simply fills
+  // across each round and resets — a live "next payout in…" readout.
   const done = (!cad || cad <= 1) ? 0 : Math.max(0, Math.min(rounds, elapsed || 0));
-  const t = title != null ? title : `every ${roundsToTime(rounds)}`;
+  const t = escapeHtml(String(title != null ? title : `every ${roundsToTime(rounds)}`));
+  if (!isRealtime()) {
+    // A steady, every-round item shows a single ALWAYS-ON light (the same glowing dot as the
+    // cadenced meter, resource-tinted) — so every row on both pills reads with a light.
+    if (!cad || cad <= 1) return `<span class="ecad cad ck-${ck}" title="${t}"><i class="clight on"></i></span>`;
+    let dots = '';
+    for (let i = 0; i < rounds; i++) dots += `<i class="clight${i < done ? ' on' : ''}"></i>`;
+    return `<span class="ecad cad ck-${ck}" title="${t}">${dots}</span>`;
+  }
   const k = key || (ck + '|' + rounds);
   _cadProg.set(k, { rounds, done });
-  return `<span class="ecad cad ck-${ck}" title="${escapeHtml(String(t))}">`
+  return `<span class="ecad cad ck-${ck}" title="${t}">`
     + `<span class="cbar" data-cadkey="${escapeHtml(k)}"><i></i></span></span>`;
 }
 // Write every visible bar's fill from the current round clock. Runs on EVERY HUD refresh
@@ -13454,6 +13503,7 @@ function cadenceLightsHTML(cad, elapsed, ck = 't', title, key = '') {
 // advances a step each world tick and the CSS transition glides it smoothly in between.
 // `justBuilt` suppresses the transition for one frame after a rebuild, so a fresh bar
 // appears already filled instead of sliding up from zero.
+// A no-op in turn-based, which draws dots and carries their progress in the markup.
 function syncCadenceBars(root, justBuilt) {
   if (!root) return;
   root.querySelectorAll('.cbar[data-cadkey]').forEach((bar) => {
@@ -14466,7 +14516,12 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
               '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsCont" type="button">Old</button></span>' +
             '</div>' +
           '</div>' +
-          '<div class="ts-mode">Survival</div>' +
+          // SURVIVAL gets the same two-row shape as the sides — a HIDDEN kind label above it —
+          // so it lines up on the New/Old row rather than floating between the two rows.
+          '<div class="ts-side ts-side-mid">' +
+            '<div class="ts-kind ts-kind-ghost" aria-hidden="true">Turn-based</div>' +
+            '<div class="ts-mode">Survival</div>' +
+          '</div>' +
           '<div class="ts-side">' +
             '<div class="ts-kind">Real time</div>' +
             '<div class="ts-pair">' +

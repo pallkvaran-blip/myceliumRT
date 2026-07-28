@@ -31,7 +31,9 @@ keeps moving on its own:
   — engine income and `every N`, dig cadences, ability cooldowns, per-round use caps, the
   Magic Mushroom conjure clock — so they all follow that one number, and card text is
   rewritten from rounds to seconds at display time (`timeify`). Turn-based leaves the text
-  in rounds, where one action is one round.
+  in rounds, where one action is one round. The corner pills show that charge as a **time
+  bar** that fills gradually in real time, and as **one dot per round** in turn-based, where
+  the meter genuinely steps a whole notch per action (`cadenceLightsHTML`).
 
 - **Enemies eat a substrate pile in ~10 seconds.** Consumption rates are tuned against the
   500 ms step: Trichoderma clears `leavesPerRound` food cells per tick, ants harvest
@@ -48,6 +50,9 @@ keeps moving on its own:
   (`node._liveAt`, via `Network.grownIn`). Until then the world can't act on it: threats
   can't sense or eat it, it can't claim a pile, and it can't win at the goal. Turn-based
   needs none of this (nothing happens between actions), so the gate is off there.
+  Colonisation is therefore re-decided each tick *while a grow is still travelling*
+  (`net._arriveUntil`) — and only then, so the colony never reaches out and takes a pile the
+  player didn't grow toward.
 
 - **Time pauses only while you're choosing a card from a draft** (and while the game isn't
   really being played — the run is over, a win is resolving, or a level intro / tutorial /
