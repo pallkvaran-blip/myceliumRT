@@ -61,6 +61,24 @@ keeps moving on its own:
 Each mode keeps its **own continue slot**, so starting a real-time run never clobbers the
 turn-based game you were halfway through. Unlock progress (species, spores) is shared.
 
+## High scores
+
+Turn-based and real time are separate ladders, so the leaderboard splits by game: **one
+table** (rank · name · level · species) under two rows of tabs — which game, then Monthly /
+All-Time. It opens on the mode you're playing, and a run only ever has to beat its own mode's
+board. Locally that's just a `mode` field on each stored entry (entries written before this
+build read as turn-based, which is what they were).
+
+The global board (Supabase, `net_scores.js`) needs one migration for the split:
+
+```sql
+alter table scores add column if not exists mode text not null default 'turn';
+create index if not exists scores_mode_level_idx on scores (mode, level desc, created_at);
+```
+
+Until it's run the client falls back to the unsplit board and labels it "Global — both modes
+combined", and score submission retries without `mode`, so nothing breaks either way.
+
 ## Tuning
 
 Every gameplay number lives in the `CONFIG` object near the top of the inline script. Rates

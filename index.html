@@ -74,9 +74,15 @@
     .hs-title-myc { width: 100%; height: 84px; margin: 0 0 6px; }   /* procedural "HIGH SCORES" wordmark grows here (height caps its size) */
     .hs-sub { margin: 6px 0 14px; font-size: 13px; color: #cfcfcf; }
     .hs-note { margin: 2px 0 4px; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: #8f8f8f; }
-    .hs-tabs { display: flex; gap: 8px; justify-content: center; margin: 14px 0 16px; }
+    .hs-tabs { display: flex; gap: 8px; justify-content: center; margin: 14px 0 16px; flex-wrap: wrap; }
+    /* Two tab rows over the SAME table: which game (turn-based / real time), then which
+       window (monthly / all-time). The mode row is the primary split, so it sits first and
+       reads a touch larger; the period row tightens up under it. */
+    .hs-tabs.hs-modes { margin: 12px 0 8px; }
+    .hs-tabs.hs-periods { margin: 0 0 16px; }
     .hs-tab { font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
       padding: 7px 14px; border-radius: 999px; background: #000; border: 1px solid rgba(255,255,255,.4); color: #bdbdbd; cursor: pointer; }
+    .hs-tabs.hs-periods .hs-tab { font-size: 11px; padding: 5px 12px; }
     .hs-tab.hs-on { background: #fff; color: #000; border-color: #fff; }
     .hs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .hs-table th { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #8f8f8f; font-weight: 700;
@@ -4188,11 +4194,14 @@ const __m_highscores = (function () {
 // High scores — local (per-device) top-10 boards, MONTHLY + ALL-TIME.
 //
 // A run's score is the campaign LEVEL it reached before being overrun. Scores are
-// kept in localStorage as a flat list of {name, level, species, speciesName, ts};
-// the two boards are derived on read:
-//   • ALL-TIME — the best 10 levels ever recorded on this device.
-//   • MONTHLY  — the best 10 from the last 30 days (rolling window).
-// A run QUALIFIES for name entry if it would place in the top 10 of EITHER board.
+// kept in localStorage as a flat list of {name, level, species, speciesName, mode, ts};
+// the boards are derived on read, PER GAME MODE (turn-based and real time are two
+// different games, so they get their own ladders — same table, separate boards):
+//   • ALL-TIME — the best 10 levels ever recorded on this device, in that mode.
+//   • MONTHLY  — the best 10 from the last 30 days (rolling window), in that mode.
+// A run QUALIFIES for name entry if it would place in the top 10 of EITHER board for
+// the mode it was played in. Entries saved before modes existed have no `mode` and are
+// read as turn-based, which is what they were.
 //
 // NOTE: this is a static browser game with no backend, so scores are per-device —
 // each player sees their own machine's board. A shared/global leaderboard would
@@ -4228,10 +4237,16 @@ function saveScores(entries) {
 // Highest level first; on a tie the EARLIER run ranks above (you got there first).
 function ranked(list) { return list.slice().sort((a, b) => (b.level - a.level) || (a.ts - b.ts)); }
 
-function allTimeBoard() { return ranked(loadScores()).slice(0, MAX); }
-function monthlyBoard(t) {
+// Which game a score was set in. Anything that isn't real time — including the legacy
+// entries written before this build shipped two modes — is turn-based.
+const MODES = ['turn', 'realtime'];
+function normMode(m) { return m === 'realtime' ? 'realtime' : 'turn'; }
+function inMode(mode) { const want = normMode(mode); return (e) => normMode(e.mode) === want; }
+
+function allTimeBoard(mode) { return ranked(loadScores().filter(inMode(mode))).slice(0, MAX); }
+function monthlyBoard(mode, t) {
   const cut = (t || now()) - MONTH_MS;
-  return ranked(loadScores().filter((e) => e.ts >= cut)).slice(0, MAX);
+  return ranked(loadScores().filter(inMode(mode)).filter((e) => e.ts >= cut)).slice(0, MAX);
 }
 
 // A board has room (< 10) → any score gets in; otherwise you must BEAT its lowest.
@@ -4239,33 +4254,37 @@ function makesBoard(board, level) { return board.length < MAX || level > board[b
 // Pure form (used to qualify against a fetched GLOBAL board, not just the local one).
 function beatsBoard(entries, level) { return makesBoard(Array.isArray(entries) ? entries : [], level | 0); }
 
-// True if `level` would place in the top 10 of the monthly OR all-time board.
-function qualifies(level, t) {
+// True if `level` would place in the top 10 of the monthly OR all-time board for `mode`.
+function qualifies(level, mode, t) {
   const lvl = level | 0;
-  return makesBoard(monthlyBoard(t), lvl) || makesBoard(allTimeBoard(), lvl);
+  return makesBoard(monthlyBoard(mode, t), lvl) || makesBoard(allTimeBoard(mode), lvl);
 }
 
 // Record a finished run. Returns the new boards (+ the entry's ts, for highlighting).
-function recordScore({ name, level, species, speciesName }) {
+function recordScore({ name, level, species, speciesName, mode }) {
   const ts = now();
+  const m = normMode(mode);
   const entry = {
     name: (String(name || '').trim() || 'Anon').slice(0, 14),
     level: level | 0,
     species: species || '',
     speciesName: speciesName || '',
+    mode: m,
     ts,
   };
   const entries = loadScores();
   entries.push(entry);
   // Prune so storage stays bounded: keep everything from the last month (for the monthly
-  // board) PLUS the all-time top RETAIN (so an old record is never lost).
+  // board) PLUS the all-time top RETAIN — the latter PER MODE, so a long turn-based history
+  // can never evict a real-time record (or vice versa).
   const cut = ts - MONTH_MS;
-  const keepTop = new Set(ranked(entries).slice(0, RETAIN));
+  const keepTop = new Set();
+  for (const md of MODES) for (const e of ranked(entries.filter(inMode(md))).slice(0, RETAIN)) keepTop.add(e);
   saveScores(entries.filter((e) => e.ts >= cut || keepTop.has(e)));
-  return { ts, monthly: monthlyBoard(ts), allTime: allTimeBoard() };
+  return { ts, monthly: monthlyBoard(m, ts), allTime: allTimeBoard(m) };
 }
 
-  return { loadPlayerName, savePlayerName, loadScores, allTimeBoard, monthlyBoard, beatsBoard, qualifies, recordScore };
+  return { loadPlayerName, savePlayerName, loadScores, allTimeBoard, monthlyBoard, beatsBoard, qualifies, recordScore, normMode, MODES };
 })();
 
 // ===================== src/net_scores.js =====================
@@ -4313,13 +4332,25 @@ async function fetchT(url, opts, ms) {
   finally { clearTimeout(timer); }
 }
 
-// One board (top 10). monthOnly filters to the rolling last 30 days. Returns normalized
-// [{name, level, speciesName, ts}] or null on any failure (caller falls back to local).
-async function getBoard(monthOnly) {
+// One board (top 10). monthOnly filters to the rolling last 30 days; `mode` ('turn' |
+// 'realtime') narrows it to one of the two games. Returns normalized
+// [{name, level, speciesName, ts}] or null on any failure (caller falls back).
+//
+// The `mode` column is a later addition to the table — the game now ships turn-based AND
+// real time, which are separate ladders. One migration turns the split on:
+//
+//   alter table scores add column if not exists mode text not null default 'turn';
+//   create index if not exists scores_mode_level_idx on scores (mode, level desc, created_at);
+//
+// Until it's run, selecting or filtering on `mode` 400s — so `mode: null` asks for the plain
+// board, and fetchGlobalBoards uses that as its fallback rather than dropping to local. Scores
+// already in the table are turn-based, which is what the DEFAULT above backfills them to.
+async function getBoard(monthOnly, mode) {
   const p = new URLSearchParams();
-  p.set('select', 'name,level,species_name,created_at');
+  p.set('select', mode ? 'name,level,species_name,mode,created_at' : 'name,level,species_name,created_at');
   p.set('order', 'level.desc,created_at.asc');
   p.set('limit', '10');
+  if (mode) p.set('mode', 'eq.' + mode);
   if (monthOnly) p.set('created_at', 'gte.' + new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString());
   const r = await fetchT(REST() + '?' + p.toString(), { headers: headers() });
   if (!r || !r.ok) return null;
@@ -4328,28 +4359,41 @@ async function getBoard(monthOnly) {
   return rows.map((e) => ({ name: e.name, level: e.level | 0, speciesName: e.species_name || '', ts: Date.parse(e.created_at) || 0 }));
 }
 
-// Fetch both boards; null if the backend is unreachable (→ local fallback).
-async function fetchGlobalBoards() {
+// Fetch both boards for one game mode; null if the backend is unreachable (→ local
+// fallback). `byMode` is false when the table has no `mode` column yet and the boards
+// therefore mix both games — the UI says so rather than claiming a per-mode ladder.
+async function fetchGlobalBoards(mode) {
   if (!scoresEnabled()) return null;
+  const m = mode === 'realtime' ? 'realtime' : mode === 'turn' ? 'turn' : null;
   try {
-    const [monthly, allTime] = await Promise.all([getBoard(true), getBoard(false)]);
+    if (m) {
+      const [monthly, allTime] = await Promise.all([getBoard(true, m), getBoard(false, m)]);
+      if (monthly && allTime) return { monthly, allTime, byMode: true };
+    }
+    const [monthly, allTime] = await Promise.all([getBoard(true, null), getBoard(false, null)]);
     if (!monthly || !allTime) return null;
-    return { monthly, allTime };
+    return { monthly, allTime, byMode: false };
   } catch (_) { return null; }
 }
 
 // Post one qualifying score. Returns true on success (best-effort; failure → local only).
-async function submitGlobalScore({ name, level, species, speciesName }) {
+// Retries without `mode` if that column isn't in the table yet, so the score still lands.
+async function submitGlobalScore({ name, level, species, speciesName, mode }) {
   if (!scoresEnabled()) return false;
-  try {
-    const body = JSON.stringify({
-      name: (String(name || '').trim() || 'Anon').slice(0, 14),
-      level: level | 0,
-      species: species || '',
-      species_name: speciesName || '',
-    });
-    const r = await fetchT(REST(), { method: 'POST', headers: headers({ Prefer: 'return=minimal' }), body });
+  const base = {
+    name: (String(name || '').trim() || 'Anon').slice(0, 14),
+    level: level | 0,
+    species: species || '',
+    species_name: speciesName || '',
+  };
+  const post = async (body) => {
+    const r = await fetchT(REST(), { method: 'POST', headers: headers({ Prefer: 'return=minimal' }), body: JSON.stringify(body) });
     return !!(r && r.ok);
+  };
+  try {
+    const m = mode === 'realtime' ? 'realtime' : 'turn';
+    if (await post(Object.assign({ mode: m }, base))) return true;
+    return await post(base);
   } catch (_) { return false; }
 }
 
@@ -15611,21 +15655,26 @@ function showLoading() {
 
 // ===================== src/render/highscores.js =====================
 const __m_render_highscores = (function () {
-  const { monthlyBoard, allTimeBoard, recordScore, beatsBoard } = __m_highscores;
+  const { isRealtime } = __m_config;
+  const { monthlyBoard, allTimeBoard, recordScore, beatsBoard, normMode } = __m_highscores;
   const { scoresEnabled, fetchGlobalBoards, submitGlobalScore } = __m_net_scores;
   const { growMyceliumTitle } = __m_render_mycelium_title;
 // =============================================================================
 // High-scores overlays (plain black & white). Namespaced #hsOverlay / .hs-*.
 //
-//   showHighScores({onClose})   — the leaderboard (Monthly / All-Time tabs, top 10 each:
-//                                 rank · name · level · species). Shows the GLOBAL board
-//                                 when a backend is configured (net_scores.js), else the
-//                                 local per-device board; falls back to local if offline.
-//   checkHighScore({level, species, speciesName}) → Promise<ctx | null>
+//   showHighScores({onClose, mode})
+//                               — the leaderboard. ONE table (rank · name · level · species)
+//                                 under two rows of tabs: which GAME (Turn-based / Real time
+//                                 — they're separate ladders) and which WINDOW (Monthly /
+//                                 All-Time), top 10 each. Opens on the mode being played.
+//                                 Shows the GLOBAL board when a backend is configured
+//                                 (net_scores.js), else the local per-device board; falls
+//                                 back to local if offline.
+//   checkHighScore({level, species, speciesName, mode}) → Promise<ctx | null>
 //                               — at run end, does the level reached crack the (global or
-//                                 local) top 10? ctx feeds the INLINE entry on the run-over
-//                                 card (ui.showOverlay); null = didn't qualify.
-//   recordHighScore({name, level, species, speciesName, isGlobal}) → Promise
+//                                 local) top 10 FOR THAT MODE? ctx feeds the INLINE entry on
+//                                 the run-over card (ui.showOverlay); null = didn't qualify.
+//   recordHighScore({name, level, species, speciesName, mode, isGlobal}) → Promise
 //                               — persist a submitted score (local always + global when enabled).
 // =============================================================================
 
@@ -15633,7 +15682,10 @@ const __m_render_highscores = (function () {
 const el = (t, c, h) => { const n = document.createElement(t); if (c) n.className = c; if (h != null) n.innerHTML = h; return n; };
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const cleanName = (s) => (String(s == null ? '' : s).trim() || 'Anon').slice(0, 14);
-const localBoards = () => ({ monthly: monthlyBoard(), allTime: allTimeBoard() });
+const localBoards = (mode) => ({ monthly: monthlyBoard(mode), allTime: allTimeBoard(mode), byMode: true });
+// Which game is being played right now — the board the player almost certainly wants first.
+const currentMode = () => (isRealtime() ? 'realtime' : 'turn');
+const MODE_LABEL = { turn: 'Turn-based', realtime: 'Real time' };
 
 // A top-10 table for one board; `hi` = {name, level} highlights matching row(s).
 function boardTable(entries, hi) {
@@ -15652,15 +15704,22 @@ function boardTable(entries, hi) {
     '<tbody>' + rows + '</tbody></table>';
 }
 
-// The leaderboard overlay (title-screen "High Scores" button).
-function showHighScores({ onClose } = {}) {
+// The leaderboard overlay (title-screen "High Scores" button). `mode` picks the tab it opens
+// on — defaults to the game currently being played.
+function showHighScores({ onClose, mode } = {}) {
   const root = el('div', 'hs-wrap'); root.id = 'hsOverlay';
   root.innerHTML =
     '<div class="hs-card" role="dialog" aria-label="High scores">' +
       '<button class="hs-close" id="hsClose" type="button" aria-label="Close">✕</button>' +
       '<div class="hs-title-myc" id="hsTitleMyc" role="img" aria-label="High Scores"></div>' +
       '<div class="hs-note" id="hsNote"></div>' +
-      '<div class="hs-tabs">' +
+      // Turn-based and real time are separate ladders, so the game is the first split…
+      '<div class="hs-tabs hs-modes">' +
+        '<button class="hs-tab" id="hsTabTurn" type="button">' + MODE_LABEL.turn + '</button>' +
+        '<button class="hs-tab" id="hsTabRt" type="button">' + MODE_LABEL.realtime + '</button>' +
+      '</div>' +
+      // …and the window the second, over the same table.
+      '<div class="hs-tabs hs-periods">' +
         '<button class="hs-tab hs-on" id="hsTabMonth" type="button">Monthly</button>' +
         '<button class="hs-tab" id="hsTabAll" type="button">All-Time</button>' +
       '</div>' +
@@ -15670,33 +15729,52 @@ function showHighScores({ onClose } = {}) {
   const myc = growMyceliumTitle(root.querySelector('#hsTitleMyc'), { word: 'HIGH SCORES' });
   const boardEl = root.querySelector('#hsBoard'), note = root.querySelector('#hsNote');
   const tabM = root.querySelector('#hsTabMonth'), tabA = root.querySelector('#hsTabAll');
-  let global = null, tab = 'month';
-  function render() {
-    const src = global || localBoards();
-    boardEl.innerHTML = boardTable(tab === 'month' ? src.monthly : src.allTime);
+  const tabT = root.querySelector('#hsTabTurn'), tabR = root.querySelector('#hsTabRt');
+  let tab = 'month', md = normMode(mode || currentMode());
+  const globalByMode = {};        // mode -> fetched boards (or null once known offline)
+  const pending = {};             // mode -> true while its fetch is in flight
+
+  function paintTabs() {
     tabM.classList.toggle('hs-on', tab === 'month');
     tabA.classList.toggle('hs-on', tab === 'all');
+    tabT.classList.toggle('hs-on', md === 'turn');
+    tabR.classList.toggle('hs-on', md === 'realtime');
+  }
+  function render() {
+    paintTabs();
+    if (pending[md]) { boardEl.innerHTML = '<div class="hs-empty">Loading…</div>'; return; }
+    const g = globalByMode[md];
+    const src = g || localBoards(md);
+    // A global board that couldn't be split by mode is showing BOTH games — say so rather
+    // than passing a combined ladder off as this mode's.
+    note.textContent = !scoresEnabled() ? ''
+      : g ? (g.byMode ? 'Global' : 'Global — both modes combined')
+      : 'Offline — showing your local scores';
+    boardEl.innerHTML = boardTable(tab === 'month' ? src.monthly : src.allTime);
+  }
+  // Each mode's global board is fetched once, on first view.
+  function load() {
+    if (!scoresEnabled() || globalByMode[md] !== undefined || pending[md]) { render(); return; }
+    const want = md;
+    pending[want] = true;
+    render();
+    fetchGlobalBoards(want).then((g) => {
+      pending[want] = false;
+      globalByMode[want] = g || null;
+      if (md === want) render();
+    });
   }
   tabM.onclick = () => { tab = 'month'; render(); };
   tabA.onclick = () => { tab = 'all'; render(); };
+  tabT.onclick = () => { md = 'turn'; load(); };
+  tabR.onclick = () => { md = 'realtime'; load(); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   function close() { document.removeEventListener('keydown', onKey); try { myc.destroy(); } catch (_) {} root.remove(); onClose && onClose(); }
   root.querySelector('#hsClose').onclick = close;
   root.addEventListener('click', (e) => { if (e.target === root) close(); });
   document.addEventListener('keydown', onKey);
 
-  if (scoresEnabled()) {
-    note.textContent = 'Global';
-    boardEl.innerHTML = '<div class="hs-empty">Loading…</div>';
-    fetchGlobalBoards().then((g) => {
-      if (g) { global = g; note.textContent = 'Global'; }
-      else { global = null; note.textContent = 'Offline — showing your local scores'; }
-      render();
-    });
-  } else {
-    note.textContent = '';
-    render();
-  }
+  load();
   return { close, root };
 }
 
@@ -15705,23 +15783,25 @@ function showHighScores({ onClose } = {}) {
 // the GLOBAL board when a backend is configured + reachable, otherwise the LOCAL board.
 // The name entry itself is rendered INLINE in the run-over overlay (ui.showOverlay), not
 // as a separate popup — this only decides whether to offer it.
-function checkHighScore({ level, species, speciesName }) {
+function checkHighScore({ level, species, speciesName, mode }) {
+  const md = normMode(mode || currentMode());
   const decide = (boards, isGlobal) => {
     const q = beatsBoard(boards.monthly, level) || beatsBoard(boards.allTime, level);
-    return q ? { level, species, speciesName, isGlobal } : null;
+    return q ? { level, species, speciesName, mode: md, isGlobal } : null;
   };
   if (scoresEnabled()) {
-    return fetchGlobalBoards().then((g) => (g ? decide(g, true) : decide(localBoards(), false)));
+    return fetchGlobalBoards(md).then((g) => (g ? decide(g, true) : decide(localBoards(md), false)));
   }
-  return Promise.resolve(decide(localBoards(), false));
+  return Promise.resolve(decide(localBoards(md), false));
 }
 
 // Persist a submitted score: locally always (offline history + fallback), plus the global
 // board when this run qualified against it. Resolves once done.
-function recordHighScore({ name, level, species, speciesName, isGlobal }) {
+function recordHighScore({ name, level, species, speciesName, mode, isGlobal }) {
   const nm = cleanName(name);
-  recordScore({ name: nm, level, species, speciesName });
-  return isGlobal ? submitGlobalScore({ name: nm, level, species, speciesName }).then(() => {}) : Promise.resolve();
+  const md = normMode(mode || currentMode());
+  recordScore({ name: nm, level, species, speciesName, mode: md });
+  return isGlobal ? submitGlobalScore({ name: nm, level, species, speciesName, mode: md }).then(() => {}) : Promise.resolve();
 }
 
   return { showHighScores, checkHighScore, recordHighScore };
@@ -16209,8 +16289,8 @@ function showDeathCarry(r) {
   // Kick off the Top-10 check now (in the background) + record it, so the prompt is ready the
   // instant the player leaves this screen — it shows AFTER Next run / Main menu, not here.
   const hsPromise = (cardsCampaign() && chosenSpecies)
-    ? checkHighScore({ level: currentLevel, species: chosenSpecies.id, speciesName: chosenSpecies.name })
-        .then((hs) => { if (hs) recordHighScore({ name: loadPlayerName(), level: hs.level, species: hs.species, speciesName: hs.speciesName, isGlobal: hs.isGlobal }); return hs; })
+    ? checkHighScore({ level: currentLevel, species: chosenSpecies.id, speciesName: chosenSpecies.name, mode: CONFIG.mode })
+        .then((hs) => { if (hs) recordHighScore({ name: loadPlayerName(), level: hs.level, species: hs.species, speciesName: hs.speciesName, mode: hs.mode, isGlobal: hs.isGlobal }); return hs; })
         .catch(() => null)
     : Promise.resolve(null);
   showLoadoutSelect({
@@ -16230,7 +16310,7 @@ function showDeathCarry(r) {
 // show the score prompt first (with a link to the board), then continue.
 function afterDeath(hsPromise, next) {
   hsPromise.then((hs) => {
-    if (hs && ui) ui.showHighScorePrompt(hs.level, { onView: () => showHighScores({}), onContinue: next });
+    if (hs && ui) ui.showHighScorePrompt(hs.level, { onView: () => showHighScores({ mode: hs.mode }), onContinue: next });
     else next();
   });
 }
@@ -16749,6 +16829,11 @@ function begin(newState) {
     // Debug hooks (invisible; used by tests/self-play): force a level win or a colony death.
     winLevel: () => devWinLevel(),
     killColony: () => forceFruitAbandon(),
+    // High-score hooks (invisible): open the board on a given mode, and reach the local
+    // store + the qualify/record path, so both ladders are testable.
+    showHighScores: (opts) => showHighScores(opts || {}),
+    scores: __m_highscores,
+    scoresUi: { checkHighScore, recordHighScore },
     // Which of the two games is running, plus the live config and the rounds→time text
     // rewriter, so tests can check each mode's rules and wording without scraping the DOM.
     get config() { return CONFIG; },
