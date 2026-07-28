@@ -73,17 +73,24 @@
     .hs-title { margin: 0 0 4px; font-size: 20px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
     .hs-title-myc { width: 100%; height: 84px; margin: 0 0 6px; }   /* procedural "HIGH SCORES" wordmark grows here (height caps its size) */
     .hs-sub { margin: 6px 0 14px; font-size: 13px; color: #cfcfcf; }
+    /* Only shown when there's something worth saying (offline, or a board that couldn't be
+       split by mode) — an ever-present "GLOBAL" isn't worth the line it costs. */
     .hs-note { margin: 2px 0 4px; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: #8f8f8f; }
+    .hs-note:empty { display: none; margin: 0; }
     .hs-tabs { display: flex; gap: 8px; justify-content: center; margin: 14px 0 16px; flex-wrap: wrap; }
-    /* Two tab rows over the SAME table: which game (turn-based / real time), then which
-       window (monthly / all-time). The mode row is the primary split, so it sits first and
-       reads a touch larger; the period row tightens up under it. */
-    .hs-tabs.hs-modes { margin: 12px 0 8px; }
-    .hs-tabs.hs-periods { margin: 0 0 16px; }
+    /* Two switches over the SAME table. Which GAME (turn-based / real time) is the real split,
+       so it keeps the pill tabs; which WINDOW (monthly / all-time) is a minor axis, so it's
+       plain clickable text under them rather than a second row of buttons competing for weight. */
+    .hs-tabs.hs-modes { margin: 12px 0 6px; }
+    .hs-periods { display: flex; align-items: center; justify-content: center; gap: 0; margin: 0 0 14px; }
     .hs-tab { font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
       padding: 7px 14px; border-radius: 999px; background: #000; border: 1px solid rgba(255,255,255,.4); color: #bdbdbd; cursor: pointer; }
-    .hs-tabs.hs-periods .hs-tab { font-size: 11px; padding: 5px 12px; }
     .hs-tab.hs-on { background: #fff; color: #000; border-color: #fff; }
+    .hs-plink { font: inherit; font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+      background: none; border: none; padding: 4px 7px; color: #6f6f6f; cursor: pointer; }
+    .hs-plink:hover { color: #cfcfcf; }
+    .hs-plink.hs-on { color: #fff; text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1px; }
+    .hs-psep { font-size: 11px; color: #4a4a4a; }
     .hs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .hs-table th { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: #8f8f8f; font-weight: 700;
       text-align: left; padding: 0 8px 8px; border-bottom: 1px solid rgba(255,255,255,.25); }
@@ -3568,6 +3575,7 @@ const SPECIES = [
       { name: 'Hyphal Extension', count: 6 },
       { name: 'Acorn Cache', count: 6 },
       { name: 'Turgor Thrust', count: 5 },
+      { name: 'Rhizomorph Lance', count: 5 },
     ],
   },
   {
@@ -3577,7 +3585,7 @@ const SPECIES = [
     res: { energy: 20, water: 35, phosphorus: 0 },   // opener Rhizomorph Lance costs 1⚡ to play → start with Energy (+10⚡/+10W over the original 10/25)
     hand: [
       { name: 'Apical Drive', count: 10 },
-      { name: 'Rhizomorph Lance', count: 5 },
+      { name: 'Rhizomorph Lance', count: 10 },
       { name: 'Turgor Thrust', count: 5 },
     ],
   },
@@ -3585,61 +3593,65 @@ const SPECIES = [
     id: 'ganoderma', vibe: 'cool', unlock: 'Complete level 1', memory: true,
     name: "Artist's Conk", latin: 'Ganoderma applanatum', img: 'ganoderma-applanatum',
     blurb: 'A woody perennial bracket that lives for years on end, laying down a fresh layer of spore-tubes every season — so its whole body becomes a stacked <b>archive of seasons past</b>. Its chalk-white underside bruises dark at the faintest touch and keeps the mark forever, which is why foragers etch drawings into it: a fungus that literally <b>remembers</b>. This colony learns: it lets you <b>hand-pick cards you drafted during your last run</b>. Be warned: your first run may be a little rough.',
-    res: { energy: 10, water: 35, phosphorus: 0 },
+    res: { energy: 10, water: 40, phosphorus: 0 },
     hand: [
       { name: 'Apical Drive', count: 5 },
+      { name: 'Turgor Thrust', count: 6 },
     ],
   },
   {
     id: 'pleurotus', vibe: 'warm', unlock: 'Complete level 1',
     name: 'Oyster Mushroom', latin: 'Pleurotus ostreatus', img: 'pleurotus-ostreatus',
     blurb: 'Among the fastest and most vigorous wood-rotters alive — oyster mycelium storms through a fallen log and turns dead timber straight into sugar, fruiting in shelving tiers wherever the carbon runs richest. It is a hungry feeder that spreads faster than almost anything else in the litter. This is the colony that keeps the lights on: it opens with a living <b>cord that trickles a steady current of energy</b> through the mat every round.',
-    res: { energy: 10, water: 35, phosphorus: 8 },   // opener Cord Capillary installs for 4⚡+2W+6P
+    res: { energy: 10, water: 40, phosphorus: 8 },   // opener Cord Capillary installs for 4⚡+2W+6P
     hand: [
       { name: 'Cord Capillary', count: 1 },
       { name: 'Foraging Fan', count: 3 },
-      { name: 'Turgor Thrust', count: 12 },
+      { name: 'Turgor Thrust', count: 18 },
     ],
   },
   {
     id: 'suillus', vibe: 'spore', unlock: 'Complete level 3',
     name: 'Slippery Jack', latin: 'Suillus luteus', img: 'suillus-luteus',
     blurb: 'A slick, amber-capped bolete bound in partnership with pine — a <b>mycorrhizal</b> trader that sheathes the tree\'s rootlets and ranges far through poor soil for the nutrient those roots can never reach on their own: <b>phosphate</b>. It pays for the mineral in sugar, funnelling carbon down its cords to fund the dig. Your first dependable phosphate supply, and the key that unlocks digest, defense, and the heavier grows.',
-    res: { energy: 14, water: 35, phosphorus: 8 },   // opener Prospecting Cords installs for 12⚡
+    res: { energy: 14, water: 40, phosphorus: 8 },   // opener Prospecting Cords installs for 12⚡
     hand: [
       { name: 'Prospecting Cords', count: 1 },
       { name: 'Apical Drive', count: 8 },
       { name: 'Vesicle Surge', count: 6 },
       { name: 'Fruiting Vigil', count: 3 },
+      { name: 'Turgor Thrust', count: 6 },
     ],
   },
   {
     id: 'schizophyllum', vibe: 'aqua', unlock: 'Complete level 10', memory: true, memPick: 15, memEngines: 2, startLevelMin: 3, startLevelMax: 10,
     name: 'Split Gill', latin: 'Schizophyllum commune', img: 'schizophyllum-commune',
     blurb: 'The most widely distributed mushroom on Earth and the most genetically promiscuous — over <b>20,000 mating types</b>, endlessly adaptable. Its <b>split gills</b> fold shut to ride out drought and reopen the moment damp returns. The most seasoned colony you can field: it opens with just five runners, but lets you <b>hand-pick 15 cards and 2 engines you drafted last run</b> and carry them into this one.',
-    res: { energy: 20, water: 52, phosphorus: 16 },
+    res: { energy: 20, water: 57, phosphorus: 16 },
     hand: [
       { name: 'Apical Drive', count: 5 },
+      { name: 'Turgor Thrust', count: 6 },
     ],
   },
   {
     id: 'hydnellum', vibe: 'aqua', unlock: 'Complete level 3',
     name: 'Bleeding Tooth Fungus', latin: 'Hydnellum peckii', img: 'hydnellum-peckii',
     blurb: 'A damp-forest fungus that runs on water: it drives so much moisture through itself that it weeps bright red droplets from its cap — real <b>guttation</b>. That constant flow lets it grow almost anywhere the ground is wet, fanning out in every direction and pressing on long after drier colonies stall. Open the taps and flood the map.',
-    res: { energy: 10, water: 40, phosphorus: 6 },
+    res: { energy: 10, water: 45, phosphorus: 6 },
     hand: [
       { name: 'Aquaporin Channels', count: 1 },
       { name: 'Apical Drive', count: 6 },
       { name: 'Hyphal Extension', count: 6 },
       { name: 'Foraging Fan', count: 3 },
       { name: 'Rhizomorph Lance', count: 6 },
+      { name: 'Turgor Thrust', count: 6 },
     ],
   },
   {
     id: 'stropharia', vibe: 'warm', unlock: 'Complete level 5',
     name: 'Wine Cap', latin: 'Stropharia rugosoannulata', img: 'stropharia-rugosoannulata',
     blurb: 'The <b>"garden giant"</b> — a bulky saprotroph with a wine-red cap that rips through wood chips, straw and forest mulch faster than almost anything, turning dead matter straight into <b>sugar and mineralised nutrients</b>. Its mycelium bristles with tiny spiked cells (acanthocytes) that puncture passing nematodes and bacteria and strip them for extra nitrogen and phosphate. It opens running two engines at once — a <b>cord that trickles energy</b> and a <b>saprobic front that mineralises phosphorus</b> — a self-feeding decomposer from turn one.',
-    res: { energy: 20, water: 45, phosphorus: 7 },   // openers Cord Capillary (4⚡+2W+6P) + Mineralizing Saprobe (14⚡) → install both turn 1
+    res: { energy: 20, water: 50, phosphorus: 7 },   // openers Cord Capillary (4⚡+2W+6P) + Mineralizing Saprobe (14⚡) → install both turn 1
     hand: [
       { name: 'Cord Capillary', count: 1 },
       { name: 'Mineralizing Saprobe', count: 1 },
@@ -3648,13 +3660,14 @@ const SPECIES = [
       { name: 'Apical Drive', count: 6 },
       { name: 'Guerrilla Runners', count: 6 },
       { name: 'Constricting Snap', count: 3 },
+      { name: 'Turgor Thrust', count: 6 },
     ],
   },
   {
     id: 'cortinarius', vibe: 'spore', unlock: 'Complete level 7',
     name: 'Violet Webcap', latin: 'Cortinarius violaceus', img: 'cortinarius-violaceus',
     blurb: 'One of the few truly <b>violet</b> mushrooms — dark indigo from cap to stem — and an ectomycorrhizal partner that sheathes tree roots through damp, mossy forest floor. It mines the soil for locked-away nutrients, secreting <b>acid phosphatases that free bound phosphate</b>, and pipes <b>water and minerals</b> back to its host in trade for sugar. It opens with both taps already running: a slow, deep phosphate reserve and a steady draw of water.',
-    res: { energy: 34, water: 45, phosphorus: 10 },   // openers Phosphatase Reserve (12⚡) + Aquaporin Channels (20⚡+6P) → install both turn 1
+    res: { energy: 34, water: 50, phosphorus: 10 },   // openers Phosphatase Reserve (12⚡) + Aquaporin Channels (20⚡+6P) → install both turn 1
     hand: [
       { name: 'Phosphatase Reserve', count: 1 },
       { name: 'Aquaporin Channels', count: 1 },
@@ -3662,19 +3675,20 @@ const SPECIES = [
       { name: 'Fruiting Vigil', count: 3 },
       { name: 'Guerrilla Runners', count: 6 },
       { name: 'Vesicle Surge', count: 4 },
+      { name: 'Turgor Thrust', count: 6 },
     ],
   },
   {
     id: 'serpula', vibe: 'warm', unlock: 'Complete level 7',
     name: 'Dry Rot', latin: 'Serpula lacrymans', img: 'serpula-lacrymans',
     blurb: 'The most feared timber-rotter of all — <b>"true dry rot."</b> A brown-rot fungus that crumbles wood into dry, cracked cubes for energy, it has a rare trick: it <b>translocates water along its own mycelial cords</b>, carrying moisture from damp ground into bone-dry timber so it can rot wood nothing else can reach. Its rusty, folded fruitbodies bead with watery droplets — hence <i>lacrymans</i>, "weeping." It opens piping <b>water through its cords</b> while a <b>capillary trickles energy.</b>',
-    res: { energy: 26, water: 45, phosphorus: 14 },   // openers Aquaporin Channels (20⚡+6P) + Cord Capillary (4⚡+2W+6P) → install both turn 1
+    res: { energy: 26, water: 50, phosphorus: 14 },   // openers Aquaporin Channels (20⚡+6P) + Cord Capillary (4⚡+2W+6P) → install both turn 1
     hand: [
       { name: 'Aquaporin Channels', count: 1 },
       { name: 'Cord Capillary', count: 1 },
       { name: 'Apical Drive', count: 8 },
       { name: 'Rhizomorph Lance', count: 6 },
-      { name: 'Turgor Thrust', count: 8 },
+      { name: 'Turgor Thrust', count: 14 },
       { name: 'Amputate', count: 2 },
     ],
   },
@@ -3682,7 +3696,7 @@ const SPECIES = [
     id: 'scleroderma', vibe: 'spore', unlock: 'Complete level 5',
     name: 'Earthball', latin: 'Scleroderma citrinum', img: 'scleroderma-citrinum',
     blurb: 'A tough, chemically defended fungus whose name means <b>"hard skin"</b> — it seals itself inside a thick, warty, leathery rind and holds ground instead of racing for it. It walls off and severs any tissue that rot or grazers reach, so infection never spreads. Where other colonies spend everything on speed, the earthball digs in: slow, armoured and stubborn.',
-    res: { energy: 15, water: 35, phosphorus: 12 },
+    res: { energy: 15, water: 40, phosphorus: 12 },
     hand: [
       { name: 'Sclerotial Crust', count: 2 },
       { name: 'Amputate', count: 2 },
@@ -3690,6 +3704,7 @@ const SPECIES = [
       { name: 'Aquaporin Channels', count: 1 },
       { name: 'Rhizomorph Lance', count: 12 },
       { name: 'Melanized Wall', count: 1 },
+      { name: 'Turgor Thrust', count: 6 },
     ],
   },
   {
@@ -3712,10 +3727,10 @@ const SPECIES = [
     // §9 before attempting it again.
     artAnim: 'gnomes', artAnimLayers: 2,
     blurb: 'Psilocybe cubensis — the "golden teacher" — is a dung-loving mushroom named for Cuba, where it was first described, and now found all over the planet. Steeped in folklore and psychedelia, it bruises deep indigo and won the Reddit community vote in a landslide. This colony defies the rules of the game itself: every 4 turns a card magically appears in your hand, conjured out of thin air. Nobody\'s quite sure where the cards come from. Best not ask — just go with the flow.',
-    res: { energy: 14, water: 40, phosphorus: 10 },   // 40W/10P as requested; a little Energy so the opening grows can actually be played
+    res: { energy: 14, water: 45, phosphorus: 10 },   // a little Energy so the opening grows can actually be played
     hand: [
       { name: 'Rhizomorph Lance', count: 10 },
-      { name: 'Turgor Thrust', count: 10 },
+      { name: 'Turgor Thrust', count: 16 },
       { name: 'Capillary Runners', count: 1 },
     ],
   },
@@ -14644,10 +14659,13 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
 
   // ---- spatial-grid space colonization -----------------------------------
   function grid(gr, x, y) { return ((x / gr.cell) | 0) + ',' + ((y / gr.cell) | 0); }
-  function addNode(gr, x, y, parent) {
+  // `track: false` keeps a node OUT of the running reach (gr.minY). The pointer lure below
+  // grows wherever the cursor goes, and minY is the consume animation's "the strand reached
+  // the letter" test — a lure strand that wandered high would fire that handoff early.
+  function addNode(gr, x, y, parent, track) {
     const i = gr.nodes.length;
     gr.nodes.push({ x, y, parent });
-    if (y < gr.minY) gr.minY = y;                 // cheap running reach-so-far (highest point grown)
+    if (track !== false && y < gr.minY) gr.minY = y;   // cheap running reach-so-far (highest point grown)
     const k = grid(gr, x, y);
     let a = gr.map.get(k); if (!a) { a = []; gr.map.set(k, a); }
     a.push(i);
@@ -14815,6 +14833,10 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
       flushInk();
       playGrowSfx(g.nodes.length - before);
     }
+    // The strands nearest the cursor creep toward it — after the bloom too, so the finished
+    // title stays alive under the pointer. Its own segments still need flushing to the ink.
+    stepLure(performance.now());
+    flushInk();
     composite();
     raf = requestAnimationFrame(frame);
   }
@@ -14847,6 +14869,70 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     const ns = g.nodes; let best = -1, bd = Infinity;
     for (let i = 0; i < ns.length; i++) { const n = ns[i]; const d = (n.x - x) ** 2 + (n.y - y) ** 2; if (d < bd) { bd = d; best = i; } }
     return best;
+  }
+
+  // ---- pointer lure: the nearest strands reach for the cursor --------------
+  // While the pointer is over the title screen, the few strands closest to it creep toward
+  // it — ONE segment per tip per LURE_MS, so it reads as slow, exploratory growth rather
+  // than a line snapping out. Driven directly (addNode) instead of through the attractor
+  // pool: an attractor the cursor has since left would linger there forever, and step()
+  // re-scans every attractor on every step.
+  const LURE_TIPS = 3;        // strands that reach at once — "the closest strands", plural
+  const LURE_PX_PER_S = 46;   // how fast a reaching tip advances — deliberately a slow creep
+  const LURE_SPREAD = 90;     // min gap (px) between the seeds, so the tips start apart
+  const LURE_REARM_MS = 220;  // don't re-pick seeds more often than this…
+  const LURE_REARM_PX = 130;  // …nor unless the cursor has moved this far since arming
+  const LURE_MAX_NODES = 6000;// total lure growth per title screen (a hard bound on the cost)
+  let mouse = null, lureTips = [], lureArmedAt = 0, lureArmPt = null, lureAt = 0, lureNodes = 0;
+
+  // The k nodes nearest (x,y) that are at least `spread` apart — the distinct strands that
+  // should reach. Full scan, but only on re-arm (a few times a second while moving at most).
+  function lureSeeds(x, y, k, spread) {
+    const ns = g.nodes; if (!ns.length) return [];
+    const picks = [], sp2 = spread * spread;
+    for (let pass = 0; pass < k; pass++) {
+      let best = -1, bd = Infinity;
+      for (let i = 0; i < ns.length; i++) {
+        const n = ns[i], d = (n.x - x) ** 2 + (n.y - y) ** 2;
+        if (d >= bd) continue;
+        let clear = true;
+        for (const p of picks) { const q = ns[p]; if ((q.x - n.x) ** 2 + (q.y - n.y) ** 2 < sp2) { clear = false; break; } }
+        if (clear) { bd = d; best = i; }
+      }
+      if (best < 0) break;
+      picks.push(best);
+    }
+    return picks;
+  }
+
+  function stepLure(now) {
+    if (!mouse || consuming || finished || reduce || !g || lureNodes >= LURE_MAX_NODES) return;
+    // (Re)pick which strands are reaching: on the first move, and again once the cursor has
+    // wandered well away from where they were chosen — so the tips start from the mat NEAR
+    // the cursor instead of being dragged across the screen.
+    const moved = !lureArmPt || Math.hypot(mouse.x - lureArmPt.x, mouse.y - lureArmPt.y) > LURE_REARM_PX;
+    if ((!lureTips.length || moved) && now - lureArmedAt > LURE_REARM_MS) {
+      lureTips = lureSeeds(mouse.x, mouse.y, LURE_TIPS, LURE_SPREAD);
+      lureArmedAt = now; lureArmPt = { x: mouse.x, y: mouse.y };
+    }
+    // One segment per tip per interval, with the interval set from the segment length — so the
+    // creep runs at the same px/s whether the title (and with it g.seg) is large or small.
+    if (now - lureAt < (g.seg / LURE_PX_PER_S) * 1000) return;
+    lureAt = now;
+    for (let t = 0; t < lureTips.length; t++) {
+      const ni = lureTips[t], n = g.nodes[ni]; if (!n) continue;
+      const dx = mouse.x - n.x, dy = mouse.y - n.y, d = Math.hypot(dx, dy);
+      if (d < g.seg * 2) continue;                       // this tip is already at the cursor
+      // Same wobble the sim's own growth uses, so a reaching strand looks like the rest.
+      const ja = rnd(-0.5, 0.5), c = Math.cos(ja), s = Math.sin(ja);
+      const ux = dx / d, uy = dy / d;
+      const rx = ux * c - uy * s, ry = ux * s + uy * c;
+      const nx = n.x + rx * g.seg, ny = n.y + ry * g.seg;
+      const idx = addNode(g, nx, ny, ni, false);
+      g.segs.push([n.x, n.y, nx, ny, g.nodes[idx]]);
+      lureTips[t] = idx;                                  // the new node is this strand's tip
+      lureNodes++;
+    }
   }
   // Lay a gently-wandering line of attractors between two points so growth creeps
   // from one to the other, one segment at a time (a visible travelling strand), with
@@ -15096,6 +15182,19 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
   let rt = 0;
   const onResize = () => { if (consuming || finished) return; clearTimeout(rt); rt = setTimeout(layout, 200); };
   window.addEventListener('resize', onResize);
+
+  // Track the cursor over the whole title screen (buttons included — reaching toward one
+  // looks right) so the nearest strands can creep toward it; forget it once it leaves.
+  const onPointerMove = (e) => {
+    const r = root.getBoundingClientRect();
+    mouse = { x: e.clientX - r.left, y: e.clientY - r.top };
+  };
+  const onPointerOut = () => { mouse = null; lureTips = []; lureArmPt = null; };
+  root.addEventListener('pointermove', onPointerMove);
+  root.addEventListener('pointerleave', onPointerOut);
+  root.addEventListener('pointercancel', onPointerOut);
+  // Invisible hook: what the lure is currently reaching with (used by tests).
+  try { window.__tsLure = () => ({ tips: lureTips.length, nodes: lureNodes, tracking: !!mouse }); } catch (_) {}
 
   // TEMP dev: skip the consume animation and hand straight off to the tutorial run.
   if (devBtn) devBtn.addEventListener('click', () => {
@@ -15683,7 +15782,7 @@ const el = (t, c, h) => { const n = document.createElement(t); if (c) n.classNam
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const cleanName = (s) => (String(s == null ? '' : s).trim() || 'Anon').slice(0, 14);
 const localBoards = (mode) => ({ monthly: monthlyBoard(mode), allTime: allTimeBoard(mode), byMode: true });
-// Which game is being played right now — the board the player almost certainly wants first.
+// Which game is being played right now — the ladder a finished run belongs on.
 const currentMode = () => (isRealtime() ? 'realtime' : 'turn');
 const MODE_LABEL = { turn: 'Turn-based', realtime: 'Real time' };
 
@@ -15718,10 +15817,12 @@ function showHighScores({ onClose, mode } = {}) {
         '<button class="hs-tab" id="hsTabTurn" type="button">' + MODE_LABEL.turn + '</button>' +
         '<button class="hs-tab" id="hsTabRt" type="button">' + MODE_LABEL.realtime + '</button>' +
       '</div>' +
-      // …and the window the second, over the same table.
-      '<div class="hs-tabs hs-periods">' +
-        '<button class="hs-tab hs-on" id="hsTabMonth" type="button">Monthly</button>' +
-        '<button class="hs-tab" id="hsTabAll" type="button">All-Time</button>' +
+      // …and the window the second — plain clickable text, a lighter touch than a second
+      // row of pills for what is only a filter on the same board.
+      '<div class="hs-periods">' +
+        '<button class="hs-plink hs-on" id="hsTabMonth" type="button">Monthly</button>' +
+        '<span class="hs-psep" aria-hidden="true">–</span>' +
+        '<button class="hs-plink" id="hsTabAll" type="button">All-Time</button>' +
       '</div>' +
       '<div class="hs-board" id="hsBoard"></div>' +
     '</div>';
@@ -15730,7 +15831,9 @@ function showHighScores({ onClose, mode } = {}) {
   const boardEl = root.querySelector('#hsBoard'), note = root.querySelector('#hsNote');
   const tabM = root.querySelector('#hsTabMonth'), tabA = root.querySelector('#hsTabAll');
   const tabT = root.querySelector('#hsTabTurn'), tabR = root.querySelector('#hsTabRt');
-  let tab = 'month', md = normMode(mode || currentMode());
+  // Turn-based is the default view — it's the original game, and the board people expect
+  // to see first. An explicit `mode` still wins (the top-10 prompt opens on the run's mode).
+  let tab = 'month', md = normMode(mode || 'turn');
   const globalByMode = {};        // mode -> fetched boards (or null once known offline)
   const pending = {};             // mode -> true while its fetch is in flight
 
@@ -15745,11 +15848,12 @@ function showHighScores({ onClose, mode } = {}) {
     if (pending[md]) { boardEl.innerHTML = '<div class="hs-empty">Loading…</div>'; return; }
     const g = globalByMode[md];
     const src = g || localBoards(md);
-    // A global board that couldn't be split by mode is showing BOTH games — say so rather
-    // than passing a combined ladder off as this mode's.
-    note.textContent = !scoresEnabled() ? ''
-      : g ? (g.byMode ? 'Global' : 'Global — both modes combined')
-      : 'Offline — showing your local scores';
+    // The note only earns its line when something is OFF: the global board is the normal case
+    // and says nothing. A board that couldn't be split by mode is showing BOTH games, so say
+    // that rather than passing a combined ladder off as this mode's.
+    note.textContent = !scoresEnabled() || (g && g.byMode) ? ''
+      : g ? 'Both modes combined'
+      : 'Offline — your local scores';
     boardEl.innerHTML = boardTable(tab === 'month' ? src.monthly : src.allTime);
   }
   // Each mode's global board is fetched once, on first view.
