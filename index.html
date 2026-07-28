@@ -14873,16 +14873,29 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
 
   // ---- pointer lure: the nearest strands reach for the cursor --------------
   // While the pointer is over the title screen, the few strands closest to it creep toward
-  // it — ONE segment per tip per LURE_MS, so it reads as slow, exploratory growth rather
+  // it — ONE segment per tip per interval, so it reads as slow, exploratory growth rather
   // than a line snapping out. Driven directly (addNode) instead of through the attractor
   // pool: an attractor the cursor has since left would linger there forever, and step()
   // re-scans every attractor on every step.
+  //
+  // Each reaching strand also SIDE-BRANCHES now and then, and those branches wander off on
+  // their own heading for a handful of segments and stop — the same fringed silhouette the
+  // letters get from their fringe attractors, reached a different way. Branches can fork
+  // again, more rarely and shorter-lived, so the spray tapers instead of doubling.
   const LURE_TIPS = 3;        // strands that reach at once — "the closest strands", plural
-  const LURE_PX_PER_S = 46;   // how fast a reaching tip advances — deliberately a slow creep
+  const LURE_PX_PER_S = 23;   // how fast a reaching tip advances — deliberately a slow creep
   const LURE_SPREAD = 90;     // min gap (px) between the seeds, so the tips start apart
   const LURE_REARM_MS = 220;  // don't re-pick seeds more often than this…
   const LURE_REARM_PX = 130;  // …nor unless the cursor has moved this far since arming
-  const LURE_MAX_NODES = 6000;// total lure growth per title screen (a hard bound on the cost)
+  const LURE_BRANCH = 0.09;   // per advance: chance a REACHING tip sprouts a side branch
+  const LURE_FORK = 0.035;    // per advance: chance a side branch forks again (rarer → tapers)
+  const LURE_LIFE_MIN = 4;    // segments a side branch gets before it trails off…
+  const LURE_LIFE_MAX = 15;   // …a short spray, not a second strand racing the cursor
+  const LURE_TURN = 0.26;     // rad a wandering branch drifts per segment
+  const LURE_MAX_LIVE = 28;   // live tips at once (mains + branches)
+  const LURE_MAX_NODES = 30000;// total lure growth per title screen (a hard bound on the cost)
+  // Tips: { i: node index, life: segments left (< 0 = a MAIN tip, immortal, homes on the
+  // cursor), ang: heading a branch is wandering along }.
   let mouse = null, lureTips = [], lureArmedAt = 0, lureArmPt = null, lureAt = 0, lureNodes = 0;
 
   // The k nodes nearest (x,y) that are at least `spread` apart — the distinct strands that
@@ -14911,28 +14924,50 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     // wandered well away from where they were chosen — so the tips start from the mat NEAR
     // the cursor instead of being dragged across the screen.
     const moved = !lureArmPt || Math.hypot(mouse.x - lureArmPt.x, mouse.y - lureArmPt.y) > LURE_REARM_PX;
-    if ((!lureTips.length || moved) && now - lureArmedAt > LURE_REARM_MS) {
-      lureTips = lureSeeds(mouse.x, mouse.y, LURE_TIPS, LURE_SPREAD);
+    const mains = lureTips.filter((t) => t.life < 0).length;
+    if ((!mains || moved) && now - lureArmedAt > LURE_REARM_MS) {
+      // Replace the MAIN tips; leave any live side branches to finish trailing off on their own.
+      lureTips = lureTips.filter((t) => t.life >= 0);
+      for (const i of lureSeeds(mouse.x, mouse.y, LURE_TIPS, LURE_SPREAD)) lureTips.push({ i, life: -1, ang: 0 });
       lureArmedAt = now; lureArmPt = { x: mouse.x, y: mouse.y };
     }
     // One segment per tip per interval, with the interval set from the segment length — so the
     // creep runs at the same px/s whether the title (and with it g.seg) is large or small.
     if (now - lureAt < (g.seg / LURE_PX_PER_S) * 1000) return;
     lureAt = now;
-    for (let t = 0; t < lureTips.length; t++) {
-      const ni = lureTips[t], n = g.nodes[ni]; if (!n) continue;
-      const dx = mouse.x - n.x, dy = mouse.y - n.y, d = Math.hypot(dx, dy);
-      if (d < g.seg * 2) continue;                       // this tip is already at the cursor
-      // Same wobble the sim's own growth uses, so a reaching strand looks like the rest.
-      const ja = rnd(-0.5, 0.5), c = Math.cos(ja), s = Math.sin(ja);
-      const ux = dx / d, uy = dy / d;
-      const rx = ux * c - uy * s, ry = ux * s + uy * c;
-      const nx = n.x + rx * g.seg, ny = n.y + ry * g.seg;
-      const idx = addNode(g, nx, ny, ni, false);
+    const sprouted = [];
+    for (const tip of lureTips) {
+      const n = g.nodes[tip.i]; if (!n) { tip.life = 0; continue; }
+      let ux, uy;
+      if (tip.life < 0) {
+        // A MAIN tip homes on the cursor, with the same wobble the sim's own growth uses.
+        const dx = mouse.x - n.x, dy = mouse.y - n.y, d = Math.hypot(dx, dy);
+        if (d < g.seg * 2) continue;                      // already there — hold still
+        const ja = rnd(-0.5, 0.5), c = Math.cos(ja), s = Math.sin(ja);
+        ux = (dx / d) * c - (dy / d) * s; uy = (dx / d) * s + (dy / d) * c;
+      } else {
+        // A SIDE BRANCH ignores the cursor: it wanders along its own heading until its life
+        // runs out, which is what makes it read as a trailing-off offshoot rather than a
+        // second strand racing for the pointer.
+        tip.ang += rnd(-LURE_TURN, LURE_TURN);
+        ux = Math.cos(tip.ang); uy = Math.sin(tip.ang);
+      }
+      const nx = n.x + ux * g.seg, ny = n.y + uy * g.seg;
+      const idx = addNode(g, nx, ny, tip.i, false);
       g.segs.push([n.x, n.y, nx, ny, g.nodes[idx]]);
-      lureTips[t] = idx;                                  // the new node is this strand's tip
+      tip.i = idx;                                        // the new node is this strand's tip
       lureNodes++;
+      if (tip.life > 0) tip.life--;
+      // Fork: peel a new branch off at an angle. Reaching tips do it often, branches rarely.
+      const chance = tip.life < 0 ? LURE_BRANCH : LURE_FORK;
+      if (lureTips.length + sprouted.length < LURE_MAX_LIVE && Math.random() < chance) {
+        const base = Math.atan2(uy, ux) + (Math.random() < 0.5 ? -1 : 1) * rnd(0.5, 1.15);
+        const life = Math.round(rnd(LURE_LIFE_MIN, LURE_LIFE_MAX)) * (tip.life < 0 ? 1 : 0.6);
+        sprouted.push({ i: idx, life: Math.max(2, Math.round(life)), ang: base });
+      }
     }
+    for (const s of sprouted) lureTips.push(s);
+    lureTips = lureTips.filter((t) => t.life !== 0);       // spent branches stop growing
   }
   // Lay a gently-wandering line of attractors between two points so growth creeps
   // from one to the other, one segment at a time (a visible travelling strand), with
@@ -15194,7 +15229,13 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
   root.addEventListener('pointerleave', onPointerOut);
   root.addEventListener('pointercancel', onPointerOut);
   // Invisible hook: what the lure is currently reaching with (used by tests).
-  try { window.__tsLure = () => ({ tips: lureTips.length, nodes: lureNodes, tracking: !!mouse }); } catch (_) {}
+  try {
+    window.__tsLure = () => ({
+      tips: lureTips.length, mains: lureTips.filter((t) => t.life < 0).length,
+      branches: lureTips.filter((t) => t.life >= 0).length,
+      nodes: lureNodes, tracking: !!mouse,
+    });
+  } catch (_) {}
 
   // TEMP dev: skip the consume animation and hand straight off to the tutorial run.
   if (devBtn) devBtn.addEventListener('click', () => {
