@@ -917,6 +917,30 @@
       white-space:nowrap; pointer-events:none; font-size:clamp(8px,1.15vw,11px); letter-spacing:.06em;
       text-transform:none; font-weight:400; color:rgba(219,233,223,0.30); }
     #titleScreen .ts-actions > .ts-mode, #titleScreen .ts-actions > .ts-modewrap { justify-self:center; }
+    /* SURVIVAL is split in two: the game ships BOTH the turn-based original and the real-time
+       variant, so each side of the row gets its own New/Old pair under a small kind label
+       (TURN-BASED on the left, REAL TIME on the right), with SURVIVAL still centred between
+       them. Four buttons need more room than two, so this row is wider and its New/Old are
+       set smaller than the single-pair row's. */
+    #titleScreen .ts-actions.ts-split { width:min(1180px,96vw); column-gap:clamp(14px,2.6vw,40px); }
+    #titleScreen .ts-side { display:flex; flex-direction:column; align-items:center; gap:clamp(10px,1.5vh,18px); }
+    #titleScreen .ts-actions.ts-split > .ts-side:first-child { justify-self:end; }
+    #titleScreen .ts-actions.ts-split > .ts-side:last-child { justify-self:start; }
+    #titleScreen .ts-kind { font-size:clamp(10px,1.25vw,13px); letter-spacing:.34em; text-indent:.34em; line-height:1;
+      text-transform:uppercase; font-weight:600; color:rgba(191,238,203,0.62); text-shadow:0 0 14px rgba(127,230,163,0.28); }
+    #titleScreen .ts-pair { display:flex; align-items:center; gap:clamp(10px,2vw,34px); }
+    /* Smaller New/Old (and smaller captions to match). Kept above ~26px: the consume
+       animation's strand step is scaled off the font size and stalls below that. */
+    #titleScreen .ts-btn.ts-sm { font-size:clamp(28px,4.4vw,52px); padding:3px 8px; }
+    #titleScreen .ts-act.ts-sm > .ts-cap { font-size:clamp(7px,0.85vw,9px); letter-spacing:.05em; }
+    /* Narrow screens can't fit four buttons plus SURVIVAL across, so the row STACKS:
+       SURVIVAL, then the turn-based pair, then the real-time pair. */
+    @media (max-width:720px) {
+      #titleScreen .ts-actions.ts-split { grid-template-columns:minmax(0,1fr); row-gap:clamp(10px,2vh,20px); justify-items:center; }
+      #titleScreen .ts-actions.ts-split > .ts-side:first-child,
+      #titleScreen .ts-actions.ts-split > .ts-side:last-child { justify-self:center; }
+      #titleScreen .ts-actions.ts-split > .ts-mode { order:-1; }
+    }
     /* Campaign in the centre column, CENTRED on the NEW/OLD midline (matching SURVIVAL
        in the top row); "coming soon" is tucked directly beneath it (absolute, so it
        doesn't shift CAMPAIGN off-centre). */
@@ -1668,14 +1692,19 @@ const CONFIG = {
     movesPerTurn: 3,             // moves available each turn (SLIDER)
   },
 
+  // ---- Game mode ----------------------------------------------------------
+  // 'turn' = the original turn-based Mycelium; 'realtime' = the RT variant. Chosen on the
+  // title screen (setMode below, which also swaps in that mode's balance tuning).
+  mode: 'realtime',
+
   // ---- Real-time clock (RT variant) ---------------------------------------
-  // This build is REAL-TIME, not turn-based: the whole world advances on a wall
-  // clock instead of once per player action. tickWorld() runs once every `stepMs`
-  // of UNPAUSED time (main.js advanceSim). Time is paused only while the player is
-  // choosing a card from a draft (and while menus / the level intro / the tutorial
-  // are up, or the run is over); otherwise it just keeps moving. Consumption rates
-  // (trichoderma.leavesPerRound, ants.harvestRate) are tuned against this step so a
-  // typical substrate pile is eaten in ~10 s (≈ 20 ticks at 500 ms).
+  // In REAL-TIME mode the whole world advances on a wall clock instead of once per
+  // player action: tickWorld() runs once every `stepMs` of UNPAUSED time (main.js
+  // advanceSim). Time is paused only while the player is choosing a card from a draft
+  // (and while menus / the level intro / the tutorial are up, or the run is over);
+  // otherwise it just keeps moving. Consumption rates (trichoderma.leavesPerRound,
+  // ants.harvestRate) are tuned against this step so a typical substrate pile is eaten
+  // in ~10 s (≈ 20 ticks at 500 ms). `enabled: false` = turn-based.
   realtime: {
     enabled: true,
     stepMs: 500,                 // wall-clock ms per world tick (2 ticks/sec)
@@ -2078,22 +2107,75 @@ const SLIDERS = [
   { path: 'render.ambientLight',          label: 'Ambient Light',       min: 0.1, max: 1,   step: 0.05 },
 ];
 
+// --- GAME MODE: turn-based or real-time -------------------------------------
+// ONE build ships BOTH games. The title screen offers each of them separately, and calls
+// setMode() before a run starts.
+//   'turn'     — the original Mycelium: the world advances ONE STEP per player action.
+//   'realtime' — the RT variant: the world advances on a WALL CLOCK (a tick every
+//                realtime.stepMs of unpaused time), pausing only for card drafts.
+// `realtime.enabled` is the single flag every mode-dependent rule reads — engine code sees
+// it as state.config.realtime.enabled, so nothing extra has to be threaded through.
+//
+// The two modes need DIFFERENT balance numbers because RT rates are per 500 ms tick while
+// turn-based rates are per player action (a much rarer event): a worm that creeps 0.375
+// cells twice a second would barely move if it only stepped when you played a card. So the
+// tables below hold each mode's tuning, and setMode() writes the active one into CONFIG.
+const MODE_TUNING = {
+  turn: {
+    'realtime.enabled': false,
+    'trichoderma.moveSpeed': 1.5,          // cells per ACTION
+    'trichoderma.leavesPerRound': 0.22,
+    'trichoderma.spreadDepthPerTurn': 6,   // rings per action
+    'nematodes.crawlSpeed': 3.0,
+    'nematodes.wanderSpeed': 1.0,
+    'ants.harvestRate': 40,                // nutrient per action
+    'ants.extendSpeed': 999,               // the trail is laid down whole the moment it's planned
+  },
+  realtime: {
+    'realtime.enabled': true,
+    'trichoderma.moveSpeed': 0.75,         // cells per 500 ms tick
+    'trichoderma.leavesPerRound': 0.175,
+    'trichoderma.spreadDepthPerTurn': 1.5, // rings per tick (fractional — accumulated)
+    'nematodes.crawlSpeed': 0.375,
+    'nematodes.wanderSpeed': 0.125,
+    'ants.harvestRate': 6.5,               // nutrient per tick
+    'ants.extendSpeed': 2,                 // cells/tick the ant line creeps out
+  },
+};
+// Is the REAL-TIME variant running? Pass a state.config from engine code; defaults to CONFIG.
+function isRealtime(cfg) {
+  const c = cfg || CONFIG;
+  return !!(c && c.realtime && c.realtime.enabled);
+}
+function setMode(mode) {
+  const m = mode === 'turn' ? 'turn' : 'realtime';
+  CONFIG.mode = m;
+  const t = MODE_TUNING[m];
+  for (const path in t) setByPath(CONFIG, path, t[path]);
+  return m;
+}
+
 // --- ROUNDS → SECONDS in player-facing text ---------------------------------
-// Every card description (and a few log messages) is authored in ROUNDS — the old turn-based
-// unit — e.g. "Gain +1 Water every 6 rounds". A round is now a fixed slice of wall-clock time
-// (cards.roundSeconds), so those phrases are rewritten to SECONDS at DISPLAY time rather than
-// edited in the card data, which is generated from docs/cards.json and would be overwritten.
-// One source of truth: retune cards.roundSeconds and every description follows.
+// Every card description (and a few log messages) is authored in ROUNDS — the turn-based
+// unit — e.g. "Gain +1 Water every 6 rounds". In REAL TIME a round is instead a fixed slice
+// of wall-clock time (cards.roundSeconds), so those phrases are rewritten to SECONDS at
+// DISPLAY time rather than edited in the card data, which is generated from docs/cards.json
+// and would be overwritten. One source of truth: retune cards.roundSeconds and every
+// description follows. In TURN-BASED mode a round is still a round, so the text is left be.
 const roundSecs = () => (CONFIG.cards && CONFIG.cards.roundSeconds != null ? CONFIG.cards.roundSeconds : 10);
-// A round count as a readable duration: "10s", "60s", "2 min" for the long ones.
+// A round count as a readable duration: "10s", "60s", "2 min" for the long ones (real time),
+// or plain rounds when playing turn-based.
 function roundsToTime(rounds) {
-  const s = Math.round((Number(rounds) || 0) * roundSecs());
+  const n = Number(rounds) || 0;
+  if (!isRealtime()) return `${n} round${n === 1 ? '' : 's'}`;
+  const s = Math.round(n * roundSecs());
   if (s >= 120 && s % 60 === 0) return `${s / 60} min`;
   return `${s}s`;
 }
-// Rewrite the round/turn phrasings a card description can use into seconds.
+// Rewrite the round/turn phrasings a card description can use into seconds (real time only).
 function timeify(text) {
   if (!text) return text;
+  if (!isRealtime()) return text;
   const rs = roundSecs();
   return String(text)
     // "every 6 rounds", "for 10 rounds", "2 rounds faster", "/ 3 rounds", "every 4 turns"
@@ -2115,7 +2197,7 @@ function setByPath(obj, path, value) {
   target[last] = value;
 }
 
-  return { CONFIG, SLIDERS, getByPath, setByPath, timeify, roundsToTime };
+  return { CONFIG, SLIDERS, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode };
 })();
 
 // ===================== src/cards-data.js =====================
@@ -3435,6 +3517,7 @@ function levelForNumber(n) {
 
 // ===================== src/species.js =====================
 const __m_species = (function () {
+  const { CONFIG } = __m_config;
 // =============================================================================
 // Starter-species roster for the start-of-run picker.
 //
@@ -4008,15 +4091,23 @@ function clearDeathCarry() {
 // campaign level in main.js. Lets a player who closes the tab mid-run press "Old" and
 // re-enter the same level (a fresh map — they just restart that level). Kept in its own
 // localStorage key (bulky + run-specific), separate from the meta-progression wallet.
+// PER MODE: turn-based and real-time are two separate games in one build, so each keeps its
+// own continue slot — starting a real-time run never clobbers the turn-based game you were
+// halfway through, and the title screen can offer "Old" for each side independently. The
+// turn-based key is the original one, so an existing save still resumes after this update.
 const RESUME_KEY = 'mycelium.resume.v1';
-function loadResume() {
-  try { const s = localStorage.getItem(RESUME_KEY); return s ? JSON.parse(s) : null; } catch (_) { return null; }
+const RESUME_KEY_RT = 'mycelium.resume.rt.v1';
+function resumeKey(mode) {
+  return (mode || CONFIG.mode) === 'turn' ? RESUME_KEY : RESUME_KEY_RT;
 }
-function saveResume(snap) {
-  try { localStorage.setItem(RESUME_KEY, JSON.stringify(snap)); } catch (_) { /* ignore quota/serialize errors */ }
+function loadResume(mode) {
+  try { const s = localStorage.getItem(resumeKey(mode)); return s ? JSON.parse(s) : null; } catch (_) { return null; }
 }
-function clearResume() {
-  try { localStorage.removeItem(RESUME_KEY); } catch (_) {}
+function saveResume(snap, mode) {
+  try { localStorage.setItem(resumeKey(mode), JSON.stringify(snap)); } catch (_) { /* ignore quota/serialize errors */ }
+}
+function clearResume(mode) {
+  try { localStorage.removeItem(resumeKey(mode)); } catch (_) {}
 }
 // Buy a revealed species with Spores. Returns { ok, spores } — ok=false if it can't
 // be bought (not revealed, already owned, or too few Spores).
@@ -4072,7 +4163,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeathCarry, saveDeathCarry, clearDeathCarry, loadResume, saveResume, clearResume, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, newlyRevealedByClear };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeathCarry, saveDeathCarry, clearDeathCarry, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, newlyRevealedByClear };
 })();
 
 // ===================== src/highscores.js =====================
@@ -5169,6 +5260,7 @@ function stamp(sub, cc, cr, radius, cb) {
 // ===================== src/engine/network.js =====================
 const __m_engine_network = (function () {
   const { makeRng } = __m_engine_rng;
+  const { isRealtime } = __m_config;
 // =============================================================================
 // Network — a single mycelial colony (A5, A8, A9).
 //
@@ -5197,6 +5289,7 @@ class Network {
     this.nextNodeId = 0;
 
     this.traits = {};   // (genetic traits removed for now — Melanize is gone)
+    this._rt = isRealtime(config);   // real-time run? (see grownIn — read per node per tick)
     this.energy = config.energy.start;
     // Card-layer resources (C1): gate PLAYS. Two resources — Water=growth+substrate,
     // Phosphorus=digest/defense/work (harvested from rocks).
@@ -6261,7 +6354,15 @@ class Network {
   // world must not act on it: threats can't see or eat it, it can't claim a food pile, and
   // it can't reach the goal. Ungated (everything counts) until the render layer has
   // scheduled at least once — e.g. headless — so the sim still works with no renderer.
+  //
+  // TURN-BASED mode doesn't need this at all: nothing happens between actions there, so a
+  // grow's effects landing "at once" is exactly the original game's behaviour — and gating
+  // them on an animation that plays while the world is frozen would just stall them. So the
+  // gate is REAL-TIME only, which un-gates every rule keyed off it (threat senses, pile
+  // claims, the win check) in one place. The mode is read ONCE at construction (`_rt`): this
+  // runs per node per tick, and the run's config never changes mode mid-run.
   grownIn(n) {
+    if (!this._rt) return true;
     return this._nowMs == null || !n || n._liveAt == null || this._nowMs >= n._liveAt;
   }
 
@@ -6421,15 +6522,19 @@ class Network {
       // now and empty it, rather than draining it in slowly via passive income over the
       // next few ticks. maxNutrient is left intact so the pile's finish reward (the "+N⚡"
       // float and the card draft) still resolves in checkPileRewards on the next tick.
-      const _eff = this.config.energy.incomeEfficiency;
-      let _eaten = 0;
-      for (const i of pile) {
-        const cell = substrate.cells[i];
-        if (!cell || cell.nutrient <= 0 || cell.hazard) continue;
-        _eaten += cell.nutrient * (cell.energyPerNutrient != null ? cell.energyPerNutrient : _eff);
-        cell.nutrient = 0;
+      // TURN-BASED keeps the original drip: passive income pulls the pile down over the
+      // next few turns (energy.passiveIncomeRate), which is the whole tempo of that game.
+      if (isRealtime(this.config)) {
+        const _eff = this.config.energy.incomeEfficiency;
+        let _eaten = 0;
+        for (const i of pile) {
+          const cell = substrate.cells[i];
+          if (!cell || cell.nutrient <= 0 || cell.hazard) continue;
+          _eaten += cell.nutrient * (cell.energyPerNutrient != null ? cell.energyPerNutrient : _eff);
+          cell.nutrient = 0;
+        }
+        if (_eaten > 0) this.energy += _eaten;
       }
-      if (_eaten > 0) this.energy += _eaten;
     }
     return created;
   }
@@ -7352,9 +7457,12 @@ function stepAnts(state) {
     const maxBuilt = Math.max(0, plan.length - 1);          // fractional path index the line's tip has reached
     if (nest.built < maxBuilt - 1e-6) {
       // TRAVELING: the ant line hasn't reached its target yet — creep it out a few cells.
+      // (Turn-based sets extendSpeed high enough that the whole leg is laid at once, which is
+      // how the original played: the trail simply appears, then the nest harvests.)
       nest.built = Math.min(maxBuilt, nest.built + extend);
       nest.dormant = false;
-    } else {
+    }
+    if (nest.built >= maxBuilt - 1e-6) {
       // ARRIVED at the trail's end: harvest the target, or EXTEND to the next food when it's
       // empty / sealed (retarget appends a new leg; the line then travels it next ticks).
       let cell = nest.target ? sub.cellAt(nest.target.col, nest.target.row) : null;
@@ -8044,7 +8152,7 @@ function newRun(config, seed) {
 // ===================== src/engine/cards.js =====================
 const __m_engine_cards = (function () {
   const { CARD_DATA, CARD_BY_NAME } = __m_cards_data;
-  const { roundsToTime } = __m_config;
+  const { roundsToTime, isRealtime } = __m_config;
   const { attackNest, recalibrateAnts } = __m_engine_ants;
   const { infectStrandsInMould } = __m_engine_threats;
 // =============================================================================
@@ -8515,13 +8623,17 @@ function produceCardEngines(state) {
   const net = state.active; if (!net || !net.alive) return;
   const cc = state.config.cards;
   updateWaterSourceEngine(state);        // sync the lake/reservoir water trickle before producing
-  // RT: the card layer keeps its own ROUND clock, decoupled from the world tick. Every cadence
-  // on a card is written in rounds — one dot per round — so one round of wall-clock time
-  // (cards.roundSeconds, 10 s) advances all of them together: engine income and its `every N`
-  // / dig cadences below, ability cooldowns and per-round use caps, and the Magic conjure
-  // clock. A card that used to fire "every 6 rounds" therefore fires once a minute.
+  // The card layer keeps its own ROUND clock. Every cadence on a card is written in rounds —
+  // one bar-fill per round — and this clock advances all of them together: engine income and
+  // its `every N` / dig cadences below, ability cooldowns and per-round use caps, and the
+  // Magic conjure clock.
+  //   TURN-BASED: one world tick IS one round (tickWorld runs once per player action).
+  //   REAL-TIME:  a round is a slice of wall clock (cards.roundSeconds, 10 s), so it takes
+  //               many ticks — a card that fires "every 6 rounds" fires once a minute.
   const stepMs = (state.config.realtime && state.config.realtime.stepMs) || 500;
-  const roundTicks = Math.max(1, Math.round(((cc.roundSeconds != null ? cc.roundSeconds : 10) * 1000) / stepMs));
+  const roundTicks = isRealtime(state.config)
+    ? Math.max(1, Math.round(((cc.roundSeconds != null ? cc.roundSeconds : 10) * 1000) / stepMs))
+    : 1;
   C._engTick = (C._engTick || 0) + 1;
   const engineDue = C._engTick >= roundTicks;   // a full round has elapsed
   if (engineDue) C._engTick = 0;
@@ -8640,12 +8752,15 @@ function checkGoalReached(state) {
   // A strand that grew INTO the Trichoderma gets infected FIRST, so a fruiting body
   // pushed through mould sitting on the finish line is dead tissue and can't win.
   infectStrandsInMould(net, state);
-  // The win must land when the growth ACTUALLY GETS THERE, at the SURFACE:
+  // REAL-TIME: the win must land when the growth ACTUALLY GETS THERE, at the SURFACE:
   //   • grownIn — a grow commits its whole path at once, so an un-revealed strand sitting on
   //     the finish line hasn't arrived yet; the win waits for it to finish growing in.
   //   • goalSurfaceDepth — the strand has to reach the soil line itself (under one cell),
-  //     not merely get within the Fruit action's far deeper reachDepth.
-  const goalDepth = state.config.cards.goalSurfaceDepth != null ? state.config.cards.goalSurfaceDepth : 24;
+  //     not merely get within the Fruit action's far deeper reachDepth. Turn-based keeps the
+  //     original, far more forgiving reachDepth (there is no arrival delay to exploit).
+  const goalDepth = isRealtime(state.config) && state.config.cards.goalSurfaceDepth != null
+    ? state.config.cards.goalSurfaceDepth
+    : state.config.actions.fruit.reachDepth;
   for (const n of net.nodes) {
     if (n.infected || !net.grownIn(n)) continue;
     const surf = sub.surfaceColumnAtX(n.x);
@@ -9368,6 +9483,7 @@ EFFECTS['Cordyceps Stroma'] = action({ effect: 'destroy a sensed ant nest', ever
 
 // ===================== src/engine/turn.js =====================
 const __m_engine_turn = (function () {
+  const { isRealtime } = __m_config;
   const { infectNetwork, spreadTrichoderma, checkPuzzleGoal } = __m_engine_threats;
   const { stepAnts } = __m_engine_ants;
   const { stepNematodes } = __m_engine_nematodes;
@@ -9406,12 +9522,13 @@ function tickWorld(state) {
     if (!net.alive) continue;
 
     // 0) REAL-TIME: re-decide where the colony spreads EVERY tick, not just at the moment a
-    //    grow is played. The old turn-based flow settled colonisation once per grow and then
-    //    merely animated it in, so a pile a threat ate during that window was still claimed.
-    //    Deciding here — right after the threats have acted — means the choice is always made
-    //    against the food that is actually still on the map: a pile just finished off by ants
-    //    or mould is no longer claimable, and one that has come into reach is taken promptly.
-    net.colonizeReachablePiles(substrate, state.rng);
+    //    grow is played. The turn-based flow settles colonisation once per grow and then
+    //    merely animates it in — fine when nothing happens in between, but in real time a
+    //    pile a threat ate during that window was still claimed. Deciding here — right after
+    //    the threats have acted — means the choice is always made against the food that is
+    //    actually still on the map: a pile just finished off by ants or mould is no longer
+    //    claimable, and one that has come into reach is taken promptly.
+    if (isRealtime(config)) net.colonizeReachablePiles(substrate, state.rng);
 
     // 1) Passive income from occupied substrate (depletes those patches).
     resolveIncome(net, substrate, config);
@@ -9538,6 +9655,7 @@ function resolveIncome(net, substrate, config) {
 
 // ===================== src/engine/actions.js =====================
 const __m_engine_actions = (function () {
+  const { isRealtime } = __m_config;
   const { spawnTrichodermaAt } = __m_engine_threats;
   const { tickWorld } = __m_engine_turn;
   const { attackNest } = __m_engine_ants;
@@ -9721,10 +9839,12 @@ function performAction(state, name, ctx = {}) {
   state.active.recomputeVitality();
   state.log(result.message, 'action');
 
-  // REAL-TIME: an action applies its effect instantly and does NOT advance the
-  // world — the whole world (threats acting, passive income, the rot racing) ticks
-  // on the wall clock instead (main.js advanceSim → tickWorld). Fruit still ends the
-  // run inside its own effect, so nothing else is needed here.
+  // TURN-BASED: there are no turns as such — every action advances the whole world one
+  // step (threats act, passive income flows, the rot races). Fruit ends the run, so the
+  // guard inside tickWorld makes this a no-op in that case.
+  // REAL-TIME: an action applies its effect instantly and does NOT advance the world —
+  // the wall clock does that instead (main.js advanceSim → tickWorld).
+  if (!isRealtime(state.config)) tickWorld(state);
 
   return { ok: true, message: result.message, moves, energy };
 }
@@ -11775,7 +11895,7 @@ function isMusicMuted() { return muted; }
 // ===================== src/render/ui.js =====================
 const __m_render_ui = (function () {
   const { ACTIONS, actionCost } = __m_engine_actions;
-  const { SLIDERS, getByPath, setByPath, timeify, roundsToTime } = __m_config;
+  const { SLIDERS, getByPath, setByPath, timeify, roundsToTime, isRealtime } = __m_config;
   const { CARD_BY_NAME } = __m_cards_data;
   const { cardDeckAdditions, actionUsable, cardBlockedReason } = __m_engine_cards;
   const { toggleMusic, isMusicMuted } = __m_render_music;
@@ -12615,9 +12735,8 @@ class UI {
       const cc = s.config.cards;
       if (this.el.skipchip) {
         // REAL-TIME: "Skip a round" is obsolete — the world advances on its own clock,
-        // so there is no turn to pass. Hide the chip entirely.
-        const rt = (s.config.realtime && s.config.realtime.enabled !== false);
-        if (rt) {
+        // so there is no turn to pass. Hide the chip entirely. TURN-BASED keeps it.
+        if (isRealtime(s.config)) {
           this.el.skipchip.style.display = 'none';
         } else {
           this.el.skipchip.style.display = '';
@@ -12688,7 +12807,11 @@ class UI {
       // Non-empty hand with nothing affordable (the empty-hand case shows the same
       // message inside the carousel below, so don't double it up here).
       const showHint = net.alive && !s.runOver && s.cards.hand.length > 0 && !anyPlayable;
-      this.el.handhint.textContent = showHint ? 'No playable cards — wait for income, draw, or use actions.' : '';
+      // Turn-based can pass the turn to move things along; real time has no turn to skip.
+      const stuckHint = isRealtime(s.config)
+        ? 'No playable cards — wait for income, draw, or use actions.'
+        : 'No playable cards, skip turn or use actions.';
+      this.el.handhint.textContent = showHint ? stuckHint : '';
       this.el.handhint.classList.toggle('hidden', !showHint);
     }
 
@@ -12705,7 +12828,12 @@ class UI {
     this._handSig = sig;
 
     const prevScroll = list.scrollLeft;
-    if (!s.cards.hand.length) { list.innerHTML = '<div class="handempty">No cards in hand — wait for income, draw, or use actions.</div>'; return; }
+    if (!s.cards.hand.length) {
+      list.innerHTML = '<div class="handempty">' + (isRealtime(s.config)
+        ? 'No cards in hand — wait for income, draw, or use actions.'
+        : 'No playable cards, skip turn or use actions.') + '</div>';
+      return;
+    }
     list.innerHTML = '';
     if (!filtered.length) { list.innerHTML = '<div class="handempty">No cards in this filter.</div>'; return; }
 
@@ -13296,9 +13424,11 @@ function refreshCadenceClock(s) {
   const cc = (s && s.config && s.config.cards) || {};
   const stepMs = (s && s.config && s.config.realtime && s.config.realtime.stepMs) || 500;
   _cadRoundMs = Math.max(200, (cc.roundSeconds != null ? cc.roundSeconds : 10) * 1000);
-  const roundTicks = Math.max(1, Math.round(_cadRoundMs / stepMs));
-  // Part-round progress. Frozen automatically while the world clock is (the round clock
+  // TURN-BASED: one world tick IS one round, so there is no part-round to show — the bars
+  // step a whole notch per action. REAL-TIME: a round spans many ticks, so show how far into
+  // the current one we are. Frozen automatically while the world clock is (the round clock
   // only advances on world ticks), so a paused game holds its bars where they are.
+  const roundTicks = isRealtime(s && s.config) ? Math.max(1, Math.round(_cadRoundMs / stepMs)) : 1;
   _cadFrac = Math.max(0, Math.min(1, ((s && s.cards && s.cards._engTick) || 0) / roundTicks));
   _cadProg.clear();
 }
@@ -14325,18 +14455,32 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
   root.innerHTML =
     '<canvas id="tsCanvas"></canvas>' +
     '<div class="ts-menu">' +
+      // Survival is offered as BOTH games: turn-based on the left, real time on the right,
+      // each with its own New (fresh run) and Old (continue that mode's saved run).
       '<div class="ts-block ts-top">' +
-        '<div class="ts-actions">' +
-          '<span class="ts-act"><span class="ts-cap">start a new game</span><button class="ts-btn" id="tsNew" type="button">New</button></span>' +
+        '<div class="ts-actions ts-split">' +
+          '<div class="ts-side">' +
+            '<div class="ts-kind">Turn-based</div>' +
+            '<div class="ts-pair">' +
+              '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNew" type="button">New</button></span>' +
+              '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsCont" type="button">Old</button></span>' +
+            '</div>' +
+          '</div>' +
           '<div class="ts-mode">Survival</div>' +
-          '<span class="ts-act"><span class="ts-cap">continue last game</span><button class="ts-btn" id="tsCont" type="button">Old</button></span>' +
+          '<div class="ts-side">' +
+            '<div class="ts-kind">Real time</div>' +
+            '<div class="ts-pair">' +
+              '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNewRt" type="button">New</button></span>' +
+              '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsContRt" type="button">Old</button></span>' +
+            '</div>' +
+          '</div>' +
         '</div>' +
       '</div>' +
       '<div class="ts-block ts-bottom">' +
         '<div class="ts-actions">' +
-          '<span class="ts-btn ts-locked">New</span>' +
+          '<span class="ts-btn ts-sm ts-locked">New</span>' +
           '<div class="ts-modewrap"><div class="ts-mode ts-locked">Campaign</div><div class="ts-soon">coming soon</div></div>' +
-          '<span class="ts-btn ts-locked">Old</span>' +
+          '<span class="ts-btn ts-sm ts-locked">Old</span>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -14781,19 +14925,18 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     composite();
   }
 
-  // Place the two menu rows SYMMETRICALLY about the title centre: each NEW·MODE·OLD
-  // row (SURVIVAL now sits INLINE between NEW and OLD) sits the same distance D from
-  // the title. ("coming soon" tucks under the Campaign row and doesn't factor in.)
+  // Place the two menu rows SYMMETRICALLY about the title: each one is set the same gap
+  // clear of the title's edge — the top row's BOTTOM and the bottom row's TOP. Measured per
+  // row rather than from a shared height, because the Survival row is taller than the
+  // Campaign one (it carries two labelled New/Old pairs). ("coming soon" tucks under the
+  // Campaign row and doesn't factor in.)
   function positionMenu() {
     const topB = root.querySelector('.ts-top'), botB = root.querySelector('.ts-bottom');
-    const topAct = topB.querySelector('.ts-actions');
-    const botAct = botB.querySelector('.ts-actions');
-    const actH = topAct.offsetHeight || botAct.offsetHeight || 90;
+    const topH = topB.offsetHeight || 90;
     const halfTitle = titleSize * 0.58;              // effective title half-height (incl. fringe)
     const gapTitle = Math.max(16, H * 0.045);        // title edge → row
-    const D = halfTitle + gapTitle + actH / 2;        // title centre → row centre (equal top & bottom)
-    topB.style.bottom = 'auto'; topB.style.top = Math.round(titleY - D - actH / 2) + 'px';
-    botB.style.bottom = 'auto'; botB.style.top = Math.round(titleY + D - actH / 2) + 'px';
+    topB.style.bottom = 'auto'; topB.style.top = Math.round(titleY - halfTitle - gapTitle - topH) + 'px';
+    botB.style.bottom = 'auto'; botB.style.top = Math.round(titleY + halfTitle + gapTitle) + 'px';
   }
 
   // True when there's saved unlock progress from an old run — which "New" (Survival) wipes
@@ -14804,7 +14947,9 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
   // Plain black-and-white "New Game" dialog (no gradients): enter the display name used
   // for high scores this run, plus the erase-progress warning when there's saved progress.
   // Start → onNew(name); Cancel/backdrop/Esc → dismiss.
-  function newGameDialog() {
+  // `btn` is the New the player pressed (turn-based or real time — it's the word that grows
+  // on the way in), and `mode` is the game that button starts.
+  function newGameDialog(btn, mode) {
     if (consuming || finished) return;
     const erase = hasProgress();
     const back = el('div', 'ts-confirm');
@@ -14827,7 +14972,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
       if (consuming || finished) return;
       const nm = input.value;
       close();
-      consume(root.querySelector('#tsNew'), () => onNew && onNew(nm));
+      consume(btn, () => onNew && onNew(nm, mode));
     }
     back.querySelector('#tsNameStart').addEventListener('click', start);
     back.querySelector('#tsNameCancel').addEventListener('click', close);
@@ -14837,8 +14982,13 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     setTimeout(() => { try { input.focus(); input.select(); } catch (_) {} }, 60);
   }
 
-  root.querySelector('#tsNew').addEventListener('click', () => { newGameDialog(); });
-  root.querySelector('#tsCont').addEventListener('click', () => consume(root.querySelector('#tsCont'), onContinue));
+  // Two games, four buttons: New/Old for the turn-based original and for the real-time
+  // variant. The mode travels with the callback (main.js sets it before building the run).
+  [['#tsNew', '#tsCont', 'turn'], ['#tsNewRt', '#tsContRt', 'realtime']].forEach(([nSel, cSel, mode]) => {
+    const nb = root.querySelector(nSel), cb = root.querySelector(cSel);
+    nb.addEventListener('click', () => { newGameDialog(nb, mode); });
+    cb.addEventListener('click', () => consume(cb, () => onContinue && onContinue(mode)));
+  });
 
   let rt = 0;
   const onResize = () => { if (consuming || finished) return; clearTimeout(rt); rt = setTimeout(layout, 200); };
@@ -15562,7 +15712,7 @@ function showCredits({ onClose } = {}) {
 
 // ===================== src/main.js =====================
 const __m_main = (function () {
-  const { CONFIG } = __m_config;
+  const { CONFIG, isRealtime, setMode, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState } = __m_engine_state;
   const { isLevel } = __m_engine_level;
   const { levelForNumber } = __m_levels_data;
@@ -16278,11 +16428,16 @@ function showMainMenu() {
   showTitleScreen({          // title → Survival New (wipe unlocks) / Continue (keep unlocks) → picker
     // New Game collects the player's high-score name (pre-filled with their last one).
     playerName: loadPlayerName(),
+    // `mode` is which of the two games the pressed button starts: 'turn' (the original,
+    // one world step per action) or 'realtime'. Applying it FIRST matters — it swaps in that
+    // mode's balance tuning, and every mode-dependent rule reads it from CONFIG onward.
     // The tutorial runs ONCE — the first time NEW is pressed (arm it here if unseen).
-    onNew: (name) => { savePlayerName(name); resetProgress(); clearResume(); tutorialPending = true; showPicker(); },
+    onNew: (name, mode) => { setMode(mode); savePlayerName(name); resetProgress(); clearResume(); tutorialPending = true; showPicker(); },
     // "Old" = continue last game: if a mid-run level was saved (tab closed mid-run),
     // re-enter that level (fresh map, saved deck); otherwise fall back to the picker.
-    onContinue: () => {
+    // Each mode has its OWN continue slot, so "Old" resumes that mode's run.
+    onContinue: (mode) => {
+      setMode(mode);
       const rs = loadResume();
       const sp = (rs && rs.v === 1 && rs.cards) ? SPECIES.find((s) => s.id === rs.speciesId) : null;
       if (rs && sp) {
@@ -16506,6 +16661,13 @@ function begin(newState) {
     // Debug hooks (invisible; used by tests/self-play): force a level win or a colony death.
     winLevel: () => devWinLevel(),
     killColony: () => forceFruitAbandon(),
+    // Which of the two games is running, plus the live config and the rounds→time text
+    // rewriter, so tests can check each mode's rules and wording without scraping the DOM.
+    get config() { return CONFIG; },
+    modeInfo: () => ({
+      mode: CONFIG.mode, realtime: isRealtime(),
+      timeified: timeify('Gain +1 Water every 6 rounds.'), rounds: roundsToTime(4),
+    }),
     // Frame-pacing diagnostic: which signal (if any) is holding the loop at full rate.
     paceInfo: () => ({
       idleFps: IDLE_FPS, fullRate: needsFullRate(lastTime), renders: _renderCount, frameCalls: _frameCalls,
@@ -16719,7 +16881,9 @@ const handlers = {
     cancelAiming();
     resolveCardOp(drawCard(state));
   },
-  onSkip() { /* REAL-TIME: no turns to skip — the world advances on its own clock. The Skip chip is hidden; this stays a no-op so nothing charges Energy for a pass. */ },
+  // REAL-TIME has no turn to pass — the world advances on its own clock, so the Skip chip is
+  // hidden and this is a no-op (nothing charges Energy for a pass).
+  onSkip() { if (isRealtime()) return; if (draftLocked()) return; cancelAiming(); resolveCardOp(skipRound(state)); },
   // Returns true if the card was played or entered aiming; false if blocked
   // (e.g. can't afford) — the caller uses this to decide whether to minimize.
   onPlayCard(index) {
@@ -16910,8 +17074,10 @@ function checkWater() {
 function resolveCardOp(res) {
   if (res && res.ok) {
     dismissColonyLos();                   // any successful play clears the LOS helper
-    // REAL-TIME: playing/drawing applies instantly; it no longer advances the world.
-    // The world ticks on the wall clock (main.js advanceSim), so `res.tick` is ignored.
+    // TURN-BASED: a play/draw/skip that asks for it advances the world one step.
+    // REAL-TIME: it applies instantly and the wall clock does the advancing (advanceSim),
+    // so `res.tick` is ignored.
+    if (res.tick && !isRealtime()) tickWorld(state);
     substrateRenderer.markDirty();
     rendererFor(state.active).markStructureDirty();
     checkWater();                         // water warning / dehydration death
@@ -17244,12 +17410,13 @@ function resize() {
 let _lastFrameErr = null;
 
 // --- frame pacing ------------------------------------------------------------
-// This is a REAL-TIME game, but only the WORLD CLOCK needs to keep ticking — the drawn
-// scene is still mostly redundant when paused, so we keep the old idle pacing: an idle,
-// PAUSED board renders at IDLE_FPS to stay cool. Whenever the sim is actually running
-// (see simPaused) we force full rate so the world steps and threats move smoothly.
+// TURN-BASED, most of the time the board is completely still, yet the loop redrew the whole
+// scene (~7 full-screen passes) 60 times a second, which is a big part of why machines ran
+// hot even once the frames themselves got cheap. So an idle board renders at IDLE_FPS.
+// REAL-TIME needs the same treatment while PAUSED (a draft, a menu), but must run at full
+// rate whenever the sim is actually stepping, so the world moves smoothly.
 //
-// We also stay at full rate for any recent pointer input, a camera tween, a strand
+// Either way we stay at full rate for any recent pointer input, a camera tween, a strand
 // growing, the draft intro, the win celebration, a fruit preview or the tutorial.
 const IDLE_FPS = 30;
 const INPUT_GRACE_MS = 450;      // after the last pointer event, stay at full rate this long
@@ -17259,7 +17426,7 @@ let _frameCalls = 0;   // loop invocations that reached the pacing decision (dia
 function noteInput() { _lastInputAt = performance.now(); }
 
 function needsFullRate(time) {
-  if (!simPaused()) return true;   // the world is ticking — render every frame so it moves smoothly
+  if (isRealtime() && !simPaused()) return true;   // the world is ticking — every frame, so it moves smoothly
   if (performance.now() - _lastInputAt < INPUT_GRACE_MS) return true;
   if (camFocus || draftIntro || winCele || previewFruit) return true;
   if (tutorial && tutorial.active) return true;
@@ -17313,7 +17480,6 @@ function simPaused() {
 // across a menu/tab-away and then fast-forwards on resume).
 function advanceSim(time) {
   const rt = CONFIG.realtime || {};
-  if (rt.enabled === false) return;
   if (_lastSimTime < 0) _lastSimTime = time;
   const dt = time - _lastSimTime;
   _lastSimTime = time;
@@ -17322,8 +17488,11 @@ function advanceSim(time) {
   const paused = simPaused();
   state._simPaused = paused;   // the HUD's cadence bars hold their fill while time is frozen
   // Advance the world animation clock only while unpaused (clamped so a tab-away doesn't
-  // teleport the ant column), so every creature freezes together with the sim.
-  if (!paused && dt > 0) _worldTime += Math.min(dt, 250);
+  // teleport the ant column), so every creature freezes together with the sim. TURN-BASED
+  // has no sim clock to freeze — the board is meant to keep breathing between actions —
+  // so there the animation clock simply always runs.
+  if (dt > 0 && (!paused || rt.enabled === false)) _worldTime += Math.min(dt, 250);
+  if (rt.enabled === false) return;   // turn-based: the world ticks from performAction, not here
   if (!(dt > 0) || paused) return;
   const step = rt.stepMs || 500;
   const maxN = rt.maxCatchUpTicks || 3;
@@ -17508,7 +17677,9 @@ function renderFrame(time, dtFrames = 1) {
   // creeps smoothly between world ticks (skipped while paused — it freezes in place). Throttled
   // to ~30fps: it re-bakes the dynamic layer, and the slow creep needs no more than that, which
   // keeps the extra per-frame work modest on weak machines.
-  if (state.clouds && state.clouds.length && !simPaused() && time - _lastMouldBakeAt >= 33) {
+  // (Turn-based has nothing to interpolate — the clouds only move on an action, and the sim
+  // re-stamps the true field on that tick.)
+  if (isRealtime() && state.clouds && state.clouds.length && !simPaused() && time - _lastMouldBakeAt >= 33) {
     _lastMouldBakeAt = time; stampMouldInterp(); substrateRenderer.markDirty();
   }
   substrateRenderer.draw(ctx, camera, time);
@@ -19770,19 +19941,28 @@ function drawAimLine(time) {
 // (or "#ants") boots a Trichoderma-free sandbox for testing the ants in
 // isolation. The matching buttons switch modes at any time.
 setupInput();
+// Invisible boot-time debug hook: the live CONFIG, available before a run starts (unlike
+// window.__game, which begin() installs) so the chosen game mode is readable from the menus.
+window.__cfg = CONFIG;
 // Route to the boot destination (menu / picker / a hash shortcut). Deferred behind the
 // loading screen's "Click" so the game always opens on a fully-decoded frame.
 function enterGame() {
-  if (location.hash === '#puzzle') startPuzzle();
+  // The hash is a comma-separated list: the first token is the destination, the rest are
+  // flags. Because these shortcuts skip the title screen they never pick a game mode, so
+  // they get the real-time variant unless "turn" is listed (e.g. "#dev,turn").
+  const parts = location.hash.replace(/^#/, '').split(',').map((s) => s.trim()).filter(Boolean);
+  const dest = '#' + (parts[0] || '');
+  if (parts.includes('turn')) setMode('turn');
+  if (dest === '#puzzle') startPuzzle();
   // Level-editor playtest: boot straight into the draft map the editor stashed.
-  else if (location.hash === '#level') {
+  else if (dest === '#level') {
     playtestLevel = loadPlaytestLevel();
     if (!playtestLevel) { showMainMenu(); return; }
     chosenSpecies = null; currentLevel = playtestLevel.campaignLevel || 1; runStartLevel = currentLevel; startRun();
   }
-  else if (location.hash === '#notrich' || location.hash === '#ants') { noTrich = true; currentLevel = 1; runStartLevel = 1; startRun(); }
-  else if (location.hash === '#dev') { chosenSpecies = null; currentLevel = 1; runStartLevel = 1; startRun(); }   // skip the picker
-  else if (location.hash === '#tutorial') { tutorialPending = true; showPicker(); }             // force the first-run tutorial (testing)
+  else if (dest === '#notrich' || dest === '#ants') { noTrich = true; currentLevel = 1; runStartLevel = 1; startRun(); }
+  else if (dest === '#dev') { chosenSpecies = null; currentLevel = 1; runStartLevel = 1; startRun(); }   // skip the picker
+  else if (dest === '#tutorial') { tutorialPending = true; showPicker(); }             // force the first-run tutorial (testing)
   else showMainMenu();
 }
 
