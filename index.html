@@ -15361,7 +15361,11 @@ function startTutorial(deps) {
       target: (s) => worldTarget(deps.starterPile()),
       place: 'bottom',
       live: true,
-      gate: (s) => !!(s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length),
+      // Advance on the draft appearing — or on the pile being gone regardless (a threat can
+      // beat the player to it), so a forced step can't strand anyone on a pile that no
+      // longer exists.
+      gate: (s) => !!(s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length)
+        || (deps.starterPileGone && deps.starterPileGone()),
     },
     {
       // Shown WHILE the draft is on screen. Gated (so no click-catcher) → the player's clicks
@@ -16100,6 +16104,7 @@ let tutorial = null;
 let tutorialPending = false;
 let tutorialDevForce = false;          // TEMP dev title button: fire the tutorial (random species) without marking it seen
 let tutorialStarterPile = null;        // world centre of the tutorial's guaranteed orange cache pile
+let tutorialStarterObj = null;         // …and the pile itself, so "is it finished?" is answerable
 const TUT_KEY = 'mycelium.tutorial.v1';
 function markTutorialSeen() { try { localStorage.setItem(TUT_KEY, '1'); } catch (_) {} }
 
@@ -16869,7 +16874,7 @@ function injectTutorialHelpers() {
     if (c.seq == null) c.seq = 1;
     c.hand.unshift({ id: c.seq++, name: 'Apical Drive' });
   }
-  tutorialStarterPile = null;
+  tutorialStarterPile = null; tutorialStarterObj = null;
   const sub = state.substrate;
   const root = (state.active && state.active.root) || (state.networks[0] && state.networks[0].nodes[0]);
   if (root && sub.injectFoodPile) {
@@ -16879,7 +16884,12 @@ function injectTutorialHelpers() {
     const E = ss.foodEnergyMax != null ? ss.foodEnergyMax : 3;   // a normal orange pile's Energy tier
     for (const [dc, dr] of [[3, 0], [4, 1], [3, 2], [5, 0], [2, 2], [4, 3], [6, 1], [3, 3]]) {
       const p = sub.injectFoodPile(rc + dc, Math.max(0, rr + dr), 1, E, N, 'normal');
-      if (p) { tutorialStarterPile = p; substrateRenderer.markDirty(); break; }
+      if (p) {
+        tutorialStarterPile = p;
+        tutorialStarterObj = sub.foodPiles[sub.foodPiles.length - 1];   // the one just pushed
+        substrateRenderer.markDirty();
+        break;
+      }
     }
   }
 }
@@ -16898,6 +16908,14 @@ function tutorialDeps() {
     colonyRoot: () => { const r = (state.active && state.active.root) || (state.networks[0] && state.networks[0].nodes[0]); return r ? { x: r.x, y: r.y } : null; },
     goalPoint: () => { const g = goalCol0(); if (g < 0) return null; return { x: (g + 3.5) * state.substrate.cellSize, y: surf() - 8 }; },
     starterPile: () => tutorialStarterPile,
+    // Has the starter pile been finished off — by the player, or by a threat that got there
+    // first? The "grow into the orange leaves" step needs this so it can't strand a player on
+    // a forced step whose pile no longer exists.
+    starterPileGone: () => {
+      const p = tutorialStarterObj, sub = state.substrate;
+      if (!p || !sub) return false;
+      return p.rewarded || p.cells.every((i) => !sub.cells[i] || sub.cells[i].nutrient <= 0);
+    },
     // Centre of the map's RED engine cache (for the "orange vs red leaves" step).
     enginePile: () => {
       const sub = state.substrate; const piles = sub && sub.foodPiles;
@@ -16976,6 +16994,7 @@ function begin(newState) {
     killColony: () => forceFruitAbandon(),
     // High-score hooks (invisible): open the board on a given mode, and reach the local
     // store + the qualify/record path, so both ladders are testable.
+    starterPile: () => tutorialStarterPile,   // where the tutorial planted its orange cache
     showHighScores: (opts) => showHighScores(opts || {}),
     scores: __m_highscores,
     scoresUi: { checkHighScore, recordHighScore },

@@ -46,8 +46,17 @@ Mode-gated behaviour, roughly in order of subtlety:
 
 ## Testing
 
-Playwright harnesses, run headless against a tiny static server rooted at the repo. Playwright
-is installed globally: **`NODE_PATH=/opt/node22/lib/node_modules node <test>.cjs`**.
+`tests/` holds Playwright scripts that drive the real game headless and assert what it did —
+~460 assertions across 14 checks. **Run them; don't verify by re-reading your own diff.**
+
+```bash
+node tests/run.mjs           # everything, one summary (~12 min)
+node tests/run.mjs --fast    # skip rt/tut/lure (~6 min)
+node tests/run.mjs hs lure   # by name
+```
+
+See `tests/README.md` for what each covers and how to add one. Playwright lives on
+`NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
 
 Boot hashes are a comma-separated list — first token is the destination, rest are flags:
 `#dev` (skip the picker), `#dev,turn` (same, turn-based), `#puzzle`, `#notrich`, `#tutorial`.
@@ -65,9 +74,12 @@ Harness traps that have cost real time:
 - `resolveCardOp` and `__game.play()` **return nothing** — assert on state (`state.turn`,
   node counts), not a result object.
 - Pending offers carry **`choices`** (an array of card names), not `cards`.
-- A probe that plays real cards can **end the run**; the species picker/level intro that
-  follows covers the canvas and silently swallows every later click. If a repeated-input test
-  starts failing from some iteration onward, check for an overlay before suspecting the code.
+- A probe that plays real cards can **end the run**; the screen that follows (species picker,
+  "species unlocked", level intro) covers the canvas and silently swallows every later click.
+  If a repeated-input test starts failing from some iteration onward, check for an overlay
+  before suspecting the code.
+- **`sleep` advances nothing in turn-based.** A real-time check can wait for the world to move;
+  a turn-based one must keep acting (or call `tickWorld`) or it waits forever.
 - Piles adjacent to already-grown tissue are claimed at *play* time, so "did the arrival window
   do it?" needs a pile beyond sensing range or a strand with a future `_liveAt`.
 - The species table has **12** entries — `psilocybe` sits past where a quick scan stops.
@@ -93,8 +105,13 @@ Harness traps that have cost real time:
 
 - Develop, commit and push on the branch named in the task. **Never open a PR unless asked.**
 - Push with `git push -u origin <branch>`, retrying with backoff on network failure.
-- Verify by running the harnesses and report the actual numbers. Screenshot anything visual —
+- Verify by running the checks and report the actual numbers. Screenshot anything visual —
   several bugs in this project were only visible in a rendered frame.
+- **A new check goes into `tests/` and gets committed with the work that motivated it**, not
+  left in the session scratchpad. The scratchpad is wiped when the container is reclaimed; a
+  check written there is a check the next session has to reinvent.
+- **When asked to update memory:** refresh this file, and also sweep the scratchpad for any
+  check or tool worth keeping and commit it. (Standing request from the user.)
 
 ## Loose ends
 
@@ -103,5 +120,3 @@ Harness traps that have cost real time:
   `getBoard`). Until then the client falls back to a combined board and says so.
 - The card-timing review decisions in `docs/card-review.html` are still awaiting the user's
   picks; nothing has been converted to N×-per-level yet.
-- The Playwright harnesses live in the session scratchpad, not the repo, so they do **not**
-  survive the container. Worth offering to commit them.
