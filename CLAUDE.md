@@ -58,6 +58,14 @@ node tests/run.mjs hs lure   # by name
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
 
+Two things about running them:
+- **Scale the run to the change.** A docs/CLAUDE.md edit needs none. A one-area change needs
+  that check plus `--fast`. Reserve the full ~12-minute sweep for engine or HUD work.
+- **Don't poll for the result.** The runner's output is piped, so the file stays EMPTY until
+  the process exits — re-reading it tells you nothing. Start it in the background and wait for
+  the completion notification, or watch it with a Monitor until-loop. (An entire session's worth
+  of turns has been lost to re-reading a buffered file.)
+
 Boot hashes are a comma-separated list — first token is the destination, rest are flags:
 `#dev` (skip the picker), `#dev,turn` (same, turn-based), `#puzzle`, `#notrich`, `#tutorial`.
 
