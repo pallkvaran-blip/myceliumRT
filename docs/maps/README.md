@@ -119,6 +119,24 @@ The two rounds bracket the answer. Round 3 wants crystal pockets on about HALF t
 roughly a third of each rock's face, explicitly set INTO the rock face rather than lying on
 the ground — the size of round 1's detail with the count and separation of round 2.
 
+**Round 3 (`-3`)** acted on: too many small rocks (c20), too little spacing (c28), and
+"zoom out, fill the whole map". Two of the three fixes landed; the third backfired.
+
+- *Small rocks* — the `scatter` form itself was asking for them. It read "a mix of large
+  jagged masses, long horizontal ledges **and smaller lumps**", one clause before the tail
+  bans gravel. Removed, and every mass is now "large and roughly comparable in size".
+- *Spacing* — "wide white gaps" became a rule: an open gap around every mass at least half
+  as wide as the mass itself. That works.
+- *Zoom out* — **backfired.** "The scene is seen from far enough back that the whole field
+  fits, and the rocks fill the frame" is read as *make the rocks bigger*, not *show more of
+  them*: c28-3 and c36-1 are more zoomed IN than round 2, with a few huge masses and thin
+  channels. Filling the frame and zooming out are the same instruction to a person and
+  opposite ones to this model. The lever that should work is a **cap on rock size** — no
+  mass wider than about a tenth of the frame — together with a much higher count.
+
+Loose crystal chips on the background also survive "no crystal ever lies loose on the
+background". They would trace as gravel, so they need the same treatment.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

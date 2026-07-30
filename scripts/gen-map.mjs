@@ -99,9 +99,10 @@ const THEMES = {
   // worst thing to hand a threshold, so the ban is now explicit about the rim.
   crystal: {
     rock:
-      'solid near-black blue-grey rock masses. MOST of them are plain cracked rock; only ' +
-      'three or four carry a small shallow pocket of violet and cyan crystal shards, and ' +
-      'each pocket is a minor detail covering less than a quarter of that rock',
+      'solid near-black blue-grey rock masses. ABOUT HALF of them are plain cracked rock; ' +
+      'the other half each carry a pocket of violet and cyan crystal shards set INTO the ' +
+      "rock's face, covering roughly a third of that rock and surrounded by rock on every " +
+      'side. No crystal ever lies loose on the background',
     palette:
       'Flat and unlit apart from the crystals: no shading, no gradients, no drop shadows, no ' +
       'outlines. NOTHING glows: no bloom, no halo, no light spilling from a crystal, and no ' +
@@ -131,9 +132,10 @@ const SIL_HEAD = (theme) =>
 const SIL_TAIL = (theme) =>
   ' The background is pure flat white everywhere, edge to edge, including all four edges and ' +
   'every corner. Do NOT draw a cave, a cavern, an enclosing wall, a rock border around the ' +
-  'frame, a ceiling, a floor, or a horizon. The rocks REACH the left and right edges of the ' +
-  'frame and are spread over its full height, top to bottom, with no wide empty band along ' +
-  'any edge. ' +
+  'frame, a ceiling, a floor, or a horizon. WIDE VIEW: the scene is seen from far enough ' +
+  'back that the whole field of rocks fits, and the rocks fill the frame — they reach the ' +
+  'left and right edges, they reach the top and bottom edges, and there is no empty band ' +
+  'along any edge and no empty half. ' +
   THEMES[theme].palette +
   ' No small pebbles, no gravel, no dust, no speckles, no debris. No text, no labels, no ' +
   'grid, no border, no sky, no plants, no creatures.';
@@ -144,12 +146,18 @@ const SIL_TAIL = (theme) =>
 // you). All of them still have to leave a continuous left→right channel or the level is
 // unplayable — see tests/level-check.cjs, which flood-fills the real mask to prove it.
 const FORMS = {
+  // "…and smaller lumps" used to be in here, and it is where the confetti of little rocks
+  // came from — the tail bans gravel and speckles, but this clause was asking for exactly
+  // the thing one clause later. Every mass is now LARGE and comparable in size, and the gap
+  // around each one is stated as a rule rather than left to "wide white gaps".
   scatter:
-    'About {N} SEPARATE irregular boulders and slabs — angular cracked slate, a mix ' +
-    'of large jagged masses, long horizontal ledges and smaller lumps — spread evenly across ' +
-    'the whole frame at different heights, each one clearly detached from the others, with ' +
-    'wide white gaps and winding white channels running between them from the left side to ' +
-    'the right side.',
+    'About {N} SEPARATE irregular rock masses — angular and cracked, a mix of big jagged ' +
+    'blocks and long horizontal slabs, ALL of them large and roughly comparable in size, ' +
+    'with no small rocks, lumps, chips or fragments anywhere among them — spread evenly ' +
+    'across the whole frame at different heights, each one clearly detached from every ' +
+    'other, with an open white gap around every mass at least half as wide as the mass ' +
+    'itself, and winding white channels running between them from the left side to the ' +
+    'right side.',
 
   // v1 said "stacked at different heights like shelves ... a staircase of open channels"
   // and the model took the staircase literally: at every count from 5 to 28 it piled the
