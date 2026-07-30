@@ -1,0 +1,356 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "scatter-one",
+ "name": "Scatter One",
+ "campaignLevel": null,
+ "world": {
+  "width": 2952,
+  "height": 1474.4,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/scatter-1@4x.webp",
+  "threshold": 128,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "scatter-oneR001",
+   "x": 2293.65,
+   "y": 963.9,
+   "w": 812.7,
+   "h": 948.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR002",
+   "x": 455.2,
+   "y": 966.3499999999999,
+   "w": 694.4,
+   "h": 886.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR003",
+   "x": 1024.45,
+   "y": 1156.7,
+   "w": 682.7,
+   "h": 495.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR004",
+   "x": 1800.45,
+   "y": 911.45,
+   "w": 489.5,
+   "h": 346.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR005",
+   "x": 1490.85,
+   "y": 1195.4,
+   "w": 420.3,
+   "h": 219.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR006",
+   "x": 1031.9,
+   "y": 757.8,
+   "w": 408.6,
+   "h": 268.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR007",
+   "x": 2056.3,
+   "y": 1127.7,
+   "w": 331.6,
+   "h": 152.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR008",
+   "x": 1418.4,
+   "y": 922.25,
+   "w": 308.8,
+   "h": 173.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR009",
+   "x": 1474.7,
+   "y": 751.7,
+   "w": 239.4,
+   "h": 126.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR010",
+   "x": 845.55,
+   "y": 880.6,
+   "w": 196.1,
+   "h": 130.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR011",
+   "x": 2227.75,
+   "y": 1025.1,
+   "w": 199.3,
+   "h": 94.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR012",
+   "x": 2066.15,
+   "y": 805.25,
+   "w": 161.5,
+   "h": 94.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR013",
+   "x": 681.35,
+   "y": 806.4,
+   "w": 159.3,
+   "h": 84.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR014",
+   "x": 2191.3,
+   "y": 722.95,
+   "w": 143.6,
+   "h": 89.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR015",
+   "x": 1635.3000000000002,
+   "y": 691.6,
+   "w": 151.2,
+   "h": 77.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR016",
+   "x": 623.95,
+   "y": 700.6,
+   "w": 137.3,
+   "h": 84.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR017",
+   "x": 465.55,
+   "y": 1263.6,
+   "w": 122.9,
+   "h": 92.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR018",
+   "x": 1263.8,
+   "y": 1060.15,
+   "w": 116.6,
+   "h": 85.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR019",
+   "x": 603.6500000000001,
+   "y": 1281.55,
+   "w": 103.9,
+   "h": 89.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR020",
+   "x": 1813.3000000000002,
+   "y": 1156.25,
+   "w": 119.2,
+   "h": 67.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR021",
+   "x": 2002.75,
+   "y": 669.15,
+   "w": 102.1,
+   "h": 71.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR022",
+   "x": 1406.7,
+   "y": 1033.85,
+   "w": 99.0,
+   "h": 63.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR023",
+   "x": 1302.1,
+   "y": 820.8,
+   "w": 106.6,
+   "h": 57.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR024",
+   "x": 1163.9,
+   "y": 907.65,
+   "w": 109.4,
+   "h": 55.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR025",
+   "x": 1731.6,
+   "y": 1239.0,
+   "w": 107.2,
+   "h": 57.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "scatter-oneR026",
+   "x": 542.05,
+   "y": 772.4,
+   "w": 101.3,
+   "h": 55.8,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 108.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 539.6,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 755.6,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 804.2,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1187.6,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1303.6,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1404.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1809.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1836.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2201.4,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2268.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 2484.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 4
+  }
+ ]
+}

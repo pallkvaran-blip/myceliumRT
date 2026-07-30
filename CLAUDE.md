@@ -310,9 +310,12 @@ Tracing traps, all of which cost a debug cycle:
 - The tracer's own flood-fill is a proxy on image pixels. The real answer is
   `tests/traced-check.cjs`, which floods the running game's fine mask.
 
-`maze-1@4x` traced to 77 sprites at 45.4% solid in an 82×30-cell world, one connected open
-region, everything reachable. Food is auto-placed in open pockets; **threats are not placed
-at all** — the owner places those.
+Three maps are through the pipeline, all 82×30 cells, one connected open region each,
+everything reachable: **`maze-one`** (77 sprites, 44.5% solid — dense, tight channels),
+**`scatter-one`** (26, 38.8% — open, big separated masses) and **`scatter-two`** (38, 42%).
+Food is auto-placed in open pockets; **threats are not placed at all** — the owner places
+those. `tests/traced-check.cjs` finds them by the `traced` block in their JSON, so a fourth
+map is covered the moment it lands.
 
 An authored map is reachable in-game from **dev buttons down the LEFT edge of the species
 picker**, one per entry in `LEVELS`, built from the list so a new map needs no code. They

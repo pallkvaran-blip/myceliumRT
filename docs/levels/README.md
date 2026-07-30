@@ -10,7 +10,15 @@ uniform**: food `r` is a diamond radius in *cells*, reservoir `r` is *world unit
 | file | level | what it is |
 |---|---|---|
 | `three-ways.json` | none (`#level,three-ways`) | "Three Ways Up" — three sealed routes, one threat each |
-| `maze-one.json` | none (`#level,maze-one`) | "Maze One" — **traced**, not hand-placed: 68 rock sprites cut out of `docs/maps/maze-1.png` by `scripts/trace-map.py`. Re-running that overwrites the JSON *and* `assets/maze-one/`. No threats — those are the designer's to place. |
+| `maze-one.json` | none (`#level,maze-one`) | "Maze One" — **traced**: 77 sprites from `docs/maps/maze-1@4x.webp`, dense with tight channels |
+| `scatter-one.json` | none (`#level,scatter-one`) | "Scatter One" — **traced**: 26 sprites from `docs/maps/scatter-1@4x.webp`, open with big separated masses |
+| `scatter-two.json` | none (`#level,scatter-two`) | "Scatter Two" — **traced**: 38 sprites from `docs/maps/silhouette-2@4x.webp` (the `scatter` prompt under its old name) |
+
+The traced three are not hand-placed: `scripts/trace-map.py` cuts one sprite per rock out of
+the upscaled image, and re-running it overwrites both the JSON *and* `assets/<id>/`. Each one
+records what it came from under `traced` in its JSON — which is also how `tests/traced-check.cjs`
+finds them, so a fourth needs no test change. **None of them place threats**; those are the
+designer's. Food is auto-placed in the roomiest open pockets.
 
 ## The pipeline
 

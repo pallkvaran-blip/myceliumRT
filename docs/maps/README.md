@@ -29,8 +29,11 @@ generator). Same head and tail every time — those clauses are what keep it tra
 are out.** `maze-1.png` is traced and playable — `#level,maze-one`, see
 `docs/levels/maze-one.json` and `scripts/trace-map.py`.
 
-`maze-1@4x.png` is `maze-1.png` through Real-ESRGAN ×4 (`scripts/upscale-map.mjs`), and
-**it, not the original, is what was traced.** A 1440px-wide generation stretched over a
+All three approved images are now playable: `maze-1` → `#level,maze-one`, `scatter-1` →
+`#level,scatter-one`, `silhouette-2` → `#level,scatter-two`.
+
+The `@4x.webp` files are the originals through Real-ESRGAN ×4 (`scripts/upscale-map.mjs`), and
+**they, not the originals, are what get traced.** A 1440px-wide generation stretched over a
 2952-unit world is about 2 world units per pixel — acceptable zoomed out, mush at the zoom
 the game is played at, which is where it was caught. Trace the upscale for anything that
 ships; the raw generation is for judging composition.

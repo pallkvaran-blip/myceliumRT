@@ -191,12 +191,15 @@ for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
     fname = f'r{rank:03d}.{a.format}'
     save(Image.fromarray(out, 'RGBA'), os.path.join(adir, fname))
     manifest.append({'key': key, 'file': f'{a.id}/{fname}', 'kind': 'sprite'})
+    # Round the EDGES, then derive centre and size from them. Rounding x and w separately
+    # lets x - w/2 land a fraction of a unit off the edge it was cut at, which is enough to
+    # read as a sprite overhanging a pathClear channel when it is exactly flush with one.
+    left = round(x0 + c0 * sx, 1); right = round(x0 + c1 * sx, 1)
+    top = round(y0 + r0 * sy, 1); bot = round(y0 + r1 * sy, 1)
     objects.append({
         't': 'boulder', 'key': key,
-        'x': round(x0 + (c0 + c1) / 2 * sx, 1),
-        'y': round(y0 + (r0 + r1) / 2 * sy, 1),
-        'w': round((c1 - c0) * sx, 1),
-        'h': round((r1 - r0) * sy, 1),
+        'x': (left + right) / 2, 'y': (top + bot) / 2,
+        'w': round(right - left, 1), 'h': round(bot - top, 1),
         'rot': 0,
     })
 
