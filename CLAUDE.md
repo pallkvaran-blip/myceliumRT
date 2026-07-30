@@ -272,8 +272,13 @@ Tracing traps, all of which cost a debug cycle:
   the model paints a bright rim above its drop shadow. The tracer sets every non-opaque
   pixel to the nearest opaque colour and then **blurs that bleed**: nearest-opaque alone is
   a Voronoi diagram of the edge, which fans into visible spokes wherever the rock edge
-  alternates light facet and dark crack. Feather by *distance*, never by luminance — the
-  brightness outside a rock is that rim and shadow, which differs under every rock.
+  alternates light facet and dark crack.
+  **Bleed wide, feather narrow — they are separate knobs** (`--bleed` 16, `--feather` 2).
+  The bleed is never visible; it only has to out-reach a filter kernel. The alpha ramp *is*
+  visible, and every pixel of it is rock-grey over brown soil, so a wide one is a grey halo
+  — at 10px it looked worse than the white line it replaced. Feather by *distance*, never
+  by luminance: the brightness outside a rock is that rim and shadow, which differs under
+  every rock, so a luminance ramp fades by a different amount on each one.
 - **One sprite per blob, never one big image.** `_alphaMask` samples every sprite down to
   160px on its long side, so a whole-map sprite would feed the 9px collision mask at ~16
   world units per alpha pixel. Per-blob sprites each get their own 160px budget.

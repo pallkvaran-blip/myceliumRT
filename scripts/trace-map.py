@@ -31,16 +31,21 @@ What it does, and why each step is the way it is:
    mask, so what collides is exactly the shape that was drawn. Two things happen at the
    edge, and the second one is not optional:
 
-   • FEATHER: alpha ramps from opaque to nothing over --feather px on a smoothstep, by
-     distance from the blob. Not by luminance — the brightness just outside a rock is the
-     model's rim highlight and drop shadow, which is a different amount of light under
-     every rock and made the fade uneven.
-   • ALPHA BLEED: every non-opaque pixel takes the COLOUR of the nearest opaque one. The
-     source background is near-white, and a cut-out that leaves it there paints a pale
-     halo round every rock the moment the sprite is filtered — worst along the bottoms,
-     where the model draws a bright rim above its drop shadow. Alpha alone doesn't hide
-     it: the sprite is drawn smaller than its pixel size, and downscaling blends the
-     colour of pixels you can't see into the ones you can.
+   • COLOUR BLEED, wide (--bleed): every non-opaque pixel takes the colour of the nearest
+     opaque one, smoothed. The source background is near-white, and a cut-out that leaves
+     it there paints a pale halo round every rock the moment the sprite is filtered —
+     worst along the bottoms, where the model draws a bright rim above its drop shadow.
+     Alpha alone doesn't hide it: the sprite is drawn smaller than its pixel size, and
+     downscaling blends the colour of pixels you can't see into the ones you can. The
+     smoothing matters as much as the bleed: nearest-opaque on its own is a Voronoi
+     diagram of the edge, which fans into spokes wherever the edge alternates light facet
+     and dark crack. None of this is visible on its own — it only has to reach further
+     than a filter kernel can sample.
+   • ALPHA FEATHER, narrow (--feather): a smoothstep ramp by DISTANCE from the blob — not
+     by luminance, which was measuring that same rim and shadow and so faded by a
+     different amount under every rock. Keep it to a pixel or two. Every pixel of the ramp
+     is rock-grey over brown soil, so a wide one is a grey halo: at 10px it looked worse
+     than the white line it replaced. Wide bleed, narrow feather; they are not one knob.
 
    The feather does not widen collision. solidifyRock tests alpha>=128 on a mask that is
    at most 160px on its long side, where a 12px feather on a 5760px-wide source is a
@@ -79,7 +84,8 @@ ap.add_argument('--cell', type=int, default=36)
 ap.add_argument('--start-cols', type=int, default=2)
 ap.add_argument('--goal-cols', type=int, default=6)
 ap.add_argument('--food', type=int, default=12)
-ap.add_argument('--feather', type=int, default=12, help='edge fade, in source px')
+ap.add_argument('--feather', type=float, default=2, help='ALPHA ramp width, in source px')
+ap.add_argument('--bleed', type=int, default=16, help='how far the COLOUR is carried out')
 ap.add_argument('--format', choices=('webp', 'png'), default='webp')
 ap.add_argument('--quality', type=int, default=90, help='webp quality; ALPHA stays lossless')
 ap.add_argument('--campaign-level', type=int, default=None)
@@ -135,8 +141,14 @@ def save(im, path):
         im.save(path, optimize=True)
 
 rgb = np.asarray(img)
-FEATHER = max(1, a.feather)
-MARGIN = FEATHER + 3        # room in the crop for the whole fade
+# Bleed WIDE, feather NARROW — they are not the same knob, and tying them together is how
+# a white outline becomes a grey one. The bleed only has to reach far enough that no filter
+# sampling near the edge can find background; nothing of it is visible on its own. The alpha
+# ramp IS visible: every pixel of it is rock-grey laid over brown soil, so at 10px it read
+# as a haze round every rock — worse than the white line it replaced.
+FEATHER = max(0.5, a.feather)
+BLEED = max(4, a.bleed)
+MARGIN = BLEED + 3
 
 objects, manifest = [], []
 for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
@@ -159,7 +171,7 @@ for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
     # (which is defined everywhere, unlike a masked average) smooths the fan out. The rock
     # itself is never touched; this only fills what alpha is fading away.
     base = np.where(m[..., None], crop, crop[iy, ix]).astype(np.float32)
-    smooth = ndimage.gaussian_filter(base, sigma=(FEATHER / 2, FEATHER / 2, 0))
+    smooth = ndimage.gaussian_filter(base, sigma=(BLEED / 3, BLEED / 3, 0))
     colour = np.where(m[..., None], crop, smooth).astype(np.uint8)
     out = np.dstack([colour, alpha])
     key = f'{a.id}R{rank:03d}'
