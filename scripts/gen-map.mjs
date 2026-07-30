@@ -2,10 +2,15 @@
 // Generate a whole-level UNDERGROUND map image via Replicate (FLUX), for tracing into
 // rock/passable terrain on our side.
 //
-//   REPLICATE_API_TOKEN=… node scripts/gen-map.mjs <style> [--out name] [--model m] [--aspect a]
+//   REPLICATE_API_TOKEN=… node scripts/gen-map.mjs <style> [--n k] [--seed s] [--out name]
+//                                                  [--model m] [--aspect a]
 //
-//   style      silhouette | art   (see PROMPTS below — silhouette traces cleanly, art looks
-//                                  like the game; generate both and compare)
+//   style      scatter | ledges | chokes | pillars | maze  — the traceable two-tone mask, one
+//              composition each (see FORMS); or `art`, the same map in the game's palette,
+//              which is pretty and completely untraceable. `silhouette` aliases `scatter`.
+//   --n        how many to generate (default 1); each gets the next free filename
+//   --seed     fixed seed — same seed + same prompt returns the same image. With --n, seeds
+//              run s, s+1, s+2… Omit for a fresh roll every time.
 //   --out      base filename, default <style>-<n>; written to docs/maps/<out>.png
 //   --model    default black-forest-labs/flux-1.1-pro (use flux-schnell for cheap drafts)
 //   --aspect   default "custom" + --width/--height. The world's UNDERGROUND box is
@@ -49,33 +54,69 @@ const STYLE_PREFIX =
   'Bioluminescent deep-earth: a cross-section of the deep earth at night. Painterly but ' +
   'clean, semi-realistic, no hard cartoon outlines, subtle organic grain. ';
 
-const PROMPTS = {
-  // Traceable. Flat, lit-from-nowhere, two values only — this is a MASK that happens to be
-  // rendered as a picture, not concept art.
-  //
-  // v1 said "cross-section map of an underground cave system" and got an enclosed CAVERN:
-  // a continuous rock border sealing all four edges, white only in the pocket inside it,
-  // and mid-grey outside — i.e. a level with no way in or out, and three tones to threshold
-  // instead of two. It also drifted isometric. Hence the current wording: never the word
-  // cave, "scattered boulders in soil", an explicit ban on a border/ceiling/floor, edge
-  // clearance stated as a rule, and "flat orthographic elevation" to kill the 3/4 view. The
-  // pebble ban matters too — v1's confetti of 2-4px specks would trace into mask noise.
-  silhouette:
-    'A flat two-tone diagram: solid black rock shapes scattered on a pure white background. ' +
-    'Wide horizontal composition, flat orthographic side elevation, straight-on, no ' +
-    'perspective and no isometric tilt. Fifteen to twenty SEPARATE irregular boulders and ' +
-    'slabs — angular cracked slate, a mix of large jagged masses, long horizontal ledges and ' +
-    'smaller lumps — spread evenly across the whole frame at different heights, each one ' +
-    'clearly detached from the others, with wide white gaps and winding white channels ' +
-    'running between them from the left side to the right side. The background is pure flat ' +
-    'white everywhere, edge to edge, including all four edges and every corner. Do NOT draw ' +
-    'a cave, a cavern, an enclosing wall, a rock border around the frame, a ceiling, a ' +
-    'floor, or a horizon. Nothing touches the left edge or the right edge. No texture, no ' +
-    'shading, no gradients, no lighting, no highlights, no outlines, no drop shadows, no ' +
-    'grey — pure flat black on pure flat white, two tones only. No small pebbles, no gravel, ' +
-    'no dust, no speckles, no debris. No text, no labels, no grid, no border, no sky, no ' +
-    'plants, no creatures.',
+// The traceable wording, minus the bit that says what the rocks are ARRANGED like. Flat,
+// lit-from-nowhere, two values only — this is a MASK that happens to be rendered as a picture.
+//
+// v1 said "cross-section map of an underground cave system" and got an enclosed CAVERN: a
+// continuous rock border sealing all four edges, white only in the pocket inside it, and
+// mid-grey outside — i.e. a level with no way in or out, and three tones to threshold instead
+// of two. It also drifted isometric. Hence: never the word cave, an explicit ban on a
+// border/ceiling/floor, edge clearance stated as a rule, and "flat orthographic elevation" to
+// kill the 3/4 view. The pebble ban matters too — v1's confetti of 2-4px specks would trace
+// into mask noise. Every clause below is load-bearing; drop one and it comes back.
+const SIL_HEAD =
+  'A flat two-tone diagram: solid black rock shapes on a pure white background. Wide ' +
+  'horizontal composition, flat orthographic side elevation, straight-on, no perspective ' +
+  'and no isometric tilt. ';
 
+const SIL_TAIL =
+  ' The background is pure flat white everywhere, edge to edge, including all four edges and ' +
+  'every corner. Do NOT draw a cave, a cavern, an enclosing wall, a rock border around the ' +
+  'frame, a ceiling, a floor, or a horizon. Nothing touches the left edge or the right edge. ' +
+  'No texture, no shading, no gradients, no lighting, no highlights, no outlines, no drop ' +
+  'shadows, no grey — pure flat black on pure flat white, two tones only. No small pebbles, ' +
+  'no gravel, no dust, no speckles, no debris. No text, no labels, no grid, no border, no ' +
+  'sky, no plants, no creatures.';
+
+// The compositions. `scatter` is what produced silhouette-2 — usable, but it lays the rocks
+// out evenly and decoratively, which is terrain rather than level design. The rest push at
+// that: shapes that imply a ROUTE (where the gaps are, how wide, and how much they commit
+// you). All of them still have to leave a continuous left→right channel or the level is
+// unplayable — see tests/level-check.cjs, which flood-fills the real mask to prove it.
+const FORMS = {
+  scatter:
+    'Fifteen to twenty SEPARATE irregular boulders and slabs — angular cracked slate, a mix ' +
+    'of large jagged masses, long horizontal ledges and smaller lumps — spread evenly across ' +
+    'the whole frame at different heights, each one clearly detached from the others, with ' +
+    'wide white gaps and winding white channels running between them from the left side to ' +
+    'the right side.',
+
+  ledges:
+    'Eight to twelve LONG HORIZONTAL SLABS stacked at different heights like shelves, each ' +
+    'slab wide and flat and clearly detached from the others, offset left and right so the ' +
+    'white gaps between them form a staircase of open channels stepping down from the upper ' +
+    'left to the lower right, with a few smaller angular lumps resting between them.',
+
+  chokes:
+    'Five or six VERY LARGE angular rock masses, each one tall enough to fill most of the ' +
+    'frame height, standing well apart from one another like the piers of a bridge, separated ' +
+    'by NARROW white gaps just wide enough to squeeze through, and two or three smaller ' +
+    'angular lumps sitting in those gaps and partly blocking them.',
+
+  pillars:
+    'Nine to fourteen TALL VERTICAL rock pillars of varying heights and thicknesses, some ' +
+    'hanging down from the top of the frame and some rising from the bottom, alternating so ' +
+    'the white space between them zigzags across the frame, with a few short angular lumps ' +
+    'scattered between the pillars.',
+
+  maze:
+    'Many interlocking angular rock masses of mixed sizes packed close together across the ' +
+    'entire frame, leaving only NARROW winding white corridors between them — a dense ' +
+    'labyrinth of black shapes and thin white passages, the corridors joining up so there is ' +
+    'always a continuous way through from the left side to the right side.',
+};
+
+const PROMPTS = {
   // The same map in the game's palette — what the player would actually see.
   art:
     STYLE_PREFIX +
@@ -88,6 +129,8 @@ const PROMPTS = {
     'bloom, a few faint mint-cyan bioluminescent specks in the soil. No sky, no surface ' +
     'line, no plants, no roots, no mushrooms, no creatures, no text, no border.',
 };
+for (const form in FORMS) PROMPTS[form] = SIL_HEAD + FORMS[form] + SIL_TAIL;
+PROMPTS.silhouette = PROMPTS.scatter;   // what docs/maps/silhouette-*.png were generated as
 
 // --- args --------------------------------------------------------------------
 const argv = process.argv.slice(2);
@@ -105,53 +148,66 @@ const ASPECT = flag('aspect', 'custom');
 const WIDTH = Number(flag('width', 1440));
 const HEIGHT = Number(flag('height', 608));
 
-let out = flag('out', null);
-if (!out) {
-  let n = 1;
-  while (existsSync(join(OUTDIR, `${style}-${n}.png`))) n++;
-  out = `${style}-${n}`;
-}
+const OUTNAME = flag('out', null);
+const COUNT = Math.max(1, Number(flag('n', 1)));
+const SEED = flag('seed', null);   // same seed + same prompt = the same image back
 
 // --- call Replicate ----------------------------------------------------------
 // Via curl, not fetch: outbound HTTPS goes through the agent proxy and curl already honours
 // it (undici would need a ProxyAgent). `Prefer: wait` makes the POST block on the result, so
 // there's no polling loop. 429 self-paces on the retry_after the API hands back.
 
-const input = { prompt: PROMPTS[style], aspect_ratio: ASPECT, output_format: 'png', safety_tolerance: 5 };
-if (ASPECT === 'custom') { input.width = WIDTH; input.height = HEIGHT; }
-const body = JSON.stringify({ input });
-
 const curl = (args) => execFileSync('curl', ['-sS', ...args], { maxBuffer: 64 * 1024 * 1024 });
 
-let res = null;
-for (let attempt = 1; attempt <= 8; attempt++) {
-  const raw = curl([
-    '-X', 'POST', `https://api.replicate.com/v1/models/${MODEL}/predictions`,
-    '-H', `Authorization: Bearer ${TOKEN}`,
-    '-H', 'Content-Type: application/json',
-    '-H', 'Prefer: wait',
-    '-d', body,
-  ]).toString();
-  let j;
-  try { j = JSON.parse(raw); } catch { console.error(raw.slice(0, 800)); process.exit(1); }
-  if (j.status === 429 || j.title === 'Too Many Requests') {
-    const wait = (Number(j.retry_after) || 10) + 2;
-    console.log(`throttled, waiting ${wait}s…`);
-    execFileSync('sleep', [String(wait)]);
-    continue;
-  }
-  res = j;
-  break;
-}
+function generate(seed) {
+  const input = {
+    prompt: PROMPTS[style], aspect_ratio: ASPECT, output_format: 'png', safety_tolerance: 5,
+  };
+  if (ASPECT === 'custom') { input.width = WIDTH; input.height = HEIGHT; }
+  if (seed != null) input.seed = Number(seed);
+  const body = JSON.stringify({ input });
 
-const url = Array.isArray(res?.output) ? res.output[0] : res?.output;
-if (!url) {
-  console.error(`no image (status=${res?.status}): ${JSON.stringify(res).slice(0, 800)}`);
-  process.exit(1);
+  let res = null;
+  for (let attempt = 1; attempt <= 8; attempt++) {
+    const raw = curl([
+      '-X', 'POST', `https://api.replicate.com/v1/models/${MODEL}/predictions`,
+      '-H', `Authorization: Bearer ${TOKEN}`,
+      '-H', 'Content-Type: application/json',
+      '-H', 'Prefer: wait',
+      '-d', body,
+    ]).toString();
+    let j;
+    try { j = JSON.parse(raw); } catch { console.error(raw.slice(0, 800)); process.exit(1); }
+    if (j.status === 429 || j.title === 'Too Many Requests') {
+      const wait = (Number(j.retry_after) || 10) + 2;
+      console.log(`throttled, waiting ${wait}s…`);
+      execFileSync('sleep', [String(wait)]);
+      continue;
+    }
+    res = j;
+    break;
+  }
+
+  const url = Array.isArray(res?.output) ? res.output[0] : res?.output;
+  if (!url) {
+    console.error(`no image (status=${res?.status}): ${JSON.stringify(res).slice(0, 800)}`);
+    process.exit(1);
+  }
+  return curl(['-L', url]);
 }
 
 mkdirSync(OUTDIR, { recursive: true });
-const png = curl(['-L', url]);
-const path = join(OUTDIR, `${out}.png`);
-writeFileSync(path, png);
-console.log(`wrote ${path} (${(png.length / 1024).toFixed(0)} KB) — ${MODEL}, ${ASPECT === "custom" ? WIDTH + "x" + HEIGHT : ASPECT}`);
+const size = ASPECT === 'custom' ? `${WIDTH}x${HEIGHT}` : ASPECT;
+
+for (let i = 0; i < COUNT; i++) {
+  let out = COUNT === 1 ? OUTNAME : OUTNAME && `${OUTNAME}-${i + 1}`;
+  if (!out) {
+    let n = 1;
+    while (existsSync(join(OUTDIR, `${style}-${n}.png`))) n++;
+    out = `${style}-${n}`;
+  }
+  const png = generate(SEED == null ? null : Number(SEED) + i);
+  const path = join(OUTDIR, `${out}.png`);
+  writeFileSync(path, png);
+  console.log(`wrote ${path} (${(png.length / 1024).toFixed(0)} KB) — ${MODEL}, ${size}`);
+}
