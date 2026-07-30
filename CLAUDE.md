@@ -187,6 +187,12 @@ Harness traps that have cost real time:
 - **The tutorial fires on every press of New**, not once per browser, and only from a level-1
   start — never from Old. It was once-per-browser until the owner changed it; don't "fix" the
   repetition.
+- **`window.__ASSET_VER` (top of the inline script) is the asset cache-bust, and it is not
+  automatic.** Every asset URL carries `?v=<that>`. Re-tracing a map rewrites
+  `assets/<id>/rNNN.webp` *in place*, so without a new value the browser keeps serving the
+  bytes it already has under the same query — three re-traces of maze-one all landed on the
+  same cached URLs, and the owner was still looking at the first one. Bump it whenever the
+  content behind an existing filename changes.
 - **Unlocking a species is two steps:** clearing its level *reveals* it, spending Spores *unlocks*
   it. Progress is in localStorage `mycelium.progress.v2`.
 

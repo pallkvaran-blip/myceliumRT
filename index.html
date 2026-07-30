@@ -1587,7 +1587,12 @@
 <div id="ui"></div>
 <script>
 'use strict';
-window.__ASSET_VER = "p7zr9a";
+// Cache-bust query appended to every asset URL (see VER / CARD_VER). BUMP THIS WHENEVER
+// THE BYTES BEHIND AN EXISTING ASSET FILENAME CHANGE — re-tracing a map rewrites
+// assets/<id>/rNNN.webp in place, and without a new value the browser keeps serving the
+// copy it already has under the old query. It cost a round of "are you sure you pushed it?"
+// on maze-one, where three successive re-traces all landed on the same cached URLs.
+window.__ASSET_VER = "mz1t4b";
 globalThis.__BUILD__ = "a9f806a";
 
 // ===================== src/config.js =====================
