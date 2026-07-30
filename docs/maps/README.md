@@ -74,6 +74,29 @@ So `ledges` converts at about 2/5 against `scatter`'s 3/3. It is not a reliable 
 the failures are not random: too few slabs → scenery, too many → landscape. **Nine to twenty
 is the window.**
 
+## The `veined` count sweep
+
+`node scripts/gen-map.mjs scatter --theme veined --counts 9,14,20,28,36`. Generated only —
+none of these is traced.
+
+| image | verdict |
+| --- | --- |
+| `veined-scatter-c9-1` | **Best.** Separate masses over the full frame, generous channels, reaches all four edges. Mild isometric tilt, which the tracer doesn't care about. Vein weight closest to the game's own `rockVeined`. |
+| `veined-scatter-c20-1` | **Usable, different character.** Big angular masses, wide channels — but it reads as cracked ground seen from above rather than a side elevation. |
+| `veined-scatter-c28-1` | **Usable, dense.** Tiled slabs with narrow channels, full frame coverage; would trace into something maze-like. Same top-down read, and heavy drop shadows. |
+| `veined-scatter-c14-1` | **No.** A ridge on the floor with empty white above — the pile failure. |
+| `veined-scatter-c36-1` | **No.** Perspective ground plane receding to a horizon, with a glowing river through it. |
+
+Two findings. The tail clause added for these — *reach the left and right edges, spread over
+the full height* — **works**: c20 and c28 fill the frame edge to edge, which no earlier veined
+roll did. But it trades against the viewpoint, because at higher counts the model resolves
+"fill the frame with rock" as a top-down tiling rather than a side elevation. For `veined`,
+**9 is the reliable count**; 20–28 is a different look rather than simply a denser one.
+
+Second: at 14, 20 and 36 the veins come out as thick glowing bolts with visible bloom, far
+brighter than `rockVeined`'s thin mineral cracks. The tracer copes (the bloom is excluded
+from the colour source), but they read as neon in game. c9's vein weight is the closest match.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.
