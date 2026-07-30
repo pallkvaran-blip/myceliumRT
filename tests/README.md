@@ -38,6 +38,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `fixes-check.cjs` | Surface-only win, no unprompted pile claims, SURVIVAL placement, dots vs bars |
 | `mode-check.cjs` | Both games in one build: title buttons, per-mode tuning, clock behaviour |
 | `lure-check.cjs` | Title screen: strands creep to the cursor, branch, trail off, stop on leave |
+| `traced-check.cjs` | The traced map "Maze One": 68 sprites decode, open space runs colony→goal on the real mask, no food sealed off, nothing drawn over a pathClear channel |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 

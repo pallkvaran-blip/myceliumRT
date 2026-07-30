@@ -10,6 +10,7 @@ uniform**: food `r` is a diamond radius in *cells*, reservoir `r` is *world unit
 | file | level | what it is |
 |---|---|---|
 | `three-ways.json` | none (`#level,three-ways`) | "Three Ways Up" — three sealed routes, one threat each |
+| `maze-one.json` | none (`#level,maze-one`) | "Maze One" — **traced**, not hand-placed: 68 rock sprites cut out of `docs/maps/maze-1.png` by `scripts/trace-map.py`. Re-running that overwrites the JSON *and* `assets/maze-one/`. No threats — those are the designer's to place. |
 
 ## The pipeline
 

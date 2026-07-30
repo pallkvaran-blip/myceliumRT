@@ -215,6 +215,58 @@ short version:
   came across with the fork), and validates the clearance rules before writing. Re-running it
   overwrites the JSON, so put hand-tweaks in the script.
 
+## Generated maps
+
+`scripts/gen-map.mjs` asks FLUX for a whole underground as one image;
+`scripts/trace-map.py` turns it into an authored level. `docs/levels/maze-one.json`
+(`#level,maze-one`) is the first one through the pipeline.
+
+```bash
+REPLICATE_API_TOKEN=… node scripts/gen-map.mjs scatter --n 4    # or: maze
+python3 scripts/trace-map.py docs/maps/maze-1.png --id maze-one --name "Maze One"
+node scripts/gen-levels.mjs && node tests/run.mjs traced
+```
+
+**The prompt is the asset.** Two forms are owner-approved — `scatter` (loose masses,
+generous channels) and `maze` (dense, tight channels); `ledges`, `chokes` and `pillars`
+were rejected. They share a fixed head and tail in `gen-map.mjs`, and **every clause in
+those is load-bearing** — each one is there because dropping it brought a failure back:
+
+- Never the word **cave**: it produces an enclosed cavern sealing all four edges, with
+  grey outside the pocket. Three tones to threshold and no way in or out.
+- Ban the border/ceiling/floor/horizon explicitly, and demand white **to all four edges**.
+- **Don't ask for anything hanging from the top of the frame.** That single clause
+  overrides the ceiling ban and the cavern comes straight back (that was `pillars`).
+- "Flat orthographic side elevation" — otherwise it drifts isometric.
+- Ban pebbles/gravel/speckles: a confetti of 4px specks traces into mask noise.
+- Ask for FLUX `custom` dimensions, **1440×608**. The `aspect_ratio` enum stops at 16:9
+  and the underground box is 2.32:1; custom sides must be multiples of 32 and ≤1440.
+
+The model draws a soft drop-shadow under every rock no matter how firmly you ban it, and
+lets rocks touch the left/right edges. Both are handled at trace time, not by more prompt.
+
+Tracing traps, all of which cost a debug cycle:
+
+- **Threshold at 128, not higher.** Rock lands at luminance 30–110 and the background at
+  240+; the tail between them is anti-aliasing *and the drop shadow*. Threshold high and
+  every wall is fattened by its shadow — an invisible wall, the worst bug here.
+- **One sprite per blob, never one big image.** `_alphaMask` samples every sprite down to
+  160px on its long side, so a whole-map sprite would feed the 9px collision mask at ~16
+  world units per alpha pixel. Per-blob sprites each get their own 160px budget.
+- **Clamp the crop to the channels.** `buildLevel` digs the entry (`startCols`) and goal
+  (`goalCols`+1) channels and flags them `pathClear`, which beats rock — a sprite whose
+  box pokes in draws rock the player walks straight through. The tracer zeroes the mask
+  over those bands before labelling *and* clamps the crop, because the 2px soft-edge
+  margin alone was enough to fail the check.
+- **Drop the gravel** (`--min-area`, 600px² ≈ 1.25 cells): keeps ~95% of the rock and
+  loses 400 specks that would each be a pinprick of collision with no visible cause.
+- The tracer's own flood-fill is a proxy on image pixels. The real answer is
+  `tests/traced-check.cjs`, which floods the running game's fine mask.
+
+`maze-1` traced to 68 sprites at 46.6% solid, one connected open region, everything
+reachable. Food is auto-placed in open pockets; **threats are not placed at all** — the
+owner places those.
+
 ## Campaign shape (so you don't re-derive it)
 
 100 procedural levels. Threats compound from L7 (`threatRatePerLevel` / `threatBonusForLevel`,

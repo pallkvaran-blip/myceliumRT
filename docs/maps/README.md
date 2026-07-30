@@ -25,6 +25,10 @@ generator). Same head and tail every time — those clauses are what keep it tra
 | `maze-1.png` | **No.** Ignored "narrow winding corridors" and produced a dense even scatter with heavy gravel — the exact speckle the tail bans, and the worst case for mask noise. Also the most isometric of the set. |
 | `scatter-1.png` | **Usable**, a second roll of `silhouette-2`'s prompt. Slightly better mass variety, but it draws a faint ground plane with path squiggles on it and lets rocks touch both side edges. |
 
+**Owner's verdict: `maze` and `scatter` are the keepers; `ledges`, `chokes` and `pillars`
+are out.** `maze-1.png` is traced and playable — `#level,maze-one`, see
+`docs/levels/maze-one.json` and `scripts/trace-map.py`.
+
 Across all of them, three things the prompt has not been able to kill:
 
 1. **Drop shadows.** Banned explicitly, drawn every time. Light grey, so a threshold removes
