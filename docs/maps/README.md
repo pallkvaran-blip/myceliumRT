@@ -213,12 +213,27 @@ that has to stay empty for the level to be traversable. The prompt bans lava poo
 rivers and "molten anything lying on the background between the rocks", and all three images
 ignored it, because the ban fights what the subject is.
 
-Two ways out, neither tried yet:
-1. **Cool it down** — dim, dark-red cooling fissures rather than bright molten ones, so the
-   model has less reason to make them flow.
-2. **Let the tracer take it** — lava on the background is chromatic and forms components with
-   no dark rock in them, which the veined theme's component filter already deletes. It would
-   survive only where it touches a mass.
+**Round 2 (`-2`, plus `c30-1`) cools the fissures** — dull dark ember-red, dim and almost
+burnt out, "the last heat left in the stone", with the background's emptiness stated as its
+own requirement rather than implied by a ban. **That fixes the flow.** Measured as "hot and
+bright" pixels (strongly red *and* light, i.e. lava lying on open ground): 1.7% in round 1's
+c40, **0.1%** in c30 and c20-2. The fissures stay in the rock.
+
+What it did not fix is density. The same wording that keeps lava off the background also
+packs the masses together:
+
+| image | rock | verdict |
+| --- | --- | --- |
+| `ember-scatter-c30-1` | **84%** | Best-looking of the eight — charred masses edge to edge, dim fissures inside them, almost no spill. But 84% solid is far past the 15–60% band `traced-check` enforces, and past `maze-one` (48%), the densest map that plays. |
+| `ember-scatter-c40-2` | 88% | Same, more so. |
+| `ember-scatter-c20-2` | 43% | The only one in a playable band — but it hugs the bottom edge with an empty white top half. |
+
+So the theme now works and the *count* is wrong: it wants c20-2's density with c30's framing.
+Somewhere near 20–24 with the fill-the-frame clause doing its job is the next thing to try.
+
+The other route, still untried: **let the tracer take it** — lava on the background is
+chromatic and forms components with no dark rock in them, which the veined theme's component
+filter already deletes.
 
 Also worth deciding before this becomes a level: `docs/STYLE_GUIDE.md` reserves warm amber
 for ant tunnels, "the one warm light underground". A molten map spends that signal everywhere.

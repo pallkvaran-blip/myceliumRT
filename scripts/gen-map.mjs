@@ -134,25 +134,35 @@ const THEMES = {
       'anywhere inside a mass, and no white highlight, sheen or rim along any edge. No snow, ' +
       'no frost, no mist, no icicles, no water.',
   },
-  // rockform2 / 6 / 9 / 12 — the manifest tags them theme:'ember'. Scorched red-brown rock
-  // with molten orange fissures. Two lessons already paid for are baked in: the fissures are
-  // told to stay INSIDE their rock (veined's mint veins ran out across the background and
-  // traced as filaments over open ground), and lava pools/rivers are banned outright for the
-  // same reason. NOTE for whoever makes this a level: STYLE_GUIDE.md reserves warm amber for
-  // ant tunnels — "the one warm light underground" — and a map of molten orange spends that
-  // signal everywhere.
+  // rockform2 / 6 / 9 / 12 — the manifest tags them theme:'ember'.
+  //
+  // v1 asked for "bright molten orange fissures" and the lava went where lava goes: into the
+  // gaps BETWEEN the masses, which is the one place a map needs empty. Unlike every other
+  // theme, whose feature lives inside a rock, this one's subject wants the negative space, so
+  // banning pools and rivers fights the thing itself — all three counts ignored it and c70
+  // covered the frame completely, no background and no channels at all.
+  //
+  // v2 takes the heat out instead of arguing: COOLING fissures, dull dark red, dim and almost
+  // burnt out. Nothing molten has anywhere to flow to. The background being empty is now
+  // stated as its own requirement rather than implied by a ban.
+  //
+  // NOTE for whoever makes this a level: STYLE_GUIDE.md reserves warm amber for ant tunnels —
+  // "the one warm light underground" — and even a dim ember map spends some of that signal.
   ember: {
     rock:
-      'solid masses of scorched volcanic rock — deep red-brown, near-black in places, ' +
-      'angular and heavily cracked, with bright molten orange fissures glowing along the ' +
-      'cracks inside each mass',
+      'solid masses of scorched volcanic rock — near-black and charred, angular and heavily ' +
+      'cracked, with COOLING fissures inside each mass: dull dark ember-red, dim and almost ' +
+      'burnt out, the last heat left in the stone',
     palette:
-      'Flat and unlit apart from the fissures: no shading, no gradients, no drop shadows, no ' +
-      'outlines, no bloom, no haze, no smoke, no sparks, no embers in the air. Three tones ' +
-      'only — dark red-brown rock, saturated molten orange in its cracks, and the pure ' +
-      '{BG} background. Every fissure stays entirely INSIDE its rock and never touches or ' +
-      'reaches the background; no fissure is white, pale or yellow-white. No lava pools, no ' +
-      'lava rivers, and no molten anything lying on the background between the rocks.',
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow, no ' +
+      'bloom, no light, no haze, no smoke, no sparks. Three tones only — near-black charred ' +
+      'rock, DULL DARK RED inside its cracks, and the pure {BG} background. The fissures are ' +
+      'dim and dark, barely brighter than the rock: never bright, never orange, never ' +
+      'yellow, never white, never glowing. There is NO molten lava and nothing is flowing ' +
+      'anywhere. Every fissure stays entirely INSIDE its rock and never touches or reaches ' +
+      'the background. The background is completely EMPTY between the masses: nothing molten, ' +
+      'nothing red and nothing glowing lies on it, and it is clearly visible all around every ' +
+      'mass.',
   },
   // The pale counterpart to `ice`, and the reason trace-map.py learned to detect background
   // polarity: white ice on a white ground is not a hard threshold, it is no threshold. On
