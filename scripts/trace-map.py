@@ -84,6 +84,8 @@ ap.add_argument('--cell', type=int, default=36)
 ap.add_argument('--start-cols', type=int, default=2)
 ap.add_argument('--goal-cols', type=int, default=6)
 ap.add_argument('--food', type=int, default=12)
+ap.add_argument('--trim', type=int, default=2,
+                help='pixels eroded off each blob before cutting, to drop the anti-aliased ring')
 ap.add_argument('--feather', type=float, default=2, help='ALPHA ramp width, in source px')
 ap.add_argument('--bleed', type=int, default=16, help='how far the COLOUR is carried out')
 ap.add_argument('--format', choices=('webp', 'png'), default='webp')
@@ -155,7 +157,18 @@ for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
     sl = boxes[i]
     r0 = max(0, sl[0].start - MARGIN); r1 = min(H, sl[0].stop + MARGIN)
     c0 = max(0, sl[1].start - MARGIN); c1 = min(W, sl[1].stop + MARGIN)
-    m = (lab[r0:r1, c0:c1] == i + 1)
+    # Erode before cutting. The source steps from rock (~43) to background (~222) through
+    # one or two ANTI-ALIASED pixels — 70, 83, 114 — and a threshold of 128 keeps them, so
+    # every silhouette carries a ring 30-70 luminance brighter than the rock it edges. On
+    # screen that measured lum 90 against 45 above and 50 below: a beaded light line, worst
+    # along the bottoms where the background behind it is brightest. Eroding moves that ring
+    # out of the opaque region, so it takes the blurred bleed colour instead of its own.
+    # Costs ~1.5% of each blob's area — under a world unit, and collision is sampled at
+    # 160px, so nothing measurable.
+    m_src = (lab[r0:r1, c0:c1] == i + 1)
+    m = ndimage.binary_erosion(m_src, iterations=a.trim) if a.trim else m_src
+    if not m.any():
+        m = m_src                               # too thin to erode; keep it rather than lose it
     crop = rgb[r0:r1, c0:c1]
 
     # Distance to the blob, and the blob pixel that distance points at — one pass gives

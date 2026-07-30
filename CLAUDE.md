@@ -271,6 +271,14 @@ Tracing traps, all of which cost a debug cycle:
 - **Threshold at 128, not higher.** Rock lands at luminance 30–110 and the background at
   240+; the tail between them is anti-aliasing *and the drop shadow*. Threshold high and
   every wall is fattened by its shadow — an invisible wall, the worst bug here.
+- **Trim the anti-aliased ring (`--trim`, 2px).** The source steps from rock (~43) to
+  background (~222) through one or two AA pixels — 70, 83, 114 — and a 128 threshold keeps
+  them *opaque*, so every silhouette wears a ring 30–70 luminance brighter than the rock it
+  edges. On screen that's a beaded light line, worst along the bottoms where the background
+  behind it is brightest. Eroding the blob before cutting moves that ring into the blurred
+  bleed instead: measured on one frame, pixels forming a bright ridge fell from 2084 to 246,
+  peak strength 40 → 25, and what's left is genuine lit rock faces. Costs ~1.5% of each
+  blob's area, under a world unit.
 - **Bleed the colour outward, don't just cut the alpha.** The source background is
   near-white, so a plain cut-out leaves near-white RGB in the transparent pixels — and the
   sprite is drawn *smaller* than its pixel size, so downscaling blends that white into the
