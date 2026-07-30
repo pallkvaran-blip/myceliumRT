@@ -97,6 +97,28 @@ Second: at 14, 20 and 36 the veins come out as thick glowing bolts with visible 
 brighter than `rockVeined`'s thin mineral cracks. The tracer copes (the bloom is excluded
 from the colour source), but they read as neon in game. c9's vein weight is the closest match.
 
+## The `crystal` sweep — two rounds, neither right yet
+
+`node scripts/gen-map.mjs scatter --theme crystal --counts 9,14,20,28`. Generated only.
+The theme mirrors `rockform3/7/14`, which the manifest tags `theme:'crystal'`: dark blue-black
+rock broken open to a geode of violet and cyan shards.
+
+**Round 1 (`-1`): the theme, no composition.** Asking every mass to be "broken open to show a
+geode cavity packed with crystal" made the geode the SUBJECT — two or three enormous hero
+rocks filling the frame, no separation, no channels, at every count from 9 to 28. A geode
+needs area, so demanding one per rock forces the rocks huge. It also ignored the bloom ban
+outright and rimmed every rock in glowing white, which is the worst thing to hand a threshold.
+
+**Round 2 (`-2`): the composition, no theme.** Demoting the crystal to "three or four rocks,
+a small pocket, less than a quarter of that rock" restored proper scatters of separated
+masses — and shrank the crystal to a few tiny gems lying on the ground, reading as dropped
+loot rather than mineral in rock. c20 and c28 have real channels and full-frame coverage;
+c9 leaves the top half empty; c14 is the landscape failure again.
+
+The two rounds bracket the answer. Round 3 wants crystal pockets on about HALF the rocks, at
+roughly a third of each rock's face, explicitly set INTO the rock face rather than lying on
+the ground — the size of round 1's detail with the count and separation of round 2.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

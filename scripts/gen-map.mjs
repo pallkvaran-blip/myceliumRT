@@ -86,6 +86,30 @@ const THEMES = {
       'No texture, no shading, no gradients, no lighting, no highlights, no outlines, no ' +
       'drop shadows, no grey — pure flat black on pure flat white, two tones only.',
   },
+  // rockform3 / 7 / 14 — the manifest tags them theme:'crystal'. Dark blue-black rock
+  // broken open to a geode of violet and cyan shards. The cavity is the hazard here: asked
+  // for carelessly the model opens it onto the background, and a cavity that reaches the
+  // white traces as a bite taken out of the rock. Hence "enclosed by rock on all sides".
+  // v1 said every mass was "broken open to show a geode cavity packed with crystal" and got
+  // hero illustrations: two or three enormous rocks filling the frame, the geode as the
+  // subject, no separation and no channels at any count from 9 to 28. A geode needs area, so
+  // demanding one per rock forces the rocks huge. The crystal has to be a MINORITY feature —
+  // most masses plain, a few carrying a small pocket — or the composition is gone. v1 also
+  // ignored the bloom ban outright and rimmed every rock in glowing white, which is the
+  // worst thing to hand a threshold, so the ban is now explicit about the rim.
+  crystal: {
+    rock:
+      'solid near-black blue-grey rock masses. MOST of them are plain cracked rock; only ' +
+      'three or four carry a small shallow pocket of violet and cyan crystal shards, and ' +
+      'each pocket is a minor detail covering less than a quarter of that rock',
+    palette:
+      'Flat and unlit apart from the crystals: no shading, no gradients, no drop shadows, no ' +
+      'outlines. NOTHING glows: no bloom, no halo, no light spilling from a crystal, and no ' +
+      'white or pale rim anywhere along a rock edge. Four tones only — near-black blue rock, ' +
+      'a dark pocket behind the crystals, saturated violet and cyan crystal, and the pure ' +
+      'white background. Every pocket is enclosed by rock on ALL sides and never opens onto ' +
+      'the background. Do not make a crystal cave, a cave mouth, or one big hero rock.',
+  },
   veined: {
     rock:
       'solid near-black basalt masses, each one shot through with a few narrow bright ' +
