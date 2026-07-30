@@ -664,6 +664,46 @@
    "key": "maze-oneR068",
    "file": "maze-one/r068.png",
    "kind": "sprite"
+  },
+  {
+   "key": "maze-oneR069",
+   "file": "maze-one/r069.png",
+   "kind": "sprite"
+  },
+  {
+   "key": "maze-oneR070",
+   "file": "maze-one/r070.png",
+   "kind": "sprite"
+  },
+  {
+   "key": "maze-oneR071",
+   "file": "maze-one/r071.png",
+   "kind": "sprite"
+  },
+  {
+   "key": "maze-oneR072",
+   "file": "maze-one/r072.png",
+   "kind": "sprite"
+  },
+  {
+   "key": "maze-oneR073",
+   "file": "maze-one/r073.png",
+   "kind": "sprite"
+  },
+  {
+   "key": "maze-oneR074",
+   "file": "maze-one/r074.png",
+   "kind": "sprite"
+  },
+  {
+   "key": "maze-oneR075",
+   "file": "maze-one/r075.png",
+   "kind": "sprite"
+  },
+  {
+   "key": "maze-oneR076",
+   "file": "maze-one/r076.png",
+   "kind": "sprite"
   }
  ]
 }

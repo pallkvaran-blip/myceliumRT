@@ -47,13 +47,20 @@ const ID = 'maze-one';
     return !!(s && s.levelDef && s.levelDef.id === id && s.substrate.authored);
   }, ID));
   ok('boots with no page errors', errs.length === 0, errs.slice(0, 3).join(' | ') || 'none');
-  ok('all 68 traced sprites decoded (mask solidified)', solid);
+  ok('every traced sprite decoded (mask solidified)', solid);
+
+  // Compare against the JSON on disk rather than a number typed in here: the tracer's
+  // blob count moves whenever the threshold or --min-area does, and a check that has to
+  // be hand-edited after every re-trace is a check that gets stale instead of run.
+  const def = JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'levels', `${ID}.json`), 'utf8'));
+  const wantSprites = def.objects.filter((o) => o.t === 'boulder' || o.t === 'formation').length;
 
   const geo = await page.evaluate(() => {
     const sub = window.__game.state.substrate;
     return { cols: sub.cols, rows: sub.rows, w: sub.worldWidth, h: sub.worldHeight, sprites: sub.levelSprites.length };
   });
-  ok('68 rock sprites on the level list', geo.sprites === 68, `${geo.cols}×${geo.rows} cells, ${geo.sprites} sprites`);
+  ok('every rock in the JSON reached the level list', geo.sprites === wantSprites,
+    `${geo.sprites}/${wantSprites} sprites, ${geo.cols}×${geo.rows} cells`);
 
   // ------------------------------------------------------- geometry ----
   // Everything below floods the FINE mask (substrate._fineSolid, 9px cells — the grid
@@ -96,9 +103,17 @@ const ID = 'maze-one';
     // One representative point per pile-ish cluster is enough; test them all, it's cheap.
     const unreachable = f ? piles.filter((p) => !f.reaches(p.x, p.y)).length : piles.length;
 
-    // Sprites drawn over a pathClear channel render as rock you walk through.
-    const entryX = cs * 2, goalEdge = sub.worldWidth - cs * 7;
+    // Sprites drawn over a pathClear channel render as rock you walk through. The
+    // channels are cols [0, startCols+1) and the last goalCols+1 — buildLevel's own
+    // clearChannel() bounds, not the layout numbers, which are one cell narrower.
+    const lay = (window.__game.state.levelDef || {}).layout || {};
+    const entryX = (sub.startCols + 1) * cs;
+    const goalEdge = sub.worldWidth - ((lay.goalCols != null ? lay.goalCols : 6) + 1) * cs;
     const overlap = sub.levelSprites.filter((s) => (s.x - s.w / 2) < entryX || (s.x + s.w / 2) > goalEdge).length;
+    // …and the other half of "end to end": the rock must actually REACH both channels,
+    // or the map has a free lane down each side.
+    const gapL = Math.min(...sub.levelSprites.map((s) => s.x - s.w / 2)) - entryX;
+    const gapR = goalEdge - Math.max(...sub.levelSprites.map((s) => s.x + s.w / 2));
 
     // How much of the underground the rock actually took.
     let solidN = 0;
@@ -108,6 +123,7 @@ const ID = 'maze-one';
       floods: !!f, size: f ? f.n : 0, total: FC * FR,
       reachesGoal: f ? f.reaches(goalX, surfaceY + 60) || f.reaches(goalX, surfaceY + 300) || f.reaches(goalX, surfaceY + 700) : false,
       piles: piles.length, unreachable, overlap,
+      gapL: Math.round(gapL), gapR: Math.round(gapR), cs,
       rockPct: Math.round(1000 * solidN / mask.length) / 10,
     };
   });
@@ -117,6 +133,9 @@ const ID = 'maze-one';
     `reachable region is ${Math.round(100 * geoRes.size / geoRes.total)}% of the underground`);
   ok('every food cell is reachable', geoRes.unreachable === 0, `${geoRes.unreachable} of ${geoRes.piles} sealed off`);
   ok('no sprite overlaps a pathClear channel', geoRes.overlap === 0, `${geoRes.overlap} overlapping`);
+  ok('the map reaches both channels (no free lane down either side)',
+    geoRes.gapL < geoRes.cs && geoRes.gapR < geoRes.cs,
+    `${geoRes.gapL}px to the entry channel, ${geoRes.gapR}px to the goal channel (< ${geoRes.cs} = one cell)`);
   ok('rock covers a playable share of the map', geoRes.rockPct > 20 && geoRes.rockPct < 60, `${geoRes.rockPct}% solid`);
 
   // ----------------------------------------------------------- screenshots ----
@@ -137,6 +156,46 @@ const ID = 'maze-one';
   await shoot('mid', 1300, 900, 1.3);
   await shoot('goal', 2200, 800, 1.3);
   console.log('  shots → tests/.artifacts/traced-*.png');
+
+  await page.close();
+
+  // ------------------------------------------------- the picker's dev button ----
+  // The only in-game route to a map with no campaign slot. Fresh page: this one goes
+  // through the title screen, and the run above left a level up.
+  const page2 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  const errs2 = [];
+  page2.on('pageerror', (e) => errs2.push(String(e && e.message)));
+  await page2.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+  await page2.goto(base + '/index.html', { waitUntil: 'domcontentloaded' });
+  await page2.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
+  await page2.click('#loadscreen', { timeout: 5000 }).catch(() => {});
+  await page2.waitForSelector('#tsNewRt', { timeout: 20000 }).catch(() => {});
+  await page2.click('#tsNewRt').catch(() => {});
+  // "New" opens the name prompt first — the picker is behind it, not behind the button.
+  await page2.waitForSelector('#tsNameStart', { timeout: 20000 }).catch(() => {});
+  await page2.fill('#tsNameInput', 'DEV').catch(() => {});
+  await page2.click('#tsNameStart').catch(() => {});
+  await page2.waitForSelector('#speciesSelect', { timeout: 20000 }).catch(() => {});
+
+  const btns = await page2.$$eval('.ss-dev-l', (els) => els.map((e) => ({
+    text: e.textContent.trim(), left: Math.round(e.getBoundingClientRect().left),
+  }))).catch(() => []);
+  ok('the picker offers a dev button per authored map', btns.length === 2, btns.map((b) => b.text).join(' / ') || 'none');
+  ok('they sit on the LEFT edge', btns.length > 0 && btns.every((b) => b.left < 60), btns.map((b) => b.left + 'px').join(', '));
+  const mazeBtn = btns.findIndex((b) => /Maze One/.test(b.text));
+  ok('one of them names the traced map', mazeBtn >= 0, btns.map((b) => b.text).join(' / '));
+
+  await page2.screenshot({ path: path.join(ART, 'traced-picker.png') });
+
+  if (mazeBtn >= 0) {
+    await page2.click('#ssDevMap' + mazeBtn);
+    const started = await page2.waitForFunction((id) => {
+      const s = window.__game && window.__game.state;
+      return !!(s && s.levelDef && s.levelDef.id === id);
+    }, ID, { timeout: 30000 }).then(() => true).catch(() => false);
+    ok('clicking it starts the traced map', started);
+    ok('no page errors on that route', errs2.length === 0, errs2.slice(0, 2).join(' | ') || 'none');
+  }
 
   await browser.close();
   srv.close();

@@ -1025,6 +1025,9 @@
       padding:6px 13px; backdrop-filter:blur(4px); }
     .ss-dev:hover { color:var(--ss-mint-hi); border-color:var(--ss-mint); background:rgba(18,28,22,0.9); }
     .ss-dev2 { top:50px; }   /* TEMP dev "unlock all" button, parked below Dev quick-start */
+    /* Authored/traced maps get their own column on the LEFT, so they can't be confused
+       with the two run shortcuts on the right. `top` is set inline, one row per map. */
+    .ss-dev-l { left:16px; right:auto; }
 
     /* Procedural MYCELIUM wordmark banner ABOVE the console (canvas injected by JS). */
     .ss-title { width:min(1060px,100%); height:clamp(104px,17vh,208px); flex:0 0 auto;
@@ -3543,8 +3546,8 @@ const LEVELS = [
     "name": "Maze One",
     "campaignLevel": null,
     "world": {
-      "width": 2592,
-      "height": 1474,
+      "width": 2952,
+      "height": 1474.4,
       "surfaceY": 380,
       "cellSize": 36
     },
@@ -3560,84 +3563,93 @@ const LEVELS = [
       "minArea": 600
     },
     "objects": [
-      {"t":"boulder","key":"maze-oneR001","x":928.8,"y":690.5,"w":712.8,"h":567,"rot":0},
-      {"t":"boulder","key":"maze-oneR002","x":2117.7,"y":1047.8,"w":444.6,"h":414,"rot":0},
-      {"t":"boulder","key":"maze-oneR003","x":287.1,"y":1147.7,"w":430.2,"h":408.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR004","x":1597.5,"y":1142.3,"w":455.4,"h":311.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR005","x":1592.1,"y":819.2,"w":415.8,"h":327.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR006","x":843.3,"y":1119.8,"w":387,"h":255.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR007","x":1825.2,"y":1292.6,"w":367.2,"h":237.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR008","x":1133.1,"y":1055,"w":401.4,"h":248.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR009","x":251.1,"y":794,"w":307.8,"h":273.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR010","x":1303.2,"y":1253,"w":334.8,"h":273.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR011","x":1265.4,"y":582.5,"w":331.2,"h":282.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR012","x":560.7,"y":896.6,"w":322.2,"h":205.2,"rot":0},
-      {"t":"boulder","key":"maze-oneR013","x":214.2,"y":532.1,"w":284.4,"h":243,"rot":0},
-      {"t":"boulder","key":"maze-oneR014","x":1586.7,"y":505.1,"w":286.2,"h":189,"rot":0},
-      {"t":"boulder","key":"maze-oneR015","x":2218.5,"y":686.9,"w":243,"h":196.2,"rot":0},
-      {"t":"boulder","key":"maze-oneR016","x":379.8,"y":988.4,"w":252,"h":172.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR017","x":1854.9,"y":577.1,"w":214.2,"h":199.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR018","x":2160.9,"y":530.3,"w":239.4,"h":189,"rot":0},
-      {"t":"boulder","key":"maze-oneR019","x":674.1,"y":740.9,"w":221.4,"h":163.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR020","x":2275.2,"y":1307,"w":129.6,"h":219.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR021","x":815.4,"y":1341.2,"w":169.2,"h":169.2,"rot":0},
-      {"t":"boulder","key":"maze-oneR022","x":439.2,"y":555.5,"w":219.6,"h":149.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR023","x":2043.9,"y":771.5,"w":171,"h":124.2,"rot":0},
-      {"t":"boulder","key":"maze-oneR024","x":1353.6,"y":712.1,"w":198,"h":109.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR025","x":495.9,"y":1360.1,"w":167.4,"h":120.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR026","x":378,"y":664.4,"w":162,"h":111.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR027","x":1512,"y":650,"w":151.2,"h":100.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR028","x":118.8,"y":1242.2,"w":93.6,"h":183.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR029","x":2087.1,"y":456.5,"w":163.8,"h":95.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR030","x":1746,"y":648.2,"w":108,"h":118.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR031","x":648.9,"y":517.7,"w":131.4,"h":95.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR032","x":847.8,"y":743.6,"w":104.4,"h":104.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR033","x":1079.1,"y":1364.6,"w":99,"h":97.2,"rot":0},
-      {"t":"boulder","key":"maze-oneR034","x":1836.9,"y":695,"w":106.2,"h":93.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR035","x":1120.5,"y":486.2,"w":124.2,"h":93.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR036","x":1936.8,"y":506,"w":133.2,"h":86.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR037","x":487.8,"y":1150.4,"w":97.2,"h":86.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR038","x":612.9,"y":1325.9,"w":84.6,"h":102.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR039","x":461.7,"y":449.3,"w":131.4,"h":81,"rot":0},
-      {"t":"boulder","key":"maze-oneR040","x":1675.8,"y":922.7,"w":122.4,"h":77.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR041","x":1652.4,"y":623,"w":93.6,"h":82.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR042","x":1761.3,"y":995.6,"w":99,"h":82.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR043","x":1850.4,"y":865.1,"w":97.2,"h":77.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR044","x":1171.8,"y":1389.8,"w":97.2,"h":75.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR045","x":2297.7,"y":872.3,"w":84.6,"h":84.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR046","x":1085.4,"y":561.8,"w":97.2,"h":72,"rot":0},
-      {"t":"boulder","key":"maze-oneR047","x":525.6,"y":758,"w":118.8,"h":57.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR048","x":569.7,"y":1244.9,"w":102.6,"h":63,"rot":0},
-      {"t":"boulder","key":"maze-oneR049","x":1855.8,"y":448.4,"w":118.8,"h":61.2,"rot":0},
-      {"t":"boulder","key":"maze-oneR050","x":2309.4,"y":457.4,"w":61.2,"h":93.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR051","x":646.2,"y":445.7,"w":90,"h":59.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR052","x":162.9,"y":1385.3,"w":81,"h":66.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR053","x":1344.6,"y":807.5,"w":68.4,"h":70.2,"rot":0},
-      {"t":"boulder","key":"maze-oneR054","x":1476.9,"y":1406.9,"w":91.8,"h":55.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR055","x":1246.5,"y":440.3,"w":77.4,"h":63,"rot":0},
-      {"t":"boulder","key":"maze-oneR056","x":2175.3,"y":1405.1,"w":88.2,"h":55.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR057","x":354.6,"y":1379.9,"w":64.8,"h":66.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR058","x":1728,"y":440.3,"w":75.6,"h":55.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR059","x":2310.3,"y":551.9,"w":59.4,"h":91.8,"rot":0},
-      {"t":"boulder","key":"maze-oneR060","x":557.1,"y":999.2,"w":70.2,"h":57.6,"rot":0},
-      {"t":"boulder","key":"maze-oneR061","x":93.6,"y":593.3,"w":43.2,"h":88.2,"rot":0},
-      {"t":"boulder","key":"maze-oneR062","x":187.2,"y":435.8,"w":79.2,"h":50.4,"rot":0},
-      {"t":"boulder","key":"maze-oneR063","x":483.3,"y":705.8,"w":63,"h":61.2,"rot":0},
-      {"t":"boulder","key":"maze-oneR064","x":2011.5,"y":433.1,"w":88.2,"h":45,"rot":0},
-      {"t":"boulder","key":"maze-oneR065","x":94.5,"y":899.3,"w":45,"h":81,"rot":0},
-      {"t":"boulder","key":"maze-oneR066","x":2211.3,"y":812,"w":66.6,"h":54,"rot":0},
-      {"t":"boulder","key":"maze-oneR067","x":961.2,"y":434.9,"w":72,"h":52.2,"rot":0},
-      {"t":"boulder","key":"maze-oneR068","x":1051.2,"y":435.8,"w":72,"h":50.4,"rot":0},
-      {"t":"food","kind":"duff","x":268.2,"y":1472.6,"r":1,"energy":2},
-      {"t":"food","kind":"cache","x":289.8,"y":1472.6,"r":1,"energy":3},
-      {"t":"food","kind":"duff","x":655.2,"y":1472.6,"r":1,"energy":2},
-      {"t":"food","kind":"cache","x":657,"y":1472.6,"r":1,"energy":3},
-      {"t":"food","kind":"duff","x":963,"y":1472.6,"r":1,"energy":2},
-      {"t":"food","kind":"duff","x":1276.2,"y":1472.6,"r":1,"energy":2},
-      {"t":"food","kind":"cache","x":1569.6,"y":1472.6,"r":1,"energy":3},
-      {"t":"food","kind":"duff","x":1609.2,"y":1472.6,"r":1,"energy":2},
-      {"t":"food","kind":"cache","x":1935,"y":1472.6,"r":1,"energy":3},
-      {"t":"food","kind":"duff","x":2019.6,"y":1472.6,"r":1,"energy":2}
+      {"t":"boulder","key":"maze-oneR001","x":1036.8,"y":690.5,"w":712.8,"h":567,"rot":0},
+      {"t":"boulder","key":"maze-oneR002","x":2238.3,"y":1047.8,"w":469.8,"h":414,"rot":0},
+      {"t":"boulder","key":"maze-oneR003","x":377.1,"y":1147.7,"w":466.2,"h":408.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR004","x":1705.5,"y":1142.3,"w":455.4,"h":311.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR005","x":1700.1,"y":819.2,"w":415.8,"h":327.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR006","x":951.3,"y":1119.8,"w":387,"h":255.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR007","x":1933.2,"y":1292.6,"w":367.2,"h":237.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR008","x":1241.1,"y":1055,"w":401.4,"h":248.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR009","x":359.1,"y":794,"w":307.8,"h":273.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR010","x":1411.2,"y":1253,"w":334.8,"h":273.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR011","x":1373.4,"y":582.5,"w":331.2,"h":282.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR012","x":668.7,"y":896.6,"w":322.2,"h":205.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR013","x":2575.8,"y":794,"w":194.4,"h":277.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR014","x":2457,"y":1307,"w":277.2,"h":219.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR015","x":319.5,"y":532.1,"w":289.8,"h":243,"rot":0},
+      {"t":"boulder","key":"maze-oneR016","x":1694.7,"y":505.1,"w":286.2,"h":189,"rot":0},
+      {"t":"boulder","key":"maze-oneR017","x":2344.5,"y":686.9,"w":279,"h":196.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR018","x":487.8,"y":988.4,"w":252,"h":172.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR019","x":1962.9,"y":577.1,"w":214.2,"h":199.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR020","x":2268.9,"y":530.3,"w":239.4,"h":189,"rot":0},
+      {"t":"boulder","key":"maze-oneR021","x":782.1,"y":740.9,"w":221.4,"h":163.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR022","x":923.4,"y":1341.2,"w":169.2,"h":169.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR023","x":547.2,"y":555.5,"w":219.6,"h":149.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR024","x":198.9,"y":1229.6,"w":149.4,"h":208.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR025","x":2484.9,"y":538.4,"w":192.6,"h":133.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR026","x":2151.9,"y":771.5,"w":171,"h":124.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR027","x":2520.9,"y":1100.9,"w":135,"h":145.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR028","x":1461.6,"y":712.1,"w":198,"h":109.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR029","x":603.9,"y":1360.1,"w":167.4,"h":120.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR030","x":486,"y":664.4,"w":162,"h":111.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR031","x":1620,"y":650,"w":151.2,"h":100.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR032","x":2195.1,"y":456.5,"w":163.8,"h":95.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR033","x":1854,"y":648.2,"w":108,"h":118.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR034","x":756.9,"y":517.7,"w":131.4,"h":95.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR035","x":955.8,"y":743.6,"w":104.4,"h":104.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR036","x":2565,"y":1248.5,"w":126,"h":88.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR037","x":2442.6,"y":456.5,"w":111.6,"h":95.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR038","x":174.6,"y":595.1,"w":97.2,"h":106.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR039","x":1187.1,"y":1364.6,"w":99,"h":97.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR040","x":1944.9,"y":695,"w":106.2,"h":93.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR041","x":1228.5,"y":486.2,"w":124.2,"h":93.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR042","x":2618.1,"y":1173.8,"w":113.4,"h":86.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR043","x":2044.8,"y":506,"w":133.2,"h":86.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR044","x":595.8,"y":1150.4,"w":97.2,"h":86.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR045","x":720.9,"y":1325.9,"w":84.6,"h":102.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR046","x":2420.1,"y":872.3,"w":113.4,"h":84.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR047","x":569.7,"y":449.3,"w":131.4,"h":81,"rot":0},
+      {"t":"boulder","key":"maze-oneR048","x":1783.8,"y":922.7,"w":122.4,"h":77.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR049","x":1760.4,"y":623,"w":93.6,"h":82.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR050","x":1869.3,"y":995.6,"w":99,"h":82.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR051","x":180.9,"y":902.9,"w":88.2,"h":88.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR052","x":1958.4,"y":865.1,"w":97.2,"h":77.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR053","x":1279.8,"y":1389.8,"w":97.2,"h":75.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR054","x":1193.4,"y":561.8,"w":97.2,"h":72,"rot":0},
+      {"t":"boulder","key":"maze-oneR055","x":633.6,"y":758,"w":118.8,"h":57.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR056","x":677.7,"y":1244.9,"w":102.6,"h":63,"rot":0},
+      {"t":"boulder","key":"maze-oneR057","x":1963.8,"y":448.4,"w":118.8,"h":61.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR058","x":2634.3,"y":538.4,"w":84.6,"h":79.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR059","x":754.2,"y":445.7,"w":90,"h":59.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR060","x":270.9,"y":1385.3,"w":81,"h":66.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR061","x":1452.6,"y":807.5,"w":68.4,"h":70.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR062","x":1584.9,"y":1406.9,"w":91.8,"h":55.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR063","x":1354.5,"y":440.3,"w":77.4,"h":63,"rot":0},
+      {"t":"boulder","key":"maze-oneR064","x":2283.3,"y":1405.1,"w":88.2,"h":55.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR065","x":462.6,"y":1379.9,"w":64.8,"h":66.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR066","x":1836,"y":440.3,"w":75.6,"h":55.8,"rot":0},
+      {"t":"boulder","key":"maze-oneR067","x":665.1,"y":999.2,"w":70.2,"h":57.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR068","x":295.2,"y":435.8,"w":79.2,"h":50.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR069","x":591.3,"y":705.8,"w":63,"h":61.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR070","x":2119.5,"y":433.1,"w":88.2,"h":45,"rot":0},
+      {"t":"boulder","key":"maze-oneR071","x":2648.7,"y":604.1,"w":52.2,"h":66.6,"rot":0},
+      {"t":"boulder","key":"maze-oneR072","x":2319.3,"y":812,"w":66.6,"h":54,"rot":0},
+      {"t":"boulder","key":"maze-oneR073","x":2655,"y":1110.8,"w":54,"h":61.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR074","x":159.3,"y":468.2,"w":66.6,"h":50.4,"rot":0},
+      {"t":"boulder","key":"maze-oneR075","x":1069.2,"y":434.9,"w":72,"h":52.2,"rot":0},
+      {"t":"boulder","key":"maze-oneR076","x":1159.2,"y":435.8,"w":72,"h":50.4,"rot":0},
+      {"t":"food","kind":"duff","x":108,"y":1472.6,"r":1,"energy":2},
+      {"t":"food","kind":"cache","x":376.2,"y":1472.6,"r":1,"energy":3},
+      {"t":"food","kind":"duff","x":754.2,"y":1472.6,"r":1,"energy":2},
+      {"t":"food","kind":"cache","x":765,"y":1472.6,"r":1,"energy":3},
+      {"t":"food","kind":"duff","x":1071,"y":1472.6,"r":1,"energy":2},
+      {"t":"food","kind":"cache","x":1384.2,"y":1472.6,"r":1,"energy":3},
+      {"t":"food","kind":"duff","x":1472.4,"y":1472.6,"r":1,"energy":2},
+      {"t":"food","kind":"cache","x":1717.2,"y":1472.6,"r":1,"energy":3},
+      {"t":"food","kind":"duff","x":2050.2,"y":1472.6,"r":1,"energy":2},
+      {"t":"food","kind":"cache","x":2127.6,"y":1472.6,"r":1,"energy":3},
+      {"t":"food","kind":"cache-engine","x":2698.2,"y":1472.6,"r":1,"energy":4}
     ]
   },
   {
@@ -14242,6 +14254,7 @@ function growMyceliumTitle(container, opts = {}) {
 const __m_render_species_select = (function () {
   const { SPECIES, LOCKED_TIERS, isRevealed, isPlayable, unlockCost, sporesBalance, purchaseSpecies, loadProgress, devUnlockAll, levelFromUnlock, startLevelRange, defaultStartLevel, loadDeathCarry } = __m_species;
   const { CARD_DATA } = __m_cards_data;
+  const { LEVELS } = __m_levels_data;
   const { CONFIG, timeify } = __m_config;
   const { cardSlug, SPORE_ICON } = __m_render_ui;
   const { logEvent } = __m_net_scores;
@@ -14527,7 +14540,7 @@ function mysteryCard(hint) {
 }
 
 // ============================ boot picker ====================================
-function showSpeciesSelect({ onPick, onDev }) {
+function showSpeciesSelect({ onPick, onDev, onLevel }) {
   let progress = loadProgress();
   const root = el('div'); root.id = 'speciesSelect';
   // Dev shortcuts (owner testing only), GATED on config.dev.enabled — the same flag as the
@@ -14540,10 +14553,19 @@ function showSpeciesSelect({ onPick, onDev }) {
     ? '<button class="ss-dev" id="ssDev" type="button" title="Skip selection and start the default dev run (300 of each resource, 5 of each card)">Dev quick-start ▸</button>' +
       '<button class="ss-dev ss-dev2" id="ssDevUnlock" type="button" title="DEV: reveal + unlock every species">Dev: unlock all ▸</button>'
     : '';
+  // One button per hand-authored / traced map (__m_levels_data, GENERATED from
+  // docs/levels/*.json), down the LEFT edge. Built from the list rather than named here,
+  // so tracing another map puts its button on screen with no code change. These are the
+  // only in-game route to a map that claims no campaign slot — otherwise it's the
+  // `#level,<id>` boot hash, which skips the picker and so can't pick a species.
+  const devMaps = devOn ? (LEVELS || []).filter((l) => l && l.id) : [];
+  const mapBtns = devMaps.map((l, i) =>
+    `<button class="ss-dev ss-dev-l" id="ssDevMap${i}" type="button" style="top:${14 + i * 36}px"` +
+    ` title="DEV: play the authored map &quot;${esc(l.name)}&quot;">Dev: ${esc(l.name)} ▸</button>`).join('');
   root.innerHTML =
     '<div class="ss-title" aria-label="Mycelium"></div>' +
     '<div class="ss-console" role="dialog" aria-label="Select your species">' +
-      devBtns +
+      devBtns + mapBtns +
       '<header class="ss-head">' +
         '<div class="ss-headrow"><h1>Select your species</h1>' +
           '<span class="ss-spores ss-wallet" id="ssWallet" title="Spores — earned by finishing levels, spent to unlock species"></span></div>' +
@@ -14612,6 +14634,9 @@ function showSpeciesSelect({ onPick, onDev }) {
   if (devOn) {
     root.querySelector('#ssDev').addEventListener('click', () => { hide(); onDev && onDev(); });
     root.querySelector('#ssDevUnlock').addEventListener('click', () => { devUnlockAll(); refresh(); });
+    devMaps.forEach((l, i) => {
+      root.querySelector('#ssDevMap' + i).addEventListener('click', () => { hide(); onLevel && onLevel(l.id); });
+    });
   }
   return { hide, root };
 }
@@ -16618,8 +16643,22 @@ function showPicker() {
   hideCanvas();      // never let a finished run's map show behind the picker
   playMenuMusic();   // vol29 keeps playing (or starts) across the title → picker
   showSpeciesSelect({
-    onPick: (sp, startLevel) => { chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
-    onDev: () => { chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; startRun(); },
+    // Both normal routes CLEAR playtestLevel. It used to be settable only by the boot
+    // hash, which skips the picker — now the dev map buttons below set it from inside the
+    // picker, and levelDefFor() prefers it over every campaign slot, so leaving it set
+    // would silently serve the authored map for the rest of the session.
+    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
+    onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; startRun(); },
+    // DEV: play an authored map with the dev loadout — the same thing `#level,<id>` does,
+    // reachable without retyping the URL.
+    onLevel: (id) => {
+      const def = levelById(id);
+      if (!def) return;
+      playtestLevel = def; chosenSpecies = null;
+      currentLevel = def.campaignLevel || 1; runStartLevel = currentLevel;
+      carryOver = null; runSpores = 0;
+      startRun();
+    },
   });
 }
 

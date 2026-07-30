@@ -14,11 +14,14 @@ What it does, and why each step is the way it is:
    rock and fattens every wall by its width, which is the worst kind of bug in this game:
    an invisible wall (see CLAUDE.md, "Rock has two masks").
 
-2. CLEAR THE CHANNELS. `buildLevel` digs the entry (cols 0..startCols) and goal (last
-   goalCols+1) channels and flags them pathClear, which beats rock outright. A sprite
-   drawn over them would render as rock the player walks straight through. So the mask is
-   zeroed over those bands BEFORE labelling — rocks near the edges get cut off flush,
-   which reads as the rock continuing into the wall.
+2. FIT BETWEEN THE CHANNELS. `buildLevel` digs an entry channel (cols 0..startCols) and a
+   goal channel (the last goalCols+1) and flags them pathClear, which beats rock outright
+   — a sprite drawn over one renders as rock the player walks straight through. Rather
+   than clip the image there (which cut the sides off the edge rocks), the WORLD is sized
+   so the image lands exactly between the two channels: pick the width in whole cells that
+   makes the gap match the image's aspect, then derive the height from it. The map reaches
+   its full width, nothing is cut, and no sprite can reach a channel because the image
+   simply doesn't extend that far.
 
 3. LABEL + DROP THE GRAVEL. Every 8-connected blob becomes one sprite. Blobs under
    --min-area are dropped: the models scatter 2-6px specks everywhere, and each one would
@@ -54,7 +57,9 @@ ap.add_argument('--id', required=True, help='level id — boots as #level,<id>')
 ap.add_argument('--name', required=True)
 ap.add_argument('--threshold', type=int, default=128)
 ap.add_argument('--min-area', type=int, default=600, help='image px^2; below this is gravel')
-ap.add_argument('--width', type=int, default=2592, help='world width (72 cells of 36)')
+ap.add_argument('--under-height', type=float, default=1096,
+                help='target underground height; the world WIDTH is derived from it and the '
+                     'image aspect so the map fits exactly between the two channels')
 ap.add_argument('--surface-y', type=int, default=380)
 ap.add_argument('--cell', type=int, default=36)
 ap.add_argument('--start-cols', type=int, default=2)
@@ -69,20 +74,19 @@ W, H = img.size
 lum = np.asarray(img.convert('L')).astype(np.int16)
 rock = lum < a.threshold
 
-# World box: keep the image's aspect exactly, so nothing is stretched. The map fills the
-# whole underground; the surface strip above surfaceY is the engine's, not ours.
-sx = a.width / W
-under_h = a.width * H / W
+# World box. The channels `buildLevel` digs are cols [0, startCols+1) on the left and the
+# last goalCols+1 on the right — that is what the image must NOT overlap. So reserve them,
+# size the remaining gap to the image's aspect, and put the image in it at 1:1 on both
+# axes (nothing stretched, nothing cut). Width lands on a whole number of cells; the height
+# is then derived from the width so the aspect stays exact.
+chan_w = (a.start_cols + 1 + a.goal_cols + 1) * a.cell
+world_w = round((a.under_height * W / H + chan_w) / a.cell) * a.cell
+span = world_w - chan_w
+sx = sy = span / W
+under_h = H * sy
 world_h = a.surface_y + under_h
-sy = under_h / H
-
-# --- clear the entry + goal channels ----------------------------------------
-entry_w = a.start_cols * a.cell
-goal_x = a.width - (a.goal_cols + 1) * a.cell
-cx0 = int(round(entry_w / sx))
-cx1 = int(round(goal_x / sx))
-rock[:, :cx0] = False
-rock[:, cx1:] = False
+x0 = (a.start_cols + 1) * a.cell        # left edge of the image, in world units
+y0 = a.surface_y
 
 # --- label, drop the gravel --------------------------------------------------
 lab, n = ndimage.label(rock, structure=np.ones((3, 3)))
@@ -111,13 +115,9 @@ soft = np.clip((235 - lum) / (235 - a.threshold), 0, 1) * 120
 objects, manifest = [], []
 for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
     sl = boxes[i]
-    # A 2px margin so the soft edge isn't clipped by the crop — but never past the
-    # channel cuts. The margin is only ~4 world units, and the alpha out there is the
-    # soft edge, so it can't collide; it would still DRAW rock over a channel the
-    # player walks through, and "rock you can see and walk through" is the exact
-    # failure the channels are prone to.
+    # a 2px margin so the soft edge isn't clipped by the crop
     r0 = max(0, sl[0].start - 2); r1 = min(H, sl[0].stop + 2)
-    c0 = max(cx0, sl[1].start - 2); c1 = min(cx1, sl[1].stop + 2)
+    c0 = max(0, sl[1].start - 2); c1 = min(W, sl[1].stop + 2)
     m = (lab[r0:r1, c0:c1] == i + 1)
     near = ndimage.binary_dilation(m, iterations=2)
     alpha = np.where(m, 255, np.where(near, soft[r0:r1, c0:c1], 0)).astype(np.uint8)
@@ -127,8 +127,8 @@ for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
     manifest.append({'key': key, 'file': f'{a.id}/r{rank:03d}.png', 'kind': 'sprite'})
     objects.append({
         't': 'boulder', 'key': key,
-        'x': round((c0 + c1) / 2 * sx, 1),
-        'y': round(a.surface_y + (r0 + r1) / 2 * sy, 1),
+        'x': round(x0 + (c0 + c1) / 2 * sx, 1),
+        'y': round(y0 + (r0 + r1) / 2 * sy, 1),
         'w': round((c1 - c0) * sx, 1),
         'h': round((r1 - r0) * sy, 1),
         'rot': 0,
@@ -139,8 +139,8 @@ for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
 # fill reaches the goal band. The game's answer comes from its own 9px mask.
 open_px = ~kept_mask
 fill, _ = ndimage.label(open_px, structure=np.array([[0, 1, 0], [1, 1, 1], [0, 1, 0]]))
-entry_labels = set(fill[:, cx0:cx0 + 3].ravel()) - {0}
-goal_labels = set(fill[:, cx1 - 3:cx1].ravel()) - {0}
+entry_labels = set(fill[:, :3].ravel()) - {0}      # the image's own edges now ABUT the channels
+goal_labels = set(fill[:, -3:].ravel()) - {0}
 shared = entry_labels & goal_labels
 print(f'traversable: {"YES" if shared else "NO"} '
       f'({len(entry_labels)} open region(s) at the entry, {len(goal_labels)} at the goal, '
@@ -158,10 +158,9 @@ KINDS = ['duff', 'cache', 'duff', 'cache', 'duff', 'cache',
          'duff', 'cache', 'duff', 'cache', 'duff', 'cache-engine']
 ENERGY = {'duff': 2, 'cache': 3, 'cache-engine': 4}
 placed = 0
-lo, hi = cx0 + 20, cx1 - 20
 for k in range(a.food):
-    s0 = int(lo + (hi - lo) * k / a.food)
-    s1 = int(lo + (hi - lo) * (k + 1) / a.food)
+    s0 = int(W * k / a.food)
+    s1 = int(W * (k + 1) / a.food)
     band = dist[:, s0:s1]
     if band.size == 0 or band.max() < need:
         continue
@@ -169,7 +168,7 @@ for k in range(a.food):
     kind = KINDS[k % len(KINDS)]
     objects.append({
         't': 'food', 'kind': kind,
-        'x': round((s0 + c) * sx, 1), 'y': round(a.surface_y + r * sy, 1),
+        'x': round(x0 + (s0 + c) * sx, 1), 'y': round(y0 + r * sy, 1),
         'r': 1, 'energy': ENERGY[kind],
     })
     placed += 1
@@ -179,7 +178,7 @@ print(f'food: {placed}/{a.food} piles placed (clearance >= 2.2 cells)')
 level = {
     'format': 'mycelium-level', 'version': 1, 'id': a.id, 'name': a.name,
     'campaignLevel': a.campaign_level,
-    'world': {'width': a.width, 'height': round(world_h), 'surfaceY': a.surface_y, 'cellSize': a.cell},
+    'world': {'width': world_w, 'height': round(world_h, 1), 'surfaceY': a.surface_y, 'cellSize': a.cell},
     'layout': {'startCols': a.start_cols, 'goalCols': a.goal_cols, 'summerCols': 7, 'clearChannels': True},
     'traced': {'image': a.image, 'threshold': a.threshold, 'minArea': a.min_area},
     'objects': objects,

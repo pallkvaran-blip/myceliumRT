@@ -253,19 +253,28 @@ Tracing traps, all of which cost a debug cycle:
 - **One sprite per blob, never one big image.** `_alphaMask` samples every sprite down to
   160px on its long side, so a whole-map sprite would feed the 9px collision mask at ~16
   world units per alpha pixel. Per-blob sprites each get their own 160px budget.
-- **Clamp the crop to the channels.** `buildLevel` digs the entry (`startCols`) and goal
-  (`goalCols`+1) channels and flags them `pathClear`, which beats rock — a sprite whose
-  box pokes in draws rock the player walks straight through. The tracer zeroes the mask
-  over those bands before labelling *and* clamps the crop, because the 2px soft-edge
-  margin alone was enough to fail the check.
+- **Size the world to the image, don't clip the image to the world.** `buildLevel` digs an
+  entry channel (cols `[0, startCols+1)`) and a goal channel (the last `goalCols+1`) and
+  flags them `pathClear`, which beats rock — a sprite poking in draws rock the player walks
+  straight through. The first version zeroed the mask over those bands, which cut the sides
+  off every edge rock. Now the tracer picks the world **width** (in whole cells) that makes
+  the gap between the channels match the image's aspect and derives the height from it, so
+  the image lands exactly in the gap at 1:1 on both axes: full width, nothing cut, and no
+  sprite can reach a channel because the image doesn't extend that far. Note the channel
+  bounds are `startCols+1` and `goalCols+1` — one cell wider each than the layout numbers.
 - **Drop the gravel** (`--min-area`, 600px² ≈ 1.25 cells): keeps ~95% of the rock and
   loses 400 specks that would each be a pinprick of collision with no visible cause.
 - The tracer's own flood-fill is a proxy on image pixels. The real answer is
   `tests/traced-check.cjs`, which floods the running game's fine mask.
 
-`maze-1` traced to 68 sprites at 46.6% solid, one connected open region, everything
-reachable. Food is auto-placed in open pockets; **threats are not placed at all** — the
-owner places those.
+`maze-1` traced to 76 sprites at 45.3% solid in an 82×30-cell world, one connected open
+region, everything reachable. Food is auto-placed in open pockets; **threats are not placed
+at all** — the owner places those.
+
+An authored map is reachable in-game from **dev buttons down the LEFT edge of the species
+picker**, one per entry in `LEVELS`, built from the list so a new map needs no code. They
+set `playtestLevel`, which `levelDefFor()` prefers over every campaign slot — so `onPick`
+and `onDev` clear it, or the map silently serves the rest of the session.
 
 ## Campaign shape (so you don't re-derive it)
 
