@@ -1029,6 +1029,41 @@
    "key": "maze-oneR077",
    "file": "maze-one/r077.webp",
    "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR001",
+   "file": "ledges-one/r001.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR002",
+   "file": "ledges-one/r002.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR003",
+   "file": "ledges-one/r003.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR004",
+   "file": "ledges-one/r004.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR005",
+   "file": "ledges-one/r005.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR006",
+   "file": "ledges-one/r006.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR007",
+   "file": "ledges-one/r007.webp",
+   "kind": "sprite"
   }
  ]
 }

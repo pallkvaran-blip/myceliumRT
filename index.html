@@ -1592,7 +1592,7 @@
 // assets/<id>/rNNN.webp in place, and without a new value the browser keeps serving the
 // copy it already has under the old query. It cost a round of "are you sure you pushed it?"
 // on maze-one, where three successive re-traces all landed on the same cached URLs.
-window.__ASSET_VER = "mz4h2p";
+window.__ASSET_VER = "mz5l6r";
 globalThis.__BUILD__ = "a9f806a";
 
 // ===================== src/config.js =====================
@@ -3544,6 +3544,51 @@ const __m_levels_data = (function () {
 // so the `#level` playtest hook below reads either localStorage or a level id.
 
 const LEVELS = [
+  {
+    "format": "mycelium-level",
+    "version": 1,
+    "id": "ledges-one",
+    "name": "Ledges One",
+    "campaignLevel": null,
+    "world": {
+      "width": 2952,
+      "height": 1474.4,
+      "surfaceY": 380,
+      "cellSize": 36
+    },
+    "layout": {
+      "startCols": 2,
+      "goalCols": 6,
+      "summerCols": 7,
+      "clearChannels": true
+    },
+    "traced": {
+      "image": "docs/maps/ledges-c9-2@4x.webp",
+      "threshold": 128,
+      "minArea": 9600
+    },
+    "objects": [
+      {"t":"boulder","key":"ledges-oneR001","x":1488.6000000000001,"y":1123.85,"w":2039.4,"h":386.1,"rot":0},
+      {"t":"boulder","key":"ledges-oneR002","x":1057.7,"y":913.3,"w":1499,"h":171,"rot":0},
+      {"t":"boulder","key":"ledges-oneR003","x":1592.35,"y":624.35,"w":1305.5,"h":210.7,"rot":0},
+      {"t":"boulder","key":"ledges-oneR004","x":2118.8500000000004,"y":749.95,"w":1102.9,"h":153.9,"rot":0},
+      {"t":"boulder","key":"ledges-oneR005","x":650.05,"y":760,"w":855.5,"h":122,"rot":0},
+      {"t":"boulder","key":"ledges-oneR006","x":754.4000000000001,"y":566.75,"w":691.6,"h":101.7,"rot":0},
+      {"t":"boulder","key":"ledges-oneR007","x":388.59999999999997,"y":685.3,"w":557.6,"h":81.4,"rot":0},
+      {"t":"food","kind":"duff","x":108,"y":1474,"r":1,"energy":2},
+      {"t":"food","kind":"cache","x":324,"y":1474,"r":1,"energy":3},
+      {"t":"food","kind":"duff","x":540,"y":1474,"r":1,"energy":2},
+      {"t":"food","kind":"cache","x":971.6,"y":1474,"r":1,"energy":3},
+      {"t":"food","kind":"duff","x":1172.2,"y":380,"r":1,"energy":2},
+      {"t":"food","kind":"cache","x":1188,"y":380,"r":1,"energy":3},
+      {"t":"food","kind":"duff","x":1445.4,"y":380,"r":1,"energy":2},
+      {"t":"food","kind":"cache","x":1620,"y":380,"r":1,"energy":3},
+      {"t":"food","kind":"duff","x":2051.6,"y":1474,"r":1,"energy":2},
+      {"t":"food","kind":"cache","x":2267.6,"y":1474,"r":1,"energy":3},
+      {"t":"food","kind":"duff","x":2483.6,"y":380,"r":1,"energy":2},
+      {"t":"food","kind":"cache-engine","x":2699.6,"y":380,"r":1,"energy":4}
+    ]
+  },
   {
     "format": "mycelium-level",
     "version": 1,
