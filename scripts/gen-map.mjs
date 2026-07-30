@@ -107,7 +107,9 @@ const SIL_HEAD = (theme) =>
 const SIL_TAIL = (theme) =>
   ' The background is pure flat white everywhere, edge to edge, including all four edges and ' +
   'every corner. Do NOT draw a cave, a cavern, an enclosing wall, a rock border around the ' +
-  'frame, a ceiling, a floor, or a horizon. Nothing touches the left edge or the right edge. ' +
+  'frame, a ceiling, a floor, or a horizon. The rocks REACH the left and right edges of the ' +
+  'frame and are spread over its full height, top to bottom, with no wide empty band along ' +
+  'any edge. ' +
   THEMES[theme].palette +
   ' No small pebbles, no gravel, no dust, no speckles, no debris. No text, no labels, no ' +
   'grid, no border, no sky, no plants, no creatures.';

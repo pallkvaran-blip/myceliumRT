@@ -139,7 +139,12 @@ const TRACED = ALL.filter((l) => l && l.traced);
       const lay = (window.__game.state.levelDef || {}).layout || {};
       const entryX = (sub.startCols + 1) * cs;
       const goalEdge = sub.worldWidth - ((lay.goalCols != null ? lay.goalCols : 6) + 1) * cs;
-      const overlap = sub.levelSprites.filter((s) => (s.x - s.w / 2) < entryX || (s.x + s.w / 2) > goalEdge).length;
+      // EPS because a sprite flush with a channel reconstructs as x - w/2 = 107.99999999999999
+      // against an entry of 108: x and w are stored, the edge is recomputed, and IEEE754 does
+      // the rest. A hundredth of a world unit is far below the 9px grid collision samples.
+      const EPS = 0.01;
+      const overlap = sub.levelSprites.filter((s) =>
+        (s.x - s.w / 2) < entryX - EPS || (s.x + s.w / 2) > goalEdge + EPS).length;
       const gapL = Math.min(...sub.levelSprites.map((s) => s.x - s.w / 2)) - entryX;
       const gapR = goalEdge - Math.max(...sub.levelSprites.map((s) => s.x + s.w / 2));
 

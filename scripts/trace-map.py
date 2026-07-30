@@ -70,16 +70,31 @@ from scipy import ndimage
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+
+def say(*args):
+    """print() that cannot kill the run.
+
+    Piping this script through `head` closes stdout early; the next print raises
+    BrokenPipeError and the script dies AFTER writing the level JSON and BEFORE writing the
+    asset manifest, leaving the two disagreeing. The only symptom is a 404 per sprite at
+    boot and a collision mask that never solidifies. It has cost two debugging rounds.
+    """
+    try:
+        print(*args, flush=True)
+    except Exception:
+        pass
+
 ap = argparse.ArgumentParser()
 ap.add_argument('image')
 ap.add_argument('--id', required=True, help='level id — boots as #level,<id>')
 ap.add_argument('--name', required=True)
-ap.add_argument('--threshold', type=int, default=128)
+ap.add_argument('--threshold', type=int, default=None,
+                help='rock/background luminance cut; default is chosen per image (Otsu)')
 ap.add_argument('--despeckle', type=int, default=None,
-                help='opening radius in source px; default scales with the image (W/240)')
+                help='opening radius in source px; default scales with the image (W/1200)')
 ap.add_argument('--min-area', type=int, default=600, help='image px^2; below this is gravel')
-ap.add_argument('--under-height', type=float, default=1096,
-                help='target underground height; the world WIDTH is derived from it and the '
+ap.add_argument('--width', type=float, default=2952,
+                help='target world width; the underground HEIGHT is derived from it and the '
                      'image aspect so the map fits exactly between the two channels')
 ap.add_argument('--surface-y', type=int, default=380)
 ap.add_argument('--cell', type=int, default=36)
@@ -107,27 +122,96 @@ lum = np.asarray(img.convert('L')).astype(np.int16)
 # with cracks sawn through them (measured: 55% of on-rock vein pixels fall the wrong side of
 # 128, whichever channel you threshold). On a grey map the clause selects nothing, so it
 # costs the slate maps only what the two steps below do.
-chroma = rgb_all.max(axis=2) - rgb_all.min(axis=2)
-rock = (lum < a.threshold) | ((chroma > 40) & (rgb_all.min(axis=2) < 200))
+# THE CUT. It cannot be a constant. A fixed 128 was right for the first slate maps, whose
+# rock is 30-110 throughout, and it quietly destroyed the two themes whose rocks have LIT
+# TOP FACES: ledges puts 7.9% of its pixels at luminance 150-159 and veined runs to ~170, so
+# 128 threw the top off every slab and left the survivors as pale lobes floating over soil.
+# Otsu finds the valley between the rock mode and the background mode per image — around
+# 170-200 for everything so far — which is above the lit faces and below the drop-shadow
+# band (200-249) that must stay out, or every wall is fattened by its own shadow.
+def _otsu(v):
+    hist = np.bincount(v.ravel().astype(np.uint8), minlength=256).astype(np.float64)
+    w = np.cumsum(hist); mu = np.cumsum(hist * np.arange(256))
+    tot, mu_t = w[-1], mu[-1]
+    wb = w[:-1]; wf = tot - wb
+    ok = (wb > 0) & (wf > 0)
+    between = np.zeros(255)
+    between[ok] = ((mu_t * wb[ok] / tot - mu[:-1][ok]) ** 2) / (wb[ok] * wf[ok])
+    return int(np.argmax(between))
 
-# Then open, then fill. The OPENING deletes anything thinner than its radius, which is how
-# the veins that run out across the white background — the model draws them however firmly
-# you ban it — stop becoming rock filaments across open ground; rocks are two orders of
-# magnitude wider and survive untouched. A DISK, not scipy's square default: a square
-# structuring element regrows the eroded shape with square corners and studs the silhouette
-# with visible rectangular bumps. FILL closes what's left of the veins inside a rock.
-_r = a.despeckle if a.despeckle is not None else max(2, round(W / 240))
+THRESH = a.threshold if a.threshold is not None else min(210, max(120, _otsu(lum)))
+if a.threshold is None:
+    say(f'threshold: {THRESH} (Otsu)')
+
+chroma = rgb_all.max(axis=2) - rgb_all.min(axis=2)
+rock_src = (lum < THRESH) | ((chroma > 40) & (rgb_all.min(axis=2) < 200))
+rock = rock_src.copy()
+
+# Then open, drop the vein-only components, and fill.
+#
+# The OPENING severs thin filaments — the veins the model draws out across the white
+# background however firmly you ban them. It has to be SMALL. Sized at W/240 (24px on a
+# 5760px source) it deleted the veins and also ate the rocks: tops broken into rounded
+# lobes, thin necks severed, every silhouette smoothed into a blob. That was the "parts of
+# the rocks are missing" defect. W/1200 severs filaments and leaves rock alone.
+#
+# What actually kills the strays is the COMPONENT FILTER: a stray vein is its own connected
+# component with no genuinely dark pixel in it, while a vein inside a rock belongs to the
+# rock's component. Dropping components that contain no dark rock is exact, and destroys
+# nothing — which is what the opening was being over-sized to achieve.
+#
+# A DISK, not scipy's square default: a square structuring element regrows the eroded shape
+# with square corners and studs the silhouette with visible rectangular bumps.
+_r = a.despeckle if a.despeckle is not None else max(2, round(W / 1200))
 _y, _x = np.ogrid[-_r:_r + 1, -_r:_r + 1]
 rock = ndimage.binary_opening(rock, structure=(_x * _x + _y * _y <= _r * _r))
+_lab, _n = ndimage.label(rock, structure=np.ones((3, 3)))
+_dark = lum < THRESH
+_has_dark = np.zeros(_n + 1, bool)
+_has_dark[np.unique(_lab[_dark])] = True
+_has_dark[0] = False
+_dropped = _n - int(_has_dark.sum())
+if _dropped:
+    say(f'dropped {_dropped} component(s) with no dark rock in them (stray veins)')
+rock = _has_dark[_lab]
 rock = ndimage.binary_fill_holes(rock)
+# `rock` and `rock_src` now differ: opening regrows into the background at concave corners
+# and fill closes pockets the rocks enclose between them. Those added pixels are rock as far
+# as the SILHOUETTE is concerned, but the source has background there — so they must take
+# their colour from the bleed, never from the image. Painting them with the image is what put
+# pale grey blobs over the soil where rock should be. `rock` drives alpha; `rock_src` drives
+# colour. See the sprite loop.
+
+# --- crop to the content ------------------------------------------------------
+# The image is mapped into the gap between the entry and goal channels, so any blank margin
+# it carries becomes blank soil at the edge of the level — the map stops short of where the
+# player enters and where the goal is. Crop to the rock's own bounding box and the world is
+# derived from THAT, so the rock always spans the level whatever the model framed.
+_cols, _rows = rock.any(axis=0), rock.any(axis=1)
+if _cols.any():
+    _c0, _c1 = int(np.argmax(_cols)), len(_cols) - int(np.argmax(_cols[::-1]))
+    _r0, _r1 = int(np.argmax(_rows)), len(_rows) - int(np.argmax(_rows[::-1]))
+    if (_c1 - _c0, _r1 - _r0) != (W, H):
+        say(f'cropped to content: {W}x{H} -> {_c1 - _c0}x{_r1 - _r0} '
+              f'(trimmed {100 * (1 - (_c1 - _c0) / W):.1f}% of the width, '
+              f'{100 * (1 - (_r1 - _r0) / H):.1f}% of the height)')
+    rock = rock[_r0:_r1, _c0:_c1]
+    rock_src = rock_src[_r0:_r1, _c0:_c1]
+    rgb_all = rgb_all[_r0:_r1, _c0:_c1]
+    lum = lum[_r0:_r1, _c0:_c1]
+    H, W = rock.shape
 
 # World box. The channels `buildLevel` digs are cols [0, startCols+1) on the left and the
 # last goalCols+1 on the right — that is what the image must NOT overlap. So reserve them,
-# size the remaining gap to the image's aspect, and put the image in it at 1:1 on both
-# axes (nothing stretched, nothing cut). Width lands on a whole number of cells; the height
-# is then derived from the width so the aspect stays exact.
+# fit the image into the remaining gap, and derive the underground HEIGHT from that gap and
+# the image's aspect: 1:1 on both axes, nothing stretched, nothing cut.
+#
+# Driving from WIDTH, not height: cropping to content changes the aspect, and if the height
+# were fixed the width would absorb all of it — a map that lost 30% of its blank height came
+# out a third longer than its neighbours. Fixing the width instead keeps every traced level
+# the same length to cross and lets its DEPTH vary with what the image actually contains.
 chan_w = (a.start_cols + 1 + a.goal_cols + 1) * a.cell
-world_w = round((a.under_height * W / H + chan_w) / a.cell) * a.cell
+world_w = round(a.width / a.cell) * a.cell
 span = world_w - chan_w
 sx = sy = span / W
 under_h = H * sy
@@ -140,7 +224,7 @@ lab, n = ndimage.label(rock, structure=np.ones((3, 3)))
 areas = ndimage.sum(rock, lab, range(1, n + 1))
 keep = [i for i in range(n) if areas[i] >= a.min_area]
 boxes = ndimage.find_objects(lab)
-print(f'{n} blobs, keeping {len(keep)} at >={a.min_area}px^2 '
+say(f'{n} blobs, keeping {len(keep)} at >={a.min_area}px^2 '
       f'({100 * areas[keep].sum() / rock.sum():.1f}% of the rock), '
       f'rock covers {100 * rock.mean():.1f}% of the frame')
 
@@ -164,7 +248,16 @@ def save(im, path):
     else:
         im.save(path, optimize=True)
 
-rgb = np.asarray(img)
+rgb = rgb_all.astype(np.uint8)      # cropped to content above, so it lines up with `lab`
+
+# Which pixels may act as a COLOUR source. `rock_src` is too generous for this: its chroma
+# clause is what rescues the cyan veins, and it also matches the pale bloom the model paints
+# AROUND them — luminance 210+, chromatic, and sitting on the white background. Painting a
+# sprite from those put soft pale lobes over the soil, the same defect as the fill regions
+# but arriving by a different route. Anything this pale is background as far as colour goes;
+# the vein cores themselves sit at ~173 and are kept.
+PAINT_MAX = 190
+paint_src = rock_src & (lum < PAINT_MAX)
 # Bleed WIDE, feather NARROW — they are not the same knob, and tying them together is how
 # a white outline becomes a grey one. The bleed only has to reach far enough that no filter
 # sampling near the edge can find background; nothing of it is visible on its own. The alpha
@@ -193,10 +286,19 @@ for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
         m = m_src                               # too thin to erode; keep it rather than lose it
     crop = rgb[r0:r1, c0:c1]
 
-    # Distance to the blob, and the blob pixel that distance points at — one pass gives
-    # both the feather ramp and the colour to bleed outward.
-    dist, (iy, ix) = ndimage.distance_transform_edt(~m, return_indices=True)
-    t = np.clip(dist / FEATHER, 0, 1)
+    # ALPHA comes from the blob; COLOUR comes from where the source actually had rock.
+    # They are not the same set: opening regrows into the background and fill closes pockets
+    # between rocks, and the image holds pale background at both. Sampling the image there
+    # painted big soft grey blobs over the soil — rock-shaped holes in the map, in the two
+    # themes whose rocks are far from white. So the distance transform runs on `paint`, the
+    # DETECTED rock, and every pixel outside it (including pixels inside the silhouette)
+    # takes a bled colour.
+    paint = m & paint_src[r0:r1, c0:c1]
+    if not paint.any():
+        paint = m                                # all-synthetic blob; nothing better to use
+    dist, (iy, ix) = ndimage.distance_transform_edt(~paint, return_indices=True)
+    edge = ndimage.distance_transform_edt(~m)    # the feather is still measured from the blob
+    t = np.clip(edge / FEATHER, 0, 1)
     fade = 1 - (t * t * (3 - 2 * t))                     # smoothstep: flat at both ends
     alpha = np.where(m, 255.0, 255.0 * fade).astype(np.uint8)
 
@@ -205,9 +307,9 @@ for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
     # visible spokes — a hairy outline instead of a white one. Blurring the bled copy
     # (which is defined everywhere, unlike a masked average) smooths the fan out. The rock
     # itself is never touched; this only fills what alpha is fading away.
-    base = np.where(m[..., None], crop, crop[iy, ix]).astype(np.float32)
+    base = np.where(paint[..., None], crop, crop[iy, ix]).astype(np.float32)
     smooth = ndimage.gaussian_filter(base, sigma=(BLEED / 3, BLEED / 3, 0))
-    colour = np.where(m[..., None], crop, smooth).astype(np.uint8)
+    colour = np.where(paint[..., None], crop, smooth).astype(np.uint8)
     out = np.dstack([colour, alpha])
     key = f'{a.id}R{rank:03d}'
     fname = f'r{rank:03d}.{a.format}'
@@ -218,6 +320,7 @@ for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
     # read as a sprite overhanging a pathClear channel when it is exactly flush with one.
     left = round(x0 + c0 * sx, 1); right = round(x0 + c1 * sx, 1)
     top = round(y0 + r0 * sy, 1); bot = round(y0 + r1 * sy, 1)
+    left = max(left, x0); right = min(right, x0 + span)      # never past a channel
     objects.append({
         't': 'boulder', 'key': key,
         'x': (left + right) / 2, 'y': (top + bot) / 2,
@@ -233,7 +336,7 @@ fill, _ = ndimage.label(open_px, structure=np.array([[0, 1, 0], [1, 1, 1], [0, 1
 entry_labels = set(fill[:, :3].ravel()) - {0}      # the image's own edges now ABUT the channels
 goal_labels = set(fill[:, -3:].ravel()) - {0}
 shared = entry_labels & goal_labels
-print(f'traversable: {"YES" if shared else "NO"} '
+say(f'traversable: {"YES" if shared else "NO"} '
       f'({len(entry_labels)} open region(s) at the entry, {len(goal_labels)} at the goal, '
       f'{len(shared)} shared)')
 
@@ -263,7 +366,7 @@ for k in range(a.food):
         'r': 1, 'energy': ENERGY[kind],
     })
     placed += 1
-print(f'food: {placed}/{a.food} piles placed (clearance >= 2.2 cells)')
+say(f'food: {placed}/{a.food} piles placed (clearance >= 2.2 cells)')
 
 # --- write the level ---------------------------------------------------------
 level = {
@@ -271,7 +374,7 @@ level = {
     'campaignLevel': a.campaign_level,
     'world': {'width': world_w, 'height': round(world_h, 1), 'surfaceY': a.surface_y, 'cellSize': a.cell},
     'layout': {'startCols': a.start_cols, 'goalCols': a.goal_cols, 'summerCols': 7, 'clearChannels': True},
-    'traced': {'image': a.image, 'threshold': a.threshold, 'minArea': a.min_area},
+    'traced': {'image': a.image, 'threshold': THRESH, 'minArea': a.min_area},
     'objects': objects,
 }
 lp = os.path.join(ROOT, 'docs', 'levels', f'{a.id}.json')
@@ -288,5 +391,5 @@ with open(mp, 'w') as f:
     f.write('\n')
 
 kb = sum(os.path.getsize(os.path.join(adir, f)) for f in os.listdir(adir)) / 1024
-print(f'wrote {lp} ({len(objects)} objects), {len(manifest)} sprites in assets/{a.id}/ ({kb:.0f} KB)')
-print('next: node scripts/gen-levels.mjs')
+say(f'wrote {lp} ({len(objects)} objects), {len(manifest)} sprites in assets/{a.id}/ ({kb:.0f} KB)')
+say('next: node scripts/gen-levels.mjs')

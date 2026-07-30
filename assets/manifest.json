@@ -326,193 +326,148 @@
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR001",
-   "file": "scatter-two/r001.webp",
+   "key": "veined-oneR001",
+   "file": "veined-one/r001.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR002",
-   "file": "scatter-two/r002.webp",
+   "key": "veined-oneR002",
+   "file": "veined-one/r002.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR003",
-   "file": "scatter-two/r003.webp",
+   "key": "veined-oneR003",
+   "file": "veined-one/r003.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR004",
-   "file": "scatter-two/r004.webp",
+   "key": "veined-oneR004",
+   "file": "veined-one/r004.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR005",
-   "file": "scatter-two/r005.webp",
+   "key": "veined-oneR005",
+   "file": "veined-one/r005.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR006",
-   "file": "scatter-two/r006.webp",
+   "key": "veined-oneR006",
+   "file": "veined-one/r006.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR007",
-   "file": "scatter-two/r007.webp",
+   "key": "veined-oneR007",
+   "file": "veined-one/r007.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR008",
-   "file": "scatter-two/r008.webp",
+   "key": "veined-oneR008",
+   "file": "veined-one/r008.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR009",
-   "file": "scatter-two/r009.webp",
+   "key": "veined-oneR009",
+   "file": "veined-one/r009.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR010",
-   "file": "scatter-two/r010.webp",
+   "key": "veined-oneR010",
+   "file": "veined-one/r010.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR011",
-   "file": "scatter-two/r011.webp",
+   "key": "veined-oneR011",
+   "file": "veined-one/r011.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR012",
-   "file": "scatter-two/r012.webp",
+   "key": "veined-oneR012",
+   "file": "veined-one/r012.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR013",
-   "file": "scatter-two/r013.webp",
+   "key": "veined-oneR013",
+   "file": "veined-one/r013.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR014",
-   "file": "scatter-two/r014.webp",
+   "key": "veined-oneR014",
+   "file": "veined-one/r014.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR015",
-   "file": "scatter-two/r015.webp",
+   "key": "veined-oneR015",
+   "file": "veined-one/r015.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR016",
-   "file": "scatter-two/r016.webp",
+   "key": "veined-oneR016",
+   "file": "veined-one/r016.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR017",
-   "file": "scatter-two/r017.webp",
+   "key": "veined-oneR017",
+   "file": "veined-one/r017.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR018",
-   "file": "scatter-two/r018.webp",
+   "key": "veined-oneR018",
+   "file": "veined-one/r018.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR019",
-   "file": "scatter-two/r019.webp",
+   "key": "veined-oneR019",
+   "file": "veined-one/r019.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR020",
-   "file": "scatter-two/r020.webp",
+   "key": "veined-oneR020",
+   "file": "veined-one/r020.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR021",
-   "file": "scatter-two/r021.webp",
+   "key": "veined-oneR021",
+   "file": "veined-one/r021.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR022",
-   "file": "scatter-two/r022.webp",
+   "key": "veined-oneR022",
+   "file": "veined-one/r022.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR023",
-   "file": "scatter-two/r023.webp",
+   "key": "veined-oneR023",
+   "file": "veined-one/r023.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR024",
-   "file": "scatter-two/r024.webp",
+   "key": "veined-oneR024",
+   "file": "veined-one/r024.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR025",
-   "file": "scatter-two/r025.webp",
+   "key": "veined-oneR025",
+   "file": "veined-one/r025.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR026",
-   "file": "scatter-two/r026.webp",
+   "key": "veined-oneR026",
+   "file": "veined-one/r026.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR027",
-   "file": "scatter-two/r027.webp",
+   "key": "veined-oneR027",
+   "file": "veined-one/r027.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR028",
-   "file": "scatter-two/r028.webp",
+   "key": "veined-oneR028",
+   "file": "veined-one/r028.webp",
    "kind": "sprite"
   },
   {
-   "key": "scatter-twoR029",
-   "file": "scatter-two/r029.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-twoR030",
-   "file": "scatter-two/r030.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-twoR031",
-   "file": "scatter-two/r031.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-twoR032",
-   "file": "scatter-two/r032.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-twoR033",
-   "file": "scatter-two/r033.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-twoR034",
-   "file": "scatter-two/r034.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-twoR035",
-   "file": "scatter-two/r035.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-twoR036",
-   "file": "scatter-two/r036.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-twoR037",
-   "file": "scatter-two/r037.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-twoR038",
-   "file": "scatter-two/r038.webp",
+   "key": "veined-oneR029",
+   "file": "veined-one/r029.webp",
    "kind": "sprite"
   },
   {
@@ -901,188 +856,8 @@
    "kind": "sprite"
   },
   {
-   "key": "veined-oneR001",
-   "file": "veined-one/r001.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR002",
-   "file": "veined-one/r002.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR003",
-   "file": "veined-one/r003.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR004",
-   "file": "veined-one/r004.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR005",
-   "file": "veined-one/r005.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR006",
-   "file": "veined-one/r006.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR007",
-   "file": "veined-one/r007.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR008",
-   "file": "veined-one/r008.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR009",
-   "file": "veined-one/r009.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR010",
-   "file": "veined-one/r010.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR011",
-   "file": "veined-one/r011.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR012",
-   "file": "veined-one/r012.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR013",
-   "file": "veined-one/r013.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR014",
-   "file": "veined-one/r014.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR015",
-   "file": "veined-one/r015.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR016",
-   "file": "veined-one/r016.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR017",
-   "file": "veined-one/r017.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR018",
-   "file": "veined-one/r018.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR019",
-   "file": "veined-one/r019.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR020",
-   "file": "veined-one/r020.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR021",
-   "file": "veined-one/r021.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR022",
-   "file": "veined-one/r022.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR023",
-   "file": "veined-one/r023.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR024",
-   "file": "veined-one/r024.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR025",
-   "file": "veined-one/r025.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR026",
-   "file": "veined-one/r026.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR027",
-   "file": "veined-one/r027.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR028",
-   "file": "veined-one/r028.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "veined-oneR029",
-   "file": "veined-one/r029.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "ledges-oneR001",
-   "file": "ledges-one/r001.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "ledges-oneR002",
-   "file": "ledges-one/r002.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "ledges-oneR003",
-   "file": "ledges-one/r003.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "ledges-oneR004",
-   "file": "ledges-one/r004.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "ledges-oneR005",
-   "file": "ledges-one/r005.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "ledges-oneR006",
-   "file": "ledges-one/r006.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "ledges-oneR007",
-   "file": "ledges-one/r007.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "ledges-oneR008",
-   "file": "ledges-one/r008.webp",
+   "key": "maze-oneR078",
+   "file": "maze-one/r078.webp",
    "kind": "sprite"
   },
   {
@@ -1208,6 +983,241 @@
   {
    "key": "scatter-oneR025",
    "file": "scatter-one/r025.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR026",
+   "file": "scatter-one/r026.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR027",
+   "file": "scatter-one/r027.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR001",
+   "file": "scatter-two/r001.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR002",
+   "file": "scatter-two/r002.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR003",
+   "file": "scatter-two/r003.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR004",
+   "file": "scatter-two/r004.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR005",
+   "file": "scatter-two/r005.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR006",
+   "file": "scatter-two/r006.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR007",
+   "file": "scatter-two/r007.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR008",
+   "file": "scatter-two/r008.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR009",
+   "file": "scatter-two/r009.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR010",
+   "file": "scatter-two/r010.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR011",
+   "file": "scatter-two/r011.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR012",
+   "file": "scatter-two/r012.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR013",
+   "file": "scatter-two/r013.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR014",
+   "file": "scatter-two/r014.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR015",
+   "file": "scatter-two/r015.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR016",
+   "file": "scatter-two/r016.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR017",
+   "file": "scatter-two/r017.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR018",
+   "file": "scatter-two/r018.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR019",
+   "file": "scatter-two/r019.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR020",
+   "file": "scatter-two/r020.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR021",
+   "file": "scatter-two/r021.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR022",
+   "file": "scatter-two/r022.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR023",
+   "file": "scatter-two/r023.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR024",
+   "file": "scatter-two/r024.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR025",
+   "file": "scatter-two/r025.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR026",
+   "file": "scatter-two/r026.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR027",
+   "file": "scatter-two/r027.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR028",
+   "file": "scatter-two/r028.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR029",
+   "file": "scatter-two/r029.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR030",
+   "file": "scatter-two/r030.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR031",
+   "file": "scatter-two/r031.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR032",
+   "file": "scatter-two/r032.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR033",
+   "file": "scatter-two/r033.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR034",
+   "file": "scatter-two/r034.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR035",
+   "file": "scatter-two/r035.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR036",
+   "file": "scatter-two/r036.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR037",
+   "file": "scatter-two/r037.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-twoR038",
+   "file": "scatter-two/r038.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR001",
+   "file": "ledges-one/r001.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR002",
+   "file": "ledges-one/r002.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR003",
+   "file": "ledges-one/r003.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR004",
+   "file": "ledges-one/r004.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR005",
+   "file": "ledges-one/r005.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR006",
+   "file": "ledges-one/r006.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR007",
+   "file": "ledges-one/r007.webp",
    "kind": "sprite"
   }
  ]
