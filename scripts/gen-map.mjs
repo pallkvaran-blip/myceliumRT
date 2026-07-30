@@ -134,6 +134,22 @@ const THEMES = {
       'anywhere inside a mass, and no white highlight, sheen or rim along any edge. No snow, ' +
       'no frost, no mist, no icicles, no water.',
   },
+  // The pale counterpart to `ice`, and the reason trace-map.py learned to detect background
+  // polarity: white ice on a white ground is not a hard threshold, it is no threshold. On
+  // black it is trivial. Same idea would give bone, salt or chalk.
+  glacier: {
+    bg: 'black',
+    rock:
+      'solid masses of pale glacier ice — near-white, faintly blue-white, bright and clean, ' +
+      'angular and fractured, with thin pale-blue crack lines running through them',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow, no ' +
+      'bloom, no sparkle, no glint. Three tones only — near-white blue-white ice, faint ' +
+      'pale-blue cracks inside it, and the pure black background. The ice must read clearly ' +
+      'BRIGHT against the black: nothing dark, nothing grey and nothing near-black anywhere ' +
+      'inside a mass, and no dark rim, outline or shading along any edge. No snow drifts, no ' +
+      'frost, no mist, no icicles, no water, no stars.',
+  },
   veined: {
     rock:
       'solid near-black basalt masses, each one shot through with a few narrow bright ' +
@@ -148,12 +164,12 @@ const THEMES = {
 };
 
 const SIL_HEAD = (theme) =>
-  `A flat diagram: ${THEMES[theme].rock} on a pure white background. Wide ` +
+  `A flat diagram: ${THEMES[theme].rock} on a pure {BG} background. Wide ` +
   'horizontal composition, flat orthographic side elevation, straight-on, no perspective ' +
   'and no isometric tilt. ';
 
 const SIL_TAIL = (theme) =>
-  ' The background is pure flat white everywhere, edge to edge, including all four edges and ' +
+  ' The background is pure flat {BG} everywhere, edge to edge, including all four edges and ' +
   'every corner. Do NOT draw a cave, a cavern, an enclosing wall, a rock border around the ' +
   'frame, a ceiling, a floor, or a horizon. The rocks are spread over the ENTIRE frame: ' +
   'they reach the left and right edges, they reach the top and bottom edges, and there is ' +
@@ -171,14 +187,14 @@ const FORMS = {
   // "…and smaller lumps" used to be in here, and it is where the confetti of little rocks
   // came from — the tail bans gravel and speckles, but this clause was asking for exactly
   // the thing one clause later. Every mass is now LARGE and comparable in size, and the gap
-  // around each one is stated as a rule rather than left to "wide white gaps".
+  // around each one is stated as a rule rather than left to "wide {BG} gaps".
   scatter:
     'About {N} SEPARATE irregular rock masses — angular and cracked, a mix of big jagged ' +
     'blocks and long horizontal slabs, ALL of them large and roughly comparable in size, ' +
     'with no small rocks, lumps, chips or fragments anywhere among them — spread evenly ' +
     'across the whole frame at different heights, each one clearly detached from every ' +
-    'other, with an open white gap around every mass at least half as wide as the mass ' +
-    'itself, and winding white channels running between them from the left side to the ' +
+    'other, with an open {BG} gap around every mass at least half as wide as the mass ' +
+    'itself, and winding {BG} channels running between them from the left side to the ' +
     'right side. NO single mass is wider than about a tenth of the frame width or taller ' +
     'than a third of its height — this is MANY MODEST masses covering the whole frame, ' +
     'never a few huge ones.',
@@ -195,7 +211,7 @@ const FORMS = {
     'separate from every other, scattered across the FULL height and width of the frame — ' +
     'some near the top, some through the middle, some near the bottom — with open white ' +
     'space on ALL sides of each slab, above it as well as below it, and offset left and ' +
-    'right so the white gaps between them form winding open lanes running from the left ' +
+    'right so the {BG} gaps between them form winding open lanes running from the left ' +
     'side to the right side. Do NOT stack them into a heap, a pile, a pyramid, a staircase ' +
     'or a wall. They are embedded at different depths, not resting on the ground, and none ' +
     'of them touch.',
@@ -203,19 +219,19 @@ const FORMS = {
   chokes:
     'About {N} VERY LARGE angular rock masses, each one tall enough to fill most of the ' +
     'frame height, standing well apart from one another like the piers of a bridge, separated ' +
-    'by NARROW white gaps just wide enough to squeeze through, and two or three smaller ' +
+    'by NARROW {BG} gaps just wide enough to squeeze through, and two or three smaller ' +
     'angular lumps sitting in those gaps and partly blocking them.',
 
   pillars:
     'About {N} TALL VERTICAL rock pillars of varying heights and thicknesses, some ' +
     'hanging down from the top of the frame and some rising from the bottom, alternating so ' +
-    'the white space between them zigzags across the frame, with a few short angular lumps ' +
+    'the {BG} space between them zigzags across the frame, with a few short angular lumps ' +
     'scattered between the pillars.',
 
   maze:
     'About {N} interlocking angular rock masses of mixed sizes packed close together across the ' +
-    'entire frame, leaving only NARROW winding white corridors between them — a dense ' +
-    'labyrinth of black shapes and thin white passages, the corridors joining up so there is ' +
+    'entire frame, leaving only NARROW winding {BG} corridors between them — a dense ' +
+    'labyrinth of black shapes and thin {BG} passages, the corridors joining up so there is ' +
     'always a continuous way through from the left side to the right side.',
 };
 
@@ -239,7 +255,8 @@ const PROMPTS = {
 const COUNTS = { scatter: 17, ledges: 10, chokes: 6, pillars: 12, maze: 30 };
 
 const withCount = (form, n, theme) =>
-  SIL_HEAD(theme) + FORMS[form].replace('{N}', String(n != null ? n : COUNTS[form])) + SIL_TAIL(theme);
+  (SIL_HEAD(theme) + FORMS[form].replace('{N}', String(n != null ? n : COUNTS[form])) + SIL_TAIL(theme))
+    .replace(/\{BG\}/g, THEMES[theme].bg || 'white');
 
 // --- args --------------------------------------------------------------------
 const argv = process.argv.slice(2);

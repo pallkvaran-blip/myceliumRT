@@ -90,6 +90,8 @@ ap.add_argument('--id', required=True, help='level id — boots as #level,<id>')
 ap.add_argument('--name', required=True)
 ap.add_argument('--threshold', type=int, default=None,
                 help='rock/background luminance cut; default is chosen per image (Otsu)')
+ap.add_argument('--invert', choices=('auto', 'yes', 'no'), default='auto',
+                help='is the background DARK and the rock light? auto reads the image border')
 ap.add_argument('--despeckle', type=int, default=None,
                 help='opening radius in source px; default scales with the image (W/1200)')
 ap.add_argument('--min-area', type=int, default=600, help='image px^2; below this is gravel')
@@ -115,6 +117,30 @@ img = Image.open(os.path.join(ROOT, a.image)).convert('RGB')
 W, H = img.size
 rgb_all = np.asarray(img).astype(np.int16)
 lum = np.asarray(img.convert('L')).astype(np.int16)
+
+# WHICH END IS BACKGROUND. Everything below assumes background is the BRIGHT end and rock the
+# dark one — the Otsu cut, the anti-aliased ring the trim removes, the "not pale" test on the
+# colour source. That holds for every theme drawn on white, and inverts wholesale for a theme
+# drawn on BLACK, which is the only way to get a pale subject: white ice on white background
+# is not a thresholding problem, it is an absence of one.
+#
+# So detect the polarity from the image border (after the content crop the border is
+# background by construction) and, if it is dark, invert the DETECTION channels only. Colour
+# still comes from the untouched image. Inverting the RGB leaves chroma unchanged — max-min
+# is invariant — so the "chromatic and not near-white" rescue becomes "chromatic and not
+# near-black" for free, which is exactly what it should mean on a dark ground.
+# Detected from the EXTREMES of the histogram, not from the image border. The border is the
+# obvious place to look and it is wrong: the prompts now demand the rocks reach all four
+# edges, so a dense map's border is mostly rock. ice-scatter-c40 read as a dark background on
+# a border median of 96 and then classified 100% of the frame as rock. The background is
+# always a flat extreme — near-white or near-black — and whichever extreme is more common is
+# it. On that map: 21% near-white against 0% near-black.
+_white = int((lum >= 240).sum()); _black = int((lum <= 15).sum())
+INVERT = (_black > _white) if a.invert == 'auto' else (a.invert == 'yes')
+say(f'background: {"dark (inverting detection)" if INVERT else "light"} — '
+    f'{100 * _white / lum.size:.0f}% near-white vs {100 * _black / lum.size:.0f}% near-black')
+rgb_det = (255 - rgb_all) if INVERT else rgb_all
+lum = (255 - lum) if INVERT else lum
 
 # Rock is anything dark — PLUS anything strongly coloured that isn't near-white. The second
 # clause is for the `veined` theme, whose mint-cyan mineral veins sit at luminance ~173: a
@@ -143,8 +169,8 @@ THRESH = a.threshold if a.threshold is not None else min(210, max(120, _otsu(lum
 if a.threshold is None:
     say(f'threshold: {THRESH} (Otsu)')
 
-chroma = rgb_all.max(axis=2) - rgb_all.min(axis=2)
-rock_src = (lum < THRESH) | ((chroma > 40) & (rgb_all.min(axis=2) < 200))
+chroma = rgb_det.max(axis=2) - rgb_det.min(axis=2)
+rock_src = (lum < THRESH) | ((chroma > 40) & (rgb_det.min(axis=2) < 200))
 rock = rock_src.copy()
 
 # Then open, drop the vein-only components, and fill.
@@ -198,6 +224,7 @@ if _cols.any():
     rock = rock[_r0:_r1, _c0:_c1]
     rock_src = rock_src[_r0:_r1, _c0:_c1]
     rgb_all = rgb_all[_r0:_r1, _c0:_c1]
+    rgb_det = rgb_det[_r0:_r1, _c0:_c1]
     lum = lum[_r0:_r1, _c0:_c1]
     H, W = rock.shape
 

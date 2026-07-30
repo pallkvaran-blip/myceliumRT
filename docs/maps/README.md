@@ -172,8 +172,28 @@ of the blue pixels are detected as rock** in all three.
 | `ice-scatter-c20-1` | **Good.** Separated masses, generous gaps, 47% solid — the open counterpart to c40. |
 | `ice-scatter-c70-1` | **No.** A glacier field receding to a horizon with an empty top — the landscape failure, which high counts keep inviting. |
 
-If genuinely *pale* white-blue ice is ever wanted, the answer is not a prompt: it is a black
-background plus an `--invert` in `trace-map.py`. That would also open up bone, salt and chalk.
+## `glacier` — the same idea on a black ground
+
+Pale white ice on a white background is not a hard threshold, it is *no* threshold. So the
+`glacier` theme sets `bg: 'black'` and the tracer works out the polarity for itself. Both
+rolls came out as the postcard glacier look, and the tracer reads 100% of the visible ice.
+
+| image | verdict |
+| --- | --- |
+| `glacier-scatter-c20-1` | Large pale floes with black channels between them; a couple of thin blue melt-lines. |
+| `glacier-scatter-c40-1` | Smaller floes, more of them, wider channels — the open counterpart. |
+
+Both leave an empty black band top and bottom, which the tracer's content crop removes.
+
+**Detecting the polarity is the interesting part, and my first attempt was wrong.** Sampling
+the image BORDER is the obvious approach and it fails on exactly the maps we now ask for:
+the prompts demand the rocks reach all four edges, so a dense map's border is mostly rock.
+`ice-scatter-c40` has a border median of 96, read as a dark background, and classified 100%
+of the frame as rock. The background is always a flat *extreme*, so compare the histogram
+ends instead — near-white pixels against near-black — and take the larger. That gets all
+seven maps right, from 0.0% near-black on the ice sheet to 58% on the glacier.
+
+The same trick gives bone, salt or chalk whenever they're wanted.
 
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
