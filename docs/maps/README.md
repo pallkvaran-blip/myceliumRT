@@ -48,6 +48,32 @@ Across all of them, three things the prompt has not been able to kill:
 3. **Edge contact.** Rocks reach the left and right edges, which is where the player enters and
    where the goal is. Cheap to fix at trace time; not worth more prompt tokens.
 
+## The `ledges` count sweep
+
+`node scripts/gen-map.mjs ledges --counts 5,9,14,20,28` — five images, one per rock count,
+named `ledges-c<count>-<roll>`. Run twice, because the first round found a prompt bug.
+
+**Round 1 (`-1`) is the bug.** At every count from 5 to 28 the model piled the slabs into a
+heap resting on the floor with empty white above — a level with a free highway across the
+top. The count only changed how big the heap was. Cause: v1 of the prompt asked for "a
+staircase of open channels", and it drew a staircase. Kept as `ledges-c*-1.webp` because the
+failure is the useful part.
+
+**Round 2 (`-2`)** bans heap/pile/pyramid/staircase/wall and demands white space above *and*
+below every slab. Better, but the form is still unreliable — it wants to be a landscape:
+
+| image | verdict |
+| --- | --- |
+| `ledges-c5-2` | **No.** The cavern is back: big masses walling the left and right, void between. Five slabs is too few to read as anything but scenery. |
+| `ledges-c9-2` | **Best of the ten.** Separate flat slabs spread over the frame with generous lanes between them. Slight 3/4 tilt, which the tracer doesn't care about. |
+| `ledges-c14-2` | **No.** Drifted into a landscape with a horizon and receding perspective, despite the tail banning both. |
+| `ledges-c20-2` | **Usable.** Well-separated slabs, wide gaps; a large empty patch right of centre. |
+| `ledges-c28-2` | **No.** Dense, but in perspective — the top third is a distant band that would trace as one solid wall. |
+
+So `ledges` converts at about 2/5 against `scatter`'s 3/3. It is not a reliable form yet, and
+the failures are not random: too few slabs → scenery, too many → landscape. **Nine to twenty
+is the window.**
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

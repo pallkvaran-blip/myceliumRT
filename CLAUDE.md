@@ -228,8 +228,8 @@ short version:
 (`#level,maze-one`) is the first one through the pipeline.
 
 ```bash
-REPLICATE_API_TOKEN=… node scripts/gen-map.mjs scatter --n 4         # or: maze
-REPLICATE_API_TOKEN=… node scripts/upscale-map.mjs docs/maps/maze-1.png   # -> maze-1@4x.png
+REPLICATE_API_TOKEN=… node scripts/gen-map.mjs scatter --counts 9,14,20   # or: maze, ledges
+REPLICATE_API_TOKEN=… node scripts/upscale-map.mjs docs/maps/maze-1.webp  # -> maze-1@4x.webp
 python3 scripts/trace-map.py 'docs/maps/maze-1@4x.png' --id maze-one --name "Maze One" --min-area 9600
 node scripts/gen-levels.mjs && node tests/run.mjs traced
 ```
@@ -249,8 +249,9 @@ downsamples every sprite to 160px on its long side, so all of this is purely wha
 player sees.
 
 **The prompt is the asset.** Two forms are owner-approved — `scatter` (loose masses,
-generous channels) and `maze` (dense, tight channels); `ledges`, `chokes` and `pillars`
-were rejected. They share a fixed head and tail in `gen-map.mjs`, and **every clause in
+generous channels) and `maze` (dense, tight channels). `ledges` is being retried and
+converts at about 2 images in 5 (its window is ~9-20 rocks: fewer reads as scenery, more
+drifts into a landscape in perspective); `chokes` and `pillars` were rejected. They share a fixed head and tail in `gen-map.mjs`, and **every clause in
 those is load-bearing** — each one is there because dropping it brought a failure back:
 
 - Never the word **cave**: it produces an enclosed cavern sealing all four edges, with

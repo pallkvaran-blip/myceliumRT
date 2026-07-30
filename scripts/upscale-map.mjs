@@ -40,12 +40,13 @@ const MODEL = flag('model', 'nightmareai/real-esrgan');
 
 const srcPath = join(ROOT, src);
 const b64 = readFileSync(srcPath).toString('base64');
+const mime = extname(src).toLowerCase() === '.webp' ? 'image/webp' : 'image/png';
 // The image goes up as a data URI, which for a 1.2 MB PNG is ~1.6 MB of base64 — well past
 // the argv limit, so the body goes through a temp file (`curl -d @file`) rather than an
 // argument. Passing it inline fails with E2BIG, which reads like a curl bug and isn't one.
 const bodyFile = join(tmpdir(), `upscale-${process.pid}.json`);
 writeFileSync(bodyFile, JSON.stringify({
-  input: { image: `data:image/png;base64,${b64}`, scale: SCALE, face_enhance: false },
+  input: { image: `data:${mime};base64,${b64}`, scale: SCALE, face_enhance: false },
 }));
 
 const curl = (args) => execFileSync('curl', ['-sS', ...args], { maxBuffer: 512 * 1024 * 1024 });

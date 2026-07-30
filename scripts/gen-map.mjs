@@ -8,10 +8,14 @@
 //   style      scatter | ledges | chokes | pillars | maze  — the traceable two-tone mask, one
 //              composition each (see FORMS); or `art`, the same map in the game's palette,
 //              which is pretty and completely untraceable. `silhouette` aliases `scatter`.
-//   --n        how many to generate (default 1); each gets the next free filename
+//   --count    how many rock masses to ask for (default per form, see COUNTS)
+//   --counts   sweep it: `--counts 5,9,14,20,28` makes one image per value, named for it
+//   --n        how many to generate per count (default 1); each gets the next free filename
 //   --seed     fixed seed — same seed + same prompt returns the same image. With --n, seeds
 //              run s, s+1, s+2… Omit for a fresh roll every time.
-//   --out      base filename, default <style>-<n>; written to docs/maps/<out>.png
+//   --out      base filename, default <style>-c<count>-<n>; written to docs/maps/<out>.webp
+//             (WebP, not PNG: a 5-image sweep is 7 MB of PNG and 0.9 MB of WebP, and these
+//              are reference images for judging composition — only the @4x upscale is traced)
 //   --model    default black-forest-labs/flux-1.1-pro (use flux-schnell for cheap drafts)
 //   --aspect   default "custom" + --width/--height. The world's UNDERGROUND box is
 //              2600 × (1500-380) = 2600×1120, i.e. 2.32:1 — FLUX's aspect_ratio enum has
@@ -85,32 +89,43 @@ const SIL_TAIL =
 // unplayable — see tests/level-check.cjs, which flood-fills the real mask to prove it.
 const FORMS = {
   scatter:
-    'Fifteen to twenty SEPARATE irregular boulders and slabs — angular cracked slate, a mix ' +
+    'About {N} SEPARATE irregular boulders and slabs — angular cracked slate, a mix ' +
     'of large jagged masses, long horizontal ledges and smaller lumps — spread evenly across ' +
     'the whole frame at different heights, each one clearly detached from the others, with ' +
     'wide white gaps and winding white channels running between them from the left side to ' +
     'the right side.',
 
+  // v1 said "stacked at different heights like shelves ... a staircase of open channels"
+  // and the model took the staircase literally: at every count from 5 to 28 it piled the
+  // slabs into a heap resting on the floor with empty sky above — which as a level is a
+  // free highway across the top. Sweeping the count only changed how big the heap was. So
+  // the wording now attacks the pile directly: full height, space above AND below each
+  // slab, and an explicit ban on heap/pile/pyramid/staircase/wall. "Staircase" was doing
+  // real damage; don't put it back.
   ledges:
-    'Eight to twelve LONG HORIZONTAL SLABS stacked at different heights like shelves, each ' +
-    'slab wide and flat and clearly detached from the others, offset left and right so the ' +
-    'white gaps between them form a staircase of open channels stepping down from the upper ' +
-    'left to the lower right, with a few smaller angular lumps resting between them.',
+    'About {N} LONG HORIZONTAL SLABS of rock, each one wide and flat and completely ' +
+    'separate from every other, scattered across the FULL height and width of the frame — ' +
+    'some near the top, some through the middle, some near the bottom — with open white ' +
+    'space on ALL sides of each slab, above it as well as below it, and offset left and ' +
+    'right so the white gaps between them form winding open lanes running from the left ' +
+    'side to the right side. Do NOT stack them into a heap, a pile, a pyramid, a staircase ' +
+    'or a wall. They are embedded at different depths, not resting on the ground, and none ' +
+    'of them touch.',
 
   chokes:
-    'Five or six VERY LARGE angular rock masses, each one tall enough to fill most of the ' +
+    'About {N} VERY LARGE angular rock masses, each one tall enough to fill most of the ' +
     'frame height, standing well apart from one another like the piers of a bridge, separated ' +
     'by NARROW white gaps just wide enough to squeeze through, and two or three smaller ' +
     'angular lumps sitting in those gaps and partly blocking them.',
 
   pillars:
-    'Nine to fourteen TALL VERTICAL rock pillars of varying heights and thicknesses, some ' +
+    'About {N} TALL VERTICAL rock pillars of varying heights and thicknesses, some ' +
     'hanging down from the top of the frame and some rising from the bottom, alternating so ' +
     'the white space between them zigzags across the frame, with a few short angular lumps ' +
     'scattered between the pillars.',
 
   maze:
-    'Many interlocking angular rock masses of mixed sizes packed close together across the ' +
+    'About {N} interlocking angular rock masses of mixed sizes packed close together across the ' +
     'entire frame, leaving only NARROW winding white corridors between them — a dense ' +
     'labyrinth of black shapes and thin white passages, the corridors joining up so there is ' +
     'always a continuous way through from the left side to the right side.',
@@ -129,20 +144,35 @@ const PROMPTS = {
     'bloom, a few faint mint-cyan bioluminescent specks in the soil. No sky, no surface ' +
     'line, no plants, no roots, no mushrooms, no creatures, no text, no border.',
 };
-for (const form in FORMS) PROMPTS[form] = SIL_HEAD + FORMS[form] + SIL_TAIL;
-PROMPTS.silhouette = PROMPTS.scatter;   // what docs/maps/silhouette-*.png were generated as
+// How many rock masses each form asks for by default — what the images already in
+// docs/maps were generated with. `--count` overrides it; sweeping the count is how you
+// find a form's playable density, since it maps almost directly onto how open the traced
+// level is (maze-1's ~20 gave 44.5% solid, scatter-1's ~17 gave 38.8%).
+const COUNTS = { scatter: 17, ledges: 10, chokes: 6, pillars: 12, maze: 30 };
+
+const withCount = (form, n) =>
+  SIL_HEAD + FORMS[form].replace('{N}', String(n != null ? n : COUNTS[form])) + SIL_TAIL;
 
 // --- args --------------------------------------------------------------------
 const argv = process.argv.slice(2);
-const style = argv.find((a) => !a.startsWith('--')) || 'silhouette';
+const style = argv.find((a) => !a.startsWith('--')) || 'scatter';
 const flag = (name, dflt) => {
   const i = argv.indexOf(`--${name}`);
   return i >= 0 && argv[i + 1] ? argv[i + 1] : dflt;
 };
-if (!PROMPTS[style]) {
-  console.error(`unknown style "${style}" — one of: ${Object.keys(PROMPTS).join(', ')}`);
+const isForm = Object.prototype.hasOwnProperty.call(FORMS, style) || style === 'silhouette';
+if (!isForm && style !== 'art') {
+  console.error(`unknown style "${style}" — one of: ${Object.keys(FORMS).join(', ')}, art`);
   process.exit(1);
 }
+// `--counts 5,9,14` sweeps the rock count, one image each — the fastest way to see how
+// open or closed a form gets. `--count N` is the single-value form. Either overrides the
+// per-form default in COUNTS.
+const SWEEP = flag('counts', null);
+const COUNTS_LIST = SWEEP ? SWEEP.split(',').map((s) => Number(s.trim())).filter(Boolean)
+  : [flag('count', null) != null ? Number(flag('count')) : null];
+const promptFor = (n) => (style === 'art' ? PROMPTS.art
+  : withCount(style === 'silhouette' ? 'scatter' : style, n));
 const MODEL = flag('model', 'black-forest-labs/flux-1.1-pro');
 const ASPECT = flag('aspect', 'custom');
 const WIDTH = Number(flag('width', 1440));
@@ -159,10 +189,8 @@ const SEED = flag('seed', null);   // same seed + same prompt = the same image b
 
 const curl = (args) => execFileSync('curl', ['-sS', ...args], { maxBuffer: 64 * 1024 * 1024 });
 
-function generate(seed) {
-  const input = {
-    prompt: PROMPTS[style], aspect_ratio: ASPECT, output_format: 'png', safety_tolerance: 5,
-  };
+function generate(seed, prompt) {
+  const input = { prompt, aspect_ratio: ASPECT, output_format: 'webp', safety_tolerance: 5 };
   if (ASPECT === 'custom') { input.width = WIDTH; input.height = HEIGHT; }
   if (seed != null) input.seed = Number(seed);
   const body = JSON.stringify({ input });
@@ -199,15 +227,24 @@ function generate(seed) {
 mkdirSync(OUTDIR, { recursive: true });
 const size = ASPECT === 'custom' ? `${WIDTH}x${HEIGHT}` : ASPECT;
 
-for (let i = 0; i < COUNT; i++) {
-  let out = COUNT === 1 ? OUTNAME : OUTNAME && `${OUTNAME}-${i + 1}`;
-  if (!out) {
-    let n = 1;
-    while (existsSync(join(OUTDIR, `${style}-${n}.png`))) n++;
-    out = `${style}-${n}`;
+// One image per (rock count × --n). Files are named for the count when sweeping, so the
+// filename says what it asked for — `ledges-c14-1.png` rather than a bare index nobody can
+// map back to a prompt afterwards.
+let made = 0;
+for (const rocks of COUNTS_LIST) {
+  for (let i = 0; i < COUNT; i++) {
+    const tag = rocks != null ? `${style}-c${rocks}` : style;
+    let out = OUTNAME ? (COUNT === 1 && COUNTS_LIST.length === 1 ? OUTNAME : `${OUTNAME}-${made + 1}`) : null;
+    if (!out) {
+      let n = 1;
+      while (existsSync(join(OUTDIR, `${tag}-${n}.webp`))) n++;
+      out = `${tag}-${n}`;
+    }
+    const png = generate(SEED == null ? null : Number(SEED) + made, promptFor(rocks));
+    const path = join(OUTDIR, `${out}.webp`);
+    writeFileSync(path, png);
+    made++;
+    console.log(`wrote ${path} (${(png.length / 1024).toFixed(0)} KB) — ${MODEL}, ${size}`
+      + (rocks != null ? `, ~${rocks} rocks` : ''));
   }
-  const png = generate(SEED == null ? null : Number(SEED) + i);
-  const path = join(OUTDIR, `${out}.png`);
-  writeFileSync(path, png);
-  console.log(`wrote ${path} (${(png.length / 1024).toFixed(0)} KB) — ${MODEL}, ${size}`);
 }
