@@ -32,6 +32,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `hover-check.cjs` | Hovering a card isn't destroyed by the 2 Hz HUD refresh |
 | `boot-check.cjs` | Every boot hash comes up clean, in the right mode |
 | `hs-check.cjs` | High scores: a ladder per mode, one table, tabs, turn-based default |
+| `level-check.cjs` | The authored map "Three Ways Up": three lanes sealed + traversable, threats per lane |
 | `turn-play.cjs` | 120 turn-based actions: each advances the world exactly one step |
 | `aim-check.cjs` | The forgiving grow-aim radius, pressed repeatedly |
 | `fixes-check.cjs` | Surface-only win, no unprompted pile claims, SURVIVAL placement, dots vs bars |
@@ -56,7 +57,13 @@ Copy the top of any existing check: a `http.createServer` rooted at the repo, `c
 click past `#loadscreen`, wait for `window.__game`, dismiss `#levelIntro`. Then:
 
 - Boot hashes are comma-separated — `#dev` skips the picker, `#dev,turn` does the same in
-  turn-based mode. `#puzzle`, `#notrich`, `#tutorial` also work.
+  turn-based mode. `#puzzle`, `#notrich`, `#tutorial` also work, and `#level,<id>` boots a
+  hand-authored map from `docs/levels/` (`#level,three-ways`).
+- **The level intro appears a beat AFTER `__game.state` does.** Clicking once and then testing
+  for `#levelIntro` exits the loop before it exists, and every later click is swallowed by the
+  overlay — wait for the selector first. It also holds the real-time clock, which is useful:
+  read a fresh map's threat positions before dismissing it and nothing has moved yet
+  (`level-check` does exactly this).
 - **Disable the score backend if the test could write one:**
   `page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; })`.
 - `__game.play()` and `resolveCardOp` return nothing — assert on state, not a return value.

@@ -14,6 +14,8 @@ See README.md for the player/config-facing description; this file is the stuff t
 - Comments carry the *why*, densely, and often record what was tried and failed. Match that —
   a bare restatement of the code is worse than nothing here.
 - `docs/card-review.html` is GENERATED: `node scripts/gen-card-review.mjs`. Don't hand-edit it.
+- The `LEVELS` array in `__m_levels_data` is GENERATED too: `node scripts/gen-levels.mjs` splices
+  `docs/levels/*.json` into it (`--check` fails if it's stale). See "Authored maps" below.
 - Card data (`CARD_DATA`) is embedded **JSON**, not JS literals — grep for `"effect":`, not
   `effect:`. It was generated upstream from `docs/cards.json`, so card text is written in *rounds*
   and rewritten at DISPLAY time (`timeify`) rather than edited in place.
@@ -104,7 +106,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~460 assertions across 14 checks. **Run them; don't verify by re-reading your own diff.**
+~490 assertions across 15 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
@@ -124,7 +126,8 @@ Two things about running them:
   of turns has been lost to re-reading a buffered file.)
 
 Boot hashes are a comma-separated list — first token is the destination, rest are flags:
-`#dev` (skip the picker), `#dev,turn` (same, turn-based), `#puzzle`, `#notrich`, `#tutorial`.
+`#dev` (skip the picker), `#dev,turn` (same, turn-based), `#puzzle`, `#notrich`, `#tutorial`,
+`#level,<id>` (a hand-authored map from `docs/levels/` — `#level,three-ways`).
 
 Debug hooks (invisible, no UI): `window.__game` — `state`, `performAction`, `tickWorld`, `play`,
 `draw`, `chooseCard`, `armAim`, `aimState`, `botToGoal`, `modeInfo`, `config`, `scores`,
@@ -186,6 +189,31 @@ Harness traps that have cost real time:
   repetition.
 - **Unlocking a species is two steps:** clearing its level *reveals* it, spending Spores *unlocks*
   it. Progress is in localStorage `mycelium.progress.v2`.
+
+## Authored maps
+
+The engine has always had a hand-authored level path (`engine/level.js buildLevel`,
+`state.js createLevelState`) — it just had no maps in it. There is one now:
+**`docs/levels/three-ways.json`** ("Three Ways Up"), three sealed routes to the goal with one
+threat each, played via `#level,three-ways`. `docs/levels/README.md` owns the format traps; the
+short version:
+
+- An authored map changes **geometry, not rules** — `configForLevelDef` copies only the world
+  box. Threats are exactly the spawns you place; the campaign's per-level table only sets the
+  respawn ceilings, so a map plays the same in any slot. `campaignLevel: null` claims no slot.
+- **Rock is not baked into cells.** Sprites go on `sub.levelSprites`; collision is stamped from
+  each sprite's *alpha* into a 9 px mask at render time (`solidifyRock`), and `_placeOk` samples
+  every ~6 px along a 17 px growth segment. So a wall is only as solid as its thinnest
+  continuous band, and "is it sealed?" is a question for a flood fill, not for the JSON —
+  `tests/level-check.cjs` fills the real mask.
+- **Food and water hole a wall.** The solidify pass skips food and water cells, so a pile or
+  reservoir overlapping rock opens it. Water must also be listed *before* food, since
+  `stampFood` yields to existing water. `pathClear` (entry + goal channels) beats rock outright.
+- **Style `formation` fades its bottom 24% into the soil colour but still collides** — right for
+  a mass on the floor, an invisible wall for a ceiling slab. Slabs are `boulder`.
+- `scripts/author-three-ways.mjs` generates that map parametrically (upstream's GUI editor never
+  came across with the fork), and validates the clearance rules before writing. Re-running it
+  overwrites the JSON, so put hand-tweaks in the script.
 
 ## Campaign shape (so you don't re-derive it)
 
