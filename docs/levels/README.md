@@ -11,15 +11,15 @@ uniform**: food `r` is a diamond radius in *cells*, reservoir `r` is *world unit
 |---|---|---|
 | `three-ways.json` | none (`#level,three-ways`) | "Three Ways Up" — three sealed routes, one threat each |
 | `maze-one.json` | none (`#level,maze-one`) | "Maze One" — **traced**: 77 sprites from `docs/maps/maze-1@4x.webp`, dense with tight channels |
-| `scatter-one.json` | none (`#level,scatter-one`) | "Scatter One" — **traced**: 26 sprites from `docs/maps/scatter-1@4x.webp`, open with big separated masses |
+| `scatter-one.json` | none (`#level,scatter-one`) | "Scatter One" — **traced**: 25 sprites from `docs/maps/scatter-1@4x.webp`, open with big separated masses |
 | `scatter-two.json` | none (`#level,scatter-two`) | "Scatter Two" — **traced**: 38 sprites from `docs/maps/silhouette-2@4x.webp` (the `scatter` prompt under its old name) |
 | `ledges-one.json` | none (`#level,ledges-one`) | "Ledges One" — **traced**: 8 long slabs at 25% solid, the most open map |
 | `veined-one.json` | none (`#level,veined-one`) | "Veined One" — **traced**, and the first on the `veined` theme: near-black basalt with mint-cyan mineral veins, matching the game's own `rockVeined` boulder |
 
-The traced three are not hand-placed: `scripts/trace-map.py` cuts one sprite per rock out of
+The traced maps are not hand-placed: `scripts/trace-map.py` cuts one sprite per rock out of
 the upscaled image, and re-running it overwrites both the JSON *and* `assets/<id>/`. Each one
 records what it came from under `traced` in its JSON — which is also how `tests/traced-check.cjs`
-finds them, so a fourth needs no test change. **None of them place threats**; those are the
+finds them, so the next one needs no test change. **None of them place threats**; those are the
 designer's. Food is auto-placed in the roomiest open pockets.
 
 ## The pipeline
