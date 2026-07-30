@@ -280,6 +280,28 @@ glow stays ON the rock (veined). Both held: no glow spilled into the channels on
 | `bioluminescent-scatter-c20-1` | 69% | Best coverage and channels, edge to edge — but the fungus came out almost entirely amber lichen, so it barely reads as bioluminescent, and 69% is past the playable band. |
 | `bioluminescent-scatter-c40-1` | 59% | Good spread, **zero** teal — all amber. Heavy tuft debris on the background. |
 
+### "…but no small rocks"
+
+Round 2 (`-2`) bounds mass size at BOTH ends — nothing wider than a tenth of the frame,
+nothing *smaller than a twentieth* — and replaces the qualitative debris ban with a bare-
+background rule naming scree, rubble, chips and tufts. The size cap had worked as a quantity,
+so the floor was written the same way.
+
+| image | rock | blobs | of them tiny | teal |
+| --- | --- | --- | --- | --- |
+| `c20-1` → `c20-2` | 69% → **81%** | 89 → 635 | 60% → 97% | 0.27% → 0.36% |
+| `c30-1` → `c30-2` | 51% → **52%** | 326 → 243 | 94% → 79% | 2.30% → 0.02% |
+| `c40-1` → `c40-2` | 59% → **68%** | 445 → 118 | 91% → 73% | 0.00% → 1.11% |
+
+**It helps at 30 and 40 and backfires at 20.** And the metric needs a caveat: "tiny" counts
+connected components under the tracer's own gravel cut, and at this theme most of those are
+lichen and moss specks rather than small *rocks* — so the visible improvement in rock size is
+real while the blob count is measuring something else. Those specks are deleted at trace time
+by `--min-area` regardless, which is why they never reached a level.
+
+The teal swing (2.30% → 0.02% at c30, 0.00% → 1.11% at c40) is roll-to-roll noise, not a
+trend. `c30-2` is the pick of round 2 at 52% solid with clean separation.
+
 Two things to fix if it's worth another round. The **teal loses to amber** unless the count is
 low: 2.3% teal at 30, 0.27% at 20, none at 40. And small lichen tufts keep landing on the
 background — the same failure as crystal's loose gems, and the same answer: delete them at

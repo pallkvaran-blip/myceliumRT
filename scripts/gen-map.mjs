@@ -242,8 +242,10 @@ const SIL_TAIL = (theme) =>
   'they reach the left and right edges, they reach the top and bottom edges, and there is ' +
   'no empty band along any edge and no empty half. ' +
   THEMES[theme].palette +
-  ' No small pebbles, no gravel, no dust, no speckles, no debris. No text, no labels, no ' +
-  'grid, no border, no sky, no plants, no creatures.';
+  ' The background is completely BARE: no pebbles, no gravel, no scree, no rubble, no chips, ' +
+  'no fragments, no dust, no speckles, no tufts and no loose bits of any size lying between ' +
+  'the masses — if it is not one of the masses, it is not there at all. No text, no labels, ' +
+  'no grid, no border, no sky, no plants, no creatures.';
 
 // The compositions. `scatter` is what produced silhouette-2 — usable, but it lays the rocks
 // out evenly and decoratively, which is terrain rather than level design. The rest push at
@@ -262,9 +264,10 @@ const FORMS = {
     'across the whole frame at different heights, each one clearly detached from every ' +
     'other, with an open {BG} gap around every mass at least half as wide as the mass ' +
     'itself, and winding {BG} channels running between them from the left side to the ' +
-    'right side. NO single mass is wider than about a tenth of the frame width or taller ' +
-    'than a third of its height — this is MANY MODEST masses covering the whole frame, ' +
-    'never a few huge ones.',
+    'right side. Size is bounded at BOTH ends: no single mass is wider than about a tenth ' +
+    'of the frame width or taller than a third of its height, and NONE is smaller than a ' +
+    'twentieth of the frame width. This is MANY MODEST masses covering the whole frame — ' +
+    'never a few huge ones, and never any small ones.',
 
   // v1 said "stacked at different heights like shelves ... a staircase of open channels"
   // and the model took the staircase literally: at every count from 5 to 28 it piled the
