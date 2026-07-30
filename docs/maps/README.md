@@ -155,6 +155,26 @@ c70 each put a large loose cluster in the open, and that is big enough to trace 
 sitting in a channel. Ban #4 is not the answer; deleting them at trace time (drop chromatic
 components with no dark rock in them — the machinery the veined theme already uses) is.
 
+## The `ice` sweep
+
+`node scripts/gen-map.mjs scatter --theme ice --counts 20,40,70`. Generated only.
+
+**Ice is the first theme whose COLOUR fights the tracer rather than its composition.** The
+background is pure white and the rock test is "dark, or strongly chromatic and not
+near-white", so pale glacier ice reads as background and traces to nothing at all. The theme
+therefore asks for *deep saturated blue-teal, mid-to-dark*, with white banned inside a mass
+and along its edges. Measured on the results, that works: Otsu lands at 164–178 and **96–98%
+of the blue pixels are detected as rock** in all three.
+
+| image | verdict |
+| --- | --- |
+| `ice-scatter-c40-1` | **Best of any theme so far.** A cracked ice sheet: dense masses with white channels running through them, edge to edge, 78% solid. The channels read as the route without anyone designing them. |
+| `ice-scatter-c20-1` | **Good.** Separated masses, generous gaps, 47% solid — the open counterpart to c40. |
+| `ice-scatter-c70-1` | **No.** A glacier field receding to a horizon with an empty top — the landscape failure, which high counts keep inviting. |
+
+If genuinely *pale* white-blue ice is ever wanted, the answer is not a prompt: it is a black
+background plus an `--invert` in `trace-map.py`. That would also open up bone, salt and chalk.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

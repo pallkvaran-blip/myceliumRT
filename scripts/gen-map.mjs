@@ -8,7 +8,9 @@
 //   style      scatter | ledges | chokes | pillars | maze  — the traceable two-tone mask, one
 //              composition each (see FORMS); or `art`, the same map in the game's palette,
 //              which is pretty and completely untraceable. `silhouette` aliases `scatter`.
-//   --theme    rock material: slate (default) | veined — the game's own boulder themes
+//   --theme    material: slate (default) | crystal | veined | ice. The first three mirror the
+//              game's own boulder art; `ice` is new — see the note on THEMES.ice, it is the
+//              one theme whose colour fights the tracer rather than the composition.
 //   --count    how many rock masses to ask for (default per form, see COUNTS)
 //   --counts   sweep it: `--counts 5,9,14,20,28` makes one image per value, named for it
 //   --n        how many to generate per count (default 1); each gets the next free filename
@@ -112,6 +114,25 @@ const THEMES = {
       'a dark pocket behind the crystals, saturated violet and cyan crystal, and the pure ' +
       'white background. Every pocket is enclosed by rock on ALL sides and never opens onto ' +
       'the background. Do not make a crystal cave, a cave mouth, or one big hero rock.',
+  },
+  // NOT one of the game's boulder themes — ice is new, and it is the first theme that
+  // fights the tracer rather than the composition. The background is pure white and the rock
+  // test is "dark, OR strongly chromatic and not near-white", so pale glacier ice reads as
+  // background and traces to nothing at all. Hence: DEEP saturated blue-teal, mid-to-dark,
+  // with white banned inside a mass and banned on its edges. If a genuinely pale/white ice
+  // is wanted, the answer is not a prompt — it is a black background plus an --invert in
+  // trace-map.py, which would also open up bone, salt and chalk.
+  ice: {
+    rock:
+      'solid masses of deep glacial ice — saturated blue and teal, mid-to-dark in tone, ' +
+      'angular and fractured, with darker blue crack lines running through them',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow, no ' +
+      'bloom, no sparkle, no glint. Three tones only — deep saturated blue-teal ice, darker ' +
+      'blue fracture lines inside it, and the pure white background. The ice must read ' +
+      'clearly DARK against the white: nothing pale, nothing white and nothing near-white ' +
+      'anywhere inside a mass, and no white highlight, sheen or rim along any edge. No snow, ' +
+      'no frost, no mist, no icicles, no water.',
   },
   veined: {
     rock:
