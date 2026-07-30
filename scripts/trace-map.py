@@ -28,9 +28,23 @@ What it does, and why each step is the way it is:
    become a pinprick of collision the player can see no reason for.
 
 4. CUT SPRITES. Each blob is cropped from the ORIGINAL image with alpha set from its own
-   mask, so what collides is exactly the shape that was drawn. Pixels just outside the
-   blob get partial alpha for a soft edge, capped at 120 — under solidifyRock's alpha>=128
-   test, so the soft edge never collides.
+   mask, so what collides is exactly the shape that was drawn. Two things happen at the
+   edge, and the second one is not optional:
+
+   • FEATHER: alpha ramps from opaque to nothing over --feather px on a smoothstep, by
+     distance from the blob. Not by luminance — the brightness just outside a rock is the
+     model's rim highlight and drop shadow, which is a different amount of light under
+     every rock and made the fade uneven.
+   • ALPHA BLEED: every non-opaque pixel takes the COLOUR of the nearest opaque one. The
+     source background is near-white, and a cut-out that leaves it there paints a pale
+     halo round every rock the moment the sprite is filtered — worst along the bottoms,
+     where the model draws a bright rim above its drop shadow. Alpha alone doesn't hide
+     it: the sprite is drawn smaller than its pixel size, and downscaling blends the
+     colour of pixels you can't see into the ones you can.
+
+   The feather does not widen collision. solidifyRock tests alpha>=128 on a mask that is
+   at most 160px on its long side, where a 12px feather on a 5760px-wide source is a
+   fraction of one sample.
 
    Sprites, not one big image: `_alphaMask` samples every sprite down to 160px on its long
    side. One whole-map sprite would be sampled at ~16 world units per alpha pixel, coarser
@@ -65,6 +79,7 @@ ap.add_argument('--cell', type=int, default=36)
 ap.add_argument('--start-cols', type=int, default=2)
 ap.add_argument('--goal-cols', type=int, default=6)
 ap.add_argument('--food', type=int, default=12)
+ap.add_argument('--feather', type=int, default=12, help='edge fade, in source px')
 ap.add_argument('--format', choices=('webp', 'png'), default='webp')
 ap.add_argument('--quality', type=int, default=90, help='webp quality; ALPHA stays lossless')
 ap.add_argument('--campaign-level', type=int, default=None)
@@ -120,20 +135,33 @@ def save(im, path):
         im.save(path, optimize=True)
 
 rgb = np.asarray(img)
-# Soft edge: how opaque a pixel just outside the blob should be. Capped below the
-# alpha>=128 test in markCoverGrid so it softens the art without widening the wall.
-soft = np.clip((235 - lum) / (235 - a.threshold), 0, 1) * 120
+FEATHER = max(1, a.feather)
+MARGIN = FEATHER + 3        # room in the crop for the whole fade
 
 objects, manifest = [], []
 for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
     sl = boxes[i]
-    # a 2px margin so the soft edge isn't clipped by the crop
-    r0 = max(0, sl[0].start - 2); r1 = min(H, sl[0].stop + 2)
-    c0 = max(0, sl[1].start - 2); c1 = min(W, sl[1].stop + 2)
+    r0 = max(0, sl[0].start - MARGIN); r1 = min(H, sl[0].stop + MARGIN)
+    c0 = max(0, sl[1].start - MARGIN); c1 = min(W, sl[1].stop + MARGIN)
     m = (lab[r0:r1, c0:c1] == i + 1)
-    near = ndimage.binary_dilation(m, iterations=2)
-    alpha = np.where(m, 255, np.where(near, soft[r0:r1, c0:c1], 0)).astype(np.uint8)
-    out = np.dstack([rgb[r0:r1, c0:c1], alpha])
+    crop = rgb[r0:r1, c0:c1]
+
+    # Distance to the blob, and the blob pixel that distance points at — one pass gives
+    # both the feather ramp and the colour to bleed outward.
+    dist, (iy, ix) = ndimage.distance_transform_edt(~m, return_indices=True)
+    t = np.clip(dist / FEATHER, 0, 1)
+    fade = 1 - (t * t * (3 - 2 * t))                     # smoothstep: flat at both ends
+    alpha = np.where(m, 255.0, 255.0 * fade).astype(np.uint8)
+
+    # Bleed, then BLUR the bleed. Nearest-opaque alone is a Voronoi diagram of the rock's
+    # edge pixels, and where that edge alternates light facet / dark crack it fans out into
+    # visible spokes — a hairy outline instead of a white one. Blurring the bled copy
+    # (which is defined everywhere, unlike a masked average) smooths the fan out. The rock
+    # itself is never touched; this only fills what alpha is fading away.
+    base = np.where(m[..., None], crop, crop[iy, ix]).astype(np.float32)
+    smooth = ndimage.gaussian_filter(base, sigma=(FEATHER / 2, FEATHER / 2, 0))
+    colour = np.where(m[..., None], crop, smooth).astype(np.uint8)
+    out = np.dstack([colour, alpha])
     key = f'{a.id}R{rank:03d}'
     fname = f'r{rank:03d}.{a.format}'
     save(Image.fromarray(out, 'RGBA'), os.path.join(adir, fname))

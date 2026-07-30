@@ -265,6 +265,15 @@ Tracing traps, all of which cost a debug cycle:
 - **Threshold at 128, not higher.** Rock lands at luminance 30–110 and the background at
   240+; the tail between them is anti-aliasing *and the drop shadow*. Threshold high and
   every wall is fattened by its shadow — an invisible wall, the worst bug here.
+- **Bleed the colour outward, don't just cut the alpha.** The source background is
+  near-white, so a plain cut-out leaves near-white RGB in the transparent pixels — and the
+  sprite is drawn *smaller* than its pixel size, so downscaling blends that white into the
+  visible edge. The result is a pale halo round every rock, worst along the bottoms where
+  the model paints a bright rim above its drop shadow. The tracer sets every non-opaque
+  pixel to the nearest opaque colour and then **blurs that bleed**: nearest-opaque alone is
+  a Voronoi diagram of the edge, which fans into visible spokes wherever the rock edge
+  alternates light facet and dark crack. Feather by *distance*, never by luminance — the
+  brightness outside a rock is that rim and shadow, which differs under every rock.
 - **One sprite per blob, never one big image.** `_alphaMask` samples every sprite down to
   160px on its long side, so a whole-map sprite would feed the 9px collision mask at ~16
   world units per alpha pixel. Per-blob sprites each get their own 160px budget.
