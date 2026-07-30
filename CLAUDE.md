@@ -248,6 +248,11 @@ it's what `solidifyRock` samples. Resolution never affects collision anyway: `_a
 downsamples every sprite to 160px on its long side, so all of this is purely what the
 player sees.
 
+Prompts have two axes: a **form** (`--count`/`--counts` sets its rock count) and a **theme**
+(`--theme`), the rock material, named after the game's own boulder art (`ALL_ROCKS`:
+slate / basalt / river / veined / mossy). `veined` works and its cyan is why the tracer's
+rock test isn't just luminance — see below.
+
 **The prompt is the asset.** Two forms are owner-approved — `scatter` (loose masses,
 generous channels) and `maze` (dense, tight channels). `ledges` is being retried and
 converts at about 2 images in 5 (its window is ~9-20 rocks: fewer reads as scenery, more
@@ -269,6 +274,13 @@ lets rocks touch the left/right edges. Both are handled at trace time, not by mo
 
 Tracing traps, all of which cost a debug cycle:
 
+- **A coloured feature is not background.** The `veined` theme's mint-cyan veins sit at
+  luminance ~173, so a plain luminance cut saws every vein out of its rock and the mask
+  comes back as boulders with cracks through them (55% of on-rock vein pixels land the
+  wrong side of 128 on *any* channel). So rock = dark OR strongly chromatic-and-not-white,
+  then a morphological **opening** (a DISK — a square kernel studs the silhouette with
+  rectangular bumps) to delete the veins the model insists on drawing out across the white
+  background, then **fill holes**. On a grey map the colour clause selects nothing.
 - **Threshold at 128, not higher.** Rock lands at luminance 30–110 and the background at
   240+; the tail between them is anti-aliasing *and the drop shadow*. Threshold high and
   every wall is fattened by its shadow — an invisible wall, the worst bug here.
@@ -311,9 +323,10 @@ Tracing traps, all of which cost a debug cycle:
 - The tracer's own flood-fill is a proxy on image pixels. The real answer is
   `tests/traced-check.cjs`, which floods the running game's fine mask.
 
-Three maps are through the pipeline, all 82×30 cells, one connected open region each,
-everything reachable: **`maze-one`** (77 sprites, 44.5% solid — dense, tight channels),
-**`scatter-one`** (26, 38.8% — open, big separated masses) and **`scatter-two`** (38, 42%).
+Five maps are through the pipeline, all 82×30 cells, one connected open region each,
+everything reachable: **`maze-one`** (77 sprites, ~53% solid — dense, tight channels),
+**`scatter-one`** (25, ~45%), **`scatter-two`** (38, ~48%), **`ledges-one`** (8, ~25% — long
+slabs, the most open) and **`veined-one`** (29, ~23%, the `veined` theme).
 Food is auto-placed in open pockets; **threats are not placed at all** — the owner places
 those. `tests/traced-check.cjs` finds them by the `traced` block in their JSON, so a fourth
 map is covered the moment it lands.

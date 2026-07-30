@@ -38,6 +38,28 @@ const TRACED = ALL.filter((l) => l && l.traced);
   ok('there is at least one traced map to check', TRACED.length > 0,
     TRACED.map((l) => l.id).join(', ') || 'none — did gen-levels/trace-map run?');
 
+  // ---------------------------------------------------- JSON ↔ manifest ↔ disk ----
+  // A traced map is written in three places that must agree: the level JSON names sprite
+  // keys, the manifest maps each key to a file, and the file has to exist. trace-map.py
+  // writes all three, so they only diverge when it dies part-way — which it does silently
+  // if you pipe it through `head`, since the level JSON is written before the manifest.
+  // The symptom is a 404 per missing sprite at boot and a mask that never solidifies, and
+  // it is worth naming rather than rediscovering.
+  const MAN = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'manifest.json'), 'utf8'));
+  const byKey = new Map(MAN.assets.map((e) => [e.key, e.file]));
+  for (const def of TRACED) {
+    const keys = def.objects.filter((o) => o.key).map((o) => o.key);
+    const noEntry = keys.filter((k) => !byKey.has(k));
+    const noFile = keys.filter((k) => byKey.has(k) && !fs.existsSync(path.join(ROOT, 'assets', byKey.get(k))));
+    const orphans = MAN.assets.filter((e) => e.key.startsWith(def.id + 'R') && !keys.includes(e.key));
+    ok(`${def.id}: every sprite key is in the manifest`, noEntry.length === 0,
+      `${noEntry.length} missing: ${noEntry.slice(0, 3).join(', ')}`);
+    ok(`${def.id}: every manifest file exists on disk`, noFile.length === 0,
+      `${noFile.length} missing: ${noFile.slice(0, 3).join(', ')}`);
+    ok(`${def.id}: no stale manifest entries left behind`, orphans.length === 0,
+      `${orphans.length} orphaned: ${orphans.slice(0, 3).map((e) => e.key).join(', ')}`);
+  }
+
   for (const def of TRACED) {
     const ID = def.id;
     console.log(`\n  ── ${ID} (${def.name}) ──`);

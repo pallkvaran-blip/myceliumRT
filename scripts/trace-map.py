@@ -75,6 +75,8 @@ ap.add_argument('image')
 ap.add_argument('--id', required=True, help='level id — boots as #level,<id>')
 ap.add_argument('--name', required=True)
 ap.add_argument('--threshold', type=int, default=128)
+ap.add_argument('--despeckle', type=int, default=None,
+                help='opening radius in source px; default scales with the image (W/240)')
 ap.add_argument('--min-area', type=int, default=600, help='image px^2; below this is gravel')
 ap.add_argument('--under-height', type=float, default=1096,
                 help='target underground height; the world WIDTH is derived from it and the '
@@ -96,8 +98,28 @@ a = ap.parse_args()
 # --- load + threshold --------------------------------------------------------
 img = Image.open(os.path.join(ROOT, a.image)).convert('RGB')
 W, H = img.size
+rgb_all = np.asarray(img).astype(np.int16)
 lum = np.asarray(img.convert('L')).astype(np.int16)
-rock = lum < a.threshold
+
+# Rock is anything dark — PLUS anything strongly coloured that isn't near-white. The second
+# clause is for the `veined` theme, whose mint-cyan mineral veins sit at luminance ~173: a
+# plain luminance cut slices every vein out of its rock, and the mask comes back as boulders
+# with cracks sawn through them (measured: 55% of on-rock vein pixels fall the wrong side of
+# 128, whichever channel you threshold). On a grey map the clause selects nothing, so it
+# costs the slate maps only what the two steps below do.
+chroma = rgb_all.max(axis=2) - rgb_all.min(axis=2)
+rock = (lum < a.threshold) | ((chroma > 40) & (rgb_all.min(axis=2) < 200))
+
+# Then open, then fill. The OPENING deletes anything thinner than its radius, which is how
+# the veins that run out across the white background — the model draws them however firmly
+# you ban it — stop becoming rock filaments across open ground; rocks are two orders of
+# magnitude wider and survive untouched. A DISK, not scipy's square default: a square
+# structuring element regrows the eroded shape with square corners and studs the silhouette
+# with visible rectangular bumps. FILL closes what's left of the veins inside a rock.
+_r = a.despeckle if a.despeckle is not None else max(2, round(W / 240))
+_y, _x = np.ogrid[-_r:_r + 1, -_r:_r + 1]
+rock = ndimage.binary_opening(rock, structure=(_x * _x + _y * _y <= _r * _r))
+rock = ndimage.binary_fill_holes(rock)
 
 # World box. The channels `buildLevel` digs are cols [0, startCols+1) on the left and the
 # last goalCols+1 on the right — that is what the image must NOT overlap. So reserve them,

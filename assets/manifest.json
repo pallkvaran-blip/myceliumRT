@@ -326,136 +326,6 @@
    "kind": "sprite"
   },
   {
-   "key": "scatter-oneR001",
-   "file": "scatter-one/r001.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR002",
-   "file": "scatter-one/r002.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR003",
-   "file": "scatter-one/r003.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR004",
-   "file": "scatter-one/r004.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR005",
-   "file": "scatter-one/r005.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR006",
-   "file": "scatter-one/r006.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR007",
-   "file": "scatter-one/r007.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR008",
-   "file": "scatter-one/r008.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR009",
-   "file": "scatter-one/r009.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR010",
-   "file": "scatter-one/r010.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR011",
-   "file": "scatter-one/r011.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR012",
-   "file": "scatter-one/r012.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR013",
-   "file": "scatter-one/r013.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR014",
-   "file": "scatter-one/r014.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR015",
-   "file": "scatter-one/r015.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR016",
-   "file": "scatter-one/r016.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR017",
-   "file": "scatter-one/r017.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR018",
-   "file": "scatter-one/r018.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR019",
-   "file": "scatter-one/r019.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR020",
-   "file": "scatter-one/r020.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR021",
-   "file": "scatter-one/r021.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR022",
-   "file": "scatter-one/r022.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR023",
-   "file": "scatter-one/r023.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR024",
-   "file": "scatter-one/r024.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR025",
-   "file": "scatter-one/r025.webp",
-   "kind": "sprite"
-  },
-  {
-   "key": "scatter-oneR026",
-   "file": "scatter-one/r026.webp",
-   "kind": "sprite"
-  },
-  {
    "key": "scatter-twoR001",
    "file": "scatter-two/r001.webp",
    "kind": "sprite"
@@ -1031,6 +901,151 @@
    "kind": "sprite"
   },
   {
+   "key": "veined-oneR001",
+   "file": "veined-one/r001.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR002",
+   "file": "veined-one/r002.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR003",
+   "file": "veined-one/r003.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR004",
+   "file": "veined-one/r004.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR005",
+   "file": "veined-one/r005.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR006",
+   "file": "veined-one/r006.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR007",
+   "file": "veined-one/r007.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR008",
+   "file": "veined-one/r008.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR009",
+   "file": "veined-one/r009.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR010",
+   "file": "veined-one/r010.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR011",
+   "file": "veined-one/r011.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR012",
+   "file": "veined-one/r012.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR013",
+   "file": "veined-one/r013.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR014",
+   "file": "veined-one/r014.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR015",
+   "file": "veined-one/r015.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR016",
+   "file": "veined-one/r016.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR017",
+   "file": "veined-one/r017.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR018",
+   "file": "veined-one/r018.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR019",
+   "file": "veined-one/r019.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR020",
+   "file": "veined-one/r020.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR021",
+   "file": "veined-one/r021.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR022",
+   "file": "veined-one/r022.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR023",
+   "file": "veined-one/r023.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR024",
+   "file": "veined-one/r024.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR025",
+   "file": "veined-one/r025.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR026",
+   "file": "veined-one/r026.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR027",
+   "file": "veined-one/r027.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR028",
+   "file": "veined-one/r028.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "veined-oneR029",
+   "file": "veined-one/r029.webp",
+   "kind": "sprite"
+  },
+  {
    "key": "ledges-oneR001",
    "file": "ledges-one/r001.webp",
    "kind": "sprite"
@@ -1063,6 +1078,136 @@
   {
    "key": "ledges-oneR007",
    "file": "ledges-one/r007.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "ledges-oneR008",
+   "file": "ledges-one/r008.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR001",
+   "file": "scatter-one/r001.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR002",
+   "file": "scatter-one/r002.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR003",
+   "file": "scatter-one/r003.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR004",
+   "file": "scatter-one/r004.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR005",
+   "file": "scatter-one/r005.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR006",
+   "file": "scatter-one/r006.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR007",
+   "file": "scatter-one/r007.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR008",
+   "file": "scatter-one/r008.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR009",
+   "file": "scatter-one/r009.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR010",
+   "file": "scatter-one/r010.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR011",
+   "file": "scatter-one/r011.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR012",
+   "file": "scatter-one/r012.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR013",
+   "file": "scatter-one/r013.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR014",
+   "file": "scatter-one/r014.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR015",
+   "file": "scatter-one/r015.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR016",
+   "file": "scatter-one/r016.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR017",
+   "file": "scatter-one/r017.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR018",
+   "file": "scatter-one/r018.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR019",
+   "file": "scatter-one/r019.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR020",
+   "file": "scatter-one/r020.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR021",
+   "file": "scatter-one/r021.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR022",
+   "file": "scatter-one/r022.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR023",
+   "file": "scatter-one/r023.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR024",
+   "file": "scatter-one/r024.webp",
+   "kind": "sprite"
+  },
+  {
+   "key": "scatter-oneR025",
+   "file": "scatter-one/r025.webp",
    "kind": "sprite"
   }
  ]

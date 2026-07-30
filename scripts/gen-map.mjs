@@ -8,6 +8,7 @@
 //   style      scatter | ledges | chokes | pillars | maze  — the traceable two-tone mask, one
 //              composition each (see FORMS); or `art`, the same map in the game's palette,
 //              which is pretty and completely untraceable. `silhouette` aliases `scatter`.
+//   --theme    rock material: slate (default) | veined — the game's own boulder themes
 //   --count    how many rock masses to ask for (default per form, see COUNTS)
 //   --counts   sweep it: `--counts 5,9,14,20,28` makes one image per value, named for it
 //   --n        how many to generate per count (default 1); each gets the next free filename
@@ -68,19 +69,48 @@ const STYLE_PREFIX =
 // border/ceiling/floor, edge clearance stated as a rule, and "flat orthographic elevation" to
 // kill the 3/4 view. The pebble ban matters too — v1's confetti of 2-4px specks would trace
 // into mask noise. Every clause below is load-bearing; drop one and it comes back.
-const SIL_HEAD =
-  'A flat two-tone diagram: solid black rock shapes on a pure white background. Wide ' +
+// The MATERIAL, separate from the composition. These name the game's own boulder themes
+// (`ALL_ROCKS` in index.html: rockSlate / rockBasalt / rockRiver / rockVeined / rockMossy),
+// so a traced map can match the art the procedural maps already use.
+//
+// The palette clause is per-theme because it is what the tracer keys off. `slate` can insist
+// on two tones; anything with a coloured feature has to allow that colour AND say it never
+// reaches the background — a vein that runs out to the white would cut a notch in the
+// silhouette, and one that is pale rather than saturated would trace as a hole through the
+// rock (see trace-map.py: the rock test is the MINIMUM channel, not luminance, exactly so a
+// bright cyan vein still reads as rock).
+const THEMES = {
+  slate: {
+    rock: 'solid black rock shapes',
+    palette:
+      'No texture, no shading, no gradients, no lighting, no highlights, no outlines, no ' +
+      'drop shadows, no grey — pure flat black on pure flat white, two tones only.',
+  },
+  veined: {
+    rock:
+      'solid near-black basalt masses, each one shot through with a few narrow bright ' +
+      'mint-cyan mineral veins running along its cracks',
+    palette:
+      'Flat and unlit apart from the veins: no shading, no gradients, no drop shadows, no ' +
+      'outlines, no glow or bloom around anything. THREE tones only — near-black rock, ' +
+      'saturated mint-cyan veins, pure white background. Every vein stays entirely INSIDE ' +
+      'its rock: no vein touches, crosses or reaches the white background, and no vein is ' +
+      'white, pale or grey. The veins are thin, a few per rock, not a network.',
+  },
+};
+
+const SIL_HEAD = (theme) =>
+  `A flat diagram: ${THEMES[theme].rock} on a pure white background. Wide ` +
   'horizontal composition, flat orthographic side elevation, straight-on, no perspective ' +
   'and no isometric tilt. ';
 
-const SIL_TAIL =
+const SIL_TAIL = (theme) =>
   ' The background is pure flat white everywhere, edge to edge, including all four edges and ' +
   'every corner. Do NOT draw a cave, a cavern, an enclosing wall, a rock border around the ' +
   'frame, a ceiling, a floor, or a horizon. Nothing touches the left edge or the right edge. ' +
-  'No texture, no shading, no gradients, no lighting, no highlights, no outlines, no drop ' +
-  'shadows, no grey — pure flat black on pure flat white, two tones only. No small pebbles, ' +
-  'no gravel, no dust, no speckles, no debris. No text, no labels, no grid, no border, no ' +
-  'sky, no plants, no creatures.';
+  THEMES[theme].palette +
+  ' No small pebbles, no gravel, no dust, no speckles, no debris. No text, no labels, no ' +
+  'grid, no border, no sky, no plants, no creatures.';
 
 // The compositions. `scatter` is what produced silhouette-2 — usable, but it lays the rocks
 // out evenly and decoratively, which is terrain rather than level design. The rest push at
@@ -150,8 +180,8 @@ const PROMPTS = {
 // level is (maze-1's ~20 gave 44.5% solid, scatter-1's ~17 gave 38.8%).
 const COUNTS = { scatter: 17, ledges: 10, chokes: 6, pillars: 12, maze: 30 };
 
-const withCount = (form, n) =>
-  SIL_HEAD + FORMS[form].replace('{N}', String(n != null ? n : COUNTS[form])) + SIL_TAIL;
+const withCount = (form, n, theme) =>
+  SIL_HEAD(theme) + FORMS[form].replace('{N}', String(n != null ? n : COUNTS[form])) + SIL_TAIL(theme);
 
 // --- args --------------------------------------------------------------------
 const argv = process.argv.slice(2);
@@ -171,8 +201,13 @@ if (!isForm && style !== 'art') {
 const SWEEP = flag('counts', null);
 const COUNTS_LIST = SWEEP ? SWEEP.split(',').map((s) => Number(s.trim())).filter(Boolean)
   : [flag('count', null) != null ? Number(flag('count')) : null];
+const THEME = flag('theme', 'slate');
+if (!THEMES[THEME]) {
+  console.error(`unknown theme "${THEME}" — one of: ${Object.keys(THEMES).join(', ')}`);
+  process.exit(1);
+}
 const promptFor = (n) => (style === 'art' ? PROMPTS.art
-  : withCount(style === 'silhouette' ? 'scatter' : style, n));
+  : withCount(style === 'silhouette' ? 'scatter' : style, n, THEME));
 const MODEL = flag('model', 'black-forest-labs/flux-1.1-pro');
 const ASPECT = flag('aspect', 'custom');
 const WIDTH = Number(flag('width', 1440));
@@ -233,7 +268,8 @@ const size = ASPECT === 'custom' ? `${WIDTH}x${HEIGHT}` : ASPECT;
 let made = 0;
 for (const rocks of COUNTS_LIST) {
   for (let i = 0; i < COUNT; i++) {
-    const tag = rocks != null ? `${style}-c${rocks}` : style;
+    const themeTag = THEME === 'slate' ? '' : `${THEME}-`;
+    const tag = rocks != null ? `${themeTag}${style}-c${rocks}` : `${themeTag}${style}`;
     let out = OUTNAME ? (COUNT === 1 && COUNTS_LIST.length === 1 ? OUTNAME : `${OUTNAME}-${made + 1}`) : null;
     if (!out) {
       let n = 1;
