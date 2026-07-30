@@ -152,6 +152,9 @@ const ID = 'maze-one';
     await page.screenshot({ path: path.join(ART, `traced-${name}.png`) });
   };
   await shoot('overview', 1296, 930, 0.6);
+  // The zoom the game is actually PLAYED at — the one that showed the first trace was cut
+  // from an image too small for the world it covers.
+  await shoot('closeup', 900, 700, 2.2);
   await shoot('entry', 420, 800, 1.3);
   await shoot('mid', 1300, 900, 1.3);
   await shoot('goal', 2200, 800, 1.3);

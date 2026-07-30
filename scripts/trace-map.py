@@ -65,6 +65,8 @@ ap.add_argument('--cell', type=int, default=36)
 ap.add_argument('--start-cols', type=int, default=2)
 ap.add_argument('--goal-cols', type=int, default=6)
 ap.add_argument('--food', type=int, default=12)
+ap.add_argument('--format', choices=('webp', 'png'), default='webp')
+ap.add_argument('--quality', type=int, default=90, help='webp quality; ALPHA stays lossless')
 ap.add_argument('--campaign-level', type=int, default=None)
 a = ap.parse_args()
 
@@ -104,8 +106,18 @@ kept_mask = np.isin(lab, [i + 1 for i in keep])
 adir = os.path.join(ROOT, 'assets', a.id)
 os.makedirs(adir, exist_ok=True)
 for f in os.listdir(adir):
-    if f.endswith('.png'):
+    if f.endswith(('.png', '.webp')):
         os.remove(os.path.join(adir, f))
+
+# WebP by default. Traced from a 4x upscale these are big — 77 sprites came to 12.5 MB as
+# PNG, against a ~25 MB budget for the whole itch zip. WebP at q90 gives back nearly all of
+# that on flat-shaded art, and Pillow keeps the ALPHA lossless regardless of `quality`,
+# which is the channel that matters: it's what solidifyRock samples for collision.
+def save(im, path):
+    if a.format == 'webp':
+        im.save(path, 'WEBP', quality=a.quality, method=6, alpha_quality=100)
+    else:
+        im.save(path, optimize=True)
 
 rgb = np.asarray(img)
 # Soft edge: how opaque a pixel just outside the blob should be. Capped below the
@@ -123,8 +135,9 @@ for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
     alpha = np.where(m, 255, np.where(near, soft[r0:r1, c0:c1], 0)).astype(np.uint8)
     out = np.dstack([rgb[r0:r1, c0:c1], alpha])
     key = f'{a.id}R{rank:03d}'
-    Image.fromarray(out, 'RGBA').save(os.path.join(adir, f'r{rank:03d}.png'), optimize=True)
-    manifest.append({'key': key, 'file': f'{a.id}/r{rank:03d}.png', 'kind': 'sprite'})
+    fname = f'r{rank:03d}.{a.format}'
+    save(Image.fromarray(out, 'RGBA'), os.path.join(adir, fname))
+    manifest.append({'key': key, 'file': f'{a.id}/{fname}', 'kind': 'sprite'})
     objects.append({
         't': 'boulder', 'key': key,
         'x': round(x0 + (c0 + c1) / 2 * sx, 1),

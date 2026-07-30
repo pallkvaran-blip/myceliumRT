@@ -222,10 +222,25 @@ short version:
 (`#level,maze-one`) is the first one through the pipeline.
 
 ```bash
-REPLICATE_API_TOKEN=… node scripts/gen-map.mjs scatter --n 4    # or: maze
-python3 scripts/trace-map.py docs/maps/maze-1.png --id maze-one --name "Maze One"
+REPLICATE_API_TOKEN=… node scripts/gen-map.mjs scatter --n 4         # or: maze
+REPLICATE_API_TOKEN=… node scripts/upscale-map.mjs docs/maps/maze-1.png   # -> maze-1@4x.png
+python3 scripts/trace-map.py 'docs/maps/maze-1@4x.png' --id maze-one --name "Maze One" --min-area 9600
 node scripts/gen-levels.mjs && node tests/run.mjs traced
 ```
+
+**Always trace the 4× upscale, never the raw generation.** FLUX's `custom` dimensions cap
+at 1440 per side, which over a ~2950-unit world is ~2 world units per source pixel: fine
+zoomed out, mush at the zoom the game is played at. Real-ESRGAN ×4 keeps the composition
+and just adds pixels, and it suits flat-shaded hard-edged art (a Lanczos resize is the
+worst case for exactly the same reason). `--min-area` scales with the square of the
+upscale — 600 → **9600** at 4×.
+
+Sprites are written as **WebP**, not PNG: at 4× the same 77 sprites are 12.5 MB as PNG and
+**800 KB** as WebP q90, against a ~25 MB budget for the whole itch zip. Pillow keeps the
+alpha channel lossless regardless of `quality`, and alpha is the channel that matters —
+it's what `solidifyRock` samples. Resolution never affects collision anyway: `_alphaMask`
+downsamples every sprite to 160px on its long side, so all of this is purely what the
+player sees.
 
 **The prompt is the asset.** Two forms are owner-approved — `scatter` (loose masses,
 generous channels) and `maze` (dense, tight channels); `ledges`, `chokes` and `pillars`
@@ -267,7 +282,7 @@ Tracing traps, all of which cost a debug cycle:
 - The tracer's own flood-fill is a proxy on image pixels. The real answer is
   `tests/traced-check.cjs`, which floods the running game's fine mask.
 
-`maze-1` traced to 76 sprites at 45.3% solid in an 82×30-cell world, one connected open
+`maze-1@4x` traced to 77 sprites at 45.4% solid in an 82×30-cell world, one connected open
 region, everything reachable. Food is auto-placed in open pockets; **threats are not placed
 at all** — the owner places those.
 
