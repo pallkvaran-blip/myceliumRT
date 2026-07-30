@@ -265,6 +265,31 @@ some rolls is the price of keeping the masses separate.
 Worth testing a shared-prompt change on a known-good image before keeping it — that control
 roll is the only reason this was caught rather than quietly degrading every future theme.
 
+## `bioluminescent`
+
+`node scripts/gen-map.mjs scatter --theme bioluminescent --counts 20,30,40`. Generated only.
+Mirrors `rockform4/8/11` (`theme:'fungal'`): near-black rock with clusters of glowing teal and
+amber mushrooms and patches of luminous moss.
+
+Built on the two lessons already paid for — keep the feature a MINORITY (crystal), and say the
+glow stays ON the rock (veined). Both held: no glow spilled into the channels on any roll.
+
+| image | rock | verdict |
+| --- | --- | --- |
+| `bioluminescent-scatter-c30-1` | 51% | **Best.** The only one with the teal reading properly (2.3% of pixels against 0.27% and 0.00%), and the only one in a comfortable density band. Composition is the weak part: a diorama cluster with an empty top third. |
+| `bioluminescent-scatter-c20-1` | 69% | Best coverage and channels, edge to edge — but the fungus came out almost entirely amber lichen, so it barely reads as bioluminescent, and 69% is past the playable band. |
+| `bioluminescent-scatter-c40-1` | 59% | Good spread, **zero** teal — all amber. Heavy tuft debris on the background. |
+
+Two things to fix if it's worth another round. The **teal loses to amber** unless the count is
+low: 2.3% teal at 30, 0.27% at 20, none at 40. And small lichen tufts keep landing on the
+background — the same failure as crystal's loose gems, and the same answer: delete them at
+trace time rather than ban them a fourth time.
+
+Design note for whoever makes this a level: `STYLE_GUIDE.md` gives mint-cyan to the PLAYER —
+"the mycelium is the hero, the brightest element on screen". A map lit in the same colour
+competes with the thing the player must read first. The game's own `rockform8` does it
+sparingly; a whole map of it is a louder decision than it looks.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

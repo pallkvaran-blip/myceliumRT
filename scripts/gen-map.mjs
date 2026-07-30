@@ -164,6 +164,31 @@ const THEMES = {
       'nothing red and nothing glowing lies on it, and it is clearly visible all around every ' +
       'mass.',
   },
+  // rockform4 / 8 / 11 — the manifest tags them theme:'fungal'. Near-black rock with clusters
+  // of glowing teal and amber mushrooms on it and patches of luminous moss.
+  //
+  // Built with the two lessons already paid for. From crystal: keep the feature a MINORITY,
+  // or the model makes it the subject and the composition goes. From veined: say the glow
+  // stays ON the rock, because anything luminous wants to spill into the negative space, and
+  // the negative space is the level.
+  //
+  // NOTE for whoever makes this a level: STYLE_GUIDE.md gives mint-cyan to the PLAYER —
+  // "the mycelium is the hero, the brightest element on screen" — so a map lit in the same
+  // colour competes with the thing the player is meant to read first. The game's own
+  // rockform8 does it sparingly; a whole map of it is a louder decision than it looks.
+  bioluminescent: {
+    rock:
+      'solid near-black rock masses, angular and cracked. MOST of the rock is bare; here and ' +
+      'there a small cluster of glowing teal and amber mushrooms grows on a face, with a few ' +
+      'patches of luminous moss — a minor detail on a mass, never more than a quarter of it',
+    palette:
+      'Flat and unlit apart from the fungus: no shading, no gradients, no drop shadows, no ' +
+      'outlines, no bloom, no halo, no light spilling from anything, no glowing spores in ' +
+      'the air. Four tones only — near-black rock, luminous teal, warm amber, and the pure ' +
+      '{BG} background. Every mushroom and every patch of moss grows ON a rock face and sits ' +
+      'entirely inside its outline: nothing luminous touches or reaches the background, and ' +
+      'nothing grows in the gaps between the masses. The background is completely empty.',
+  },
   // The pale counterpart to `ice`, and the reason trace-map.py learned to detect background
   // polarity: white ice on a white ground is not a hard threshold, it is no threshold. On
   // black it is trivial. Same idea would give bone, salt or chalk.
