@@ -195,6 +195,34 @@ seven maps right, from 0.0% near-black on the ice sheet to 58% on the glacier.
 
 The same trick gives bone, salt or chalk whenever they're wanted.
 
+## `ember` — the theme that fights the MAP, not the tracer
+
+`node scripts/gen-map.mjs scatter --theme ember --counts 20,40,70`. Generated only.
+Mirrors `rockform2/6/9/12` (`theme:'ember'`): scorched red-brown rock, molten orange fissures.
+
+| image | verdict |
+| --- | --- |
+| `ember-scatter-c20-1` | Weakest lava spill, so the most salvageable — but small rocks, heavy debris, empty top half, and orange puddles pooling onto the background under several masses. |
+| `ember-scatter-c40-1` | Striking, and wrong: the lava runs **between** the rocks as rivers across the open background. |
+| `ember-scatter-c70-1` | **No.** Full-bleed lava-cracked texture, no background at all — 100% rock, zero channels. A lovely texture and not a map. |
+
+**The structural problem is worth naming.** Every other theme's feature lives *inside* a rock
+— veins, geodes, crack lines — so "keep it inside the mass" is a constraint the model can
+satisfy. Lava's natural home is the gap *between* rocks, which is exactly the negative space
+that has to stay empty for the level to be traversable. The prompt bans lava pools, lava
+rivers and "molten anything lying on the background between the rocks", and all three images
+ignored it, because the ban fights what the subject is.
+
+Two ways out, neither tried yet:
+1. **Cool it down** — dim, dark-red cooling fissures rather than bright molten ones, so the
+   model has less reason to make them flow.
+2. **Let the tracer take it** — lava on the background is chromatic and forms components with
+   no dark rock in them, which the veined theme's component filter already deletes. It would
+   survive only where it touches a mass.
+
+Also worth deciding before this becomes a level: `docs/STYLE_GUIDE.md` reserves warm amber
+for ant tunnels, "the one warm light underground". A molten map spends that signal everywhere.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.
