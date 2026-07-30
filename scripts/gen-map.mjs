@@ -193,6 +193,18 @@ const THEMES = {
   },
 };
 
+// TRIED AND REVERTED: "This is a CROSS-SECTION: the whole scene has been sliced clean
+// through with a blade… every mass shows ONLY its flat cut face… no thickness, no depth, no
+// volume, never a view from above." It reads as the right instruction — the game IS a
+// vertical slice — and it made things worse on every theme it touched. A real cross-section
+// is a cut through CONTINUOUS material, so the model drew continuous material: ember came
+// back as ridges and full-bleed rock walls with no background at all, and ice c40 — the best
+// image any theme had produced — came back as a landscape under an empty sky.
+//
+// The map is a DIAGRAM convention, not a physical section: discrete masses floating in empty
+// space, which nothing is ever cut through. "Flat orthographic side elevation, straight-on,
+// no perspective, no isometric tilt" is as close as the wording can get, and the residual
+// top-down read on some rolls is the price. See docs/maps/README.md.
 const SIL_HEAD = (theme) =>
   `A flat diagram: ${THEMES[theme].rock} on a pure {BG} background. Wide ` +
   'horizontal composition, flat orthographic side elevation, straight-on, no perspective ' +

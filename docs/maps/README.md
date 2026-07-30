@@ -238,6 +238,33 @@ filter already deletes.
 Also worth deciding before this becomes a level: `docs/STYLE_GUIDE.md` reserves warm amber
 for ant tunnels, "the one warm light underground". A molten map spends that signal everywhere.
 
+## "Draw it as a cross-section" — tried, reverted
+
+The persistent complaint across every theme is that the rocks read top-down or three-quarter
+rather than side-on. The obvious fix is to say so directly: *this is a cross-section, the
+scene has been sliced clean through with a blade, every mass shows only its flat cut face, no
+thickness, no depth, never a view from above.* The game IS a vertical slice, so it should be
+true of the subject.
+
+**It made every theme worse, and the reason is worth keeping.** A real cross-section is a cut
+through CONTINUOUS material, so the model drew continuous material:
+
+| image | with the clause |
+| --- | --- |
+| `ember-scatter-c30-2` | A jagged mountain ridge under an empty white sky. |
+| `ember-scatter-c24-1` | Full-bleed cracked rock with a lava seam — no background, no channels. |
+| `ember-scatter-c36-1` | A rubble bank on a floor, empty top. |
+| `ice-scatter-c40-2` | The control. `ice-c40-1` was the best image any theme had produced — a cracked ice sheet with channels through it. With the clause it comes back as a landscape under a sky. |
+
+A map of ours is a **diagram** convention, not a physical section: discrete masses floating in
+empty space, which nothing is ever cut through. Asking for the section asks for exactly the
+continuity the map must not have. "Flat orthographic side elevation, straight-on, no
+perspective, no isometric tilt" is as close as wording gets, and the residual top-down read on
+some rolls is the price of keeping the masses separate.
+
+Worth testing a shared-prompt change on a known-good image before keeping it — that control
+roll is the only reason this was caught rather than quietly degrading every future theme.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.
