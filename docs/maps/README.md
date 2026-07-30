@@ -137,6 +137,24 @@ the ground — the size of round 1's detail with the count and separation of rou
 Loose crystal chips on the background also survive "no crystal ever lies loose on the
 background". They would trace as gravel, so they need the same treatment.
 
+**Round 4 (`c40/c55/c70`) — the size cap works.** Replacing "seen from far enough back" with
+a hard limit — *no single mass wider than about a tenth of the frame or taller than a third
+of its height; many modest masses, never a few huge ones* — plus counts of 40-70, produces
+what "zoom out" was asking for: a field of comparable masses covering the whole frame with
+channels running through it.
+
+| image | verdict |
+| --- | --- |
+| `crystal-scatter-c70-1` | **Best coverage.** Dense field of modest masses, fills the frame edge to edge, channels throughout. |
+| `crystal-scatter-c40-1` | **Good.** Same shape, looser — wider channels, more open. |
+| `crystal-scatter-c55-1` | Well separated but sparse, and the rocks sit on an implied ground plane with strong drop shadows. |
+
+Still not fixed: **loose gems on the background**, which have now survived three increasingly
+explicit bans. Most are small enough that `--min-area` drops them at trace time, but c55 and
+c70 each put a large loose cluster in the open, and that is big enough to trace as a rock
+sitting in a channel. Ban #4 is not the answer; deleting them at trace time (drop chromatic
+components with no dark rock in them — the machinery the veined theme already uses) is.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

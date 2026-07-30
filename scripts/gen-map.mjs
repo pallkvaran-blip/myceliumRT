@@ -102,7 +102,9 @@ const THEMES = {
       'solid near-black blue-grey rock masses. ABOUT HALF of them are plain cracked rock; ' +
       'the other half each carry a pocket of violet and cyan crystal shards set INTO the ' +
       "rock's face, covering roughly a third of that rock and surrounded by rock on every " +
-      'side. No crystal ever lies loose on the background',
+      'side. There are NO loose crystals anywhere: no gems, chips, shards or fragments ' +
+      'lying on the white background or scattered between the rocks — if it is crystal, it ' +
+      'is inside a pocket in a rock',
     palette:
       'Flat and unlit apart from the crystals: no shading, no gradients, no drop shadows, no ' +
       'outlines. NOTHING glows: no bloom, no halo, no light spilling from a crystal, and no ' +
@@ -132,10 +134,9 @@ const SIL_HEAD = (theme) =>
 const SIL_TAIL = (theme) =>
   ' The background is pure flat white everywhere, edge to edge, including all four edges and ' +
   'every corner. Do NOT draw a cave, a cavern, an enclosing wall, a rock border around the ' +
-  'frame, a ceiling, a floor, or a horizon. WIDE VIEW: the scene is seen from far enough ' +
-  'back that the whole field of rocks fits, and the rocks fill the frame — they reach the ' +
-  'left and right edges, they reach the top and bottom edges, and there is no empty band ' +
-  'along any edge and no empty half. ' +
+  'frame, a ceiling, a floor, or a horizon. The rocks are spread over the ENTIRE frame: ' +
+  'they reach the left and right edges, they reach the top and bottom edges, and there is ' +
+  'no empty band along any edge and no empty half. ' +
   THEMES[theme].palette +
   ' No small pebbles, no gravel, no dust, no speckles, no debris. No text, no labels, no ' +
   'grid, no border, no sky, no plants, no creatures.';
@@ -157,7 +158,9 @@ const FORMS = {
     'across the whole frame at different heights, each one clearly detached from every ' +
     'other, with an open white gap around every mass at least half as wide as the mass ' +
     'itself, and winding white channels running between them from the left side to the ' +
-    'right side.',
+    'right side. NO single mass is wider than about a tenth of the frame width or taller ' +
+    'than a third of its height — this is MANY MODEST masses covering the whole frame, ' +
+    'never a few huge ones.',
 
   // v1 said "stacked at different heights like shelves ... a staircase of open channels"
   // and the model took the staircase literally: at every count from 5 to 28 it piled the
