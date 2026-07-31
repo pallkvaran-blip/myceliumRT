@@ -129,16 +129,38 @@ lum = np.asarray(img.convert('L')).astype(np.int16)
 # still comes from the untouched image. Inverting the RGB leaves chroma unchanged — max-min
 # is invariant — so the "chromatic and not near-white" rescue becomes "chromatic and not
 # near-black" for free, which is exactly what it should mean on a dark ground.
-# Detected from the EXTREMES of the histogram, not from the image border. The border is the
-# obvious place to look and it is wrong: the prompts now demand the rocks reach all four
-# edges, so a dense map's border is mostly rock. ice-scatter-c40 read as a dark background on
-# a border median of 96 and then classified 100% of the frame as rock. The background is
-# always a flat extreme — near-white or near-black — and whichever extreme is more common is
-# it. On that map: 21% near-white against 0% near-black.
-_white = int((lum >= 240).sum()); _black = int((lum <= 15).sum())
-INVERT = (_black > _white) if a.invert == 'auto' else (a.invert == 'yes')
+# Detected by FLATNESS, and it refuses to guess when the answer is close.
+#
+# Two earlier attempts were wrong in instructive ways. Sampling the image BORDER fails because
+# the prompts demand the rocks reach all four edges, so a dense map's border is mostly rock —
+# ice-scatter-c40 read as a dark background and classified 100% of the frame as rock. Counting
+# near-white against near-black pixels fails on a map whose rock is near-black and covers most
+# of the frame: bioluminescent-c20-2 is dark rock on white at 81% solid, and the rock wins the
+# count.
+#
+# What actually separates them is that a background is a FLAT FILL and rock is textured. So
+# measure, at each extreme, the share of pixels that are both extreme AND locally flat. That
+# is right on 15 of the 16 maps generated so far — and on the 16th the two scores are within
+# 1.3x, which is exactly the case where a wrong guess would silently trace the background as
+# rock. So when the margin is thin, stop and ask, rather than produce a plausible ruin.
+_l = lum.astype(np.float32)
+_m = ndimage.uniform_filter(_l, 9)
+_sd = np.sqrt(np.maximum(0, ndimage.uniform_filter(_l * _l, 9) - _m * _m))
+_flat = _sd < 2.0
+_flat_light = float((_flat & (lum >= 235)).mean())
+_flat_dark = float((_flat & (lum <= 20)).mean())
+if a.invert == 'auto':
+    _hi, _lo = max(_flat_light, _flat_dark), min(_flat_light, _flat_dark)
+    if _hi < 1e-6 or _hi / max(_lo, 1e-6) < 1.6:
+        say(f'CANNOT TELL which end is background: flat-and-light {100 * _flat_light:.2f}% vs '
+            f'flat-and-dark {100 * _flat_dark:.2f}% — too close to call.')
+        say('Re-run with --invert yes (dark background) or --invert no (light background).')
+        sys.exit(2)
+    INVERT = _flat_dark > _flat_light
+else:
+    INVERT = a.invert == 'yes'
 say(f'background: {"dark (inverting detection)" if INVERT else "light"} — '
-    f'{100 * _white / lum.size:.0f}% near-white vs {100 * _black / lum.size:.0f}% near-black')
+    f'flat-and-light {100 * _flat_light:.1f}%, flat-and-dark {100 * _flat_dark:.1f}%')
 rgb_det = (255 - rgb_all) if INVERT else rgb_all
 lum = (255 - lum) if INVERT else lum
 
