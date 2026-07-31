@@ -439,6 +439,47 @@ picks have and the prompt forbids.
 Caveat: n=5, and `bioluminescent-c20-2` is the image whose polarity the tracer refuses to call,
 so its density number in particular is not trustworthy.
 
+## The `--rich` round: what happens when the flatness clauses come out
+
+Testing the paragraph above. `gen-map.mjs --rich` swaps the flatness clauses for their
+opposites — real shading across every face, a cast shadow under each mass, rim light on the
+edges — and leaves everything else identical. Three rolls, at exactly the theme/count of three
+of the owner's picks so the comparison is like-for-like:
+
+| | thr | solid | masses | grey band | grey **inside** the mask |
+| --- | --- | --- | --- | --- | --- |
+| `veined-c9-1` | 154 | 56.9% | 20 | 1.3% | 2.8% |
+| `rich-veined-c9-1` | 157 | 40.6% | 9 | 6.4% | 5.7% |
+| `veined-c28-1` | 144 | 77.4% | 22 | 9.9% | 9.4% |
+| `rich-veined-c28-1` | 144 | 78.2% | 31 | 9.0% | 4.1% |
+| `crystal-c70-1` | 156 | 69.5% | 36 | 8.0% | 5.1% |
+| `rich-crystal-c70-1` | 154 | 76.8% | 21 | 12.1% | **20.3%** |
+
+*Grey inside the mask* is the share of frame that is mid-tone (within 40 luminance of the cut)
+and still lands on the rock side of it — shadow the tracer would bake into collision. It is the
+number the flatness clauses were bought with.
+
+**The trace survives on veined and fails on crystal.** Otsu moves by ≤3 across every pair, so
+the cut itself is robust; what changes is how much soft grey sits under it. Veined is fine —
+`c28` actually *improves*, 9.4% → 4.1%, because the render puts its shadows tight under each
+mass instead of spreading them. `rich-crystal-c70` quadruples to 20.3%: a fifth of the frame
+would trace as rock that the player cannot see. Not because of the shading — because of what
+the shading brought with it.
+
+**And that is the real cost: the view drifts.** `rich-crystal-c70-1` is a three-quarter
+perspective sitting on a receding floor plane, with a single geode as a focal subject —
+a product render, not a map. `rich-veined-c28-1` is denser and better lit than its flat
+original, veins properly contained inside the rock, but every mass now shows a *top face*: it
+reads isometric, not side-on. "Most side-on" has been the owner's own first criterion in every
+round, and `rich-veined-c9-1` reproduced the standing veined failure on top of that — a bright
+cyan vein drawn across the white background between masses.
+
+So the hypothesis is half right and the fix is narrower than "remove the clauses". Three-
+dimensionality is what makes the rock look good; **orthographic projection is a separate
+instruction from flat shading, and the old prompt was buying both with one clause.** The next
+thing to try is keeping "flat orthographic side elevation, no perspective, no top faces,
+no ground plane" while dropping only "no shading / no gradients / no drop shadows".
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

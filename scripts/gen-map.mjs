@@ -8,6 +8,13 @@
 //   style      scatter | ledges | chokes | pillars | maze  — the traceable two-tone mask, one
 //              composition each (see FORMS); or `art`, the same map in the game's palette,
 //              which is pretty and completely untraceable. `silhouette` aliases `scatter`.
+//   --rich     drop the flatness clauses — shading, gradients, cast shadows, rim light. The
+//              owner's five favourite maps measure 36% cast-shadow load against 11% for the
+//              rest, i.e. they are the LEAST flat images in the set, while every palette
+//              clause has been demanding flatness throughout. Those bans existed to make
+//              thresholding easy and the tracer has outgrown them: Otsu picks the cut per
+//              image (150-165 so far) and the drop-shadow band sits at 200-249, well clear.
+//              See docs/maps/README.md, "What the best maps actually have in common".
 //   --theme    material: slate (default) | crystal | veined | ice. The first three mirror the
 //              game's own boulder art; `ice` is new — see the note on THEMES.ice, it is the
 //              one theme whose colour fights the tracer rather than the composition.
@@ -403,8 +410,24 @@ if (!THEMES[THEME]) {
   console.error(`unknown theme "${THEME}" — one of: ${Object.keys(THEMES).join(', ')}`);
   process.exit(1);
 }
-const promptFor = (n) => (style === 'art' ? PROMPTS.art
-  : withCount(style === 'silhouette' ? 'scatter' : style, n, THEME));
+const RICH = argv.includes('--rich');
+// Applied to the finished prompt so the swap is explicit and reviewable, rather than
+// maintaining a second copy of every theme's palette.
+const RICH_SWAPS = [
+  [/Flat and unlit[^.]*\./,
+   'Fully rendered and three-dimensional: real shading across every face, soft gradients, ' +
+   'a cast shadow under each mass, and rim light along the edges.'],
+  [/No texture, no shading, no gradients, no lighting, no highlights, no outlines, no drop shadows, no grey — /,
+   'Rendered with shading, gradients and a cast shadow under each mass, but strictly '],
+  [/, no drop shadows,/g, ','],
+  [/A flat diagram:/, 'A rendered illustration:'],
+];
+const promptFor = (n) => {
+  let p = style === 'art' ? PROMPTS.art
+    : withCount(style === 'silhouette' ? 'scatter' : style, n, THEME);
+  if (RICH) for (const [re, to] of RICH_SWAPS) p = p.replace(re, to);
+  return p;
+};
 const MODEL = flag('model', 'black-forest-labs/flux-1.1-pro');
 const ASPECT = flag('aspect', 'custom');
 const WIDTH = Number(flag('width', 1440));
@@ -466,7 +489,8 @@ let made = 0;
 for (const rocks of COUNTS_LIST) {
   for (let i = 0; i < COUNT; i++) {
     const themeTag = THEME === 'slate' ? '' : `${THEME}-`;
-    const tag = rocks != null ? `${themeTag}${style}-c${rocks}` : `${themeTag}${style}`;
+    const richTag = RICH ? 'rich-' : '';
+    const tag = rocks != null ? `${richTag}${themeTag}${style}-c${rocks}` : `${richTag}${themeTag}${style}`;
     let out = OUTNAME ? (COUNT === 1 && COUNTS_LIST.length === 1 ? OUTNAME : `${OUTNAME}-${made + 1}`) : null;
     if (!out) {
       let n = 1;
