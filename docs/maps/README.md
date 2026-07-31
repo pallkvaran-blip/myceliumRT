@@ -480,6 +480,56 @@ instruction from flat shading, and the old prompt was buying both with one claus
 thing to try is keeping "flat orthographic side elevation, no perspective, no top faces,
 no ground plane" while dropping only "no shading / no gradients / no drop shadows".
 
+## `--view top`: stop naming the camera by what it must not do
+
+The owner's read on the rich round was that the whole camera wording was the problem, not the
+shading — everything was coming back "viewed from an angle" — and that the fix was to ask for a
+**top-down** view rather than to keep negating the tilt. That is right, and it is the largest
+single improvement any prompt change has made.
+
+The old clause is *"flat orthographic side elevation, straight-on, no perspective and no
+isometric tilt"*: one weak positive and two negations. A diffusion model has to represent the
+tilt in order to refuse it, and on a good fraction of rolls it simply draws it. "Viewed from
+directly overhead, camera pointing straight down, every mass shows only its top surface" is a
+positive instruction with its own convention (tile sheets, top-down asset packs), and it kills
+the artifacts at the source: from overhead nothing is standing *on* anything, so there is no
+floor to recede and nothing to cast a shadow across it.
+
+Five rolls, at the exact theme and count of the owner's five favourites:
+
+| | thr | solid | masses | gravel | fill | grey in mask |
+| --- | --- | --- | --- | --- | --- | --- |
+| `veined-c9-1` | 154 | 56.9% | 20 | 36 | 0.68 | 2.8% |
+| `top-veined-c9-1` | 149 | **50.0%** | 13 | 2 | 0.68 | 2.7% |
+| `veined-c28-1` | 144 | 77.4% | 22 | 124 | 0.64 | 9.4% |
+| `top-veined-c28-1` | 150 | **56.2%** | 38 | 31 | 0.70 | 7.3% |
+| `crystal-c36-1` | 135 | 83.9% | 31 | 50 | 0.70 | 18.2% |
+| `top-crystal-c36-1` | 156 | **56.9%** | 43 | 342 | 0.68 | 12.4% |
+| `crystal-c70-1` | 156 | 69.5% | 36 | 32 | 0.66 | 5.1% |
+| `top-crystal-c70-1` | 157 | **51.4%** | 37 | 295 | 0.67 | 10.7% |
+| `biolum-c20-2` | 142 | 25.1% | 11 | 4506 | 0.38 | 8.4% *(polarity ambiguous)* |
+| `top-biolum-c20-1` | 147 | **60.1%** | 35 | 202 | 0.68 | 5.9% |
+
+**All five land inside the 15–60% playable band.** Their side-view originals mostly did not —
+three of them sat at 69–84%, dense enough that the channels close up. This is not a coincidence
+of the roll: a 3/4 view shows each mass's top face *and* its front face, so the same rock eats
+more frame. Overhead, a mass is only its footprint, and the gaps between footprints are the
+channels. The camera was costing us density control the whole time.
+
+Fill ratio also converges on 0.67–0.70 across every theme, the tightest the numbers have ever
+been, and `top-biolum-c20-1` is no longer polarity-ambiguous — the one image the tracer refused
+to call now reads cleanly, at 0.68 fill against the old 0.38.
+
+**The one regression is gravel.** The crystal rolls come back with 295–342 sub-threshold specks
+against 32–50 for their side-view originals, as loose chips and stray gems on the background.
+The tail bans exactly this and the top view brings it back — plausibly because "scattered rocks
+seen from above" is a strong enough visual cliché to override the ban. `--min-area` deletes them
+at trace time so it costs nothing in the mask, but it is visible in the reference image and it
+is the next thing to push on.
+
+`--view` and `--rich` are independent flags. Everything above is `--view top` with the flatness
+clauses left **in**.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

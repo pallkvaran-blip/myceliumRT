@@ -73,6 +73,7 @@ SELECTIONS = [
     ('ember-scatter-c24-3',        'ember',          24, None,           'In band, good spread, fissures dim and contained.'),
     ('ember-scatter-c30-5',        'ember',          30, None,           'Chunkier masses, strong fissures.'),
     ('skeletons-scatter-c12-1',   'skeletons',       12, None,           'All fossil. Fill ratio says it traces to fragments, not terrain.'),
+    ('rich-crystal-scatter-c70-1', 'crystal',        70, None,           'The one keep of the --rich round, and provisional — 20% of the frame is shadow the tracer would bake into collision.'),
 ]
 
 

@@ -15,6 +15,12 @@
 //              thresholding easy and the tracer has outgrown them: Otsu picks the cut per
 //              image (150-165 so far) and the drop-shadow band sits at 200-249, well clear.
 //              See docs/maps/README.md, "What the best maps actually have in common".
+//   --view     camera: side (default) | top. `side` is the original wording, which names the
+//              camera by three things it must NOT do (no perspective, no isometric tilt) and
+//              gets a 3/4 view anyway on a good fraction of rolls. `top` asks for a plan view
+//              from directly overhead instead — a positive instruction with its own
+//              convention, and one where there is no floor to cast a shadow onto. Filenames
+//              get a `top-` prefix. See the note above CAMERAS.
 //   --theme    material: slate (default) | crystal | veined | ice. The first three mirror the
 //              game's own boulder art; `ice` is new — see the note on THEMES.ice, it is the
 //              one theme whose colour fights the tracer rather than the composition.
@@ -287,10 +293,33 @@ const THEMES = {
 // space, which nothing is ever cut through. "Flat orthographic side elevation, straight-on,
 // no perspective, no isometric tilt" is as close as the wording can get, and the residual
 // top-down read on some rolls is the price. See docs/maps/README.md.
-const SIL_HEAD = (theme) =>
+//
+// `--view top` attacks the same residual from the other side, and it is the owner's idea:
+// stop naming the camera by what it must NOT do. "Side elevation, no perspective, no
+// isometric tilt" is three negations of a 3/4 view, and negations are the weakest thing you
+// can hand a diffusion model — it still has to imagine the tilt to refuse it, and half the
+// time it just draws it. A view from DIRECTLY OVERHEAD is a positive instruction with its own
+// well-worn convention (tile sheets, top-down asset packs), and it removes the cue that was
+// generating the artifacts in the first place: overhead, nothing is standing ON anything, so
+// there is no floor to recede and nothing to cast a shadow across it.
+//
+// The game is still a vertical slice, so this is a convention mismatch on paper. In practice
+// it is the same mismatch the maps already have — the owner's own shortlist describes its
+// picks as "most side-on / top-down", i.e. the two readings are indistinguishable once a mass
+// is a flat silhouette, which is exactly the state we want it in.
+const CAMERAS = {
+  side: 'flat orthographic side elevation, straight-on, no perspective and no isometric tilt',
+  top:
+    'viewed from DIRECTLY OVERHEAD — a top-down orthographic plan view, the camera pointing ' +
+    'straight down at the ground from above, exactly 90 degrees. Every mass shows only its ' +
+    'TOP surface: no side faces, no front faces, no edges seen at an angle, nothing standing ' +
+    'up out of the picture. Flat plan view, no perspective, no isometric tilt, no vanishing ' +
+    'point, no horizon and no ground plane receding into the distance',
+};
+
+const SIL_HEAD = (theme, view) =>
   `A flat diagram: ${THEMES[theme].rock} on a pure {BG} background. Wide ` +
-  'horizontal composition, flat orthographic side elevation, straight-on, no perspective ' +
-  'and no isometric tilt. ';
+  `horizontal composition, ${CAMERAS[view]}. `;
 
 const SIL_TAIL = (theme) =>
   ' The background is pure flat {BG} everywhere, edge to edge, including all four edges and ' +
@@ -380,8 +409,9 @@ const PROMPTS = {
 // level is (maze-1's ~20 gave 44.5% solid, scatter-1's ~17 gave 38.8%).
 const COUNTS = { scatter: 17, ledges: 10, chokes: 6, pillars: 12, maze: 30 };
 
-const withCount = (form, n, theme) =>
-  (SIL_HEAD(theme) + FORMS[form].replace('{N}', String(n != null ? n : COUNTS[form])) + SIL_TAIL(theme))
+const withCount = (form, n, theme, view) =>
+  (SIL_HEAD(theme, view) + FORMS[form].replace('{N}', String(n != null ? n : COUNTS[form]))
+   + SIL_TAIL(theme))
     .replace(/\{MASS\}/g, THEMES[theme].mass || 'irregular rock masses')
     .replace(/\{MASSADJ\}/g, THEMES[theme].massAdj
       || 'angular and cracked, a mix of big jagged blocks and long horizontal slabs')
@@ -422,9 +452,14 @@ const RICH_SWAPS = [
   [/, no drop shadows,/g, ','],
   [/A flat diagram:/, 'A rendered illustration:'],
 ];
+const VIEW = flag('view', 'side');
+if (!CAMERAS[VIEW]) {
+  console.error(`unknown view "${VIEW}" — one of: ${Object.keys(CAMERAS).join(', ')}`);
+  process.exit(1);
+}
 const promptFor = (n) => {
   let p = style === 'art' ? PROMPTS.art
-    : withCount(style === 'silhouette' ? 'scatter' : style, n, THEME);
+    : withCount(style === 'silhouette' ? 'scatter' : style, n, THEME, VIEW);
   if (RICH) for (const [re, to] of RICH_SWAPS) p = p.replace(re, to);
   return p;
 };
@@ -485,11 +520,19 @@ const size = ASPECT === 'custom' ? `${WIDTH}x${HEIGHT}` : ASPECT;
 // One image per (rock count × --n). Files are named for the count when sweeping, so the
 // filename says what it asked for — `ledges-c14-1.png` rather than a bare index nobody can
 // map back to a prompt afterwards.
+// `--print` builds the prompt and stops. Worth having: the prompt is assembled from a head,
+// a form, a tail and four token substitutions across two independent flags, and reading the
+// finished string is the only way to be sure a swap fired before spending a generation on it.
+if (argv.includes('--print')) {
+  for (const rocks of COUNTS_LIST) console.log(promptFor(rocks) + '\n');
+  process.exit(0);
+}
+
 let made = 0;
 for (const rocks of COUNTS_LIST) {
   for (let i = 0; i < COUNT; i++) {
     const themeTag = THEME === 'slate' ? '' : `${THEME}-`;
-    const richTag = RICH ? 'rich-' : '';
+    const richTag = (RICH ? 'rich-' : '') + (VIEW === 'side' ? '' : `${VIEW}-`);
     const tag = rocks != null ? `${richTag}${themeTag}${style}-c${rocks}` : `${richTag}${themeTag}${style}`;
     let out = OUTNAME ? (COUNT === 1 && COUNTS_LIST.length === 1 ? OUTNAME : `${OUTNAME}-${made + 1}`) : null;
     if (!out) {

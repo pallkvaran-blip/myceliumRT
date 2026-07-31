@@ -248,10 +248,25 @@ it's what `solidifyRock` samples. Resolution never affects collision anyway: `_a
 downsamples every sprite to 160px on its long side, so all of this is purely what the
 player sees.
 
-Prompts have two axes: a **form** (`--count`/`--counts` sets its rock count) and a **theme**
+Prompts have three axes: a **form** (`--count`/`--counts` sets its rock count), a **theme**
 (`--theme`), the rock material, named after the game's own boulder art (`ALL_ROCKS`:
-slate / basalt / river / veined / mossy). `veined` works and its cyan is why the tracer's
-rock test isn't just luminance — see below.
+slate / basalt / river / veined / mossy), and a **camera** (`--view`). `veined` works and its
+cyan is why the tracer's rock test isn't just luminance — see below.
+
+**Generate with `--view top`.** The default `side` names the camera by what it must *not* do
+("side elevation, no perspective, no isometric tilt") and gets a 3/4 view anyway on a good
+fraction of rolls — the model has to represent the tilt in order to refuse it. Asking for a
+plan view from directly overhead is a positive instruction, and overhead nothing stands *on*
+anything, so there is no floor to recede and no long cast shadow. Measured over five
+like-for-like pairs it moved **every** image into the 15-60% playable density band (three of
+the side originals were 69-84%, dense enough to close the channels), tightened fill ratio to
+0.67-0.70 across all themes, and un-stuck the one image whose polarity the tracer refused to
+call. A 3/4 view shows each mass's top face *and* its front face, so the same rock eats more
+frame — the camera was costing density control all along. Its one regression is gravel: the
+crystal rolls come back with ~300 sub-threshold specks against ~40 side-on, which `--min-area`
+deletes but which is visible in the reference image. `--view` and `--rich` are independent.
+`--print` builds the prompt and stops, which is how you check a swap fired before paying for a
+generation. Full numbers in `docs/maps/README.md`.
 
 **The prompt is the asset.** Two forms are owner-approved — `scatter` (loose masses,
 generous channels) and `maze` (dense, tight channels). `ledges` is being retried and
