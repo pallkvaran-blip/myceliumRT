@@ -1,0 +1,342 @@
+#!/usr/bin/env python3
+"""Generate docs/level-review.html — every traced level as it looks IN GAME, for comment.
+
+    node tests/level-shots.cjs                       # first: capture docs/shots/*.webp
+    python3 scripts/gen-level-review.py
+    python3 scripts/gen-level-review.py --inline docs/level-review-inline.html
+
+Different question from docs/map-review.html, which asks "is this a good picture". This
+asks "did the picture survive becoming a level", so every card puts the three states side
+by side and lets you compare them directly:
+
+    source        the generated image, what was approved
+    in game wide  the whole map as the engine draws it
+    in game near  the same map at the zoom it is actually played at
+
+The near frame is the one that matters. Every rendering defect this project has had — the
+white edge ring, the grey halo, the mush from tracing the 1x image — was invisible in an
+overview and obvious at play zoom.
+
+Each card carries a free-text comment box and a keep/cut/fix toggle, both persisted in
+localStorage and exported as JSON, so a review survives a page reload and comes back as
+something a script can read.
+"""
+
+import argparse, base64, io, json, os, re
+from PIL import Image
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SHOTS = os.path.join(ROOT, 'docs', 'shots')
+MAPS = os.path.join(ROOT, 'docs', 'maps')
+LEVELS = os.path.join(ROOT, 'docs', 'levels')
+
+ap = argparse.ArgumentParser()
+ap.add_argument('--inline', metavar='PATH',
+                help='embed every image as a data URI and write here — for publishing, where '
+                     'relative paths do not resolve under the artifact CSP')
+ap.add_argument('--width', type=int, default=560,
+                help='downscale embedded images to this width. Three frames per level across '
+                     '59 levels is 177 images on one page.')
+ARGS = ap.parse_args()
+
+
+def data_uri(path, width):
+    im = Image.open(path).convert('RGB')
+    if im.width > width:
+        im = im.resize((width, round(im.height * width / im.width)), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, 'WEBP', quality=78, method=4)
+    return 'data:image/webp;base64,' + base64.b64encode(buf.getvalue()).decode()
+
+
+def src_image_for(lvl):
+    """The generated image a level was traced from, out of its own `traced` block."""
+    t = (lvl.get('traced') or {}).get('image')
+    if not t:
+        return None
+    p = os.path.join(ROOT, t)
+    if os.path.exists(p):
+        return p
+    # `<stem>@4x.webp` is 5760px wide; the 1x source next to it is the one to show.
+    one = p.replace('@4x', '')
+    return one if os.path.exists(one) else (p if os.path.exists(p) else None)
+
+
+cards = []
+for f in sorted(os.listdir(LEVELS)):
+    if not f.endswith('.json'):
+        continue
+    lvl = json.load(open(os.path.join(LEVELS, f)))
+    lid = lvl.get('id')
+    if not lid:
+        continue
+    wide = os.path.join(SHOTS, f'{lid}-wide.webp')
+    near = os.path.join(SHOTS, f'{lid}-near.webp')
+    src = src_image_for(lvl)
+    objs = lvl.get('objects') or []
+    kinds = {}
+    for o in objs:
+        kinds[o.get('t') or '?'] = kinds.get(o.get('t') or '?', 0) + 1
+    food = sum(1 for o in objs if o.get('kind'))
+    imgs = []
+    for label, p in (('source', src), ('in game — whole map', wide), ('in game — play zoom', near)):
+        if not p or not os.path.exists(p):
+            continue
+        imgs.append((label, data_uri(p, ARGS.width) if ARGS.inline
+                     else os.path.relpath(p, os.path.join(ROOT, 'docs'))))
+    cards.append(dict(id=lid, name=lvl.get('name') or lid, imgs=imgs,
+                      sprites=kinds.get('sprite', 0), food=food,
+                      traced=bool(lvl.get('traced')),
+                      shot=os.path.exists(wide)))
+
+missing = [c['id'] for c in cards if not c['shot']]
+themes = sorted({re.split(r'-c\d', c['id'])[0] for c in cards})
+
+CARDS_JSON = json.dumps(cards)
+THEMES_JSON = json.dumps(themes)
+
+HTML = """<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mycelium — traced levels in game</title>
+<style>
+  /* The game's own palette (docs/STYLE_GUIDE.md): cool near-black soil, the mycelium's mint
+     as the single accent, the ants' amber reserved for anything out of tolerance. Tokens
+     only — components never name a colour, so both themes come from one set of overrides. */
+  :root {
+    --ground:#eef1f0; --panel:#fff; --sunk:#e6ebe9; --line:#d4dedb;
+    --ink:#101a1e; --dim:#5a6970; --mint:#0c7c66; --amber:#8f5c0c;
+    --shadow:0 1px 2px rgba(16,26,30,.07), 0 10px 30px -16px rgba(16,26,30,.25);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:#0b100f; --panel:#141b19; --sunk:#0e1413; --line:#22302c;
+      --ink:#e8f0ed; --dim:#8ba099; --mint:#57d6ab; --amber:#e0a54a;
+      --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 34px -18px rgba(0,0,0,.8);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground:#0b100f; --panel:#141b19; --sunk:#0e1413; --line:#22302c;
+    --ink:#e8f0ed; --dim:#8ba099; --mint:#57d6ab; --amber:#e0a54a;
+    --shadow:0 1px 2px rgba(0,0,0,.5), 0 12px 34px -18px rgba(0,0,0,.8);
+  }
+  :root[data-theme="light"] {
+    --ground:#eef1f0; --panel:#fff; --sunk:#e6ebe9; --line:#d4dedb;
+    --ink:#101a1e; --dim:#5a6970; --mint:#0c7c66; --amber:#8f5c0c;
+    --shadow:0 1px 2px rgba(16,26,30,.07), 0 10px 30px -16px rgba(16,26,30,.25);
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--ground); color:var(--ink);
+    font:15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width:1180px; margin:0 auto; padding:34px 20px 90px; }
+  header h1 { font-size:26px; letter-spacing:-.015em; margin:0 0 6px; text-wrap:balance; }
+  header p { color:var(--dim); margin:0 0 22px; max-width:62ch; }
+  .bar { position:sticky; top:0; z-index:5; background:color-mix(in srgb, var(--ground) 88%, transparent);
+    backdrop-filter:blur(8px); border-bottom:1px solid var(--line); padding:10px 0 10px;
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:22px; }
+  .chip { font:600 12px/1 ui-sans-serif, system-ui; letter-spacing:.02em; padding:7px 12px;
+    border:1px solid var(--line); border-radius:999px; background:var(--panel); color:var(--dim);
+    cursor:pointer; }
+  .chip[aria-pressed="true"] { color:var(--mint); border-color:var(--mint); }
+  .chip:focus-visible, button:focus-visible, textarea:focus-visible { outline:2px solid var(--mint); outline-offset:2px; }
+  .spacer { flex:1; }
+  .count { color:var(--dim); font-size:12.5px; font-variant-numeric:tabular-nums; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:14px;
+    box-shadow:var(--shadow); padding:16px; margin-bottom:20px; }
+  .card[data-v="cut"] { opacity:.5; }
+  .card[data-v="fix"] { border-color:var(--amber); }
+  .chead { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
+  .chead h2 { font-size:17px; margin:0; letter-spacing:-.01em; }
+  .id { font:12px ui-monospace, SFMono-Regular, Menlo, monospace; color:var(--dim); }
+  .meta { color:var(--dim); font-size:12.5px; font-variant-numeric:tabular-nums; margin-left:auto; }
+  .frames { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px; }
+  figure { margin:0; }
+  figure img { width:100%; height:auto; display:block; border-radius:8px; background:var(--sunk);
+    border:1px solid var(--line); cursor:zoom-in; }
+  figcaption { font:600 10.5px/1.4 ui-sans-serif, system-ui; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--dim); padding-top:7px; }
+  .row { display:flex; gap:8px; align-items:flex-start; margin-top:13px; flex-wrap:wrap; }
+  textarea { flex:1; min-width:240px; min-height:44px; resize:vertical; padding:9px 11px;
+    border:1px solid var(--line); border-radius:9px; background:var(--sunk); color:var(--ink);
+    font:14px/1.5 inherit; }
+  .verdicts { display:flex; gap:6px; }
+  .v { font:700 11px/1 ui-sans-serif, system-ui; letter-spacing:.06em; text-transform:uppercase;
+    padding:9px 13px; border-radius:999px; border:1px solid var(--line); background:var(--sunk);
+    color:var(--dim); cursor:pointer; }
+  .v[aria-pressed="true"] { background:var(--mint); border-color:var(--mint); color:var(--ground); }
+  .v[data-v="fix"][aria-pressed="true"] { background:var(--amber); border-color:var(--amber); }
+  .foot { position:fixed; left:0; right:0; bottom:0; background:var(--panel);
+    border-top:1px solid var(--line); padding:11px 20px; display:flex; gap:10px; align-items:center;
+    justify-content:center; z-index:9; }
+  .btn { font:700 12.5px/1 ui-sans-serif, system-ui; padding:10px 16px; border-radius:9px;
+    border:1px solid var(--mint); background:var(--mint); color:var(--ground); cursor:pointer; }
+  .btn.ghost { background:transparent; color:var(--mint); }
+  dialog { border:none; border-radius:12px; padding:0; background:transparent; max-width:96vw; }
+  dialog::backdrop { background:rgba(0,0,0,.82); }
+  dialog img { max-width:96vw; max-height:92vh; display:block; border-radius:10px; }
+  .warn { color:var(--amber); font-size:13px; margin:0 0 16px; }
+  @media (prefers-reduced-motion:no-preference) { .card { transition:opacity .15s ease; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Traced levels, in game</h1>
+    <p>Every authored level as the engine actually draws it. The <strong>play zoom</strong>
+       frame is the one that matters — every rendering defect this project has had was
+       invisible in an overview and obvious there. Comments and verdicts save in this
+       browser; <em>Export</em> gives back JSON.</p>
+    __WARN__
+  </header>
+
+  <div class="bar" id="bar"></div>
+  <div id="list"></div>
+</div>
+
+<div class="foot">
+  <button class="btn" id="export">Export JSON</button>
+  <button class="btn ghost" id="copy">Copy to clipboard</button>
+  <span class="count" id="tally"></span>
+</div>
+
+<dialog id="lb"><img alt=""></dialog>
+
+<script>
+const CARDS = __CARDS__;
+const THEMES = __THEMES__;
+const KEY = 'mycelium.levelreview.v1';
+const store = JSON.parse(localStorage.getItem(KEY) || '{}');
+const save = () => localStorage.setItem(KEY, JSON.stringify(store));
+const rec = (id) => (store[id] = store[id] || { verdict: '', note: '' });
+
+let filter = 'all';
+const bar = document.getElementById('bar');
+const list = document.getElementById('list');
+const lb = document.getElementById('lb');
+
+function chip(label, val) {
+  const b = document.createElement('button');
+  b.className = 'chip'; b.textContent = label; b.type = 'button';
+  b.setAttribute('aria-pressed', String(filter === val));
+  b.onclick = () => { filter = val; render(); };
+  return b;
+}
+
+function render() {
+  bar.replaceChildren();
+  bar.append(chip('All ' + CARDS.length, 'all'), chip('Commented', 'noted'),
+             chip('Needs fixing', 'fix'), chip('Cut', 'cut'));
+  for (const t of THEMES) bar.append(chip(t, 'theme:' + t));
+  const sp = document.createElement('span'); sp.className = 'spacer'; bar.append(sp);
+
+  const shown = CARDS.filter((c) => {
+    const r = store[c.id] || {};
+    if (filter === 'all') return true;
+    if (filter === 'noted') return (r.note || '').trim().length > 0;
+    if (filter.startsWith('theme:')) return c.id.startsWith(filter.slice(6));
+    return r.verdict === filter;
+  });
+
+  const n = document.createElement('span');
+  n.className = 'count'; n.textContent = shown.length + ' shown';
+  bar.append(n);
+
+  list.replaceChildren();
+  for (const c of shown) list.append(cardEl(c));
+  tally();
+}
+
+function cardEl(c) {
+  const r = rec(c.id);
+  const el = document.createElement('article');
+  el.className = 'card'; el.dataset.v = r.verdict || '';
+
+  const head = document.createElement('div');
+  head.className = 'chead';
+  const h = document.createElement('h2'); h.textContent = c.name;
+  const id = document.createElement('code'); id.className = 'id'; id.textContent = '#level,' + c.id;
+  const meta = document.createElement('span');
+  meta.className = 'meta';
+  meta.textContent = c.sprites + ' sprites · ' + c.food + ' food';
+  head.append(h, id, meta);
+
+  const frames = document.createElement('div');
+  frames.className = 'frames';
+  for (const [label, src] of c.imgs) {
+    const fig = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = src; img.alt = c.name + ' — ' + label; img.loading = 'lazy';
+    img.onclick = () => { lb.querySelector('img').src = src; lb.showModal(); };
+    const cap = document.createElement('figcaption'); cap.textContent = label;
+    fig.append(img, cap); frames.append(fig);
+  }
+  if (!c.imgs.length) {
+    const p = document.createElement('p');
+    p.className = 'warn'; p.textContent = 'No frames captured — run node tests/level-shots.cjs';
+    frames.append(p);
+  }
+
+  const row = document.createElement('div');
+  row.className = 'row';
+  const ta = document.createElement('textarea');
+  ta.placeholder = 'What is wrong with this one?';
+  ta.value = r.note || '';
+  ta.oninput = () => { r.note = ta.value; save(); tally(); };
+  const vs = document.createElement('div');
+  vs.className = 'verdicts';
+  for (const v of ['keep', 'fix', 'cut']) {
+    const b = document.createElement('button');
+    b.className = 'v'; b.type = 'button'; b.dataset.v = v; b.textContent = v;
+    b.setAttribute('aria-pressed', String(r.verdict === v));
+    b.onclick = () => {
+      r.verdict = r.verdict === v ? '' : v; save();
+      el.dataset.v = r.verdict || '';
+      vs.querySelectorAll('.v').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.v === r.verdict)));
+      tally();
+    };
+    vs.append(b);
+  }
+  row.append(ta, vs);
+  el.append(head, frames, row);
+  return el;
+}
+
+function payload() {
+  return CARDS.map((c) => ({ id: c.id, verdict: (store[c.id] || {}).verdict || '',
+                             note: (store[c.id] || {}).note || '' }))
+              .filter((x) => x.verdict || x.note);
+}
+function tally() {
+  const p = payload();
+  const by = (v) => p.filter((x) => x.verdict === v).length;
+  document.getElementById('tally').textContent =
+    p.length + ' of ' + CARDS.length + ' marked · ' + by('keep') + ' keep, ' +
+    by('fix') + ' fix, ' + by('cut') + ' cut';
+}
+document.getElementById('export').onclick = () => {
+  const blob = new Blob([JSON.stringify(payload(), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = 'level-review.json'; a.click();
+};
+document.getElementById('copy').onclick = async () => {
+  await navigator.clipboard.writeText(JSON.stringify(payload(), null, 2));
+  const b = document.getElementById('copy'); const t = b.textContent;
+  b.textContent = 'Copied'; setTimeout(() => (b.textContent = t), 1200);
+};
+lb.onclick = () => lb.close();
+render();
+</script>
+"""
+
+warn = (f'<p class="warn">{len(missing)} level(s) have no captured frames: '
+        f'{", ".join(missing[:6])}{"…" if len(missing) > 6 else ""}. '
+        f'Run <code>node tests/level-shots.cjs</code>.</p>') if missing else ''
+
+out = ARGS.inline or os.path.join(ROOT, 'docs', 'level-review.html')
+html = (HTML.replace('__CARDS__', CARDS_JSON)
+            .replace('__THEMES__', THEMES_JSON)
+            .replace('__WARN__', warn))
+os.makedirs(os.path.dirname(out), exist_ok=True)
+open(out, 'w').write(html)
+print(f'wrote {out} — {len(cards)} levels, '
+      f'{sum(len(c["imgs"]) for c in cards)} frames'
+      + (f', {len(missing)} without shots' if missing else ''))

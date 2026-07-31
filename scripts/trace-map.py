@@ -187,9 +187,39 @@ def _otsu(v):
     between[ok] = ((mu_t * wb[ok] / tot - mu[:-1][ok]) ** 2) / (wb[ok] * wf[ok])
     return int(np.argmax(between))
 
-THRESH = a.threshold if a.threshold is not None else min(210, max(120, _otsu(lum)))
-if a.threshold is None:
-    say(f'threshold: {THRESH} (Otsu)')
+def _pick_threshold(lum):
+    """Otsu, but capped when the rock is near-black — see below.
+
+    Otsu replaced a fixed cut of 128 because a fixed cut sawed the LIT TOP FACES off the
+    side-on `ledges` rolls (7.9% of that image sat at 150-159 and belonged to the rock).
+    That was right for the images of the time. It stopped being right when DARK_TONE landed:
+    a near-black mass on white pulls Otsu's cut UP — 147 on obsidian-c55 — and everything
+    between the rock and the background is anti-aliasing and DROP SHADOW. The soft contact
+    shadow under an overhead mass measures ~131 there, so the cut swallowed it, and every
+    mass shipped wearing a pale skirt that is solid to the player and invisible on screen.
+    That is the oldest warning in docs/maps/README.md ("threshold high and every wall is
+    fattened by its shadow — an invisible wall, the worst bug here") arriving by a new route.
+
+    So: keep Otsu where the rock is genuinely mid-toned and might have lit faces, and fall
+    back to the documented 128 where the rock is near-black and anything above it therefore
+    cannot be rock. The test is the rock body's own median, not the image's — a dark mass on
+    a white ground has a very low median below the cut (20 on obsidian) where `ledges` sits
+    at 43 with a long bright tail.
+    """
+    o = min(210, max(120, _otsu(lum)))
+    body = lum[lum < o]
+    p50 = float(np.median(body)) if body.size else o
+    if p50 < 80 and o > 128:
+        return 128, f'{o} (Otsu) capped to 128 — rock body median {p50:.0f} is near-black, ' \
+                    f'so {o} would trace the drop shadows'
+    return o, f'{o} (Otsu)'
+
+
+if a.threshold is not None:
+    THRESH = a.threshold
+else:
+    THRESH, _why = _pick_threshold(lum)
+    say(f'threshold: {_why}')
 
 chroma = rgb_det.max(axis=2) - rgb_det.min(axis=2)
 rock_src = (lum < THRESH) | ((chroma > 40) & (rgb_det.min(axis=2) < 200))
@@ -222,6 +252,29 @@ _dropped = _n - int(_has_dark.sum())
 if _dropped:
     say(f'dropped {_dropped} component(s) with no dark rock in them (stray veins)')
 rock = _has_dark[_lab]
+
+# CLOSE before filling, and this is the other half of the threshold cap above.
+#
+# Capping the cut at 128 removes the drop shadow, and it also bites into the rock's LIT
+# faces — on an overhead roll the lit flank of a mass and the shadow beside it occupy the
+# same luminance band, so no threshold separates them and the cut has to be set for the
+# shadow. What that leaves is not a missing flank but a RAGGED one: the lit face speckles
+# into hundreds of little holes and notches along the rim, which is worse to look at than
+# either extreme and is the "removing some of the insides of rocks" defect.
+#
+# A closing repairs exactly that and nothing else. It is a dilation followed by an erosion,
+# so it fills notches narrower than its disk and returns the silhouette to where it was —
+# the rim comes back solid while the outline stays put. It cannot pull the shadow in: the
+# shadow is a broad smooth region well wider than the disk, on the far side of the rock's
+# hard edge.
+#
+# Sized larger than the opening above (which severs filaments at W/1200) because the notches
+# it is repairing are wider than a vein. At W/400 — 14px on a 5760px source, under a world
+# unit — it healed the flank without visibly rounding a corner.
+_c = max(2, round(W / 400))
+_y, _x = np.ogrid[-_c:_c + 1, -_c:_c + 1]
+rock = ndimage.binary_closing(rock, structure=(_x * _x + _y * _y <= _c * _c))
+
 rock = ndimage.binary_fill_holes(rock)
 # `rock` and `rock_src` now differ: opening regrows into the background at concave corners
 # and fill closes pockets the rocks enclose between them. Those added pixels are rock as far
