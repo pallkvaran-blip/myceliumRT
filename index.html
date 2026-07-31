@@ -14675,13 +14675,39 @@ function loadAssets(basePath = 'assets/', onProgress) {
     .then((r) => (r.ok ? r.json() : { assets: [] }))
     .catch(() => ({ assets: [] }))
     .then((m) => {
-      const list = (m && m.assets) || [];
+      const all = (m && m.assets) || [];
+      // AUTHORED-LEVEL sprites (kind 'level') are NOT preloaded. There are ~2250 of them
+      // across the traced maps, about 98 MB, and this function only resolves once every
+      // entry has settled — so before this split the boot decoded all 59 maps in order to
+      // play one, and on a 59-map build it simply never finished. They are deferred to
+      // loadLevelAssets(id), called when a level starts. Everything else (card faces,
+      // species portraits, rockface, the procedural boulder art) is still eager: it is 62
+      // files, and the UI draws it before any level exists.
+      DEFERRED = all.filter((a) => a && a.kind === 'level');
+      const list = all.filter((a) => !a || a.kind !== 'level');
       const total = list.length; let done = 0;
       if (!total) { onProgress && onProgress(0, 0); return; }
       const bump = () => { onProgress && onProgress(++done, total); };
       return Promise.all(list.map((a) => loadOne(basePath, a).then(bump)));
     })
     .catch(() => {});
+}
+
+// Manifest entries held back by loadAssets, and the per-level loads already in flight.
+let DEFERRED = [];
+const LEVEL_LOADS = new Map();
+
+// Load one authored level's sprites — every deferred entry filed under `assets/<id>/`.
+// Idempotent and cached by id: solidifyRock() retries until every sprite it needs reports
+// ready, so nothing here has to be awaited for correctness. It is returned as a promise
+// anyway, for a caller that wants to hold a loading screen up.
+function loadLevelAssets(id, basePath = 'assets/') {
+  if (!id) return Promise.resolve();
+  if (LEVEL_LOADS.has(id)) return LEVEL_LOADS.get(id);
+  const mine = DEFERRED.filter((a) => a.file && a.file.split('/')[0] === id);
+  const p = Promise.all(mine.map((a) => loadOne(basePath, a))).then(() => mine.length);
+  LEVEL_LOADS.set(id, p);
+  return p;
 }
 
 function loadOne(basePath, a) {
@@ -14728,7 +14754,7 @@ function pattern(ctx, key) {
   return p;
 }
 
-  return { loadAssets, assetUrl, preloadImages, hasAsset, asset, assetMeta, pattern };
+  return { loadAssets, loadLevelAssets, assetUrl, preloadImages, hasAsset, asset, assetMeta, pattern };
 })();
 
 // ===================== src/render/substrate.js =====================
@@ -20607,7 +20633,7 @@ const __m_main = (function () {
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro } = __m_render_level_intro;
   const { SPECIES, MAX_LEVEL, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeathCarry, saveDeathCarry, clearDeathCarry, loadResume, saveResume, clearResume, revealSpecies, isSpeciesRevealed } = __m_species;
-  const { loadAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
+  const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
   const { showLoading } = __m_render_loading;
@@ -20823,6 +20849,12 @@ function levelDefFor(n) {
 function start(seed) {
   const cfg = configForLevel(currentLevel);
   const def = levelDefFor(currentLevel);
+  // An authored level's sprites are held back from the boot preload (see loadLevelAssets),
+  // so ask for them here. Deliberately NOT awaited: solidifyRock() already retries until
+  // every sprite it needs reports ready, and drawLevelRocks() skips the ones that aren't,
+  // so the map fills in over the first frames instead of the run being gated on a decode.
+  // Blocking here would put a stall between the picker and the level for no gain.
+  if (def && def.id) loadLevelAssets(def.id);
   begin(def ? createLevelState(cfg, seed, def) : createState(cfg, seed));
 }
 function startRun() { start((Date.now() & 0x7fffffff) || 1); }

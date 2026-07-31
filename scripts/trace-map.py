@@ -363,7 +363,12 @@ for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
     key = f'{a.id}R{rank:03d}'
     fname = f'r{rank:03d}.{a.format}'
     save(Image.fromarray(out, 'RGBA'), os.path.join(adir, fname))
-    manifest.append({'key': key, 'file': f'{a.id}/{fname}', 'kind': 'sprite'})
+    # kind 'level', NOT 'sprite'. The boot preloader in index.html waits for every manifest
+    # entry to settle before the game starts, so a traced map's sprites were being decoded on
+    # every boot whether or not that map was played. Fine at five maps; at 59 it is ~98 MB and
+    # ~2250 images loaded to play one of them, and the boot never finished. `level` is the tag
+    # the loader uses to defer them until the level that needs them actually starts.
+    manifest.append({'key': key, 'file': f'{a.id}/{fname}', 'kind': 'level'})
     # Round the EDGES, then derive centre and size from them. Rounding x and w separately
     # lets x - w/2 land a fraction of a unit off the edge it was cut at, which is enough to
     # read as a sprite overhanging a pathClear channel when it is exactly flush with one.
