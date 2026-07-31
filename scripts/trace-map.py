@@ -111,8 +111,15 @@ ap.add_argument('--cell', type=int, default=36)
 ap.add_argument('--start-cols', type=int, default=2)
 ap.add_argument('--goal-cols', type=int, default=6)
 ap.add_argument('--food', type=int, default=12)
-ap.add_argument('--trim', type=int, default=2,
-                help='pixels eroded off each blob before cutting, to drop the anti-aliased ring')
+ap.add_argument('--trim', type=int, default=None,
+                help='pixels eroded off each blob before cutting, to drop the anti-aliased '
+                     'ring. Default scales with the image: W/480, i.e. 12px on a 5760px '
+                     'source. It used to be a flat 2, which was chosen on the 1440px images '
+                     'and is nearly nothing at 4x. Measured on obsidian-c55, the theme with '
+                     'the worst residual fringe: the edge ring sits +37 luminance above the '
+                     'rock it edges at trim 2, +26 at 6, +14 at 12 and +13 at 20 — so 12 is '
+                     'where it stops paying, and it brings the hardest theme in line with '
+                     'the easiest. Costs a few percent of each blob, well under a cell.')
 ap.add_argument('--feather', type=float, default=2, help='ALPHA ramp width, in source px')
 ap.add_argument('--bleed', type=int, default=16, help='how far the COLOUR is carried out')
 ap.add_argument('--format', choices=('webp', 'png'), default='webp')
@@ -124,6 +131,9 @@ a = ap.parse_args()
 img = Image.open(os.path.join(ROOT, a.image)).convert('RGB')
 W, H = img.size
 rgb_all = np.asarray(img).astype(np.int16)
+
+# Trim scales with the source, resolved here because it needs W. See the flag's help.
+TRIM = a.trim if a.trim is not None else max(2, round(W / 480))
 lum = np.asarray(img.convert('L')).astype(np.int16)
 
 # WHICH END IS BACKGROUND. Everything below assumes background is the BRIGHT end and rock the
@@ -412,7 +422,7 @@ for rank, i in enumerate(sorted(keep, key=lambda i: -areas[i]), start=1):
     # Costs ~1.5% of each blob's area — under a world unit, and collision is sampled at
     # 160px, so nothing measurable.
     m_src = (lab[r0:r1, c0:c1] == i + 1)
-    m = ndimage.binary_erosion(m_src, iterations=a.trim) if a.trim else m_src
+    m = ndimage.binary_erosion(m_src, iterations=TRIM) if TRIM else m_src
     if not m.any():
         m = m_src                               # too thin to erode; keep it rather than lose it
     crop = rgb[r0:r1, c0:c1]

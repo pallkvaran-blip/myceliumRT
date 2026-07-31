@@ -45,7 +45,7 @@ import sys
 from PIL import Image
 for p in sys.argv[1:]:
     im = Image.open(p).convert('RGB')
-    im.save(p[:-4] + '.webp', 'WEBP', quality=82, method=4)
+    im.save(p[:-4] + '.webp', 'WEBP', quality=86, method=4)
 `;
   execFileSync('python3', ['-c', py, ...files], { stdio: 'inherit' });
   for (const f of files) fs.unlinkSync(f);
@@ -74,9 +74,11 @@ for p in sys.argv[1:]:
     process.stdout.write(`[${++done}/${LEVELS.length}] ${ID} … `);
     // One context per level. Reusing one has leaked state into later cases before, and a
     // level that ends mid-capture puts an overlay over every frame after it.
-    // deviceScaleFactor 1. At 2 the screenshot of a live rAF loop timed out — CLAUDE.md
-    // already records 4 as an OOM, and 2 is enough over 118 frames to stall the capture.
-    const ctx = await browser.newContext({ viewport: { width: 1400, height: 800 }, deviceScaleFactor: 1 });
+    // 1600x900 at deviceScaleFactor 2 -> 3200x1800 frames, so the owner can open one and
+    // actually zoom into an edge. DSF 2 timed out on the first attempt, but that was before
+    // the screenshot call had an explicit timeout and `animations: 'disabled'`; with those it
+    // is fine. CLAUDE.md records 4 as an OOM, so 2 is the ceiling worth using.
+    const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 2 });
     // An explicitly EMPTY key disables the score backend; a missing one falls back to live.
     await ctx.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
     const page = await ctx.newPage();
@@ -105,7 +107,7 @@ for p in sys.argv[1:]:
       const W = def.world.width, surf = def.world.surfaceY;
       const H = (def.world.height || 1500) - surf;
       // Fit the whole underground box in the 1400x800 viewport, with a little margin.
-      await shoot('wide', W / 2, surf + H / 2, Math.min(1400 / W, 800 / H) * 0.92);
+      await shoot('wide', W / 2, surf + H / 2, Math.min(1600 / W, 900 / H) * 0.92);
       // Play zoom, a third of the way in — far enough past the entry channel to be looking
       // at traced rock rather than at the dug-clear lane.
       await shoot('near', W * 0.33, surf + H * 0.45, 2.2);
