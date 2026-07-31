@@ -24,6 +24,74 @@ ok('edit button exists', !!(await p.$('#devEditBtn')));
 await p.click('#devEditBtn'); await sleep(400);
 ok('panel opens', await p.evaluate(()=>document.getElementById('devEditPanel').classList.contains('open')));
 
+// ---- above-ground clip ---------------------------------------------------
+// Sample EXACTLY where a rock is put, not a broad band. A first version averaged a 100px
+// strip above the soil line and passed with the clip removed — the rocks are dark, the night
+// sky is dark, and the mean barely moved either way. A test that cannot fail is worse than
+// no test.
+await p.evaluate(()=>{
+  const g=window.__game, sub=g.state.substrate;
+  const W = (g.state.levelDef && g.state.levelDef.world && g.state.levelDef.world.width)
+            || (sub.cols * sub.cellSize);
+  g.camera.zoom=0.6; g.camera.x=W/2; g.camera.y=sub.surfaceY; g.camera.clamp();
+});
+await sleep(500);
+const probe = async () => p.evaluate(()=>{
+  const g=window.__game, sub=g.state.substrate;
+  const s=sub.levelSprites[0];
+  if (!s) return { err: 'no sprites' };
+  g.camera.x = s.x; g.camera.y = sub.surfaceY; g.camera.clamp();
+  // The VISIBLE canvas. document.querySelector('canvas') can return the lighting module's
+  // offscreen buffer, which is not in layout, so clientHeight is 0 and the device-pixel
+  // scale comes out Infinity — which is why the first version of this probe returned null.
+  const c=[...document.querySelectorAll('canvas')].find((n)=>n.clientHeight>0);
+  if (!c) return { err: 'no visible canvas' };
+  const x=c.getContext('2d');
+  const k=c.height/c.clientHeight;
+  if (!isFinite(k) || k<=0) return { err: 'bad scale ' + k };
+  const pt=g.camera.worldToScreen(s.x, s.y);
+  // Clamp into the canvas: worldToScreen can land off-view, and getImageData throws on a
+  // non-finite or out-of-range rect rather than returning nothing.
+  const px=Math.round(pt.x*k), py=Math.round(pt.y*k);
+  if (!isFinite(px) || !isFinite(py)) return { err: 'off-canvas ' + px + ',' + py };
+  const x0=Math.max(0, Math.min(c.width-36, px-18));
+  const y0=Math.max(0, Math.min(c.height-36, py-18));
+  const d=x.getImageData(x0, y0, 36, 36).data;
+  let sum=0; for(let i=0;i<d.length;i+=4) sum+=d[i]+d[i+1]+d[i+2];
+  return { mean: Math.round(sum/(d.length/4)), aboveGround: s.y < sub.surfaceY };
+});
+const under = await probe();
+await p.evaluate(()=>{
+  const sub=window.__game.state.substrate;
+  for (const s of sub.levelSprites) { if (s._y0==null) s._y0=s.y; s.y = sub.surfaceY - 300; }
+  sub._rockSolidified=false;
+});
+await sleep(700);
+const over = await probe();
+// DIRECTIONAL, against a real sky reference. A symmetric "did the pixel change" tolerance
+// passed the negative control too: without the clip the rock is still drawn up there and the
+// sample moved 184 -> 210, which is a change of the wrong kind. What the clip promises is
+// that the spot ends up looking like SKY, so that is what to assert.
+const sky = await p.evaluate(()=>{
+  const g=window.__game, sub=g.state.substrate;
+  const c=[...document.querySelectorAll('canvas')].find((n)=>n.clientHeight>0);
+  const x=c.getContext('2d'), k=c.height/c.clientHeight;
+  const pt=g.camera.worldToScreen(g.camera.x, sub.surfaceY-300);
+  const d=x.getImageData(Math.max(0,Math.round(pt.x*k)-300), Math.max(0,Math.round(pt.y*k)-18), 36, 36).data;
+  let sum=0; for(let i=0;i<d.length;i+=4) sum+=d[i]+d[i+1]+d[i+2];
+  return Math.round(sum/(d.length/4));
+});
+ok('a rock dragged above ground is cut off at the soil line',
+   !!(over && !over.err && !under.err && over.aboveGround && Math.abs(over.mean - sky) < 30),
+   (under.err || over.err) ? `probe failed: ${under.err || over.err}`
+     : `rock centre ${under.mean} underground -> ${over.mean} above, bare sky ${sky}`);
+await p.evaluate(()=>{
+  const sub=window.__game.state.substrate;
+  for (const s of sub.levelSprites) if (s._y0!=null) s.y=s._y0;
+  sub._rockSolidified=false;
+  document.querySelector('#eeNone').click();
+});
+await sleep(400);
 const n0 = await p.evaluate(()=>window.__game.state.substrate.levelSprites.length);
 // select all + scale
 await p.evaluate(()=>document.querySelector('#eeAll').click());
@@ -53,6 +121,22 @@ ok('delete removes rocks', nAfter===0, `${nBefore} -> ${nAfter}`);
 // export
 const json = await p.evaluate(()=>{ window.__levelJSON=null; document.querySelector('#eeCopy').click(); return new Promise(r=>setTimeout(()=>r(window.__levelJSON),300)); });
 ok('export produces level JSON', !!json && json.includes('"format"'), json?('len '+json.length):'null');
+// ---- placement -----------------------------------------------------------
+ok('placement buttons exist', await p.evaluate(()=>document.querySelectorAll('#eePlace button').length) >= 8,
+   String(await p.evaluate(()=>document.querySelectorAll('#eePlace button').length)) + ' kinds');
+await p.evaluate(()=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent==='Leaf pile').click(); });
+ok('arming a kind', await p.evaluate(()=>window.__game && document.querySelector('#eePend').textContent.includes('Leaf pile')));
+// drop three via a real canvas click
+for (const [cx,cy] of [[500,450],[700,500],[900,430]]) { await p.mouse.click(cx,cy); await sleep(150); }
+const pend = await p.evaluate(()=>document.querySelector('#eePend').textContent);
+ok('placements are pending', /3 pending/.test(pend), pend.slice(0,60));
+const exported = await p.evaluate(()=>{ document.querySelector('#eeCopy').click(); return window.__levelJSON; });
+ok('pending objects reach the export', (JSON.parse(exported).objects||[]).filter(o=>o.t==='food'&&o.kind==='duff').length >= 3);
+// apply rebuilds the level
+await p.evaluate(()=>document.querySelector('#eeApply').click());
+await sleep(2500);
+await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:60000}).catch(()=>{});
+ok('apply rebuilds the level', await p.evaluate(()=>!!(window.__game.state && window.__game.state.active)));
 await p.screenshot({path:'/tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/editor.png',timeout:60000,animations:'disabled'});
 await b.close();srv.close();
 })();

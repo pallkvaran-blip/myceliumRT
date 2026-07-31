@@ -88,3 +88,11 @@ Watch the export assertion in particular. The first version parked the JSON on
 `window.__levelJSON` only in the clipboard's failure path, and headless Chromium's clipboard
 write SUCCEEDS — so the by-hand check passed and the test read `null`. It now always parks
 it, and copies as well.
+
+The clip assertion is worth reading before trusting a similar one. Three versions of it
+passed with the feature REMOVED: a grep for a source comment; a mean over a 100px band above
+the soil line (rocks are dark, the night sky is dark, the mean barely moved); and a symmetric
+"did the pixel change by 25" (without the clip the rock is still drawn up there, and the
+sample moved the wrong way, 184 -> 210). It now samples the rock's own centre and compares it
+to a patch of BARE SKY in the same frame — 73 against 74 with the clip, 210 against 147
+without. Always run a negative control on a pixel assertion.

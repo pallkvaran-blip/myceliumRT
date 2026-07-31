@@ -21572,7 +21572,41 @@ function updateDevMapBtn() {
 const rockEdit = {
   on: false, sel: new Set(), drag: null, mode: 'move',
   filter: { brightness: 1, contrast: 1, saturate: 1 },
+  place: null,      // armed placement kind, or null
+  added: [],        // objects placed this session, not yet stamped — see PLACEABLE
 };
+
+// What can be dropped into a map, and the object each one writes.
+//
+// These are NOT live like the rocks. A rock is a sprite in `levelSprites`, which the renderer
+// and solidifyRock both read every frame, so moving one shows up immediately. Water, food and
+// threats are STAMPED into the substrate by buildLevel — lakes carve cells, food writes
+// nutrient, threats become spawn points — and there is no path that un-stamps them. So a
+// placement is held as a pending marker and takes effect on "Apply", which rebuilds the level
+// through the normal path with the edited definition. That is the honest version: the
+// alternative is a half-applied world where what you see and what the engine believes differ.
+const PLACEABLE = [
+  { id: 'lake',      label: 'Lake',       colour: '#5fc9e8',
+    make: (x, y) => ({ t: 'lake', key: 'lake2', x: Math.round(x), w: 396, h: 108 }) },
+  { id: 'reservoir', label: 'Reservoir',  colour: '#7fd6f0',
+    make: (x, y) => ({ t: 'reservoir', key: 'reservoir1', x: Math.round(x), y: Math.round(y), r: 72 }) },
+  { id: 'duff',      label: 'Leaf pile',  colour: '#e0a54a',
+    make: (x, y) => ({ t: 'food', kind: 'duff', x: Math.round(x), y: Math.round(y), r: 1, energy: 2 }) },
+  { id: 'cache',     label: 'Nut cache',  colour: '#c98a3a',
+    make: (x, y) => ({ t: 'food', kind: 'cache', x: Math.round(x), y: Math.round(y), r: 1, energy: 4 }) },
+  { id: 'ant',       label: 'Ant',        colour: '#ff9f4a',
+    make: (x, y) => ({ t: 'ant', x: Math.round(x) }) },
+  { id: 'nematode',  label: 'Nematode',   colour: '#ff6f6f',
+    make: (x, y) => ({ t: 'nematode', x: Math.round(x), y: Math.round(y) }) },
+  { id: 'trichoderma', label: 'Trichoderma', colour: '#9be86f',
+    make: (x, y) => ({ t: 'trichoderma', x: Math.round(x), y: Math.round(y), r: 180 }) },
+  { id: 'mountain',  label: 'Mountain',   colour: '#9aa8b6',
+    make: (x, y) => ({ t: 'mountain', key: 'mountain2', x: Math.round(x), w: 324 }) },
+  { id: 'city',      label: 'City',       colour: '#8fa0c0',
+    make: (x, y) => ({ t: 'city', key: 'skyline3', x: Math.round(x), w: 540 }) },
+  { id: 'prop',      label: 'House',      colour: '#c0d0a0',
+    make: (x, y) => ({ t: 'prop', key: 'house', x: Math.round(x), h: 104 }) },
+];
 
 function reSolidify() {
   const sub = state && state.substrate;
@@ -21658,7 +21692,7 @@ function editExport() {
     x: +s.x.toFixed(1), y: +s.y.toFixed(1),
     w: +s.w.toFixed(1), h: +s.h.toFixed(1), rot: +(s.rot || 0).toFixed(4),
   }));
-  out.objects = rocks.concat(keep);
+  out.objects = rocks.concat(keep).concat(rockEdit.added);
   const f = rockEdit.filter;
   if (f.brightness !== 1 || f.contrast !== 1 || f.saturate !== 1) {
     out.render = Object.assign({}, out.render, { rockFilter: Object.assign({}, f) });
@@ -21668,12 +21702,39 @@ function editExport() {
   return JSON.stringify(out, null, 1);
 }
 
+// Rebuild the level from the edited definition. Water, food and threats only exist once
+// buildLevel has stamped them, so this is what makes a placement real. It goes through
+// createLevelState like any other level start rather than poking the live substrate — the
+// substrate's cells, masks, reservoirs and spawn lists are built together and there is no
+// supported way to add to them halfway.
+function editApply() {
+  const def = state && state.levelDef;
+  if (!def) return;
+  let edited;
+  try { edited = JSON.parse(editExport()); } catch (_) { return; }
+  rockEdit.added = [];
+  rockEdit.sel.clear();
+  playtestLevel = edited;
+  currentLevel = edited.campaignLevel || 1; runStartLevel = currentLevel;
+  carryOver = null; runSpores = 0;
+  startRun();
+}
+
 function updateEditPanel() {
   const p = document.getElementById('devEditPanel');
   if (!p) return;
   const n = rockEdit.sel.size, tot = editSprites().length;
   const st = p.querySelector('#eeSel');
   if (st) st.textContent = n ? `${n} of ${tot} selected` : `${tot} rocks — none selected`;
+  const pend = p.querySelector('#eePend');
+  if (pend) {
+    const k = rockEdit.place ? (PLACEABLE.find((q) => q.id === rockEdit.place) || {}).label : null;
+    pend.innerHTML = (k ? `<b>Click the map to drop a ${k}.</b> ` : 'Click a kind, then click the map. ')
+      + (rockEdit.added.length
+          ? `<b>${rockEdit.added.length} pending</b> — Apply to stamp them into the world.`
+          : 'Placements are markers until <b>Apply</b>: water, food and threats are stamped when '
+            + 'the level is built, so they need a rebuild to become real.');
+  }
 }
 function updateDevEditBtn() {
   const ui0 = document.getElementById('ui');
@@ -21718,6 +21779,13 @@ function updateDevEditBtn() {
       'Arrows nudge, Shift-arrows nudge far. <b>+</b>/<b>&minus;</b> resize, ' +
       '<b>,</b>/<b>.</b> rotate, <b>Delete</b> removes. <b>Ctrl+A</b> selects every rock, ' +
       'so the whole map moves, scales and rotates as one.</p>' +
+      '<h4>Place</h4>' +
+      '<div class="ee-row" id="eePlace"></div>' +
+      '<p class="ee-hint" id="eePend">Click a kind, then click the map. ' +
+      'Placements are markers until <b>Apply</b> — water, food and threats are stamped into ' +
+      'the world when the level is built, so they need a rebuild to become real.</p>' +
+      '<div class="ee-row"><button id="eeApply">Apply &amp; rebuild</button>' +
+      '<button id="eeClearAdd">Clear pending</button></div>' +
       '<h4>All rocks on this map</h4>' +
       '<label>Brightness <b id="eeBv">1.00</b><input type="range" id="eeB" min="0.3" max="2" step="0.02" value="1"></label>' +
       '<label>Contrast <b id="eeCv">1.00</b><input type="range" id="eeC" min="0.3" max="2" step="0.02" value="1"></label>' +
@@ -21729,6 +21797,20 @@ function updateDevEditBtn() {
       'written from the browser.</p>';
     ui0.appendChild(panel);
     const $ = (id) => panel.querySelector('#' + id);
+    const row = $('eePlace');
+    for (const pk of PLACEABLE) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = pk.label; b.dataset.pk = pk.id;
+      b.onclick = () => {
+        rockEdit.place = (rockEdit.place === pk.id) ? null : pk.id;
+        row.querySelectorAll('button').forEach((x) =>
+          x.style.borderColor = x.dataset.pk === rockEdit.place ? '#e6b45c' : '');
+        updateEditPanel();
+      };
+      row.appendChild(b);
+    }
+    $('eeApply').onclick = editApply;
+    $('eeClearAdd').onclick = () => { rockEdit.added = []; updateEditPanel(); uiDirty = true; };
     $('eeAll').onclick = editSelectAll;
     $('eeNone').onclick = () => { rockEdit.sel.clear(); updateEditPanel(); uiDirty = true; };
     $('eeDel').onclick = editDelete;
@@ -22548,6 +22630,16 @@ function setupInput() {
     if (!rockEdit.on) return;
     const rect = canvas.getBoundingClientRect();
     const w = camera.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    // A placement is armed: this click drops it, and does not touch the selection.
+    if (rockEdit.place) {
+      const pk = PLACEABLE.find((q) => q.id === rockEdit.place);
+      if (pk) {
+        rockEdit.added.push(pk.make(w.x, w.y));
+        updateEditPanel(); uiDirty = true;
+        e.stopPropagation(); e.preventDefault();
+        return;
+      }
+    }
     const hit = rockAt(w.x, w.y);
     if (hit < 0) {
       if (!e.shiftKey) { rockEdit.sel.clear(); updateEditPanel(); uiDirty = true; }
@@ -24484,8 +24576,18 @@ function drawLevelRocks() {
   const rf = (typeof rockEdit !== 'undefined' && rockEdit.on) ? rockEdit.filter
     : ((state.config.render && state.config.render.rockFilter) || null);
   const filtered = rf && (rf.brightness !== 1 || rf.contrast !== 1 || rf.saturate !== 1);
+  // CLIP TO THE UNDERGROUND. A rock dragged above the soil line is cut off at it, so the
+  // surface owns everything above: sky, hills, trees, the city. Without this a rock nudged
+  // too high paints over the sky, because level rocks are drawn before the surface backdrop
+  // rather than after it. Clipping is the right tool rather than reordering the draw — the
+  // rocks have to stay UNDER the lakes and reservoirs that come next, so they cannot simply
+  // move later in the list.
+  ctx.save();
+  const _surfY = camera.worldToScreen(0, sub.surfaceY).y;
+  ctx.beginPath();
+  ctx.rect(0, _surfY, camera.viewW, Math.max(0, camera.viewH - _surfY));
+  ctx.clip();
   if (filtered) {
-    ctx.save();
     ctx.filter = `brightness(${rf.brightness}) contrast(${rf.contrast}) saturate(${rf.saturate})`;
   }
   for (const s of sprites) {
@@ -24505,7 +24607,27 @@ function drawLevelRocks() {
       ctx.restore();
     }
   }
-  if (filtered) ctx.restore();
+  ctx.restore();   // clip + filter
+
+  // Pending placements, drawn as labelled markers. They are not in the world yet — see
+  // PLACEABLE — so this is the only thing that shows where they will land.
+  if (typeof rockEdit !== 'undefined' && rockEdit.on && rockEdit.added.length) {
+    ctx.save();
+    ctx.font = '600 11px "Segoe UI", system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    for (const o of rockEdit.added) {
+      const pk = PLACEABLE.find((q) => q.id === (o.kind || o.t)) || {};
+      const col = pk.colour || '#ffd27f';
+      const c = camera.worldToScreen(+o.x || 0, o.y != null ? +o.y : sub.surfaceY + 40);
+      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath(); ctx.arc(c.x, c.y, 13, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(c.x, c.y, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.fillText(o.kind || o.t, c.x, c.y - 19);
+    }
+    ctx.restore();
+  }
 
   // Selection outlines, drawn AFTER the filter is released so the marker never dims with
   // the art it is marking.
