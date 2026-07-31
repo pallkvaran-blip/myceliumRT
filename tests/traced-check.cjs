@@ -179,7 +179,13 @@ const TRACED = ALL.filter((l) => l && l.traced);
         const cam = window.__game.camera; cam.zoom = zoom; cam.x = x; cam.y = y; cam.clamp();
       }, { x, y, zoom });
       await sleep(700);
-      await page.screenshot({ path: path.join(ART, `traced-${ID}-${name}.png`) });
+      // timeout + animations:disabled, or this hangs. Playwright's default screenshot waits
+      // for fonts and for animations to settle, and against a live rAF loop it can wait
+      // forever — at 59 levels the run died here, on the 47th, AFTER that level had passed
+      // all its assertions. The check then printed no tally at all, which the runner reports
+      // as "did not report" and is easy to read as a pass. Same fix as tests/level-shots.cjs.
+      await page.screenshot({ path: path.join(ART, `traced-${ID}-${name}.png`),
+                              timeout: 30000, animations: 'disabled' }).catch(() => {});
     };
     await shoot('overview', def.world.width / 2, def.world.surfaceY + 550, 0.6);
     // The zoom the game is actually PLAYED at — where both the resolution and the bright
