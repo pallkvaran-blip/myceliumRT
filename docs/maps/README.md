@@ -360,6 +360,42 @@ channel.
 Rock also came out bone-beige rather than mid-grey, so stone and fossil sit at nearly the
 same tone. That helps the trace (both bright against black) and costs the visual distinction.
 
+## `skeletons` — all fossil, no stone
+
+`node scripts/gen-map.mjs scatter --theme skeletons --counts 12,20,30`. Black ground, named
+species (Tyrannosaurus, Triceratops, Stegosaurus, Ankylosaurus, Diplodocus, Pteranodon), each
+asked to be curled or coiled into a rounded mass rather than stretched out — a Diplodocus
+drawn straight is half the frame on its own.
+
+This needed the form's noun to stop being hard-coded as "rock masses", which had been quietly
+fighting `ice`, `glacier` and `bones` as well. `{MASS}` and `{MASSADJ}` are theme-supplied now.
+
+**Beautiful, and the wrong geometry for a map.** They come out as specimen sheets: individual
+articulated skeletons laid out with black between them. The problem is measurable — a skeleton
+is mostly negative space, so what it leaves as collision is thin bone with big gaps:
+
+| image | solid | masses kept | fill ratio |
+| --- | --- | --- | --- |
+| `skeletons-c12-1` | 30% | 25 | **0.42** |
+| `skeletons-c20-1` | 28% | 62 | **0.39** |
+| `skeletons-c30-1` | 39% | 77 | **0.45** |
+| `bones-c30-1` (stone) | 45% | 61 | 0.63 |
+| `ice-c40-1` | 78% | 37 | 0.67 |
+
+*Fill ratio* is a kept mass's area over its bounding box — how solid the thing actually is.
+The stone themes sit at 0.63–0.67; the skeletons at 0.39–0.45, i.e. **a skeleton's bounding
+box is less than half bone.** Traced, ribs and spines and tails become thin filaments, and the
+despeckle opening and `--min-area` exist precisely to delete filaments. What survives is a
+field of small disconnected fragments rather than terrain.
+
+`c12` is the closest to usable, because at twelve the skeletons are big enough that a ribcage
+is a mass rather than a comb. Past that the count only makes the specimen sheet denser: `c30`
+is dozens of tiny skeletons, nearly all below the gravel cut.
+
+If the look is worth having, the route is to stop asking for skeletons and start asking for
+**stone with fossils in it** — a mass whose silhouette is solid and whose bone is surface
+detail, which is what `bones` was reaching for.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

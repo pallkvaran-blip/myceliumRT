@@ -189,6 +189,32 @@ const THEMES = {
       'entirely inside its outline: nothing luminous touches or reaches the background, and ' +
       'nothing grows in the gaps between the masses. The background is completely empty.',
   },
+  // All skeleton, no stone. The masses ARE the fossils, which needed the form's noun to stop
+  // being "rock masses" — that wording had been quietly fighting ice, glacier and bones too.
+  //
+  // Note this theme DELETES the ban `bones` needed: there, "no complete skeleton, no
+  // articulated dinosaur" stopped one hero fossil taking over the frame. Here the skeletons
+  // are the masses, so the equivalent guard is that there must be MANY of them, each compact
+  // and curled rather than stretched out — a Diplodocus drawn straight is half the frame on
+  // its own.
+  skeletons: {
+    bg: 'black',
+    mass: 'fossilised dinosaur skeletons',
+    massAdj:
+      'each one a compact tangle of bone — a curled ribcage around a spine, a skull with ' +
+      'jaws, a coiled tail, a heap of limb bones — from a mix of species: Tyrannosaurus, ' +
+      'Triceratops with its frill, Stegosaurus with its back plates, Ankylosaurus, a coiled ' +
+      'Diplodocus and a folded Pteranodon, every one curled or coiled into a rounded mass ' +
+      'rather than stretched out',
+    rock: 'bone-white fossilised dinosaur skeletons',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow, no ' +
+      'bloom. Two tones only — bone-white fossil and the pure black background. The bone ' +
+      'reads clearly BRIGHT against the black: nothing dark, nothing grey and no dark rim, ' +
+      'outline or shading along any edge. No rock, no stone, no soil, no sand, no dust, no ' +
+      'excavation, no dig site, no tools, no grid. No loose bone chips lying on the ' +
+      'background between the skeletons.',
+  },
   // Bone and stone tangled together, on a BLACK ground for the same reason as `glacier`:
   // bone is pale, and pale on white is not a threshold at all.
   //
@@ -282,9 +308,8 @@ const FORMS = {
   // the thing one clause later. Every mass is now LARGE and comparable in size, and the gap
   // around each one is stated as a rule rather than left to "wide {BG} gaps".
   scatter:
-    'About {N} SEPARATE irregular rock masses — angular and cracked, a mix of big jagged ' +
-    'blocks and long horizontal slabs, ALL of them large and roughly comparable in size, ' +
-    'with no small rocks, lumps, chips or fragments anywhere among them — spread evenly ' +
+    'About {N} SEPARATE {MASS} — {MASSADJ}, ALL of them large and roughly comparable in ' +
+    'size, with no small pieces, chips or fragments anywhere among them — spread evenly ' +
     'across the whole frame at different heights, each one clearly detached from every ' +
     'other, with an open {BG} gap around every mass at least half as wide as the mass ' +
     'itself, and winding {BG} channels running between them from the left side to the ' +
@@ -350,6 +375,9 @@ const COUNTS = { scatter: 17, ledges: 10, chokes: 6, pillars: 12, maze: 30 };
 
 const withCount = (form, n, theme) =>
   (SIL_HEAD(theme) + FORMS[form].replace('{N}', String(n != null ? n : COUNTS[form])) + SIL_TAIL(theme))
+    .replace(/\{MASS\}/g, THEMES[theme].mass || 'irregular rock masses')
+    .replace(/\{MASSADJ\}/g, THEMES[theme].massAdj
+      || 'angular and cracked, a mix of big jagged blocks and long horizontal slabs')
     .replace(/\{BG\}/g, THEMES[theme].bg || 'white');
 
 // --- args --------------------------------------------------------------------
