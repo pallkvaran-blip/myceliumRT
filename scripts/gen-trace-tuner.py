@@ -152,8 +152,8 @@ HTML = """<title>Mycelium — trace tuner</title>
   <header>
     <h1>Trace tuner</h1>
     <p>Every stage of <code>scripts/trace-map.py</code>, live on the 1&times; source. The
-      preview composites the cut-out over the game's soil and applies the renderer's ambient
-      multiply, so it shows the map <em>as played</em>, not as a sprite in a viewer. Radii are
+      preview composites the cut-out over the game's soil, which since
+      <code>render.lighting</code> was turned off is exactly what the player sees. Radii are
       in 1&times; pixels &mdash; the real trace runs on the 4&times; upscale and multiplies
       them by four. Find the numbers here; <em>Export</em> hands them back.</p>
   </header>
@@ -162,7 +162,7 @@ HTML = """<title>Mycelium — trace tuner</title>
 
   <div class="stage">
     <div class="views">
-      <figure><canvas id="cv"></canvas><figcaption id="cap">result — over soil, lit as in game</figcaption></figure>
+      <figure><canvas id="cv"></canvas><figcaption id="cap">result — over the game's soil</figcaption></figure>
       <figure><img id="srcimg" alt="source"><figcaption>source image</figcaption></figure>
     </div>
 
@@ -197,13 +197,6 @@ HTML = """<title>Mycelium — trace tuner</title>
       <p class="hint">How far the colour is carried outward under the transparent pixels. Never
         visible; it only has to out-reach the filter kernel. Wide is free.</p>
 
-      <div class="grp">In game</div>
-      <label>Ambient light <b id="v_am"></b><input type="range" id="am" min="0.3" max="1" step="0.02"></label>
-      <label>Ambient warmth <b id="v_aw"></b><input type="range" id="aw" min="0" max="1" step="0.05"></label>
-      <p class="hint">The renderer dims the underground and tints it warm before adding the
-        colony's glow. 1 is the game's default; 0 dims without shifting hue. This is what makes
-        a neutral rock read brown in play.</p>
-
       <div class="stats" id="stats"></div>
     </div>
   </div>
@@ -219,8 +212,8 @@ HTML = """<title>Mycelium — trace tuner</title>
 const MAPS = __MAPS__;
 const KEY = 'mycelium.tracetuner.v1';
 const store = JSON.parse(localStorage.getItem(KEY) || '{}');
-const DEF = { th:128, ch:40, op:1, cl:4, ga:150, tr:1, fe:1, bl:4, am:0.62, aw:1 };
-const IDS = ['th','ch','op','cl','ga','tr','fe','bl','am','aw'];
+const DEF = { th:128, ch:40, op:1, cl:4, ga:150, tr:1, fe:1, bl:4 };
+const IDS = ['th','ch','op','cl','ga','tr','fe','bl'];
 let cur = 0, img = null, srcData = null;
 
 const $ = (id) => document.getElementById(id);
@@ -231,7 +224,7 @@ function params() { return Object.assign({}, DEF, store[MAPS[cur].id] || {}); }
 function setUI(p) {
   for (const k of IDS) {
     $(k).value = p[k];
-    $('v_' + k).textContent = (k === 'am' || k === 'aw') ? Number(p[k]).toFixed(2) : p[k];
+    $('v_' + k).textContent = p[k];
   }
 }
 
@@ -349,35 +342,47 @@ function run() {
   // Bleed: a transparent pixel takes the colour of the nearest pixel that is real rock in the
   // SOURCE mask. Without it the near-white background sits in the transparent pixels and
   // downscaling blends it back in as a pale halo.
+  //
+  // Grown outward one ring at a time, each new pixel averaging the neighbours that already
+  // have colour. The first version searched along 8 rays at increasing radius and produced
+  // visible SPOKES around every rock — which is the same failure CLAUDE.md already records
+  // for the real tracer ("nearest-opaque alone is a Voronoi diagram of the edge, which fans
+  // into visible spokes"), arrived at independently. Averaging is what blurs it away.
+  const bR = new Float32Array(N), bG = new Float32Array(N), bB = new Float32Array(N);
+  const has = new Uint8Array(N);
+  for (let i = 0, j = 0; i < N; i++, j += 4) {
+    if (srcMask[i]) { bR[i] = d[j]; bG[i] = d[j+1]; bB[i] = d[j+2]; has[i] = 1; }
+  }
+  for (let pass = 0; pass < Math.max(1, p.bl); pass++) {
+    const add = [];
+    for (let i = 0; i < N; i++) {
+      if (has[i]) continue;
+      const x = i % W, y = (i / W) | 0;
+      let r = 0, g = 0, b = 0, n = 0;
+      if (x > 0   && has[i-1]) { r += bR[i-1]; g += bG[i-1]; b += bB[i-1]; n++; }
+      if (x < W-1 && has[i+1]) { r += bR[i+1]; g += bG[i+1]; b += bB[i+1]; n++; }
+      if (y > 0   && has[i-W]) { r += bR[i-W]; g += bG[i-W]; b += bB[i-W]; n++; }
+      if (y < H-1 && has[i+W]) { r += bR[i+W]; g += bG[i+W]; b += bB[i+W]; n++; }
+      if (n) add.push(i, r / n, g / n, b / n);
+    }
+    for (let k = 0; k < add.length; k += 4) {
+      const i = add[k]; bR[i] = add[k+1]; bG[i] = add[k+2]; bB[i] = add[k+3]; has[i] = 1;
+    }
+  }
   const out = cx.createImageData(W, H);
   const o = out.data;
   const soil = [42, 29, 18];
-  const am = p.am, aw = p.aw;
-  const mulR = am, mulG = am * (1 - 0.10 * aw), mulB = am * (1 - 0.24 * aw);
   for (let i = 0, j = 0; i < N; i++, j += 4) {
     let r, g, b;
     if (srcMask[i] && mask[i]) { r = d[j]; g = d[j+1]; b = d[j+2]; }
-    else if (mask[i] || alpha[i] > 0) {
-      // Inside the silhouette but not real rock in the source (opening regrew, fill closed a
-      // pocket), or in the feather. Approximate the bleed with a short outward search.
-      let rr = 0, gg = 0, bb = 0, found = 0;
-      const x = i % W, y = (i / W) | 0, R = Math.max(1, p.bl);
-      for (let k = 1; k <= R && !found; k++) {
-        for (const [dx, dy] of [[k,0],[-k,0],[0,k],[0,-k],[k,k],[-k,-k],[k,-k],[-k,k]]) {
-          const nx = x + dx, ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
-          const ni = ny * W + nx;
-          if (srcMask[ni]) { const nj = ni * 4; rr = d[nj]; gg = d[nj+1]; bb = d[nj+2]; found = 1; break; }
-        }
-      }
-      r = found ? rr : soil[0]; g = found ? gg : soil[1]; b = found ? bb : soil[2];
-    } else { r = soil[0]; g = soil[1]; b = soil[2]; }
+    else if (has[i]) { r = bR[i]; g = bG[i]; b = bB[i]; }
+    else { r = soil[0]; g = soil[1]; b = soil[2]; }
     const a = alpha[i];
-    // Composite over soil, then apply the renderer's ambient multiply — this is the frame
-    // the player sees, not the sprite.
-    o[j]   = ((r * a + soil[0] * (1 - a)) * mulR) | 0;
-    o[j+1] = ((g * a + soil[1] * (1 - a)) * mulG) | 0;
-    o[j+2] = ((b * a + soil[2] * (1 - a)) * mulB) | 0;
+    // Straight composite over the game's soil. render.lighting is off, so this IS the
+    // frame the player sees — there is no ambient multiply left to reproduce.
+    o[j]   = (r * a + soil[0] * (1 - a)) | 0;
+    o[j+1] = (g * a + soil[1] * (1 - a)) | 0;
+    o[j+2] = (b * a + soil[2] * (1 - a)) | 0;
     o[j+3] = 255;
   }
   cx.putImageData(out, 0, 0);
@@ -402,7 +407,7 @@ function load(i) {
     cv.width = im.naturalWidth; cv.height = im.naturalHeight;
     cx.drawImage(im, 0, 0);
     srcData = cx.getImageData(0, 0, cv.width, cv.height);
-    $('cap').textContent = m.name + ' — over soil, lit as in game';
+    $('cap').textContent = m.name + ' — over the soil';
     setUI(params()); run();
   };
   im.src = m.src;
@@ -419,7 +424,7 @@ for (const k of IDS) {
   $(k).addEventListener('input', () => {
     const p = params(); p[k] = Number($(k).value);
     store[MAPS[cur].id] = p; localStorage.setItem(KEY, JSON.stringify(store));
-    $('v_' + k).textContent = (k === 'am' || k === 'aw') ? p[k].toFixed(2) : p[k];
+    $('v_' + k).textContent = p[k];
     run();
   });
 }
@@ -430,7 +435,6 @@ function payload() {
     out[m.id] = {  // in 4x units, which is what trace-map.py takes
       threshold: p.th, chroma: p.ch, despeckle: p.op * 4, close: p.cl * 4,
       minArea: p.ga * 16, trim: p.tr * 4, feather: p.fe * 4, bleed: p.bl * 4,
-      render: { ambientLight: p.am, ambientWarmth: p.aw },
     };
   }
   return out;

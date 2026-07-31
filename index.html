@@ -2112,10 +2112,22 @@ const CONFIG = {
     spore: 'rgba(202,255,216,0.75)',
     mote: 'rgba(150,205,195,0.42)',
     particleCount: 80,
-    // dynamic lighting: the network/food/hazards emit light into the dark earth
-    lighting: true,
+    // Dynamic lighting: dim the earth, then add the network/food/hazards back as emitters.
+    //
+    // OFF. It was the last thing still altering how a traced map's rock looks: compose()
+    // multiplies the whole underground by rgb(a, a*0.9, a*0.76), so a neutral near-black mass
+    // came out warm and ~40% darker than the image it was cut from — and every map in the set
+    // is now traced art that arrives already lit. The two effects that justified paying that
+    // price, the hazard glow and the sensing aura, are both off by default anyway, so the
+    // pass was costing fidelity and buying nothing.
+    //
+    // The whole system is still here and still works: flip this back to true, or set
+    // `render.lighting` per level in a level's JSON (configForLevelDef applies it), and it
+    // returns. `ambientWarmth` scales only the hue shift for that case — 1 is the original
+    // warm brown, 0 dims without shifting hue.
+    lighting: false,
     ambientLight: 0.62,         // unlit earth stays a visible warm brown; life adds glow (1 = lighting off)
-    ambientWarmth: 1,           // 1 = the warm brown above; 0 = neutral dim, no hue shift (traced maps)
+    ambientWarmth: 1,           // 1 = the warm brown above; 0 = neutral dim, no hue shift
     networkLight: 'rgba(150,255,190,1)',
     foodLight: 'rgba(255,196,120,1)',
     hazardLight: 'rgba(90,220,200,1)',
