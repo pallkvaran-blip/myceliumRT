@@ -168,6 +168,24 @@ Harness traps that have cost real time:
 
 ## Things that break if you forget them
 
+- **Level sprites are NOT preloaded at boot.** `loadAssets` waits for every manifest entry to
+  settle, so with 59 traced maps it was decoding ~2250 sprites and ~98 MB to play one, and
+  never finished. Entries tagged `kind: 'level'` are held back and `loadLevelAssets(id)` picks
+  up just the folder a level needs, called from `start()` and deliberately NOT awaited —
+  `solidifyRock` already retries until its sprites are ready.
+- **Deleting a level is THREE deletions**, and the third is the one that bites: the level JSON,
+  `assets/<id>/`, and its entries in `assets/manifest.json`. Miss the manifest and the missing
+  sprites 404, the preload never completes, and EVERY map hangs on a black screen — a symptom
+  that looks nothing like its cause. `python3 scripts/prune-manifest.py` after any deletion; it
+  also retags folders as `kind: 'level'`.
+- **`render.lighting` is OFF.** The ambient pass multiplied the whole underground by
+  `rgb(a, a*0.9, a*0.76)`, which landed on traced art that was already lit and made a neutral
+  near-black mass read warm and ~40% darker than its source. The two effects that justified it,
+  the hazard glow and the sensing aura, are off by default anyway. The system is intact and
+  per-level overridable (`render.lighting` / `ambientLight` / `ambientWarmth` in a level's JSON,
+  applied by `configForLevelDef`); `ambientWarmth` scales only the hue shift, 0 being a neutral
+  dim.
+
 - **HUD churn.** The RT HUD refreshes every world tick. Any markup that encodes per-tick
   progress gets rebuilt at 2 Hz, which destroys the element under the cursor (flicker, swallowed
   clicks). Hence the `_handSig` / `_filterSig` / `_ledgerHTML` / `_actMenuHTML` guards and the
@@ -351,6 +369,33 @@ those is load-bearing** — each one is there because dropping it brought a fail
 
 The model draws a soft drop-shadow under every rock no matter how firmly you ban it, and
 lets rocks touch the left/right edges. Both are handled at trace time, not by more prompt.
+
+**The rock/shadow separation is a LEARNED MATTE now, not a threshold.** The overhead rolls
+carry a soft drop shadow under every mass, and it shares a luminance band (~110-200) with the
+mass's own LIT FACE — so a low cut eats the flank and a high cut keeps the shadow as solid
+rock. There is no value that works; the owner confirmed by hand. `scripts/bria-matte.py`
+fetches a Bria remove-background matte (cached as `docs/maps/<stem>.matte.png`, committed like
+the @4x upscale — a paid call whose answer never changes), and `trace-map.py --guide` uses it.
+Measured on obsidian-c55, Bria drops **0.00%** of unambiguous rock where every threshold drops
+1.65%, because the difference between a mass and its shadow is semantic rather than
+photometric. It is a GUIDE and not the output: Bria hard-caps at **1024x432** whatever you feed
+it (verified by sending the 5760px upscale), so the model decides WHICH regions are rock and
+the source pixels decide where each edge falls — the local cut can then be generous (190).
+Rejected on the way: **Recraft** scores identically on paper but leaves a visible halo of
+retained shadow over the soil; **BiRefNet** loses 2.46% of rock, worse than the threshold;
+SAM 2, a texture classifier, a gradient method and a physical `background x k` model all lost.
+`scripts/matte-score.py` is the referee — and note its shadow test NEEDS its local-texture
+term, because without it a lit rock face scores as shadow and the metric punishes the right
+answer.
+
+**`--trim` scales with the source (W/480 = 12px at 4x) and that is what kills the pale
+fringe.** It was a flat 2px chosen back on the 1440px images, which is nearly nothing at 5760.
+Edge-ring luminance above each sprite's own interior, before -> after: obsidian +37.2 -> +13.7,
+amethyst +30.4 -> +13.1, veined +28.7 -> +4.4, slate +18.9 -> +0.6, hematite +6.2 -> -7.6,
+glacier -10.3 -> -13.1. **slate and glacier are effectively clean; obsidian and amethyst are
+the hard cases** — the extremes, a near-black mass and the palest one, both have the widest
+anti-aliased ramp against the ground. If obsidian still reads wrong the lever is generating it
+a shade lighter, not more tracer work.
 
 Tracing traps, all of which cost a debug cycle:
 
