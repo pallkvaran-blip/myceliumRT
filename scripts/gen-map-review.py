@@ -101,6 +101,22 @@ SELECTIONS = [
     ('top-strata-scatter-c40-1',   'strata',          40, None,           'Layered sedimentary banding — the only theme whose feature is a direction. Kept, but the theme is closed: too close to the plain rock maps.'),
     ('top-rust-scatter-c40-1',     'rust',            40, None,           'Banded ironstone. Dense at 76%, but the material reads.'),
     ('top-rust-scatter-c90-1',     'rust',            90, None,           'Rust at the count where it separates: 33 masses, 58.1%, largest blob 23%.'),
+    # Round two. Everything kept except the three basalt v2 rolls and anthracite c40.
+    ('top-obsidian-scatter-c15-1', 'obsidian',        15, None,           'Obsidian at a low count — 41 masses at 52.6%. Count moves mass size here, not mass number.'),
+    ('top-obsidian-scatter-c32-1', 'obsidian',        32, None,           'The most open obsidian: 40.8%, 0.68 fill.'),
+    ('top-obsidian-scatter-c55-1', 'obsidian',        55, None,           'Best obsidian in the set: 45 masses, 44.8%, 0.71 fill, largest blob 10%.'),
+    ('top-obsidian-scatter-c70-1', 'obsidian',        70, None,           'Very open at 38.7%, but the rock stops short of the bottom edge.'),
+    ('top-rust-scatter-c30-1',     'rust',            30, None,           'Dense at 69.4%.'),
+    ('top-rust-scatter-c75-1',     'rust',            75, None,           'Dense at 84.2%.'),
+    ('top-rust-scatter-c85-1',     'rust',            85, None,           'The other count where rust separates: 59.6%, 27 masses.'),
+    ('top-rust-scatter-c100-1',    'rust',           100, None,           'Out of band at 72.2%.'),
+    ('top-rust-scatter-c110-1',    'rust',           110, None,           'Densest rust at 79.7%, but the masses stay distinct.'),
+    ('top-basalt-scatter-c24-1',   'basalt',          24, None,           'The basalt theme drew no hexagons at all — kept as plain dark rock, which is what it is.'),
+    ('top-glass-scatter-c24-1',    'glass',           24, None,           'Shattered plate glass: flat spiky shards with radiating cracks. 43 masses at 40.7%.'),
+    ('top-glass-scatter-c40-1',    'glass',           40, None,           'Denser glass, just over the band at 63.9%.'),
+    ('top-anthracite-scatter-c24-1', 'anthracite',    24, None,           'The darkest image the project has produced — rock luminance 52.7.'),
+    ('top-magnetite-scatter-c24-1', 'magnetite',      24, None,           'Octahedral habit: masses that read as built rather than weathered.'),
+    ('top-magnetite-scatter-c40-1', 'magnetite',      40, None,           'Best magnetite: 46 masses, 52.8%, largest blob 10%.'),
 ]
 
 
@@ -232,6 +248,30 @@ PENDING_NOTES = {
         'Works. Crystal facets rather than weathered lumps, 43.6%.',
     'top-magnetite-scatter-c40-1':
         'Best magnetite: 46 masses, 52.8%, largest blob 10%.',
+    # Round three: the coloured themes. The MASS carries the colour here rather than a feature
+    # inside it, so these are the first themes to run on DEEP_TONE instead of DARK_TONE.
+    'top-amethyst-scatter-c24-1':
+        'Violet quartz, faceted. In band at 33.6% over 38 masses — but the palest theme yet at '
+        'luminance 110, and the Otsu cut had to climb to 175 to hold it. Watch the lilac faces.',
+    'top-amethyst-scatter-c40-1':
+        'Better value than c24 (luminance 85) and 42 masses at 46.3%. A few faces still come '
+        'back near-white where the geode centres are.',
+    'top-malachite-scatter-c24-1':
+        'The concentric banding works, but the masses only cover 69% of the frame rows — a '
+        'band across the middle with empty top and bottom.',
+    'top-malachite-scatter-c40-1':
+        'Best malachite: 53.8%, full-frame, and only 7 gravel specks. The nested rings are a '
+        'closed-curve feature nothing else in the set has.',
+    'top-hematite-scatter-c24-1':
+        'Kidney ore. 50 masses at 52.6%, largest blob 7% — the best separation of the round. '
+        'The bulbous lobes read as rounded against everything else being angular.',
+    'top-hematite-scatter-c40-1':
+        'Fewer, bigger lobes at 42.3%; the most saturated image in the project (mean chroma 83).',
+    'top-azurite-scatter-c24-1':
+        'Radiating crystal sprays, 51 masses at 42.4%. Distinct from ice: indigo rather than '
+        'blue-teal, and much darker.',
+    'top-azurite-scatter-c40-1':
+        'Strongest sprays of the four, but dense at 62.4%.',
 }
 
 

@@ -508,6 +508,104 @@ const THEMES = {
       'pale, white or light, and there is no bright edge anywhere. No jewellery, no gemstone, ' +
       'no display, no loose crystals on the background.',
   },
+
+  // --- coloured themes: "something that's not black" ----------------------------------------
+  //
+  // Every theme above is a near-black mass with a coloured feature inside it. These invert
+  // that: the MASS carries the colour. They all set `tone: 'saturated'` so they get DEEP_TONE
+  // instead of DARK_TONE — see the note there.
+  //
+  // Two hues are spoken for and neither may be a theme's body colour. STYLE_GUIDE.md gives
+  // mint-cyan to the PLAYER ("the mycelium is the hero, the brightest element on screen") and
+  // warm amber to the ANTS ("the one warm light underground"). A whole map in either competes
+  // with the thing the player must read first. That rules out turquoise, chrysocolla and
+  // sulphur, and it is why `malachite` below is pushed toward bottle-green rather than the
+  // brighter green the mineral actually is.
+  //
+  // The soil the sprites are drawn ON is warm brown, so a brown or ochre mass would vanish
+  // into it. That rules out peat, laterite and red clay — which is a pity, since they are the
+  // most literally underground materials available.
+  //
+  // What is left is violet, deep green, oxblood and indigo, and each one below is given a
+  // DIFFERENT structural feature so they are not four colourways of one theme: facets, bands,
+  // lobes, sprays.
+
+  // Violet quartz. The hue with no existing claim on it anywhere in the game, which makes it
+  // the safest of the four. Feature is the facet — flat crystal planes meeting at angles, so
+  // the interior reads as geometry rather than as texture.
+  amethyst: {
+    tone: 'saturated',
+    rock:
+      'solid masses of deep violet amethyst quartz — rich dark purple all the way through, ' +
+      'broken into flat crystal facets that meet at sharp angles across each mass, with ' +
+      'darker plum-coloured shadow lines along the facet joins',
+    palette:
+      'Flat and unlit: no shading within a facet, no gradients, no drop shadows, no ' +
+      'outlines, no glow, no bloom, no sparkle, no glint and no gemstone shine — this stone ' +
+      'is matte and dead, not cut or polished. Three tones only — deep saturated violet, ' +
+      'darker plum facet lines inside each mass, and the pure white background. Every mass ' +
+      'is DARK violet through and through: no facet is pale, lilac, lavender, pink or white, ' +
+      'and no edge is bright. No jewellery, no ring, no display, no loose gems on the ' +
+      'background.',
+  },
+
+  // Malachite. Feature is CONCENTRIC BANDING — the mineral grows in botryoidal layers, so a
+  // cut face is a set of nested rings, and no other theme has a closed-curve feature. Pushed
+  // to bottle-green rather than the brighter green malachite really is, for the mint-cyan
+  // reason above.
+  malachite: {
+    tone: 'saturated',
+    rock:
+      'solid masses of malachite — deep bottle-green mineral, each mass patterned with ' +
+      'CONCENTRIC BANDS: nested rings and curved stripes of dark green and near-black green ' +
+      'growing around one another like the rings in a cut agate, filling the whole of every ' +
+      'mass',
+    palette:
+      'Flat and unlit: no shading, no gradients across a band, no drop shadows, no outlines, ' +
+      'no glow, no bloom, no polish and no shine — matte, uncut mineral. Three tones only — ' +
+      'deep bottle-green, near-black green bands inside it, and the pure white background. ' +
+      'The green is dark and heavy: nothing is bright green, mint, lime, emerald, pale or ' +
+      'white, and every band stays entirely INSIDE its mass. No moss, no plants, no growth ' +
+      'on the background.',
+  },
+
+  // Hematite, kidney ore. The only theme in the set whose masses are ROUND: hematite grows
+  // botryoidal, in fused bulbous lobes, so the silhouette is a cluster of swelling curves
+  // where every other theme is angular. That is the point of it — it varies the shape
+  // language rather than the palette.
+  hematite: {
+    tone: 'saturated',
+    rock:
+      'solid masses of botryoidal hematite kidney ore — deep oxblood red, each mass a ' +
+      'cluster of fused bulbous rounded lobes swelling out of one another, smooth and ' +
+      'kidney-shaped, with darker red clefts where the lobes meet',
+    palette:
+      'Flat and unlit: no shading across a lobe, no gradients, no drop shadows, no outlines, ' +
+      'no glow, no bloom, and NO metallic shine — no glint, no specular highlight, no mirror ' +
+      'and no polish. Three tones only — deep dark oxblood red, darker red clefts between ' +
+      'the lobes, and the pure white background. The red is dark and blood-deep: never ' +
+      'bright red, never scarlet, never orange, never pink and never pale. Nothing is molten, ' +
+      'nothing is glowing and nothing is wet on the background.',
+  },
+
+  // Azurite. Feature is the radiating spray — azurite crystallises in bursts, so each mass has
+  // needles fanning out from points inside it, a linear feature with a direction, unlike
+  // malachite's closed rings or amethyst's flat planes. Pushed to indigo so it does not read
+  // as a second `ice`: ice is blue-TEAL and mid-toned, this is blue-violet and darker.
+  azurite: {
+    tone: 'saturated',
+    rock:
+      'solid masses of azurite — deep indigo blue-violet mineral, with sprays of darker blue ' +
+      'crystal needles radiating outward in bursts from several points inside each mass, like ' +
+      'starbursts frozen in the stone',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow, no ' +
+      'bloom, no sparkle and no shine. Three tones only — deep indigo blue-violet, darker ' +
+      'blue crystal needles inside it, and the pure white background. The blue is dark and ' +
+      'ink-deep: nothing is sky blue, cyan, turquoise, pale or white. Every spray stays ' +
+      'entirely INSIDE its mass and no needle reaches the background. No ice, no water, no ' +
+      'frost and no loose crystals lying on the background.',
+  },
 };
 
 // TRIED AND REVERTED: "This is a CROSS-SECTION: the whole scene has been sliced clean
@@ -578,6 +676,33 @@ const DARK_TONE =
   'scene: no key light, no top light, no sunlight, no studio lighting, no lit faces, no ' +
   'highlights, no sheen, no gloss, and no pale rim along any edge.';
 
+// The owner's ask after round two was "something that's not black", and DARK_TONE would fight
+// every such theme — "as dark as its own colour allows" still resolves to almost-black on a
+// mass whose whole point is being violet. So a coloured theme gets this instead: same statement
+// about there being no light down here, but the value target is DEPTH OF COLOUR rather than
+// darkness.
+//
+// This is not a licence to go pale. The tracer's rock test is "dark, OR strongly chromatic and
+// not near-white", so a coloured mass survives on saturation alone — and loses the moment it
+// washes out. That is exactly how `roots` and `ruins` died. Hence "the way a mineral looks
+// wet": a positive image of the target, with the failure modes named only afterwards and
+// briefly.
+const DEEP_TONE =
+  ' This is DEEP UNDERGROUND, in the dark, far below any daylight. Every mass is matte and ' +
+  'DEEPLY SATURATED — rich, intense, fully soaked colour, the way a mineral looks when it is ' +
+  'wet, and the same deep value across its whole surface. Each mass reads clearly darker and ' +
+  'far more colourful than the flat {BG} background behind it. There is no light source ' +
+  'anywhere in the scene: no key light, no top light, no sunlight, no studio lighting, no lit ' +
+  'faces, no highlights, no sheen, no gloss, and no pale rim along any edge. Nothing is ' +
+  'washed out, chalky or pastel.';
+
+// Black ground: the theme's own palette already says the masses read BRIGHT, and either tone
+// clause would contradict it. Saturated: DEEP_TONE. Everything else: DARK_TONE.
+const toneFor = (theme) =>
+  THEMES[theme].bg === 'black' ? ''
+    : THEMES[theme].tone === 'saturated' ? DEEP_TONE
+    : DARK_TONE;
+
 const SIL_TAIL = (theme) =>
   ' The background is pure flat {BG} everywhere, edge to edge, including all four edges and ' +
   'every corner. Do NOT draw a cave, a cavern, an enclosing wall, a rock border around the ' +
@@ -585,7 +710,7 @@ const SIL_TAIL = (theme) =>
   'they reach the left and right edges, they reach the top and bottom edges, and there is ' +
   'no empty band along any edge and no empty half. ' +
   THEMES[theme].palette +
-  (THEMES[theme].bg === 'black' ? '' : DARK_TONE) +
+  toneFor(theme) +
   // top-biolum-c24 was rejected as "almost real life quality — does not match the game
   // theme": photographic mushrooms with real depth of field on photographic stone. Nothing in
   // the prompt had ever said what medium this is, so FLUX defaulted to its strongest prior,

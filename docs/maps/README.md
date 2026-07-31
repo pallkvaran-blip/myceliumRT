@@ -676,6 +676,50 @@ The fix to try is to make the boundary explicit — the honeycomb belongs inside
 between masses there is only background — rather than to weaken the hexagon wording, which took
 two rounds to get working.
 
+## Coloured themes, and the constraints on "not black"
+
+Round two's keeps are all in the shortlist; only the three basalt v2 rolls and `anthracite-c40`
+were cut. The next ask was **"something that's not black"**, which is a bigger change than it
+sounds, because every theme up to here is a near-black mass with a coloured feature *inside* it.
+These invert that: the mass carries the colour.
+
+**`DARK_TONE` had to fork.** "As dark as its own colour allows" still resolves to almost-black on
+a mass whose whole point is being violet, so a coloured theme sets `tone: 'saturated'` and gets
+`DEEP_TONE` instead — same statement that there is no light down here, but the target is *depth
+of colour* rather than darkness: *"matte and DEEPLY SATURATED — rich, intense, fully soaked
+colour, the way a mineral looks when it is wet."* That phrasing is deliberate. Saturation is not
+decoration here: the tracer's rock test is "dark, **or** strongly chromatic and not near-white",
+so a coloured mass survives on saturation and dies the moment it washes out — which is exactly
+how `roots` and `ruins` died.
+
+**Three constraints narrow the field to four hues, and they are worth writing down before
+anyone suggests a fifth:**
+
+1. `STYLE_GUIDE.md` gives **mint-cyan to the player** ("the mycelium is the hero, the brightest
+   element on screen") and **warm amber to the ants** ("the one warm light underground"). A map
+   in either competes with the thing the player has to read first. That rules out turquoise,
+   chrysocolla and sulphur.
+2. The soil the sprites are drawn **on** is warm brown, so a brown or ochre mass vanishes into
+   its own background. That rules out peat, laterite and red clay — a pity, since they are the
+   most literally underground materials available.
+3. Pale is fatal, per above.
+
+That leaves violet, deep green, oxblood and indigo. Each of the four is given a **different
+structural feature**, so they are four themes and not four colourways of one:
+
+| theme | feature | result |
+| --- | --- | --- |
+| **`amethyst`** | flat crystal **facets** — interior reads as geometry | In band both counts. The palest theme yet at luminance 110 (c24), and Otsu had to climb to **175** to hold it; c40 is safer at 85. The lilac faces are the thing to watch. |
+| **`malachite`** | **concentric bands** — nested rings, the only closed-curve feature in the set | c40 is the pick: 53.8%, full frame, **7** gravel specks. c24 only covers 69% of the frame's rows. |
+| **`hematite`** | **botryoidal lobes** — fused bulbous swellings, the only ROUND masses anywhere | Best separation of the round: c24 is 50 masses at 52.6% with the largest blob at 7%. c40 is the most saturated image the project has (mean chroma 83). |
+| **`azurite`** | **radiating sprays** — needles fanning from points inside the mass | c24 is 51 masses at 42.4%; c40 has the strongest sprays but is dense at 62.4%. Indigo keeps it clear of `ice`, which is blue-teal and lighter. |
+
+**Colour cost nothing in traceability, which was the open question.** Measuring how much of each
+mask is held *only* by the chroma rescue — i.e. what would vanish on a luminance-only tracer —
+gives **1–5% across all eight images**. The masses are dark enough on luminance alone and the
+saturation is a safety margin rather than the mechanism. `amethyst-c24` is the one to keep an eye
+on, at luminance 110 against 53–72 for the dark themes.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

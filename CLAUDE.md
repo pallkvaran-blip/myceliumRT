@@ -310,6 +310,18 @@ name carries a camera with it. v2 described the pattern instead ("a honeycomb of
 tiles") and got the hexagons at once, but "packed edge to edge" leaked from the cells to the
 masses and fused the frame into one slab.
 
+Round three added the first **coloured** themes, where the MASS carries the colour instead of a
+feature inside it: `amethyst`, `malachite`, `hematite`, `azurite`, all working. These set
+`tone: 'saturated'` and get **`DEEP_TONE`** rather than `DARK_TONE` — "as dark as its own colour
+allows" resolves to almost-black on a mass whose point is being violet. Three constraints fix
+which hues are even available, and they rule out more than they permit: **mint-cyan belongs to
+the player and warm amber to the ants** (STYLE_GUIDE), so no turquoise/chrysocolla/sulphur; the
+**soil the sprites are drawn on is warm brown**, so a brown or ochre mass vanishes into it (no
+peat, laterite or red clay); and pale is fatal to the tracer. Colour turned out to cost nothing
+in traceability — only **1-5%** of each coloured mask is held by the chroma rescue alone, so the
+masses are dark enough on luminance and saturation is just margin. `amethyst` is the one to
+watch at luminance 110 (against 53-72 elsewhere) with its Otsu cut up at 175.
+
 **The prompt is the asset.** Two forms are owner-approved — `scatter` (loose masses,
 generous channels) and `maze` (dense, tight channels). `ledges` is being retried and
 converts at about 2 images in 5 (its window is ~9-20 rocks: fewer reads as scenery, more
