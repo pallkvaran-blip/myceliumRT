@@ -69,6 +69,9 @@ SELECTIONS = [
     ('bioluminescent-scatter-c40-2', 'bioluminescent', 40, None,         'Round 2 — kept, but the least side-on.'),
     ('ember-scatter-c20-3',       'ember',           20, None,           'Cooled fissures; most side-on of the ember set.'),
     ('ember-scatter-c30-3',       'ember',           30, None,           'Best ember density; reads more top-down.'),
+    ('ember-scatter-c20-4',       'ember',           20, None,           'Cleanest of the second ember round — even mass size, real separation.'),
+    ('ember-scatter-c24-3',        'ember',          24, None,           'In band, good spread, fissures dim and contained.'),
+    ('ember-scatter-c30-5',        'ember',          30, None,           'Chunkier masses, strong fissures.'),
     ('skeletons-scatter-c12-1',   'skeletons',       12, None,           'All fossil. Fill ratio says it traces to fragments, not terrain.'),
 ]
 

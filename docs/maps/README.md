@@ -396,6 +396,49 @@ If the look is worth having, the route is to stop asking for skeletons and start
 **stone with fossils in it** — a mass whose silhouette is solid and whose bone is surface
 detail, which is what `bones` was reaching for.
 
+## What the best maps actually have in common
+
+Owner's five best, on "the rocks look great and they are most side-on":
+`veined-c28-1`, `veined-c9-1`, `crystal-c36-1`, `crystal-c70-1`, `bioluminescent-c20-2`.
+
+**It is not the prompt.** Every image was committed alongside the exact `gen-map.mjs` that
+produced it, so each prompt can be reconstructed from git. Doing that across all 27 shortlisted
+images: the five span FOUR different prompt versions, and every clause they contain — reach the
+edges, spread over the frame, the size cap, the gap rule, the bare-background rule — appears in
+a majority of the images that were *not* picked. No clause is present in all five and rare
+elsewhere. Neither does density separate them: they run 25–84% solid, the same spread as
+everything else.
+
+**It is the theme.** All five come from `veined`, `crystal` or `bioluminescent` — the three
+themes where the rock carries a feature embedded in its face. That is 5 of 5 from a pool of 13,
+and **0 of 5** from the 14 images whose rock is plain (slate, ice, glacier, ember, skeletons).
+
+**And they are the least flat images we have, not the most.** Measuring cast-shadow load — the
+share of non-rock area that is mid-tone rather than clean background, i.e. the soft shadow a
+three-dimensional render drops under an object:
+
+| | shadow load | picks |
+| --- | --- | --- |
+| the five | **36.3%** | — |
+| featured themes (veined/crystal/biolum) | 29.2% | 5/13 |
+| plain themes (slate/ice/glacier/ember/skeletons) | 11.3% | 0/14 |
+| `glacier` | 2.4% | 0/2 |
+
+So "the rocks look great" is tracking **surface detail and three-dimensionality**, and the
+prompt has spent the whole project pushing the opposite way — "flat and unlit, no shading, no
+gradients, no drop shadows" is in every theme's palette clause. Those clauses were written to
+make thresholding easy, and the tracer has since outgrown them: Otsu picks the cut per image,
+the chroma rescue keeps coloured features, and polarity is detected from flatness. **The
+flatness instructions are now costing looks they no longer buy anything for.**
+
+Two things follow. To get more maps like these, roll more `veined`/`crystal`/`bioluminescent`
+rather than tuning composition clauses. And it is worth trying a theme with the "flat and
+unlit / no shading / no drop shadows" clauses *removed* — the thing the evidence says the
+picks have and the prompt forbids.
+
+Caveat: n=5, and `bioluminescent-c20-2` is the image whose polarity the tracer refuses to call,
+so its density number in particular is not trustworthy.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.
