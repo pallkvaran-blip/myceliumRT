@@ -231,6 +231,20 @@ packs the masses together:
 So the theme now works and the *count* is wrong: it wants c20-2's density with c30's framing.
 Somewhere near 20–24 with the fill-the-frame clause doing its job is the next thing to try.
 
+**Round 3** re-rolls ember under the rules added since — mass size bounded at both ends, and
+the bare-background rule. Judged on the owner's criterion, side-on-ness:
+
+| image | rock | blobs | verdict |
+| --- | --- | --- | --- |
+| `ember-scatter-c20-3` | 61% | 47 | **Best.** Large masses filling the frame, seen close to straight on, fissures inside them, and only 47 blobs — a quarter of what c30/c40 produce. Slightly over the playable band. |
+| `ember-scatter-c30-3` | 51% | 193 | Best density, worst viewpoint: every rock shows its top and sits on a plane, and the small debris came back. |
+| `ember-scatter-c40-3` | 60% | 227 | Most top-down of the three, densest debris. |
+
+That is the density/viewpoint tension again, and ember shows it cleanly: **c30-3 has the
+playable density and c20-3 has the viewpoint, and they are not the same image.** Lava on the
+open background stays solved throughout — 0.08–0.21% hot-and-bright, against 1.7% before the
+fissures were cooled.
+
 The other route, still untried: **let the tracer take it** — lava on the background is
 chromatic and forms components with no dark rock in them, which the veined theme's component
 filter already deletes.
@@ -300,7 +314,12 @@ real while the blob count is measuring something else. Those specks are deleted 
 by `--min-area` regardless, which is why they never reached a level.
 
 The teal swing (2.30% → 0.02% at c30, 0.00% → 1.11% at c40) is roll-to-roll noise, not a
-trend. `c30-2` is the pick of round 2 at 52% solid with clean separation.
+trend. **Owner's picks: `c20-2` and `c40-2`, and the reason is the viewpoint** — c20-2 reads most
+side-on, c40-2 least. That is the criterion to select on, and it runs the OPPOSITE way to
+density comfort: the dense rolls read side-on because the masses fill the frame and you see
+their faces, while sparse ones leave room to show each rock's TOP, which is what makes a map
+look top-down. So "81% solid" and "most side-on" are the same image, and the playable-density
+band and the viewpoint pull against each other. Worth knowing before optimising either alone.
 
 Two things to fix if it's worth another round. The **teal loses to amber** unless the count is
 low: 2.3% teal at 30, 0.27% at 20, none at 40. And small lichen tufts keep landing on the
