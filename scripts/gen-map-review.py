@@ -49,7 +49,6 @@ SELECTIONS = [
     ('silhouette-2',              'scatter',         17, 'scatter-two',  'The scatter prompt under its old name.'),
     ('veined-scatter-c9-1',       'veined',           9, None,           'Vein weight closest to the game’s own rockVeined.'),
     ('veined-scatter-c28-1',      'veined',          28, None,           'Dense; would trace into something maze-like.'),
-    ('crystal-scatter-c36-1',     'crystal',         36, None,           'Round 3, densest — large masses.'),
     ('crystal-scatter-c40-1',     'crystal',         40, None,           'Round 4, size cap in force — looser field.'),
     ('glacier-scatter-c40-1',     'glacier',         40, None,           'Pale ice on black — smaller floes, wider channels.'),
     ('bioluminescent-scatter-c20-2', 'bioluminescent', 20, None,         'Round 2 — the most side-on image of any theme.'),
