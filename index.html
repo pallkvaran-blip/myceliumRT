@@ -22451,6 +22451,21 @@ function setupInput() {
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape') { aim = null; ui.setSelectedAction(null); ui.clearPendingCard(); if (ui.clearPendingAction) ui.clearPendingAction(); if (ui.clearArmed) ui.clearArmed(); ui.resetHint(); placingWorm = false; dismissColonyLos(); uiDirty = true; }
     else if (e.code === 'KeyF') { camera.fitBounds(expandedBounds(), 120); }
+    // DEV: step through the authored maps with [ and ]. The panel is for jumping to a
+    // named map; this is for the other half of reviewing 59 of them — going along the list
+    // one at a time without moving the mouse. Guarded on the dev flag like the panel, and on
+    // a modifier being absent so it never eats a browser shortcut.
+    else if ((e.code === 'BracketLeft' || e.code === 'BracketRight')
+             && !e.ctrlKey && !e.metaKey && !e.altKey
+             && state && state.config && state.config.dev && state.config.dev.enabled) {
+      const maps = (LEVELS || []).filter((l) => l && l.id);
+      if (!maps.length) return;
+      const cur = maps.findIndex((l) => playtestLevel && l.id === playtestLevel.id);
+      const step = e.code === 'BracketRight' ? 1 : -1;
+      // From a non-authored run (cur === -1) either key enters the list at its start.
+      const next = cur < 0 ? 0 : (cur + step + maps.length) % maps.length;
+      devSwitchLevel(maps[next].id);
+    }
   });
 
   window.addEventListener('resize', resize);
