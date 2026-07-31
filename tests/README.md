@@ -76,3 +76,15 @@ click past `#loadscreen`, wait for `window.__game`, dismiss `#levelIntro`. Then:
   on `state.config.realtime.enabled` for exactly this.
 
 See the repo's CLAUDE.md for the rest of the traps.
+
+### `edit` — the dev rock editor (`tests/edit-check.cjs`)
+
+Drives the in-game rock editor on a traced map: opens the panel, selects every rock,
+scales, rotates, adjusts the look filter, deletes, and exports. Asserts on state
+(`substrate.levelSprites`), never on the panel's own labels — the editor mutates the same
+list the engine draws and collides from, so the sprites are the truth.
+
+Watch the export assertion in particular. The first version parked the JSON on
+`window.__levelJSON` only in the clipboard's failure path, and headless Chromium's clipboard
+write SUCCEEDS — so the by-hand check passed and the test read `null`. It now always parks
+it, and copies as well.

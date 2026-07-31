@@ -1402,6 +1402,32 @@
     #devMapPanel button:hover { background:rgba(230,180,92,0.14); border-color:rgba(230,180,92,0.5); color:#fff; }
     #devMapPanel button.cur { color:#fff; border-color:rgba(230,180,92,0.7); background:rgba(230,180,92,0.2); }
 
+    /* ROCK EDITOR — dev-only, same amber dashed language as the other dev affordances. */
+    #devEditBtn { position:fixed; top:74px; right:14px; z-index:31; cursor:pointer;
+      font:600 11.5px "Segoe UI", system-ui, sans-serif; letter-spacing:.03em; color:#e6cf9a;
+      background:rgba(14,18,12,0.82); border:1px dashed rgba(230,180,92,0.6); border-radius:999px;
+      padding:6px 12px; backdrop-filter:blur(4px); }
+    #devEditBtn.on { color:#0d100c; background:#e6b45c; border-style:solid; }
+    #devEditPanel { position:fixed; left:14px; top:14px; z-index:32; width:236px; display:none;
+      flex-direction:column; gap:9px; padding:12px; background:rgba(10,14,10,0.95);
+      border:1px dashed rgba(230,180,92,0.5); border-radius:12px; backdrop-filter:blur(6px);
+      max-height:calc(100vh - 28px); overflow-y:auto; }
+    #devEditPanel.open { display:flex; }
+    #devEditPanel h4 { margin:0; font:700 10px "Segoe UI", system-ui, sans-serif;
+      letter-spacing:.13em; text-transform:uppercase; color:rgba(230,207,154,0.6); }
+    #devEditPanel label { display:block; font:600 10.5px "Segoe UI", system-ui, sans-serif;
+      color:#e6cf9a; letter-spacing:.02em; }
+    #devEditPanel label b { float:right; font-variant-numeric:tabular-nums; color:#fff; }
+    #devEditPanel input[type=range] { width:100%; accent-color:#e6b45c; margin-top:3px; }
+    #devEditPanel .ee-row { display:flex; gap:6px; flex-wrap:wrap; }
+    #devEditPanel button { cursor:pointer; font:600 10.5px "Segoe UI", system-ui, sans-serif;
+      color:#e6cf9a; background:rgba(230,180,92,0.10); border:1px solid rgba(230,180,92,0.4);
+      border-radius:7px; padding:5px 9px; }
+    #devEditPanel button:hover { background:rgba(230,180,92,0.24); color:#fff; }
+    #devEditPanel .ee-hint { font:400 10.5px/1.5 "Segoe UI", system-ui, sans-serif;
+      color:rgba(230,207,154,0.65); }
+    #devEditPanel .ee-stat { font:600 10.5px "Segoe UI", system-ui, sans-serif; color:#fff; }
+
     /* ============================ FIRST-RUN TUTORIAL ============================
        Clean black & white popups with a slight white border-glow (mirrors the
        species-select console) — NO gradients. Root is pointer-events:none so the
@@ -12440,6 +12466,7 @@ function configForLevelDef(config, level) {
   if (r.ambientLight != null) cfg.render.ambientLight = r.ambientLight;
   if (r.lighting != null) cfg.render.lighting = r.lighting;
   if (r.ambientWarmth != null) cfg.render.ambientWarmth = r.ambientWarmth;
+  if (r.rockFilter) cfg.render.rockFilter = r.rockFilter;
   return cfg;
 }
 
@@ -21528,6 +21555,225 @@ function updateDevMapBtn() {
   if (btn) btn.style.display = '';
 }
 
+// =====================  DEV: ROCK EDITOR  =====================================
+// Move / rotate / resize / delete the rocks of a traced map, in the running game.
+//
+// The tracer places every rock from a mask, so a map arrives with nobody's judgement in it:
+// a mass sits where the model happened to draw it. This is the pass that turns a traced
+// image into a designed level, and it edits the same list the engine draws AND collides
+// from (`sub.levelSprites`, see solidifyRock), so what you move is what blocks.
+//
+// Collision is rebuilt by clearing `_rockSolidified`; the next frame re-stamps the mask from
+// the sprites' alpha. That is why edits are instant here but a re-trace is not — nothing is
+// resampled, the same sprite is simply stamped somewhere else.
+//
+// Nothing is written to disk from the browser. "Copy JSON" puts the edited level on the
+// clipboard in the same shape as docs/levels/<id>.json, to be pasted back over it.
+const rockEdit = {
+  on: false, sel: new Set(), drag: null, mode: 'move',
+  filter: { brightness: 1, contrast: 1, saturate: 1 },
+};
+
+function reSolidify() {
+  const sub = state && state.substrate;
+  if (sub) { sub._rockSolidified = false; sub._fineSolid = null; }
+  uiDirty = true;
+}
+function editSprites() { return (state && state.substrate && state.substrate.levelSprites) || []; }
+
+// Hit test in the sprite's OWN frame, so a rotated rock is picked by its rotated box.
+function rockAt(wx, wy) {
+  const sp = editSprites();
+  for (let i = sp.length - 1; i >= 0; i--) {          // topmost first — last drawn wins
+    const s = sp[i];
+    let dx = wx - s.x, dy = wy - s.y;
+    if (s.rot) {
+      const c = Math.cos(-s.rot), sn = Math.sin(-s.rot);
+      const rx = dx * c - dy * sn, ry = dx * sn + dy * c;
+      dx = rx; dy = ry;
+    }
+    if (Math.abs(dx) <= s.w / 2 && Math.abs(dy) <= s.h / 2) return i;
+  }
+  return -1;
+}
+function editTargets() {
+  const sp = editSprites();
+  return rockEdit.sel.size ? [...rockEdit.sel].map((i) => sp[i]).filter(Boolean) : [];
+}
+// Every transform is about the SELECTION's centre, not each rock's own, so scaling or
+// rotating a group holds it together instead of shrinking each rock in place.
+function selCentre() {
+  const t = editTargets();
+  if (!t.length) return null;
+  let x = 0, y = 0;
+  for (const s of t) { x += s.x; y += s.y; }
+  return { x: x / t.length, y: y / t.length };
+}
+function editTransform(fn) {
+  const t = editTargets();
+  if (!t.length) return;
+  const c = selCentre();
+  for (const s of t) fn(s, c, t.length);
+  reSolidify(); updateEditPanel();
+}
+function editScale(k) {
+  editTransform((s, c, n) => {
+    s.w *= k; s.h *= k;
+    if (n > 1) { s.x = c.x + (s.x - c.x) * k; s.y = c.y + (s.y - c.y) * k; }
+  });
+}
+function editRotate(rad) {
+  editTransform((s, c, n) => {
+    s.rot = (s.rot || 0) + rad;
+    if (n > 1) {
+      const dx = s.x - c.x, dy = s.y - c.y;
+      const co = Math.cos(rad), si = Math.sin(rad);
+      s.x = c.x + dx * co - dy * si;
+      s.y = c.y + dx * si + dy * co;
+    }
+  });
+}
+function editNudge(dx, dy) { editTransform((s) => { s.x += dx; s.y += dy; }); }
+function editDelete() {
+  const sp = editSprites();
+  const gone = [...rockEdit.sel].sort((a, b) => b - a);     // high to low: splice is stable
+  for (const i of gone) sp.splice(i, 1);
+  rockEdit.sel.clear();
+  reSolidify(); updateEditPanel();
+}
+function editSelectAll() {
+  rockEdit.sel = new Set(editSprites().map((_, i) => i));
+  updateEditPanel();
+}
+
+// The edited level, in the shape of docs/levels/<id>.json. Non-rock objects (food, water)
+// pass through untouched — this pass is about the rock.
+function editExport() {
+  const def = state && state.levelDef;
+  if (!def) return '{}';
+  const out = JSON.parse(JSON.stringify(def));
+  const keep = (def.objects || []).filter((o) => o.t !== 'boulder' && o.t !== 'formation');
+  const rocks = editSprites().map((s) => ({
+    t: s.style === 'formation' ? 'formation' : 'boulder', key: s.key,
+    x: +s.x.toFixed(1), y: +s.y.toFixed(1),
+    w: +s.w.toFixed(1), h: +s.h.toFixed(1), rot: +(s.rot || 0).toFixed(4),
+  }));
+  out.objects = rocks.concat(keep);
+  const f = rockEdit.filter;
+  if (f.brightness !== 1 || f.contrast !== 1 || f.saturate !== 1) {
+    out.render = Object.assign({}, out.render, { rockFilter: Object.assign({}, f) });
+  } else if (out.render) {
+    delete out.render.rockFilter;
+  }
+  return JSON.stringify(out, null, 1);
+}
+
+function updateEditPanel() {
+  const p = document.getElementById('devEditPanel');
+  if (!p) return;
+  const n = rockEdit.sel.size, tot = editSprites().length;
+  const st = p.querySelector('#eeSel');
+  if (st) st.textContent = n ? `${n} of ${tot} selected` : `${tot} rocks — none selected`;
+}
+function updateDevEditBtn() {
+  const ui0 = document.getElementById('ui');
+  const devOn = !!(state && state.config && state.config.dev && state.config.dev.enabled);
+  const isTraced = !!(state && state.levelDef && (state.levelDef.traced || state.levelDef.objects));
+  let btn = document.getElementById('devEditBtn');
+  let panel = document.getElementById('devEditPanel');
+  if (!devOn || !isTraced) {
+    if (btn) btn.style.display = 'none';
+    if (panel) panel.classList.remove('open');
+    rockEdit.on = false;
+    return;
+  }
+  if (!btn && ui0) {
+    btn = document.createElement('button'); btn.id = 'devEditBtn'; btn.type = 'button';
+    btn.textContent = 'Dev: edit rocks';
+    btn.onclick = () => {
+      rockEdit.on = !rockEdit.on;
+      if (!rockEdit.on) rockEdit.sel.clear();
+      btn.classList.toggle('on', rockEdit.on);
+      const pn = document.getElementById('devEditPanel');
+      if (pn) pn.classList.toggle('open', rockEdit.on);
+      updateEditPanel(); uiDirty = true;
+    };
+    ui0.appendChild(btn);
+  }
+  if (!panel && ui0) {
+    panel = document.createElement('div'); panel.id = 'devEditPanel';
+    panel.innerHTML =
+      '<h4>Rock editor</h4>' +
+      '<div class="ee-stat" id="eeSel"></div>' +
+      '<div class="ee-row">' +
+        '<button id="eeAll">Select all</button><button id="eeNone">None</button>' +
+        '<button id="eeDel">Delete</button>' +
+      '</div>' +
+      '<h4>Transform selection</h4>' +
+      '<div class="ee-row">' +
+        '<button id="eeBig">Bigger</button><button id="eeSml">Smaller</button>' +
+        '<button id="eeRotL">Rotate &#8630;</button><button id="eeRotR">Rotate &#8631;</button>' +
+      '</div>' +
+      '<p class="ee-hint">Drag a rock to move it. Shift-click adds to the selection. ' +
+      'Arrows nudge, Shift-arrows nudge far. <b>+</b>/<b>&minus;</b> resize, ' +
+      '<b>,</b>/<b>.</b> rotate, <b>Delete</b> removes. <b>Ctrl+A</b> selects every rock, ' +
+      'so the whole map moves, scales and rotates as one.</p>' +
+      '<h4>All rocks on this map</h4>' +
+      '<label>Brightness <b id="eeBv">1.00</b><input type="range" id="eeB" min="0.3" max="2" step="0.02" value="1"></label>' +
+      '<label>Contrast <b id="eeCv">1.00</b><input type="range" id="eeC" min="0.3" max="2" step="0.02" value="1"></label>' +
+      '<label>Saturation <b id="eeSv">1.00</b><input type="range" id="eeS" min="0" max="2" step="0.02" value="1"></label>' +
+      '<div class="ee-row"><button id="eeReset">Reset look</button></div>' +
+      '<h4>Save</h4>' +
+      '<div class="ee-row"><button id="eeCopy">Copy JSON</button></div>' +
+      '<p class="ee-hint">Paste over <code>docs/levels/&lt;id&gt;.json</code>. Nothing is ' +
+      'written from the browser.</p>';
+    ui0.appendChild(panel);
+    const $ = (id) => panel.querySelector('#' + id);
+    $('eeAll').onclick = editSelectAll;
+    $('eeNone').onclick = () => { rockEdit.sel.clear(); updateEditPanel(); uiDirty = true; };
+    $('eeDel').onclick = editDelete;
+    $('eeBig').onclick = () => editScale(1.06);
+    $('eeSml').onclick = () => editScale(1 / 1.06);
+    $('eeRotL').onclick = () => editRotate(-Math.PI / 36);
+    $('eeRotR').onclick = () => editRotate(Math.PI / 36);
+    const bind = (id, key, out) => {
+      $(id).oninput = () => {
+        rockEdit.filter[key] = Number($(id).value);
+        $(out).textContent = rockEdit.filter[key].toFixed(2);
+        uiDirty = true;
+      };
+    };
+    bind('eeB', 'brightness', 'eeBv');
+    bind('eeC', 'contrast', 'eeCv');
+    bind('eeS', 'saturate', 'eeSv');
+    $('eeReset').onclick = () => {
+      rockEdit.filter = { brightness: 1, contrast: 1, saturate: 1 };
+      for (const [i, o] of [['eeB', 'eeBv'], ['eeC', 'eeCv'], ['eeS', 'eeSv']]) {
+        $(i).value = 1; $(o).textContent = '1.00';
+      }
+      uiDirty = true;
+    };
+    $('eeCopy').onclick = async () => {
+      // ALWAYS park it on window as well as copying. The clipboard needs a secure context
+      // and a user gesture, and over plain http or in a headless browser the write can fail
+      // — or, worse, silently succeed where nothing can read it back, which is how the
+      // first version of this passed by hand and failed its own test.
+      const json = editExport();
+      window.__levelJSON = json;
+      const b = $('eeCopy'), t = 'Copy JSON';
+      try {
+        await navigator.clipboard.writeText(json);
+        b.textContent = 'Copied';
+      } catch (_) {
+        b.textContent = 'in window.__levelJSON';
+      }
+      setTimeout(() => (b.textContent = t), 1600);
+    };
+  }
+  if (btn) btn.style.display = '';
+  updateEditPanel();
+}
+
 function startPuzzle() { begin(createPuzzleState(CONFIG)); }
 
 // --- tutorial camera + wiring ----------------------------------------------
@@ -21793,6 +22039,7 @@ function begin(newState) {
   updateLevelChip();
   updateDevWinBtn();
   updateDevMapBtn();
+  updateDevEditBtn();
   placeRockface();   // Magic Mushroom unlock object — level 1 only, until it's been revealed
   // Tutorial: fires on every NEW → level 1 of a real species run (not puzzle/dev). The TEMP
   // dev title button (tutorialDevForce) fires it too, but WITHOUT marking it seen — so it
@@ -22293,6 +22540,51 @@ function fireAim(a) {
 }
 
 function setupInput() {
+  // EDITOR POINTER PATH. Taken before the gameplay handlers and returned from, so a drag
+  // that moves a rock cannot also aim a card or pan the camera. Registered on the same
+  // element rather than in capture phase on window, so the HUD and the editor panel keep
+  // their own clicks.
+  canvas.addEventListener('pointerdown', (e) => {
+    if (!rockEdit.on) return;
+    const rect = canvas.getBoundingClientRect();
+    const w = camera.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const hit = rockAt(w.x, w.y);
+    if (hit < 0) {
+      if (!e.shiftKey) { rockEdit.sel.clear(); updateEditPanel(); uiDirty = true; }
+      return;                                   // empty space: let the camera pan as usual
+    }
+    if (e.shiftKey) {
+      if (rockEdit.sel.has(hit)) rockEdit.sel.delete(hit); else rockEdit.sel.add(hit);
+    } else if (!rockEdit.sel.has(hit)) {
+      rockEdit.sel = new Set([hit]);            // clicking outside the selection replaces it…
+    }                                           // …clicking INSIDE it keeps the group, so a
+                                                //   multi-rock drag is one gesture
+    rockEdit.drag = { wx: w.x, wy: w.y };
+    canvas.setPointerCapture(e.pointerId);
+    updateEditPanel(); uiDirty = true;
+    e.stopPropagation(); e.preventDefault();
+  }, true);
+  canvas.addEventListener('pointermove', (e) => {
+    if (!rockEdit.on || !rockEdit.drag) return;
+    const rect = canvas.getBoundingClientRect();
+    const w = camera.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
+    const dx = w.x - rockEdit.drag.wx, dy = w.y - rockEdit.drag.wy;
+    rockEdit.drag.wx = w.x; rockEdit.drag.wy = w.y;
+    for (const s of editTargets()) { s.x += dx; s.y += dy; }
+    // Collision is rebuilt on every move rather than on release: the point of editing in
+    // the running game is that what you see is what blocks, and a mask that lags the art
+    // would quietly undo that.
+    reSolidify();
+    e.stopPropagation(); e.preventDefault();
+  }, true);
+  const endEditDrag = (e) => {
+    if (!rockEdit.on || !rockEdit.drag) return;
+    rockEdit.drag = null;
+    e.stopPropagation();
+  };
+  canvas.addEventListener('pointerup', endEditDrag, true);
+  canvas.addEventListener('pointercancel', endEditDrag, true);
+
   canvas.addEventListener('pointerdown', (e) => {
     noteInput();
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -22427,7 +22719,26 @@ function setupInput() {
     // named map; this is for the other half of reviewing 59 of them — going along the list
     // one at a time without moving the mouse. Guarded on the dev flag like the panel, and on
     // a modifier being absent so it never eats a browser shortcut.
-    else if ((e.code === 'BracketLeft' || e.code === 'BracketRight')
+    // Editor keys, ahead of the map-stepping brackets so an editing session cannot be
+    // ended by a stray keypress. Everything here is a no-op unless the editor is open.
+    else if (rockEdit.on && rockEdit.sel.size && !e.ctrlKey && !e.metaKey && (
+             e.code === 'ArrowLeft' || e.code === 'ArrowRight' ||
+             e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+      const step = e.shiftKey ? 25 : 3;
+      editNudge((e.code === 'ArrowRight' ? step : e.code === 'ArrowLeft' ? -step : 0),
+                (e.code === 'ArrowDown' ? step : e.code === 'ArrowUp' ? -step : 0));
+      e.preventDefault();
+    }
+    else if (rockEdit.on && rockEdit.sel.size &&
+             (e.code === 'Delete' || e.code === 'Backspace')) { editDelete(); e.preventDefault(); }
+    else if (rockEdit.on && rockEdit.sel.size &&
+             (e.code === 'Equal' || e.code === 'NumpadAdd')) { editScale(1.06); e.preventDefault(); }
+    else if (rockEdit.on && rockEdit.sel.size &&
+             (e.code === 'Minus' || e.code === 'NumpadSubtract')) { editScale(1 / 1.06); e.preventDefault(); }
+    else if (rockEdit.on && rockEdit.sel.size && e.code === 'Comma') { editRotate(-Math.PI / 36); e.preventDefault(); }
+    else if (rockEdit.on && rockEdit.sel.size && e.code === 'Period') { editRotate(Math.PI / 36); e.preventDefault(); }
+    else if (rockEdit.on && e.code === 'KeyA' && (e.ctrlKey || e.metaKey)) { editSelectAll(); e.preventDefault(); }
+    else if ((e.code === 'BracketLeft' || e.code === 'BracketRight') && !rockEdit.on
              && !e.ctrlKey && !e.metaKey && !e.altKey
              && state && state.config && state.config.dev && state.config.dev.enabled) {
       const maps = (LEVELS || []).filter((l) => l && l.id);
@@ -24165,6 +24476,18 @@ function drawLevelRocks() {
   if (!sprites || !sprites.length) return;
   const sub = state.substrate, z = camera.zoom, cs = sub.cellSize;
   const soil = _rgb(state.config.render.soilDeep || '#2a1d12');
+  // A per-map look adjustment, applied to the ROCK only — the soil, the colony and the HUD
+  // are drawn outside this function and keep their own values. Live from the editor while
+  // it is open, otherwise from the level's own `render.rockFilter`, so a map carries the
+  // look it was tuned with. Set as a canvas filter rather than baked into the sprites: it
+  // stays reversible, and collision reads alpha, which a colour filter cannot touch.
+  const rf = (typeof rockEdit !== 'undefined' && rockEdit.on) ? rockEdit.filter
+    : ((state.config.render && state.config.render.rockFilter) || null);
+  const filtered = rf && (rf.brightness !== 1 || rf.contrast !== 1 || rf.saturate !== 1);
+  if (filtered) {
+    ctx.save();
+    ctx.filter = `brightness(${rf.brightness}) contrast(${rf.contrast}) saturate(${rf.saturate})`;
+  }
   for (const s of sprites) {
     const img = asset(s.key);
     if (!img) continue;
@@ -24181,6 +24504,26 @@ function drawLevelRocks() {
       ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh);
       ctx.restore();
     }
+  }
+  if (filtered) ctx.restore();
+
+  // Selection outlines, drawn AFTER the filter is released so the marker never dims with
+  // the art it is marking.
+  if (typeof rockEdit !== 'undefined' && rockEdit.on && rockEdit.sel.size) {
+    ctx.save();
+    ctx.lineWidth = 2; ctx.setLineDash([7, 5]);
+    ctx.strokeStyle = '#ffd27f';
+    for (const i of rockEdit.sel) {
+      const s = sprites[i];
+      if (!s) continue;
+      const c = camera.worldToScreen(s.x, s.y);
+      ctx.save();
+      ctx.translate(c.x, c.y);
+      if (s.rot) ctx.rotate(s.rot);
+      ctx.strokeRect(-s.w * z / 2, -s.h * z / 2, s.w * z, s.h * z);
+      ctx.restore();
+    }
+    ctx.restore();
   }
 }
 
