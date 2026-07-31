@@ -8021,171 +8021,6 @@
    "kind": "level"
   },
   {
-   "key": "slate-c40R001",
-   "file": "slate-c40/r001.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R002",
-   "file": "slate-c40/r002.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R003",
-   "file": "slate-c40/r003.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R004",
-   "file": "slate-c40/r004.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R005",
-   "file": "slate-c40/r005.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R006",
-   "file": "slate-c40/r006.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R007",
-   "file": "slate-c40/r007.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R008",
-   "file": "slate-c40/r008.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R009",
-   "file": "slate-c40/r009.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R010",
-   "file": "slate-c40/r010.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R011",
-   "file": "slate-c40/r011.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R012",
-   "file": "slate-c40/r012.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R013",
-   "file": "slate-c40/r013.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R014",
-   "file": "slate-c40/r014.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R015",
-   "file": "slate-c40/r015.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R016",
-   "file": "slate-c40/r016.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R017",
-   "file": "slate-c40/r017.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R018",
-   "file": "slate-c40/r018.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R019",
-   "file": "slate-c40/r019.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R020",
-   "file": "slate-c40/r020.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R021",
-   "file": "slate-c40/r021.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R022",
-   "file": "slate-c40/r022.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R023",
-   "file": "slate-c40/r023.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R024",
-   "file": "slate-c40/r024.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R025",
-   "file": "slate-c40/r025.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R026",
-   "file": "slate-c40/r026.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R027",
-   "file": "slate-c40/r027.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R028",
-   "file": "slate-c40/r028.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R029",
-   "file": "slate-c40/r029.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R030",
-   "file": "slate-c40/r030.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R031",
-   "file": "slate-c40/r031.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R032",
-   "file": "slate-c40/r032.webp",
-   "kind": "level"
-  },
-  {
-   "key": "slate-c40R033",
-   "file": "slate-c40/r033.webp",
-   "kind": "level"
-  },
-  {
    "key": "obsidian-c55R001",
    "file": "obsidian-c55/r001.webp",
    "kind": "level"
@@ -11458,6 +11293,181 @@
   {
    "key": "slate-c24R047",
    "file": "slate-c24/r047.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R001",
+   "file": "slate-c40/r001.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R002",
+   "file": "slate-c40/r002.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R003",
+   "file": "slate-c40/r003.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R004",
+   "file": "slate-c40/r004.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R005",
+   "file": "slate-c40/r005.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R006",
+   "file": "slate-c40/r006.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R007",
+   "file": "slate-c40/r007.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R008",
+   "file": "slate-c40/r008.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R009",
+   "file": "slate-c40/r009.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R010",
+   "file": "slate-c40/r010.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R011",
+   "file": "slate-c40/r011.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R012",
+   "file": "slate-c40/r012.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R013",
+   "file": "slate-c40/r013.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R014",
+   "file": "slate-c40/r014.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R015",
+   "file": "slate-c40/r015.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R016",
+   "file": "slate-c40/r016.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R017",
+   "file": "slate-c40/r017.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R018",
+   "file": "slate-c40/r018.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R019",
+   "file": "slate-c40/r019.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R020",
+   "file": "slate-c40/r020.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R021",
+   "file": "slate-c40/r021.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R022",
+   "file": "slate-c40/r022.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R023",
+   "file": "slate-c40/r023.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R024",
+   "file": "slate-c40/r024.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R025",
+   "file": "slate-c40/r025.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R026",
+   "file": "slate-c40/r026.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R027",
+   "file": "slate-c40/r027.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R028",
+   "file": "slate-c40/r028.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R029",
+   "file": "slate-c40/r029.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R030",
+   "file": "slate-c40/r030.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R031",
+   "file": "slate-c40/r031.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R032",
+   "file": "slate-c40/r032.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R033",
+   "file": "slate-c40/r033.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R034",
+   "file": "slate-c40/r034.webp",
+   "kind": "level"
+  },
+  {
+   "key": "slate-c40R035",
+   "file": "slate-c40/r035.webp",
    "kind": "level"
   }
  ]
