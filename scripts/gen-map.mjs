@@ -189,6 +189,30 @@ const THEMES = {
       'entirely inside its outline: nothing luminous touches or reaches the background, and ' +
       'nothing grows in the gaps between the masses. The background is completely empty.',
   },
+  // Bone and stone tangled together, on a BLACK ground for the same reason as `glacier`:
+  // bone is pale, and pale on white is not a threshold at all.
+  //
+  // The trap specific to a dark ground is the ROCK. Every other theme's rock is near-black,
+  // which on black background IS the background — so here the stone has to be a clear
+  // mid-grey and the palette says so twice. The other trap is the crystal one: a skeleton is
+  // a far stronger subject than a geode, so "no complete skeleton, no articulated dinosaur,
+  // no dig site" is doing the same work as crystal's "no big hero rock".
+  bones: {
+    bg: 'black',
+    rock:
+      'solid masses of pale weathered stone with huge fossilised dinosaur bones tangled ' +
+      'through them — bone-white ribs, vertebrae, long limb bones and the occasional skull, ' +
+      'half-buried in the stone and jutting out of it. The bones are broken and jumbled, ' +
+      'scattered through every mass; there is NO complete skeleton, no articulated dinosaur ' +
+      'and no excavation or dig site',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow, no ' +
+      'bloom. Three tones only — mid-grey stone, bone-white fossil, and the pure black ' +
+      'background. BOTH the stone and the bone read clearly BRIGHT against the black: the ' +
+      'stone is a clear mid-grey, never black, never near-black and never dark, and there is ' +
+      'no dark rim, outline or shading along any edge. No dirt, no sand, no dust, no ' +
+      'cobwebs, and no loose bone chips lying on the background.',
+  },
   // The pale counterpart to `ice`, and the reason trace-map.py learned to detect background
   // polarity: white ice on a white ground is not a hard threshold, it is no threshold. On
   // black it is trivial. Same idea would give bone, salt or chalk.

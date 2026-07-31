@@ -331,6 +331,35 @@ Design note for whoever makes this a level: `STYLE_GUIDE.md` gives mint-cyan to 
 competes with the thing the player must read first. The game's own `rockform8` does it
 sparingly; a whole map of it is a louder decision than it looks.
 
+## `bones` — fossil and stone, on black
+
+`node scripts/gen-map.mjs scatter --theme bones --counts 20,30,40`. Generated only.
+Black ground for the same reason as `glacier`: bone is pale, and pale on white is no
+threshold at all. The polarity detector picks it up on its own (`invert=True` on all three).
+
+Two traps specific to this theme, both guarded in the prompt. On a dark ground **the rock**
+is the problem — every other theme's rock is near-black, which on black IS the background, so
+the stone has to be a clear mid-grey. And a skeleton is a far stronger subject than a geode,
+so "no complete skeleton, no articulated dinosaur, no dig site" does the same work as
+crystal's "no big hero rock". Both held.
+
+| image | rock | blobs ≥ gravel cut | verdict |
+| --- | --- | --- | --- |
+| `bones-scatter-c30-1` | 45% | 61 | **Best.** Dense pale masses with black channels edge to edge, in a playable density band, and it reads side-on. |
+| `bones-scatter-c20-1` | 56% | 78 | Good, looser, similar read. |
+| `bones-scatter-c40-1` | 65% | 76 | Masses pushed to the edges around a big central field of loose bone — as a level that is an open middle with a rock border. |
+
+**The theme's own tension: the bones lie in the CHANNELS, not in the rock.** The prompt asks
+for them half-buried in the stone; the model scatters them across the background instead,
+because that is where loose bones go. That is the ember problem again — a subject whose
+natural home is the negative space — and here it bites harder, because the bones *are* the
+theme, so deleting them at trace time deletes the point. Most are small enough for
+`--min-area` to drop; the big femurs and ribs would survive as thin slivers standing in a
+channel.
+
+Rock also came out bone-beige rather than mid-grey, so stone and fossil sit at nearly the
+same tone. That helps the trace (both bright against black) and costs the visual distinction.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.
