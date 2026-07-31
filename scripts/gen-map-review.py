@@ -32,6 +32,10 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--inline', metavar='PATH',
                 help='embed the images as data URIs and write here instead — for publishing, '
                      'where relative paths cannot resolve')
+ap.add_argument('--pending', default='',
+                help='comma-separated stems awaiting a decision — shown first, flagged, and '
+                     'filterable on their own. The tool is where options get judged now, so '
+                     'a new round lands here rather than only in chat.')
 ap.add_argument('--inline-width', type=int, default=760,
                 help='downscale embedded images to this width (1440 source is 4x more than a '
                      'gallery card needs, and the page has to carry all 24 at once)')
@@ -123,11 +127,23 @@ def measure(path):
     }
 
 
+PENDING = [t.strip() for t in ARGS.pending.split(',') if t.strip()]
+
+
+def pending_row(stem):
+    # theme-count-roll, e.g. ember-scatter-c24-2
+    bits = stem.split('-')
+    theme = bits[0]
+    count = next((int(b[1:]) for b in bits if b.startswith('c') and b[1:].isdigit()), 0)
+    return (stem, theme, count, None, 'Awaiting a decision.')
+
+
 cards = []
-for stem, theme, count, level, note in SELECTIONS:
+for stem, theme, count, level, note in [pending_row(t) for t in PENDING] + SELECTIONS:
     path = os.path.join(MAPS, f'{stem}.webp')
     m = measure(path)
     m.update(stem=stem, theme=theme, count=count, level=level, note=note,
+             pending=stem in PENDING,
              src=data_uri(path, ARGS.inline_width) if ARGS.inline else f'maps/{stem}.webp')
     cards.append(m)
     print(f'{stem:32s} solid {m["solid"]:5.1f}%  masses {m["masses"]:3d}  fill {m["fill"]:.2f}'
@@ -329,6 +345,7 @@ function card(c) {
         (c.level ? \'<span class="chip live">playable</span>\' : "") +
         (c.dark_bg ? \'<span class="chip flag">dark ground</span>\' : "") +
         (c.ambiguous ? \'<span class="chip flag">needs --invert</span>\' : "") +
+        (c.pending ? \'<span class="chip flag">new — undecided</span>\' : "") +
         \'<span class="id mono">\' + esc(c.level ? "#level," + c.level : c.stem) + \'</span></div>\' +
       \'<p class="note">\' + esc(c.note) + \'</p>\' +
       \'<div class="band"><div class="track"><div class="ok"></div>\' +
@@ -354,10 +371,13 @@ function card(c) {
 
 function render() {
   grid.innerHTML = "";
-  for (const c of CARDS) if (filter === "all" || c.theme === filter) grid.appendChild(card(c));
+  for (const c of CARDS) {
+    if (filter === "all" || (filter === "new" ? c.pending : c.theme === filter)) grid.appendChild(card(c));
+  }
 }
 
-const themes = ["all"].concat(__THEMELIST__);
+const nPending = CARDS.filter((c) => c.pending).length;
+const themes = (nPending ? ["all", "new"] : ["all"]).concat(__THEMELIST__);
 document.getElementById("filters").innerHTML = themes
   .map((t) => \'<button data-t="\' + t + \'" aria-pressed="\' + (t === "all") + \'">\' + t + "</button>")
   .join("");
