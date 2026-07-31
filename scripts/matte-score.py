@@ -59,12 +59,28 @@ def score(src_path, mask_paths):
     core = lum < 70
     core = ndimage.binary_erosion(core, np.ones((3, 3)), iterations=2)
 
-    # SHADOW ZONE: low-chroma mid-tones lying outside the core but near it. A drop shadow is
-    # neutral (it is the white ground, dimmed) and hugs its mass; a lit rock face is also
-    # mid-toned but sits INSIDE the silhouette, which is why proximity alone will not do —
-    # the zone is explicitly everything-not-core within reach of core.
+    # SHADOW ZONE: low-chroma mid-tones near the core that are also SMOOTH.
+    #
+    # v1 of this left the texture test out and was wrong in a way that mattered: a lit rock
+    # face is mid-toned, low-chroma and outside the eroded core too, so it scored as shadow.
+    # That made the metric punish exactly the behaviour we want. Measured on obsidian-c55,
+    # splitting the v1 zone by what the Bria and Recraft mattes keep versus reject:
+    #
+    #     kept      local std 30.7   luminance 129   <- lit rock, correctly kept
+    #     rejected  local std 19.0   luminance 174   <- shadow, correctly rejected
+    #
+    # so the two are cleanly separable on texture and the models were already doing it. For
+    # reference the flat obsidian interior sits at 7.6 and clean background at 3.4 — the
+    # zone's numbers are high on both sides because it straddles edges, so what matters is
+    # the RATIO, not the absolute.
+    #
+    # A drop shadow is the flat ground attenuated, so it inherits the ground's smoothness. A
+    # rock face carries grain and cracks however brightly it is lit. Hence: smooth AND
+    # mid-bright AND neutral AND near a mass.
+    mean = ndimage.uniform_filter(lum, 5)
+    sd = np.sqrt(np.maximum(0, ndimage.uniform_filter(lum * lum, 5) - mean * mean))
     near = ndimage.binary_dilation(core, np.ones((3, 3)), iterations=max(4, W // 90))
-    shadowish = (~core) & near & (chroma < 40) & (lum > 100) & (lum < 225)
+    shadowish = (~core) & near & (chroma < 40) & (lum > 140) & (lum < 232) & (sd < 12)
 
     print(f'{os.path.basename(src_path)}  {W}x{H}   '
           f'core {100*core.mean():.1f}%   shadow zone {100*shadowish.mean():.1f}%\n')

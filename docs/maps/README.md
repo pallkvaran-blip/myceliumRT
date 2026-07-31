@@ -765,3 +765,48 @@ was the glowing rim on `crystal` v1.
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.
+
+## Rock vs drop shadow: the threshold was the wrong operator
+
+The overhead rolls carry a soft drop shadow under every mass, and it cannot be thresholded
+away. The shadow and the mass's own LIT FACE occupy the same luminance band (~110-200), so a
+low cut eats the flank and a high cut keeps the shadow as solid rock — an invisible wall. The
+owner confirmed by hand what the measurements say: **there is no value that works.**
+
+`scripts/matte-score.py` makes the trade measurable, because arguing about which of two bad
+mattes looks better had already cost several rounds. For any candidate mask it reports
+`shadow%` (of what you called rock, how much is really shadow) and `loss%` (of unambiguous
+rock, how much you dropped). Note the first version of its shadow test was WRONG and scored
+lit rock faces as shadow — the fix is a local-texture term, since a shadow is the flat ground
+attenuated and inherits its smoothness while a rock face keeps its grain however brightly it
+is lit. Splitting the old zone by what the learned mattes keep versus reject shows the two
+are cleanly separable: kept pixels average local std **30.7**, rejected **19.0**.
+
+| method | solid% | shadow% | loss% | |
+| --- | --- | --- | --- | --- |
+| threshold 110 / 128 / 147 | 39.3 / 42.1 / 43.8 | 0.00 / 0.03 / 0.38 | **1.65** | eats the rock |
+| BiRefNet | 41.0 | 0.25 | **2.46** | worse than the threshold it replaced |
+| Recraft remove-background | 43.8 | 0.24 | 0.00 | clean on paper, **visible halo** over the soil |
+| **Bria remove-background** | 43.9 | 0.24 | **0.00** | correct |
+| **Bria as a guide + source edge** | 45.0 | 0.24 | **0.00** | adopted |
+
+**Bria drops nothing.** Zero percent of unambiguous rock, where every threshold drops 1.65%.
+It makes the judgement a threshold cannot, because the difference between a mass and its
+shadow is semantic rather than photometric.
+
+**But it is a guide, not the answer.** Bria hard-caps its output at 1024x432 whatever it is
+fed — verified by sending it the 5760px upscale and getting 1024 back — which is 5.6x coarser
+than the image the sprites are cut from, and used directly the silhouettes come out faintly
+rounded. So `trace-map.py --guide` lets the model decide WHICH regions are rock and the source
+pixels decide exactly where each edge falls. The local cut can then be generous (190 rather
+than 128), because everything it would wrongly include is shadow and shadow is what the guide
+rejects.
+
+Rejected on the way, so nobody spends the round again: **Recraft** scores identically on paper
+but leaves a soft halo of retained shadow round every mass, plainly visible as a glow over the
+soil; **BiRefNet** loses more rock than the threshold pipeline; SAM 2, a local-texture
+classifier, a gradient/contour method and a physical `background x k` shadow model were all
+tried and none beat Bria.
+
+The matte is cached next to its source as `<stem>.matte.png` and committed, for the same
+reason as the @4x upscale: a paid call whose answer never changes.
