@@ -94,6 +94,13 @@ SELECTIONS = [
     ('top-ember-scatter-c40-1',    'ember',           40, None,           'Overhead + dark. The c24 of this pair was cut as too evenly arranged.'),
     ('top-glacier-scatter-c24-1',  'glacier',         24, None,           'Overhead. Black ground, so exempt from DARK_TONE.'),
     ('top-glacier-scatter-c40-1',  'glacier',         40, None,           'Overhead. Black ground, denser.'),
+    # First round of new themes. obsidian and strata kept; rust kept at the two counts that
+    # landed. roots and ruins were cut — see docs/maps/README.md for why they failed together.
+    ('top-obsidian-scatter-c24-1', 'obsidian',        24, None,           'Volcanic glass. 43 masses at 42.9%; glass has no grain to render texture into, which is why it comes out this clean.'),
+    ('top-obsidian-scatter-c40-1', 'obsidian',        40, None,           'Denser obsidian, just over the band at 61.8%.'),
+    ('top-strata-scatter-c40-1',   'strata',          40, None,           'Layered sedimentary banding — the only theme whose feature is a direction. Kept, but the theme is closed: too close to the plain rock maps.'),
+    ('top-rust-scatter-c40-1',     'rust',            40, None,           'Banded ironstone. Dense at 76%, but the material reads.'),
+    ('top-rust-scatter-c90-1',     'rust',            90, None,           'Rust at the count where it separates: 33 masses, 58.1%, largest blob 23%.'),
 ]
 
 
@@ -186,6 +193,45 @@ PENDING_NOTES = {
     'top-ruins-scatter-c40-1':
         'Pale again, and the rubble forms a border around an empty middle — the cavern shape '
         'the tail bans by name. 4753 gravel specks.',
+    # Round two: more obsidian and rust at the owner's request, plus basalt, glass,
+    # anthracite and magnetite.
+    'top-obsidian-scatter-c15-1':
+        'Obsidian holds at a low count: 41 masses, 52.6%. The count controls mass SIZE more '
+        'than mass number here.',
+    'top-obsidian-scatter-c32-1': 'The most open obsidian in the set — 40.8%, 0.68 fill.',
+    'top-obsidian-scatter-c55-1':
+        'Best of the new obsidian: 45 masses, 44.8%, 0.71 fill, largest blob only 10%.',
+    'top-obsidian-scatter-c70-1':
+        '38.7% and very open, but the rock stops short of the bottom edge (81% row coverage).',
+    'top-rust-scatter-c30-1':  'Dense at 69.4%.',
+    'top-rust-scatter-c75-1':  'Dense at 84.2%.',
+    'top-rust-scatter-c85-1':
+        'In band at 59.6% — joins c90 as a count where rust separates instead of merging.',
+    'top-rust-scatter-c100-1': 'Back out of band at 72.2%.',
+    'top-rust-scatter-c110-1': 'Densest of the set at 79.7%, but the masses stay distinct.',
+    'top-basalt-scatter-c24-1':
+        'v1 of the theme: not one hexagon in the frame. "Columnar basalt" is a landscape word '
+        'and every picture behind it is a cliff shot from the side.',
+    'top-basalt-scatter-c40-1': 'v1 again — plain rock, and the masses merged.',
+    'top-basalt-scatter-c30-1':
+        'v2 got the honeycomb and lost the composition: the whole frame is ONE tiled slab.',
+    'top-basalt-scatter-c45-1':
+        'v2, closest to working — real hexagons, and a few separate masses around the fringe, '
+        'but 97% of the rock is still one blob.',
+    'top-glass-scatter-c24-1':
+        'Works. Flat shard plates with radiating cracks — a genuinely different silhouette '
+        'from obsidian, long straight edges and sharp points. 43 masses at 40.7%.',
+    'top-glass-scatter-c40-1': 'Denser glass at 63.9%, just over the band.',
+    'top-anthracite-scatter-c24-1':
+        'Works, and it is the darkest image the project has produced (luminance 52.7). Watch '
+        'the pyrite: STYLE_GUIDE reserves warm amber for ant tunnels and a few seams here are '
+        'brighter gold than the clause asked for.',
+    'top-anthracite-scatter-c40-1':
+        'Same material, but the masses merged — 86% of the rock is one blob.',
+    'top-magnetite-scatter-c24-1':
+        'Works. Crystal facets rather than weathered lumps, 43.6%.',
+    'top-magnetite-scatter-c40-1':
+        'Best magnetite: 46 masses, 52.8%, largest blob 10%.',
 }
 
 

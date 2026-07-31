@@ -334,11 +334,18 @@ const THEMES = {
       'landscape: these are separate masses floating on white, not a rock formation.',
   },
 
-  // Dark earth bound by petrified roots — the theme closest to what the game is actually
-  // about, since the player is a fungal colony pushing through soil toward the surface.
-  // The roots are OCHRE, which is a tracer decision and not an aesthetic one: real petrified
-  // timber is pale, pale-and-desaturated is the one thing that reads as background, and a
-  // root running through the middle of a mass would trace as a slot cut through it.
+  // REJECTED, kept as the record. Dark earth bound by petrified roots — the theme closest to
+  // what the game is actually about, since the player is a fungal colony pushing through soil.
+  // The roots are OCHRE below, which was a tracer decision and not an aesthetic one: real
+  // petrified timber is pale, pale-and-desaturated is the one thing that reads as background,
+  // and a root running through a mass would trace as a slot cut through it.
+  //
+  // It came back photographic, with the roots BLEACHED PALE — the exact failure the ochre was
+  // there to prevent — and c40 was 17 masses in a horizontal band with 828 gravel specks.
+  // Same cause as `ruins` below: the material (bleached timber) is canonically pale, and a
+  // canonically pale material beats any amount of dark wording, DARK_TONE included. Every
+  // theme that works has a canonically DARK material. The route for a pale one is `glacier`'s
+  // — move it to a black ground and let the tracer invert — not more insistence.
   roots: {
     rock:
       'solid masses of dark packed earth and stone with thick petrified tree roots wound ' +
@@ -376,14 +383,15 @@ const THEMES = {
       'or dust lie on the background.',
   },
 
-  // Buried human ruin — the one theme that is not geology, and the one with a reason to exist
-  // beyond variety: the colony's whole goal is to reach the surface, so broken concrete on the
-  // way up is the map telling the player how far they have come.
+  // REJECTED, kept as the record. Buried human ruin — the one theme that is not geology, and
+  // the one with a reason to exist beyond variety: the colony's goal is to reach the surface,
+  // so broken concrete on the way up is the map telling the player how far it has come.
   //
-  // Concrete is normally the exact tone the tracer cannot use, so this theme is specified
-  // against its own material: soot-black, weathered, burnt. The rebar is the embedded feature
-  // and it is deliberately SHORT — bars bent out of a break, not spilling into the gaps,
-  // because a thin bar reaching across the background is veined's failure with a new noun.
+  // Specified against its own material — soot-black, weathered, burnt — and it came back PALE
+  // anyway, at luminance 99-103 with DARK_TONE appended on top. c40 also arranged its rubble
+  // into a border around an empty middle, which is the cavern shape the tail bans by name, and
+  // neither roll drew a single reinforcing bar. See the note on `roots`: canonically pale
+  // material, canonically pale result.
   ruins: {
     rock:
       'solid masses of broken buried concrete — slabs, blocks and chunks of collapsed wall, ' +
@@ -398,6 +406,107 @@ const THEMES = {
       'no bar reaches the background. No dust, no debris, no rubble scatter and no dirt on ' +
       'the background. No building standing, no room, no interior, no window, no door, no ' +
       'street, no vehicle and no writing.',
+  },
+
+  // --- round two of new themes, all canonically dark materials ------------------------------
+  //
+  // `roots` and `ruins` cost a round by being pale materials talked into being dark. Everything
+  // below is a material that is already black before the prompt says a word about it, which is
+  // the one property every theme on the shortlist shares.
+
+  // Columnar basalt, and the theme with the best reason to exist of any so far: columnar
+  // jointing is a feature you can ONLY see from directly overhead. Every other theme's detail
+  // is something the plan view happens to permit; this one is something it unlocks. Seen down
+  // the axis of the columns a mass is a honeycomb of hexagons — a texture nothing else in the
+  // set has, and one made of hard straight lines rather than cracks, so it should survive the
+  // 160px alpha downsample better than a vein does.
+  basalt: {
+    rock:
+      // v1 said "columnar basalt seen down the axis of the columns" and got plain rock — not
+      // one hexagon in either roll. "Columnar basalt" is a landscape word (the Causeway, Devils
+      // Tower), and every picture behind it is a cliff shot from the SIDE, so naming the
+      // material summons the side view and the overhead camera then cancels it out, leaving a
+      // lump. v2 stops naming the geology and describes the pattern itself, in the terms the
+      // model actually has for it: a honeycomb of hexagonal tiles packed edge to edge.
+      'solid near-black rock masses, each one paved edge to edge with a HONEYCOMB of ' +
+      'hexagonal tiles — flat six-sided cells packed tight against each other like a bee ' +
+      'honeycomb or a hexagonal tiled floor, covering the whole of every mass, with fine dark ' +
+      'joint lines between the cells. The hexagon pattern is unmistakable on every single ' +
+      'mass. The outline of each mass steps around the hexagons at its rim, so the silhouette ' +
+      'is faceted and angular rather than smooth',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines around the ' +
+      'masses, no glow, no bloom, no sheen. Two tones only — near-black basalt and the pure ' +
+      'white background, with the column joints drawn as fine dark lines inside each mass. ' +
+      'The column tops are flat and even in tone: no column is pale, lit, or a different ' +
+      'colour from its neighbours, and no joint line is white or pale. No cliff, no ' +
+      'colonnade, no causeway, no landscape — these are separate masses on white.',
+  },
+
+  // The owner's suggestion, and it is a different SHAPE language rather than a different
+  // surface: obsidian breaks into rounded blocks with curved scoops, shattered plate glass
+  // breaks into flat spiky shards with radiating crack networks. That gives the silhouette
+  // long straight edges and sharp points, which nothing else in the set has.
+  //
+  // The whole risk is that glass wants to be transparent and glossy, and both are fatal —
+  // transparent traces as background, gloss is a white highlight in the middle of a mass. So
+  // it is specified as thick SMOKED glass, dead matte, opaque, seen against nothing.
+  glass: {
+    rock:
+      'solid masses of shattered dark glass — thick slabs of near-black smoked glass broken ' +
+      'into flat angular plates with long straight edges and sharp points, each plate carrying ' +
+      'a network of fine radiating crack lines in a slightly lighter cold blue',
+    palette:
+      'The glass is fully OPAQUE and dead matte: nothing is transparent, nothing is see-' +
+      'through, nothing behind it shows, and there is no reflection, no mirror, no gloss, no ' +
+      'shine, no glare, no sparkle and no highlight anywhere. Flat and unlit: no shading, no ' +
+      'gradients, no drop shadows, no outlines, no glow. Three tones only — near-black glass, ' +
+      'fine cold-blue crack lines inside it, and the pure white background. Every crack stays ' +
+      'entirely INSIDE its mass and no crack is white or pale. No window, no bottle, no pane ' +
+      'in a frame, no glitter and no loose splinters lying on the background.',
+  },
+
+  // Coal. The blackest material there is, and the only theme where the risk is too LITTLE
+  // feature rather than too much — a mass of anthracite is uniform black, which traces
+  // perfectly and looks like nothing. The feature is the cleat: coal splits along two flat
+  // perpendicular planes, so it breaks into stepped rectangular blocks, and thin pyrite seams
+  // run along those planes.
+  //
+  // NOTE, as with ember and bioluminescent: STYLE_GUIDE.md reserves warm amber for ant
+  // tunnels. Pyrite is specified DULL and dark brass for that reason — if a roll comes back
+  // bright gold it is competing with the ants and should be re-rolled, not kept.
+  anthracite: {
+    rock:
+      'solid masses of anthracite coal — dense black, splitting along flat perpendicular ' +
+      'cleat planes into stepped rectangular blocks with square corners and straight edges, ' +
+      'a few thin seams of dull dark brass-coloured pyrite running along the cleats inside ' +
+      'each mass',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow, no ' +
+      'bloom, and no glossy or wet look — this coal is dull and dusty, not shiny. Three tones ' +
+      'only — dense black coal, thin dull dark brass pyrite seams inside it, and the pure ' +
+      'white background. The pyrite is dark and tarnished: never bright, never yellow, never ' +
+      'golden, never orange and never glowing, and every seam stays entirely INSIDE its mass. ' +
+      'No coal dust, no chips and no scatter on the background.',
+  },
+
+  // Iron ore. Its feature is GEOMETRY at the scale of a whole mass — magnetite grows in
+  // octahedra, so the shapes are crystal solids with flat faces and straight edges rather than
+  // weathered lumps. Every other theme's masses are irregular; these should read as built.
+  // The tarnish is the colour that keeps it from being a black polygon.
+  magnetite: {
+    rock:
+      'solid masses of magnetite iron ore — near-black, grown as blunt octahedral crystals ' +
+      'clustered together, so each mass is a knot of flat triangular faces and straight ' +
+      'crystal edges rather than a weathered lump, with a faint cold blue-violet tarnish ' +
+      'lying across some of the faces',
+    palette:
+      'Flat and unlit: no shading within a face, no gradients, no drop shadows, no outlines, ' +
+      'no glow, no bloom, and NO metallic shine — no glint, no specular highlight, no mirror ' +
+      'reflection and no polish. Three tones only — near-black ore, a faint cold blue-violet ' +
+      'tarnish on some faces, and the pure white background. Every face is dark; none is ' +
+      'pale, white or light, and there is no bright edge anywhere. No jewellery, no gemstone, ' +
+      'no display, no loose crystals on the background.',
   },
 };
 

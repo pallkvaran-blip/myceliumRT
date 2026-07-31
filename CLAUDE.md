@@ -298,6 +298,18 @@ pale, both in spite of explicit dark wording *and* DARK_TONE. Every theme that w
 canonically dark material. If a pale material is wanted, the answer is `glacier`'s — move it to
 a black ground and let the tracer invert — not more insistence.
 
+Round two added `glass`, `anthracite` and `magnetite`, all working. Two facts about count worth
+keeping: **`obsidian` is the most robust theme in the set** (six counts from 15 to 70, all in or
+near the band, largest blob never above 25% — the count moves mass *size*, not mass *number*),
+and **`rust` is the most count-sensitive** (only c85 and c90 land; c55 collapsed into a single
+blob holding 100% of the frame's rock). `basalt` failed twice and is worth resuming: v1 drew no
+hexagons at all because **"columnar basalt" is a landscape word** — every picture behind it is a
+cliff shot from the side, so naming the material summons the side view and the overhead camera
+cancels it out. Naming a thing you *want* can be as wrong as naming a thing you don't, if the
+name carries a camera with it. v2 described the pattern instead ("a honeycomb of hexagonal
+tiles") and got the hexagons at once, but "packed edge to edge" leaked from the cells to the
+masses and fused the frame into one slab.
+
 **The prompt is the asset.** Two forms are owner-approved — `scatter` (loose masses,
 generous channels) and `maze` (dense, tight channels). `ledges` is being retried and
 converts at about 2 images in 5 (its window is ~9-20 rocks: fewer reads as scenery, more

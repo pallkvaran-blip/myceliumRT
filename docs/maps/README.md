@@ -628,6 +628,54 @@ is *canonically pale* (bleached timber, concrete). Every theme that works is one
 is canonically dark. Specifying a dark version of a pale material loses to the prior — the same
 way `glacier` had to move to a black ground rather than argue white ice onto white.
 
+## Round two: obsidian and rust deepened, four more themes
+
+`obsidian`, `strata` (c40 only, and the theme is closed — the owner's note was that it reads too
+close to the plain rock maps) and `rust` at c40/c90 are in the shortlist.
+
+**`obsidian` is the most robust theme in the set.** Six counts from 15 to 70 all land in or near
+the band, 38.7–52.6% solid at 35–48 masses, largest blob never above 25%. Worth knowing why:
+the count controls mass *size* far more than mass *number* here — c15 yields 41 masses and c70
+yields 48 — because obsidian has no grain for the model to render texture into, so it never
+falls back on drawing one hero specimen. `c55` is the best of the new ones: 45 masses, 44.8%,
+0.71 fill, largest blob 10%.
+
+**`rust` is the opposite: the most count-sensitive theme there is.** Eight counts tried, and only
+`c85` (59.6%) and `c90` (58.1%) land in band. c30 is 69%, c40 76%, c75 84%, c100 72%, c110 80% —
+and **c55 collapsed into a single blob holding 100% of the frame's rock.** The material has a
+strong hero-specimen prior and only a very high count breaks it up.
+
+| new theme | verdict |
+| --- | --- |
+| **`glass`** | **Works.** The owner's suggestion, and it earns its place next to obsidian by being a different *shape* language rather than a different surface: obsidian breaks into rounded blocks with curved scoops, shattered plate glass breaks into flat spiky shards with radiating crack networks — long straight edges and sharp points, which nothing else in the set has. c24 is 43 masses at 40.7%. Specified as thick opaque *smoked* glass and dead matte, because transparency traces as background and gloss is a white highlight in the middle of a mass. |
+| **`anthracite`** | **Works, and it is the darkest image the project has produced** — rock luminance 52.7, against 63 for the plain slate that held the record. 46 masses at 55.9%, 0.70 fill. Its c40 merged (86% of the rock in one blob). One caution: `STYLE_GUIDE.md` reserves warm amber for ant tunnels, and a few pyrite seams came back brighter gold than the clause asked for. |
+| **`magnetite`** | **Works.** Octahedral crystal habit, so the masses read as *built* — flat triangular faces and straight edges rather than weathered lumps. c40 is the pick: 46 masses, 52.8%, largest blob 10%. |
+| **`basalt`** | **Does not work yet**, in two different ways, and it is the most interesting failure here. |
+
+### Why `basalt` is worth another go
+
+It has the best *reason* to exist of any theme: columnar jointing is a feature you can only see
+from directly overhead. Every other theme's detail is something the plan view permits; this one
+is something it unlocks.
+
+**v1 produced not one hexagon in two rolls** — plain rock, indistinguishable from slate. The
+cause is the same one that has bitten twice already, wearing a third disguise: *"columnar
+basalt"* is a **landscape** word. The Giant's Causeway, Devils Tower, Fingal's Cave — every
+picture behind that phrase is a cliff photographed from the SIDE. Naming the material summons
+the side view, the overhead camera cancels it, and what is left is a lump. Naming a thing you
+want can be as wrong as naming a thing you don't, if the name carries a camera with it.
+
+**v2 stopped naming the geology** and described the pattern in terms the model has for it — a
+honeycomb of hexagonal tiles packed edge to edge — and got the hexagons immediately. It also
+lost the composition completely: `c30` is ONE tiled slab spanning the frame, `c45` is 97% one
+blob with a few loose hexagons round the fringe. "Packed edge to edge" was meant to describe the
+cells *within* a mass and the model applied it to the masses. Same shape of error as crystal's
+hero geode: the feature ate the composition.
+
+The fix to try is to make the boundary explicit — the honeycomb belongs inside one mass, and
+between masses there is only background — rather than to weaken the hexagon wording, which took
+two rounds to get working.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.
