@@ -2115,6 +2115,7 @@ const CONFIG = {
     // dynamic lighting: the network/food/hazards emit light into the dark earth
     lighting: true,
     ambientLight: 0.62,         // unlit earth stays a visible warm brown; life adds glow (1 = lighting off)
+    ambientWarmth: 1,           // 1 = the warm brown above; 0 = neutral dim, no hue shift (traced maps)
     networkLight: 'rgba(150,255,190,1)',
     foodLight: 'rgba(255,196,120,1)',
     hazardLight: 'rgba(90,220,200,1)',
@@ -12399,6 +12400,22 @@ function configForLevelDef(config, level) {
   if (w.height) cfg.world.height = w.height;
   if (w.surfaceY != null) cfg.world.surfaceY = w.surfaceY;
   if (w.cellSize) cfg.world.cellSize = w.cellSize;
+  // A TRACED map brings its own lighting, baked into the art by whatever drew it, and the
+  // renderer's ambient pass then multiplies the whole underground by a warm tint
+  // (rgb(a, a*0.9, a*0.76) at ambientLight 0.62) before adding the colony's glow back. On a
+  // procedural map that IS the look — unlit earth as rich brown, life as the only light. On
+  // a traced map it lands on top of art that was already lit, so a neutral near-black mass
+  // comes out warm and about 40% darker than the image it was cut from, which is the "looks
+  // different from the source" the owner reported.
+  //
+  // So a level may set `render.ambientLight` (and `render.lighting`) in its own JSON and it
+  // wins here. Nothing sets it by default: turning the ambient pass off entirely also costs
+  // the hazard glow and the sensing aura, which is a real loss and a decision for the map,
+  // not for this function. scripts/trace-tuner.py writes the value the owner picks.
+  const r = (level && level.render) || {};
+  if (r.ambientLight != null) cfg.render.ambientLight = r.ambientLight;
+  if (r.lighting != null) cfg.render.lighting = r.lighting;
+  if (r.ambientWarmth != null) cfg.render.ambientWarmth = r.ambientWarmth;
   return cfg;
 }
 
@@ -16247,8 +16264,15 @@ class Lighting {
     // 1) Darken ONLY the underground; the daytime sky above stays bright (the
     //    light map is white over the sky, so the multiply leaves it untouched).
     const a = r.ambientLight;
-    // warm tint so unlit earth reads as rich brown (not cold black)
-    const amb = `rgb(${clamp255(255 * a)},${clamp255(255 * a * 0.9)},${clamp255(255 * a * 0.76)})`;
+    // Warm tint so unlit earth reads as rich brown (not cold black). `ambientWarmth` scales
+    // it: 1 is the original (G x0.9, B x0.76), 0 is a NEUTRAL dim that darkens without
+    // shifting hue. Traced maps want the neutral end — their rock already carries its own
+    // colour, and the warm multiply turns a near-black obsidian brown, which is a large part
+    // of why they stopped looking like the images they were cut from. Procedural maps keep
+    // the default of 1, where the warmth is the point.
+    const wm = r.ambientWarmth != null ? r.ambientWarmth : 1;
+    const amb = `rgb(${clamp255(255 * a)},${clamp255(255 * a * (1 - 0.10 * wm))},` +
+                `${clamp255(255 * a * (1 - 0.24 * wm))})`;
     lc.globalCompositeOperation = 'source-over';
     const surfY = camera.worldToScreen(0, state.substrate.surfaceY).y;
     const band = 50; // soft transition across the soil line
