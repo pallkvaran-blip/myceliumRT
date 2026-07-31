@@ -1,0 +1,592 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "side-glacier-c40",
+ "name": "Glacier 40 (side)",
+ "campaignLevel": null,
+ "world": {
+  "width": 2952,
+  "height": 1174.7,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/glacier-scatter-c40-1@4x.webp",
+  "threshold": 153,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R001",
+   "x": 548.35,
+   "y": 754.65,
+   "w": 621.5,
+   "h": 298.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R002",
+   "x": 1988.55,
+   "y": 798.95,
+   "w": 540.9,
+   "h": 330.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R003",
+   "x": 2378.5,
+   "y": 971.55,
+   "w": 491.8,
+   "h": 336.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R004",
+   "x": 2389.25,
+   "y": 642.6,
+   "w": 446.9,
+   "h": 327.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R005",
+   "x": 955.1,
+   "y": 961.4,
+   "w": 362.2,
+   "h": 293.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R006",
+   "x": 1497.4,
+   "y": 767.0,
+   "w": 438.8,
+   "h": 242.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R007",
+   "x": 484.45,
+   "y": 1012.9,
+   "w": 327.1,
+   "h": 289.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R008",
+   "x": 214.65,
+   "y": 911.45,
+   "w": 213.3,
+   "h": 368.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R009",
+   "x": 987.5,
+   "y": 694.75,
+   "w": 332.6,
+   "h": 234.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R010",
+   "x": 1265.15,
+   "y": 580.7,
+   "w": 275.9,
+   "h": 274.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R011",
+   "x": 696.2,
+   "y": 531.65,
+   "w": 291.6,
+   "h": 221.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R012",
+   "x": 222.55,
+   "y": 612.2,
+   "w": 229.1,
+   "h": 237.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R013",
+   "x": 921.85,
+   "y": 504.9,
+   "w": 214.7,
+   "h": 212.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R014",
+   "x": 393.3,
+   "y": 519.3,
+   "w": 248.4,
+   "h": 216.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R015",
+   "x": 2409.1,
+   "y": 478.34999999999997,
+   "w": 245.2,
+   "h": 184.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R016",
+   "x": 1699.65,
+   "y": 541.3,
+   "w": 209.7,
+   "h": 204.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R017",
+   "x": 1249.45,
+   "y": 889.85,
+   "w": 225.5,
+   "h": 182.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R018",
+   "x": 1687.95,
+   "y": 959.4000000000001,
+   "w": 215.1,
+   "h": 188.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R019",
+   "x": 1113.55,
+   "y": 832.95,
+   "w": 218.3,
+   "h": 183.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R020",
+   "x": 2639.9,
+   "y": 851.35,
+   "w": 120.2,
+   "h": 260.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R021",
+   "x": 2074.3,
+   "y": 458.3,
+   "w": 168.8,
+   "h": 156.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R022",
+   "x": 1869.95,
+   "y": 601.8,
+   "w": 203.9,
+   "h": 122.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R023",
+   "x": 1866.65,
+   "y": 1016.55,
+   "w": 155.7,
+   "h": 146.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R024",
+   "x": 2617.9,
+   "y": 568.1,
+   "w": 164.2,
+   "h": 129.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R025",
+   "x": 1919.0500000000002,
+   "y": 449.95,
+   "w": 154.3,
+   "h": 138.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R026",
+   "x": 1512.7,
+   "y": 524.6500000000001,
+   "w": 153.4,
+   "h": 130.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R027",
+   "x": 1387.1,
+   "y": 969.95,
+   "w": 149.8,
+   "h": 103.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R028",
+   "x": 1726.85,
+   "y": 663.95,
+   "w": 154.3,
+   "h": 115.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R029",
+   "x": 1584.45,
+   "y": 441.4,
+   "w": 126.9,
+   "h": 113.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R030",
+   "x": 2110.05,
+   "y": 612.65,
+   "w": 123.3,
+   "h": 112.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R031",
+   "x": 2581.4,
+   "y": 1112.85,
+   "w": 131.8,
+   "h": 105.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R032",
+   "x": 1546.4499999999998,
+   "y": 652.7,
+   "w": 124.7,
+   "h": 102.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R033",
+   "x": 553.95,
+   "y": 432.4,
+   "w": 106.1,
+   "h": 98.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R034",
+   "x": 2618.35,
+   "y": 414.45,
+   "w": 146.3,
+   "h": 68.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R035",
+   "x": 1182.35,
+   "y": 434.45,
+   "w": 112.1,
+   "h": 103.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R036",
+   "x": 710.15,
+   "y": 965.9000000000001,
+   "w": 103.5,
+   "h": 87.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R037",
+   "x": 2128.7,
+   "y": 1111.0500000000002,
+   "w": 92.2,
+   "h": 92.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R038",
+   "x": 1518.25,
+   "y": 1001.45,
+   "w": 94.5,
+   "h": 104.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R039",
+   "x": 1473.05,
+   "y": 1104.5,
+   "w": 103.1,
+   "h": 87.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R040",
+   "x": 203.65,
+   "y": 434.9,
+   "w": 106.7,
+   "h": 79.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R041",
+   "x": 808.0,
+   "y": 1117.3,
+   "w": 104.8,
+   "h": 85.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R042",
+   "x": 1561.75,
+   "y": 908.55,
+   "w": 120.1,
+   "h": 70.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R043",
+   "x": 1957.5,
+   "y": 1090.3000000000002,
+   "w": 100.0,
+   "h": 77.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R044",
+   "x": 1412.55,
+   "y": 426.79999999999995,
+   "w": 90.9,
+   "h": 79.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R045",
+   "x": 598.3,
+   "y": 1124.05,
+   "w": 93.2,
+   "h": 71.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R046",
+   "x": 729.2,
+   "y": 898.1500000000001,
+   "w": 104.0,
+   "h": 67.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R047",
+   "x": 2484.25,
+   "y": 572.1,
+   "w": 89.5,
+   "h": 70.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R048",
+   "x": 2176.6000000000004,
+   "y": 692.05,
+   "w": 95.4,
+   "h": 67.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R049",
+   "x": 1852.2,
+   "y": 533.95,
+   "w": 92.6,
+   "h": 71.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R050",
+   "x": 2673.0,
+   "y": 642.4,
+   "w": 54.0,
+   "h": 100.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R051",
+   "x": 1110.2,
+   "y": 1099.8,
+   "w": 86.4,
+   "h": 68.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R052",
+   "x": 1222.4,
+   "y": 1126.8,
+   "w": 87.8,
+   "h": 63.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R053",
+   "x": 1333.55,
+   "y": 1136.7,
+   "w": 67.9,
+   "h": 76.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-glacier-c40R054",
+   "x": 1841.6,
+   "y": 1143.65,
+   "w": 75.2,
+   "h": 62.1,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 108.0,
+   "y": 1174.2,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 443.2,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 918.9,
+   "y": 1174.2,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1016.1,
+   "y": 1174.2,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1307.7,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1619.6,
+   "y": 1174.2,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1623.6,
+   "y": 1174.2,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2045.2,
+   "y": 1025.3,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2211.3,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2462.8,
+   "y": 1174.2,
+   "r": 1,
+   "energy": 2
+  }
+ ]
+}

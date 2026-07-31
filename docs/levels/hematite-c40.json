@@ -1,0 +1,392 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "hematite-c40",
+ "name": "Hematite 40",
+ "campaignLevel": null,
+ "world": {
+  "width": 2952,
+  "height": 1473.4,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/top-hematite-scatter-c40-1@4x.webp",
+  "threshold": 160,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "hematite-c40R001",
+   "x": 2419.0,
+   "y": 945.65,
+   "w": 562.0,
+   "h": 598.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R002",
+   "x": 774.7,
+   "y": 906.8,
+   "w": 437.6,
+   "h": 539.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R003",
+   "x": 319.40000000000003,
+   "y": 855.6500000000001,
+   "w": 390.4,
+   "h": 437.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R004",
+   "x": 1471.85,
+   "y": 1275.75,
+   "w": 484.7,
+   "h": 395.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R005",
+   "x": 1916.05,
+   "y": 914.6500000000001,
+   "w": 378.1,
+   "h": 379.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R006",
+   "x": 1974.5500000000002,
+   "y": 1284.9,
+   "w": 344.7,
+   "h": 337.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R007",
+   "x": 1066.95,
+   "y": 621.85,
+   "w": 355.5,
+   "h": 347.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R008",
+   "x": 630.4,
+   "y": 578.65,
+   "w": 372.2,
+   "h": 275.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R009",
+   "x": 2252.6,
+   "y": 531.7,
+   "w": 357.0,
+   "h": 303.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R010",
+   "x": 485.84999999999997,
+   "y": 1182.85,
+   "w": 268.9,
+   "h": 255.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R011",
+   "x": 1129.7,
+   "y": 1119.2,
+   "w": 295.0,
+   "h": 266.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R012",
+   "x": 1355.05,
+   "y": 980.8,
+   "w": 272.9,
+   "h": 264.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R013",
+   "x": 1388.55,
+   "y": 712.0999999999999,
+   "w": 294.5,
+   "h": 241.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R014",
+   "x": 1709.5500000000002,
+   "y": 646.95,
+   "w": 243.3,
+   "h": 261.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R015",
+   "x": 993.5,
+   "y": 1274.1,
+   "w": 272.4,
+   "h": 206.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R016",
+   "x": 1590.55,
+   "y": 863.55,
+   "w": 202.1,
+   "h": 214.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R017",
+   "x": 698.5,
+   "y": 1332.6,
+   "w": 212.4,
+   "h": 216.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R018",
+   "x": 1696.8,
+   "y": 1069.8,
+   "w": 170.6,
+   "h": 178.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R019",
+   "x": 1896.9,
+   "y": 538.05,
+   "w": 161.8,
+   "h": 180.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R020",
+   "x": 2591.55,
+   "y": 570.5,
+   "w": 177.5,
+   "h": 171.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R021",
+   "x": 1572.9,
+   "y": 516.2,
+   "w": 168.6,
+   "h": 168.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R022",
+   "x": 2032.5500000000002,
+   "y": 654.6,
+   "w": 162.7,
+   "h": 145.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R023",
+   "x": 1314.8000000000002,
+   "y": 486.2,
+   "w": 160.8,
+   "h": 152.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R024",
+   "x": 1049.3,
+   "y": 895.0,
+   "w": 125.4,
+   "h": 154.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R025",
+   "x": 2144.2,
+   "y": 769.6,
+   "w": 113.6,
+   "h": 135.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R026",
+   "x": 2218.45,
+   "y": 1283.1999999999998,
+   "w": 118.5,
+   "h": 104.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R027",
+   "x": 200.65,
+   "y": 1238.1999999999998,
+   "w": 103.7,
+   "h": 102.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R028",
+   "x": 1117.85,
+   "y": 1408.8,
+   "w": 103.3,
+   "h": 89.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R029",
+   "x": 1206.85,
+   "y": 847.55,
+   "w": 98.3,
+   "h": 91.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c40R030",
+   "x": 2249.4,
+   "y": 1363.5500000000002,
+   "w": 82.2,
+   "h": 71.3,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 108.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 323.8,
+   "y": 1472.9,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 539.7,
+   "y": 1472.9,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 928.1,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 971.8,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1235.9,
+   "y": 1472.9,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1445.8,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1719.2,
+   "y": 1472.9,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2043.6,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2052.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2483.2,
+   "y": 1472.9,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 2699.5,
+   "y": 1472.9,
+   "r": 1,
+   "energy": 4
+  }
+ ]
+}

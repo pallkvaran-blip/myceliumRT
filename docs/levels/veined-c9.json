@@ -1,0 +1,239 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "veined-c9",
+ "name": "Veined 9",
+ "campaignLevel": null,
+ "world": {
+  "width": 2952,
+  "height": 1474.4,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/top-veined-scatter-c9-1@4x.webp",
+  "threshold": 150,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "veined-c9R001",
+   "x": 2289.4,
+   "y": 1152.65,
+   "w": 821.2,
+   "h": 643.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R002",
+   "x": 1439.8,
+   "y": 1182.15,
+   "w": 694.4,
+   "h": 584.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R003",
+   "x": 1869.75,
+   "y": 639.9,
+   "w": 607.5,
+   "h": 519.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R004",
+   "x": 288.45,
+   "y": 895.45,
+   "w": 360.9,
+   "h": 610.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R005",
+   "x": 2459.5,
+   "y": 577.75,
+   "w": 481.0,
+   "h": 395.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R006",
+   "x": 369.5,
+   "y": 1363.0500000000002,
+   "w": 401.4,
+   "h": 222.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R007",
+   "x": 735.55,
+   "y": 1169.3,
+   "w": 331.7,
+   "h": 269.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R008",
+   "x": 1327.0500000000002,
+   "y": 523.35,
+   "w": 276.3,
+   "h": 286.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R009",
+   "x": 1098.0,
+   "y": 879.5,
+   "w": 316.8,
+   "h": 240.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R010",
+   "x": 761.4000000000001,
+   "y": 452.25,
+   "w": 437.4,
+   "h": 144.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R011",
+   "x": 392.85,
+   "y": 514.95,
+   "w": 202.5,
+   "h": 206.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R012",
+   "x": 770.4000000000001,
+   "y": 681.5,
+   "w": 183.6,
+   "h": 201.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "veined-c9R013",
+   "x": 983.6999999999999,
+   "y": 702.85,
+   "w": 91.8,
+   "h": 96.7,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 108.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 539.6,
+   "y": 712.1,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 755.6,
+   "y": 1474.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 891.0,
+   "y": 1474.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 972.0,
+   "y": 1474.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1382.0,
+   "y": 788.2,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1506.2,
+   "y": 752.2,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1747.4,
+   "y": 1474.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1931.0,
+   "y": 1042.4,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2053.4,
+   "y": 986.6,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2319.8,
+   "y": 704.9,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 2699.6,
+   "y": 877.2,
+   "r": 1,
+   "energy": 4
+  }
+ ]
+}

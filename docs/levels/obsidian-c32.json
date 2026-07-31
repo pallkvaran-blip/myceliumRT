@@ -1,0 +1,464 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "obsidian-c32",
+ "name": "Obsidian 32",
+ "campaignLevel": null,
+ "world": {
+  "width": 2952,
+  "height": 1446.0,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/top-obsidian-scatter-c32-1@4x.webp",
+  "threshold": 151,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R001",
+   "x": 625.95,
+   "y": 1206.65,
+   "w": 593.1,
+   "h": 457.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R002",
+   "x": 1610.8,
+   "y": 646.65,
+   "w": 502.6,
+   "h": 429.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R003",
+   "x": 1909.35,
+   "y": 976.25,
+   "w": 391.5,
+   "h": 434.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R004",
+   "x": 2500.2,
+   "y": 1147.7,
+   "w": 399.6,
+   "h": 379.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R005",
+   "x": 1320.95,
+   "y": 1197.65,
+   "w": 374.9,
+   "h": 351.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R006",
+   "x": 725.2,
+   "y": 512.1,
+   "w": 341.6,
+   "h": 264.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R007",
+   "x": 910.1500000000001,
+   "y": 787.7,
+   "w": 332.5,
+   "h": 367.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R008",
+   "x": 428.85,
+   "y": 724.0,
+   "w": 254.7,
+   "h": 311.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R009",
+   "x": 2417.6499999999996,
+   "y": 728.3499999999999,
+   "w": 310.1,
+   "h": 288.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R010",
+   "x": 206.1,
+   "y": 871.15,
+   "w": 196.2,
+   "h": 334.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R011",
+   "x": 1019.45,
+   "y": 1081.5500000000002,
+   "w": 291.1,
+   "h": 272.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R012",
+   "x": 2119.3,
+   "y": 1250.25,
+   "w": 293.8,
+   "h": 225.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R013",
+   "x": 1208.5,
+   "y": 778.95,
+   "w": 230.8,
+   "h": 278.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R014",
+   "x": 192.8,
+   "y": 1321.6,
+   "w": 169.6,
+   "h": 248.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R015",
+   "x": 1926.95,
+   "y": 468.2,
+   "w": 279.9,
+   "h": 176.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R016",
+   "x": 2218.5,
+   "y": 876.55,
+   "w": 175.4,
+   "h": 156.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R017",
+   "x": 2153.05,
+   "y": 704.95,
+   "w": 127.3,
+   "h": 116.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R018",
+   "x": 2444.8500000000004,
+   "y": 525.8,
+   "w": 134.1,
+   "h": 95.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R019",
+   "x": 1617.5,
+   "y": 991.55,
+   "w": 98.6,
+   "h": 103.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R020",
+   "x": 259.9,
+   "y": 601.8499999999999,
+   "w": 110.2,
+   "h": 99.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R021",
+   "x": 2667.4,
+   "y": 705.55,
+   "w": 65.2,
+   "h": 157.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R022",
+   "x": 1699.25,
+   "y": 1327.9,
+   "w": 103.5,
+   "h": 86.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R023",
+   "x": 1359.25,
+   "y": 1041.9,
+   "w": 126.5,
+   "h": 120.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R024",
+   "x": 2187.0,
+   "y": 1028.25,
+   "w": 109.8,
+   "h": 95.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R025",
+   "x": 2148.1000000000004,
+   "y": 557.5,
+   "w": 88.6,
+   "h": 99.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R026",
+   "x": 1114.2,
+   "y": 529.15,
+   "w": 93.6,
+   "h": 90.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R027",
+   "x": 2011.3,
+   "y": 729.45,
+   "w": 87.8,
+   "h": 95.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R028",
+   "x": 2295.0,
+   "y": 503.1,
+   "w": 85.6,
+   "h": 96.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R029",
+   "x": 346.3,
+   "y": 985.2,
+   "w": 89.6,
+   "h": 90.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R030",
+   "x": 684.25,
+   "y": 798.75,
+   "w": 89.5,
+   "h": 78.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R031",
+   "x": 1988.1,
+   "y": 618.25,
+   "w": 86.4,
+   "h": 81.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R032",
+   "x": 2610.0,
+   "y": 803.95,
+   "w": 77.4,
+   "h": 76.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R033",
+   "x": 628.85,
+   "y": 1235.05,
+   "w": 80.5,
+   "h": 98.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R034",
+   "x": 2193.5,
+   "y": 456.3,
+   "w": 80.6,
+   "h": 71.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R035",
+   "x": 504.05,
+   "y": 998.75,
+   "w": 135.9,
+   "h": 65.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R036",
+   "x": 2682.45,
+   "y": 445.5,
+   "w": 35.1,
+   "h": 131.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R037",
+   "x": 2348.3,
+   "y": 975.1,
+   "w": 67.0,
+   "h": 76.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c32R038",
+   "x": 1955.75,
+   "y": 1329.55,
+   "w": 81.9,
+   "h": 63.9,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 108.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 356.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 581.8,
+   "y": 897.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 971.6,
+   "y": 1445.6,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1017.4,
+   "y": 1445.6,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1251.9,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1549.8,
+   "y": 1445.6,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1835.6,
+   "y": 1445.6,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1836.0,
+   "y": 1445.6,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2267.6,
+   "y": 1445.6,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2347.6,
+   "y": 1445.6,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 2699.6,
+   "y": 1445.6,
+   "r": 1,
+   "energy": 4
+  }
+ ]
+}

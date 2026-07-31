@@ -1,0 +1,338 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "magnetite-c24",
+ "name": "Magnetite 24",
+ "campaignLevel": null,
+ "world": {
+  "width": 2952,
+  "height": 1397.0,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/top-magnetite-scatter-c24-1@4x.webp",
+  "threshold": 158,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R001",
+   "x": 2473.45,
+   "y": 849.8499999999999,
+   "w": 453.1,
+   "h": 479.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R002",
+   "x": 321.6,
+   "y": 672.4,
+   "w": 427.2,
+   "h": 504.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R003",
+   "x": 1427.85,
+   "y": 857.8499999999999,
+   "w": 492.1,
+   "h": 404.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R004",
+   "x": 1999.3000000000002,
+   "y": 856.5,
+   "w": 386.2,
+   "h": 499.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R005",
+   "x": 729.4,
+   "y": 951.2,
+   "w": 381.2,
+   "h": 404.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R006",
+   "x": 1399.0,
+   "y": 1210.25,
+   "w": 388.0,
+   "h": 288.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R007",
+   "x": 1336.3,
+   "y": 531.3,
+   "w": 339.0,
+   "h": 302.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R008",
+   "x": 278.2,
+   "y": 1253.15,
+   "w": 340.4,
+   "h": 287.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R009",
+   "x": 766.45,
+   "y": 601.3,
+   "w": 292.7,
+   "h": 296.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R010",
+   "x": 1111.8000000000002,
+   "y": 1018.0,
+   "w": 257.2,
+   "h": 322.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R011",
+   "x": 1827.55,
+   "y": 1197.5,
+   "w": 264.5,
+   "h": 287.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R012",
+   "x": 1805.25,
+   "y": 530.2,
+   "w": 266.3,
+   "h": 250.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R013",
+   "x": 2239.8999999999996,
+   "y": 1163.15,
+   "w": 220.4,
+   "h": 261.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R014",
+   "x": 2511.3999999999996,
+   "y": 530.5999999999999,
+   "w": 232.6,
+   "h": 250.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R015",
+   "x": 2582.5,
+   "y": 1234.05,
+   "w": 228.6,
+   "h": 253.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R016",
+   "x": 389.25,
+   "y": 974.8499999999999,
+   "w": 228.1,
+   "h": 219.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R017",
+   "x": 737.1500000000001,
+   "y": 1276.5500000000002,
+   "w": 223.1,
+   "h": 236.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R018",
+   "x": 1013.9,
+   "y": 747.4,
+   "w": 205.8,
+   "h": 266.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R019",
+   "x": 2155.8,
+   "y": 507.70000000000005,
+   "w": 166.8,
+   "h": 200.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R020",
+   "x": 482.9,
+   "y": 1115.25,
+   "w": 150.0,
+   "h": 149.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R021",
+   "x": 2015.4,
+   "y": 1321.55,
+   "w": 115.0,
+   "h": 129.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R022",
+   "x": 959.0999999999999,
+   "y": 1281.1,
+   "w": 75.4,
+   "h": 103.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R023",
+   "x": 184.1,
+   "y": 995.5,
+   "w": 84.0,
+   "h": 86.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R024",
+   "x": 1573.95,
+   "y": 509.3,
+   "w": 79.1,
+   "h": 90.4,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 108.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 522.0,
+   "y": 1396.5,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 539.7,
+   "y": 1396.5,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 971.4,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1028.7,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1187.7,
+   "y": 1396.5,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1506.7,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1667.6,
+   "y": 1396.5,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2007.5,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2182.9,
+   "y": 1396.5,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2400.1,
+   "y": 1396.5,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 2699.5,
+   "y": 610.4,
+   "r": 1,
+   "energy": 4
+  }
+ ]
+}

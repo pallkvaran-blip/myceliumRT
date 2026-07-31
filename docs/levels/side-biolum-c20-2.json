@@ -1,0 +1,176 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "side-biolum-c20-2",
+ "name": "Bioluminescent 20 (2) (side)",
+ "campaignLevel": null,
+ "world": {
+  "width": 2952,
+  "height": 1474.4,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/bioluminescent-scatter-c20-2@4x.webp",
+  "threshold": 143,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "side-biolum-c20-2R001",
+   "x": 1474.4,
+   "y": 927.2,
+   "w": 2451.2,
+   "h": 1094.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-biolum-c20-2R002",
+   "x": 179.35,
+   "y": 976.0,
+   "w": 142.7,
+   "h": 180.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-biolum-c20-2R003",
+   "x": 2274.05,
+   "y": 1011.8,
+   "w": 197.5,
+   "h": 136.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-biolum-c20-2R004",
+   "x": 1926.25,
+   "y": 451.75,
+   "w": 255.1,
+   "h": 143.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-biolum-c20-2R005",
+   "x": 1486.1,
+   "y": 486.9,
+   "w": 149.8,
+   "h": 111.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-biolum-c20-2R006",
+   "x": 2096.55,
+   "y": 540.2,
+   "w": 135.9,
+   "h": 107.2,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 108.0,
+   "y": 418.2,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 369.4,
+   "y": 917.8,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 653.8,
+   "y": 641.9,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 756.0,
+   "y": 732.4,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1043.6,
+   "y": 1438.9,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1301.9,
+   "y": 689.2,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1404.0,
+   "y": 612.6,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1769.4,
+   "y": 1474.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1920.6,
+   "y": 631.1,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2267.6,
+   "y": 1474.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2483.6,
+   "y": 1474.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 2699.6,
+   "y": 1474.0,
+   "r": 1,
+   "energy": 4
+  }
+ ]
+}

@@ -1,0 +1,502 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "anthracite-c24",
+ "name": "Anthracite 24",
+ "campaignLevel": null,
+ "world": {
+  "width": 2952,
+  "height": 1424.0,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/top-anthracite-scatter-c24-1@4x.webp",
+  "threshold": 142,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R001",
+   "x": 1154.25,
+   "y": 922.25,
+   "w": 502.3,
+   "h": 563.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R002",
+   "x": 2122.0,
+   "y": 1230.6999999999998,
+   "w": 606.2,
+   "h": 335.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R003",
+   "x": 1901.9499999999998,
+   "y": 857.9000000000001,
+   "w": 530.5,
+   "h": 369.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R004",
+   "x": 757.35,
+   "y": 916.6,
+   "w": 254.7,
+   "h": 443.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R005",
+   "x": 273.15,
+   "y": 1286.75,
+   "w": 330.3,
+   "h": 274.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R006",
+   "x": 2535.55,
+   "y": 579.15,
+   "w": 328.9,
+   "h": 286.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R007",
+   "x": 250.45,
+   "y": 516.1,
+   "w": 284.9,
+   "h": 272.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R008",
+   "x": 205.65,
+   "y": 884.2,
+   "w": 195.3,
+   "h": 370.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R009",
+   "x": 445.95,
+   "y": 1050.75,
+   "w": 323.1,
+   "h": 242.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R010",
+   "x": 2564.1,
+   "y": 1211.4,
+   "w": 271.8,
+   "h": 258.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R011",
+   "x": 1695.15,
+   "y": 528.05,
+   "w": 272.7,
+   "h": 237.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R012",
+   "x": 1036.4,
+   "y": 682.1500000000001,
+   "w": 264.6,
+   "h": 229.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R013",
+   "x": 1480.3000000000002,
+   "y": 1269.65,
+   "w": 246.2,
+   "h": 282.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R014",
+   "x": 465.1,
+   "y": 791.75,
+   "w": 256.0,
+   "h": 270.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R015",
+   "x": 1600.2,
+   "y": 977.8499999999999,
+   "w": 258.4,
+   "h": 247.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R016",
+   "x": 1730.95,
+   "y": 1215.9,
+   "w": 229.1,
+   "h": 268.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R017",
+   "x": 2291.45,
+   "y": 662.4,
+   "w": 236.7,
+   "h": 258.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R018",
+   "x": 586.75,
+   "y": 1287.0,
+   "w": 227.7,
+   "h": 247.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R019",
+   "x": 1951.4499999999998,
+   "y": 548.3,
+   "w": 217.3,
+   "h": 243.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R020",
+   "x": 2383.4,
+   "y": 884.05,
+   "w": 212.8,
+   "h": 206.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R021",
+   "x": 761.4,
+   "y": 585.65,
+   "w": 225.0,
+   "h": 199.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R022",
+   "x": 1401.1,
+   "y": 1070.95,
+   "w": 198.4,
+   "h": 204.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R023",
+   "x": 1240.9,
+   "y": 1259.05,
+   "w": 175.0,
+   "h": 242.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R024",
+   "x": 552.85,
+   "y": 492.7,
+   "w": 207.5,
+   "h": 210.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R025",
+   "x": 2596.3,
+   "y": 809.8,
+   "w": 173.2,
+   "h": 210.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R026",
+   "x": 1467.25,
+   "y": 562.95,
+   "w": 182.3,
+   "h": 216.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R027",
+   "x": 1054.15,
+   "y": 1305.0,
+   "w": 208.3,
+   "h": 185.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R028",
+   "x": 830.95,
+   "y": 1270.8,
+   "w": 176.9,
+   "h": 197.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R029",
+   "x": 2566.85,
+   "y": 1020.0999999999999,
+   "w": 222.3,
+   "h": 144.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R030",
+   "x": 1286.75,
+   "y": 540.85,
+   "w": 148.9,
+   "h": 172.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R031",
+   "x": 1502.1,
+   "y": 791.75,
+   "w": 149.4,
+   "h": 173.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R032",
+   "x": 2254.95,
+   "y": 1017.0,
+   "w": 157.5,
+   "h": 148.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R033",
+   "x": 2147.2,
+   "y": 492.7,
+   "w": 147.2,
+   "h": 151.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R034",
+   "x": 1607.4,
+   "y": 691.4000000000001,
+   "w": 128.8,
+   "h": 156.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R035",
+   "x": 1884.2,
+   "y": 1055.95,
+   "w": 156.6,
+   "h": 143.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R036",
+   "x": 2191.25,
+   "y": 894.35,
+   "w": 139.9,
+   "h": 145.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R037",
+   "x": 1030.25,
+   "y": 497.0,
+   "w": 148.1,
+   "h": 123.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R038",
+   "x": 885.8,
+   "y": 448.2,
+   "w": 133.6,
+   "h": 125.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R039",
+   "x": 2291.0,
+   "y": 467.05,
+   "w": 108.0,
+   "h": 138.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R040",
+   "x": 1184.6,
+   "y": 462.85,
+   "w": 107.6,
+   "h": 134.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R041",
+   "x": 444.85,
+   "y": 637.0,
+   "w": 98.5,
+   "h": 90.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R042",
+   "x": 593.1,
+   "y": 938.5,
+   "w": 64.8,
+   "h": 88.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R043",
+   "x": 740.5,
+   "y": 1172.6999999999998,
+   "w": 80.6,
+   "h": 66.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R044",
+   "x": 2090.25,
+   "y": 639.0,
+   "w": 76.5,
+   "h": 73.4,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 715.1,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 756.0,
+   "y": 1423.6,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 985.0,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1382.9,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1619.6,
+   "y": 1423.6,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1638.9,
+   "y": 1423.6,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1884.6,
+   "y": 380.0,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2208.6,
+   "y": 380.0,
+   "r": 1,
+   "energy": 3
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2452.0,
+   "y": 1423.6,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 2699.6,
+   "y": 380.0,
+   "r": 1,
+   "energy": 4
+  }
+ ]
+}

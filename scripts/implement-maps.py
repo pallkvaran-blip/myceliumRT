@@ -137,7 +137,10 @@ def main():
             if not p['has_up']:
                 run(['node', 'scripts/upscale-map.mjs', f'docs/maps/{p["stem"]}.webp'],
                     stdout=subprocess.DEVNULL)
-            cmd = ['python3', 'scripts/trace-map.py', p['up'],
+            # RELATIVE, not absolute. The tracer records the path it was given in the level's
+            # `traced.image`, which is how a re-trace finds its source — an absolute path bakes
+            # this container's layout into a committed file and is wrong everywhere else.
+            cmd = ['python3', 'scripts/trace-map.py', os.path.relpath(p['up'], ROOT),
                    '--id', p['id'], '--name', p['name'], '--min-area', str(ARGS.min_area)]
             if p['dark']:
                 cmd += ['--invert', 'yes']

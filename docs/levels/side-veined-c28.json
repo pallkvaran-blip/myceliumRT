@@ -1,0 +1,224 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "side-veined-c28",
+ "name": "Veined 28 (side)",
+ "campaignLevel": null,
+ "world": {
+  "width": 2952,
+  "height": 1474.4,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/veined-scatter-c28-1@4x.webp",
+  "threshold": 142,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R001",
+   "x": 617.35,
+   "y": 1211.6,
+   "w": 873.9,
+   "h": 525.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R002",
+   "x": 1379.9,
+   "y": 1299.35,
+   "w": 1325.2,
+   "h": 350.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R003",
+   "x": 1055.95,
+   "y": 647.3,
+   "w": 558.5,
+   "h": 534.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R004",
+   "x": 1459.85,
+   "y": 1000.8,
+   "w": 798.3,
+   "h": 428.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R005",
+   "x": 2368.6,
+   "y": 1262.9,
+   "w": 662.8,
+   "h": 423.0,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R006",
+   "x": 297.2,
+   "y": 626.6,
+   "w": 378.4,
+   "h": 493.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R007",
+   "x": 2046.4,
+   "y": 861.95,
+   "w": 533.2,
+   "h": 441.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R008",
+   "x": 1949.4,
+   "y": 545.6,
+   "w": 528.4,
+   "h": 331.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R009",
+   "x": 597.4,
+   "y": 751.5,
+   "w": 435.2,
+   "h": 351.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R010",
+   "x": 2390.2,
+   "y": 543.1,
+   "w": 422.6,
+   "h": 326.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R011",
+   "x": 2337.55,
+   "y": 1021.25,
+   "w": 449.5,
+   "h": 301.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R012",
+   "x": 1374.35,
+   "y": 726.3,
+   "w": 452.7,
+   "h": 309.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R013",
+   "x": 206.3,
+   "y": 1191.15,
+   "w": 196.6,
+   "h": 566.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R014",
+   "x": 1999.85,
+   "y": 1191.35,
+   "w": 411.3,
+   "h": 197.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R015",
+   "x": 2603.05,
+   "y": 581.5999999999999,
+   "w": 193.9,
+   "h": 366.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R016",
+   "x": 1451.5,
+   "y": 473.4,
+   "w": 437.0,
+   "h": 186.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R017",
+   "x": 606.85,
+   "y": 467.3,
+   "w": 318.1,
+   "h": 174.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R018",
+   "x": 2459.7,
+   "y": 746.3,
+   "w": 246.6,
+   "h": 199.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R019",
+   "x": 2612.25,
+   "y": 907.6,
+   "w": 175.5,
+   "h": 273.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R020",
+   "x": 1612.1,
+   "y": 595.35,
+   "w": 194.8,
+   "h": 232.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R021",
+   "x": 335.95,
+   "y": 948.8,
+   "w": 285.7,
+   "h": 147.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "side-veined-c28R022",
+   "x": 1031.15,
+   "y": 960.3,
+   "w": 238.1,
+   "h": 167.8,
+   "rot": 0
+  }
+ ]
+}
