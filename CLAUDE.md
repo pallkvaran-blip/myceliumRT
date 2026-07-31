@@ -322,6 +322,17 @@ in traceability — only **1-5%** of each coloured mask is held by the chroma re
 masses are dark enough on luminance and saturation is just margin. `amethyst` is the one to
 watch at luminance 110 (against 53-72 elsewhere) with its Otsu cut up at 175.
 
+Round four swept those four across five counts each and added `rhodonite` and `garnet` (both
+work), `fluorite` (bands yes, cubes no, and its green drifts **teal** — the player's colour, so
+it is disqualified whatever else it does) and `labradorite` (outright failure: both rolls fused
+into one mass and the panels glowed). **`hematite` is the most robust coloured theme — 5 of 5
+counts in band**, with c16 at nine gravel specks and c60 at 62 masses, the highest mass count in
+the project; `malachite` is the least, at 2 of 5. The rule the nine coloured attempts add up to:
+**a coloured theme works when its feature is a SHAPE the flat style can draw** — band, ring,
+lobe, spray, dendrite, embedded solid — **and fails when it is an OPTICAL EFFECT** —
+iridescence, shimmer, flash. That has now cost two rounds (`crystal` v1's glowing rim was the
+first).
+
 **The prompt is the asset.** Two forms are owner-approved — `scatter` (loose masses,
 generous channels) and `maze` (dense, tight channels). `ledges` is being retried and
 converts at about 2 images in 5 (its window is ~9-20 rocks: fewer reads as scenery, more

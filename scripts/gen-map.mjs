@@ -606,6 +606,102 @@ const THEMES = {
       'entirely INSIDE its mass and no needle reaches the background. No ice, no water, no ' +
       'frost and no loose crystals lying on the background.',
   },
+
+  // --- coloured themes, round two -----------------------------------------------------------
+  //
+  // The first four established that colour costs nothing in traceability (1-5% of each mask is
+  // held by the chroma rescue alone), so the constraint on a fifth theme is not "will it
+  // trace" but "is it a new THEME or a new colourway". Each of these is picked for a structural
+  // feature none of the others has — cubes, dendrites, broad flat panels, embedded polyhedra —
+  // and the hue follows the feature rather than the other way round.
+
+  // Fluorite. Feature is the CUBE: fluorite cleaves into perfect right-angled blocks, so a
+  // mass is a stack of geometric solids with square corners — nothing else in the set is
+  // orthogonal. It is also the only two-hue theme, since fluorite bands violet and green in
+  // the same crystal, and those are the two hues already proven safe (amethyst, malachite).
+  fluorite: {
+    tone: 'saturated',
+    rock:
+      'solid masses of fluorite — clusters of interlocking CUBIC crystals with square ' +
+      'corners and flat right-angled faces, stacked and fused into each mass, banded in ' +
+      'alternating deep violet and dark bottle-green layers that run straight through the ' +
+      'cubes',
+    palette:
+      'Flat and unlit: no shading within a face, no gradients, no drop shadows, no outlines, ' +
+      'no glow, no bloom, no sparkle, no glint and no gemstone polish — matte, uncut mineral. ' +
+      'Four tones only — deep violet, dark bottle-green, the darker line where two bands ' +
+      'meet, and the pure white background. Both colours are DARK and saturated: nothing is ' +
+      'lilac, mint, pale, milky, clear or white, and no cube is transparent or see-through. ' +
+      'No display, no jewellery, no loose crystals on the background.',
+  },
+
+  // Rhodonite. Feature is the DENDRITE — branching black manganese oxide that grows through
+  // the stone in fern-like or tree-like patterns. Every other feature in the set is a line, a
+  // band, a ring, a spray or a facet; this is the only one that branches.
+  //
+  // The hue is the risk: rhodonite is pink, and pale is what kills a theme. Specified as deep
+  // raspberry rather than rose for that reason. If a roll comes back pastel it is a reject —
+  // do not try to rescue it with more wording, that is the `roots` mistake.
+  rhodonite: {
+    tone: 'saturated',
+    rock:
+      'solid masses of rhodonite — deep dark raspberry-red stone, rich and heavily ' +
+      'saturated, with BRANCHING black dendrites growing through each mass: fine ' +
+      'tree-like or fern-like black veins that split and fork again and again across the ' +
+      'red',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow, no ' +
+      'bloom and no polish. Three tones only — deep dark raspberry red, branching black ' +
+      'dendrites inside it, and the pure white background. The red is DARK and deep: nothing ' +
+      'is pink, rose, pastel, salmon, coral or pale, and nothing is bright scarlet or orange. ' +
+      'Every dendrite stays entirely INSIDE its mass and none reaches the background. No ' +
+      'plants, no ferns, no roots and no cracks running out onto the white.',
+  },
+
+  // Labradorite. Feature is the broad flat PANEL — labradorescence flashes across whole
+  // cleavage planes at once, so a mass reads as a few large slabs of colour rather than as
+  // fine detail. That makes it the most legible theme at play zoom, where a vein or a dendrite
+  // is nearly gone.
+  //
+  // It has to be drawn as FLAT COLOUR, not as shine. Real labradorescence is a specular
+  // effect, and every specular instruction this project has given has come back as a white
+  // highlight in the middle of a mass — the one thing that traces as a hole.
+  labradorite: {
+    tone: 'saturated',
+    rock:
+      'solid masses of labradorite — very dark blue-black stone, each mass carrying two or ' +
+      'three BROAD FLAT PANELS of deep peacock blue and dark teal-green laid across its ' +
+      'cleavage planes, each panel a large simple area of solid colour with a straight edge ' +
+      'where it stops',
+    palette:
+      'The colour panels are drawn as FLAT AREAS OF PAINT, not as shine: no shimmer, no ' +
+      'iridescence, no sheen, no specular highlight, no glint, no rainbow and no gradient ' +
+      'inside a panel. Flat and unlit otherwise: no shading, no drop shadows, no outlines, no ' +
+      'glow, no bloom. Four tones only — very dark blue-black stone, deep peacock blue, dark ' +
+      'teal-green, and the pure white background. Every panel is dark and saturated, never ' +
+      'pale, never silver, never white, and stays entirely INSIDE its mass.',
+  },
+
+  // Garnet in schist. Feature is the EMBEDDED SOLID — whole dodecahedral crystals sitting
+  // proud in a darker matrix, so the interior is punctuated by discrete objects rather than by
+  // a pattern. Closest relative in the set is `crystal`, and the difference is deliberate:
+  // crystal's geode is one pocket of many small shards, this is many separate whole crystals
+  // spread over the mass, which is what stopped crystal's "hero geode" failure the first time.
+  garnet: {
+    tone: 'saturated',
+    rock:
+      'solid masses of dark schist with GARNET CRYSTALS embedded all through them — whole ' +
+      'deep wine-red twelve-sided crystals, each one a small rounded polyhedron with flat ' +
+      'faces, set into the darker stone and standing slightly proud of it, six or eight ' +
+      'scattered across every mass and never clustered into one pocket',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow, no ' +
+      'bloom, no sparkle and no gemstone polish. Three tones only — near-black schist, deep ' +
+      'dark wine-red garnet, and the pure white background. The garnets are DARK red: never ' +
+      'bright, never scarlet, never orange, never pink and never pale, and every one is ' +
+      'entirely INSIDE its mass with stone all around it. No loose crystals, chips or gems ' +
+      'lying on the background.',
+  },
 };
 
 // TRIED AND REVERTED: "This is a CROSS-SECTION: the whole scene has been sliced clean

@@ -720,6 +720,48 @@ gives **1–5% across all eight images**. The masses are dark enough on luminanc
 saturation is a safety margin rather than the mechanism. `amethyst-c24` is the one to keep an eye
 on, at luminance 110 against 53–72 for the dark themes.
 
+## Round four: five counts each for the coloured themes, and four more
+
+All four coloured themes are in the shortlist. This round takes each one across five counts
+(16 / 24 / 32 / 40 / 60) and adds `fluorite`, `rhodonite`, `labradorite` and `garnet`, each
+picked for a **structural feature** none of the others has rather than for its hue.
+
+**Count robustness, which is the useful output of the sweep:**
+
+| theme | in band | note |
+| --- | --- | --- |
+| **`hematite`** | **5 of 5** | The most robust coloured theme, and second only to `obsidian` overall. c16 is 36 masses at 49.8% with **nine** gravel specks, the cleanest coloured image yet; c60 is **62 masses**, the highest mass count of any image in the project. |
+| `amethyst` | 4 of 5 | c60 merges (81% of the rock in one blob). Gravel is its weakness — 230–567 specks at every count. |
+| `azurite` | 3 of 5 | c32 is the pick: 48 masses, 53.3%, and mean chroma **95**, the most saturated image the project has. c16 and c40/c60 all run dense. |
+| `malachite` | 2 of 5 | The most count-sensitive of the four. c16 collapses to 10 masses at 81%; c40 remains the one to use. |
+
+**The new four, two of which work:**
+
+- **`rhodonite`** ✅ — deep raspberry with **branching black dendrites**, the only feature in the
+  set that forks. 50 masses at 51.1% (c24); c40 gets 62 masses with the largest blob at 7% but
+  runs dense. The red came back cherry rather than the deep raspberry specified — worth one
+  re-roll, not worth a wording fight.
+- **`garnet`** ✅ — whole **embedded polyhedra** rather than a pocket of shards, which is the
+  distinction from `crystal` and the thing that avoided crystal's hero-geode failure. 39.4% over
+  32 masses. Two defects: loose gems on the background, which its own clause bans, and empty top
+  and bottom edges (74% row coverage).
+- **`fluorite`** ⚠️ — the banding appeared, the **cubes did not**, and the green drifted **teal**.
+  That last one is disqualifying on its own: teal is the player's mint-cyan, the one hue
+  `STYLE_GUIDE.md` says a map may not take. Both counts also run dense (63–65%) with pale rims
+  along the band edges.
+- **`labradorite`** ❌ — a clean failure, and an instructive one. Both rolls fused into a single
+  mass (c40 is **4 masses with one blob holding 100%** of the rock) and the colour panels glow in
+  spite of an explicit clause forbidding it. The theme asked for a **specular** effect drawn as
+  flat colour, and every specular instruction this project has issued has come back as a bright
+  patch. Labradorescence is not a colour, it is a behaviour of light, and a flat-shaded map has
+  nowhere to put it.
+
+**The pattern across nine coloured attempts is now clear enough to state as a rule.** A coloured
+theme works when its feature is a *shape* the flat style can draw — a band, a ring, a lobe, a
+spray, a dendrite, an embedded solid. It fails when the feature is an *optical effect* —
+iridescence, shimmer, flash. `labradorite` is the second time this has cost a round; the first
+was the glowing rim on `crystal` v1.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

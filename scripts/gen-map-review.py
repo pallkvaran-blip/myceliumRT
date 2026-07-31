@@ -117,6 +117,16 @@ SELECTIONS = [
     ('top-anthracite-scatter-c24-1', 'anthracite',    24, None,           'The darkest image the project has produced — rock luminance 52.7.'),
     ('top-magnetite-scatter-c24-1', 'magnetite',      24, None,           'Octahedral habit: masses that read as built rather than weathered.'),
     ('top-magnetite-scatter-c40-1', 'magnetite',      40, None,           'Best magnetite: 46 masses, 52.8%, largest blob 10%.'),
+    # Round three: the first coloured themes — the mass carries the colour, not a feature
+    # inside it. All four kept. These run on DEEP_TONE rather than DARK_TONE.
+    ('top-amethyst-scatter-c24-1', 'amethyst',        24, None,           'Violet quartz, faceted. The palest theme in the set — Otsu had to climb to 175 to hold it.'),
+    ('top-amethyst-scatter-c40-1', 'amethyst',        40, None,           'Safer value than c24 at luminance 85, 42 masses.'),
+    ('top-malachite-scatter-c24-1', 'malachite',      24, None,           'Concentric banding — the only closed-curve feature in the set. Covers 69% of frame rows.'),
+    ('top-malachite-scatter-c40-1', 'malachite',      40, None,           'Best malachite: 53.8%, full frame, 7 gravel specks.'),
+    ('top-hematite-scatter-c24-1', 'hematite',        24, None,           'Kidney ore — the only ROUND masses in the set. 50 masses, largest blob 7%.'),
+    ('top-hematite-scatter-c40-1', 'hematite',        40, None,           'Fewer, bigger lobes; the most saturated image the project has (chroma 83).'),
+    ('top-azurite-scatter-c24-1',  'azurite',         24, None,           'Radiating crystal sprays, 51 masses at 42.4%. Indigo keeps it clear of ice.'),
+    ('top-azurite-scatter-c40-1',  'azurite',         40, None,           'Strongest sprays, dense at 62.4%.'),
 ]
 
 
@@ -272,6 +282,43 @@ PENDING_NOTES = {
         'blue-teal, and much darker.',
     'top-azurite-scatter-c40-1':
         'Strongest sprays of the four, but dense at 62.4%.',
+    # Round four: more counts for the four coloured themes, plus four more.
+    'top-amethyst-scatter-c16-1': 'In band at 44.1%, but 567 gravel specks — the worst of the round.',
+    'top-amethyst-scatter-c32-1': '45 masses, 59.9% — right at the top of the band.',
+    'top-amethyst-scatter-c60-1': 'Fails: 65.7% and 81% of the rock is one merged blob.',
+    'top-malachite-scatter-c16-1': 'Fails: 81.2% over only 10 masses.',
+    'top-malachite-scatter-c32-1': 'Just over band at 61.0%, but 24 clean masses and 29 gravel.',
+    'top-malachite-scatter-c60-1': 'Dense at 71.3%.',
+    'top-hematite-scatter-c16-1':
+        '36 masses at 49.8% with NINE gravel specks — the cleanest coloured image yet.',
+    'top-hematite-scatter-c32-1': '41 masses at 42.9%, 0.72 fill.',
+    'top-hematite-scatter-c60-1':
+        '62 masses at 51.1% — the highest mass count of any image in the project.',
+    'top-azurite-scatter-c16-1': 'Dense at 70.5%.',
+    'top-azurite-scatter-c32-1':
+        'Best azurite: 48 masses at 53.3%, largest blob 10%, and the most saturated image in '
+        'the project at mean chroma 95.',
+    'top-azurite-scatter-c60-1': 'Dense at 60.9%, and 331 gravel specks.',
+    'top-fluorite-scatter-c24-1':
+        'Cubes did not appear, the bands did. Dense at 63.4%, and the green drifted TEAL — '
+        'which is the player\'s mint-cyan, the one hue STYLE_GUIDE says a map may not take.',
+    'top-fluorite-scatter-c40-1':
+        'Same drift, 58 masses at 64.9%. Pale rims along the band edges too.',
+    'top-rhodonite-scatter-c24-1':
+        'Works. 50 masses at 51.1%, and the branching dendrites are a feature shape nothing '
+        'else in the set has. The red came back cherry rather than the deep raspberry asked for.',
+    'top-rhodonite-scatter-c40-1':
+        '62 masses, largest blob 7% — excellent separation, but dense at 62.8%.',
+    'top-labradorite-scatter-c24-1':
+        'Fails: 4 masses, 86.8% solid, one blob holding 88% of the rock.',
+    'top-labradorite-scatter-c40-1':
+        'Fails the same way — 4 masses, ONE blob holding 100% — and the panels glow in spite of '
+        'the clause forbidding it. The theme is a reject.',
+    'top-garnet-scatter-c24-1':
+        'Works. Embedded whole crystals rather than a pocket, 39.4% over 32 masses. Loose gems '
+        'on the background though, which its own clause bans, and the top and bottom edges are '
+        'empty (74% row coverage).',
+    'top-garnet-scatter-c40-1': 'Dense at 64.7%, but full-frame and better spread than c24.',
 }
 
 
