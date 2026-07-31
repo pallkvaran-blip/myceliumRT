@@ -1371,6 +1371,37 @@
       padding:6px 12px; backdrop-filter:blur(4px); }
     #devWin:hover { color:#fff; border-color:#e6b45c; background:rgba(24,26,18,0.92); }
 
+    /* DEV MAP SWITCHER — hop between authored maps WITHOUT leaving the run.
+       The species picker already lists them, but getting back there means ending a run, and
+       comparing two traces means doing that twice. This is the same list, in play, one click
+       away. Same dashed-amber dev styling as #devWin so it reads as a dev affordance and
+       never as a game control, and the same dev-flag gate, so a release build has neither. */
+    #devMapBtn { position:fixed; top:44px; right:14px; z-index:31; cursor:pointer;
+      font:600 11.5px "Segoe UI", system-ui, sans-serif; letter-spacing:.03em; color:#e6cf9a;
+      background:rgba(14,18,12,0.82); border:1px dashed rgba(230,180,92,0.6); border-radius:999px;
+      padding:6px 12px; backdrop-filter:blur(4px); }
+    #devMapBtn:hover { color:#fff; border-color:#e6b45c; background:rgba(24,26,18,0.92); }
+    #devMapPanel { position:fixed; top:74px; right:14px; bottom:14px; z-index:32;
+      width:210px; display:none; flex-direction:column; gap:3px; overflow-y:auto;
+      padding:8px; background:rgba(10,14,10,0.94); border:1px dashed rgba(230,180,92,0.45);
+      border-radius:12px; backdrop-filter:blur(6px);
+      scrollbar-width:thin; scrollbar-color:rgba(230,180,92,0.4) transparent; }
+    #devMapPanel.open { display:flex; }
+    #devMapPanel::-webkit-scrollbar { width:6px; }
+    #devMapPanel::-webkit-scrollbar-thumb { background:rgba(230,180,92,0.4); border-radius:3px; }
+    /* flex:0 0 auto on BOTH — the panel is a flex column, so without it every row shrinks
+       to share the height and the labels are clipped to a sliver. */
+    #devMapPanel .dm-g { flex:0 0 auto; font:700 9px "Segoe UI", system-ui, sans-serif;
+      letter-spacing:.13em; text-transform:uppercase; color:rgba(230,207,154,0.55);
+      padding:6px 4px 2px; }
+    #devMapPanel button { flex:0 0 auto; display:block; width:100%; text-align:left;
+      cursor:pointer; line-height:1.35;
+      font:600 11px "Segoe UI", system-ui, sans-serif; color:#e6cf9a; background:transparent;
+      border:1px solid transparent; border-radius:7px; padding:5px 8px;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    #devMapPanel button:hover { background:rgba(230,180,92,0.14); border-color:rgba(230,180,92,0.5); color:#fff; }
+    #devMapPanel button.cur { color:#fff; border-color:rgba(230,180,92,0.7); background:rgba(230,180,92,0.2); }
+
     /* ============================ FIRST-RUN TUTORIAL ============================
        Clean black & white popups with a slight white border-glow (mirrors the
        species-select console) — NO gradients. Root is pointer-events:none so the
@@ -21450,6 +21481,81 @@ function updateDevWinBtn() {
   }
   if (btn) btn.style.display = '';
 }
+// DEV: hop between authored maps mid-run.
+//
+// The species picker lists them too, but reaching it means ENDING a run, so comparing two
+// traces meant dying twice. The owner reviews maps by flicking between them, which the
+// picker route makes about as slow as it can be. This is the same LEVELS list, in play.
+//
+// Switching is deliberately a full restart rather than a swap of the substrate: a level's
+// world box, cell grid, collision mask and food are all built together by createLevelState,
+// and there is no supported way to replace them under a live run. Restarting is what
+// `#level,<id>` already does, and it is instant.
+function devSwitchLevel(id) {
+  const def = levelById(id);
+  if (!def) return;
+  playtestLevel = def; chosenSpecies = null;
+  currentLevel = def.campaignLevel || 1; runStartLevel = currentLevel;
+  carryOver = null; runSpores = 0;
+  const p = document.getElementById('devMapPanel');
+  if (p) p.classList.remove('open');
+  startRun();
+}
+function updateDevMapBtn() {
+  const ui0 = document.getElementById('ui');
+  const devOn = !!(state && state.config && state.config.dev && state.config.dev.enabled);
+  let btn = document.getElementById('devMapBtn');
+  let panel = document.getElementById('devMapPanel');
+  const maps = devOn ? (LEVELS || []).filter((l) => l && l.id) : [];
+  if (!devOn || !maps.length) {
+    if (btn) btn.style.display = 'none';
+    if (panel) { panel.style.display = 'none'; panel.classList.remove('open'); }
+    return;
+  }
+  if (!btn && ui0) {
+    btn = document.createElement('button'); btn.id = 'devMapBtn'; btn.type = 'button';
+    btn.textContent = 'Dev: maps ▾';
+    btn.onclick = () => {
+      const pn = document.getElementById('devMapPanel');
+      if (pn) pn.classList.toggle('open');
+    };
+    ui0.appendChild(btn);
+  }
+  if (!panel && ui0) {
+    panel = document.createElement('div'); panel.id = 'devMapPanel';
+    // Rebuilt only when the list changes — this runs on the HUD's refresh path, and in real
+    // time that is 2 Hz. Rebuilding markup at 2 Hz destroys the element under the cursor and
+    // swallows the click, which is the same churn problem the hand and ledger guards exist
+    // for (see CLAUDE.md, "HUD churn").
+    ui0.appendChild(panel);
+  }
+  if (panel) {
+    const sig = maps.map((l) => l.id).join('|') + '#' + (playtestLevel && playtestLevel.id);
+    if (panel._sig !== sig) {
+      panel._sig = sig;
+      let lastGroup = null;
+      panel.replaceChildren();
+      for (const l of maps) {
+        const group = String(l.name || l.id).split(/[\s-]/)[0];
+        if (group !== lastGroup) {
+          lastGroup = group;
+          const h = document.createElement('div');
+          h.className = 'dm-g'; h.textContent = group;
+          panel.appendChild(h);
+        }
+        const b = document.createElement('button');
+        b.type = 'button'; b.textContent = l.name || l.id;
+        b.title = '#level,' + l.id;
+        if (playtestLevel && playtestLevel.id === l.id) b.className = 'cur';
+        b.onclick = () => devSwitchLevel(l.id);
+        panel.appendChild(b);
+      }
+    }
+    panel.style.display = '';
+  }
+  if (btn) btn.style.display = '';
+}
+
 function startPuzzle() { begin(createPuzzleState(CONFIG)); }
 
 // --- tutorial camera + wiring ----------------------------------------------
@@ -21714,6 +21820,7 @@ function begin(newState) {
   uiDirty = true;
   updateLevelChip();
   updateDevWinBtn();
+  updateDevMapBtn();
   placeRockface();   // Magic Mushroom unlock object — level 1 only, until it's been revealed
   // Tutorial: fires on every NEW → level 1 of a real species run (not puzzle/dev). The TEMP
   // dev title button (tutorialDevForce) fires it too, but WITHOUT marking it seen — so it

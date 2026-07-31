@@ -13,7 +13,8 @@ same set of source images.
 Per map:
   1. `scripts/upscale-map.mjs` -> docs/maps/<stem>@4x.webp   (skipped if it already exists;
      Real-ESRGAN costs money and the upscale is committed precisely so it is paid for once)
-  2. `scripts/trace-map.py`    -> docs/levels/<id>.json + assets/<id>/*.webp
+  1b. `scripts/bria-matte.py`  -> docs/maps/<stem>.matte.png (same deal — cached, committed)
+  2. `scripts/trace-map.py --guide` -> docs/levels/<id>.json + assets/<id>/*.webp
   3. once, at the end: `scripts/gen-levels.mjs` splices the LEVELS array into index.html
 
 THE SHORTLIST IS NOT DEFINED HERE. It is `SELECTIONS` in scripts/gen-map-review.py, which is
@@ -115,14 +116,18 @@ def main():
             return 2
         seen[i] = stem
         up = os.path.join(MAPS, f'{stem}@4x.webp')
+        matte = os.path.join(MAPS, f'{stem}.matte.png')
         lvl = os.path.join(LEVELS, f'{i}.json')
-        plan.append(dict(stem=stem, id=i, name=name, up=up, lvl=lvl,
-                         has_up=os.path.exists(up), has_lvl=os.path.exists(lvl),
+        plan.append(dict(stem=stem, id=i, name=name, up=up, matte=matte, lvl=lvl,
+                         has_up=os.path.exists(up), has_matte=os.path.exists(matte),
+                         has_lvl=os.path.exists(lvl),
                          dark=any(d in stem for d in DARK_GROUND)))
 
     todo = [p for p in plan if ARGS.retrace or not p['has_lvl']]
     need_up = [p for p in todo if not p['has_up']]
-    print(f'{len(plan)} in the shortlist · {len(todo)} to trace · {len(need_up)} to upscale\n')
+    need_matte = [p for p in todo if not p['has_matte']]
+    print(f'{len(plan)} in the shortlist · {len(todo)} to trace · {len(need_up)} to upscale '
+          f'· {len(need_matte)} to matte\n')
     if ARGS.dry_run:
         for p in plan:
             mark = 'done ' if p['has_lvl'] and not ARGS.retrace else ('trace' if p['has_up'] else 'FULL ')
@@ -137,11 +142,20 @@ def main():
             if not p['has_up']:
                 run(['node', 'scripts/upscale-map.mjs', f'docs/maps/{p["stem"]}.webp'],
                     stdout=subprocess.DEVNULL)
+            # The matte goes to the 1x source deliberately — Bria caps its output at 1024
+            # whatever it is fed, so sending the 5760px upscale only costs upload time.
+            if not p['has_matte']:
+                run(['python3', 'scripts/bria-matte.py', f'docs/maps/{p["stem"]}.webp'],
+                    stdout=subprocess.DEVNULL)
             # RELATIVE, not absolute. The tracer records the path it was given in the level's
             # `traced.image`, which is how a re-trace finds its source — an absolute path bakes
             # this container's layout into a committed file and is wrong everywhere else.
             cmd = ['python3', 'scripts/trace-map.py', os.path.relpath(p['up'], ROOT),
                    '--id', p['id'], '--name', p['name'], '--min-area', str(ARGS.min_area)]
+            # The guide is what separates a mass from its drop shadow; without it the trace
+            # falls back to a luminance cut, which cannot. See scripts/bria-matte.py.
+            if os.path.exists(p['matte']):
+                cmd += ['--guide', os.path.relpath(p['matte'], ROOT)]
             if p['dark']:
                 cmd += ['--invert', 'yes']
             run(cmd, stdout=subprocess.DEVNULL)
