@@ -102,10 +102,11 @@ themes = sorted({re.split(r'-c\d', c['id'])[0] for c in cards})
 CARDS_JSON = json.dumps(cards)
 THEMES_JSON = json.dumps(themes)
 
-HTML = """<!doctype html>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mycelium — traced levels in game</title>
+# No <!doctype>, <meta> or <html> here on purpose: when this page is published as an
+# Artifact the host wraps the file in its own document skeleton, and a second doctype ahead
+# of that wrapper makes the published page fail to render at all. <title> is kept — the host
+# reads it for the tab and gallery name.
+HTML = """<title>Mycelium — traced levels in game</title>
 <style>
   /* The game's own palette (docs/STYLE_GUIDE.md): cool near-black soil, the mycelium's mint
      as the single accent, the ants' amber reserved for anything out of tolerance. Tokens
