@@ -187,39 +187,35 @@ def _otsu(v):
     between[ok] = ((mu_t * wb[ok] / tot - mu[:-1][ok]) ** 2) / (wb[ok] * wf[ok])
     return int(np.argmax(between))
 
-def _pick_threshold(lum):
-    """Otsu, but capped when the rock is near-black — see below.
-
-    Otsu replaced a fixed cut of 128 because a fixed cut sawed the LIT TOP FACES off the
-    side-on `ledges` rolls (7.9% of that image sat at 150-159 and belonged to the rock).
-    That was right for the images of the time. It stopped being right when DARK_TONE landed:
-    a near-black mass on white pulls Otsu's cut UP — 147 on obsidian-c55 — and everything
-    between the rock and the background is anti-aliasing and DROP SHADOW. The soft contact
-    shadow under an overhead mass measures ~131 there, so the cut swallowed it, and every
-    mass shipped wearing a pale skirt that is solid to the player and invisible on screen.
-    That is the oldest warning in docs/maps/README.md ("threshold high and every wall is
-    fattened by its shadow — an invisible wall, the worst bug here") arriving by a new route.
-
-    So: keep Otsu where the rock is genuinely mid-toned and might have lit faces, and fall
-    back to the documented 128 where the rock is near-black and anything above it therefore
-    cannot be rock. The test is the rock body's own median, not the image's — a dark mass on
-    a white ground has a very low median below the cut (20 on obsidian) where `ledges` sits
-    at 43 with a long bright tail.
-    """
-    o = min(210, max(120, _otsu(lum)))
-    body = lum[lum < o]
-    p50 = float(np.median(body)) if body.size else o
-    if p50 < 80 and o > 128:
-        return 128, f'{o} (Otsu) capped to 128 — rock body median {p50:.0f} is near-black, ' \
-                    f'so {o} would trace the drop shadows'
-    return o, f'{o} (Otsu)'
-
-
+# THRESHOLD: Otsu, but never above 128.
+#
+# docs/maps/README.md has carried the same warning since the first map — "threshold at 128,
+# not higher... threshold high and every wall is fattened by its shadow, an invisible wall,
+# the worst bug here". Otsu replaced the fixed 128 later and for a good reason: a fixed cut
+# sawed the LIT TOP FACES off the side-on `ledges` rolls, where 7.9% of the image sat at
+# 150-159 and belonged to the rock.
+#
+# It then drifted back over 128 across most of the set without anyone noticing, because a
+# near-black mass on a white ground pulls Otsu UP (147 on obsidian-c55) — and the soft
+# contact shadow under an overhead mass measures about 131. So the cut ate the shadows and
+# every mass shipped wearing a pale skirt: solid to the player, near-invisible on screen.
+#
+# The first version of this fix capped only when the rock body's median said "near-black",
+# to leave `ledges` its lit faces. Measured across five maps chosen to span the parameter
+# space — near-black overhead, the palest coloured theme, a saturated-feature theme, an
+# INVERTED dark-ground theme, and an old side-on roll — all five capped. The condition never
+# distinguished anything, and `ledges-one` (the only map the exception existed for) has since
+# been cut. So it is a plain cap, which is both simpler and honest about what it does.
+#
+# Otsu still wins when it lands BELOW 128 — that is a genuinely darker image and there is no
+# reason to overrule it. If a future map really does have rock above 128 (a lit-top-face
+# `ledges` revival), pass --threshold explicitly; do not raise this ceiling for everyone.
 if a.threshold is not None:
     THRESH = a.threshold
 else:
-    THRESH, _why = _pick_threshold(lum)
-    say(f'threshold: {_why}')
+    _o = min(210, max(120, _otsu(lum)))
+    THRESH = min(_o, 128)
+    say(f'threshold: {THRESH}' + (f' (Otsu said {_o}, capped at 128)' if _o > 128 else ' (Otsu)'))
 
 chroma = rgb_det.max(axis=2) - rgb_det.min(axis=2)
 rock_src = (lum < THRESH) | ((chroma > 40) & (rgb_det.min(axis=2) < 200))

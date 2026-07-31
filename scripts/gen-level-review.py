@@ -34,6 +34,10 @@ ap = argparse.ArgumentParser()
 ap.add_argument('--inline', metavar='PATH',
                 help='embed every image as a data URI and write here — for publishing, where '
                      'relative paths do not resolve under the artifact CSP')
+ap.add_argument('--shot-only', action='store_true',
+                help='show only levels that have captured frames. The point of a small probe '
+                     'round is to compare five maps carefully, and 54 empty cards under them '
+                     'is noise.')
 ap.add_argument('--width', type=int, default=560,
                 help='downscale embedded images to this width. Three frames per level across '
                      '59 levels is 177 images on one page.')
@@ -90,6 +94,9 @@ for f in sorted(os.listdir(LEVELS)):
                       shot=os.path.exists(wide)))
 
 missing = [c['id'] for c in cards if not c['shot']]
+if ARGS.shot_only:
+    cards = [c for c in cards if c['shot']]
+    missing = []
 themes = sorted({re.split(r'-c\d', c['id'])[0] for c in cards})
 
 CARDS_JSON = json.dumps(cards)
