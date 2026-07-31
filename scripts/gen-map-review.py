@@ -23,10 +23,19 @@ page shows what the tracer would actually see rather than what the picture looks
           shapes are what the despeckle opening and --min-area exist to delete.
 """
 
-import base64, json, os
+import argparse, base64, io, json, os
 from PIL import Image
 import numpy as np
 from scipy import ndimage
+
+ap = argparse.ArgumentParser()
+ap.add_argument('--inline', metavar='PATH',
+                help='embed the images as data URIs and write here instead — for publishing, '
+                     'where relative paths cannot resolve')
+ap.add_argument('--inline-width', type=int, default=760,
+                help='downscale embedded images to this width (1440 source is 4x more than a '
+                     'gallery card needs, and the page has to carry all 24 at once)')
+ARGS = ap.parse_args()
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MAPS = os.path.join(ROOT, 'docs', 'maps')
@@ -58,6 +67,15 @@ SELECTIONS = [
     ('ember-scatter-c30-3',       'ember',           30, None,           'Best ember density; reads more top-down.'),
     ('skeletons-scatter-c12-1',   'skeletons',       12, None,           'All fossil. Fill ratio says it traces to fragments, not terrain.'),
 ]
+
+
+def data_uri(path, width):
+    im = Image.open(path).convert('RGB')
+    if im.width > width:
+        im = im.resize((width, round(im.height * width / im.width)), Image.LANCZOS)
+    buf = io.BytesIO()
+    im.save(buf, 'WEBP', quality=80, method=6)
+    return 'data:image/webp;base64,' + base64.b64encode(buf.getvalue()).decode()
 
 
 def otsu(v):
@@ -110,7 +128,7 @@ for stem, theme, count, level, note in SELECTIONS:
     path = os.path.join(MAPS, f'{stem}.webp')
     m = measure(path)
     m.update(stem=stem, theme=theme, count=count, level=level, note=note,
-             kb=round(os.path.getsize(path) / 1024))
+             src=data_uri(path, ARGS.inline_width) if ARGS.inline else f'maps/{stem}.webp')
     cards.append(m)
     print(f'{stem:32s} solid {m["solid"]:5.1f}%  masses {m["masses"]:3d}  fill {m["fill"]:.2f}'
           f'{"  (dark ground)" if m["dark_bg"] else ""}'
@@ -121,156 +139,243 @@ for c in cards:
     if c['theme'] not in themes:
         themes.append(c['theme'])
 playable = sum(1 for c in cards if c['level'])
+inband = sum(1 for c in cards if 15 <= c['solid'] <= 60)
 
 HTML = """<!doctype html>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mycelium — generated map shortlist</title>
 <style>
+  /* Palette is the game\'s own, from docs/STYLE_GUIDE.md: near-black cool soil, the
+     mycelium\'s mint as the one accent, and the ants\' amber — "the one warm light
+     underground" — reserved for values outside their band. Tokens only; components never
+     reference a colour directly, so both themes come from one set of overrides. */
   :root {
-    --bg:#0b0e12; --panel:#141a20; --line:#26313b; --ink:#dfe8ee; --dim:#8ea0ad;
-    --mint:#5fe0c0; --warn:#e0a24a; --cut:#c8566a;
+    --ground:#eef1f0; --panel:#fff; --sunk:#e4eae8; --line:#d3dedb;
+    --ink:#111a1e; --dim:#5b6a72; --mint:#0d7f68; --amber:#96600d; --band:#cfe6df;
+    --shadow:0 1px 2px rgba(16,26,30,.08), 0 8px 24px -12px rgba(16,26,30,.18);
   }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ground:#0b0e12; --panel:#12181e; --sunk:#0d1216; --line:#232f39;
+      --ink:#dfe8ee; --dim:#8798a5; --mint:#5fe0c0; --amber:#e0a24a; --band:#1b3b36;
+      --shadow:0 1px 0 rgba(255,255,255,.03), 0 12px 32px -18px #000;
+    }
+  }
+  :root[data-theme="light"] {
+    --ground:#eef1f0; --panel:#fff; --sunk:#e4eae8; --line:#d3dedb;
+    --ink:#111a1e; --dim:#5b6a72; --mint:#0d7f68; --amber:#96600d; --band:#cfe6df;
+    --shadow:0 1px 2px rgba(16,26,30,.08), 0 8px 24px -12px rgba(16,26,30,.18);
+  }
+  :root[data-theme="dark"] {
+    --ground:#0b0e12; --panel:#12181e; --sunk:#0d1216; --line:#232f39;
+    --ink:#dfe8ee; --dim:#8798a5; --mint:#5fe0c0; --amber:#e0a24a; --band:#1b3b36;
+    --shadow:0 1px 0 rgba(255,255,255,.03), 0 12px 32px -18px #000;
+  }
+
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
-  header { padding:26px clamp(16px,4vw,48px) 14px; border-bottom:1px solid var(--line); position:sticky; top:0; background:rgba(11,14,18,.94); backdrop-filter:blur(8px); z-index:5; }
-  h1 { margin:0 0 4px; font-size:19px; letter-spacing:.02em; font-weight:650; }
-  .sub { color:var(--dim); font-size:13px; max-width:78ch; }
-  .sub b { color:var(--ink); font-weight:600; }
-  .bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-top:14px; }
-  button { font:inherit; color:var(--ink); background:var(--panel); border:1px solid var(--line); border-radius:999px; padding:5px 13px; cursor:pointer; }
+  html { -webkit-text-size-adjust:100%; }
+  body {
+    margin:0; background:var(--ground); color:var(--ink);
+    font:15px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; }
+
+  header { border-bottom:1px solid var(--line); background:var(--panel); }
+  .wrap { max-width:1500px; margin:0 auto; padding:0 clamp(16px,3.5vw,40px); }
+  .masthead { padding:26px 0 18px; display:flex; flex-wrap:wrap; gap:26px 40px; align-items:flex-end; }
+  h1 { margin:0 0 6px; font-size:clamp(20px,2.4vw,25px); font-weight:640; letter-spacing:-.015em; text-wrap:balance; }
+  .lede { margin:0; color:var(--dim); font-size:14px; max-width:62ch; }
+  .lede b { color:var(--ink); font-weight:600; }
+
+  .metrics { display:flex; gap:28px; margin-left:auto; }
+  .metric { display:flex; flex-direction:column; gap:2px; }
+  .metric .n { font-size:26px; font-weight:640; line-height:1; letter-spacing:-.02em; }
+  .metric .n.accent { color:var(--mint); }
+  .metric .k { font-size:10.5px; text-transform:uppercase; letter-spacing:.1em; color:var(--dim); }
+
+  .controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:0 0 18px; }
+  button {
+    font:inherit; font-size:13px; color:var(--ink); background:transparent;
+    border:1px solid var(--line); border-radius:7px; padding:5px 12px; cursor:pointer;
+    transition:border-color .12s, color .12s, background .12s;
+  }
   button:hover { border-color:var(--mint); color:var(--mint); }
-  button[aria-pressed="true"] { background:var(--mint); color:#06120e; border-color:var(--mint); font-weight:600; }
-  .spacer { flex:1; }
-  .tally { color:var(--dim); font-size:12.5px; }
-  main { padding:22px clamp(16px,4vw,48px) 80px; }
-  .grid { display:grid; gap:20px; grid-template-columns:repeat(auto-fill,minmax(430px,1fr)); }
-  figure { margin:0; background:var(--panel); border:1px solid var(--line); border-radius:12px; overflow:hidden; display:flex; flex-direction:column; }
-  figure.cut { opacity:.4; }
-  figure.cut img { filter:grayscale(1); }
-  .shot { display:block; width:100%; height:auto; background:#000; cursor:zoom-in; }
-  figcaption { padding:11px 14px 13px; display:flex; flex-direction:column; gap:8px; }
-  .row { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
-  .name { font-weight:600; letter-spacing:.01em; }
-  .tag { font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--dim); border:1px solid var(--line); border-radius:999px; padding:1px 8px; }
-  .tag.live { color:#06120e; background:var(--mint); border-color:var(--mint); font-weight:700; }
-  .tag.dark { color:var(--warn); border-color:#4a3a22; }
-  .note { color:var(--dim); font-size:13px; }
-  .stats { display:flex; gap:16px; flex-wrap:wrap; font-variant-numeric:tabular-nums; font-size:12.5px; }
+  button:focus-visible { outline:2px solid var(--mint); outline-offset:2px; }
+  button[aria-pressed="true"] { background:var(--mint); border-color:var(--mint); color:var(--panel); font-weight:600; }
+  .grow { flex:1 1 auto; }
+  .count { color:var(--dim); font-size:13px; }
+
+  main { padding:26px 0 90px; }
+  .grid { display:grid; gap:22px; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); }
+  @media (max-width:520px) { .grid { grid-template-columns:1fr; } }
+
+  figure {
+    margin:0; background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    overflow:hidden; display:flex; flex-direction:column; box-shadow:var(--shadow);
+  }
+  figure.cut { opacity:.42; }
+  figure.cut .shot { filter:grayscale(1); }
+  .shot { display:block; width:100%; height:auto; background:var(--sunk); cursor:zoom-in; }
+  figcaption { padding:13px 15px 15px; display:flex; flex-direction:column; gap:10px; }
+
+  .ident { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .theme { font-weight:640; letter-spacing:-.01em; }
+  .masses { color:var(--dim); font-size:13.5px; }
+  .id { margin-left:auto; font-size:11px; color:var(--dim); }
+
+  .chip { font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; font-weight:700;
+          border-radius:5px; padding:2px 7px; border:1px solid; }
+  .chip.live { color:var(--panel); background:var(--mint); border-color:var(--mint); }
+  .chip.flag { color:var(--amber); border-color:var(--amber); background:transparent; }
+
+  .note { color:var(--dim); font-size:13.5px; margin:0; }
+
+  /* The band is the point: 15-60% is what tests/traced-check.cjs accepts, so show where a
+     map sits in it rather than making the reader compare a number to a remembered rule. */
+  .band { display:flex; flex-direction:column; gap:5px; }
+  .track { position:relative; height:6px; border-radius:3px; background:var(--sunk); overflow:hidden; }
+  .ok { position:absolute; inset:0 auto 0 15%; width:45%; background:var(--band); }
+  .pin { position:absolute; top:-3px; width:2px; height:12px; border-radius:1px; background:var(--ink); }
+  .pin.out { background:var(--amber); }
+  .scale { display:flex; justify-content:space-between; font-size:10.5px; color:var(--dim); }
+
+  .stats { display:flex; gap:18px; flex-wrap:wrap; font-size:13px; }
   .stats span { color:var(--dim); }
-  .stats b { color:var(--ink); font-weight:600; }
-  .stats .hot { color:var(--warn); }
-  .acts { display:flex; gap:8px; margin-top:2px; }
-  .acts button { flex:1; padding:6px 0; }
-  .acts .no[aria-pressed="true"] { background:var(--cut); border-color:var(--cut); color:#150609; }
-  dialog { border:none; background:#000; padding:0; max-width:96vw; max-height:96vh; }
-  dialog img { display:block; max-width:96vw; max-height:96vh; }
-  dialog::backdrop { background:rgba(0,0,0,.86); }
-  footer { color:var(--dim); font-size:12.5px; padding:0 clamp(16px,4vw,48px) 60px; max-width:88ch; }
-  code { color:var(--mint); }
+  .stats b { color:var(--ink); font-weight:640; }
+  .stats b.warn { color:var(--amber); }
+
+  .acts { display:flex; gap:8px; }
+  .acts button { flex:1; padding:7px 0; }
+  .acts .no[aria-pressed="true"] { background:var(--amber); border-color:var(--amber); color:var(--panel); }
+
+  dialog { border:none; padding:0; background:transparent; max-width:96vw; max-height:96vh; }
+  dialog img { display:block; max-width:96vw; max-height:96vh; border-radius:6px; }
+  dialog::backdrop { background:rgba(4,7,9,.9); }
+
+  footer { color:var(--dim); font-size:13px; padding:0 0 70px; max-width:78ch; }
+  footer code { font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; color:var(--mint); }
+  @media (prefers-reduced-motion: reduce) { * { transition:none !important; } }
 </style>
 
 <header>
-  <h1>Generated map shortlist</h1>
-  <div class="sub">__COUNT__ approved images across __THEMES__ themes; __PLAYABLE__ are already
-    playable in game. Numbers are measured with <b>the tracer's own rules</b>, so they show what
-    a trace would see rather than what the picture looks like. <b>solid</b> = share of the frame
-    that traces as rock (maze-one plays at 48%; the checks enforce 15–60%). <b>masses</b> =
-    blobs surviving the gravel cut, roughly the sprite count. <b>fill</b> = a mass's area over
-    its bounding box, i.e. how solid the shapes are — stone runs 0.63–0.67, skeletons
-    0.39–0.45.</div>
-  <div class="bar" id="filters"></div>
-  <div class="bar"><span class="tally" id="tally"></span><span class="spacer"></span>
-    <button id="reset">Reset</button><button id="export">Copy decisions as JSON</button></div>
+  <div class="wrap">
+    <div class="masthead">
+      <div>
+        <h1>Generated map shortlist</h1>
+        <p class="lede">Every image approved so far, measured with <b>the tracer\'s own rules</b> —
+          so these are the numbers a trace would produce, not an impression of the picture.</p>
+      </div>
+      <div class="metrics">
+        <div class="metric"><span class="n mono">__COUNT__</span><span class="k">approved</span></div>
+        <div class="metric"><span class="n mono">__THEMES__</span><span class="k">themes</span></div>
+        <div class="metric"><span class="n mono accent">__PLAYABLE__</span><span class="k">playable now</span></div>
+        <div class="metric"><span class="n mono">__INBAND__</span><span class="k">in density band</span></div>
+      </div>
+    </div>
+    <div class="controls" id="filters"></div>
+    <div class="controls">
+      <span class="count" id="tally"></span><span class="grow"></span>
+      <button id="reset">Reset</button>
+      <button id="export">Copy decisions as JSON</button>
+    </div>
+  </div>
 </header>
 
-<main><div class="grid" id="grid"></div></main>
+<main class="wrap"><div class="grid" id="grid"></div></main>
 
-<footer>
-  Generated by <code>python3 scripts/gen-map-review.py</code> — edit the script, not this
-  file. Keep/cut choices are stored in this browser only (<code>localStorage</code>); use
-  <b>Copy decisions as JSON</b> to hand them back. The rejected images and the reasoning behind
-  every sweep are in <code>docs/maps/README.md</code>.
+<footer class="wrap">
+  <p><b>solid</b> is the share of the frame that traces as rock — the bar shows it against the
+  15–60% band <code>tests/traced-check.cjs</code> enforces; <code>maze-one</code> plays at 48%.
+  <b>masses</b> is how many blobs survive the gravel cut, roughly the sprite count a trace
+  yields. <b>fill</b> is a mass\'s area over its bounding box — how solid the shapes are.
+  Stone runs 0.63–0.71; anything near 0.40 is mostly holes, and thin shapes are what the
+  despeckle opening exists to delete.</p>
+  <p>Keep/cut lives in this browser only. <b>Copy decisions as JSON</b> hands the shortlist
+  back. Generated by <code>python3 scripts/gen-map-review.py</code> — edit the script, not the
+  page. Rejected images and the reasoning behind every sweep are in
+  <code>docs/maps/README.md</code>.</p>
 </footer>
 
-<dialog id="zoom"><img alt=""></dialog>
+<dialog id="zoom"><img alt="Enlarged map"></dialog>
 
 <script>
 const CARDS = __DATA__;
-const KEY = 'mycelium.mapreview.v1';
-const state = JSON.parse(localStorage.getItem(KEY) || '{}');
-let filter = 'all';
-
-const grid = document.getElementById('grid');
-const zoom = document.getElementById('zoom');
+const KEY = "mycelium.mapreview.v1";
+const state = JSON.parse(localStorage.getItem(KEY) || "{}");
+let filter = "all";
+const grid = document.getElementById("grid");
+const zoom = document.getElementById("zoom");
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",\'"\':"&quot;" }[c]));
 
 function save() { localStorage.setItem(KEY, JSON.stringify(state)); tally(); }
-
 function tally() {
-  const kept = CARDS.filter((c) => state[c.stem] !== 'cut').length;
-  document.getElementById('tally').textContent =
-    kept + ' of ' + CARDS.length + ' kept · ' + (CARDS.length - kept) + ' cut';
+  const kept = CARDS.filter((c) => state[c.stem] !== "cut").length;
+  document.getElementById("tally").textContent =
+    kept + " kept · " + (CARDS.length - kept) + " cut";
+}
+
+function card(c) {
+  const cut = state[c.stem] === "cut";
+  const dense = c.solid > 60, sparse = c.solid < 15, thin = c.fill < 0.5;
+  const fig = document.createElement("figure");
+  fig.className = cut ? "cut" : "";
+  fig.innerHTML =
+    \'<img class="shot" loading="lazy" alt="\' + esc(c.theme) + \' map, about \' + c.count +
+      \' masses" src="\' + c.src + \'">\' +
+    \'<figcaption>\' +
+      \'<div class="ident"><span class="theme">\' + esc(c.theme) + \'</span>\' +
+        \'<span class="masses">~\' + c.count + \' masses</span>\' +
+        (c.level ? \'<span class="chip live">playable</span>\' : "") +
+        (c.dark_bg ? \'<span class="chip flag">dark ground</span>\' : "") +
+        (c.ambiguous ? \'<span class="chip flag">needs --invert</span>\' : "") +
+        \'<span class="id mono">\' + esc(c.level ? "#level," + c.level : c.stem) + \'</span></div>\' +
+      \'<p class="note">\' + esc(c.note) + \'</p>\' +
+      \'<div class="band"><div class="track"><div class="ok"></div>\' +
+        \'<div class="pin\' + (dense || sparse ? " out" : "") + \'" style="left:calc(\' +
+          Math.min(100, c.solid) + \'% - 1px)"></div></div>\' +
+        \'<div class="scale"><span>0%</span><span>playable 15–60%</span><span>100%</span></div></div>\' +
+      \'<div class="stats">\' +
+        \'<span>solid <b class="mono \' + (dense || sparse ? "warn" : "") + \'">\' + c.solid + \'%</b></span>\' +
+        \'<span>masses <b class="mono">\' + c.masses + \'</b></span>\' +
+        \'<span>fill <b class="mono \' + (thin ? "warn" : "") + \'">\' + c.fill.toFixed(2) + \'</b></span>\' +
+      \'</div>\' +
+      \'<div class="acts">\' +
+        \'<button class="yes" aria-pressed="\' + (!cut) + \'">Keep</button>\' +
+        \'<button class="no" aria-pressed="\' + cut + \'">Cut</button></div>\' +
+    \'</figcaption>\';
+  fig.querySelector(".shot").onclick = () => {
+    zoom.querySelector("img").src = c.src; zoom.showModal();
+  };
+  fig.querySelector(".yes").onclick = () => { delete state[c.stem]; save(); render(); };
+  fig.querySelector(".no").onclick = () => { state[c.stem] = "cut"; save(); render(); };
+  return fig;
 }
 
 function render() {
-  grid.innerHTML = '';
-  for (const c of CARDS) {
-    if (filter !== 'all' && c.theme !== filter) continue;
-    const cut = state[c.stem] === 'cut';
-    const fig = document.createElement('figure');
-    if (cut) fig.className = 'cut';
-    // fill below 0.5 means the shapes are mostly holes; flag it rather than bury it
-    const thin = c.fill < 0.5;
-    const dense = c.solid > 60;
-    fig.innerHTML =
-      '<img class="shot" loading="lazy" src="maps/' + c.stem + '.webp" alt="' + c.stem + '">' +
-      '<figcaption>' +
-        '<div class="row"><span class="name">' + c.theme + ' · ~' + c.count + ' masses</span>' +
-          (c.level ? '<span class="tag live">playable — #level,' + c.level + '</span>' : '') +
-          (c.dark_bg ? '<span class="tag dark">dark ground</span>' : '') +
-          (c.ambiguous ? '<span class="tag dark">needs --invert</span>' : '') +
-          '<span class="tag">' + c.stem + '</span></div>' +
-        '<div class="note">' + c.note + '</div>' +
-        '<div class="stats">' +
-          '<span>solid <b class="' + (dense ? 'hot' : '') + '">' + c.solid + '%</b></span>' +
-          '<span>masses <b>' + c.masses + '</b></span>' +
-          '<span>fill <b class="' + (thin ? 'hot' : '') + '">' + c.fill.toFixed(2) + '</b></span>' +
-        '</div>' +
-        '<div class="acts">' +
-          '<button class="yes" aria-pressed="' + (!cut) + '">Keep</button>' +
-          '<button class="no" aria-pressed="' + cut + '">Cut</button>' +
-        '</div>' +
-      '</figcaption>';
-    fig.querySelector('.shot').onclick = () => {
-      zoom.querySelector('img').src = 'maps/' + c.stem + '.webp';
-      zoom.showModal();
-    };
-    fig.querySelector('.yes').onclick = () => { delete state[c.stem]; save(); render(); };
-    fig.querySelector('.no').onclick = () => { state[c.stem] = 'cut'; save(); render(); };
-    grid.appendChild(fig);
-  }
+  grid.innerHTML = "";
+  for (const c of CARDS) if (filter === "all" || c.theme === filter) grid.appendChild(card(c));
 }
 
-const themes = ['all'].concat(__THEMELIST__);
-document.getElementById('filters').innerHTML = themes
-  .map((t) => '<button data-t="' + t + '" aria-pressed="' + (t === 'all') + '">' + t + '</button>')
-  .join('');
-document.getElementById('filters').onclick = (e) => {
-  const b = e.target.closest('button'); if (!b) return;
+const themes = ["all"].concat(__THEMELIST__);
+document.getElementById("filters").innerHTML = themes
+  .map((t) => \'<button data-t="\' + t + \'" aria-pressed="\' + (t === "all") + \'">\' + t + "</button>")
+  .join("");
+document.getElementById("filters").onclick = (e) => {
+  const b = e.target.closest("button"); if (!b) return;
   filter = b.dataset.t;
-  [...e.currentTarget.children].forEach((x) => x.setAttribute('aria-pressed', x === b));
+  [...e.currentTarget.children].forEach((x) => x.setAttribute("aria-pressed", x === b));
   render();
 };
-
-document.getElementById('reset').onclick = () => {
-  for (const k of Object.keys(state)) delete state[k];
-  save(); render();
+document.getElementById("reset").onclick = () => {
+  for (const k of Object.keys(state)) delete state[k]; save(); render();
 };
-document.getElementById('export').onclick = async (e) => {
+document.getElementById("export").onclick = async (e) => {
   const out = { kept: [], cut: [] };
-  for (const c of CARDS) (state[c.stem] === 'cut' ? out.cut : out.kept).push(c.stem);
-  await navigator.clipboard.writeText(JSON.stringify(out, null, 2)).catch(() => {});
-  e.target.textContent = 'Copied';
-  setTimeout(() => { e.target.textContent = 'Copy decisions as JSON'; }, 1400);
+  for (const c of CARDS) (state[c.stem] === "cut" ? out.cut : out.kept).push(c.stem);
+  try { await navigator.clipboard.writeText(JSON.stringify(out, null, 2)); e.target.textContent = "Copied"; }
+  catch (_) { e.target.textContent = "Copy failed"; }
+  setTimeout(() => { e.target.textContent = "Copy decisions as JSON"; }, 1500);
 };
 zoom.onclick = () => zoom.close();
 
@@ -283,9 +388,10 @@ html = (HTML
         .replace('__THEMELIST__', json.dumps(themes))
         .replace('__COUNT__', str(len(cards)))
         .replace('__THEMES__', str(len(themes)))
-        .replace('__PLAYABLE__', str(playable)))
+        .replace('__PLAYABLE__', str(playable))
+        .replace('__INBAND__', str(inband)))
 
-out = os.path.join(ROOT, 'docs', 'map-review.html')
+out = ARGS.inline if ARGS.inline else os.path.join(ROOT, 'docs', 'map-review.html')
 with open(out, 'w') as f:
     f.write(html)
 print(f'\nwrote {out} — {len(cards)} images, {len(themes)} themes, {playable} already playable')

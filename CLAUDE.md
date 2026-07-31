@@ -355,6 +355,12 @@ unwinnable by design**: the campaign is a high-score ladder wearing a campaign's
   check written there is a check the next session has to reinvent.
 - **When asked to update memory:** refresh this file, and also sweep the scratchpad for any
   check or tool worth keeping and commit it. (Standing request from the user.)
+- **Anything the user is meant to LOOK at gets a clickable link — always.** A path in the repo
+  is not a deliverable they can open. Publish the page as an Artifact and hand over the URL;
+  the repo copy is the source, the artifact is how it gets read. (Standing request.) Artifacts
+  are served under a strict CSP, so relative asset paths do not resolve — inline images as
+  data URIs. `scripts/gen-map-review.py --inline <path>` does that, downscaling first, because
+  24 map images at full size would be several MB of base64.
 
 ## Loose ends
 
