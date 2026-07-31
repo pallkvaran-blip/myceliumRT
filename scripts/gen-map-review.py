@@ -80,6 +80,20 @@ SELECTIONS = [
     ('top-crystal-scatter-c36-1',  'crystal',         36, None,           'Top-down. Lighting too bright — the roll that prompted DARK_TONE.'),
     ('top-crystal-scatter-c70-1',  'crystal',         70, None,           'Top-down. Same lighting problem, good mass spread.'),
     ('top-bioluminescent-scatter-c20-1', 'bioluminescent', 20, None,      'Top-down. Fixed the polarity the side-on version was ambiguous on: 0.68 fill against 0.38.'),
+    # The all-theme sweep, overhead and dark. The owner cut bones/skeletons, the two
+    # bioluminescent rolls, crystal c24-2 and ember c24; these are what survived.
+    ('top-scatter-c24-1',          'slate',           24, None,           'Overhead + dark. The cleanest image the project has produced: 0.71 fill and 9 gravel specks in the whole frame.'),
+    ('top-scatter-c40-1',          'slate',           40, None,           'Overhead + dark, denser.'),
+    ('top-veined-scatter-c24-1',   'veined',          24, None,           'Overhead + dark. Dense at 66% — would need the count raised.'),
+    ('top-veined-scatter-c40-1',   'veined',          40, None,           'Overhead + dark. One vein escapes onto the background; the rest is strong.'),
+    ('top-crystal-scatter-c24-1',  'crystal',         24, None,           'Overhead, before DARK_TONE landed — lighter stone.'),
+    ('top-crystal-scatter-c40-1',  'crystal',         40, None,           'Overhead, before DARK_TONE — dense at 67%.'),
+    ('top-crystal-scatter-c40-2',  'crystal',         40, None,           'Overhead + dark v2. Rock luminance 59 against 90 for c40-1, and the gems are back inside the rock.'),
+    ('top-ice-scatter-c24-1',      'ice',             24, None,           'Overhead + dark.'),
+    ('top-ice-scatter-c40-1',      'ice',             40, None,           'Overhead + dark. Dense at 64%.'),
+    ('top-ember-scatter-c40-1',    'ember',           40, None,           'Overhead + dark. The c24 of this pair was cut as too evenly arranged.'),
+    ('top-glacier-scatter-c24-1',  'glacier',         24, None,           'Overhead. Black ground, so exempt from DARK_TONE.'),
+    ('top-glacier-scatter-c40-1',  'glacier',         40, None,           'Overhead. Black ground, denser.'),
 ]
 
 
@@ -140,12 +154,47 @@ def measure(path):
 PENDING = [t.strip() for t in ARGS.pending.split(',') if t.strip()]
 
 
+# A pending card is the owner's call, but a read on it saves them opening five images to work
+# out which two are worth looking at. Anything not listed here just says "awaiting a decision".
+PENDING_NOTES = {
+    'top-obsidian-scatter-c24-1':
+        'Works. 43 masses at 42.9% solid, evenly dark, and the fracture lines read as surface '
+        'detail rather than as cracks through the mask.',
+    'top-obsidian-scatter-c40-1':
+        'Works, denser — 61.8%, just over the band.',
+    'top-strata-scatter-c24-1':
+        'The museum shelf again, in spite of the new irregular-spacing wording: four tidy rows '
+        'of specimens.',
+    'top-strata-scatter-c40-1':
+        'Works. 45 masses, 0.70 fill, and the level banding gives the field a shared grain.',
+    'top-roots-scatter-c24-1':
+        'Fails on both of the things you cut last round: photographic, and the roots came out '
+        'bleached pale — which is also the one value the tracer reads as background.',
+    'top-roots-scatter-c40-1':
+        'Same failure, worse: 17 masses in a horizontal band with 828 gravel specks.',
+    'top-rust-scatter-c24-1':
+        'Material is right, composition is not — 78% solid.',
+    'top-rust-scatter-c40-1':
+        'Still 76% solid; the masses merge instead of separating.',
+    'top-rust-scatter-c60-1':
+        'Worst of them: one blob is 97% of all the rock in the frame.',
+    'top-rust-scatter-c90-1':
+        'Works, and only at this count. 33 masses, 58.1%, largest blob down to 23%.',
+    'top-ruins-scatter-c24-1':
+        'Concrete came out pale in spite of being specified soot-black, and the layout is a '
+        'grid. No reinforcing bar anywhere.',
+    'top-ruins-scatter-c40-1':
+        'Pale again, and the rubble forms a border around an empty middle — the cavern shape '
+        'the tail bans by name. 4753 gravel specks.',
+}
+
+
 def pending_row(stem):
     # theme-count-roll, e.g. ember-scatter-c24-2
     bits = stem.split('-')
     theme = bits[0]
     count = next((int(b[1:]) for b in bits if b.startswith('c') and b[1:].isdigit()), 0)
-    return (stem, theme, count, None, 'Awaiting a decision.')
+    return (stem, theme, count, None, PENDING_NOTES.get(stem, 'Awaiting a decision.'))
 
 
 cards = []

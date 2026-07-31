@@ -282,6 +282,22 @@ makes worse (87-488 specks against 32-50 side-on); `--min-area` deletes it from 
 costs nothing in game, and the fix to try is describing the bare ground positively rather than
 listing an eighth kind of debris to ban.
 
+Two more clauses that were asking for the failure they produced, both in the prompt from the
+first roll: the tail never said what **medium** this is, so FLUX fell back on photography (one
+roll was cut as "almost real life quality"), and `scatter` said masses were "spread **evenly**
+across the whole frame", which with "roughly comparable in size" is a specimen shelf ("too
+organized, like a rock collection in a museum"). The tail now states the medium — drawn, not
+photographed — and `scatter` asks for irregular clustering with full-frame coverage as its own
+separate clause.
+
+Themes now number 14. `obsidian` and `strata` were added and work; `rust` works but **only at
+c90** (at c24-c60 the masses merge — c60 put 97% of the frame's rock in one blob). `roots` and
+`ruins` were added and failed, and they failed for the same reason: **a theme whose material is
+canonically pale loses to the prior.** Bleached timber came back bleached and concrete came back
+pale, both in spite of explicit dark wording *and* DARK_TONE. Every theme that works has a
+canonically dark material. If a pale material is wanted, the answer is `glacier`'s — move it to
+a black ground and let the tracer invert — not more insistence.
+
 **The prompt is the asset.** Two forms are owner-approved — `scatter` (loose masses,
 generous channels) and `maze` (dense, tight channels). `ledges` is being retried and
 converts at about 2 images in 5 (its window is ~9-20 rocks: fewer reads as scenery, more

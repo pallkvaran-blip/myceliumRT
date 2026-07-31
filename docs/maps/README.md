@@ -589,6 +589,45 @@ push on. Given the two results above, the fix is probably not another ban: it is
 positively what lies between the masses (bare, swept, empty ground) rather than to list eight
 kinds of debris that must not be there.
 
+## Five new themes, and two more clauses that were asking for the failure
+
+The owner cut `bones` and `skeletons` outright ("won't be doing more of that"), plus both
+bioluminescent rolls, `crystal-c24-2` and `ember-c24`. Two of those cuts named a defect that
+was not theme-specific at all, and both traced back to wording that had been in the prompt from
+the first roll:
+
+- **"almost real life quality — does not match the game theme"** (`top-biolum-c24`, photographic
+  mushrooms with real depth of field). Nothing in the prompt had ever said what *medium* this
+  is, so FLUX fell back on its strongest prior, which is photography. `STYLE_GUIDE.md` owns the
+  answer — the game is flat-shaded and hand-drawn — and the tail now says so once for every
+  theme: *"It is DRAWN, not photographed: a hand-drawn game asset in flat, simplified shapes…"*
+- **"too organized, it's like a rock collection in a museum"** (`top-ember-c24`). The `scatter`
+  form said *"spread **evenly** across the whole frame"* and had since the first roll. Even
+  spacing plus "roughly comparable in size" is a specimen shelf — the words were asking for the
+  thing. They were load-bearing, though (they are what stops an empty half), so the fix is to
+  say what the spacing should be instead: *"scattered at IRREGULAR intervals… the way rock
+  actually lies: a few loose clusters, some masses standing alone, gaps of visibly different
+  widths"*, with full-frame coverage kept as its own clause.
+
+The five new themes are all built to the pattern the shortlist established — a near-black mass
+with something legible **inside** its silhouette, never a mass that is interesting only in
+outline. The tracer constrains the palettes more than taste does: its rock test is "dark, OR
+strongly chromatic and not near-white", so a feature is safe when it is either dark or
+saturated and unsafe exactly when it is pale and desaturated.
+
+| theme | verdict |
+| --- | --- |
+| **`obsidian`** | **Works.** Black volcanic glass, conchoidal fracture, cold-blue stress lines. c24 is 42.9% over 43 masses at luminance 64 — the material has no grain for the model to render texture into, which is why it comes out this clean. |
+| **`strata`** | **Works at c40** — 45 masses, 0.70 fill, and level banding gives the whole field a shared grain, the only theme whose feature is a *direction*. c24 is the museum shelf again, four tidy rows, in spite of the new wording. |
+| **`rust`** | **Works at c90 only.** Banded ironstone. At c24/c40 it is 76–78% solid, and c60 is one blob holding **97%** of all the rock in the frame — the material has a strong hero-rock prior. At c90: 33 masses, 58.1%, largest blob 23%. |
+| **`roots`** | **Fails.** Petrified roots through dark earth — the most on-theme idea of the five, since the player is a fungus in soil. Came back photographic, with the roots *bleached pale* despite the clause specifying ochre precisely because pale-and-desaturated is the one value that traces as background. c40 is 17 masses in a horizontal band with 828 gravel specks. |
+| **`ruins`** | **Fails.** Buried concrete and rebar. The concrete came out pale (luminance 99–103) in spite of being specified soot-black and DARK_TONE being appended; c40 arranged its rubble into a border around an empty middle — the cavern shape the tail bans by name — and c24 is another grid, with no reinforcing bar anywhere in either. |
+
+Three for five, and the two failures share a cause worth noting: both are themes whose material
+is *canonically pale* (bleached timber, concrete). Every theme that works is one whose material
+is canonically dark. Specifying a dark version of a pale material loses to the prior — the same
+way `glacier` had to move to a black ground rather than argue white ice onto white.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

@@ -280,6 +280,125 @@ const THEMES = {
       'its rock: no vein touches, crosses or reaches the white background, and no vein is ' +
       'white, pale or grey. The veins are thin, a few per rock, not a network.',
   },
+
+  // --- themes added for variation, all built to the pattern the shortlist established ------
+  //
+  // Five of the owner's six favourites came from veined / crystal / bioluminescent, the three
+  // themes where the rock carries a feature embedded in its own face (docs/maps/README.md,
+  // "What the best maps actually have in common"). Every theme below is built that way: a
+  // near-black mass with something legible INSIDE its silhouette, never a mass that is
+  // interesting only in outline. Two further rules each of them has to obey, both paid for
+  // already — the feature never reaches the background (veined's vein-on-white), and the
+  // feature is a minority of the mass (crystal's hero geode).
+  //
+  // The tracer constrains the palettes more than taste does. Its rock test is "dark, OR
+  // strongly chromatic and not near-white", so a feature is safe if it is either dark or
+  // saturated, and unsafe exactly when it is pale and desaturated. That is why `roots` are
+  // ochre rather than the bleached timber they would naturally be, and why `ruins` concrete
+  // is soot-black rather than concrete-coloured: pale and grey is the one thing that traces
+  // as a hole through the middle of a mass.
+
+  // Volcanic glass. The darkest material available and the one that most wants to be flat —
+  // obsidian has no visible grain, so there is nothing for the model to render texture into,
+  // which should make it the cleanest silhouette of any theme. Its feature is geometry rather
+  // than colour: conchoidal fracture, the curved shell-like scoops a glass edge breaks into.
+  obsidian: {
+    rock:
+      'solid masses of black volcanic glass — obsidian, broken into angular blocks with ' +
+      'sharp edges and smooth curved conchoidal fracture scoops across their faces, with ' +
+      'thin cold-blue stress lines curving through each mass',
+    palette:
+      'Flat and unlit apart from the stress lines: no shading, no gradients, no drop ' +
+      'shadows, no outlines, no glow, no bloom, no glare, no reflection and no mirror sheen ' +
+      '— this glass is dead matte, not polished. Three tones only — black glass, thin ' +
+      'cold-blue stress lines inside it, and the pure white background. Every line stays ' +
+      'entirely INSIDE its mass and never touches or reaches the background, and no line is ' +
+      'white or pale. No sparkle, no glint, no highlight along any edge.',
+  },
+
+  // Layered sedimentary rock. The one theme whose feature is a DIRECTION — every other theme's
+  // detail is scattered over the face, this one runs level across it, so a field of these
+  // masses shares a grain the way real strata do. It should also be the most legible at play
+  // zoom: bands are large features, where a vein is a thin one.
+  strata: {
+    rock:
+      'solid masses of layered sedimentary rock, near-black, each one banded with level ' +
+      'horizontal strata — four or five distinct dark layers of slightly different tone ' +
+      'stacked up through the mass, the banding running dead level across every mass in the ' +
+      'picture and cut off cleanly at its edges',
+    palette:
+      'Flat and unlit: no shading, no gradients within a layer, no drop shadows, no ' +
+      'outlines, no glow. The layers differ from each other only slightly and ALL of them ' +
+      'are dark — near-black to very dark brown — against the pure white background. No ' +
+      'layer is pale, light or white. No sky, no ground, no cliff face, no canyon and no ' +
+      'landscape: these are separate masses floating on white, not a rock formation.',
+  },
+
+  // Dark earth bound by petrified roots — the theme closest to what the game is actually
+  // about, since the player is a fungal colony pushing through soil toward the surface.
+  // The roots are OCHRE, which is a tracer decision and not an aesthetic one: real petrified
+  // timber is pale, pale-and-desaturated is the one thing that reads as background, and a
+  // root running through the middle of a mass would trace as a slot cut through it.
+  roots: {
+    rock:
+      'solid masses of dark packed earth and stone with thick petrified tree roots wound ' +
+      'through them — deep ochre and burnt-orange fossilised timber, gnarled and knotted, ' +
+      'winding across and half-buried in each mass, a few roots per mass',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow. ' +
+      'Three tones only — near-black earth, deep saturated ochre roots inside it, and the ' +
+      'pure white background. The roots are dark and richly coloured, never pale, never ' +
+      'bleached, never white and never light brown. Every root stays entirely INSIDE its ' +
+      'mass: no root grows out into the background, no root bridges two masses, no root ' +
+      'trails, tendrils or fibres lie on the white. No soil scatter, no leaves, no plants ' +
+      'growing, no tree above.',
+  },
+
+  // Banded ironstone. Ember by a different route: ember's red is heat leaking out of cracks,
+  // this is oxide bound into the stone, so the red can be broad and structural instead of
+  // thin and contained. Ember already proved a dark red survives DARK_TONE and traces
+  // cleanly, which is what makes this a low-risk theme rather than a guess.
+  //
+  // NOTE, same as ember's: STYLE_GUIDE.md reserves warm amber for ant tunnels, "the one warm
+  // light underground". Oxide red is far enough from amber to be safe; do not let a roll
+  // drift orange.
+  rust: {
+    rock:
+      'solid masses of near-black banded ironstone, angular and cracked, each one striped ' +
+      'through with broad bands of deep oxide red — rusted iron bound into the stone in ' +
+      'wavering layers, dark and heavy',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow, no ' +
+      'bloom, no metallic sheen and no shine. Three tones only — near-black stone, DEEP ' +
+      'DARK OXIDE RED bands inside it, and the pure white background. The red is dark and ' +
+      'rusted, never bright, never orange, never amber and never glowing. Every band stays ' +
+      'entirely INSIDE its mass and is cut off cleanly at the edge; no rust stains, streaks ' +
+      'or dust lie on the background.',
+  },
+
+  // Buried human ruin — the one theme that is not geology, and the one with a reason to exist
+  // beyond variety: the colony's whole goal is to reach the surface, so broken concrete on the
+  // way up is the map telling the player how far they have come.
+  //
+  // Concrete is normally the exact tone the tracer cannot use, so this theme is specified
+  // against its own material: soot-black, weathered, burnt. The rebar is the embedded feature
+  // and it is deliberately SHORT — bars bent out of a break, not spilling into the gaps,
+  // because a thin bar reaching across the background is veined's failure with a new noun.
+  ruins: {
+    rock:
+      'solid masses of broken buried concrete — slabs, blocks and chunks of collapsed wall, ' +
+      'soot-black and weathered, cracked and spalled, some still holding courses of dark ' +
+      'brick, with a few short lengths of rust-red reinforcing bar bent out of the breaks',
+    palette:
+      'Flat and unlit: no shading, no gradients, no drop shadows, no outlines, no glow. ' +
+      'Three tones only — soot-black concrete and dark brick, dull rust-red reinforcing ' +
+      'bar, and the pure white background. The concrete is BLACK and burnt-looking, never ' +
+      'pale, never light and never fresh. Every reinforcing bar is short and stays entirely ' +
+      'INSIDE its mass or barely clear of it: no bar spans the gap between two masses and ' +
+      'no bar reaches the background. No dust, no debris, no rubble scatter and no dirt on ' +
+      'the background. No building standing, no room, no interior, no window, no door, no ' +
+      'street, no vehicle and no writing.',
+  },
 };
 
 // TRIED AND REVERTED: "This is a CROSS-SECTION: the whole scene has been sliced clean
@@ -358,6 +477,15 @@ const SIL_TAIL = (theme) =>
   'no empty band along any edge and no empty half. ' +
   THEMES[theme].palette +
   (THEMES[theme].bg === 'black' ? '' : DARK_TONE) +
+  // top-biolum-c24 was rejected as "almost real life quality — does not match the game
+  // theme": photographic mushrooms with real depth of field on photographic stone. Nothing in
+  // the prompt had ever said what medium this is, so FLUX defaulted to its strongest prior,
+  // which is photography. STYLE_GUIDE.md owns the answer — the game is flat-shaded and
+  // hand-drawn — and this states it once for every theme.
+  ' It is DRAWN, not photographed: a hand-drawn game asset in flat, simplified shapes with ' +
+  'clean silhouettes and stylised surface detail, the way a 2D game draws its terrain. It is ' +
+  'not a photograph, not a photoreal render, not a 3D render, and has no camera depth of ' +
+  'field or lens blur.' +
   ' The background is completely BARE: no pebbles, no gravel, no scree, no rubble, no chips, ' +
   'no fragments, no dust, no speckles, no tufts and no loose bits of any size lying between ' +
   'the masses — if it is not one of the masses, it is not there at all. No text, no labels, ' +
@@ -373,10 +501,21 @@ const FORMS = {
   // came from — the tail bans gravel and speckles, but this clause was asking for exactly
   // the thing one clause later. Every mass is now LARGE and comparable in size, and the gap
   // around each one is stated as a rule rather than left to "wide {BG} gaps".
+  //
+  // "Spread EVENLY across the whole frame" was in here from the first roll, and it is what
+  // the owner eventually named on top-ember-c24: "too organized, it's like a rock collection
+  // in a museum". Even spacing plus comparable size is a specimen shelf — the words were
+  // asking for the thing. They were doing real work, though (they are what stops an empty
+  // half), so the fix is not to delete them but to say what the spacing should be instead:
+  // irregular, the way rock actually lies, with full-frame coverage kept as its own clause.
   scatter:
     'About {N} SEPARATE {MASS} — {MASSADJ}, ALL of them large and roughly comparable in ' +
-    'size, with no small pieces, chips or fragments anywhere among them — spread evenly ' +
-    'across the whole frame at different heights, each one clearly detached from every ' +
+    'size, with no small pieces, chips or fragments anywhere among them — scattered at ' +
+    'IRREGULAR intervals across the whole frame at different heights, the way rock actually ' +
+    'lies: a few loose clusters sitting close together, some masses standing alone in open ' +
+    'ground, and gaps of visibly different widths between them. Every part of the frame has ' +
+    'masses in it, top and bottom and both sides, but the arrangement is uneven and random, ' +
+    'not a row, not a grid, not a display. Each one is clearly detached from every ' +
     'other, with an open {BG} gap around every mass at least half as wide as the mass ' +
     'itself, and winding {BG} channels running between them from the left side to the ' +
     'right side. Size is bounded at BOTH ends: no single mass is wider than about a tenth ' +
