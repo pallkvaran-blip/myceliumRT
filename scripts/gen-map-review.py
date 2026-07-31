@@ -74,6 +74,12 @@ SELECTIONS = [
     ('ember-scatter-c30-5',        'ember',          30, None,           'Chunkier masses, strong fissures.'),
     ('skeletons-scatter-c12-1',   'skeletons',       12, None,           'All fossil. Fill ratio says it traces to fragments, not terrain.'),
     ('rich-crystal-scatter-c70-1', 'crystal',        70, None,           'The one keep of the --rich round, and provisional — 20% of the frame is shadow the tracer would bake into collision.'),
+    # The first --view top round. All five kept; the camera change is what made them work.
+    ('top-veined-scatter-c9-1',    'veined',           9, None,           'Top-down. Large masses, wide channels, almost no gravel.'),
+    ('top-veined-scatter-c28-1',   'veined',          28, None,           'Top-down. Best of the first overhead round — even masses, real channels, 0.70 fill.'),
+    ('top-crystal-scatter-c36-1',  'crystal',         36, None,           'Top-down. Lighting too bright — the roll that prompted DARK_TONE.'),
+    ('top-crystal-scatter-c70-1',  'crystal',         70, None,           'Top-down. Same lighting problem, good mass spread.'),
+    ('top-bioluminescent-scatter-c20-1', 'bioluminescent', 20, None,      'Top-down. Fixed the polarity the side-on version was ambiguous on: 0.68 fill against 0.38.'),
 ]
 
 

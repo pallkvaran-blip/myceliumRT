@@ -268,6 +268,20 @@ deletes but which is visible in the reference image. `--view` and `--rich` are i
 `--print` builds the prompt and stops, which is how you check a swap fired before paying for a
 generation. Full numbers in `docs/maps/README.md`.
 
+**Never write a clause that has to name the thing it forbids.** This has now cost two rounds
+in a row. "No perspective, no isometric tilt" produced a 3/4 view; `DARK_TONE` v1's "never
+mid-grey and never light grey" produced mid-grey (crystal at rock luminance 81.6, against 80.8
+for the roll before the clause existed — zero effect), and `crystal`'s own material clause had
+been saying "near-black blue-**grey**" the whole time. Rewritten positively and with the word
+deleted from both places, the same theme came back at **62.0/59.2** and put its loose gems back
+inside the rocks as a bonus. `DARK_TONE` ("deep underground, every mass almost black, the only
+bright thing is the background") is appended to every theme whose ground is white; the
+black-ground themes — `glacier`, `bones`, `skeletons` — are exempt, since a pale mass on black
+is the entire point of them. The outstanding defect is **gravel**, which the overhead view
+makes worse (87-488 specks against 32-50 side-on); `--min-area` deletes it from the mask so it
+costs nothing in game, and the fix to try is describing the bare ground positively rather than
+listing an eighth kind of debris to ban.
+
 **The prompt is the asset.** Two forms are owner-approved — `scatter` (loose masses,
 generous channels) and `maze` (dense, tight channels). `ledges` is being retried and
 converts at about 2 images in 5 (its window is ~9-20 rocks: fewer reads as scenery, more

@@ -530,6 +530,65 @@ is the next thing to push on.
 `--view` and `--rich` are independent flags. Everything above is `--view top` with the flatness
 clauses left **in**.
 
+### DARK_TONE, and the word you must not say
+
+All five overhead rolls were kept, and the owner's one note was that `top-crystal-c36` and
+`top-crystal-c70` had "too much lighting and shading — we need a darker style because the game
+happens underground". Correct, and it is a thing the camera change *exposed* rather than caused:
+every theme's palette had been saying "flat and unlit" all along while the model lit the rock
+anyway, because "unlit" describes a rendering mode and the model was answering a different
+question — where is this, and how is it lit? Overhead with no floor to hide it, the answer it
+had been giving became obvious: a studio product shot.
+
+So `DARK_TONE` answers that question instead of re-issuing the ban. One clause, appended to
+every theme whose ground is white. The black-ground themes (`glacier`, `bones`, `skeletons`) are
+exempt — their whole premise is a pale mass reading bright against black, and telling them to go
+dark leaves the tracer nothing to threshold.
+
+**v1 of the clause did nothing, and the reason is the lesson from `--view top` again.** It said
+"never mid-grey and never light grey", which puts the word GREY into the prompt while banning
+it, and `crystal`'s own material clause already said "near-black blue-**grey**". Crystal came
+back at rock luminance **81.6** against **80.8** for the roll before the clause existed — no
+effect whatsoever. Rewritten positively, with the word deleted from both places:
+
+> This is DEEP UNDERGROUND, in the dark, far below any daylight. Every mass is matte and ALMOST
+> BLACK — as dark as its own colour allows, closer to a silhouette than to a lit object […] The
+> only bright thing in the picture is the flat white background itself.
+
+| crystal roll | rock luminance |
+| --- | --- |
+| `top-c24-1`, `top-c40-1` (clause v1, "never grey") | 81.6, 89.6 |
+| `top-c24-2`, `top-c40-2` (clause v2, positive) | **62.0, 59.2** |
+
+A 25–35% drop, and it fixed a second thing at the same time: v1's crystal came back as loose
+gems strewn on the background — which its own clause bans explicitly — and v2 has them back
+inside pockets in the rock where they belong.
+
+**Two negations, two identical failures.** "No perspective, no isometric tilt" got a 3/4 view;
+"never mid-grey" got mid-grey. Write what the picture IS. If a clause has to name the thing it
+forbids in order to forbid it, expect to get that thing.
+
+### What the all-theme sweep says
+
+Nine themes × two counts, overhead and dark. `top-scatter-c24` (plain `slate`) is the standout —
+52.4% solid, 47 masses, 0.71 fill, and **9** gravel specks in the entire frame. `top-ember-c24`
+is the best fill ratio any image has produced at 0.72.
+
+Out of the 15–60% band and so not directly usable: `top-veined-c24` (66.1%), `top-ice-c40`
+(63.9%), `top-crystal-c40-1` (67.3%) and `top-crystal-c40-2` (69.5%) are all too dense;
+`top-bones-c40` is 77.6% across only 9 masses, i.e. the rocks merged. `top-biolum-c24` is the
+one outright failure — the masses grew until the background was a minority, and the polarity
+detector called the rock the background as a result.
+
+**Gravel is the outstanding defect and it is worse than side-on across the board.** The tail
+bans pebbles, gravel, scree, chips, fragments and speckles by name, and the overhead rolls
+produce 87–488 sub-threshold specks where side-on produced 32–50 (`top-biolum-c24`: 5563).
+`--min-area` deletes every one of them at trace time so the collision mask is unaffected — this
+is a cosmetic problem in the reference image, not a gameplay one — but it is the next thing to
+push on. Given the two results above, the fix is probably not another ban: it is to say
+positively what lies between the masses (bare, swept, empty ground) rather than to list eight
+kinds of debris that must not be there.
+
 The size to ask for is **1440×608**: the world's underground box is 2600 × (1500−380) = 2600×1120
 ≈ 2.32:1, FLUX's `aspect_ratio` enum stops at 16:9, and custom sides must be multiples of 32 and
 ≤1440. 1440×608 is 2.37:1 — 2% off, absorbed when scaling to fit.

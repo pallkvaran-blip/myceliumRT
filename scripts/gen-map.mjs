@@ -114,7 +114,8 @@ const THEMES = {
   // worst thing to hand a threshold, so the ban is now explicit about the rim.
   crystal: {
     rock:
-      'solid near-black blue-grey rock masses. ABOUT HALF of them are plain cracked rock; ' +
+      'solid black rock masses with the faintest cold blue cast, so dark they read almost as ' +
+      'silhouettes. ABOUT HALF of them are plain cracked rock; ' +
       'the other half each carry a pocket of violet and cyan crystal shards set INTO the ' +
       "rock's face, covering roughly a third of that rock and surrounded by rock on every " +
       'side. There are NO loose crystals anywhere: no gems, chips, shards or fragments ' +
@@ -321,6 +322,34 @@ const SIL_HEAD = (theme, view) =>
   `A flat diagram: ${THEMES[theme].rock} on a pure {BG} background. Wide ` +
   `horizontal composition, ${CAMERAS[view]}. `;
 
+// The lighting ban, and it is separate from every theme's palette on purpose.
+//
+// `--view top` fixed the camera and immediately exposed what the camera had been hiding: the
+// overhead rolls came back as studio product shots — mid-grey stone under a soft key light,
+// lit top faces, pale highlights along the crests. crystal-c36 and c70 were the worst of it.
+// Each theme's palette already says "flat and unlit", and each one had been saying it while
+// the model lit the rock anyway, because "unlit" describes a rendering mode and the model was
+// answering a different question: where is this, and how is it lit?
+//
+// So this answers that question instead of re-issuing the ban. It is one clause, applied to
+// every theme whose ground is white, and deliberately about VALUE and LIGHT SOURCE rather
+// than about shading — a theme's own palette owns its tones, this owns how dark the picture
+// is overall. The black-ground themes (glacier, bones, skeletons) are exempt: their whole
+// premise is a pale mass reading bright against black, and telling them to go dark would
+// leave the tracer nothing to threshold.
+// v1 of this clause said "never mid-grey and never light grey" and put the word GREY into the
+// prompt four times while banning it. crystal came back at rock luminance 81.6 against 80.8
+// for the roll before the clause existed — no effect at all — and it was already the theme
+// whose own material clause said "near-black blue-grey". Same trap as the camera: a negation
+// that has to name the thing it forbids. Stated positively and with the word deleted outright.
+const DARK_TONE =
+  ' This is DEEP UNDERGROUND, in the dark, far below any daylight. Every mass is matte and ' +
+  'ALMOST BLACK — as dark as its own colour allows, closer to a silhouette than to a lit ' +
+  'object, and the same deep value across its whole surface. The only bright thing in the ' +
+  'picture is the flat {BG} background itself. There is no light source anywhere in the ' +
+  'scene: no key light, no top light, no sunlight, no studio lighting, no lit faces, no ' +
+  'highlights, no sheen, no gloss, and no pale rim along any edge.';
+
 const SIL_TAIL = (theme) =>
   ' The background is pure flat {BG} everywhere, edge to edge, including all four edges and ' +
   'every corner. Do NOT draw a cave, a cavern, an enclosing wall, a rock border around the ' +
@@ -328,6 +357,7 @@ const SIL_TAIL = (theme) =>
   'they reach the left and right edges, they reach the top and bottom edges, and there is ' +
   'no empty band along any edge and no empty half. ' +
   THEMES[theme].palette +
+  (THEMES[theme].bg === 'black' ? '' : DARK_TONE) +
   ' The background is completely BARE: no pebbles, no gravel, no scree, no rubble, no chips, ' +
   'no fragments, no dust, no speckles, no tufts and no loose bits of any size lying between ' +
   'the masses — if it is not one of the masses, it is not there at all. No text, no labels, ' +
@@ -460,6 +490,10 @@ if (!CAMERAS[VIEW]) {
 const promptFor = (n) => {
   let p = style === 'art' ? PROMPTS.art
     : withCount(style === 'silhouette' ? 'scatter' : style, n, THEME, VIEW);
+  // DARK_TONE and --rich are direct contradictions — one bans rim light, the other asks for
+  // it — so --rich drops it rather than shipping a prompt that argues with itself. The round
+  // that motivated --rich was rejected; it survives as the record of what was tried.
+  if (RICH) p = p.replace(DARK_TONE, '');
   if (RICH) for (const [re, to] of RICH_SWAPS) p = p.replace(re, to);
   return p;
 };
