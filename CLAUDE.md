@@ -106,7 +106,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~571 assertions across 17 checks. **Run them; don't verify by re-reading your own diff.**
+~597 assertions across 18 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
@@ -221,6 +221,38 @@ Harness traps that have cost real time:
   content behind an existing filename changes.
 - **Unlocking a species is two steps:** clearing its level *reveals* it, spending Spores *unlocks*
   it. Progress is in localStorage `mycelium.progress.v2`.
+
+## The organism scale
+
+**`CONFIG.growth.scale` is how big the mycelium is, as one number.** Currently **1.5**. Every
+world-unit LENGTH in `growth` — listed in `GROWTH_LENGTHS` right after the CONFIG literal — is
+written at its base value and multiplied by it once at module load; `NetworkRenderer._sc()`
+reads the same number for the drawn thread and the cottony fuzz. So `segmentLength` is 17×1.5 =
+25.5, `sensingRadius` 202.5, `killDistance` 33, `minTipSpacing` 16.5, `startDepth` 30,
+`waterContactDist` 21.
+
+- **It is applied to CONFIG itself, once at module load, not on the run-start path.**
+  `state.config` is a deep clone of CONFIG, so doing it at load reaches the clone, every
+  per-level override and the dev sliders' live object at no cost. The reason it can't live in
+  `start()` is that it must not COMPOUND: every map switch is a full restart, so a multiply
+  there would need its own "already scaled?" flag and would fail silently and cumulatively.
+- **It has to be all of them together or it isn't a scale**, and each partial application is
+  quiet: a longer step with the old `killDistance` lands past its attractor without satisfying
+  it, so a tip orbits a pile instead of eating it; a longer step with the old drawn width reads
+  as a *sparser* colony, not a bigger one; `minTipSpacing` scaled past `segmentLength` makes the
+  colony reject its own new tips and growth simply stops with no message.
+- **Angles, chances and segment COUNTS are scale-free and must stay untouched.** Card reach
+  follows for free — the grow cards count segments (`grow4Segments` 12, `reachSegments` 18, "1
+  step = 3 segments"), so a 1.5× segment is a 1.5× reach. The 36-unit cell grid does NOT scale
+  (the step must stay under a cell), nor do energy costs, nor `REVEAL_SEG` — a bigger colony
+  covers more ground per grow in the same ~1–3 s, which is the point.
+- **`_growStep` used to test only its ENDPOINT** (`_placeOk`), so any wall thinner than one step
+  could be hopped, and lengthening the step widened that hole: swept over three traced maps,
+  0.17–0.25% of endpoint-legal steps crossed rock at 17 units and 0.42–0.58% at 25.5. It goes
+  through `_segmentClear` now, like every card grow primitive has for a long time. Don't
+  "optimise" that back — `_segmentClear` samples by DISTANCE, which is exactly why it scales.
+- `tests/scale-check.cjs` (26 assertions) covers the lot, with a verified negative control on
+  the wall-hop assertion (3 crossings of 865 with the fix reverted, 0 of ~840 with it).
 
 ## The core (the molten floor)
 

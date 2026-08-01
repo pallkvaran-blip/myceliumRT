@@ -1944,9 +1944,24 @@ const CONFIG = {
 
   // ---- Growth: 2D space-colonization (A8, B2) ----------------------------
   growth: {
-    sensingRadius: 135,          // tips sense substrate attractors within this radius
-    killDistance: 22,            // attractor is consumed when a node gets this close
-    segmentLength: 17,           // length of one growth segment
+    // ---- ORGANISM SCALE ---------------------------------------------------
+    // How BIG the mycelium is, as one number. Every world-unit LENGTH in this block
+    // (listed in GROWTH_LENGTHS below) is written at its base value and multiplied by
+    // this once, right after the CONFIG literal; the renderer scales strand width and
+    // cottony fuzz off the same number. So the colony scales as ONE organism.
+    //
+    // It has to be all of them together or it isn't a scale: a longer step with the
+    // same sensingRadius/killDistance just overshoots its attractors, and a longer
+    // step with the same drawn width reads as thinner thread, not a bigger fungus.
+    // Card reach follows for free — the grow cards count SEGMENTS (grow4Segments 12,
+    // reachSegments 18, "1 step = 3 segments"), so a 1.5x segment is a 1.5x reach.
+    // NOT scaled: the 36-unit cell grid, energy costs, and the reveal animation's
+    // per-segment duration (REVEAL_SEG) — a bigger colony covers more ground per
+    // grow in the same ~1-3s, which is the point.
+    scale: 1.5,
+    sensingRadius: 135,          // tips sense substrate attractors within this radius (x scale)
+    killDistance: 22,            // attractor is consumed when a node gets this close (x scale)
+    segmentLength: 17,           // length of one growth segment (x scale)
     // Rock collision is FIRM and FINE: a strand may never sit under drawn rock. It's
     // enforced by a ¼-cell solid mask (main.js solidifyRock → substrate.solidAtWorld),
     // which matches the visible sprite, so there's no overlap knob — growth stops at the
@@ -1958,8 +1973,8 @@ const CONFIG = {
     attractorThreshold: 1,       // any cell with food attracts growth (so no scraps get left behind, which confuses players)
     branchJitter: 0.22,          // random angular wobble for organic look (radians)
     foragingFanRays: 8,          // Foraging Fan: new strands sprouted per tip, around the circle
-    startDepth: 20,              // initial seed depth below the surface line (tiny starting sprout)
-    minTipSpacing: 11,           // don't spawn a node this close to an existing one
+    startDepth: 20,              // initial seed depth below the surface line (tiny starting sprout) (x scale)
+    minTipSpacing: 11,           // don't spawn a node this close to an existing one (x scale)
     // Experimental side-branching: as a strand grows, EACH step has this chance to
     // sprout a small extra strand from a random point along the strand-so-far, heading
     // in a random direction. Non-recursive (side-strands don't branch again) and
@@ -1997,7 +2012,7 @@ const CONFIG = {
     // water — a node within this many world units of a water cell's edge (~0.4 cell). The
     // water-seek helper below reliably creeps a tip to within ~7px of the edge, so this is
     // set just above that: income pays exactly when a strand you can SEE reaches the water.
-    waterContactDist: 14,
+    waterContactDist: 14,        // (x scale — a thicker strand hugs from further out)
     // Water-seek helper: whenever a tip is within SENSING RANGE (sensingRadius above) of a
     // water body, a free extra strand grows toward the water (like food) and creeps its tip
     // right up to the edge so contact is visible — never overlapping. A pool fills up to this
@@ -2259,6 +2274,34 @@ const CONFIG = {
     cheatSpores: 100,
   },
 };
+
+// -----------------------------------------------------------------------------
+// ORGANISM SCALE — apply growth.scale to every world-unit LENGTH in growth.
+//
+// Applied to CONFIG ITSELF, once at module load, rather than to state.config's clone
+// at run start. state.config is a deep clone of CONFIG, so doing it here reaches the
+// clone, every per-level override and the dev sliders' live object without any of them
+// knowing the knob exists — and, the reason it has to be here rather than in start():
+// it must not COMPOUND. A run start is not a one-off (every map switch is a full
+// restart), so a multiply on that path would need its own "already scaled?" flag, and
+// the failure if it were ever missed is silent and cumulative. The literals above stay
+// at their base values so the ratios between them are still readable at a glance.
+//
+// LENGTHS ONLY. Angles (branchJitter, spreads, curves), probabilities, counts and
+// segment-counts are scale-free by construction: a card that grows 12 segments grows
+// 12 longer segments, which is exactly the 1.5x reach we want. minTipSpacing is in
+// here because it is the node-to-node spacing the step lands at — leave it and a
+// scaled-up colony rejects its own new tips as "too close together".
+// -----------------------------------------------------------------------------
+const GROWTH_LENGTHS = [
+  'sensingRadius', 'killDistance', 'segmentLength',
+  'startDepth', 'minTipSpacing', 'waterContactDist',
+];
+(function applyOrganismScale(g) {
+  const k = g && g.scale;
+  if (!(k > 0) || k === 1) return;
+  for (const key of GROWTH_LENGTHS) if (typeof g[key] === 'number') g[key] *= k;
+})(CONFIG.growth);
 
 // -----------------------------------------------------------------------------
 // SLIDERS — the ~8 key constants exposed as live on-screen sliders (B7).
@@ -9757,7 +9800,16 @@ class Network {
         let ny = node.y + Math.sin(ang) * g.segmentLength;
         ny = Math.max(substrate.surfaceY + 2, Math.min(substrate.worldHeight - 2, ny));
         nx = Math.max(2, Math.min(substrate.worldWidth - 2, nx));
-        if (!this._placeOk(substrate, nx, ny)) continue;   // rock (beyond the soft edge margin) / edge / surface
+        // The WHOLE step must be clear, not just where it lands. This tested the endpoint
+        // alone until the organism scale went in, and an endpoint test lets a step hop any
+        // wall thinner than itself — a strand teleporting through rock, which is the worst
+        // bug in this project because the art still says the wall is there. Swept over three
+        // traced maps (every open point, 16 headings): of the steps the endpoint test
+        // accepted, 0.17-0.25% crossed rock at the old 17-unit step and 0.42-0.58% at 25.5,
+        // so lengthening the step widened a hole that was already open. _segmentClear samples
+        // by DISTANCE, so the longer step just gets proportionally more samples, and every
+        // card grow primitive has been going through it for a long time already.
+        if (!this._segmentClear(substrate, node.x, node.y, nx, ny)) continue;   // rock (beyond the soft edge margin) / edge / surface
         if (this._tooClose(nx, ny, g.minTipSpacing, substrate, buckets, key, reach)) continue;
         const child = this.addNode(nx, ny, node);
         newNodes.push(child); created++; placed = true;
@@ -15459,8 +15511,20 @@ class NetworkRenderer {
 
   markStructureDirty() { this.structureDirty = true; }
 
+  // The ORGANISM SCALE (config growth.scale) — the same number that lengthens the growth
+  // step, applied to every DRAWN world-unit size below. Without it a scaled-up colony is
+  // the same hair stretched further apart, which reads as sparser rather than bigger.
+  // Screen-space decoration (the nutrient pulse, the sheen feather) is deliberately left
+  // alone: those are constant-pixel effects that already fight the camera zoom.
+  _sc() {
+    const g = this.config && this.config.growth;
+    const k = g && g.scale;
+    return k > 0 ? k : 1;
+  }
+
   _rebuildCaches() {
     const net = this.network;
+    const sc = this._sc();
     // Subtree sizes for organic tapering (thick trunk -> thin tips).
     const size = new Map();
     const order = [...net.nodes];
@@ -15515,13 +15579,15 @@ class NetworkRenderer {
           this.edges.push({ ax: p.x, ay: p.y, bx: n.x, by: n.y, w, h: n.health, d, node: n });
 
           // Bucket by the same taper width used in detail mode, then bake the
-          // meandering centreline into that bucket's shared path.
+          // meandering centreline into that bucket's shared path. Bucketing stays in
+          // UNSCALED width space — the scale is applied once to the bucket's stroke
+          // width below, so which bucket a strand falls in never moves.
           const baseW = 1.0 + Math.min(0.55, Math.log(1 + w) * 0.13);
           let bi = Math.round(((baseW - 1.0) / 0.55) * (NB - 1));
           if (bi < 0) bi = 0; else if (bi >= NB) bi = NB - 1;
           const dx = n.x - p.x, dy = n.y - p.y, len = Math.hypot(dx, dy) || 1;
           const perpx = -dy / len, perpy = dx / len;
-          const meander = Math.min(len * 0.22, 4.5) * (nh(n.id, 1) * 2 - 1);
+          const meander = Math.min(len * 0.22, 4.5 * sc) * (nh(n.id, 1) * 2 - 1);
           const mx = (p.x + n.x) / 2 + perpx * meander, my = (p.y + n.y) / 2 + perpy * meander;
           const path = n._protected ? protectedPath : (n.infected ? infectedPath : creamPaths[bi]);
           path.moveTo(p.x, p.y);
@@ -15530,9 +15596,9 @@ class NetworkRenderer {
       }
     }
     this.batches = {
-      cream: creamPaths.map((path, i) => ({ w: BW[i], path })),
-      infected: { w: 1.2, path: infectedPath },
-      protected: { w: 1.4, path: protectedPath },   // warded strands — a touch heavier so the crust reads
+      cream: creamPaths.map((path, i) => ({ w: BW[i] * sc, path })),
+      infected: { w: 1.2 * sc, path: infectedPath },
+      protected: { w: 1.4 * sc, path: protectedPath },   // warded strands — a touch heavier so the crust reads
     };
     this._builtNodeCount = net.nodes.length;
 
@@ -15604,6 +15670,7 @@ class NetworkRenderer {
     // — it's stroked per-node reveal-aware (only the batched-LOD path, used when zoomed out,
     // draws the static skeleton, matching that LOD's own non-animated strands).
     const featherW = 1.6 / Math.max(0.001, zoom);   // ~0.8px each side — hugs the strand
+    const sc = this._sc();                          // organism scale: the sheen must match the strand under it
     const SHEEN_A = 0.31;
     ctx.globalCompositeOperation = 'lighter';
     ctx.strokeStyle = this.config.render.networkLight;   // mint (rgba(150,255,190,1))
@@ -15619,7 +15686,7 @@ class NetworkRenderer {
         if (rev <= 0) continue;                            // not grown-in here yet — no sheen
         const ex = rev < 1 ? p.x + (n.x - p.x) * rev : n.x;
         const ey = rev < 1 ? p.y + (n.y - p.y) * rev : n.y;
-        ctx.lineWidth = 1.0 + Math.min(0.55, Math.log(1 + (this.subtreeSize.get(n.id) || 1)) * 0.13) + featherW;
+        ctx.lineWidth = (1.0 + Math.min(0.55, Math.log(1 + (this.subtreeSize.get(n.id) || 1)) * 0.13)) * sc + featherW;
         ctx.globalAlpha = SHEEN_A * (rev < 1 ? rev : 1);   // fade the sheen in with the strand
         ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(ex, ey); ctx.stroke();
       }
@@ -15679,6 +15746,7 @@ class NetworkRenderer {
   _strokeStructure(ctx, brightness, cull, detailAmt) {
     const network = this.network;
     const r = this.config.render;
+    const sc = this._sc();   // organism scale — every world-unit size below is x this
     const fil = hexToRgb(r.filament);
     const cream = `rgb(${fil[0]},${fil[1]},${fil[2]})`;
     const warded = r.warded;   // strands hardened/immune by a defense card (cool cyan crust)
@@ -15726,7 +15794,7 @@ class NetworkRenderer {
         if (rev < 1) {
           const ex = p.x + (n.x - p.x) * rev, ey = p.y + (n.y - p.y) * rev;
           ctx.strokeStyle = strandColor(n);
-          ctx.lineWidth = 1.0 + Math.min(0.55, Math.log(1 + (this.subtreeSize.get(n.id) || 1)) * 0.13);
+          ctx.lineWidth = (1.0 + Math.min(0.55, Math.log(1 + (this.subtreeSize.get(n.id) || 1)) * 0.13)) * sc;
           ctx.globalAlpha = 0.95 * brightness * rev;
           ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(ex, ey); ctx.stroke();
           continue;                                   // no fuzz/fan/multi-strand while still growing
@@ -15748,10 +15816,10 @@ class NetworkRenderer {
       // Narrower spread between trunk and fine strands: thinner main cords, a
       // touch thicker secondaries (the trunks read too heavy before).
       const strands = s > 8 ? 2 : 1;
-      const baseW = 1.0 + Math.min(0.55, Math.log(1 + s) * 0.13);
-      const meander = Math.min(len * 0.22, 4.5) * (nh(n.id, 1) * 2 - 1);
+      const baseW = (1.0 + Math.min(0.55, Math.log(1 + s) * 0.13)) * sc;
+      const meander = Math.min(len * 0.22, 4.5 * sc) * (nh(n.id, 1) * 2 - 1);
       for (let k = 0; k < strands; k++) {
-        const o = (k - (strands - 1) / 2) * 1.2;
+        const o = (k - (strands - 1) / 2) * 1.2 * sc;
         const mx = (p.x + n.x) / 2 + perpx * (o + meander);
         const my = (p.y + n.y) / 2 + perpy * (o + meander);
         ctx.lineWidth = baseW * (0.8 + 0.4 * nh(n.id, k + 2));
@@ -15769,12 +15837,12 @@ class NetworkRenderer {
 
       // cottony fuzz — short fine hyphae radiating out, denser as the strand ages
       const fuzz = isTip ? Math.round(ageF * 2) : Math.round(ageF * 5);
-      ctx.lineWidth = 0.7;
+      ctx.lineWidth = 0.7 * sc;
       for (let f = 0; f < fuzz; f++) {
         const a = nh(n.id, f + 11) * 6.283;
-        const hl = 4 + 7 * nh(n.id, f + 23);
-        const mx = n.x + Math.cos(a) * hl * 0.5 + perpx * (nh(n.id, f + 31) * 2 - 1) * 1.4;
-        const my = n.y + Math.sin(a) * hl * 0.5 + perpy * (nh(n.id, f + 31) * 2 - 1) * 1.4;
+        const hl = (4 + 7 * nh(n.id, f + 23)) * sc;
+        const mx = n.x + Math.cos(a) * hl * 0.5 + perpx * (nh(n.id, f + 31) * 2 - 1) * 1.4 * sc;
+        const my = n.y + Math.sin(a) * hl * 0.5 + perpy * (nh(n.id, f + 31) * 2 - 1) * 1.4 * sc;
         ctx.globalAlpha = (0.3 + 0.2 * nh(n.id, f + 5)) * brightness * detailAmt;
         ctx.beginPath();
         ctx.moveTo(n.x, n.y);
@@ -15785,13 +15853,13 @@ class NetworkRenderer {
       // exploratory feather-fan at the growing tip
       if (isTip) {
         ctx.globalAlpha = 0.62 * brightness * detailAmt;
-        ctx.lineWidth = 0.7;
+        ctx.lineWidth = 0.7 * sc;
         const fan = 4 + Math.floor(nh(n.id, 5) * 3);
         for (let f = 0; f < fan; f++) {
           const a = baseAng + (f / (fan - 1) - 0.5) * 1.5 + (nh(n.id, f + 50) - 0.5) * 0.3;
-          const hl = 5 + 6 * nh(n.id, f + 60);
-          const mx = n.x + Math.cos(a) * hl * 0.55 + perpx * (nh(n.id, f) * 2 - 1) * 1.5;
-          const my = n.y + Math.sin(a) * hl * 0.55 + perpy * (nh(n.id, f) * 2 - 1) * 1.5;
+          const hl = (5 + 6 * nh(n.id, f + 60)) * sc;
+          const mx = n.x + Math.cos(a) * hl * 0.55 + perpx * (nh(n.id, f) * 2 - 1) * 1.5 * sc;
+          const my = n.y + Math.sin(a) * hl * 0.55 + perpy * (nh(n.id, f) * 2 - 1) * 1.5 * sc;
           ctx.beginPath();
           ctx.moveTo(n.x, n.y);
           ctx.quadraticCurveTo(mx, my, n.x + Math.cos(a) * hl, n.y + Math.sin(a) * hl);
@@ -22119,6 +22187,11 @@ function begin(newState) {
     coreLineDepth: CORE_LINE_DEPTH,
     coreTotalDepth: CORE_TOTAL_DEPTH,
     levels: allLevels,
+    // The active colony's renderer. The organism scale (growth.scale) lands half in the
+    // engine and half in the DRAWN sizes, and the drawn half exists nowhere else — the
+    // batched stroke widths are the only readable proof the thread got thicker along with
+    // the step, and reading them off pixels would be a coin toss against the soil.
+    netRenderer: () => rendererFor(state.active),
     saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
     forgetSaved: deleteSavedLevel,
     draw: () => resolveCardOp(drawCard(state)),

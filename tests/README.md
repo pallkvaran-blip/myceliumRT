@@ -41,6 +41,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `traced-check.cjs` | Every traced map (pass ids to narrow it): sprites decode, open space runs colony→goal on the real mask, no food sealed off, nothing drawn over a pathClear channel |
 | `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… |
 | `core-check.cjs` | The molten core: the growth floor IS the drawn line, rocks clip at it, the earth turns red, assets stamp into the deepest row, and procedural maps have none |
+| `scale-check.cjs` | The organism scale: every growth LENGTH is base × `growth.scale`, the ratios between them survive it, the step measures what the config says, the drawn thread scales with it, and the longer step doesn't hop a wall |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
@@ -111,6 +112,35 @@ Its density assertion measures over the **declared** box (`state.levelDef.world.
 the played one. An authored map's box is sized by the core constants, not by its JSON, so
 dividing by the played box put the same rock over a different denominator every time the world
 was resized and dropped three maps under the 15% floor for no reason of their own.
+
+### `scale` — the organism scale (`tests/scale-check.cjs`)
+
+`CONFIG.growth.scale` multiplies every world-unit length in `growth` once at module load, and
+`NetworkRenderer` scales its drawn thread and fuzz off the same number. Every way of getting
+that wrong is a PARTIAL application, and each is quiet: a longer step with the old
+`killDistance` overshoots its attractors and orbits a pile; a longer step with the old drawn
+width reads as a sparser colony, not a bigger one; a `minTipSpacing` scaled past
+`segmentLength` makes the colony reject its own new tips and growth just stops. So the check
+asserts the RATIOS (which must hold at any scale value) as well as base × scale, and reads
+both ends of the pipe — the engine's measured step and the renderer's stroke width.
+
+Writing it found a real bug. `_growStep` — the basic undirected Grow — tested only its
+ENDPOINT with `_placeOk`, never the segment, so any wall thinner than one step could be
+hopped. Swept over slate-c40 / obsidian-c55 / side-veined-c28 (every open point on a 9-unit
+grid, 16 headings), of the steps the endpoint test accepted **0.17-0.25% crossed rock at the
+old 17-unit step and 0.42-0.58% at 25.5** — lengthening the step widened a hole that was
+already open. It now goes through `_segmentClear` like every card grow primitive; that samples
+by DISTANCE, so a longer step just gets proportionally more samples.
+
+**Verified negative control**: with that one line put back to `_placeOk`, the probe reports 3
+wall-crossing strands of 865; with `_segmentClear`, 0 of ~840. The check also counts, on the
+map it uses, how many endpoint-legal steps would cross rock (~730) — if that were zero the
+map would have no thin walls and the two assertions after it would prove nothing.
+
+One harness note worth keeping: the food is a sparse lattice **re-seeded before every grow**,
+not one big pile. A pile the colony reaches is claimed and matted whole, and those mat hyphae
+(`colon`) land wherever the pile's cells are — with food everywhere, 6000 nodes came back and
+only ~20 of them were space-colonisation steps, so the probe was measuring the wrong rule.
 
 ### `core` — the molten core (`tests/core-check.cjs`)
 
