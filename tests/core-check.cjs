@@ -61,9 +61,10 @@ const decl=await p.evaluate(()=>{const d=window.__game.state.levelDef||{};
   return {h:(d.world||{}).height, sy:(d.world||{}).surfaceY};});
 ok('the level def keeps the height its tracer wrote', Math.abs(decl.h-1278.6)<0.01,
    `def height ${decl.h}, surfaceY ${decl.sy}`);
-ok('the content box runs 1.5x that depth, so the core has room to be deeper',
-   Math.abs((geom.worldHeight-geom.surfaceY) - (decl.h-decl.sy)*1.5) < 2,
-   `played depth ${Math.round(geom.worldHeight-geom.surfaceY)} vs declared ${Math.round(decl.h-decl.sy)}`);
+const mult=await p.evaluate(()=>window.__game.coreDepthMult);
+ok(`the content box runs ${mult}x that depth, so the core has room to be deeper`,
+   mult>1 && Math.abs((geom.worldHeight-geom.surfaceY) - (decl.h-decl.sy)*mult) < 2,
+   `played depth ${Math.round(geom.worldHeight-geom.surfaceY)} vs declared ${Math.round(decl.h-decl.sy)} x${mult}`);
 // 1.5 was asked for; the world cannot hold a line 1.5 content-depths down, so Substrate clamps
 // it to the floor. The clamp is the assertion: a fraction past 1 must NOT put the growth floor
 // below the cell grid, where _placeOk would happily grow into a gridless void.
@@ -167,6 +168,44 @@ ok('a rock dragged below the line is cut off by the core',
    clip.err || `rock centre ${clipped.onRock}, bare core ${clipped.bareCore} of [${(clipped.refs||[]).join(' ')}]`);
 await p.evaluate(()=>{const sub=window.__game.state.substrate,s=sub.levelSprites[0];
   if(s&&s._y0!=null){s.y=s._y0;sub._rockSolidified=false;}});
+
+// ---- assets can be placed ALL THE WAY DOWN --------------------------------
+// The world is now 1.8x the depth its JSON declares, and the bottom of it is where the extra
+// room actually is — so an editor that could only stamp into the top of the map would make the
+// whole extension useless. Place one of each stamped kind in the DEEPEST row, Apply, and
+// assert the world came back with them: these are the three that go through different paths
+// (stampFood writes nutrient cells, stampReservoir carves water and registers a pocket,
+// placeClouds seeds a mould field), so one of them working says nothing about the others.
+const deep=await p.evaluate(()=>{
+  const g=window.__game, sub=g.state.substrate;
+  const yDeep = sub.coreY - sub.cellSize;          // the last row of cells above the core
+  const x = sub.worldWidth*0.5;
+  g.rockEdit.on = true;
+  g.rockEdit.added.push({t:'food', kind:'duff', x:Math.round(x-300), y:Math.round(yDeep), r:1, energy:2});
+  g.rockEdit.added.push({t:'reservoir', key:'reservoir1', x:Math.round(x), y:Math.round(yDeep), r:72});
+  g.rockEdit.added.push({t:'trichoderma', x:Math.round(x+300), y:Math.round(yDeep)});
+  return {yDeep:Math.round(yDeep), rows:sub.rows, deepestRow:sub.rowAtY(yDeep)};
+});
+await p.evaluate(()=>document.querySelector('#eeApply').click());
+await sleep(2500);
+await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:90000}).catch(()=>{});
+const stamped=await p.evaluate((yDeep)=>{
+  const s=window.__game.state, sub=s.substrate;
+  const rowOf=(i)=>Math.floor(i/sub.cols);
+  const deepRow=sub.rowAtY(yDeep);
+  const pile=(sub.foodPiles||[]).find(pp=>pp.cells.some(i=>rowOf(i)>=deepRow-1));
+  const res=(sub.reservoirs||[]).find(r=>r.r1>=deepRow-1);
+  const cloud=(s.clouds||[]).find(c=>c.cy>=yDeep-60);
+  return {deepRow, rows:sub.rows,
+          food:!!pile, foodRow:pile?Math.max(...pile.cells.map(rowOf)):null,
+          reservoir:!!res, resRow:res?res.r1:null,
+          cloud:!!cloud, cloudY:cloud?Math.round(cloud.cy):null};
+}, deep.yDeep);
+ok('a leaf pile stamps in the deepest row', stamped.food && stamped.foodRow>=stamped.deepRow-1,
+   `row ${stamped.foodRow} of ${stamped.rows}`);
+ok('a reservoir carves water in the deepest row', stamped.reservoir,
+   `row ${stamped.resRow} of ${stamped.rows}`);
+ok('a mould cloud seeds in the deepest row', stamped.cloud, `y ${stamped.cloudY} vs ${deep.yDeep}`);
 await ctx.close();
 
 // ---- a procedural map has NO core ----------------------------------------
