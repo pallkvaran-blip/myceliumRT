@@ -99,7 +99,7 @@ is invisible from inside either mode. **Every retune has to move BOTH by the sam
 |---|---|---|
 | `trichoderma.moveSpeed` | 1.5 → **3.0** | 0.75 → **1.5** |
 | `nematodes.crawlSpeed` | 3.0 → 6.0 → **8.0** | 0.375 → 0.75 → **1.0** |
-| `trichoderma.spreadDepthPerTurn` | 6 → 18 → 40 → **16.5** | 1.5 → 4.5 → 10 → **4.125** |
+| `trichoderma.spreadDepthPerTurn` | 6 → 18 → 40 → 16.5 → **12** (= 4 steps) | 1.5 → 4.5 → 10 → 4.125 → **3** |
 | `trichoderma.infectionSpreadChance` | **1** — see below, this one is a trap | |
 | `nematodes.strandsPerBite` | 1 → 2 → **4** (one value, both modes) | |
 | `trichoderma.firstTouchRings` | 20 → **12** (one value, both modes) | |
@@ -226,6 +226,10 @@ CONFIG literal only.
   at 612 of 649 strands. A ring is one step along the filaments *in every direction at once*, so
   on a branching network N rings claims far more than N strands. That's why the exact-rate
   assertions run on a linear 160-strand chain, where rings and strands are 1:1.
+- **`turn-play` is an early-warning signal for threat balance.** At the pre-tuning rates (5.5
+  steps/action, 20-ring first touch) its 120-action session died after **2 actions** —
+  `over: true, alive: false`. It survives all 120 at the tuned rates. If it starts failing after
+  a threat change, the balance is the first thing to look at, not the harness.
 - **Three SLIDERS re-ceilinged / added**: mould creep 5→8 and worm speed 6→12 (both had to clear
   the turn-based table, which is the faster one — the worm slider had been pinned exactly at its
   live value), plus a new "Rot on First Touch".
@@ -946,8 +950,47 @@ tests/edit-check.cjs`) before doing anything else — the failure is silent, and
 symptom is usually an edit that "doesn't apply" because the text it targets is gone. Push
 often; anything uncommitted at the moment it happens is lost.
 
+## NEXT UP: the phased, animated enemy turn (turn-based only)
+
+**Agreed with the owner and NOT yet built.** The ask, in their words: *"enemies are still moving
+at the same time I do. I want to fully complete my growth, including the animation. Then and
+only then should the enemies make their move"* — and then *"animate the enemy movements so they
+move to their new locations over the course of 2 seconds or so, then they take their attack
+action if relevant (eat, infect, etc.)"*.
+
+Today `performAction` calls `tickWorld` inline, so the whole enemy turn resolves at the instant
+the player's growth STARTS animating. The target shape is: player acts → growth animates →
+enemies slide to their new positions over ~2 s → enemies attack.
+
+Everything needed already exists; this is plumbing plus one split:
+
+1. **`performAction` stops calling `tickWorld` in turn-based** and sets a pending-enemy-turn
+   flag on `state` instead.
+2. **`advanceSim` drives the phases.** It already runs in turn-based (it returns early only for
+   the *tick* loop — the animation clock above that keeps running), and it already has both
+   pieces: **`anyRevealing(time)`** is "the growth animation is still playing", and
+   **`snapshotThreatPositions()`** is the interpolation machinery real time already uses to
+   tween creatures between ticks. State machine: *wait* while `anyRevealing` → snapshot → run
+   the MOVE phase → hold ~2 s while the renderer interpolates → run the ATTACK phase.
+3. **The real work: split `tickWorld` into `'move'` and `'attack'`**, threading a phase argument
+   through `spreadTrichoderma` and `stepNematodes`. Both are already structured move-then-feed
+   after this session's changes, so the seam is in the right place: in `stepNematodes` the
+   `if (dist > reach) moveWorm(...)` and the `if (in reach) { breed; bite }` blocks are already
+   separate statements.
+
+Watch for: RT must be untouched (it drives `tickWorld` from the wall clock and has to keep
+doing both phases per tick); `turn-play` asserts every action advances the world **exactly one
+step**, so the deferred tick must still land once per action and not be droppable by a fast
+follow-up action; and the reveal can be arbitrarily long, so there needs to be a ceiling.
+
 ## Loose ends
 
+- **Three measuring PROBES live in `tests/` alongside the checks** — `spread-probe.cjs` (what
+  the rot actually advances per step vs the config), `worm-probe.cjs` (what share of worms can
+  move, and WHY the stuck ones are stuck), `hop-probe.cjs` (how often a growth step passes the
+  endpoint test while crossing rock). They print numbers rather than PASS/FAIL and are not in
+  the runner. Each found a real defect this session; each header says which, and `worm-probe`'s
+  header records how its first version misled me.
 - `CONFIG.dev.enabled` is `true` (dev buttons on screen). Flip it off for a public cut — and
   note it now gates more than buttons: the map switcher, the rock editor, the minimised
   carousel and the skipped level intro all read it.

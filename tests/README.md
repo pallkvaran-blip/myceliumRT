@@ -53,6 +53,15 @@ re-renders the row for legitimate reasons, and the copies reported failures they
 justify. `rt-test` keeps only the structural claims (the old dots are gone, a bar is drawn).
 If you add a churn assertion, give it a fresh page and pin resources.
 
+`spread-probe.cjs`, `worm-probe.cjs` and `hop-probe.cjs` aren't checks either — they print
+MEASUREMENTS, not PASS/FAIL, and aren't in the runner. Each exists because a number somewhere
+was not what the config claimed: what the rot really advances per step (the
+`infectionSpreadChance` cap), what share of worms can actually move and why the stuck ones are
+stuck, and how often a growth step clears the endpoint test while crossing rock. Re-run the
+relevant one after any change to those systems, and read `worm-probe`'s header before trusting
+it — its first version reused one colony across every sample and the worms ate it, which
+produced a clean-looking table supporting the wrong conclusion.
+
 `shot.cjs`, `hs-shot.cjs`, `lure-shot.cjs`, `core-shot.cjs` and `level-shots.cjs` aren't checks —
 they capture frames for eyeballing: the title screen, the leaderboard, the pointer lure, the
 whole-world core view, and every authored map. Every depth and colour decision in the core was
