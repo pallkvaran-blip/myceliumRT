@@ -573,6 +573,15 @@ background texture and it stays on there; on a traced map it reads as a second, 
 rocks sitting behind the real ones. `configForLevelDef` forces it false and a level can set
 `render.soilPebbles: true` to get them back.
 
+**A selected threat draws its SIGHT RANGE while you place it.** Placing a threat is a decision
+about what it can reach, and that was invisible at authoring time — the range only appeared in
+play, by tapping the creature. It goes through the same `drawOccludedSight` the game uses, so
+rays that hit rock stop at the rock face instead of bleeding through it: what you see is what
+it will see. `threatSight(o)` reads the radius from `state.config` (the LEVEL's config, so a
+map that tunes a range shows the tuned one) and is on `window.__game` so the numbers can be
+asserted without reading pixels. **Ants get none, deliberately** — a nest has no sight radius;
+its ants follow a trail pathed to food at build time, so a circle would be a lie.
+
 **Food piles are named by COLOUR in the editor, because that is what the map shows.**
 `drawSubstrateLeaves` keys the art off `cell.foodKind`: `duff` → yellow (hophornbeam,
 sassafras, mulberry, redbud, sycamore), `cache` → orange (leafOak/leafMaple),

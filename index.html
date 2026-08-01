@@ -21340,6 +21340,17 @@ function placeableFor(o) {
       || {};
 }
 
+// How far a placed threat can SEE, in world units, or 0 for one that has no sight at all.
+// Read from the level's own config rather than CONFIG, so a map that tunes a range shows the
+// range it tuned. Its own function so a test can assert the numbers without reading pixels.
+function threatSight(o) {
+  const cfg = (state && state.config) || {};
+  if (!o) return 0;
+  if (o.t === 'trichoderma') return (cfg.trichoderma && cfg.trichoderma.sightRadius) || 0;
+  if (o.t === 'nematode') return (cfg.nematodes && cfg.nematodes.sightRadius) || 0;
+  return 0;      // ants included: a nest's trail is pathed to food, it has no sight radius
+}
+
 function reSolidify() {
   const sub = state && state.substrate;
   if (sub) { sub._rockSolidified = false; sub._fineSolid = null; }
@@ -21949,6 +21960,7 @@ function begin(newState) {
     rockEdit,
     // The saved-map lineup. `saveAs` is the button's own path minus the prompt, so a test can
     // exercise the save without a dialog it cannot answer.
+    threatSight,
     levels: allLevels,
     saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
     forgetSaved: deleteSavedLevel,
@@ -24553,7 +24565,11 @@ function solidifyRock() {
 // into the soil like the procedural ones. No-op on generated maps.
 function drawLevelRocks() {
   const sprites = state.substrate.levelSprites;
-  if (!sprites || !sprites.length) return;
+  // NOT an early return on an empty list. The editor's markers and sight rings are drawn at
+  // the end of this function, and bailing here meant a map with no rocks — a fresh authored
+  // level, or one whose rocks you just deleted — showed no placements at all. The rock pass
+  // below is what needs the guard, not the whole function.
+  if (!sprites) return;
   const sub = state.substrate, z = camera.zoom, cs = sub.cellSize;
   const soil = _rgb(state.config.render.soilDeep || '#2a1d12');
   // A per-map look adjustment, applied to the ROCK only — the soil, the colony and the HUD
@@ -24596,6 +24612,25 @@ function drawLevelRocks() {
     }
   }
   ctx.restore();   // clip + filter
+
+  // A SELECTED threat's sight range, before its markers are drawn so the rings sit under them.
+  // Placing a threat is a decision about what it can reach, and until now that was invisible
+  // at authoring time — the range only appeared in play, by tapping the creature. Same
+  // drawOccludedSight the game uses, so what you see here is what it will actually see: rays
+  // that hit rock stop at the rock face rather than bleeding through it.
+  //
+  // Ants are absent deliberately — a nest has no sight radius. Its ants follow a trail that is
+  // pathed to food at build time, so there is no range to draw and a circle would be a lie.
+  if (typeof rockEdit !== 'undefined' && rockEdit.on && rockEdit.selAdded.size) {
+    for (const i of rockEdit.selAdded) {
+      const o = rockEdit.added[i];
+      if (!o) continue;
+      const sight = threatSight(o);
+      if (!(sight > 0)) continue;
+      drawOccludedSight(+o.x || 0, o.y != null ? +o.y : sub.surfaceY + 40, sight,
+                        o.t === 'trichoderma' ? '120,155,45' : '130,165,80', 0.28);
+    }
+  }
 
   // Pending placements, drawn as labelled markers. They are not in the world yet — see
   // PLACEABLE — so this is the only thing that shows where they will land.

@@ -229,6 +229,55 @@ ok('placements show in the count and flag the rebuild',
 const exported = await p.evaluate(()=>{ document.querySelector('#eeCopy').click(); return window.__levelJSON; });
 ok('pending objects reach the export', (JSON.parse(exported).objects||[]).filter(o=>o.t==='food'&&o.kind==='duff').length >= 3);
 
+// ---- a selected threat shows its vision range -----------------------------
+// Placing a threat is a decision about what it can REACH, and that was invisible while
+// authoring — the range only appeared in play, by tapping the creature.
+const sights = await p.evaluate(()=>{
+  const g=window.__game, c=g.state.config;
+  return {tri:g.threatSight({t:'trichoderma'}), nem:g.threatSight({t:'nematode'}),
+          ant:g.threatSight({t:'ant'}), food:g.threatSight({t:'food',kind:'duff'}),
+          cfgTri:c.trichoderma.sightRadius, cfgNem:c.nematodes.sightRadius};
+});
+ok('mould and worms report the level\'s own sight radius',
+   sights.tri===sights.cfgTri && sights.nem===sights.cfgNem && sights.tri>0, JSON.stringify(sights));
+ok('an ant nest reports none — its trail is pathed to food, it has no sight radius',
+   sights.ant===0 && sights.food===0, `ant ${sights.ant}, food ${sights.food}`);
+// And it must actually PAINT. Same frame, same camera, selected vs not: the glow covers a
+// 500-unit radius, so a patch offset from the marker brightens measurably. Directional, not a
+// tolerance — a "did the pixels change" test passes for a change of the wrong kind.
+// Save the marker list first — this probe replaces it with a single worm, and the block after
+// this one goes on using the leaf piles placed earlier.
+const keptAdded = await p.evaluate(()=>JSON.stringify(window.__game.rockEdit.added));
+await p.evaluate(()=>{
+  const g=window.__game, sub=g.state.substrate;
+  g.rockEdit.added.length=0; g.rockEdit.selAdded.clear();
+  g.rockEdit.added.push({t:'nematode', x:Math.round(sub.worldWidth*0.5), y:Math.round(sub.surfaceY+400)});
+  g.camera.zoom=1; g.camera.x=sub.worldWidth*0.5; g.camera.y=sub.surfaceY+400; g.camera.clamp();
+});
+await sleep(500);
+const glowPatch = () => p.evaluate(()=>{
+  const g=window.__game, o=g.rockEdit.added[0];
+  const c=[...document.querySelectorAll('canvas')].find(n=>n.clientHeight>0);
+  const x=c.getContext('2d'), k=c.height/c.clientHeight;
+  const pt=g.camera.worldToScreen(o.x+150, o.y);      // inside the ring, clear of the marker
+  const d=x.getImageData(Math.round(pt.x*k)-20, Math.round(pt.y*k)-20, 40, 40).data;
+  let sum=0; for(let i=0;i<d.length;i+=4) sum+=d[i]+d[i+1]+d[i+2];
+  return Math.round(sum/(d.length/4));
+});
+const glowOff = await glowPatch();
+await p.evaluate(()=>{ window.__game.rockEdit.selAdded=new Set([0]); }); await sleep(500);
+const glowOn = await glowPatch();
+// This runs at a point where every rock has been deleted, which is deliberate: drawLevelRocks
+// used to bail on an empty sprite list before it reached the editor overlay, so markers and
+// rings vanished on any map without rocks. If this passes, that path is covered too.
+ok('selecting a worm paints its sight range on the map', glowOn > glowOff,
+   `patch ${glowOff} unselected -> ${glowOn} selected`);
+await p.evaluate((json)=>{
+  const r=window.__game.rockEdit;
+  r.added.length=0; r.selAdded.clear();
+  for (const o of JSON.parse(json)) r.added.push(o);
+}, keptAdded);
+
 // ---- move and delete a PLACED object --------------------------------------
 // Named by COLOUR — that is what the map shows and so what the owner picks by. Assert the
 // label AND the foodKind it writes, or a rename could quietly point yellow at the red art.
