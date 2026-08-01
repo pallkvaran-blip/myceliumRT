@@ -106,7 +106,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~537 assertions across 16 checks. **Run them; don't verify by re-reading your own diff.**
+~541 assertions across 16 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
@@ -503,6 +503,14 @@ they cannot disagree. It is cheap because nothing is resampled.
 - Brightness / contrast / saturation apply to the rock ONLY, as a canvas filter rather than
   baked into the sprites — reversible, and collision reads alpha, which a colour filter
   cannot touch. Stored per level as `render.rockFilter`.
+- **The look is PER MAP, and `syncEditFilterToLevel()` is what makes that true.**
+  `rockEdit.filter` is module state and every map switch is a full restart, so it used to
+  carry over — and because `drawLevelRocks` prefers the live filter over the level's own
+  *whenever the editor is open*, the previous map's numbers were not merely shown on the
+  sliders, they were IMPOSED on the map you switched to, and the next save wrote them into
+  it (`editExport` reads the same object). The symptom was "the look isn't being saved".
+  The sync runs from `updateDevEditBtn` once per run, and resets to neutral first so a map
+  with no `rockFilter` comes up neutral instead of inheriting.
 - **Placements are pending markers until "Apply & rebuild".** Not laziness: a rock is a
   sprite, but water, food and threats are STAMPED into the substrate by `buildLevel` and
   nothing un-stamps them. Apply restarts through `createLevelState` with the edited def,
@@ -570,7 +578,7 @@ Save also copies the JSON out (clipboard + `window.__levelJSON`) and switches in
 map, which stamps any pending placements the same way Apply does. **localStorage is one
 browser profile: the map is only durable once its JSON is committed to `docs/levels/`.**
 
-`tests/edit-check.cjs` covers all of it (49 assertions) and asserts on `levelSprites`, not on
+`tests/edit-check.cjs` covers all of it (53 assertions) and asserts on `levelSprites`, not on
 the panel's labels. `rockEdit`, `levels`, `saveAs` and `forgetSaved` are on `window.__game` for
 that reason. The save-as block deliberately runs on a FRESH page load — the steps before it
 delete every rock, and a saved copy of an empty map cannot show that `assetsFrom` resolved.

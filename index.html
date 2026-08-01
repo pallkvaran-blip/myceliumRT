@@ -21387,6 +21387,32 @@ function editSelectAll() {
 
 // The edited level, in the shape of docs/levels/<id>.json. Non-rock objects (food, water)
 // pass through untouched — this pass is about the rock.
+// Load the look sliders FROM the level that just started, once per run.
+//
+// `rockEdit.filter` is module state and every map switch is a full restart, so without this it
+// simply carried over — and because drawLevelRocks prefers the live filter over the level's own
+// whenever the editor is open, the carried value did not merely mislead the sliders, it was
+// IMPOSED on the map you switched to. Save then wrote those numbers into it (editExport reads
+// the same object), which is how a per-map setting looked like it was never saved at all.
+//
+// Reset to neutral first: a map with no `rockFilter` must come up neutral, not inherit.
+function syncEditFilterToLevel() {
+  if (rockEdit._forState === state) return;
+  rockEdit._forState = state;
+  const rf = (state && state.config && state.config.render && state.config.render.rockFilter) || null;
+  rockEdit.filter = { brightness: 1, contrast: 1, saturate: 1 };
+  for (const k of ['brightness', 'contrast', 'saturate']) {
+    if (rf && rf[k] != null && isFinite(+rf[k])) rockEdit.filter[k] = +rf[k];
+  }
+  const p = document.getElementById('devEditPanel');
+  if (!p) return;
+  for (const [key, inp, out] of [['brightness', 'eeB', 'eeBv'], ['contrast', 'eeC', 'eeCv'], ['saturate', 'eeS', 'eeSv']]) {
+    const i = p.querySelector('#' + inp), o = p.querySelector('#' + out);
+    if (i) i.value = String(rockEdit.filter[key]);
+    if (o) o.textContent = rockEdit.filter[key].toFixed(2);
+  }
+}
+
 function editExport() {
   const def = state && state.levelDef;
   if (!def) return '{}';
@@ -21596,6 +21622,9 @@ function updateDevEditBtn() {
     };
   }
   if (btn) btn.style.display = '';
+  // AFTER the panel exists, so the first map's sliders get its values too. Runs on every
+  // begin() and no-ops unless the state actually changed.
+  syncEditFilterToLevel();
   updateEditPanel();
 }
 

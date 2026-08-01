@@ -284,6 +284,9 @@ await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true
 const srcRocks = await p.evaluate(()=>window.__game.state.substrate.levelSprites.length);
 await p.evaluate(()=>{ try { localStorage.removeItem('mycelium.savedLevels.v1'); } catch(_){} });
 await p.click('#devEditBtn'); await sleep(400);
+// Give this map a look BEFORE saving, so the saved copy has one to carry. The look is
+// per-map; the bug it guards is a module-global filter that survived a map switch.
+await p.evaluate(()=>{const i=document.querySelector('#eeB');i.value='1.6';i.dispatchEvent(new Event('input'));});
 // Go through the BUTTON, not the exposed helper: window.prompt is the whole reason the save
 // path can differ between hand-testing and here, so answer the dialog instead of routing round it.
 //
@@ -299,6 +302,7 @@ const sv = await p.evaluate(()=>{
   const d=window.__game.state.levelDef||{};
   return {id:d.id,name:d.name,chapter:d.chapter,from:d.assetsFrom,slot:d.campaignLevel,
           rocks:window.__game.state.substrate.levelSprites.length,
+          filter:(d.render||{}).rockFilter||null,
           stored:JSON.parse(localStorage.getItem('mycelium.savedLevels.v1')||'[]').map(l=>l.id)};
 });
 ok('save as slugs the name into an id', sv.id==='chapter-one-test', `id ${sv.id}, name "${sv.name}"`);
@@ -309,6 +313,41 @@ ok('it points at the source map for its sprites', sv.from==='slate-c24', String(
 // which looks like a successful save until you notice the rock is gone.
 ok('the saved map draws the source map\'s rocks', sv.rocks>0 && sv.rocks===srcRocks, `${sv.rocks} of ${srcRocks}`);
 ok('it is in localStorage', sv.stored.includes('chapter-one-test'), sv.stored.join(','));
+ok('the look settings are saved with the map',
+   !!sv.filter && Math.abs(sv.filter.brightness-1.6)<0.001, JSON.stringify(sv.filter));
+
+// ---- the look is PER MAP -------------------------------------------------
+// rockEdit.filter is module state and a map switch is a full restart, so it used to carry
+// over — and since drawLevelRocks prefers the live filter over the level's own while the
+// editor is open, the previous map's numbers were imposed on the map you switched to and
+// then written into it by the next save. Switch away, switch back, assert both directions.
+const readFilter = () => p.evaluate(()=>({
+  live:window.__game.rockEdit.filter.brightness,
+  slider:+document.querySelector('#eeB').value,
+  shown:document.querySelector('#eeBv').textContent,
+  id:(window.__game.state.levelDef||{}).id,
+}));
+const goMap = async (id) => {
+  await p.evaluate((i)=>{
+    const b=[...document.querySelectorAll('#devMapPanel button')].find(x=>x.title==='#level,'+i);
+    if (b) b.click();
+  }, id);
+  await p.waitForFunction((i)=>(window.__game.state.levelDef||{}).id===i,id,{timeout:30000}).catch(()=>{});
+  await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:90000}).catch(()=>{});
+  await sleep(400);
+};
+const f0 = await readFilter();
+ok('the saved map comes up with its own look', Math.abs(f0.live-1.6)<0.001 && Math.abs(f0.slider-1.6)<0.001,
+   JSON.stringify(f0));
+await goMap('slate-c40');
+const f1 = await readFilter();
+ok('switching to a map with no look resets the sliders',
+   f1.id==='slate-c40' && f1.live===1 && f1.slider===1 && f1.shown==='1.00', JSON.stringify(f1));
+await goMap('chapter-one-test');
+const f2 = await readFilter();
+ok('switching back restores the saved look',
+   f2.id==='chapter-one-test' && Math.abs(f2.live-1.6)<0.001 && Math.abs(f2.slider-1.6)<0.001 && f2.shown==='1.60',
+   JSON.stringify(f2));
 ok('it is in the lineup', await p.evaluate(()=>window.__game.levels().some(l=>l.id==='chapter-one-test')));
 ok('#level,<id> finds it', await p.evaluate(()=>{
   // levelById is module-scoped; the boot hash is the reachable proxy for it, and the dev map
