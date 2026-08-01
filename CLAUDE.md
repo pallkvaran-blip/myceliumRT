@@ -252,7 +252,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~694 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
+~730 assertions across 20 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
@@ -950,38 +950,36 @@ tests/edit-check.cjs`) before doing anything else — the failure is silent, and
 symptom is usually an edit that "doesn't apply" because the text it targets is gone. Push
 often; anything uncommitted at the moment it happens is lost.
 
-## NEXT UP: the phased, animated enemy turn (turn-based only)
+## The phased, animated enemy turn (turn-based only)
 
-**Agreed with the owner and NOT yet built.** The ask, in their words: *"enemies are still moving
-at the same time I do. I want to fully complete my growth, including the animation. Then and
-only then should the enemies make their move"* — and then *"animate the enemy movements so they
-move to their new locations over the course of 2 seconds or so, then they take their attack
-action if relevant (eat, infect, etc.)"*.
+**Built.** The ask, in the owner's words: *"enemies are still moving at the same time I do. I
+want to fully complete my growth, including the animation. Then and only then should the enemies
+make their move"* — then *"animate the enemy movements so they move to their new locations over
+the course of 2 seconds or so, then they take their attack action if relevant"*.
 
-Today `performAction` calls `tickWorld` inline, so the whole enemy turn resolves at the instant
-the player's growth STARTS animating. The target shape is: player acts → growth animates →
-enemies slide to their new positions over ~2 s → enemies attack.
+`performAction` no longer calls `tickWorld` inline in turn-based; it queues an **`enemyTurn`**
+on `state`, and `advanceSim` drives the phases: wait while `anyRevealing(time)` → snapshot
+positions → run the **MOVE** pass → hold ~2 s while the renderer interpolates → run the
+**ATTACK** pass. `tickWorld` takes a phase, threaded through `spreadTrichoderma` and
+`stepNematodes` — the seam sits where those were already move-then-feed.
 
-Everything needed already exists; this is plumbing plus one split:
+The three things that make it correct rather than merely animated, all asserted by
+`tests/enemy-turn-check.cjs` (36):
 
-1. **`performAction` stops calling `tickWorld` in turn-based** and sets a pending-enemy-turn
-   flag on `state` instead.
-2. **`advanceSim` drives the phases.** It already runs in turn-based (it returns early only for
-   the *tick* loop — the animation clock above that keeps running), and it already has both
-   pieces: **`anyRevealing(time)`** is "the growth animation is still playing", and
-   **`snapshotThreatPositions()`** is the interpolation machinery real time already uses to
-   tween creatures between ticks. State machine: *wait* while `anyRevealing` → snapshot → run
-   the MOVE phase → hold ~2 s while the renderer interpolates → run the ATTACK phase.
-3. **The real work: split `tickWorld` into `'move'` and `'attack'`**, threading a phase argument
-   through `spreadTrichoderma` and `stepNematodes`. Both are already structured move-then-feed
-   after this session's changes, so the seam is in the right place: in `stepNematodes` the
-   `if (dist > reach) moveWorm(...)` and the `if (in reach) { breed; bite }` blocks are already
-   separate statements.
+- **The split is real in BOTH directions.** A worm crawls in one phase and bites in the other; a
+  cloud creeps then devours; the rot races only on the attack. Asserting "it moved" alone would
+  pass an implementation that quietly did everything in one pass and animated afterwards.
+- **ONE world step per action, whatever the player does.** `turn-play` is the standing guard
+  here (every action advances the world exactly one step), and a deferred tick is exactly the
+  thing that can drop or double it. A burst of 20 fast actions — via `performAction` AND via
+  card plays, both paths — leaves exactly one step outstanding, and settling pays it: turn
+  2 → 22 for 20 actions, `0 of 20 dropped their owed step`.
+- **Real time is untouched.** It drives `tickWorld` from the wall clock and must keep doing both
+  phases per tick, so the check asserts the NEGATIVE: an RT action queues no `enemyTurn` and the
+  clock still advances the world on its own (turn 14 → 21 over 2.5 s).
 
-Watch for: RT must be untouched (it drives `tickWorld` from the wall clock and has to keep
-doing both phases per tick); `turn-play` asserts every action advances the world **exactly one
-step**, so the deferred tick must still land once per action and not be droppable by a fast
-follow-up action; and the reveal can be arbitrarily long, so there needs to be a ceiling.
+The reveal can be arbitrarily long, so the wait has a ceiling rather than trusting the animation
+to end.
 
 ## Loose ends
 
