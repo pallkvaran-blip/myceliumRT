@@ -21142,13 +21142,20 @@ const PLACEABLE = [
     make: (x, y) => ({ t: 'lake', key: 'lake2', x: Math.round(x), w: 396, h: 108 }) },
   { id: 'reservoir', label: 'Reservoir',  colour: '#7fd6f0',
     make: (x, y) => ({ t: 'reservoir', key: 'reservoir1', x: Math.round(x), y: Math.round(y), r: 72 }) },
-  { id: 'duff',      label: 'Leaf pile',  colour: '#e0a54a',
+  // The three food kinds, named by the COLOUR they are drawn in — which is what you see on
+  // the map and so what you pick by. The engine's own names say what each PAYS, and that
+  // goes in the tooltip. drawSubstrateLeaves keys the art off cell.foodKind:
+  //   duff         -> YELLOW_LEAF_KEYS  (hophornbeam, sassafras, mulberry, redbud, sycamore)
+  //   cache        -> leafOak / leafMaple, the orange pair
+  //   cache-engine -> RED_LEAF_KEYS     (maple, oak, sweetgum, japanese, dogwood, beech)
+  { id: 'duff',      label: 'Leaves — yellow', colour: '#e8c34a',
+    title: 'Yellow leaf litter (duff) — plain energy, no draft',
     make: (x, y) => ({ t: 'food', kind: 'duff', x: Math.round(x), y: Math.round(y), r: 1, energy: 2 }) },
-  { id: 'cache',     label: 'Nut cache',  colour: '#c98a3a',
+  { id: 'cache',     label: 'Leaves — orange', colour: '#e08a35',
+    title: 'Orange oak/maple litter (cache) — grants a card draft',
     make: (x, y) => ({ t: 'food', kind: 'cache', x: Math.round(x), y: Math.round(y), r: 1, energy: 4 }) },
-  // The third kind the engine knows (stampFood -> 'cache-engine'), drawn as red autumn
-  // leaves and the one that pays an engine card rather than plain energy.
-  { id: 'cache-engine', label: 'Engine cache', colour: '#d4564a',
+  { id: 'cache-engine', label: 'Leaves — red', colour: '#d4463a',
+    title: 'Red autumn litter (cache-engine) — grants an ENGINE card draft',
     make: (x, y) => ({ t: 'food', kind: 'cache-engine', x: Math.round(x), y: Math.round(y), r: 1, energy: 4 }) },
   { id: 'ant',       label: 'Ant',        colour: '#ff9f4a',
     make: (x, y) => ({ t: 'ant', x: Math.round(x) }) },
@@ -21361,6 +21368,7 @@ function updateDevEditBtn() {
     for (const pk of PLACEABLE) {
       const b = document.createElement('button');
       b.type = 'button'; b.textContent = pk.label; b.dataset.pk = pk.id;
+      if (pk.title) b.title = pk.title;      // what it PAYS; the label says what it looks like
       b.onclick = () => {
         rockEdit.place = (rockEdit.place === pk.id) ? null : pk.id;
         row.querySelectorAll('button').forEach((x) =>

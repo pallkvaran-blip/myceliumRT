@@ -129,8 +129,8 @@ ok('the level intro does not appear in dev', !(await p.$('#levelIntro')));
 // ---- placement -----------------------------------------------------------
 ok('placement buttons exist', await p.evaluate(()=>document.querySelectorAll('#eePlace button').length) >= 8,
    String(await p.evaluate(()=>document.querySelectorAll('#eePlace button').length)) + ' kinds');
-await p.evaluate(()=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent==='Leaf pile').click(); });
-ok('arming a kind', await p.evaluate(()=>window.__game && document.querySelector('#eePend').textContent.includes('Leaf pile')));
+await p.evaluate(()=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent==='Leaves — yellow').click(); });
+ok('arming a kind', await p.evaluate(()=>window.__game && document.querySelector('#eePend').textContent.includes('Leaves — yellow')));
 // drop three via a real canvas click
 for (const [cx,cy] of [[500,450],[700,500],[900,430]]) { await p.mouse.click(cx,cy); await sleep(150); }
 const pend = await p.evaluate(()=>document.querySelector('#eePend').textContent);
@@ -139,14 +139,47 @@ const exported = await p.evaluate(()=>{ document.querySelector('#eeCopy').click(
 ok('pending objects reach the export', (JSON.parse(exported).objects||[]).filter(o=>o.t==='food'&&o.kind==='duff').length >= 3);
 
 // ---- move and delete a PLACED object --------------------------------------
-ok('every food kind is offered',
-   await p.evaluate(()=>['Leaf pile','Nut cache','Engine cache']
+// Named by COLOUR — that is what the map shows and so what the owner picks by. Assert the
+// label AND the foodKind it writes, or a rename could quietly point yellow at the red art.
+ok('all three leaf colours are offered',
+   await p.evaluate(()=>['Leaves — yellow','Leaves — orange','Leaves — red']
      .every(l=>[...document.querySelectorAll('#eePlace button')].some(b=>b.textContent===l))));
+for (const [label, kind] of [['Leaves — yellow','duff'],['Leaves — orange','cache'],['Leaves — red','cache-engine']]) {
+  await p.evaluate((l)=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent===l).click(); }, label);
+  await p.mouse.click(640, 500); await sleep(150);
+  const got = await p.evaluate(()=>{ const a=window.__game.rockEdit.added; return a[a.length-1].kind; });
+  ok(`"${label}" writes foodKind ${kind}`, got === kind, `wrote ${got}`);
+  await p.evaluate(()=>{ const r=window.__game.rockEdit; r.added.pop(); });
+}
+// DISARM. A kind left armed turns the next click into another placement instead of a
+// selection, which is exactly how the two assertions below failed the first time this loop
+// existed — they were reporting a real behaviour of the tool, just not the one under test.
+await p.evaluate(()=>{
+  const cur = window.__game.rockEdit.place;
+  if (cur) [...document.querySelectorAll('#eePlace button')].find(b=>b.dataset.pk===cur).click();
+});
+await sleep(150);
 const p0 = await p.evaluate(()=>({n:window.__game.rockEdit.added.length, x:window.__game.rockEdit.added[0].x, y:window.__game.rockEdit.added[0].y}));
 // click the first marker (deselect the armed kind first, or the click places another)
-await p.evaluate(()=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent==='Leaf pile').click(); });
-const mk = await p.evaluate(()=>{ const o=window.__game.rockEdit.added[0];
-  const c=window.__game.camera.worldToScreen(o.x,o.y); return {x:Math.round(c.x),y:Math.round(c.y)}; });
+// Disarm whatever is armed — kind-agnostic. This used to click 'Leaf pile' to toggle OFF the
+// kind armed a moment earlier; once the per-colour loop above changed which kind that was,
+// the same click started ARMING one instead, and the drag below placed a new marker rather
+// than selecting the first.
+await p.evaluate(()=>{
+  const cur = window.__game.rockEdit.place;
+  if (cur) [...document.querySelectorAll('#eePlace button')].find(b=>b.dataset.pk===cur).click();
+});
+const mk = await p.evaluate(()=>{
+  const g=window.__game, o=g.rockEdit.added[0];
+  // Bring it into view first. Earlier steps move the camera (the clip test re-centres it on
+  // a sprite), and clicking where the marker USED to be just clicks empty map.
+  g.camera.x=o.x; g.camera.y=o.y; g.camera.clamp();
+  const c=g.camera.worldToScreen(o.x,o.y);
+  return {x:Math.round(c.x), y:Math.round(c.y), w:g.camera.viewW, h:g.camera.viewH};
+});
+await sleep(300);
+ok('the placed marker is on screen before the drag',
+   mk.x>0 && mk.y>0 && mk.x<mk.w && mk.y<mk.h, `at ${mk.x},${mk.y} of ${mk.w}x${mk.h}`);
 await p.mouse.move(mk.x, mk.y); await p.mouse.down();
 await p.mouse.move(mk.x+70, mk.y+40, {steps:6}); await p.mouse.up(); await sleep(200);
 const p1 = await p.evaluate(()=>({n:window.__game.rockEdit.added.length, x:window.__game.rockEdit.added[0].x, y:window.__game.rockEdit.added[0].y, sel:window.__game.rockEdit.selAdded.size}));
@@ -156,7 +189,7 @@ await p.keyboard.press('Delete'); await sleep(200);
 const p2 = await p.evaluate(()=>window.__game.rockEdit.added.length);
 ok('a placed object can be deleted', p2 === p1.n-1, `${p1.n} -> ${p2}`);
 // put one back so the apply step below still has something to stamp
-await p.evaluate(()=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent==='Leaf pile').click(); });
+await p.evaluate(()=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent==='Leaves — yellow').click(); });
 await p.mouse.click(760, 470); await sleep(200);
 // apply rebuilds the level
 await p.evaluate(()=>document.querySelector('#eeApply').click());
