@@ -12367,7 +12367,7 @@ function stampFood(sub, o, N) {
   sub.foodPiles.push(pile);
 }
 
-  return { LEVEL_FORMAT, LEVEL_VERSION, ROCK_TYPES, blankLevel, isLevel, configForLevelDef, buildLevel };
+  return { LEVEL_FORMAT, LEVEL_VERSION, ROCK_TYPES, CORE_DEPTH_MULT, blankLevel, isLevel, configForLevelDef, buildLevel };
 })();
 
 // ===================== src/engine/state.js =====================
@@ -20439,7 +20439,7 @@ function showCredits({ onClose } = {}) {
 const __m_main = (function () {
   const { CONFIG, isRealtime, setMode, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState } = __m_engine_state;
-  const { isLevel } = __m_engine_level;
+  const { isLevel, CORE_DEPTH_MULT } = __m_engine_level;
   const { levelForNumber, allLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
