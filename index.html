@@ -12093,24 +12093,27 @@ function isLevel(o) {
   return !!o && o.format === LEVEL_FORMAT && (o.version | 0) <= LEVEL_VERSION && Array.isArray(o.objects);
 }
 
-// How much deeper an authored map runs than the box its JSON declares — the room the core
-// needs. 1.5 is the depth the owner settled on: the traced art fills the top two-thirds and
-// the last third is open soil down to the molten floor. Raising this is the ONLY way to put
-// the line deeper, since the line cannot go below the cell grid (see configForLevelDef).
-// The world box every authored map is built to, in WORLD UNITS below surfaceY — absolute, not
-// a multiple of what each map's JSON declares, so every map in the campaign is the same size
-// whatever depth its tracer happened to pick (they range 799 to 1188).
+// The world every authored map is built to, in WORLD UNITS below surfaceY. Absolute, not a
+// multiple of what each map's JSON declares, so a campaign of them is one consistent size
+// whatever depth the tracer happened to pick (they range 799 to 1188).
 //
-// CONSEQUENCE, and it is visible: art deeper than CORE_LINE_DEPTH is below the line and gets
-// clipped by the core. At 1000 that is 48 of the 59 maps losing their lowest rock, and a map
-// declared deeper than CORE_BOX_DEPTH loses everything past it (three-ways, at 1188). Raise
-// these to keep more of the art; lower them for a tighter world.
-const CORE_BOX_DEPTH = 1100;
-// How deep the molten line sits, same units. Equal to CORE_BOX_DEPTH puts it on the floor and
-// the core shows only below the map; less lifts it, so the molten band is inside the world and
-// rocks dragged into it are clipped by it.
+// MEASURE THESE AGAINST THE WHOLE SCROLLABLE UNDERGROUND — the content box PLUS the camera's
+// bottom buffer — because that is what is on screen. Sizing the box alone is what made the
+// earlier numbers not match what the owner was reading off the map: a line 1000 down looks
+// like 31% of the world, not 91%, since the buffer under the map is two thirds of everything
+// you can scroll through.
 //
-const CORE_LINE_DEPTH = 1000;
+//   CORE_LINE_DEPTH   surface -> the molten line, and the whole playable depth: the line sits
+//                     on the content box's floor, so this IS the box.
+//   CORE_TOTAL_DEPTH  surface -> the very bottom. The remainder is the red band, held as
+//                     BUFFER rather than cells — the colony cannot cross the line, so rows
+//                     down there would be grid nobody can reach.
+//
+// Art below the line would be clipped by the core; at 1956 the deepest map (1188) clears it
+// with room to spare, so nothing is trimmed.
+const CORE_LINE_DEPTH = 1956;
+const CORE_TOTAL_DEPTH = 2608;
+const CORE_BOX_DEPTH = CORE_LINE_DEPTH;
 
 // A clone of `config` with the level's world box applied. The rest of CONFIG
 // (economy, threat behaviour, render) is untouched — an authored map changes
@@ -12138,6 +12141,8 @@ function configForLevelDef(config, level) {
   const _sy = cfg.world.surfaceY;
   cfg.world.height = _sy + CORE_BOX_DEPTH;
   cfg.world.coreDepthFrac = CORE_LINE_DEPTH / CORE_BOX_DEPTH;
+  // The red band below the line, and what sets the TOTAL depth you scroll through.
+  cfg.world.bottomBuffer = Math.max(0, CORE_TOTAL_DEPTH - CORE_BOX_DEPTH);
   if (w.coreDepthFrac !== undefined) cfg.world.coreDepthFrac = w.coreDepthFrac;
   // A TRACED map brings its own lighting, baked into the art by whatever drew it, and the
   // renderer's ambient pass then multiplies the whole underground by a warm tint
@@ -12378,7 +12383,7 @@ function stampFood(sub, o, N) {
   sub.foodPiles.push(pile);
 }
 
-  return { LEVEL_FORMAT, LEVEL_VERSION, ROCK_TYPES, CORE_BOX_DEPTH, CORE_LINE_DEPTH, blankLevel, isLevel, configForLevelDef, buildLevel };
+  return { LEVEL_FORMAT, LEVEL_VERSION, ROCK_TYPES, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH, blankLevel, isLevel, configForLevelDef, buildLevel };
 })();
 
 // ===================== src/engine/state.js =====================
@@ -14682,12 +14687,20 @@ class SubstrateRenderer {
     const cEdge = hexToRgb(r.coreEdge || '#2e0a06');
     const cMid = hexToRgb(r.coreMid || '#7d1a08');
     const cDeep = hexToRgb(r.coreDeep || '#d1490d');
-    // FAST, as asked: black to red over ~5% of the map's depth, starting a hair above the
-    // line so the line itself already reads warm. A slow fade made the whole lower half look
-    // like brown mud going slightly pink.
-    const t0 = cFrac != null ? cFrac - 0.012 : 0, t1 = cFrac != null ? cFrac + 0.05 : 1;
+    // THE MOLTEN RAMP IS IN WORLD UNITS, not fractions of the map's depth. It was fractional,
+    // and every time the world got resized the look changed with it — at a 1956-deep box the
+    // red arrived half as fast as it had at 900, because "18% of the depth" is a different
+    // distance in each. These are distances below the line, so the core looks the same
+    // whatever size the box is:
+    //   HEAT_W  the black -> red crossover, starting a hair ABOVE the line so the line itself
+    //           already reads warm
+    //   NEAR_W  how far it takes to reach the full blood red. Fast, or the band you play
+    //           against reads as dark mud.
+    // Past NEAR_W it heats slowly across whatever red band remains, which is what makes it
+    // read as a depth you are looking into rather than a coloured panel.
+    const HEAT_UP = 24, HEAT_W = 100, NEAR_W = 190;
     const smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
-    const maxDepth = gh / contentGh;      // drawn extent, in content-depth units (>1: the buffer)
+    const bandW = sub.coreY != null ? Math.max(1, (sy + gh) - sub.coreY) : 1;   // drawn red band
 
     for (let ty = 0; ty < th; ty++) {
       const worldY = sy + (ty / th) * gh;
@@ -14702,26 +14715,11 @@ class SubstrateRenderer {
         : lerpRgb(mid, deep, (dn - 0.35) / 0.65);
       let heat = 0;
       if (cFrac != null) {
-        heat = smooth((depth - t0) / (t1 - t0));
+        heat = smooth((worldY - (sub.coreY - HEAT_UP)) / (HEAT_W + HEAT_UP));
         if (heat > 0) {
-          // Below the line the red climbs with depth — the core is a place you are looking
-          // INTO, so it has to keep going somewhere. Normalised over the FULL DRAWN extent
-          // (content + the 2160-unit bottom buffer), not the content alone: against content
-          // depth the ramp hit its hottest colour at the content floor, which is inside the
-          // play area, and the lower half of every map came out a bright orange lava lamp.
-          // Over the drawn extent the band you actually play against stays a dark blood red
-          // and the heat is somewhere further down, which is what makes it read as depth.
-          // TWO ramps, because the two things being asked for pull in opposite directions.
-          // Near the line the red has to arrive FAST — a fifth of the map's depth gets you
-          // from almost-black to the full blood red, or the band you play against just reads
-          // as dark mud. Past that it heats slowly across the whole remaining drop into the
-          // bottom buffer, which is what makes it read as a depth you are looking into rather
-          // than a coloured panel. Normalising both against the drawn extent (the first
-          // attempt) made the near half far too subtle; normalising both against the content
-          // made the far half a bright orange lava lamp inside the play area.
-          const db = depth - cFrac;                       // how far below the line, in depths
-          const near = Math.min(1, db / 0.18);
-          const far = Math.min(1, Math.max(0, (db - 0.18) / Math.max(0.3, maxDepth - cFrac - 0.18)));
+          const dbW = worldY - sub.coreY;                 // world units below the line
+          const near = Math.min(1, dbW / NEAR_W);
+          const far = Math.min(1, Math.max(0, (dbW - NEAR_W) / Math.max(1, bandW - NEAR_W)));
           const molten = far > 0
             ? lerpRgb(cMid, cDeep, Math.pow(far, 1.8))
             : lerpRgb(cEdge, cMid, near);
@@ -20450,7 +20448,7 @@ function showCredits({ onClose } = {}) {
 const __m_main = (function () {
   const { CONFIG, isRealtime, setMode, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState } = __m_engine_state;
-  const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH } = __m_engine_level;
+  const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
   const { levelForNumber, allLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
@@ -22119,6 +22117,7 @@ function begin(newState) {
     // number in two more places and going stale the next time it moves.
     coreBoxDepth: CORE_BOX_DEPTH,
     coreLineDepth: CORE_LINE_DEPTH,
+    coreTotalDepth: CORE_TOTAL_DEPTH,
     levels: allLevels,
     saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
     forgetSaved: deleteSavedLevel,
