@@ -86,3 +86,11 @@ id. Set it to a number and that campaign level's generated map is replaced, in *
 - **Threat counts come from the map, not the campaign.** Authored spawns are placed exactly as
   listed; the campaign's per-level table only sets the respawn ceilings. A map plays the same
   in whatever slot it occupies.
+- **A `trichoderma`'s `r` is in CELLS.** `stampCloudField` does `reach = r * cellSize`, and the
+  config's own `cloudRadiusMin/Max` are 0.8–1.3 — so a world-unit value like 180 is a cloud
+  180 cells wide, i.e. the whole map under mould with nothing to say which object did it.
+  Omit `r` to take the config's size. `buildLevel` clamps it at 8 for exactly this reason.
+- **Authored maps bake no soil pebbles.** `configForLevelDef` forces `render.soilPebbles`
+  false: the ~160 dark ellipses `_bakeRocks` scatters through the earth are the procedural
+  game's background texture, and behind traced art they read as a second, cruder set of rocks.
+  Set `render.soilPebbles: true` in a level to get them back.

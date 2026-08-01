@@ -133,6 +133,36 @@ ok('the level intro does not appear in dev', !(await p.$('#levelIntro')));
 // ---- placement -----------------------------------------------------------
 ok('placement buttons exist', await p.evaluate(()=>document.querySelectorAll('#eePlace button').length) >= 8,
    String(await p.evaluate(()=>document.querySelectorAll('#eePlace button').length)) + ' kinds');
+// ---- the toolbar carries no prose, and folds away ------------------------
+ok('the toolbar has no instruction text',
+   await p.evaluate(()=>document.querySelectorAll('#devEditPanel .ee-hint').length)===0);
+await p.evaluate(()=>document.querySelector('#eeMin').click()); await sleep(200);
+// Assert the CONTROLS are gone, not just that a class landed — the class is my markup, the
+// hidden controls are what the owner asked for.
+const mini = await p.evaluate(()=>({
+  cls:document.getElementById('devEditPanel').classList.contains('min'),
+  place:getComputedStyle(document.getElementById('eePlace')).display,
+  btn:getComputedStyle(document.getElementById('eeMin')).display,
+}));
+ok('minimise folds the toolbar away but keeps its own button',
+   mini.cls && mini.place==='none' && mini.btn!=='none', JSON.stringify(mini));
+await p.evaluate(()=>document.querySelector('#eeMin').click()); await sleep(200);
+ok('and unfolds again',
+   await p.evaluate(()=>getComputedStyle(document.getElementById('eePlace')).display!=='none'));
+// ---- water: one button per ART -------------------------------------------
+// Three lake sprites and three reservoir sprites, told apart only by `key`. The bug this
+// guards is a single "Lake" button that always wrote lake2 whatever the map wanted.
+for (const [label, t, key] of [['Lake 1','lake','lake1'],['Lake 2','lake','lake2'],['Lake 3','lake','lake3'],
+                               ['Reservoir 1','reservoir','reservoir1'],['Reservoir 2','reservoir','reservoir2'],
+                               ['Reservoir 3','reservoir','reservoir3']]) {
+  await p.evaluate((l)=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent===l).click(); }, label);
+  await p.mouse.click(620, 480); await sleep(120);
+  const got = await p.evaluate(()=>{ const a=window.__game.rockEdit.added; return {t:a[a.length-1].t, key:a[a.length-1].key}; });
+  ok(`"${label}" writes ${t}/${key}`, got.t===t && got.key===key, JSON.stringify(got));
+  await p.evaluate(()=>{ window.__game.rockEdit.added.pop(); });
+}
+await p.evaluate(()=>{ const cur=window.__game.rockEdit.place;
+  if (cur) [...document.querySelectorAll('#eePlace button')].find(b=>b.dataset.pk===cur).click(); });
 await p.evaluate(()=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent==='Leaves — yellow').click(); });
 ok('arming a kind', await p.evaluate(()=>window.__game && document.querySelector('#eePend').textContent.includes('Leaves — yellow')));
 // drop three via a real canvas click
@@ -200,6 +230,41 @@ await p.evaluate(()=>document.querySelector('#eeApply').click());
 await sleep(2500);
 await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:60000}).catch(()=>{});
 ok('apply rebuilds the level', await p.evaluate(()=>!!(window.__game.state && window.__game.state.active)));
+
+// ---- no baked soil pebbles on an authored map ----------------------------
+// _bakeRocks scatters ~160 dark ellipses through the soil. That is the procedural game's
+// background texture; on a traced map it reads as a second, cruder set of rocks behind the
+// real ones. Assert the CONFIG the renderer reads, since the pebbles are baked into an
+// offscreen buffer and a pixel probe would be measuring the soil colour.
+ok('authored maps bake no soil pebbles',
+   await p.evaluate(()=>window.__game.state.config.render.soilPebbles===false),
+   String(await p.evaluate(()=>window.__game.state.config.render.soilPebbles)));
+
+// ---- trichoderma radius (regression) -------------------------------------
+// A cloud's `r` is in CELLS. The editor used to write 180 — a world-unit value — so ONE
+// placement came back after Apply as a 180-cell cloud, i.e. the whole map under mould. The
+// object must carry no `r` at all, and the stamped field must stay local.
+// Ensure the editor is ON rather than clicking the toggle blind — Apply rebuilds the level
+// but leaves rockEdit.on as it was, so a blind click turns the tool OFF and the map click
+// below pans the camera instead of placing anything.
+await p.evaluate(()=>{ if(!window.__game.rockEdit.on) document.querySelector('#devEditBtn').click(); });
+await sleep(300);
+await p.evaluate(()=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent==='Trichoderma').click(); });
+await p.mouse.click(700, 520); await sleep(200);
+const trObj = await p.evaluate(()=>{ const a=window.__game.rockEdit.added; return a[a.length-1]; });
+ok('a placed cloud carries no radius', trObj && trObj.t==='trichoderma' && trObj.r===undefined,
+   JSON.stringify(trObj));
+await p.evaluate(()=>document.querySelector('#eeApply').click());
+await sleep(2500);
+await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:60000}).catch(()=>{});
+const tr = await p.evaluate(()=>{
+  const s=window.__game.state, cells=s.substrate.cells;
+  let n=0; for (const c of cells) if (c.trich>0) n++;
+  return {clouds:(s.clouds||[]).length, r:(s.clouds||[]).map(c=>+c.r.toFixed(2)),
+          frac:+(n/cells.length).toFixed(3)};
+});
+ok('one placed cloud covers a corner of the map, not the map',
+   tr.clouds>=1 && tr.frac<0.05, `${tr.clouds} cloud(s) r=${tr.r.join(',')} covering ${(tr.frac*100).toFixed(1)}% of cells`);
 // tests/.artifacts/ like every other check, not a session scratchpad path — the scratchpad is
 // wiped with the container and a committed check must not depend on one session's directory.
 await p.screenshot({path:path.join(__dirname,'.artifacts','editor.png'),timeout:60000,animations:'disabled'});

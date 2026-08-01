@@ -1433,16 +1433,18 @@
     #devEditPanel label b { font-variant-numeric:tabular-nums; color:#fff; min-width:26px; }
     #devEditPanel input[type=range] { flex:1; min-width:52px; accent-color:#e6b45c; margin:0; }
     #devEditPanel .ee-row { display:flex; gap:5px; flex-wrap:wrap; align-items:center; }
-    /* The hint is the one thing that must not push the controls onto a second screen. */
-    #devEditPanel .ee-hint { flex:1 1 100%; order:99; margin:0; }
     #devEditPanel button { cursor:pointer; font:600 10.5px "Segoe UI", system-ui, sans-serif;
       color:#e6cf9a; background:rgba(230,180,92,0.10); border:1px solid rgba(230,180,92,0.4);
       border-radius:7px; padding:5px 9px; }
     #devEditPanel button:hover { background:rgba(230,180,92,0.24); color:#fff; }
-    #devEditPanel .ee-hint { font:400 10px/1.45 "Segoe UI", system-ui, sans-serif;
-      color:rgba(230,207,154,0.6); }
     #devEditPanel .ee-stat { font:600 10.5px "Segoe UI", system-ui, sans-serif; color:#fff;
       white-space:nowrap; }
+    /* MINIMISE. The strip is two rows deep with every kind on it, and the map underneath is
+       what you are actually looking at — so it collapses to its own button plus the counts,
+       rather than closing (closing drops the selection and the pending placements). */
+    #eeMin { flex:0 0 auto; order:-1; min-width:26px; text-align:center; }
+    #devEditPanel.min { max-height:none; padding-top:5px; padding-bottom:5px; }
+    #devEditPanel.min > *:not(#eeMin):not(.ee-stat) { display:none; }
     /* The panel is fixed to the top, so the two dev buttons under it would be covered. */
     #devEditPanel.open ~ #devMapBtn, #devEditPanel.open ~ #devEditBtn { top:auto; }
 
@@ -2119,6 +2121,10 @@ const CONFIG = {
     soilMid: '#45331e',
     soilDeep: '#2a1d12',
     rock: '#23262c',             // small buried pebbles
+    soilPebbles: true,           // bake those pebbles into the soil at all (SubstrateRenderer
+                                 //   _bakeRocks). Forced OFF for authored maps, where the real
+                                 //   rock is traced art and these read as a cruder set behind
+                                 //   it — see configForLevelDef / `render.soilPebbles`
     rockLip: '#3a4656',
     // impassable rock formations (cold dark slate)
     rockMass: '#1c2027',
@@ -11971,7 +11977,10 @@ const __m_engine_level = (function () {
 //                                             r = footprint radius in CELLS
 //   ant         { x }                         nest on the surface at this x
 //   nematode    { x, y }                      worm
-//   trichoderma { x, y, r }                   mould cloud
+//   trichoderma { x, y, r }                   mould cloud; r = radius in CELLS (NOT world
+//                                             units — stampCloudField multiplies by cellSize),
+//                                             omit for the config's own size. Clamped, because
+//                                             a world-unit value here fills the whole map.
 //   mountain    { key, x, w }                 surface mountain landmark (barrier); `key` picks
 //                                             which mountainN peak art (omit → the game shuffles)
 //   prop        { key, x, h, flip }           above-ground decor sprite standing on the soil
@@ -12039,7 +12048,14 @@ function configForLevelDef(config, level) {
   // wins here. Nothing sets it by default: turning the ambient pass off entirely also costs
   // the hazard glow and the sensing aura, which is a real loss and a decision for the map,
   // not for this function. scripts/trace-tuner.py writes the value the owner picks.
+  // Same argument for the baked soil pebbles (_bakeRocks): ~160 little dark ellipses with
+  // drop shadows scattered through the earth. They are the procedural game's background
+  // texture, and on a map whose rock was traced out of a rendered image they read as a
+  // second, cruder set of rocks BEHIND the real ones. Off for every authored map; a level
+  // that wants them back sets `render.soilPebbles: true`.
+  cfg.render.soilPebbles = false;
   const r = (level && level.render) || {};
+  if (r.soilPebbles != null) cfg.render.soilPebbles = r.soilPebbles;
   if (r.ambientLight != null) cfg.render.ambientLight = r.ambientLight;
   if (r.lighting != null) cfg.render.lighting = r.lighting;
   if (r.ambientWarmth != null) cfg.render.ambientWarmth = r.ambientWarmth;
@@ -12150,7 +12166,11 @@ function buildLevel(config, level) {
       }
       case 'ant':         spawns.ants.push(sub.colAtX(+o.x || 0)); break;
       case 'nematode':    spawns.nematodes.push({ x: +o.x || 0, y: +o.y || 0 }); break;
-      case 'trichoderma': spawns.clouds.push({ x: +o.x || 0, y: +o.y || 0, r: +o.r || 0 }); break;
+      // `r` is in CELLS. Clamped at 8 (about a quarter of the map's depth) because the unit
+      // is easy to get wrong and getting it wrong is catastrophic and silent: a world-unit
+      // radius reads as a cloud two hundred cells across, i.e. the entire level under mould,
+      // with nothing on screen to say which object did it. 0 means "use the config's size".
+      case 'trichoderma': spawns.clouds.push({ x: +o.x || 0, y: +o.y || 0, r: Math.min(8, +o.r || 0) }); break;
       default: break;
     }
   }
@@ -14471,7 +14491,12 @@ class SubstrateRenderer {
     this._bakeSky();
     this._bakeEarth();
     this._bakeVeins();
-    this._bakeRocks();
+    // Baked-in pebbles: ~160 little dark ellipses with drop shadows scattered through the
+    // soil. Right for a procedural map, wrong on a traced one — the map's own rock is a
+    // photographed-looking mass with its own lighting, and the pebbles read as a second,
+    // cruder set of rocks sitting in the background behind it. Off for authored maps
+    // (configForLevelDef), and per-level overridable via `render.soilPebbles`.
+    if (this.config.render.soilPebbles !== false) this._bakeRocks();
     this._bakeFlecks();
     this._bakeRockFormations();
     this._bakeHazards();
@@ -21228,11 +21253,23 @@ function deletePlaced() {
 // placement is held as a pending marker and takes effect on "Apply", which rebuilds the level
 // through the normal path with the edited definition. That is the honest version: the
 // alternative is a half-applied world where what you see and what the engine believes differ.
+//
+// Water comes in THREE arts each, and `key` is what picks one (LAKE_KEYS / RESERVOIR_KEYS).
+// One button per art rather than one button and a dropdown: the art is the whole reason to
+// choose, and the difference between reservoir1 and reservoir3 is a shape you have to see.
 const PLACEABLE = [
-  { id: 'lake',      label: 'Lake',       colour: '#5fc9e8',
+  { id: 'lake1',     label: 'Lake 1',     colour: '#5fc9e8',
+    make: (x, y) => ({ t: 'lake', key: 'lake1', x: Math.round(x), w: 396, h: 108 }) },
+  { id: 'lake2',     label: 'Lake 2',     colour: '#5fc9e8',
     make: (x, y) => ({ t: 'lake', key: 'lake2', x: Math.round(x), w: 396, h: 108 }) },
-  { id: 'reservoir', label: 'Reservoir',  colour: '#7fd6f0',
+  { id: 'lake3',     label: 'Lake 3',     colour: '#5fc9e8',
+    make: (x, y) => ({ t: 'lake', key: 'lake3', x: Math.round(x), w: 396, h: 108 }) },
+  { id: 'reservoir1', label: 'Reservoir 1', colour: '#7fd6f0',
     make: (x, y) => ({ t: 'reservoir', key: 'reservoir1', x: Math.round(x), y: Math.round(y), r: 72 }) },
+  { id: 'reservoir2', label: 'Reservoir 2', colour: '#7fd6f0',
+    make: (x, y) => ({ t: 'reservoir', key: 'reservoir2', x: Math.round(x), y: Math.round(y), r: 72 }) },
+  { id: 'reservoir3', label: 'Reservoir 3', colour: '#7fd6f0',
+    make: (x, y) => ({ t: 'reservoir', key: 'reservoir3', x: Math.round(x), y: Math.round(y), r: 72 }) },
   // The three food kinds, named by the COLOUR they are drawn in — which is what you see on
   // the map and so what you pick by. The engine's own names say what each PAYS, and that
   // goes in the tooltip. drawSubstrateLeaves keys the art off cell.foodKind:
@@ -21252,8 +21289,12 @@ const PLACEABLE = [
     make: (x, y) => ({ t: 'ant', x: Math.round(x) }) },
   { id: 'nematode',  label: 'Nematode',   colour: '#ff6f6f',
     make: (x, y) => ({ t: 'nematode', x: Math.round(x), y: Math.round(y) }) },
+  // NO `r`. A cloud's radius is in CELLS (stampCloudField: reach = r * cellSize, and the
+  // config's own cloudRadiusMin/Max are 0.8–1.3), so the world-unit 180 this used to write
+  // was a 180-CELL cloud — one placement turned the whole map green on the next rebuild.
+  // Omitting it takes the config's mid radius, which is what the hand-authored maps do.
   { id: 'trichoderma', label: 'Trichoderma', colour: '#9be86f',
-    make: (x, y) => ({ t: 'trichoderma', x: Math.round(x), y: Math.round(y), r: 180 }) },
+    make: (x, y) => ({ t: 'trichoderma', x: Math.round(x), y: Math.round(y) }) },
   { id: 'mountain',  label: 'Mountain',   colour: '#9aa8b6',
     make: (x, y) => ({ t: 'mountain', key: 'mountain2', x: Math.round(x), w: 324 }) },
   { id: 'city',      label: 'City',       colour: '#8fa0c0',
@@ -21261,6 +21302,16 @@ const PLACEABLE = [
   { id: 'prop',      label: 'House',      colour: '#c0d0a0',
     make: (x, y) => ({ t: 'prop', key: 'house', x: Math.round(x), h: 104 }) },
 ];
+
+// Which PLACEABLE made this object. `kind` for the food colours, `t` for the threats and the
+// surface decor, and `key` LAST for water — the lakes and reservoirs share one `t` each and
+// are told apart only by their art. Order matters: mountain/city/prop carry a `key` too
+// ('mountain2', 'skyline3'), and those are not placeable ids.
+function placeableFor(o) {
+  return PLACEABLE.find((q) => q.id === (o.kind || o.t))
+      || PLACEABLE.find((q) => q.id === o.key)
+      || {};
+}
 
 function reSolidify() {
   const sub = state && state.substrate;
@@ -21411,14 +21462,16 @@ function updateEditPanel() {
     st.textContent = np ? `${np} placed selected`
       : n ? `${n} of ${tot} rocks` : `${tot} rocks`;
   }
+  // STATE, not instructions: what is armed and how much is waiting on Apply. Both are things
+  // you cannot read off the map — an armed kind changes what the next click does, and a
+  // pending placement is a marker that is not in the world yet.
   const pend = p.querySelector('#eePend');
   if (pend) {
     const k = rockEdit.place ? (PLACEABLE.find((q) => q.id === rockEdit.place) || {}).label : null;
-    pend.innerHTML = (k ? `<b>Click the map to drop a ${k}.</b> ` : 'Click a kind, then click the map. ')
-      + (rockEdit.added.length
-          ? `<b>${rockEdit.added.length} pending</b> — Apply to stamp them into the world.`
-          : 'Placements are markers until <b>Apply</b>: water, food and threats are stamped when '
-            + 'the level is built, so they need a rebuild to become real.');
+    const bits = [];
+    if (k) bits.push('placing ' + k);
+    if (rockEdit.added.length) bits.push(rockEdit.added.length + ' pending');
+    pend.textContent = bits.join(' · ');
   }
 }
 function updateDevEditBtn() {
@@ -21448,7 +21501,12 @@ function updateDevEditBtn() {
   }
   if (!panel && ui0) {
     panel = document.createElement('div'); panel.id = 'devEditPanel';
+    // No instructions. They were four lines of prose across the top of the map, read once,
+    // and then in the way for the rest of the session — the shortcuts are in CLAUDE.md and
+    // the buttons say what they do. `#eeSel` and `#eePend` stay, because those are STATE
+    // (what is selected, what is pending), which is the one thing the strip has to show.
     panel.innerHTML =
+      '<button id="eeMin" type="button" title="Minimise the toolbar">&#9650;</button>' +
       '<h4>Rock editor</h4>' +
       '<div class="ee-stat" id="eeSel"></div>' +
       '<div class="ee-row">' +
@@ -21460,15 +21518,9 @@ function updateDevEditBtn() {
         '<button id="eeBig">Bigger</button><button id="eeSml">Smaller</button>' +
         '<button id="eeRotL">Rotate &#8630;</button><button id="eeRotR">Rotate &#8631;</button>' +
       '</div>' +
-      '<p class="ee-hint">Drag a rock to move it. Shift-click adds to the selection. ' +
-      'Arrows nudge, Shift-arrows nudge far. <b>+</b>/<b>&minus;</b> resize, ' +
-      '<b>,</b>/<b>.</b> rotate, <b>Delete</b> removes. <b>Ctrl+A</b> selects every rock, ' +
-      'so the whole map moves, scales and rotates as one.</p>' +
       '<h4>Place</h4>' +
       '<div class="ee-row" id="eePlace"></div>' +
-      '<p class="ee-hint" id="eePend">Click a kind, then click the map. ' +
-      'Placements are markers until <b>Apply</b> — water, food and threats are stamped into ' +
-      'the world when the level is built, so they need a rebuild to become real.</p>' +
+      '<div class="ee-stat" id="eePend"></div>' +
       '<div class="ee-row"><button id="eeApply">Apply &amp; rebuild</button>' +
       '<button id="eeClearAdd">Clear pending</button></div>' +
       '<h4>All rocks on this map</h4>' +
@@ -21478,11 +21530,7 @@ function updateDevEditBtn() {
       '<div class="ee-row"><button id="eeReset">Reset look</button></div>' +
       '<h4>Save</h4>' +
       '<div class="ee-row"><button id="eeSaveAs">Save as&hellip;</button>' +
-      '<button id="eeCopy">Copy JSON</button></div>' +
-      '<p class="ee-hint"><b>Save as</b> names a copy and adds it to the map list under ' +
-      '<b>Chapter 1</b>, kept in this browser. Paste the JSON over ' +
-      '<code>docs/levels/&lt;id&gt;.json</code> to keep it for good — nothing is written ' +
-      'to disk from the browser.</p>';
+      '<button id="eeCopy">Copy JSON</button></div>';
     ui0.appendChild(panel);
     const $ = (id) => panel.querySelector('#' + id);
     const row = $('eePlace');
@@ -21498,6 +21546,11 @@ function updateDevEditBtn() {
       };
       row.appendChild(b);
     }
+    $('eeMin').onclick = () => {
+      const min = panel.classList.toggle('min');
+      $('eeMin').innerHTML = min ? '&#9660;' : '&#9650;';
+      $('eeMin').title = min ? 'Show the toolbar' : 'Minimise the toolbar';
+    };
     $('eeApply').onclick = editApply;
     $('eeClearAdd').onclick = () => { rockEdit.added = []; updateEditPanel(); uiDirty = true; };
     $('eeAll').onclick = editSelectAll;
@@ -24368,7 +24421,7 @@ function drawLevelRocks() {
     ctx.font = '600 11px "Segoe UI", system-ui, sans-serif';
     ctx.textAlign = 'center';
     for (const o of rockEdit.added) {
-      const pk = PLACEABLE.find((q) => q.id === (o.kind || o.t)) || {};
+      const pk = placeableFor(o);
       const col = pk.colour || '#ffd27f';
       const c = camera.worldToScreen(+o.x || 0, o.y != null ? +o.y : sub.surfaceY + 40);
       const isSel = rockEdit.selAdded.has(rockEdit.added.indexOf(o));
@@ -24378,7 +24431,7 @@ function drawLevelRocks() {
       ctx.beginPath(); ctx.arc(c.x, c.y, isSel ? 15 : 13, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(c.x, c.y, 3, 0, Math.PI * 2); ctx.fill();
-      ctx.fillText(o.kind || o.t, c.x, c.y - 19);
+      ctx.fillText(pk.label || o.kind || o.t, c.x, c.y - 19);
     }
     ctx.restore();
   }

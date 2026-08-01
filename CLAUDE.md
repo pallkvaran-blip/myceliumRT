@@ -106,7 +106,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~525 assertions across 16 checks. **Run them; don't verify by re-reading your own diff.**
+~537 assertions across 16 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
@@ -495,7 +495,11 @@ they cannot disagree. It is cheap because nothing is resampled.
 
 - click / shift-click to select, drag to move, arrows to nudge, `+`/`-` resize, `,`/`.`
   rotate, Delete, **Ctrl+A** for every rock. Transforms are about the SELECTION's centre, so
-  scaling a group holds its composition instead of shrinking each rock in place.
+  scaling a group holds its composition instead of shrinking each rock in place. **Those
+  shortcuts are only written down here** — the toolbar used to carry them as four lines of
+  prose across the top of the map, which is read once and in the way after that.
+- The strip **minimises** (`▲`) rather than closing: closing drops the selection and every
+  pending placement. Minimised it keeps its own button and the two status readouts.
 - Brightness / contrast / saturation apply to the rock ONLY, as a canvas filter rather than
   baked into the sprites — reversible, and collision reads alpha, which a colour filter
   cannot touch. Stored per level as `render.rockFilter`.
@@ -511,6 +515,25 @@ they cannot disagree. It is cheap because nothing is resampled.
 - Level rocks are clipped to `y >= surfaceY`, so a rock dragged up is cut off at the soil
   line. Clipping rather than reordering the draw: rocks must stay UNDER the lakes and
   reservoirs drawn immediately after them.
+
+**Water is one button per ART, not one button per type.** There are three lake sprites and
+three reservoir sprites (`LAKE_KEYS` / `RESERVOIR_KEYS`), told apart only by the object's
+`key` — so `t` alone cannot say which placeable made an object, and `placeableFor()` falls
+back to `key` after `kind` and `t`. (Not `key` first: mountain/city/prop carry keys too, and
+`mountain2` is not a placeable id.)
+
+**A trichoderma cloud's `r` is in CELLS, not world units.** `stampCloudField` does
+`reach = r * cellSize`, and the config's own `cloudRadiusMin/Max` are 0.8–1.3. The editor
+wrote `r: 180` — a world-unit value — so one placement came back from Apply as a 180-cell
+cloud and the whole map was under mould. It now writes no `r` at all (the config's mid radius,
+which is what the hand-authored maps do), and `buildLevel` clamps the field at 8 cells because
+the failure is catastrophic and silent: nothing on screen says which object did it.
+
+**`render.soilPebbles` is OFF for authored maps.** `SubstrateRenderer._bakeRocks` scatters
+~160 small dark ellipses with drop shadows through the soil. That is the procedural game's
+background texture and it stays on there; on a traced map it reads as a second, cruder set of
+rocks sitting behind the real ones. `configForLevelDef` forces it false and a level can set
+`render.soilPebbles: true` to get them back.
 
 **Food piles are named by COLOUR in the editor, because that is what the map shows.**
 `drawSubstrateLeaves` keys the art off `cell.foodKind`: `duff` → yellow (hophornbeam,
@@ -547,7 +570,7 @@ Save also copies the JSON out (clipboard + `window.__levelJSON`) and switches in
 map, which stamps any pending placements the same way Apply does. **localStorage is one
 browser profile: the map is only durable once its JSON is committed to `docs/levels/`.**
 
-`tests/edit-check.cjs` covers all of it (37 assertions) and asserts on `levelSprites`, not on
+`tests/edit-check.cjs` covers all of it (49 assertions) and asserts on `levelSprites`, not on
 the panel's labels. `rockEdit`, `levels`, `saveAs` and `forgetSaved` are on `window.__game` for
 that reason. The save-as block deliberately runs on a FRESH page load — the steps before it
 delete every rock, and a saved copy of an empty map cannot show that `assetsFrom` resolved.
