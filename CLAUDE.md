@@ -224,52 +224,72 @@ Harness traps that have cost real time:
 
 ## The core (the molten floor)
 
-A second hard boundary, the mirror of the soil line. `world.coreDepthFrac` (a fraction of the
-content depth, `surfaceY`→`height`) puts `substrate.coreY`; below it the earth is molten rock.
-**Depth is the WORLD'S HEIGHT, not the fraction.** The line cannot go below the cell grid — a
-fraction past 1 is clamped, because a growth floor under no cells would let the colony grow into
-a gridless void and a line drawn there would leave soil you can see but cannot enter. So an
-authored map's content box is extended by **`CORE_DEPTH_MULT` (1.5)** over what its JSON
-declares and the core sits at the new floor. The map's objects keep their absolute coordinates,
-so traced art stays put and the extra depth arrives as open soil beneath it. The multiplier is
-applied to the CONFIG, never to the level, so `def.world.height` round-trips through a save
-unchanged instead of compounding. Raising `CORE_DEPTH_MULT` is the only way to go deeper.
-`coreDepthFrac` under 1 brings the line back up INSIDE the map; `null` means no core at all.
-Three things key off that one number:
+A second hard boundary, the mirror of the soil line: below `substrate.coreY` the earth is molten
+rock. Two constants in `__m_engine_level` size it, in WORLD UNITS below `surfaceY`:
+
+```
+CORE_LINE_DEPTH   1630   surface -> the line. ALSO the whole playable depth and the content
+                         box: the line sits on the box's floor.
+CORE_TOTAL_DEPTH  2608   surface -> the very bottom. The remainder is the red band, held as
+                         `bottomBuffer` rather than cells.
+```
+
+**MEASURE THESE AGAINST THE WHOLE SCROLLABLE UNDERGROUND — box + camera buffer.** That is what
+is on screen, and getting it wrong cost several rounds: a line 1000 down is 91% of a 1100 box
+but only 31% of what you can scroll through, so "the line is at about 40" matched nothing that
+had been set. The owner's 100 is the pre-core world, 3260 units (1100 box + 2160 buffer).
+
+They are absolute, NOT a multiple of what each map's JSON declares (the tracer picked between
+799 and 1188), so a campaign of authored maps is one consistent size. Applied to the CONFIG,
+never to the level, so `def.world.height` round-trips through Copy JSON / Save as… unchanged
+rather than baking today's box into the file. **Art below the line is clipped by the core** —
+at 1630 the deepest map (1188) clears it, but at 1000 it did not and 48 of the 59 lost their
+lowest rock, so check that before lowering it. The red band is buffer rather than cells on
+purpose: the colony cannot cross the line, so rows down there would be grid nobody can reach.
+
+Three things key off `coreY`:
 
 - **`substrate.growFloorY`** is what `Network._placeOk` tests — the core when there is one, the
-  content floor otherwise, with the same ±2 margin the soil line uses.
+  content floor otherwise, with the same ±2 margin the soil line uses. `world.coreDepthFrac`
+  is the per-level knob (a fraction of the box); past 1 it is CLAMPED, because a growth floor
+  under no cells would let the colony grow into a gridless void. `null` means no core at all.
 - **`drawLevelRocks` clips at it**, exactly as it clips at `surfaceY`. A rock dragged below the
   line is cut off by the core the way one dragged up is cut off by the sky. Collision below the
   line is deliberately left alone — the colony cannot reach it, so an invisible wall down there
   is unreachable rather than unfair.
 - **`_bakeEarth` paints it.** The soil ramp is compressed to finish AT the line (so the earth
-  reaches near-black just as the red takes over — "black to red", not "brown to red"), then two
-  molten ramps: `cEdge`→`cMid` over the first 0.18 of depth so the red arrives FAST, then
-  `cMid`→`cDeep` across the whole remaining drop into the bottom buffer so it keeps heating.
-  Getting that split wrong is visible and was wrong twice — normalising the far ramp against
-  content depth put its hottest colour at the content floor and the lower half of every map
+  reaches near-black just as the red takes over — "black to red", not "brown to red"), then
+  `cEdge`→`cMid` over `NEAR_W` and `cMid`→`cDeep` across whatever red band remains.
+  **Those are WORLD UNITS (`HEAT_UP`/`HEAT_W`/`NEAR_W`), and that matters** — they were
+  fractions of content depth, so every resize changed the look: at a 1956-deep box the red
+  arrived half as fast as at 900, because "18% of the depth" is a different distance in each.
+  The split was wrong twice before that, both visibly — normalising the far ramp against
+  content depth put its hottest colour inside the play area and the lower half of every map
   came out a bright orange lava lamp; normalising both ramps against the drawn extent made the
-  band you actually play against read as dark mud. The soil-ramp compression is a no-op at
-  frac 1 (the ramp already finishes at the floor), so the "black to red" reading comes from the
-  map's own deepest soil meeting the core.
+  band you play against read as dark mud.
 
-**It is OFF by default and turned on only for AUTHORED maps** (`configForLevelDef`). Not a style
-choice: the procedural generator spreads food, reservoirs and formations across the full content
-depth, so a core at 0.5 strands about half of every generated map's resources below a line the
+**It is OFF for PROCEDURAL maps and on only for AUTHORED ones** (`configForLevelDef`). Not a
+style choice: the generator spreads food, reservoirs and formations across the full content
+depth, so a core would strand about half of every generated map's resources below a line the
 colony cannot cross — and procedural rock is drawn by `drawRockPiles`/`drawRockFormations`,
-which the clip does not cover, so it floats on the red as well. The 100-level campaign is the
-shipped game; it keeps its whole world until generation is taught about the core. An authored
-map places its own food by hand, so it has neither problem — and the extended box is applied
-in the same place, so a procedural map keeps its declared height too.
+which the clip does not cover, so it floats on the red as well. Both were visible in one
+screenshot of `#dev,turn`. The 100-level campaign is the shipped game; it keeps its whole world
+until generation is taught about the core.
 
-`tests/core-check.cjs` (10 assertions) covers the lot, including that a fraction past 1 is
-clamped rather than put through. Its hue assertion is calibrated against the NULL case (no core:
-lead ~28 below vs ~28 above; with core: ~79), not off a passing run. Its clip assertion has a
-**verified negative control** — with the clip removed the rock centre reads 84 against bare core 242, a gap
-of 158 against a tolerance of 30; with it, 176 against 184. Run that control before trusting any
-similar pixel test here, because three earlier versions of the above-ground clip assertion
-passed with the feature deleted.
+`tests/core-check.cjs` (15 assertions) covers the lot, including that assets still stamp into
+the DEEPEST row (food, water and threats take three different paths into the world, so one
+working says nothing about the others). Its hue assertion is calibrated against the NULL case
+(no core: lead ~28 below vs ~28 above; with core: ~79), not off a passing run. Its clip
+assertion has a **verified negative control** — with the clip removed the rock centre reads 84
+against bare core 242, a gap of 158 against a tolerance of 30; with it, 176 against 184. Run
+that control before trusting any similar pixel test here, because three earlier versions of the
+above-ground clip assertion passed with the feature deleted.
+
+**Every consumer derives the numbers from `window.__game`** (`coreBoxDepth`, `coreLineDepth`,
+`coreTotalDepth`) instead of repeating them, so changing the depth is one edit. Two checks went
+stale before that was true — `level-check` hard-coded its row count, and `traced-check` divided
+density by the whole box when the extension is deliberately empty soil, which dropped three
+maps under the 15% floor for no reason of their own.
 
 ## Authored maps
 

@@ -38,9 +38,9 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `fixes-check.cjs` | Surface-only win, no unprompted pile claims, SURVIVAL placement, dots vs bars |
 | `mode-check.cjs` | Both games in one build: title buttons, per-mode tuning, clock behaviour |
 | `lure-check.cjs` | Title screen: strands creep to the cursor, branch, trail off, stop on leave |
-| `traced-check.cjs` | The traced map "Maze One": 68 sprites decode, open space runs colony→goal on the real mask, no food sealed off, nothing drawn over a pathClear channel |
+| `traced-check.cjs` | Every traced map (pass ids to narrow it): sprites decode, open space runs colony→goal on the real mask, no food sealed off, nothing drawn over a pathClear channel |
 | `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… |
-| `core-check.cjs` | The molten core: the growth floor IS the drawn line, rocks clip at it, the earth turns red, and procedural maps have none |
+| `core-check.cjs` | The molten core: the growth floor IS the drawn line, rocks clip at it, the earth turns red, assets stamp into the deepest row, and procedural maps have none |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
@@ -51,8 +51,10 @@ re-renders the row for legitimate reasons, and the copies reported failures they
 justify. `rt-test` keeps only the structural claims (the old dots are gone, a bar is drawn).
 If you add a churn assertion, give it a fresh page and pin resources.
 
-`shot.cjs`, `hs-shot.cjs`, `lure-shot.cjs` aren't checks — they just capture screenshots of the
-title screen, the leaderboard and the pointer lure for eyeballing.
+`shot.cjs`, `hs-shot.cjs`, `lure-shot.cjs`, `core-shot.cjs` and `level-shots.cjs` aren't checks —
+they capture frames for eyeballing: the title screen, the leaderboard, the pointer lure, the
+whole-world core view, and every authored map. Every depth and colour decision in the core was
+made by looking at `core-shot`'s frame, not by reading a number.
 
 ## Writing another one
 
@@ -97,6 +99,18 @@ sprite lookup (a saved map has a new id and no `assets/<id>/` folder — it reso
 `assetsFrom`). A saved copy of an empty map cannot tell you whether that worked. It answers the
 `window.prompt` through Playwright's dialog handler rather than calling the exposed helper,
 because the prompt is precisely where the button path and a scripted save could differ.
+
+### `traced` — pass ids to narrow it
+
+`node tests/traced-check.cjs obsidian slate` runs only the matching maps: ~20 seconds against
+~15 minutes for all 59. The runner still sweeps everything, but while iterating on a change
+that affects every map equally — world depth, the density metric, a render change — one map
+answers the same question and the sweep is pure cost.
+
+Its density assertion measures over the **declared** box (`state.levelDef.world.height`), not
+the played one. An authored map's box is sized by the core constants, not by its JSON, so
+dividing by the played box put the same rock over a different denominator every time the world
+was resized and dropped three maps under the 15% floor for no reason of their own.
 
 ### `core` — the molten core (`tests/core-check.cjs`)
 
