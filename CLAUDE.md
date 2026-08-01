@@ -90,7 +90,7 @@ other — a worm creeping 0.375 cells/tick would barely move if it only stepped 
 
 ### Threat rates (all changed together, all in BOTH tables)
 
-`tests/threat-check.cjs` (44 assertions) measures every one of these through the sim, in both
+`tests/threat-check.cjs` (57 assertions) measures every one of these through the sim, in both
 modes. A rate lives in two places — the CONFIG literal and `MODE_TUNING` — so **changing one
 table only doesn't make the creature faster, it makes one of the two games harder**, and that
 is invisible from inside either mode. **Every retune has to move BOTH by the same factor.**
@@ -103,6 +103,8 @@ is invisible from inside either mode. **Every retune has to move BOTH by the sam
 | `trichoderma.infectionSpreadChance` | **1** — see below, this one is a trap | |
 | `nematodes.strandsPerBite` | 1 → 2 → **4** (one value, both modes) | |
 | `trichoderma.firstTouchRings` | **20** (one value, both modes) | |
+| `trichoderma.rotLifeTurns` | **3** steps, then the strand falls away | |
+| `nematodes.reach` | 0.7 → **1.4** cells | |
 
 **A one-off burst is NOT in `MODE_TUNING`; a rate is.** 20 rings is 20 rings whether the step
 is a player action or a 500 ms tick — unlike a rate, a single event doesn't scale with
@@ -159,6 +161,33 @@ CONFIG literal only.
   through mould onto the finish line has to be dead *before* the win is tested. **A ward still
   holds the line** — `cellProofed` blocks it, and blocks it for everything behind that strand
   too, since a warded node is never pushed onto the stack.
+- **ROT HAS A LIFESPAN, and that changes the shape of the whole threat.** An infected strand
+  carries `rotAge` in steps, darkens from the mould green toward `render.rotted` (a dead-wood
+  brown) across `rotLifeTurns`, and is then **removed from the network**. So the colour IS the
+  countdown, and per-strand — the strand a breach claimed first is nearly gone while the one it
+  reached last is still bright green, which is what makes a rotting limb read as travelling.
+  Three things it must keep doing, all asserted:
+  - **Aged AFTER the infection passes**, so a strand claimed this step starts at 0 and gets its
+    full window. Claiming and expiring on the same step would delete a limb the player never
+    had a chance to cure.
+  - **Healing clears `rotAge` as well as `infected`** (`cureRadius`). Leave the deadline set and
+    a cured strand is deleted a step later by a countdown nobody can see.
+  - Removing a strand **orphans whatever hung off it** — deliberately. Everything downstream is
+    already infected (the invariant) and rots away slightly later, so a breach eats a limb
+    progressively from the breach outward instead of freezing it green forever, which is what
+    rotten tissue used to do for the rest of the run.
+- **Infected tissue cannot harvest** — `colonizeReachablePiles` skips `n.infected` — and the pile
+  it failed to eat **keeps every scrap of its food** for clean growth later. Both halves are
+  asserted, because a claim path that marked cells `colonized` or zeroed nutrient before checking
+  `infected` would lose the food to tissue that never banked it. Note turn-based **drips** a
+  claimed pile down over following turns via `resolveIncome`; only real time banks it whole on
+  arrival, so "was it harvested?" is not "did energy jump".
+- **The player's action resolves BEFORE any threat acts, in turn-based.** `performAction` runs
+  `action.apply` (growth, and `colonizeReachablePiles` inside it) and only then `tickWorld`
+  (clouds move and stamp, worms, `infectNetwork`, and `checkGoalReached` → `infectStrandsInMould`
+  last of all). So growing past a cloud without touching it harvests normally and the cloud
+  infects on its own turn afterwards. In REAL TIME this does not hold and cannot: the wall clock
+  ticks during the ~1–3 s growth reveal, so clouds move while your growth is still arriving.
 - **`firstTouchRings` and `spreadDepthPerTurn` are separate and DO NOT STACK.** Being breached
   costs `firstTouchRings` and *nothing else* on that step; every step after costs
   `spreadDepthPerTurn`. `infectNetwork` snapshots the infected front into `established` BEFORE
@@ -203,7 +232,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~668 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
+~683 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)

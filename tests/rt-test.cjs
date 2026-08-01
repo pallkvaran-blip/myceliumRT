@@ -418,6 +418,14 @@ let base;
     // its nutrient is banked as Energy AT ONCE, and it's left empty (no slow income drain).
     const consume = await page.evaluate(() => {
       const st = window.__game.state, sub = st.substrate, net = st.active;
+      // Clear threats and rot HERE, not just in stabilize(). stabilize() then waits ~3s for the
+      // clock to prove it is running, and trichoderma.respawnChance replaces a cleared cloud
+      // during that wait — which at the current creep speed, 20-ring first touch and
+      // claim-everything-downstream rule is easily enough to have the colony infected again by
+      // the time this probe runs. An infected strand does not claim a pile (by design), so this
+      // assertion failed intermittently for a reason that has nothing to do with what it tests.
+      st.clouds.length = 0; st.nematodes.length = 0;
+      for (const n of net.nodes) { n.infected = false; n.rotAge = 0; n.health = 1; }
       const pile = (sub.foodPiles || []).find((p) => p.cells.reduce((s, i) => s + sub.cells[i].nutrient, 0) > 0);
       if (!pile) return { noPiles: true };
       const mid = pile.cells[Math.floor(pile.cells.length / 2)];

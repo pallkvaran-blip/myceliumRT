@@ -42,7 +42,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… |
 | `core-check.cjs` | The molten core: the growth floor IS the drawn line, rocks clip at it, the earth turns red, assets stamp into the deepest row, and procedural maps have none |
 | `scale-check.cjs` | The organism scale: every growth LENGTH is base × `growth.scale`, the ratios between them survive it, the step measures what the config says, the drawn thread scales with it, and the longer step doesn't hop a wall |
-| `threat-check.cjs` | Threat rates and rules, measured through the sim in BOTH modes: worm crawl, worm bite size, worm move-AND-eat on one step, cloud creep, first-touch rot vs the established race (separate, non-stacking), the "no clean mycelium off rot" invariant, `infectionSpreadChance` being 1, and the render creep keeping pace. Does NOT assert `wanderSpeed` — it's a dead knob |
+| `threat-check.cjs` | Threat rates and rules, measured through the sim in BOTH modes: worm crawl, bite size, reach, move-AND-eat on one step, cloud creep, the rot lifespan (darkens, then falls away, and healing resets the deadline), infected tissue not harvesting while the pile keeps its food, first-touch rot vs the established race (separate, non-stacking), the "no clean mycelium off rot" invariant, `infectionSpreadChance` being 1, and the render creep keeping pace. Does NOT assert `wanderSpeed` — it's a dead knob |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
@@ -190,6 +190,16 @@ drops that node from the frontier and kills the branch for the rest of the call.
 measures both: at 1 the advance is exactly the configured rate every time; at 0.85 it collapses
 to min 0 / median ~4 / max 16. That single number is why the rate was raised 6 → 18 → 40 across
 two sessions with almost no effect, so it is worth failing over.
+
+**Every tick-driven probe must clear `state.runOver`.** Now that rot EXPIRES, a probe can rot a
+colony to nothing, which ends the run — and `tickWorld` early-returns on `runOver`, so every
+later probe silently measures ZERO. Four assertions failed this way at once ("0 rotten after the
+breach, wanted 21"), and one of them had a partner that passed VACUOUSLY on the same data.
+
+**Clearing `infected` means clearing `rotAge` too**, the same rule `cureRadius` follows in the
+game. An earlier probe's cloud leaves survivors part-way through their deadline, and a strand
+re-seeded on top of `rotAge` 2 expires on its very first tick — which read as "1 → 0 infected,
+rate 16.5 rings".
 
 **Two probes seed the rot at a TIP, never the root**, and this matters now that everything
 downstream of an infected strand is claimed at once. A root seed claims the entire colony

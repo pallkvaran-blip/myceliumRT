@@ -2093,6 +2093,17 @@ const CONFIG = {
     // Turn it down for a patchy, unreliable rot; do NOT turn it down expecting a slower one —
     // reach for spreadDepthPerTurn for that, and remember the cap is ~1/(1-p) rings. (SLIDER)
     infectionSpreadChance: 1,
+    // ROT HAS A LIFESPAN. An infected strand darkens from the mould green toward render.rotted
+    // over this many steps and then FALLS AWAY — removed from the network. Heal it inside the
+    // window (Rehydration Pulse, the cure plays) and the clock resets with the infection.
+    //
+    // Before this, rotten tissue sat there for the rest of the run: permanently green, dead
+    // weight, and still anchoring the shape of a colony that had lost it. Now the rot is a
+    // deadline — either you cure it in three steps or that limb is gone. Removing a strand
+    // orphans whatever hung off it, which is the point: everything downstream is already
+    // infected (see infectDescendants) and rots away on its own slightly later, so a breach
+    // eats a limb progressively from the breach outward rather than freezing it in place.
+    rotLifeTurns: 3,             // (SLIDER)
   },
 
   // ---- The six basic actions (A2, B5) ------------------------------------
@@ -2176,7 +2187,11 @@ const CONFIG = {
     // deleted: silently removing it would strand anyone who goes looking for the knob, and
     // silently TUNING it is the trap this comment exists to close.
     wanderSpeed: 0.25,           // (unread)
-    reach: 0.7,                  // cells: how close to a strand before it feeds
+    reach: 1.4,                  // cells: how close to a strand before it feeds — DOUBLED from 0.7.
+                                 //   It gates strandsPerBite as well as the approach: one growth
+                                 //   segment is 25.5 units and this is now ~50, so a worm has
+                                 //   several strands in reach instead of one or two, and a bigger
+                                 //   bite is no longer limited by geometry. (SLIDER)
     eatEveryTicks: 0,            // cooldown ticks between bites: a feeding worm eats a strand,
                                  //   then waits this many ticks — so it devours one every N+1
                                  //   ticks (0 → every tick; 1 → every other tick). Lower = deadlier. (SLIDER)
@@ -2268,6 +2283,11 @@ const CONFIG = {
     trich: '#8aa23e',
     trichSpore: '#d2e074',
     infected: '#a6c63a',         // a strand the mould has overrun (green/dead)
+    rotted: '#3d2c1c',           // what that strand darkens TO over trichoderma.rotLifeTurns steps,
+                                 //   just before it falls away — dead wet wood, not mould. The ramp is
+                                 //   the only warning the player gets that a limb is about to go, so it
+                                 //   has to read as decay against both the mint colony and the green
+                                 //   mould rather than as another shade of infection.
     infectFadeMs: 240,           // ms one strand takes to turn cream → infected green. SHORT + crisp: each strand
                                  //   flips cleanly (no long washed-out pale-green state); the gradual look comes from
                                  //   the CREEP below — strands turning one after another along the filaments.
@@ -2375,6 +2395,8 @@ const SLIDERS = [
   { path: 'trichoderma.sightRadius',     label: 'Mold Sight Range',    min: 100, max: 1500, step: 50 },
   { path: 'trichoderma.infectionSpreadChance', label: 'Infection Spread', min: 0, max: 1, step: 0.05 },
   { path: 'trichoderma.firstTouchRings',  label: 'Rot on First Touch',   min: 0,   max: 60,  step: 2 },
+  { path: 'trichoderma.rotLifeTurns',     label: 'Rot Lifespan (steps)', min: 1,   max: 20,  step: 1 },
+  { path: 'nematodes.reach',              label: 'Worm Reach (cells)',   min: 0.4, max: 4,   step: 0.2 },
   { path: 'actions.amputate.radius',     label: 'Amputate Radius',     min: 20,  max: 160, step: 5 },
   { path: 'ants.harvestRate',            label: 'Ant Harvest Rate',    min: 0,   max: 200, step: 5 },
   { path: 'actions.attackAnts.energyCost', label: 'Attack Ants Cost',  min: 0,   max: 80,  step: 5 },
@@ -11748,10 +11770,26 @@ function infectNetwork(net, state) {
     for (const n of established) infectAround(net, n, rings, t.infectionSpreadChance, rng, sub);
   }
 
-  // 3) The invariant, last: whatever the two passes above claimed, nothing clean may be left
-  //    hanging off it. Runs every tick, so growth committed since the last one is caught here
-  //    rather than only at the win check.
+  // 3) The invariant: whatever the two passes above claimed, nothing clean may be left hanging
+  //    off it. Runs every tick, so growth committed since the last one is caught here rather
+  //    than only at the win check.
   infectDescendants(net, sub);
+
+  // 4) ROT AGES AND FALLS AWAY. Every infected strand carries `rotAge` in steps; at
+  //    rotLifeTurns it is removed from the network. Aged AFTER the passes above so a strand
+  //    claimed this step starts at 0 and gets its full window — claiming and expiring on the
+  //    same step would delete a limb the player never had a chance to cure.
+  //
+  //    A healed strand loses `infected` and its rotAge with it (cureRadius), so the deadline
+  //    resets with the infection rather than persisting invisibly on cured tissue.
+  const life = Math.max(1, (t.rotLifeTurns | 0) || 3);
+  const fallen = new Set();
+  for (const n of net.nodes) {
+    if (!n.infected) { if (n.rotAge) n.rotAge = 0; continue; }
+    n.rotAge = (n.rotAge || 0) + 1;
+    if (n.rotAge >= life) fallen.add(n.id);
+  }
+  if (fallen.size) net._removeNodes(fallen);
 }
 
 // Growing INTO active mould infects you FIRST. Any healthy strand standing in a
@@ -13564,7 +13602,9 @@ function cureRadius(state, ctx, r) {
   let healed = 0;
   for (const n of state.active.nodes) {
     if ((n.x - ctx.x) ** 2 + (n.y - ctx.y) ** 2 <= r * r) {
-      if (n.infected) { n.infected = false; healed++; }
+      // Healing clears the rot AND its deadline. rotAge is what counts a strand down to falling
+      // away, so leaving it set would cure the strand and then delete it anyway a step later.
+      if (n.infected) { n.infected = false; n.rotAge = 0; healed++; }
       n.health = 1;
     }
   }
@@ -15915,6 +15955,20 @@ class NetworkRenderer {
     const infRgb = hexToRgb(r.infected);
     const fadeMs = Math.max(1, r.infectFadeMs != null ? r.infectFadeMs : 240);
     const now = this._now || 0;
+    // ROT AGE → COLOUR. A strand darkens from the mould green toward `rotted` across its
+    // rotLifeTurns lifespan and then falls away, so the shade IS the countdown. Computed per
+    // strand rather than once, because every strand carries its own age — the strand a breach
+    // claimed first is nearly gone while the one it reached last is still bright green, which
+    // is what makes a rotting limb read as travelling rather than as one flat colour.
+    const rotRgb = hexToRgb(r.rotted || '#3d2c1c');
+    const rotLife = Math.max(1, ((this.config.trichoderma && this.config.trichoderma.rotLifeTurns) | 0) || 3);
+    const deadColor = (n) => {
+      const k = Math.min(1, (n.rotAge || 0) / rotLife);
+      if (k <= 0) return infRgb;
+      return [Math.round(infRgb[0] + (rotRgb[0] - infRgb[0]) * k),
+              Math.round(infRgb[1] + (rotRgb[1] - infRgb[1]) * k),
+              Math.round(infRgb[2] + (rotRgb[2] - infRgb[2]) * k)];
+    };
     // Each rotten strand turns at its own scheduled moment (`_infAt`, set by
     // _scheduleInfection — one creep-step after the strand the rot came from), then flips
     // cream → green over the SHORT fadeMs. So the rot travels visibly along the filaments
@@ -15924,9 +15978,14 @@ class NetworkRenderer {
       if (!n.infected) return cream;
       const at = n._infAt;
       if (at == null || now < at) return cream;     // the creeping front hasn't reached this strand yet
+      // Two ramps, and they compose: the FAST one (fadeMs, ~240ms) turns cream → its current
+      // dead colour as the creep front arrives; the SLOW one (rotAge over rotLifeTurns steps)
+      // is what that dead colour has decayed to. So a strand flips crisply when the rot
+      // reaches it, then keeps darkening for the rest of its life.
+      const dead = deadColor(n);
       const k = (now - at) / fadeMs;
-      if (k >= 1) return r.infected;
-      return `rgb(${Math.round(fil[0] + (infRgb[0] - fil[0]) * k)},${Math.round(fil[1] + (infRgb[1] - fil[1]) * k)},${Math.round(fil[2] + (infRgb[2] - fil[2]) * k)})`;
+      if (k >= 1) return `rgb(${dead[0]},${dead[1]},${dead[2]})`;
+      return `rgb(${Math.round(fil[0] + (dead[0] - fil[0]) * k)},${Math.round(fil[1] + (dead[1] - fil[1]) * k)},${Math.round(fil[2] + (dead[2] - fil[2]) * k)})`;
     };
     const AGE_FULL = 7;
     const { minX, maxX, minY, maxY } = cull;

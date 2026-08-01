@@ -49,6 +49,8 @@ const SPREAD_CHANCE = 1;
 const SEGMENTS_PER_STEP = 3;   // cards-design: "1 step = 3 segments", and 1 ring = 1 segment
 const FIRST_TOUCH = 20;   // one-off, so one value for both modes (like growInfectBurst)
 const STRANDS_PER_BITE = 4;   // shared by both modes — not in MODE_TUNING
+const ROT_LIFE = 3;           // steps an infected strand survives before falling away
+const WORM_REACH = 1.4;       // cells
 // nematodes.wanderSpeed is NOT here, and that is the point: it is a DEAD KNOB. It is set in
 // three places (the CONFIG literal and both MODE_TUNING tables) and read by no code at all.
 // A worm with nothing in sight holds position rather than wandering, and the one non-hunting
@@ -384,7 +386,10 @@ const rot=await p.evaluate(()=>{
   }
   for (let i=0;i<14;i++) G.performAction(s,'grow',{});
   s.config.trichoderma.infectionSpreadChance=1;
-  for (const n of net.nodes) n.infected=false;
+  // rotAge too, not just `infected`: an earlier probe's cloud leaves survivors part-way
+  // through their rot deadline, and a strand re-seeded on top of rotAge 2 expires on its
+  // very first tick — which read as "1 → 0 infected, rate 16.5 rings".
+  for (const n of net.nodes) { n.infected=false; n.rotAge=0; }
   net._spreadAccum=0;
   // Seed a TIP, not the root. Everything downstream of a seed is claimed at once by
   // infectDescendants, so a root seed would claim the whole colony and measure the invariant
@@ -430,7 +435,7 @@ const touch=await p.evaluate(()=>{
     parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3+i*4, parent);
     parent._liveAt=0;
   }
-  for (const n of net.nodes) { n.infected=false; const c=sub.cellAtWorld(n.x,n.y); if (c) { c.mouldProof=0; c.reinfectGrace=0; c.trich=0; } }
+  for (const n of net.nodes) { n.infected=false; n.rotAge=0; const c=sub.cellAtWorld(n.x,n.y); if (c) { c.mouldProof=0; c.reinfectGrace=0; c.trich=0; } }
   net._spreadAccum=0;
   t.infectionSpreadChance=1;                 // deterministic, so the ring count is readable
   // A cloud parked ON the far END of the chain, so its breach seeds the tip and the rot has
@@ -439,11 +444,16 @@ const touch=await p.evaluate(()=>{
   const tip=net.nodes[net.nodes.length-1];
   s.clouds.push({cx:tip.x, cy:tip.y, r:0.4, heading:0, fade:0, sees:true, _budget:0});
   const before=net.nodes.filter(n=>n.infected).length;
+  // Now that rot EXPIRES, a probe above can rot a colony to nothing — which ends the run, and
+  // tickWorld early-returns on state.runOver. Every tick-driven probe has to clear it or it
+  // silently measures zero. This one reported "0 rotten after the breach, wanted 21".
+  s.runOver=false; s.winPending=false; s.won=false; net.alive=true;
   G.tickWorld(s);
   const afterTouch=net.nodes.filter(n=>n.infected).length;
   // Second step: no cloud left (it spent itself), so this is the established race alone.
   s.clouds.length=0;
   net._spreadAccum=0;
+  s.runOver=false; s.winPending=false; s.won=false; net.alive=true;
   G.tickWorld(s);
   const afterRace=net.nodes.filter(n=>n.infected).length;
   return { len:net.nodes.length, before, afterTouch, afterRace,
@@ -497,7 +507,7 @@ const desc=await p.evaluate(()=>{
   net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
   let parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3, null); parent._liveAt=0;
   for (let i=1;i<LEN;i++){ parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3+i*4, parent); parent._liveAt=0; }
-  for (const n of net.nodes){ n.infected=false; const c=sub.cellAtWorld(n.x,n.y); if(c){c.mouldProof=0;c.reinfectGrace=0;c.trich=0;} }
+  for (const n of net.nodes){ n.infected=false; n.rotAge=0; const c=sub.cellAtWorld(n.x,n.y); if(c){c.mouldProof=0;c.reinfectGrace=0;c.trich=0;} }
   // Infect ONE node a third of the way down. Everything below it is downstream.
   const at=Math.floor(LEN/3);
   net.nodes[at].infected=true;
@@ -520,7 +530,7 @@ ok('and does NOT reach upstream — that is what the per-step rate is for',
 // mattering the moment the rot is upstream of it.
 const ward=await p.evaluate(()=>{
   const G=window.__game, s=G.state, sub=s.substrate, net=s.active;
-  for (const n of net.nodes) n.infected=false;
+  for (const n of net.nodes) { n.infected=false; n.rotAge=0; }
   for (const n of net.nodes) { const c=sub.cellAtWorld(n.x,n.y); if (c) c.mouldProof=0; }
   const at=10, wardAt=20;
   // Ward ONE strand, 10 below the seed. Its own cell and everything past it must survive.
@@ -553,7 +563,7 @@ const chance=await p.evaluate(()=>{
     net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
     let parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3, null); parent._liveAt=0;
     for (let i=1;i<400;i++){ parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3+i*4, parent); parent._liveAt=0; }
-    for (const n of net.nodes){ n.infected=false; n.health=1; const c=sub.cellAtWorld(n.x,n.y); if(c){c.mouldProof=0;c.reinfectGrace=0;c.trich=0;} }
+    for (const n of net.nodes){ n.infected=false; n.rotAge=0; n.health=1; const c=sub.cellAtWorld(n.x,n.y); if(c){c.mouldProof=0;c.reinfectGrace=0;c.trich=0;} }
     // REVIVE IT. A trial that rots the whole chain leaves the colony dead, and infectNetwork
     // skips a dead network entirely — so without this every trial after the first measured 0
     // and the check reported "min 0, median 0, max 399" from one lucky run.
@@ -570,6 +580,7 @@ const chance=await p.evaluate(()=>{
       // invariant, so a root seed takes the whole chain and measures nothing about the rate.
       net.nodes[net.nodes.length-1].infected=true;
       // The race only, on the established front: no cloud, so no first-touch.
+      s.runOver=false; s.winPending=false; s.won=false; net.alive=true;
       G.tickWorld(s);
       runs.push(net.nodes.filter(n=>n.infected).length - 1);
     }
@@ -594,6 +605,153 @@ ok('at chance 0.85 it collapses to a fraction of the rate, wildly unevenly',
    chance.at085.med < chance.at1.med / 2 && chance.at085.min < chance.at085.max,
    `0.85 → min ${chance.at085.min}, median ${chance.at085.med}, max ${chance.at085.max}; ` +
    `chance 1 → ${chance.at1.med}`);
+
+// ---- 6e. ROT HAS A LIFESPAN --------------------------------------------------
+// An infected strand darkens toward render.rotted over rotLifeTurns steps and is then REMOVED
+// from the network. Two things have to hold or the feature is a trap: a strand claimed on step
+// N must get its FULL window (claiming and expiring on the same step would delete a limb the
+// player never had a chance to cure), and healing must clear the deadline as well as the rot.
+const life=await p.evaluate((L)=>{
+  const G=window.__game, s=G.state, sub=s.substrate, cs=sub.cellSize, net=s.active;
+  s.nematodes.length=0; s.clouds.length=0;
+  s.config.trichoderma.rotLifeTurns=L;
+  // A short chain, all of it infected at once, so every strand shares a deadline.
+  net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  let parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3, null); parent._liveAt=0;
+  for (let i=1;i<12;i++){ parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3+i*4, parent); parent._liveAt=0; }
+  for (const n of net.nodes){ n.infected=true; n.rotAge=0; n.health=1;
+    const c=sub.cellAtWorld(n.x,n.y); if(c){c.mouldProof=0;c.reinfectGrace=0;c.trich=0;} }
+  net.alive=true; net.recomputeVitality();
+  const counts=[net.nodes.length];
+  const ages=[];
+  for (let k=0;k<L+1;k++){
+    // tickWorld EARLY-RETURNS on state.runOver / winPending, and the probes above rot whole
+    // colonies on purpose — which ends the run. Reviving net.alive is not enough; without this
+    // nothing ticks at all and the "survives its first steps" assertion passes VACUOUSLY while
+    // its partner reports rotAge 0.
+    s.runOver=false; s.winPending=false; s.won=false;
+    net._spreadAccum=0; net.alive=true;
+    G.tickWorld(s);
+    counts.push(net.nodes.length);
+    ages.push(net.nodes.length ? Math.max(...net.nodes.map(n=>n.rotAge||0)) : 0);
+  }
+  return { life:L, counts, ages };
+}, ROT_LIFE);
+ok(`rotLifeTurns is ${ROT_LIFE} in the shipped config`,
+   await p.evaluate(()=>window.__cfg.trichoderma.rotLifeTurns)===ROT_LIFE,
+   `got ${await p.evaluate(()=>window.__cfg.trichoderma.rotLifeTurns)}`);
+// Steps 1..L-1 must NOT delete anything: the strand gets its whole window to be cured in.
+ok('infected tissue survives its first steps (there is time to cure it)',
+   life.counts.slice(0, ROT_LIFE).every((c)=>c===life.counts[0]),
+   `counts by step: ${life.counts.join(' → ')}`);
+ok(`and is gone by the end of step ${ROT_LIFE}`, life.counts[ROT_LIFE]===0,
+   `counts by step: ${life.counts.join(' → ')}`);
+
+// Healing inside the window has to reset the DEADLINE too, or a cured strand is deleted a step
+// later by a countdown nobody can see.
+const cured=await p.evaluate(()=>{
+  const G=window.__game, s=G.state, sub=s.substrate, cs=sub.cellSize, net=s.active;
+  s.nematodes.length=0; s.clouds.length=0;
+  net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  let parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3, null); parent._liveAt=0;
+  for (let i=1;i<12;i++){ parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3+i*4, parent); parent._liveAt=0; }
+  for (const n of net.nodes){ n.infected=true; n.rotAge=0; n.health=1;
+    const c=sub.cellAtWorld(n.x,n.y); if(c){c.mouldProof=0;c.reinfectGrace=0;c.trich=0;} }
+  net.alive=true; net.recomputeVitality();
+  s.runOver=false; s.winPending=false; s.won=false;   // see above — tickWorld skips a finished run
+  net._spreadAccum=0; G.tickWorld(s);                 // one step of rot
+  const aged=Math.max(...net.nodes.map(n=>n.rotAge||0));
+  // Cure everything the way the cure plays do, then run well past the original deadline.
+  for (const n of net.nodes){ n.infected=false; n.rotAge=0; }
+  const after=net.nodes.length;
+  for (let k=0;k<6;k++){ s.runOver=false; s.winPending=false; s.won=false;
+                         net.alive=true; net._spreadAccum=0; G.tickWorld(s); }
+  return { aged, after, survived:net.nodes.length };
+});
+ok('a step of rot did age the strands', cured.aged>=1, `rotAge ${cured.aged}`);
+ok('curing resets the deadline, so healed tissue is NOT deleted later',
+   cured.survived===cured.after && cured.survived>0,
+   `${cured.after} strands cured, ${cured.survived} still there six steps on`);
+
+// ---- 6g. INFECTED TISSUE CANNOT HARVEST, AND THE PILE KEEPS ITS FOOD ---------
+// Two halves of one rule: rotten mycelium must not eat, and the pile it failed to eat must
+// still be there for clean growth later. The second half is the one that could silently break
+// — a claim path that marked the pile "colonized" or zeroed its nutrient before checking
+// `infected` would lose the food to tissue that never banked it.
+const harvest=await p.evaluate(()=>{
+  const G=window.__game, s=G.state, sub=s.substrate, net=s.active, cs=sub.cellSize;
+  s.nematodes.length=0; s.clouds.length=0;
+  s.runOver=false; s.winPending=false; s.won=false;
+  // A clean two-node colony with a pile right beside it.
+  net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  const x=sub.worldWidth/2, y=sub.surfaceY+cs*4;
+  const col=sub.colAtX(x), row=sub.rowAtY(y);
+  const cells=[];
+  for (let c=col;c<=col+1;c++) for (let r=row;r<=row+1;r++) {
+    if (!sub.inBounds(c,r)) continue;
+    const i=sub.index(c,r), cell=sub.cells[i];
+    cell.rock=0; cell.hazard=0; cell.water=0; cell.colonized=0;
+    cell.nutrient=40; cell.maxNutrient=40;
+    cells.push(i);
+  }
+  if (!cells.length) return {err:'no room for a pile'};
+  // The strand sits INSIDE the pile — "grew into a food pile", which is the case the rule is
+  // about. Beside it is a different question (whether a runner can bridge in) and answers this
+  // one only by accident.
+  const mid=cells[0], mc=sub.cellCenter(mid%sub.cols, Math.floor(mid/sub.cols));
+  let root=net.addNode(mc.x, mc.y, null); root._liveAt=0; root._revSeen=true;
+  const nut=()=>cells.reduce((a,i)=>a+sub.cells[i].nutrient,0);
+  const claimed=()=>cells.filter((i)=>sub.cells[i].colonized>=1).length;
+  // INFECTED: reaches for the pile and must get nothing.
+  root.infected=true; root.rotAge=0;
+  net.alive=true;
+  const e0=net.energy;
+  net.colonizeReachablePiles(sub, s.rng);
+  const rotten={ nut:nut(), claimed:claimed(), gained:net.energy-e0 };
+  // CLEAN: the same colony, cured. The food has to still be there and now be taken.
+  root.infected=false; root.rotAge=0;
+  const e1=net.energy;
+  net.colonizeReachablePiles(sub, s.rng);
+  const clean={ nut:nut(), claimed:claimed(), gained:net.energy-e1 };
+  // TURN-BASED DRIPS a claimed pile down over the following turns via resolveIncome; only real
+  // time banks it whole on arrival. So "was it harvested?" is not "did energy jump" here — it is
+  // that the cells are claimed and the nutrient then starts falling.
+  s.runOver=false; s.winPending=false; s.won=false;
+  net.alive=true; net.energy=0;
+  G.tickWorld(s);
+  const drained={ nut:nut(), gained:net.energy };
+  return { err:null, cells:cells.length, before:40*cells.length, rotten, clean, drained,
+           rt:!!(s.config.realtime && s.config.realtime.enabled) };
+});
+ok('the pile probe built something to eat', !harvest.err && harvest.cells>0,
+   harvest.err || `${harvest.cells} cells, ${harvest.before} nutrient`);
+ok('infected tissue claims NO cells of the pile', !harvest.err && harvest.rotten.claimed===0,
+   harvest.err || `${harvest.rotten.claimed} of ${harvest.cells} cells claimed`);
+ok('...and banks none of its energy', !harvest.err && harvest.rotten.gained===0,
+   harvest.err || `+${harvest.rotten.gained}`);
+ok('...and leaves every scrap of the food behind for later',
+   !harvest.err && harvest.rotten.nut===harvest.before,
+   harvest.err || `${harvest.rotten.nut} of ${harvest.before} nutrient left`);
+ok('clean mycelium can then grow into that same pile and claim it',
+   !harvest.err && harvest.clean.claimed===harvest.cells,
+   harvest.err || `${harvest.clean.claimed} of ${harvest.cells} cells claimed`);
+ok('...and the food it left behind is then actually eaten',
+   !harvest.err && (harvest.drained.nut < harvest.clean.nut || harvest.drained.gained > 0),
+   harvest.err || `nutrient ${harvest.clean.nut} → ${harvest.drained.nut}, +${harvest.drained.gained.toFixed(1)}⚡`);
+
+// ---- 6f. the worm's reach ----------------------------------------------------
+ok(`nematodes.reach is ${WORM_REACH} cells`,
+   Math.abs(await p.evaluate(()=>window.__cfg.nematodes.reach)-WORM_REACH)<1e-9,
+   `got ${await p.evaluate(()=>window.__cfg.nematodes.reach)}`);
+// It has to clear one growth segment, or a worm sitting ON a strand cannot touch that strand's
+// own neighbours and strandsPerBite is capped by geometry rather than by the knob.
+const reachVsSeg=await p.evaluate(()=>{
+  const c=window.__cfg;
+  return { reachUnits:c.nematodes.reach*36, seg:c.growth.segmentLength };
+});
+ok('the reach clears one growth segment, so a bite is not geometry-limited',
+   reachVsSeg.reachUnits > reachVsSeg.seg,
+   `reach ${reachVsSeg.reachUnits} units vs segment ${reachVsSeg.seg}`);
 
 // ---- 7. the visible creep keeps pace with the sim ---------------------------
 // infectCreepMs is the renderer's ms-per-ring. If the sim outruns it the green falls behind
