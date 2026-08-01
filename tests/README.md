@@ -42,7 +42,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… |
 | `core-check.cjs` | The molten core: the growth floor IS the drawn line, rocks clip at it, the earth turns red, assets stamp into the deepest row, and procedural maps have none |
 | `scale-check.cjs` | The organism scale: every growth LENGTH is base × `growth.scale`, the ratios between them survive it, the step measures what the config says, the drawn thread scales with it, and the longer step doesn't hop a wall |
-| `threat-check.cjs` | Threat rates, measured through the sim in BOTH modes: worm crawl, worm bite size, cloud creep, rot spread per step, and the render creep keeping pace with it. Does NOT assert `wanderSpeed` — it's a dead knob |
+| `threat-check.cjs` | Threat rates, measured through the sim in BOTH modes: worm crawl, worm bite size, cloud creep, first-touch rot vs the established race (separate, non-stacking), and the render creep keeping pace. Does NOT assert `wanderSpeed` — it's a dead knob |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
@@ -176,11 +176,19 @@ densest node on the map and asserts the density (`strands in reach > bite`) sepa
 **`nematodes.wanderSpeed` is deliberately not asserted.** It is set in three places and read
 by no code — asserting a value would imply it does something. See CLAUDE.md.
 
+**The two rot rates are measured on a LINEAR 160-strand chain, not the branching colony.** A
+"ring" is one step along the filaments *in every direction at once*, so on a branching network
+N rings claims far more than N strands (measured: 40 rings → 611 strands) and a count says
+nothing about the rate. On a single chain rings and strands are 1:1, so `firstTouchRings` and
+`spreadDepthPerTurn` can actually be compared — and the assertion that matters is the
+ISOLATION: a breach costs 20 + the strand it touched (21), and the step *after* costs exactly
+40. Additive, which is what the old `contactChunk` did, would read ~61 on the breach step.
+
 The last assertion is a pacing one rather than a rate: `render.infectCreepMs` is the
 renderer's ms-per-ring, and if the sim outruns it the green falls behind until
 `infectMaxLagMs` clamps it and then jumps a chunk — the exact popping the creep exists to
-remove. Tripling the spread meant retuning the creep 300 → 100 ms, and this is what keeps the
-two tied together.
+remove. Each rise in the spread has meant retuning the creep (300 → 100 → 50 ms), and this
+assertion is what keeps the two tied together instead of drifting apart silently.
 
 ### `core` — the molten core (`tests/core-check.cjs`)
 

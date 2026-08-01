@@ -90,7 +90,7 @@ other — a worm creeping 0.375 cells/tick would barely move if it only stepped 
 
 ### Threat rates (all changed together, all in BOTH tables)
 
-`tests/threat-check.cjs` (23 assertions) measures every one of these through the sim, in both
+`tests/threat-check.cjs` (30 assertions) measures every one of these through the sim, in both
 modes. A rate lives in two places — the CONFIG literal and `MODE_TUNING` — so **changing one
 table only doesn't make the creature faster, it makes one of the two games harder**, and that
 is invisible from inside either mode. **Every retune has to move BOTH by the same factor.**
@@ -99,8 +99,14 @@ is invisible from inside either mode. **Every retune has to move BOTH by the sam
 |---|---|---|
 | `trichoderma.moveSpeed` | 1.5 → **3.0** | 0.75 → **1.5** |
 | `nematodes.crawlSpeed` | 3.0 → 6.0 → **8.0** | 0.375 → 0.75 → **1.0** |
-| `trichoderma.spreadDepthPerTurn` | 6 → **18** | 1.5 → **4.5** |
+| `trichoderma.spreadDepthPerTurn` | 6 → 18 → **40** | 1.5 → 4.5 → **10** |
 | `nematodes.strandsPerBite` | 1 → 2 → **4** (one value, both modes) | |
+| `trichoderma.firstTouchRings` | **20** (one value, both modes) | |
+
+**A one-off burst is NOT in `MODE_TUNING`; a rate is.** 20 rings is 20 rings whether the step
+is a player action or a 500 ms tick — unlike a rate, a single event doesn't scale with
+steps-per-second. `firstTouchRings` and `growInfectBurst` are both one-offs and both sit in the
+CONFIG literal only.
 
 - **Movement is distance per step only.** How often a creature acts, how much it eats
   (`leavesPerRound`) and how far the rot reaches are untouched, so a threat closes on you in
@@ -121,14 +127,31 @@ is invisible from inside either mode. **Every retune has to move BOTH by the sam
   so a Sclerotial Crust still stops the whole bite however high this goes. Note `reach` is 0.7
   cells (25 units) against a 25.5-unit growth segment, so past about 4 the bite starts being
   limited by how many strands are physically that close rather than by the knob.
-- **The rot spread was TRIPLED, and that forced `render.infectCreepMs` 300 → 100.** The creep is
-  the renderer's ms-per-ring; at 4.5 rings/tick and 2 ticks/sec the sim advances 9 rings a
-  second, against 3.3 at 300 ms. The green would fall behind until `infectMaxLagMs` (2500)
-  clamped it and then jump a chunk — the exact popping the creep exists to remove. The one-off
-  bursts (`contactChunk`, `growInfectBurst`) are deliberately unchanged: those are reach, not
-  speed.
-- **Two SLIDERS had to be re-ceilinged** to clear the turn-based table, which is the faster one:
-  mould 5→8, worm 6→12. The worm slider had been pinned exactly at its live value.
+- **`firstTouchRings` and `spreadDepthPerTurn` are separate and DO NOT STACK.** Being breached
+  costs `firstTouchRings` and *nothing else* on that step; every step after costs
+  `spreadDepthPerTurn`. `infectNetwork` snapshots the infected front into `established` BEFORE
+  the contact pass and races only that, so a breach's fresh rot sits out one step. Snapshotting
+  is the only way to tell them apart — after contact, `n.infected` no longer says which rot is
+  new. It also gets the mixed case right, which is why it isn't just "skip the race on a breach
+  step": an established infection elsewhere keeps racing at full rate while the new breach
+  contributes exactly its chunk. This **replaces** `contactChunk: 4`, which was ADDITIVE — a
+  breach claimed 4 rings and the freshly-seeded front then took a whole turn's spread on top, so
+  "what does first contact cost?" had no single answer.
+- **`growInfectBurst` (18) is the OTHER first touch** — growing *into* mould rather than being
+  touched by it — and is deliberately left on its own number.
+- **Raising the spread forces `render.infectCreepMs` down with it**: 300 → 100 → **50**. The
+  creep is the renderer's ms-per-ring, and at 10 rings/tick × 2 ticks/sec the sim advances 20
+  rings a second against 3.3 at 300 ms. The green would fall behind until `infectMaxLagMs`
+  (2500) clamped it and then jump a chunk — the exact popping the creep exists to remove.
+  50 ms is 20 rings/s, level with the sim. `threat-check` asserts the relationship, so it fails
+  rather than drifting.
+- **At 40 rings, one step of the established race reaches essentially a whole colony** — measured
+  at 612 of 649 strands. A ring is one step along the filaments *in every direction at once*, so
+  on a branching network N rings claims far more than N strands. That's why the exact-rate
+  assertions run on a linear 160-strand chain, where rings and strands are 1:1.
+- **Three SLIDERS re-ceilinged / added**: mould creep 5→8 and worm speed 6→12 (both had to clear
+  the turn-based table, which is the faster one — the worm slider had been pinned exactly at its
+  live value), plus a new "Rot on First Touch".
 
 Mode-gated behaviour, roughly in order of subtlety:
 
@@ -148,7 +171,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~647 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
+~654 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)

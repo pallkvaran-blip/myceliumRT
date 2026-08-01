@@ -2054,14 +2054,25 @@ const CONFIG = {
     // --- network infection (a cloud's edge touching you turns strands green) ---
     contactChance: 1.0,          // edge touch = infection, immediately (Melanize gives a chance to resist)
     growInfectThreshold: 0.05,   // a strand standing in a trich-field cell ≥ this is infected on the spot (growing INTO mould) — so it can't fruit/win at the goal
-    contactChunk: 4,             // the breach instantly claims this many rings of mycelium
+    // FIRST TOUCH — rings claimed on the step a cloud breaches you, and the WHOLE of that
+    // step's rot: the strand it touched is seeded, this many rings are taken around it, and
+    // that fresh rot is then held OUT of the per-step race below. So being touched costs
+    // exactly this, and the step after that (and every step after) costs
+    // spreadDepthPerTurn. It used to be `contactChunk: 4` and it was ADDITIVE — a breach
+    // claimed 4 rings and then the freshly-seeded front immediately took a full turn's
+    // spread on top, so "how much does first contact cost?" had no single answer.
+    // A one-off event, so NOT in MODE_TUNING: 20 rings is 20 rings whether the step is a
+    // player action or a 500 ms tick — unlike a RATE, it doesn't scale with steps-per-second.
+    // (`growInfectBurst` below is the other way to be first-touched — growing INTO mould —
+    // and is deliberately left on its own number.)
+    firstTouchRings: 20,         // (SLIDER)
     growInfectBurst: 18,         // growing a strand INTO mould instantly rots this many rings (≈6 grow-steps) in EVERY direction from each caught node, so a long grow can't outrun the rot with a white tip past the cloud (SLIDER)
-    spreadDepthPerTurn: 4.5,     // rings/tick the rot races along your filaments — RT: 6 → 3 → 1.5 → 4.5 (TRIPLED). May be
-                                 //   fractional; infectNetwork accumulates it and advances whole rings only, carrying the rest.
-                                 //   This is the SPEED of the spread, not its reach: the rot still has to travel the
-                                 //   filaments and still rolls infectionSpreadChance at each step, it just covers three
-                                 //   times the rings per step. The one-off bursts (contactChunk on a breach,
-                                 //   growInfectBurst on growing into mould) are deliberately unchanged.
+    spreadDepthPerTurn: 10,      // rings/tick the ESTABLISHED rot races along your filaments — RT: 6 → 3 → 1.5 → 4.5 → 10.
+                                 //   May be fractional; infectNetwork accumulates it and advances whole rings only, carrying
+                                 //   the rest. This is the SPEED of the spread, not its reach: the rot still has to travel
+                                 //   the filaments and still rolls infectionSpreadChance at each step, it just covers more
+                                 //   rings per step. It does NOT apply on the step you are first touched — see
+                                 //   firstTouchRings above, which is the whole of that step.
     infectionSpreadChance: 0.85, // chance the rot takes each step of that race (SLIDER) — high = real consequences
   },
 
@@ -2241,15 +2252,16 @@ const CONFIG = {
     infectFadeMs: 240,           // ms one strand takes to turn cream → infected green. SHORT + crisp: each strand
                                  //   flips cleanly (no long washed-out pale-green state); the gradual look comes from
                                  //   the CREEP below — strands turning one after another along the filaments.
-    // 300 → 100 when spreadDepthPerTurn was TRIPLED. This has to keep pace with the sim or the
-    // creep stops being a creep: at 4.5 rings/tick and 2 ticks/sec the rot advances 9 rings a
-    // second, and one ring per 300 ms is 3.3/sec — so the green would fall behind until
-    // infectMaxLagMs (2500) clamped it, then jump a chunk, which is the exact popping the
-    // creep exists to remove. 100 ms is 10 rings/sec, just ahead of the sim.
-    infectCreepMs: 100,          // ms the rot takes to travel ONE strand step along the mycelium. The renderer gives
+    // 300 → 100 → 50, tracking spreadDepthPerTurn each time it went up. This has to keep pace
+    // with the sim or the creep stops being a creep: at 10 rings/tick and 2 ticks/sec the rot
+    // advances 20 rings a second, and one ring per 300 ms is 3.3/sec — so the green would fall
+    // behind until infectMaxLagMs (2500) clamped it, then jump a chunk, which is the exact
+    // popping the creep exists to remove. 50 ms is 20 rings/sec, level with the sim.
+    // RETUNE THIS WHENEVER THE SPREAD RATE MOVES — threat-check asserts the relationship.
+    infectCreepMs: 50,           // ms the rot takes to travel ONE strand step along the mycelium. The renderer gives
                                  //   each rotten strand a moment to turn, one creep-step after the strand the rot came
                                  //   from, so the green flows continuously BETWEEN world ticks instead of a whole ring
-                                 //   popping in per tick. ~matched to the sim's spread rate (4.5 rings/tick @ 2/sec).
+                                 //   popping in per tick. ~matched to the sim's spread rate (10 rings/tick @ 2/sec).
     infectMaxLagMs: 2500,        // cap on how far behind the sim the visible creep may fall (safety valve if the rot
                                  //   ever outruns the creep — e.g. a big first-touch burst)
                                  //   (creep + fade are detail-zoom rendering only; the zoomed-out LOD still snaps)
@@ -2342,6 +2354,7 @@ const SLIDERS = [
   { path: 'trichoderma.moveSpeed',       label: 'Mold Creep (speed)',  min: 0,   max: 8,   step: 0.5 },
   { path: 'trichoderma.sightRadius',     label: 'Mold Sight Range',    min: 100, max: 1500, step: 50 },
   { path: 'trichoderma.infectionSpreadChance', label: 'Infection Spread', min: 0, max: 1, step: 0.05 },
+  { path: 'trichoderma.firstTouchRings',  label: 'Rot on First Touch',   min: 0,   max: 60,  step: 2 },
   { path: 'actions.amputate.radius',     label: 'Amputate Radius',     min: 20,  max: 160, step: 5 },
   { path: 'ants.harvestRate',            label: 'Ant Harvest Rate',    min: 0,   max: 200, step: 5 },
   { path: 'actions.attackAnts.energyCost', label: 'Attack Ants Cost',  min: 0,   max: 80,  step: 5 },
@@ -2386,7 +2399,7 @@ const MODE_TUNING = {
     'realtime.enabled': false,
     'trichoderma.moveSpeed': 3.0,          // cells per ACTION (doubled from 1.5)
     'trichoderma.leavesPerRound': 0.22,
-    'trichoderma.spreadDepthPerTurn': 18,  // rings per action (tripled from 6)
+    'trichoderma.spreadDepthPerTurn': 40,  // rings per action — 6 → 18 → 40
     'nematodes.crawlSpeed': 8.0,           // 3.0 → 6.0 → 8.0
     'nematodes.wanderSpeed': 2.0,          // DEAD — nothing reads it; see the config literal
     'ants.harvestRate': 40,                // nutrient per action
@@ -2396,7 +2409,7 @@ const MODE_TUNING = {
     'realtime.enabled': true,
     'trichoderma.moveSpeed': 1.5,          // cells per 500 ms tick (doubled from 0.75)
     'trichoderma.leavesPerRound': 0.175,
-    'trichoderma.spreadDepthPerTurn': 4.5, // rings per tick (fractional — accumulated); tripled from 1.5
+    'trichoderma.spreadDepthPerTurn': 10,  // rings per tick — 1.5 → 4.5 → 10, the same x2.22 the turn table took
     'nematodes.crawlSpeed': 1.0,           // 0.375 → 0.75 → 1.0, held to the same x1.33 the turn table took
     'nematodes.wanderSpeed': 0.25,         // DEAD — nothing reads it; see the config literal
     'ants.harvestRate': 6.5,               // nutrient per tick
@@ -11651,10 +11664,24 @@ function stampCloudField(sub, clouds) {
 // strand and instantly claiming a chunk of mycelium around it — then the cloud
 // is spent (it begins to fade). After that the rot races along your filaments
 // several rings per turn.
+//
+// The two rates are SEPARATE and do not stack. Being touched costs firstTouchRings and
+// nothing else on that step; every step afterwards costs spreadDepthPerTurn. That is what
+// `established` below buys: the race runs over the front that was ALREADY rotten when the
+// step began, so a breach's fresh rot sits out one step instead of taking its chunk and then
+// a full turn's spread on top of it. Snapshotting is the only way to tell the two apart —
+// after the contact pass, `n.infected` no longer says which rot is new.
+//
+// Correctness in the mixed case, which is why this isn't just "skip the race on a breach
+// step": an established infection somewhere else on the colony keeps racing at full rate
+// while a brand-new breach contributes exactly its first-touch chunk.
 function infectNetwork(net, state) {
   const { config, substrate: sub, rng } = state;
   const t = config.trichoderma;
   const cs = sub.cellSize;
+
+  const established = [];
+  for (const n of net.nodes) if (n.infected) established.push(n);
 
   // 1) Contact — a cloud that touches you spends itself and fades out. It infects
   //    a fresh strand if one is in reach; but EVEN IF every strand it reaches is
@@ -11672,21 +11699,23 @@ function infectNetwork(net, state) {
     }
     if (hit && !cellProofed(sub, hit) && rng() < t.contactChance) {
       hit.infected = true;
-      infectAround(net, hit, t.contactChunk, 1, rng, sub);
+      // Guaranteed (chance 1), unlike the race below: the cost of being touched is a fixed
+      // number of rings, not a dice roll per ring.
+      infectAround(net, hit, t.firstTouchRings, 1, rng, sub);
     }
     if (touched) { cloud.dying = true; cloud.vanishNext = true; }   // reached you — now it's spent; gone next round (infected or not)
   }
 
-  // 2) Internal spread — the rot races along the filaments from the whole front.
+  // 2) Internal spread — the ESTABLISHED rot races along the filaments. `established` is the
+  // front as it stood before the contact pass above, so anything a breach just claimed does
+  // not also race this step (see the note on this function).
   // spreadDepthPerTurn may be FRACTIONAL (< 1 ring/tick) for a slow creep, so accumulate it
   // and only advance whole rings when at least one has built up (carry the remainder).
   net._spreadAccum = (net._spreadAccum || 0) + t.spreadDepthPerTurn;
   const rings = Math.floor(net._spreadAccum);
   if (rings > 0) {
     net._spreadAccum -= rings;
-    const front = [];
-    for (const n of net.nodes) if (n.infected) front.push(n);
-    for (const n of front) infectAround(net, n, rings, t.infectionSpreadChance, rng, sub);
+    for (const n of established) infectAround(net, n, rings, t.infectionSpreadChance, rng, sub);
   }
 }
 

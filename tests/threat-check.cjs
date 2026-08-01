@@ -10,7 +10,8 @@
  *   trichoderma.moveSpeed      cells a cloud creeps per step        (x2)
  *   nematodes.crawlSpeed       cells a worm crawls per step         (x2, then x1.33)
  *   nematodes.strandsPerBite   strands one worm eats per bite       (1 hard-coded → 2 → 4)
- *   trichoderma.spreadDepthPerTurn  rings the rot races per step    (x3)
+ *   trichoderma.spreadDepthPerTurn  rings the ESTABLISHED rot races  (x3, then to 40)
+ *   trichoderma.firstTouchRings     rings a BREACH claims, on its own (was contactChunk 4)
  *
  * BOTH MODES, always. The two tables are the same rule in different units — RT rates are per
  * 500 ms tick, turn-based rates are per player action — so a change applied to one table only
@@ -33,10 +34,11 @@ const ok=(n,c,x)=>{ c?PASS++:FAIL++; console.log((c?'  PASS  ':'  FAIL  ')+n+(x?
 // question, and a value read back out of the same table it was written to cannot answer it.
 const WANT = {
   turn:     { 'trichoderma.moveSpeed': 3.0, 'nematodes.crawlSpeed': 8.0,
-              'trichoderma.spreadDepthPerTurn': 18 },
+              'trichoderma.spreadDepthPerTurn': 40 },
   realtime: { 'trichoderma.moveSpeed': 1.5, 'nematodes.crawlSpeed': 1.0,
-              'trichoderma.spreadDepthPerTurn': 4.5 },
+              'trichoderma.spreadDepthPerTurn': 10 },
 };
+const FIRST_TOUCH = 20;   // one-off, so one value for both modes (like growInfectBurst)
 const STRANDS_PER_BITE = 4;   // shared by both modes — not in MODE_TUNING
 // nematodes.wanderSpeed is NOT here, and that is the point: it is a DEAD KNOB. It is set in
 // three places (the CONFIG literal and both MODE_TUNING tables) and read by no code at all.
@@ -71,6 +73,7 @@ const readTable = (page) => page.evaluate(() => {
            'trichoderma.moveSpeed': c.trichoderma.moveSpeed,
            'nematodes.crawlSpeed': c.nematodes.crawlSpeed,
            'trichoderma.spreadDepthPerTurn': c.trichoderma.spreadDepthPerTurn,
+           'trichoderma.firstTouchRings': c.trichoderma.firstTouchRings,
            'nematodes.strandsPerBite': c.nematodes.strandsPerBite };
 });
 let ctx=await b.newContext({viewport:{width:1400,height:800}});
@@ -84,6 +87,8 @@ for (const k in WANT.realtime) {
 }
 ok(`realtime: nematodes.strandsPerBite is ${STRANDS_PER_BITE}`,
    rtTable['nematodes.strandsPerBite']===STRANDS_PER_BITE, `got ${rtTable['nematodes.strandsPerBite']}`);
+ok(`realtime: trichoderma.firstTouchRings is ${FIRST_TOUCH}`,
+   rtTable['trichoderma.firstTouchRings']===FIRST_TOUCH, `got ${rtTable['trichoderma.firstTouchRings']}`);
 await ctx.close();
 
 ctx=await b.newContext({viewport:{width:1400,height:800}});
@@ -96,6 +101,12 @@ for (const k in WANT.turn) {
 }
 ok(`turn: nematodes.strandsPerBite is ${STRANDS_PER_BITE} (one value, both modes)`,
    tnTable['nematodes.strandsPerBite']===STRANDS_PER_BITE, `got ${tnTable['nematodes.strandsPerBite']}`);
+// A one-off burst, so it must be the SAME in both modes — a rate scales with steps-per-second,
+// a single event does not.
+ok(`turn: trichoderma.firstTouchRings is ${FIRST_TOUCH}, the same in both modes`,
+   tnTable['trichoderma.firstTouchRings']===FIRST_TOUCH
+   && tnTable['trichoderma.firstTouchRings']===rtTable['trichoderma.firstTouchRings'],
+   `turn ${tnTable['trichoderma.firstTouchRings']}, realtime ${rtTable['trichoderma.firstTouchRings']}`);
 
 // A spot to measure a creature's step FROM. Three ways a naive placement silently reports a
 // short step instead of failing, all of them found the hard way:
@@ -126,8 +137,16 @@ await p.evaluate(() => {
       return true;
     };
     const deep = net.nodes.slice().sort((a, b) => b.y - a.y).slice(0, 12);
-    for (let ring = 2; ring <= 4; ring++) {
-      const D = step * ring;
+    // The usable band is NARROW and gets narrower as speeds go up: further than one step
+    // (or the mover clamps) but inside the creature's sight (or it never targets anything).
+    // At crawlSpeed 8 that is 288 to 500 units — a worm now covers more than half its own
+    // sight radius in a single step. Multipliers, not fixed distances, so this tracks the
+    // config; whole-number rings (2x, 3x, 4x) put every candidate past sight and the finder
+    // returned null for every map.
+    const sight = Math.max(sub.cellSize * 4, s.config.nematodes.sightRadius || 500);
+    for (const mult of [1.15, 1.3, 1.5, 1.7, 1.15, 1.4]) {
+      const D = step * mult;
+      if (D >= sight) continue;                                   // nothing would be in sight
       for (let k = 0; k < 16; k++) {
         const ang = k * Math.PI / 8;
         for (const T of deep) {
@@ -139,6 +158,7 @@ await p.evaluate(() => {
             if (d < bd) { bd = d; best = nd; }
           }
           if (!best || bd <= step * 1.05) continue;               // would clamp to the gap
+          if (bd >= sight) continue;                              // out of sensing range
           if (!sub.segmentClear(x, y, best.x, best.y)) continue;  // can't sense through rock
           const ux = (best.x - x) / bd, uy = (best.y - y) / bd;
           if (!pathOk(x, y, x + ux * step, y + uy * step)) continue;   // would slide, not step
@@ -300,8 +320,76 @@ const rot=await p.evaluate(()=>{
 ok('a big enough colony was grown for the rot to race through', rot.total>80, `${rot.total} strands`);
 ok('the rot claims at least spreadDepthPerTurn rings in one action',
    rot.n1-rot.n0 >= rot.rings, `${rot.n0} → ${rot.n1} infected, rate ${rot.rings} rings`);
-ok('and does not claim the whole colony at once (it still travels)',
-   rot.n1 < rot.total, `${rot.n1} of ${rot.total}`);
+
+// ---- 6b. FIRST TOUCH is its own rate, and does NOT stack with the race -------
+// The two rates are separate: a breach costs firstTouchRings and nothing else on that step,
+// and every step after costs spreadDepthPerTurn. The old behaviour was ADDITIVE — a breach
+// claimed its chunk and the freshly-seeded front then took a full turn's spread on top — so
+// the number to prove is the ISOLATION, not just that a breach infects something.
+//
+// Measured on a LINEAR strand of known length, not the branching colony: a "ring" is one step
+// along the filaments, so on a branching network N rings claims far more than N strands and
+// the count says nothing about the rate. On a single chain, rings and strands are 1:1 and the
+// two numbers can actually be compared. firstTouchRings (20) is well under the race (40), so
+// if the breach also raced, the count would come out at the chain's full length instead.
+const touch=await p.evaluate(()=>{
+  const G=window.__game, s=G.state, sub=s.substrate, cs=sub.cellSize;
+  const net=s.active, t=s.config.trichoderma;
+  s.nematodes.length=0; s.clouds.length=0;
+  // A bare chain, long enough that neither rate can run out of strand to claim.
+  const LEN=160;
+  net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  let parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3, null);
+  parent._liveAt=0;
+  for (let i=1;i<LEN;i++) {
+    // Straight down the middle; y stays inside the world, x never moves.
+    parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3+i*4, parent);
+    parent._liveAt=0;
+  }
+  for (const n of net.nodes) { n.infected=false; const c=sub.cellAtWorld(n.x,n.y); if (c) { c.mouldProof=0; c.reinfectGrace=0; c.trich=0; } }
+  net._spreadAccum=0;
+  t.infectionSpreadChance=1;                 // deterministic, so the ring count is readable
+  // A cloud parked ON the far END of the chain, so its breach seeds the tip and the rot has
+  // the whole chain in ONE direction to eat — a mid-chain seed would spread both ways and
+  // double the count.
+  const tip=net.nodes[net.nodes.length-1];
+  s.clouds.push({cx:tip.x, cy:tip.y, r:0.4, heading:0, fade:0, sees:true, _budget:0});
+  const before=net.nodes.filter(n=>n.infected).length;
+  G.tickWorld(s);
+  const afterTouch=net.nodes.filter(n=>n.infected).length;
+  // Second step: no cloud left (it spent itself), so this is the established race alone.
+  s.clouds.length=0;
+  net._spreadAccum=0;
+  G.tickWorld(s);
+  const afterRace=net.nodes.filter(n=>n.infected).length;
+  return { len:net.nodes.length, before, afterTouch, afterRace,
+           first:t.firstTouchRings, rate:t.spreadDepthPerTurn };
+});
+ok('the breach seeded a clean chain', touch.before===0 && touch.len>=160,
+   `${touch.len} strands, ${touch.before} already rotten`);
+// The seeded tip itself, plus firstTouchRings claimed along the chain from it.
+ok('first touch costs exactly firstTouchRings + the strand it touched',
+   touch.afterTouch === touch.first + 1,
+   `${touch.afterTouch} rotten after the breach, wanted ${touch.first + 1} ` +
+   `(firstTouchRings ${touch.first})`);
+ok('it did NOT also take a full turn\'s race on the same step',
+   touch.afterTouch < touch.first + touch.rate,
+   `${touch.afterTouch} rotten; additive would be about ${touch.first + touch.rate + 1}`);
+ok('the step AFTER the breach costs spreadDepthPerTurn',
+   touch.afterRace - touch.afterTouch === touch.rate,
+   `${touch.afterTouch} → ${touch.afterRace} (+${touch.afterRace-touch.afterTouch}), rate ${touch.rate}`);
+
+// On a BRANCHING colony a ring is one step along the filaments in every direction at once, so
+// N rings claims far more than N strands — which is why the exact-rate assertions above run on
+// a linear chain. Worth its own assertion because it is the magnitude the owner feels: at 40
+// rings, one step of the established race reaches essentially all of a ~550-strand colony.
+ok('on a branching colony one step claims far more strands than rings',
+   rot.n1 - rot.n0 > rot.rings, `+${rot.n1-rot.n0} strands from ${rot.rings} rings ` +
+   `(${rot.n1} of ${rot.total} rotten)`);
+// The rot TRAVELS rather than claiming everything reachable — asserted on the chain, where
+// "how far did it get" is a real distance rather than a branching factor.
+ok('the rot still has to travel: two steps did not reach the end of a 160-strand chain',
+   touch.afterRace < touch.len, `${touch.afterRace} of ${touch.len} rotten after two steps`);
 
 // ---- 7. the visible creep keeps pace with the sim ---------------------------
 // infectCreepMs is the renderer's ms-per-ring. If the sim outruns it the green falls behind
