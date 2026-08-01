@@ -12097,17 +12097,20 @@ function isLevel(o) {
 // needs. 1.5 is the depth the owner settled on: the traced art fills the top two-thirds and
 // the last third is open soil down to the molten floor. Raising this is the ONLY way to put
 // the line deeper, since the line cannot go below the cell grid (see configForLevelDef).
-const CORE_DEPTH_MULT = 1.0143;
-// Where the line sits WITHIN that box, as a fraction. 1 puts it on the floor (the core then
-// shows only below the map, in the camera buffer); less than 1 lifts it, so the band of molten
-// rock is inside the world and rocks dragged into it are clipped by it.
+// The world box every authored map is built to, in WORLD UNITS below surfaceY — absolute, not
+// a multiple of what each map's JSON declares, so every map in the campaign is the same size
+// whatever depth its tracer happened to pick (they range 799 to 1188).
 //
-// 1.15 is deliberately past 1 and Substrate clamps it: the last two changes asked for a box 30%
-// shallower AND a line 15% deeper, and those fight. Shrinking the box by 30% leaves it exactly
-// as deep as the line already was (1.449 x 0.7 = 1.0143 either way), so there is nowhere below
-// it for the line to go. The constant records the ask and the clamp records the physics —
-// better than quietly writing 1 here and losing the fact that more depth was wanted.
-const CORE_LINE_FRAC = 1.15;
+// CONSEQUENCE, and it is visible: art deeper than CORE_LINE_DEPTH is below the line and gets
+// clipped by the core. At 1000 that is 48 of the 59 maps losing their lowest rock, and a map
+// declared deeper than CORE_BOX_DEPTH loses everything past it (three-ways, at 1188). Raise
+// these to keep more of the art; lower them for a tighter world.
+const CORE_BOX_DEPTH = 1100;
+// How deep the molten line sits, same units. Equal to CORE_BOX_DEPTH puts it on the floor and
+// the core shows only below the map; less lifts it, so the molten band is inside the world and
+// rocks dragged into it are clipped by it.
+//
+const CORE_LINE_DEPTH = 1000;
 
 // A clone of `config` with the level's world box applied. The rest of CONFIG
 // (economy, threat behaviour, render) is untouched — an authored map changes
@@ -12124,23 +12127,17 @@ function configForLevelDef(config, level) {
   // (see CONFIG.world.coreDepthFrac). A map may set `coreDepthFrac` under 1 to bring the line
   // back up inside the map, or null for no core at all.
   //
-  // DEPTH IS THE WORLD'S HEIGHT, not the fraction. The line can only be as deep as there are
-  // cells for it to sit on — a fraction past 1 is clamped, because a growth floor below the
-  // grid would let the colony grow into a gridless void. So "deeper" means a TALLER content
-  // box: it is extended by CORE_DEPTH_MULT and the core sits at its new floor. The map's own
-  // objects keep their absolute coordinates, so the traced art stays exactly where it was and
-  // the extra depth arrives as open soil beneath it.
+  // THE BOX IS FIXED, not derived from the level. Every authored map is built to the same
+  // CORE_BOX_DEPTH with the line at CORE_LINE_DEPTH, so a campaign of them is one consistent
+  // size rather than 59 different depths (the tracer picked between 799 and 1188). The map's
+  // objects keep their absolute coordinates, so the art stays exactly where it was — which
+  // also means art below the line is clipped by the core and art past the box is gone.
   //
   // Applied to the CONFIG, never to the level — `def.world.height` stays as the tracer wrote
-  // it, so editExport round-trips the original and the multiplier is re-applied on load rather
-  // than compounding through a save.
+  // it, so editExport round-trips the original rather than baking today's box into the JSON.
   const _sy = cfg.world.surfaceY;
-  cfg.world.height = _sy + (cfg.world.height - _sy) * CORE_DEPTH_MULT;
-  // The line sits 30% up off the floor rather than on it, so the molten band is visible INSIDE
-  // the map instead of only below it. At the current numbers that puts it just under the
-  // traced art: the box runs 1.449x the declared depth and the line 0.7 of the box, so the
-  // playable region is 1.014x what the tracer sized the art for.
-  cfg.world.coreDepthFrac = CORE_LINE_FRAC;
+  cfg.world.height = _sy + CORE_BOX_DEPTH;
+  cfg.world.coreDepthFrac = CORE_LINE_DEPTH / CORE_BOX_DEPTH;
   if (w.coreDepthFrac !== undefined) cfg.world.coreDepthFrac = w.coreDepthFrac;
   // A TRACED map brings its own lighting, baked into the art by whatever drew it, and the
   // renderer's ambient pass then multiplies the whole underground by a warm tint
@@ -12381,7 +12378,7 @@ function stampFood(sub, o, N) {
   sub.foodPiles.push(pile);
 }
 
-  return { LEVEL_FORMAT, LEVEL_VERSION, ROCK_TYPES, CORE_DEPTH_MULT, CORE_LINE_FRAC, blankLevel, isLevel, configForLevelDef, buildLevel };
+  return { LEVEL_FORMAT, LEVEL_VERSION, ROCK_TYPES, CORE_BOX_DEPTH, CORE_LINE_DEPTH, blankLevel, isLevel, configForLevelDef, buildLevel };
 })();
 
 // ===================== src/engine/state.js =====================
@@ -20453,7 +20450,7 @@ function showCredits({ onClose } = {}) {
 const __m_main = (function () {
   const { CONFIG, isRealtime, setMode, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState } = __m_engine_state;
-  const { isLevel, CORE_DEPTH_MULT, CORE_LINE_FRAC } = __m_engine_level;
+  const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH } = __m_engine_level;
   const { levelForNumber, allLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
@@ -22120,8 +22117,8 @@ function begin(newState) {
     threatSight,
     // The authored-map depth multiplier, so a check can follow it instead of hard-coding the
     // number in two more places and going stale the next time it moves.
-    coreDepthMult: CORE_DEPTH_MULT,
-    coreLineFrac: CORE_LINE_FRAC,
+    coreBoxDepth: CORE_BOX_DEPTH,
+    coreLineDepth: CORE_LINE_DEPTH,
     levels: allLevels,
     saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
     forgetSaved: deleteSavedLevel,

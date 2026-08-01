@@ -61,20 +61,17 @@ const decl=await p.evaluate(()=>{const d=window.__game.state.levelDef||{};
   return {h:(d.world||{}).height, sy:(d.world||{}).surfaceY};});
 ok('the level def keeps the height its tracer wrote', Math.abs(decl.h-1278.6)<0.01,
    `def height ${decl.h}, surfaceY ${decl.sy}`);
-const mult=await p.evaluate(()=>window.__game.coreDepthMult);
-ok(`the content box runs ${mult}x that depth, so the core has room to be deeper`,
-   mult>1 && Math.abs((geom.worldHeight-geom.surfaceY) - (decl.h-decl.sy)*mult) < 2,
-   `played depth ${Math.round(geom.worldHeight-geom.surfaceY)} vs declared ${Math.round(decl.h-decl.sy)} x${mult}`);
+const box=await p.evaluate(()=>({d:window.__game.coreBoxDepth, l:window.__game.coreLineDepth}));
+ok(`the content box is a fixed ${box.d} deep, whatever the level declares`,
+   Math.abs((geom.worldHeight-geom.surfaceY) - box.d) < 1,
+   `played depth ${Math.round(geom.worldHeight-geom.surfaceY)} vs declared ${Math.round(decl.h-decl.sy)}`);
 // Where the line sits within the box. Lifted off the floor, so the molten band is INSIDE the
 // world and rocks dragged into it are clipped by it — on the floor the core showed only below
 // the map. Still clamped at 1: a fraction past it would put the growth floor below the cell
 // grid, where _placeOk would happily grow into a gridless void.
-const lineFrac=await p.evaluate(()=>window.__game.coreLineFrac);
-const wantFrac=Math.min(1, lineFrac);
-ok(`the line sits at ${wantFrac} of the box${lineFrac>1?` (asked ${lineFrac}, clamped)`:''}`,
-   Math.abs((geom.coreY-geom.surfaceY) - (geom.worldHeight-geom.surfaceY)*wantFrac) < 1
-     && geom.coreY <= geom.worldHeight && geom.frac === wantFrac,
-   `core ${Math.round(geom.coreY)} of ${geom.surfaceY}..${Math.round(geom.worldHeight)}, frac ${geom.frac}`);
+ok(`the line sits a fixed ${box.l} down, inside the box`,
+   Math.abs((geom.coreY-geom.surfaceY) - box.l) < 1 && geom.coreY <= geom.worldHeight,
+   `line ${Math.round(geom.coreY-geom.surfaceY)} of a ${Math.round(geom.worldHeight-geom.surfaceY)} box`);
 ok('the growth floor IS the core line',
    geom.growFloorY===geom.coreY,
    `floor ${Math.round(geom.growFloorY)}, core ${Math.round(geom.coreY)}`);

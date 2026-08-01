@@ -79,11 +79,11 @@ const SEALED_C0 = 12, SEALED_C1 = 71;   // inside the slab span, excluding atriu
   // them — which is why every assertion below still holds. Read the multiplier off the game
   // rather than repeating it, or this goes stale the next time the owner asks for more depth.
   const declared = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'docs', 'levels', 'three-ways.json'), 'utf8'));
-  const mult = await page.evaluate(() => window.__game.coreDepthMult);
-  const wantRows = Math.floor((declared.world.height - declared.world.surfaceY) * mult / geo.cs);
-  ok(`world box is 80 cells wide and ${mult}x the declared depth`,
+  const boxDepth = await page.evaluate(() => window.__game.coreBoxDepth);
+  const wantRows = Math.floor(boxDepth / geo.cs);
+  ok(`world box is 80 cells wide and a fixed ${boxDepth} deep`,
      geo.cols === 80 && geo.rows === wantRows,
-     `${geo.cols}×${geo.rows} cells (declared depth x${mult} wants ${wantRows}), ${geo.w}×${geo.h} units, ${geo.sprites} sprites`);
+     `${geo.cols}×${geo.rows} cells (a ${boxDepth} box wants ${wantRows}), declared ${declared.world.height - declared.world.surfaceY}, ${geo.sprites} sprites`);
 
   // ------------------------------------------------------- the seal + run ----
   // Flood-fills over the FINE mask (substrate._fineSolid: 9 px cells, the grid
