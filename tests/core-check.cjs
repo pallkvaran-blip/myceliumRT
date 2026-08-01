@@ -52,12 +52,15 @@ const geom=await p.evaluate(()=>{const s=window.__game.state.substrate;
   return {surfaceY:s.surfaceY, coreY:s.coreY, growFloorY:s.growFloorY, worldHeight:s.worldHeight,
           frac:s.coreDepthFrac};});
 ok('an authored map has a core line', geom.coreY!=null, JSON.stringify(geom));
-ok('it sits at half the content depth',
-   Math.abs(geom.coreY - (geom.surfaceY + (geom.worldHeight-geom.surfaceY)*0.5)) < 1,
-   `core ${Math.round(geom.coreY)} of ${geom.surfaceY}..${Math.round(geom.worldHeight)}`);
-ok('the growth floor IS the core line, not the content floor',
-   geom.growFloorY===geom.coreY && geom.growFloorY < geom.worldHeight,
-   `floor ${Math.round(geom.growFloorY)}, content floor ${Math.round(geom.worldHeight)}`);
+// 1.5 was asked for; the world cannot hold a line 1.5 content-depths down, so Substrate clamps
+// it to the floor. The clamp is the assertion: a fraction past 1 must NOT put the growth floor
+// below the cell grid, where _placeOk would happily grow into a gridless void.
+ok('a fraction past 1 is clamped to the content floor',
+   Math.abs(geom.coreY - geom.worldHeight) < 1 && geom.frac === 1,
+   `core ${Math.round(geom.coreY)}, content floor ${Math.round(geom.worldHeight)}, frac ${geom.frac}`);
+ok('the growth floor IS the core line',
+   geom.growFloorY===geom.coreY,
+   `floor ${Math.round(geom.growFloorY)}, core ${Math.round(geom.coreY)}`);
 
 // The line drawn and the line enforced must be the same y. Scan ACROSS the map at each depth:
 // a single x lands inside a rock and would report "blocked" for the wrong reason.
@@ -65,7 +68,9 @@ const reach=await p.evaluate(()=>{
   const s=window.__game.state, sub=s.substrate, net=s.networks[0];
   const anyAt=(y)=>{for(let x=60;x<sub.worldWidth-60;x+=17) if(net._placeOk(sub,x,y)) return true; return false;};
   let deepest=null;
-  for(let y=sub.surfaceY+20;y<sub.worldHeight-5;y+=2) if(anyAt(y)) deepest=y;
+  // Scan PAST the line — with the core clamped to the content floor, stopping short of
+  // worldHeight would report a deepest point that is just the loop bound.
+  for(let y=sub.surfaceY+20;y<sub.coreY+40;y+=2) if(anyAt(y)) deepest=y;
   return {deepest, core:sub.coreY,
           justAbove:anyAt(sub.coreY-8), atLine:anyAt(sub.coreY),
           below:anyAt(sub.coreY+20), wayBelow:anyAt(sub.coreY+300)};
@@ -97,8 +102,12 @@ const hue=await p.evaluate(()=>{
   };
   return {above:patch(sub.coreY-120), below:patch(sub.coreY+120)};
 });
+// Calibrated against the NULL CASE, not against the observed value: with no core the patch
+// below the line is soil and its lead matches the one above it (~28 vs ~28). Observed with the
+// core: ~79. The gate sits at 60 and 2x, which leaves better than 2x headroom over "no core at
+// all" while not being a number copied off a passing run.
 const leadAbove=hue.above.r-hue.above.b, leadBelow=hue.below.r-hue.below.b;
-ok('the earth turns red below the line', leadBelow > leadAbove*2 && leadBelow > 80,
+ok('the earth turns red below the line', leadBelow > leadAbove*2 && leadBelow > 60,
    `red-over-blue ${leadAbove} above -> ${leadBelow} below`);
 
 // ---- a rock below the line is clipped by the core -------------------------
@@ -150,7 +159,7 @@ const def=JSON.parse(fs.readFileSync(path.join(ROOT,'docs','levels','slate-c40.j
 const off=JSON.parse(JSON.stringify(def));
 off.id='core-off'; off.name='Core Off'; off.chapter='Chapter 1';
 off.assetsFrom='slate-c40'; off.campaignLevel=null;
-off.world=Object.assign({}, off.world, {coreDepthFrac:1});
+off.world=Object.assign({}, off.world, {coreDepthFrac:null});
 ctx=await b.newContext({viewport:{width:1400,height:800}});
 await ctx.addInitScript((c)=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};
   try{localStorage.setItem('mycelium.savedLevels.v1',JSON.stringify([c]));}catch(_){}}, off);
@@ -158,7 +167,7 @@ p=await boot(ctx, base+'/index.html#level,core-off');
 const noCore=await p.evaluate(()=>{const s=window.__game.state.substrate;
   return {id:(window.__game.state.levelDef||{}).id, coreY:s.coreY, growFloorY:s.growFloorY,
           worldHeight:s.worldHeight};});
-ok('a level can set coreDepthFrac 1 and have no core at all',
+ok('a level can set coreDepthFrac null and have no core at all',
    noCore.id==='core-off' && noCore.coreY===null && noCore.growFloorY===noCore.worldHeight,
    JSON.stringify(noCore));
 await ctx.close();

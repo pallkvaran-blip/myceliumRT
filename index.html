@@ -1726,9 +1726,11 @@ const CONFIG = {
     // colony cannot grow past it (Network._placeOk reads substrate.growFloorY) and level rocks
     // are clipped at it (drawLevelRocks), so a rock dragged below the line is cut off by the
     // core exactly as one dragged above the soil line is cut off by the sky.
-    // 1 (or more) disables it: no line, no clip, growth bounded by `height` as before.
+    // `null` (or 0) disables it: no line, no clip, growth bounded by `height` as before.
+    // Any value in (0, 1] places the line; past 1 is CLAMPED to the content floor, because
+    // there are no cells below `height` for a growth floor to sit on.
     //
-    // OFF by default, and turned on at 0.5 for AUTHORED maps by configForLevelDef. Not a
+    // OFF by default, and turned on for AUTHORED maps by configForLevelDef. Not a
     // style choice — the procedural generator spreads food, reservoirs and formations across
     // the full content depth, so a core at 0.5 strands about half of every generated map's
     // resources below a line the colony cannot cross, and the procedural rock is drawn by
@@ -1736,7 +1738,7 @@ const CONFIG = {
     // the red as well. The 100-level campaign is the shipped game; it keeps its whole world
     // until generation is taught about the core. An authored map places its own food, so it
     // has neither problem.
-    coreDepthFrac: 1,
+    coreDepthFrac: null,
     cellSize: 36,       // substrate grid cell size (square)
   },
 
@@ -8735,12 +8737,20 @@ class Substrate {
     // The molten core. `coreY` is where the earth turns to it — the render transition and the
     // growth floor are the same line, so what the player sees is exactly what stops them.
     // `growFloorY` is what the engine tests: the core when there is one, the content floor
-    // otherwise, so a map with coreDepthFrac >= 1 behaves exactly as before.
+    // otherwise, so a map with no coreDepthFrac behaves exactly as before.
+    // CLAMPED TO THE CONTENT FLOOR. A fraction past 1 asks for a line below the map, and there
+    // are no cells down there — the grid ends at `height`, so a growth floor beyond it would
+    // let the colony grow into a gridless void, and a line drawn beyond it would leave a band
+    // of soil you can see but cannot enter. Clamping keeps the one promise that matters: the
+    // line you see IS the floor you stop at. A fraction of exactly 1 therefore puts the core
+    // right under the map, which is the deepest it can meaningfully go.
     const cf = config.world.coreDepthFrac;
-    this.coreDepthFrac = (cf == null ? 1 : +cf);
-    this.coreY = this.coreDepthFrac < 1
-      ? surfaceY + (height - surfaceY) * Math.max(0.05, this.coreDepthFrac)
+    this.coreDepthFrac = (cf == null ? null : Math.min(1, +cf));
+    this.coreY = this.coreDepthFrac != null && this.coreDepthFrac > 0
+      ? Math.min(height, surfaceY + (height - surfaceY) * Math.max(0.05, this.coreDepthFrac))
       : null;
+    // A core AT the content floor is the floor — no separate rule, and no behaviour change
+    // from a map with no core at all.
     this.growFloorY = this.coreY != null ? this.coreY : height;
     this.cols = Math.floor(width / cellSize);
     this.rows = Math.floor((height - surfaceY) / cellSize);
@@ -12095,9 +12105,13 @@ function configForLevelDef(config, level) {
   if (w.cellSize) cfg.world.cellSize = w.cellSize;
   // THE CORE, on for authored maps. Every object on one of these is placed by hand, so
   // nothing can end up stranded below the line the way procedural generation would strand it
-  // (see CONFIG.world.coreDepthFrac). A map may move the line or set 1 to have no core.
-  cfg.world.coreDepthFrac = 0.5;
-  if (w.coreDepthFrac != null) cfg.world.coreDepthFrac = w.coreDepthFrac;
+  // (see CONFIG.world.coreDepthFrac). A map may move the line, or set null for no core.
+  // 1.5 asked for, clamped to the content floor by Substrate: three times the depth of the
+  // first version (0.5), which the world cannot actually hold — so the line lands at the map's
+  // own floor, the WHOLE map is playable, and the core begins immediately below it. Set a
+  // value under 1 to bring the line back up inside the map.
+  cfg.world.coreDepthFrac = 1.5;
+  if (w.coreDepthFrac !== undefined) cfg.world.coreDepthFrac = w.coreDepthFrac;
   // A TRACED map brings its own lighting, baked into the art by whatever drew it, and the
   // renderer's ambient pass then multiplies the whole underground by a warm tint
   // (rgb(a, a*0.9, a*0.76) at ambientLight 0.62) before adding the colony's glow back. On a

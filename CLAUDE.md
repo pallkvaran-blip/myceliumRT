@@ -225,12 +225,16 @@ Harness traps that have cost real time:
 ## The core (the molten floor)
 
 A second hard boundary, the mirror of the soil line. `world.coreDepthFrac` (a fraction of the
-content depth, `surfaceY`→`height`) puts `substrate.coreY` at half depth; below it the earth is
-molten rock. Three things key off that one number:
+content depth, `surfaceY`→`height`) puts `substrate.coreY`; below it the earth is molten rock.
+Authored maps ask for **1.5**, which `Substrate` **clamps to 1** — so the line lands at the
+map's own floor, the whole map is playable, and the core begins immediately under it. The clamp
+is not tidiness: there are no cells below `height`, so a growth floor past it would let the
+colony grow into a gridless void, and a line drawn past it would leave a band of soil you can
+see but cannot enter. `null` (or 0) means no core at all. Three things key off that one number:
 
 - **`substrate.growFloorY`** is what `Network._placeOk` tests — the core when there is one, the
   content floor otherwise, with the same ±2 margin the soil line uses. Measured: deepest
-  placeable 826 against a core at 829.
+  placeable 1276 against a core at 1279.
 - **`drawLevelRocks` clips at it**, exactly as it clips at `surfaceY`. A rock dragged below the
   line is cut off by the core the way one dragged up is cut off by the sky. Collision below the
   line is deliberately left alone — the colony cannot reach it, so an invisible wall down there
@@ -242,7 +246,9 @@ molten rock. Three things key off that one number:
   Getting that split wrong is visible and was wrong twice — normalising the far ramp against
   content depth put its hottest colour at the content floor and the lower half of every map
   came out a bright orange lava lamp; normalising both ramps against the drawn extent made the
-  band you actually play against read as dark mud.
+  band you actually play against read as dark mud. The soil-ramp compression is a no-op at
+  frac 1 (the ramp already finishes at the floor), so the "black to red" reading comes from the
+  map's own deepest soil meeting the core.
 
 **It is OFF by default and turned on only for AUTHORED maps** (`configForLevelDef`). Not a style
 choice: the procedural generator spreads food, reservoirs and formations across the full content
@@ -251,10 +257,12 @@ colony cannot cross — and procedural rock is drawn by `drawRockPiles`/`drawRoc
 which the clip does not cover, so it floats on the red as well. The 100-level campaign is the
 shipped game; it keeps its whole world until generation is taught about the core. An authored
 map places its own food by hand, so it has neither problem. A level can set its own
-`world.coreDepthFrac`, or 1 for no core at all.
+`world.coreDepthFrac` (under 1 brings the line up INSIDE the map), or `null` for no core.
 
-`tests/core-check.cjs` (10 assertions) covers the lot. Its clip assertion has a **verified
-negative control** — with the clip removed the rock centre reads 84 against bare core 242, a gap
+`tests/core-check.cjs` (10 assertions) covers the lot, including that a fraction past 1 is
+clamped rather than put through. Its hue assertion is calibrated against the NULL case (no core:
+lead ~28 below vs ~28 above; with core: ~79), not off a passing run. Its clip assertion has a
+**verified negative control** — with the clip removed the rock centre reads 84 against bare core 242, a gap
 of 158 against a tolerance of 30; with it, 176 against 184. Run that control before trusting any
 similar pixel test here, because three earlier versions of the above-ground clip assertion
 passed with the feature deleted.
