@@ -48,8 +48,12 @@ const R = await p.evaluate(()=>{
     const trunk=[]; let par=net.addNode(x0,y0,null); par._liveAt=0; trunk.push(par);
     for(let i=1;i<TR;i++){ par=net.addNode(x0,y0+i*4,par); par._liveAt=0; trunk.push(par); }
     for(const tn of trunk){ let q=tn; for(let j=1;j<=BR;j++){ q=net.addNode(tn.x+j*4,tn.y,q); q._liveAt=0; } }
-    for(const n of net.nodes){ n.infected=false; n.rotAge=0;
-      const c=sub.cellAtWorld(n.x,n.y); if(c){c.mouldProof=0;c.reinfectGrace=0;c.trich=0;} }
+    // Clear the WHOLE field, not just the cells under the nodes. The trich a previous
+    // iteration's cloud stamped, and the reinfect grace its infection left behind, both
+    // persist in cells the new colony also occupies -- so sweeping several settings in one
+    // run gave order-dependent numbers (the same case read 440, then 242, then 1).
+    for(const c of sub.cells){ if(c){ c.trich=0; c.mouldProof=0; c.reinfectGrace=0; } }
+    for(const n of net.nodes){ n.infected=false; n.rotAge=0; }
     net._spreadAccum=0;
     return trunk;
   };

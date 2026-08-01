@@ -217,8 +217,14 @@ CONFIG literal only.
   contributes exactly its chunk. This **replaces** `contactChunk: 4`, which was ADDITIVE — a
   breach claimed 4 rings and the freshly-seeded front then took a whole turn's spread on top, so
   "what does first contact cost?" had no single answer.
-- **`growInfectBurst` (18) is the OTHER first touch** — growing *into* mould rather than being
-  touched by it — and is deliberately left on its own number.
+- **`growInfectBurst` is the OTHER first touch** — growing *into* mould rather than being
+  touched by it — now **12 = 4 steps**, level with `firstTouchRings` and with the ongoing race,
+  so all three ways of being caught cost the same. It was 18 (6 steps), and that was the
+  biggest remaining bite when a cloud DRIFTED onto the colony: `infectStrandsInMould` cannot
+  tell "I grew into mould" from "mould came to me", so the grow-into penalty was charged for
+  both. Measured on the probe's 440-strand colony with the ring spread off, a cloud landing on
+  the trunk near the base took **242 strands at 18 and 176 at 12**. One-off, so ONE value for
+  both modes and CONFIG-only.
 - **Raising the spread forces `render.infectCreepMs` down with it**: 300 → 100 → **50**. The
   creep is the renderer's ms-per-ring, and at 10 rings/tick × 2 ticks/sec the sim advances 20
   rings a second against 3.3 at 300 ms. The green would fall behind until `infectMaxLagMs`

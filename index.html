@@ -2068,7 +2068,15 @@ const CONFIG = {
     // (`growInfectBurst` below is the other way to be first-touched — growing INTO mould —
     // and is deliberately left on its own number.)
     firstTouchRings: 12,         // (SLIDER)
-    growInfectBurst: 18,         // growing a strand INTO mould instantly rots this many rings (≈6 grow-steps) in EVERY direction from each caught node, so a long grow can't outrun the rot with a white tip past the cloud (SLIDER)
+    growInfectBurst: 12,         // growing a strand INTO mould instantly rots this many rings — 4 grow-steps,
+                                 //   level with firstTouchRings and with the ongoing race, so all three
+                                 //   ways of being caught now cost the same 4 steps. Was 18 (6 steps), which
+                                 //   was the biggest remaining bite when a cloud DRIFTED onto the colony:
+                                 //   infectStrandsInMould cannot tell "I grew into mould" from "mould came
+                                 //   to me", so the grow-into penalty was being charged for both. Fires in
+                                 //   EVERY direction from each caught node, so a long grow still can't
+                                 //   outrun the rot with a clean tip past the cloud. One-off, so ONE value
+                                 //   for both modes — it does not scale with steps-per-second (SLIDER)
     // Rings/step the ESTABLISHED rot races along your filaments. ONE RING IS ONE SEGMENT, and a
     // card "step" is 3 segments (grow4Segments 12 = 4 steps, grow5Segments 15 = 5, Rhizomorph
     // Lance's reachSegments 18 = 6). So 12 rings is 4 STEPS — owner-set, deliberately LEVEL with
