@@ -12097,7 +12097,11 @@ function isLevel(o) {
 // needs. 1.5 is the depth the owner settled on: the traced art fills the top two-thirds and
 // the last third is open soil down to the molten floor. Raising this is the ONLY way to put
 // the line deeper, since the line cannot go below the cell grid (see configForLevelDef).
-const CORE_DEPTH_MULT = 2.07;
+const CORE_DEPTH_MULT = 1.449;
+// Where the line sits WITHIN that box, as a fraction. 1 puts it on the floor (the core then
+// shows only below the map, in the camera buffer); less than 1 lifts it, so the band of molten
+// rock is inside the world and rocks dragged into it are clipped by it.
+const CORE_LINE_FRAC = 0.7;
 
 // A clone of `config` with the level's world box applied. The rest of CONFIG
 // (economy, threat behaviour, render) is untouched — an authored map changes
@@ -12126,7 +12130,11 @@ function configForLevelDef(config, level) {
   // than compounding through a save.
   const _sy = cfg.world.surfaceY;
   cfg.world.height = _sy + (cfg.world.height - _sy) * CORE_DEPTH_MULT;
-  cfg.world.coreDepthFrac = 1;
+  // The line sits 30% up off the floor rather than on it, so the molten band is visible INSIDE
+  // the map instead of only below it. At the current numbers that puts it just under the
+  // traced art: the box runs 1.449x the declared depth and the line 0.7 of the box, so the
+  // playable region is 1.014x what the tracer sized the art for.
+  cfg.world.coreDepthFrac = CORE_LINE_FRAC;
   if (w.coreDepthFrac !== undefined) cfg.world.coreDepthFrac = w.coreDepthFrac;
   // A TRACED map brings its own lighting, baked into the art by whatever drew it, and the
   // renderer's ambient pass then multiplies the whole underground by a warm tint
@@ -12367,7 +12375,7 @@ function stampFood(sub, o, N) {
   sub.foodPiles.push(pile);
 }
 
-  return { LEVEL_FORMAT, LEVEL_VERSION, ROCK_TYPES, CORE_DEPTH_MULT, blankLevel, isLevel, configForLevelDef, buildLevel };
+  return { LEVEL_FORMAT, LEVEL_VERSION, ROCK_TYPES, CORE_DEPTH_MULT, CORE_LINE_FRAC, blankLevel, isLevel, configForLevelDef, buildLevel };
 })();
 
 // ===================== src/engine/state.js =====================
@@ -20439,7 +20447,7 @@ function showCredits({ onClose } = {}) {
 const __m_main = (function () {
   const { CONFIG, isRealtime, setMode, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState } = __m_engine_state;
-  const { isLevel, CORE_DEPTH_MULT } = __m_engine_level;
+  const { isLevel, CORE_DEPTH_MULT, CORE_LINE_FRAC } = __m_engine_level;
   const { levelForNumber, allLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
@@ -22107,6 +22115,7 @@ function begin(newState) {
     // The authored-map depth multiplier, so a check can follow it instead of hard-coding the
     // number in two more places and going stale the next time it moves.
     coreDepthMult: CORE_DEPTH_MULT,
+    coreLineFrac: CORE_LINE_FRAC,
     levels: allLevels,
     saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
     forgetSaved: deleteSavedLevel,

@@ -65,12 +65,15 @@ const mult=await p.evaluate(()=>window.__game.coreDepthMult);
 ok(`the content box runs ${mult}x that depth, so the core has room to be deeper`,
    mult>1 && Math.abs((geom.worldHeight-geom.surfaceY) - (decl.h-decl.sy)*mult) < 2,
    `played depth ${Math.round(geom.worldHeight-geom.surfaceY)} vs declared ${Math.round(decl.h-decl.sy)} x${mult}`);
-// 1.5 was asked for; the world cannot hold a line 1.5 content-depths down, so Substrate clamps
-// it to the floor. The clamp is the assertion: a fraction past 1 must NOT put the growth floor
-// below the cell grid, where _placeOk would happily grow into a gridless void.
-ok('a fraction past 1 is clamped to the content floor',
-   Math.abs(geom.coreY - geom.worldHeight) < 1 && geom.frac === 1,
-   `core ${Math.round(geom.coreY)}, content floor ${Math.round(geom.worldHeight)}, frac ${geom.frac}`);
+// Where the line sits within the box. Lifted off the floor, so the molten band is INSIDE the
+// world and rocks dragged into it are clipped by it — on the floor the core showed only below
+// the map. Still clamped at 1: a fraction past it would put the growth floor below the cell
+// grid, where _placeOk would happily grow into a gridless void.
+const lineFrac=await p.evaluate(()=>window.__game.coreLineFrac);
+ok(`the line sits at ${lineFrac} of the box, off the floor`,
+   Math.abs((geom.coreY-geom.surfaceY) - (geom.worldHeight-geom.surfaceY)*lineFrac) < 1
+     && geom.coreY < geom.worldHeight && geom.frac === lineFrac,
+   `core ${Math.round(geom.coreY)} of ${geom.surfaceY}..${Math.round(geom.worldHeight)}, frac ${geom.frac}`);
 ok('the growth floor IS the core line',
    geom.growFloorY===geom.coreY,
    `floor ${Math.round(geom.growFloorY)}, core ${Math.round(geom.coreY)}`);
