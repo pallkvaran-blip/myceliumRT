@@ -102,14 +102,24 @@ const grown=await p.evaluate(() => {
   const G=window.__game, s=G.state, sub=s.substrate, net=s.active;
   net.water=99; net.energy=5000;
   const nd=net.nodes[0], c0=sub.colAtX(nd.x), r0=sub.rowAtY(nd.y);
-  for (let c=c0-3; c<=c0+3; c++) for (let r=r0; r<=r0+4; r++) {
+  // A SPARSE LATTICE, re-seeded before every grow. The count below is space-colonisation
+  // strands only — mat and pile-runner hyphae are excluded because they deliberately step
+  // short — and with one solid patch of food the colony claims it, mats it, and stops
+  // space-colonising: three runs came back with 19, 20 and 17 against a floor of 20. Gaps the
+  // colony has to cross, kept stocked, are what keep the frontier stepping at full length.
+  const idx=[];
+  for (let c=c0-7; c<=c0+7; c+=3) for (let r=r0; r<=r0+9; r+=3) {
     if (!sub.inBounds(c,r)) continue;
     const cell=sub.cells[sub.index(c,r)];
-    cell.rock=0; cell.hazard=0; cell.nutrient=50; cell.maxNutrient=50;
+    cell.rock=0; cell.hazard=0;
+    idx.push(sub.index(c,r));
   }
   const before=net.nodes.length;
   const seen=new Set(net.nodes.map(n=>n.id));
-  for (let i=0;i<8;i++) G.performAction(s,'grow',{});
+  for (let i=0;i<16;i++) {
+    for (const j of idx) { const cell=sub.cells[j]; cell.nutrient=50; cell.maxNutrient=50; }
+    G.performAction(s,'grow',{});
+  }
   // Measure only the strands this grow added, and only the SPACE-COLONISATION ones: the
   // pile-mat and pile-runner primitives deliberately step short as they close on food.
   const d=[];
@@ -123,7 +133,10 @@ const grown=await p.evaluate(() => {
            med:d.length?d[Math.floor(d.length/2)]:0, max:d.length?d[d.length-1]:0 };
 });
 ok('a grow still grows', grown.after > grown.before, `${grown.before} → ${grown.after} nodes`);
+// The floor guards against a VACUOUS pass (a probe that measured nothing prints 0/0 and the
+// runner counts it green), not statistical power — a median over 20 samples is plenty.
 ok('it measured enough fresh strands to mean something', grown.n >= 20, `${grown.n} strands`);
+
 // The step is the strand length. A hair of slack for the tip that stops short on its
 // attractor; nothing may EXCEED the segment length, which is what a stale hard-coded 17
 // (or an unscaled literal left behind in one primitive) would show up as.

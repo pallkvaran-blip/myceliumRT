@@ -86,14 +86,27 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     await page.waitForSelector('#tsNameStart', { timeout: 5000 });
     await page.click('#tsNameStart');
     await page.waitForFunction(() => document.getElementById('speciesSelect'), null, { timeout: 20000 });
-    const m2 = await page.evaluate(() => ({
-      mode: window.__cfg.mode, rt: window.__cfg.realtime.enabled,
-      worm: window.__cfg.nematodes.crawlSpeed, ants: window.__cfg.ants.harvestRate,
-      rot: window.__cfg.trichoderma.spreadDepthPerTurn,
-    }));
+    // Compared against MODE_TUNING itself, not against pinned numbers. This assertion used to
+    // hard-code worm=3 ants=40 rot=6, so every balance retune broke it under a name describing
+    // a retune from several sessions earlier. threat-check owns the absolute values; what
+    // belongs HERE is that coming back from real time re-applies the TURN table, whatever it
+    // currently says — and that the two tables genuinely differ, or the check is vacuous.
+    const m2 = await page.evaluate(() => {
+      const T = window.__modeTuning, C = window.__cfg;
+      const read = (p) => p.split('.').reduce((o, k) => (o == null ? o : o[k]), C);
+      const mism = [];
+      for (const k in T.turn) if (read(k) !== T.turn[k]) mism.push(`${k}=${read(k)} want ${T.turn[k]}`);
+      let differ = 0;
+      for (const k in T.turn) if (T.turn[k] !== T.realtime[k]) differ++;
+      return { mode: C.mode, rt: C.realtime.enabled, mism, differ, keys: Object.keys(T.turn).length,
+               worm: C.nematodes.crawlSpeed, ants: C.ants.harvestRate,
+               rot: C.trichoderma.spreadDepthPerTurn };
+    });
     ok('turn-based "New" starts the turn-based game', m2.mode === 'turn' && m2.rt === false, JSON.stringify({ mode: m2.mode, rt: m2.rt }));
-    ok('turn-based restores the original per-action tuning', m2.worm === 3 && m2.ants === 40 && m2.rot === 6,
-       `worm=${m2.worm} ants=${m2.ants} rot=${m2.rot}`);
+    ok('the two tuning tables actually differ (so the next assertion means something)',
+       m2.differ >= 5, `${m2.differ} of ${m2.keys} keys differ between the modes`);
+    ok('turn-based restores EVERY per-action value from MODE_TUNING.turn', m2.mism.length === 0,
+       m2.mism.length ? m2.mism.join(', ') : `worm=${m2.worm} ants=${m2.ants} rot=${m2.rot}`);
     await page.close();
   }
 

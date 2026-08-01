@@ -2493,7 +2493,7 @@ function setByPath(obj, path, value) {
   target[last] = value;
 }
 
-  return { CONFIG, SLIDERS, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode };
+  return { CONFIG, SLIDERS, MODE_TUNING, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode };
 })();
 
 // ===================== src/cards-data.js =====================
@@ -20673,7 +20673,7 @@ function showCredits({ onClose } = {}) {
 
 // ===================== src/main.js =====================
 const __m_main = (function () {
-  const { CONFIG, isRealtime, setMode, timeify, roundsToTime } = __m_config;
+  const { CONFIG, MODE_TUNING, isRealtime, setMode, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
   const { levelForNumber, allLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
@@ -26034,6 +26034,12 @@ setupInput();
 // Invisible boot-time debug hook: the live CONFIG, available before a run starts (unlike
 // window.__game, which begin() installs) so the chosen game mode is readable from the menus.
 window.__cfg = CONFIG;
+// The two per-mode tuning tables, so a check can assert "this mode loaded ITS OWN table"
+// against the table itself instead of re-pinning the numbers. Three separate checks had
+// hard-coded copies of these rates, which meant a retune broke two of them with assertion
+// names describing retunes from several sessions earlier ("nematode map speed halved again").
+// threat-check owns the absolute values; mode-check and rt-test now compare against this.
+window.__modeTuning = MODE_TUNING;
 // Route to the boot destination (menu / picker / a hash shortcut). Deferred behind the
 // loading screen's "Click" so the game always opens on a fully-decoded frame.
 function enterGame() {

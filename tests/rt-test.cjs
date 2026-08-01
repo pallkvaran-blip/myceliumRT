@@ -98,15 +98,42 @@ let base;
         spread: c.trichoderma.spreadDepthPerTurn, harvest: c.ants.harvestRate,
         dev: !!(c.dev && c.dev.enabled), fadeMs: c.render.infectFadeMs,
         creep: c.render.infectCreepMs, roundSeconds: c.cards.roundSeconds,
+        stepMs: (c.realtime && c.realtime.stepMs) || 500,
+        // Every key of MODE_TUNING.realtime that the loaded config does NOT match, and how
+        // many keys the two tables disagree on (a guard against comparing a table to itself).
+        mism: (() => {
+          const T = window.__modeTuning; if (!T) return ['no __modeTuning hook'];
+          const read = (p) => p.split('.').reduce((o, k) => (o == null ? o : o[k]), c);
+          const out = [];
+          for (const k in T.realtime) if (read(k) !== T.realtime[k]) out.push(`${k}=${read(k)} want ${T.realtime[k]}`);
+          return out;
+        })(),
+        differ: (() => {
+          const T = window.__modeTuning; if (!T) return 0;
+          let n = 0;
+          for (const k in T.realtime) if (T.realtime[k] !== T.turn[k]) n++;
+          return n;
+        })(),
+        keys: window.__modeTuning ? Object.keys(window.__modeTuning.realtime).length : 0,
       };
     });
-    ok('nematode map speed halved again (crawl 0.75→0.375, wander 0.25→0.125)', cfg.crawl === 0.375 && cfg.wander === 0.125, `crawl=${cfg.crawl} wander=${cfg.wander}`);
-    ok('trichoderma movement slowed 50% (1.5→0.75)', cfg.move === 0.75, `moveSpeed=${cfg.move}`);
-    ok('trichoderma eating slowed 30% (0.25→0.175)', Math.abs(cfg.leaves - 0.175) < 1e-9, `leavesPerRound=${cfg.leaves}`);
-    ok('infection spread slowed again (spreadDepthPerTurn 3→1.5)', cfg.spread === 1.5, `spreadDepthPerTurn=${cfg.spread}`);
-    ok('ant food consumption halved (harvestRate 13→6.5)', cfg.harvest === 6.5, `harvestRate=${cfg.harvest}`);
+    // Against MODE_TUNING itself, not pinned numbers. These five assertions used to hard-code
+    // the RT rates — under names describing retunes from several sessions earlier ("halved
+    // again", "slowed 50%") — so every balance change broke them and the names lied about what
+    // they were checking. threat-check owns the absolute values. What belongs HERE is that a
+    // real-time boot loaded the REAL-TIME table, whatever it currently says.
+    ok('real time loaded EVERY value from MODE_TUNING.realtime', cfg.mism.length === 0,
+       cfg.mism.length ? cfg.mism.join(', ')
+         : `crawl=${cfg.crawl} move=${cfg.move} spread=${cfg.spread} harvest=${cfg.harvest}`);
+    ok('and those differ from the turn-based table (so that assertion means something)',
+       cfg.differ >= 5, `${cfg.differ} of ${cfg.keys} keys differ between the modes`);
     ok('dev buttons re-enabled (CONFIG.dev.enabled=true)', cfg.dev === true, `dev.enabled=${cfg.dev}`);
-    ok('infection turn is short+crisp with a creep step (fade 240ms, creep 300ms)', cfg.fadeMs === 240 && cfg.creep === 300, `fadeMs=${cfg.fadeMs} creepMs=${cfg.creep}`);
+    // The fade is a fixed look choice; the CREEP has to track the spread rate, so assert the
+    // relationship rather than the number — it has moved 300 → 100 → 50 → 100 as the rate did.
+    const simRings = cfg.spread / ((cfg.stepMs || 500) / 1000);
+    ok('the infection turn is short and crisp (fade 240ms)', cfg.fadeMs === 240, `fadeMs=${cfg.fadeMs}`);
+    ok('and the visible creep keeps pace with the spread rate', (1000 / cfg.creep) >= simRings,
+       `creep draws ${(1000/cfg.creep).toFixed(1)} rings/s vs sim ${simRings.toFixed(1)} (creepMs=${cfg.creep})`);
     ok('a cadence dot (one "round") is 10 seconds of wall clock', cfg.roundSeconds === 10, `roundSeconds=${cfg.roundSeconds}`);
     await page.close();
   }
@@ -430,12 +457,21 @@ let base;
         if (scheduled[i] < scheduled[i - 1]) increasing = false;
         minGap = Math.min(minGap, scheduled[i] - scheduled[i - 1]);
       }
-      return { len: chain.length, scheduled: scheduled.length, spread, increasing, minGap };
+      return { len: chain.length, scheduled: scheduled.length, spread, increasing, minGap,
+               creepMs: st.config.render.infectCreepMs };
     });
     ok('every rotten strand gets its own turn time (creep front scheduled)', creep.scheduled === creep.len, `${creep.scheduled}/${creep.len} scheduled`);
-    ok('a ring infected in ONE tick does not turn green together (staggered creep)', creep.spread >= 250, `turn times span ${Math.round(creep.spread)}ms across ${creep.len} strands`);
+    // Thresholds DERIVED from infectCreepMs, not the 250ms that was hard-coded when the creep
+    // was 300. It tracks the spread rate and has now moved 300 → 100 → 50 → 100; the rule being
+    // tested is unchanged — one creep step per strand, in order — so the rule is what's asserted.
+    const wantGap = creep.creepMs * 0.9;
+    const wantSpread = Math.max(1, creep.len - 1) * creep.creepMs * 0.9;
+    ok('a ring infected in ONE tick does not turn green together (staggered creep)',
+       creep.spread >= wantSpread,
+       `turn times span ${Math.round(creep.spread)}ms across ${creep.len} strands, wanted >=${Math.round(wantSpread)} (creep ${creep.creepMs}ms)`);
     ok('the rot turns outward along the strands, in order', creep.increasing, `monotonic=${creep.increasing}`);
-    ok('each strand waits a full creep step after the previous one', creep.minGap >= 250, `min gap between consecutive turns = ${Math.round(creep.minGap)}ms`);
+    ok('each strand waits a full creep step after the previous one', creep.minGap >= wantGap,
+       `min gap ${Math.round(creep.minGap)}ms, wanted >=${Math.round(wantGap)} (creep ${creep.creepMs}ms)`);
 
     // Income engines: with engineSlow=3, a per-tick engine should produce on only 1 of every 3
     // world ticks. Install one water engine in isolation and drive exactly 6 ticks → 2 payouts.
