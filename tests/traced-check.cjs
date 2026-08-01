@@ -152,15 +152,24 @@ const TRACED = ALL.filter((l) => l && l.traced);
       const gapL = Math.min(...sub.levelSprites.map((s) => s.x - s.w / 2)) - entryX;
       const gapR = goalEdge - Math.max(...sub.levelSprites.map((s) => s.x + s.w / 2));
 
-      let solidN = 0;
-      for (let i = 0; i < mask.length; i++) if (mask[i]) solidN++;
+      // Density is measured over the DECLARED box, not the played one. An authored map's
+      // content box is extended past the height its JSON declares to give the molten core room
+      // (CORE_DEPTH_MULT), and that extension is deliberately empty soil — counting it puts the
+      // same rock over a denominator twice the size and every map reads at half its real
+      // density. amethyst-c24 dropped to 13.6%, ember-c40 to 14.3%, glacier-c24 to 11.7% and
+      // "is there a playable amount of rock here?" stopped meaning anything.
+      const declH = ((window.__game.state.levelDef || {}).world || {}).height || sub.worldHeight;
+      const artRows = Math.min(FR, Math.max(1, Math.ceil((declH - surfaceY) / fsz)));
+      let solidN = 0, artN = artRows * FC;
+      for (let fr = 0; fr < artRows; fr++)
+        for (let fc = 0; fc < FC; fc++) if (mask[fr * FC + fc]) solidN++;
 
       return {
         floods: !!f, size: f ? f.n : 0, total: FC * FR,
         reachesGoal: f ? [60, 300, 700].some((dy) => f.reaches(goalX, surfaceY + dy)) : false,
         piles: piles.length, unreachable, overlap,
         gapL: Math.round(gapL), gapR: Math.round(gapR), cs,
-        rockPct: Math.round(1000 * solidN / mask.length) / 10,
+        rockPct: Math.round(1000 * solidN / artN) / 10,
       };
     });
 
