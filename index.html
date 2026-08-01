@@ -21280,6 +21280,10 @@ function deletePlaced() {
 // Water comes in THREE arts each, and `key` is what picks one (LAKE_KEYS / RESERVOIR_KEYS).
 // One button per art rather than one button and a dropdown: the art is the whole reason to
 // choose, and the difference between reservoir1 and reservoir3 is a shape you have to see.
+// The two object types that are SPRITES rather than stamps — everything else is a marker the
+// editor owns. See syncEditFilterToLevel.
+const ROCK_OBJECT = /^(boulder|formation)$/;
+
 const PLACEABLE = [
   { id: 'lake1',     label: 'Lake 1',     colour: '#5fc9e8',
     make: (x, y) => ({ t: 'lake', key: 'lake1', x: Math.round(x), w: 396, h: 108 }) },
@@ -21436,9 +21440,7 @@ function editSelectAll() {
   updateEditPanel();
 }
 
-// The edited level, in the shape of docs/levels/<id>.json. Non-rock objects (food, water)
-// pass through untouched — this pass is about the rock.
-// Load the look sliders FROM the level that just started, once per run.
+// Load the look sliders AND the object list FROM the level that just started, once per run.
 //
 // `rockEdit.filter` is module state and every map switch is a full restart, so without this it
 // simply carried over — and because drawLevelRocks prefers the live filter over the level's own
@@ -21447,9 +21449,37 @@ function editSelectAll() {
 // the same object), which is how a per-map setting looked like it was never saved at all.
 //
 // Reset to neutral first: a map with no `rockFilter` must come up neutral, not inherit.
+//
+// The OBJECT half is what makes a lake or a leaf pile editable after Apply. Rocks are live —
+// they are sprites in `levelSprites`, so moving one is visible at once — but water, food and
+// threats are STAMPED into the substrate by buildLevel and nothing un-stamps them. Before this,
+// `rockEdit.added` held only the placements made since the last Apply, so the moment you
+// applied, everything you had placed became unreachable: baked into the world and represented
+// by nothing the editor could select.
+//
+// So the marker list is now EVERY non-rock object in the level, hoisted out of the def at the
+// start of each run. Place, move and delete all work on the same list, `editExport` writes it
+// back whole, and Apply is what makes the world agree. The cost is that a moved pile's leaves
+// stay where they were until you Apply — unavoidable without an un-stamp path, and the status
+// readout says so.
+// Its own function so "Revert objects" can call it alone — reverting an object edit must not
+// also throw away the look you were tuning.
+function syncEditObjectsToLevel() {
+  const def = (state && state.levelDef) || {};
+  rockEdit.added = (def.objects || [])
+    .filter((o) => o && o.t && !ROCK_OBJECT.test(o.t))
+    .map((o) => JSON.parse(JSON.stringify(o)));   // a copy: edits must not touch the def until
+  rockEdit.selAdded.clear();                      // Apply/Save reads them back out
+  // A snapshot to compare against, so "does the world still match?" is DERIVED rather than a
+  // flag every mutation site has to remember to set. At ~20 small objects the compare is
+  // nothing even on the 2 Hz HUD path, and it cannot drift out of step with the edits.
+  rockEdit._objSig = JSON.stringify(rockEdit.added);
+}
+
 function syncEditFilterToLevel() {
   if (rockEdit._forState === state) return;
   rockEdit._forState = state;
+  syncEditObjectsToLevel();
   const rf = (state && state.config && state.config.render && state.config.render.rockFilter) || null;
   rockEdit.filter = { brightness: 1, contrast: 1, saturate: 1 };
   for (const k of ['brightness', 'contrast', 'saturate']) {
@@ -21486,17 +21516,21 @@ function editRename(name) {
   return true;
 }
 
+// The edited level, in the shape of docs/levels/<id>.json. The rocks come from the live sprite
+// list and everything else from `rockEdit.added`, which syncEditFilterToLevel seeded with the
+// level's own objects — so an object MOVED or DELETED after an Apply is written out as edited
+// rather than passed through from the def. Order: rocks first, then the stamped objects, which
+// keeps water ahead of food where the author put it (stampFood yields to existing water).
 function editExport() {
   const def = state && state.levelDef;
   if (!def) return '{}';
   const out = JSON.parse(JSON.stringify(def));
-  const keep = (def.objects || []).filter((o) => o.t !== 'boulder' && o.t !== 'formation');
   const rocks = editSprites().map((s) => ({
     t: s.style === 'formation' ? 'formation' : 'boulder', key: s.key,
     x: +s.x.toFixed(1), y: +s.y.toFixed(1),
     w: +s.w.toFixed(1), h: +s.h.toFixed(1), rot: +(s.rot || 0).toFixed(4),
   }));
-  out.objects = rocks.concat(keep).concat(rockEdit.added);
+  out.objects = rocks.concat(rockEdit.added);
   const f = rockEdit.filter;
   if (f.brightness !== 1 || f.contrast !== 1 || f.saturate !== 1) {
     out.render = Object.assign({}, out.render, { rockFilter: Object.assign({}, f) });
@@ -21516,7 +21550,8 @@ function editApply() {
   if (!def) return;
   let edited;
   try { edited = JSON.parse(editExport()); } catch (_) { return; }
-  rockEdit.added = [];
+  // `added` is NOT cleared: the restart re-seeds it from the edited def (syncEditObjectsToLevel),
+  // so the objects stay selectable across an Apply, which is the whole point.
   rockEdit.sel.clear();
   playtestLevel = edited;
   currentLevel = edited.campaignLevel || 1; runStartLevel = currentLevel;
@@ -21542,8 +21577,7 @@ function editSaveAs() {
   if (!saved) { window.alert('Could not save — the name needs at least one letter or digit.'); return; }
   window.__levelJSON = JSON.stringify(saved, null, 1);
   try { navigator.clipboard.writeText(window.__levelJSON); } catch (_) {}
-  rockEdit.added = [];
-  rockEdit.sel.clear(); rockEdit.selAdded.clear();
+  rockEdit.sel.clear();      // `added` is re-seeded by the restart, as in editApply
   // The map panel caches its markup against a signature of the ids it drew; the new map is
   // not in that signature, so force the rebuild rather than wait for something else to.
   const panel = document.getElementById('devMapPanel');
@@ -21579,7 +21613,11 @@ function updateEditPanel() {
     const k = rockEdit.place ? (PLACEABLE.find((q) => q.id === rockEdit.place) || {}).label : null;
     const bits = [];
     if (k) bits.push('placing ' + k);
-    if (rockEdit.added.length) bits.push(rockEdit.added.length + ' pending');
+    bits.push(rockEdit.added.length + ' object' + (rockEdit.added.length === 1 ? '' : 's'));
+    // Water, food and threats are stamped into the substrate at build time, so an edit to one
+    // shows on its marker immediately and in the WORLD only after a rebuild. Say so, or a moved
+    // pile whose leaves stayed put reads as a bug.
+    if (JSON.stringify(rockEdit.added) !== rockEdit._objSig) bits.push('edited — Apply to rebuild');
     pend.textContent = bits.join(' · ');
   }
 }
@@ -21637,7 +21675,8 @@ function updateDevEditBtn() {
       '<div class="ee-row" id="eePlace"></div>' +
       '<div class="ee-stat" id="eePend"></div>' +
       '<div class="ee-row"><button id="eeApply">Apply &amp; rebuild</button>' +
-      '<button id="eeClearAdd">Clear pending</button></div>' +
+      '<button id="eeClearAdd" title="Discard object edits and reload them from the level">' +
+      'Revert objects</button></div>' +
       '<h4>All rocks on this map</h4>' +
       '<label>Brightness <b id="eeBv">1.00</b><input type="range" id="eeB" min="0.3" max="2" step="0.02" value="1"></label>' +
       '<label>Contrast <b id="eeCv">1.00</b><input type="range" id="eeC" min="0.3" max="2" step="0.02" value="1"></label>' +
@@ -21675,7 +21714,10 @@ function updateDevEditBtn() {
       $('eeMin').title = min ? 'Show the toolbar' : 'Minimise the toolbar';
     };
     $('eeApply').onclick = editApply;
-    $('eeClearAdd').onclick = () => { rockEdit.added = []; updateEditPanel(); uiDirty = true; };
+    // REVERT, not clear. The marker list is now every non-rock object in the level, not just
+    // the ones placed since the last Apply, so emptying it would delete the map's water, food
+    // and threats on one click. Re-seeding from the def is what "undo my object edits" means.
+    $('eeClearAdd').onclick = () => { syncEditObjectsToLevel(); updateEditPanel(); uiDirty = true; };
     $('eeAll').onclick = editSelectAll;
     $('eeNone').onclick = () => { rockEdit.sel.clear(); updateEditPanel(); uiDirty = true; };
     $('eeDel').onclick = editDelete;

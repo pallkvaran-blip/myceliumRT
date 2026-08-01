@@ -519,10 +519,20 @@ they cannot disagree. It is cheap because nothing is resampled.
   it (`editExport` reads the same object). The symptom was "the look isn't being saved".
   The sync runs from `updateDevEditBtn` once per run, and resets to neutral first so a map
   with no `rockFilter` comes up neutral instead of inheriting.
-- **Placements are pending markers until "Apply & rebuild".** Not laziness: a rock is a
-  sprite, but water, food and threats are STAMPED into the substrate by `buildLevel` and
-  nothing un-stamps them. Apply restarts through `createLevelState` with the edited def,
-  which is the only way to make them real. Place everything, then apply once.
+- **Every non-rock object is a marker, and the markers are the truth.** Rocks are live sprites
+  in `levelSprites`, so moving one shows at once; water, food and threats are STAMPED into the
+  substrate by `buildLevel` and nothing un-stamps them, so they are edited as markers and Apply
+  restarts through `createLevelState` to make the world agree. `rockEdit.added` used to hold
+  only what had been placed since the last Apply — which meant applying made your own
+  placements **unreachable**, baked into the world with nothing left to select. It is now
+  re-seeded from `def.objects` on every run (`syncEditObjectsToLevel`), so place / move /
+  delete all work on one list whatever has been applied, and `editExport` writes that list
+  back whole rather than passing the def's copy through.
+  - The consequence to expect: a moved pile's leaves stay where they were until you Apply.
+    The status readout says `edited — Apply to rebuild` (derived by comparing against a
+    snapshot, not a flag each mutation site must remember to set).
+  - **"Clear pending" is now "Revert objects"** and re-seeds from the def. Emptying the list
+    would delete the map's water, food and threats in one click.
 - **Copy JSON** puts the level on the clipboard in `docs/levels/<id>.json` shape. Nothing is
   written from the browser. It also parks it on `window.__levelJSON` — always, not only when
   the clipboard fails, because headless Chromium's clipboard write SUCCEEDS and the first

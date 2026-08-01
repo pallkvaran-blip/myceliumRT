@@ -220,7 +220,10 @@ ok('arming a kind', await p.evaluate(()=>window.__game && document.querySelector
 // drop three via a real canvas click
 for (const [cx,cy] of [[500,450],[700,500],[900,430]]) { await p.mouse.click(cx,cy); await sleep(150); }
 const pend = await p.evaluate(()=>document.querySelector('#eePend').textContent);
-ok('placements are pending', /3 pending/.test(pend), pend.slice(0,60));
+// "3 objects · edited — Apply to rebuild". The count is the whole marker list now, not a
+// pending-only tally, and this map starts with none — so three placed reads as three.
+ok('placements show in the count and flag the rebuild',
+   /3 objects/.test(pend) && /Apply to rebuild/.test(pend), pend.slice(0,70));
 const exported = await p.evaluate(()=>{ document.querySelector('#eeCopy').click(); return window.__levelJSON; });
 ok('pending objects reach the export', (JSON.parse(exported).objects||[]).filter(o=>o.t==='food'&&o.kind==='duff').length >= 3);
 
@@ -282,6 +285,53 @@ await p.evaluate(()=>document.querySelector('#eeApply').click());
 await sleep(2500);
 await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:60000}).catch(()=>{});
 ok('apply rebuilds the level', await p.evaluate(()=>!!(window.__game.state && window.__game.state.active)));
+
+// ---- objects stay editable AFTER Apply ----------------------------------
+// The bug: rockEdit.added held only what had been placed since the last Apply, so applying
+// baked everything into the world and left nothing the editor could select. The marker list is
+// now every non-rock object in the level, re-seeded from the def on each run.
+const survived = await p.evaluate(()=>{
+  const a=window.__game.rockEdit.added, d=window.__game.state.levelDef||{};
+  const nonRock=(d.objects||[]).filter(o=>o.t!=='boulder'&&o.t!=='formation');
+  return {markers:a.length, inDef:nonRock.length, kinds:a.map(o=>o.kind||o.t)};
+});
+ok('the level\'s own objects come back as editable markers after Apply',
+   survived.markers>0 && survived.markers===survived.inDef,
+   `${survived.markers} markers for ${survived.inDef} objects: ${survived.kinds.join(',')}`);
+// Move one and delete another, both of which were impossible a moment ago.
+const mv0 = await p.evaluate(()=>{
+  const a=window.__game.rockEdit.added;
+  window.__game.rockEdit.selAdded=new Set([0]);
+  return {n:a.length, x:a[0].x, y:a[0].y};
+});
+await p.evaluate(()=>{ const g=window.__game, o=g.rockEdit.added[0];
+  g.camera.x=o.x; g.camera.y=o.y!=null?o.y:g.state.substrate.surfaceY+120; g.camera.clamp(); });
+await sleep(300);
+const mvPt = await p.evaluate(()=>{ const g=window.__game, o=g.rockEdit.added[0];
+  const c=g.camera.worldToScreen(o.x, o.y!=null?o.y:g.state.substrate.surfaceY+120);
+  return {x:Math.round(c.x), y:Math.round(c.y)}; });
+await p.mouse.move(mvPt.x, mvPt.y); await p.mouse.down();
+await p.mouse.move(mvPt.x+80, mvPt.y+30, {steps:6}); await p.mouse.up(); await sleep(250);
+const mv1 = await p.evaluate(()=>{ const a=window.__game.rockEdit.added;
+  return {x:a[0].x, y:a[0].y, note:document.querySelector('#eePend').textContent}; });
+ok('an applied object can be dragged', mv1.x!==mv0.x, `${mv0.x} -> ${mv1.x}`);
+ok('and the panel says the world needs a rebuild', /Apply to rebuild/.test(mv1.note), mv1.note);
+// Revert puts it back — and must NOT reset the look slider, which is a separate concern.
+await p.evaluate(()=>{const i=document.querySelector('#eeB');i.value='1.3';i.dispatchEvent(new Event('input'));});
+await p.evaluate(()=>document.querySelector('#eeClearAdd').click()); await sleep(200);
+const rv = await p.evaluate(()=>({x:window.__game.rockEdit.added[0].x,
+  n:window.__game.rockEdit.added.length, b:window.__game.rockEdit.filter.brightness}));
+ok('Revert objects restores them without touching the look',
+   rv.x===mv0.x && rv.n===mv0.n && Math.abs(rv.b-1.3)<0.001, JSON.stringify(rv));
+// Delete one and confirm the export drops it — the export is the thing that persists.
+await p.evaluate(()=>{ window.__game.rockEdit.selAdded=new Set([0]); });
+await p.keyboard.press('Delete'); await sleep(200);
+const del = await p.evaluate(()=>{ document.querySelector('#eeCopy').click();
+  const objs=JSON.parse(window.__levelJSON).objects.filter(o=>o.t!=='boulder'&&o.t!=='formation');
+  return {markers:window.__game.rockEdit.added.length, exported:objs.length}; });
+ok('deleting an applied object drops it from the export',
+   del.markers===mv0.n-1 && del.exported===del.markers, JSON.stringify(del));
+await p.evaluate(()=>document.querySelector('#eeClearAdd').click()); await sleep(150);
 
 // ---- no baked soil pebbles on an authored map ----------------------------
 // _bakeRocks scatters ~160 dark ellipses through the soil. That is the procedural game's
