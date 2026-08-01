@@ -106,7 +106,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~546 assertions across 16 checks. **Run them; don't verify by re-reading your own diff.**
+~553 assertions across 16 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
@@ -597,7 +597,7 @@ Save also copies the JSON out (clipboard + `window.__levelJSON`) and switches in
 map, which stamps any pending placements the same way Apply does. **localStorage is one
 browser profile: the map is only durable once its JSON is committed to `docs/levels/`.**
 
-`tests/edit-check.cjs` covers all of it (58 assertions) and asserts on `levelSprites`, not on
+`tests/edit-check.cjs` covers all of it (65 assertions) and asserts on `levelSprites`, not on
 the panel's labels. `rockEdit`, `levels`, `saveAs` and `forgetSaved` are on `window.__game` for
 that reason. The save-as block deliberately runs on a FRESH page load — the steps before it
 delete every rock, and a saved copy of an empty map cannot show that `assetsFrom` resolved.

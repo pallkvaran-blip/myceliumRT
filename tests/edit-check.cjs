@@ -417,7 +417,10 @@ await sleep(400);
 const rn = await p.evaluate(()=>({
   live:(window.__game.state.levelDef||{}).name,
   id:(window.__game.state.levelDef||{}).id,
-  stored:(JSON.parse(localStorage.getItem('mycelium.savedLevels.v1')||'[]')[0]||{}),
+  // id + name ONLY. The first version returned the whole stored level, which printed a 47-rock
+  // JSON dump into the log on PASS and buried every line around it.
+  stored:(()=>{const s=JSON.parse(localStorage.getItem('mycelium.savedLevels.v1')||'[]')[0]||{};
+               return {id:s.id, name:s.name};})(),
   listed:[...document.querySelectorAll('#devMapPanel button')]
            .filter(b=>b.title==='#level,chapter-one-test').map(b=>b.textContent.replace('×','')),
 }));
