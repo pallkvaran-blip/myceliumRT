@@ -134,11 +134,25 @@ const clipped=await p.evaluate(()=>{
     let sum=0; for(let i=0;i<d.length;i+=4) sum+=d[i]+d[i+1]+d[i+2];
     return Math.round(sum/(d.length/4));
   };
-  return {onRock:mean(s.x,s.y), bareCore:mean(s.x-700,s.y)};
+  // The reference has to be bare core that is genuinely ON SCREEN and INSIDE the world. The
+  // first version sampled a single point 700 units to the left, which at this zoom is exactly
+  // the half-width of the viewport — so it clamped to the canvas edge and sometimes read the
+  // background outside the world instead of the core (144 vs 114, a 30-point gap, on a loaded
+  // machine). Median of several nearby offsets: one unlucky patch cannot swing it.
+  const refs=[];
+  for (const dx of [-320,-200,200,320]) {
+    const wx=Math.max(60, Math.min(sub.worldWidth-60, s.x+dx));
+    const pt=g.camera.worldToScreen(wx, s.y);
+    if (pt.x*k < 30 || pt.x*k > c.width-30) continue;      // would clamp to the canvas edge
+    refs.push(mean(wx, s.y));
+  }
+  refs.sort((a,b)=>a-b);
+  const bare = refs.length ? refs[Math.floor(refs.length/2)] : null;
+  return {onRock:mean(s.x,s.y), bareCore:bare, refs};
 });
 ok('a rock dragged below the line is cut off by the core',
-   !clip.err && Math.abs(clipped.onRock-clipped.bareCore) < 30,
-   clip.err || `rock centre ${clipped.onRock}, bare core ${clipped.bareCore}`);
+   !clip.err && clipped.bareCore != null && Math.abs(clipped.onRock-clipped.bareCore) < 30,
+   clip.err || `rock centre ${clipped.onRock}, bare core ${clipped.bareCore} of [${(clipped.refs||[]).join(' ')}]`);
 await p.evaluate(()=>{const sub=window.__game.state.substrate,s=sub.levelSprites[0];
   if(s&&s._y0!=null){s.y=s._y0;sub._rockSolidified=false;}});
 await ctx.close();

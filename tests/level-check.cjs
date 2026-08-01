@@ -231,7 +231,13 @@ const SEALED_C0 = 12, SEALED_C1 = 71;   // inside the slab span, excluding atriu
       cam.zoom = zoom; cam.x = x; cam.y = y; cam.clamp();
     }, { x, y, zoom });
     await sleep(700);
-    await page.screenshot({ path: path.join(ART, `level-${name}.png`) });
+    // A LOST DIAGNOSTIC FRAME MUST NOT TAKE THE ASSERTIONS WITH IT. Playwright's default
+    // screenshot waits for fonts and for animations to settle, and against a live rAF loop
+    // that wait has no end — this check died here on a loaded machine, after passing every
+    // assertion, and printed no tally, which the runner reports as BROKEN rather than as the
+    // 27 passes it had already earned. Same fix traced-check needed for the same reason.
+    await page.screenshot({ path: path.join(ART, `level-${name}.png`), timeout: 60000, animations: 'disabled' })
+      .catch((e) => console.log(`  (screenshot ${name} skipped — ${String(e.message || e).split('\n')[0]})`));
   };
   await shoot('overview', 1440, 970, 0.625);
   await shoot('atrium', 430, 970, 1.15);
