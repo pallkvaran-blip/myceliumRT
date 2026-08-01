@@ -47,6 +47,10 @@ const TRACED = ALL.filter((l) => l && l.traced);
   // it is worth naming rather than rediscovering.
   const MAN = JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'manifest.json'), 'utf8'));
   const byKey = new Map(MAN.assets.map((e) => [e.key, e.file]));
+  // Traced maps carry NO food, threats or rockface — the tracer stopped placing them and the
+  // owner does it by hand in the editor. The food assertion below therefore passes on 0 of 0
+  // for a fresh trace, which is correct but says nothing; it starts meaning something again
+  // the moment a map has food placed in it.
   for (const def of TRACED) {
     const keys = def.objects.filter((o) => o.key).map((o) => o.key);
     const noEntry = keys.filter((k) => !byKey.has(k));

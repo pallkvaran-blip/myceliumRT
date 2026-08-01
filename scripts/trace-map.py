@@ -55,8 +55,10 @@ What it does, and why each step is the way it is:
    side. One whole-map sprite would be sampled at ~16 world units per alpha pixel, coarser
    than the 9px collision mask it feeds. Per-blob sprites each get their own 160px budget.
 
-5. PLACE FOOD. In open pockets, by distance transform, spread across the width. A map with
-   no food is unplayable — you need Energy to grow. Threats are left to the designer.
+5. PLACE FOOD — OFF by default (--food 0). It used to drop 12 piles by distance transform so
+   a traced map was playable the instant it was written. The owner now places food, threats
+   and the rockface by hand in the in-game editor, so guessing at them only makes work to
+   undo. A traced map therefore arrives UNPLAYABLE by design: rock and nothing else.
 
 6. FLOOD-FILL CHECK. Reports whether the open region actually connects the entry channel to
    the goal channel. It is only a proxy — the real answer comes from the running game's
@@ -110,7 +112,11 @@ ap.add_argument('--surface-y', type=int, default=380)
 ap.add_argument('--cell', type=int, default=36)
 ap.add_argument('--start-cols', type=int, default=2)
 ap.add_argument('--goal-cols', type=int, default=6)
-ap.add_argument('--food', type=int, default=12)
+ap.add_argument('--food', type=int, default=0,
+                help='auto-placed food piles. DEFAULT 0 — the owner places food, threats and '
+                     'the rockface by hand in the in-game editor, and a tracer guessing at '
+                     'them only makes work to undo. It was 12, from when a traced map had to '
+                     'be playable the moment it was written.')
 ap.add_argument('--trim', type=int, default=None,
                 help='pixels eroded off each blob before cutting, to drop the anti-aliased '
                      'ring. Default scales with the image: W/480, i.e. 12px on a 5760px '
