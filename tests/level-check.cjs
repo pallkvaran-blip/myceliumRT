@@ -72,7 +72,17 @@ const SEALED_C0 = 12, SEALED_C1 = 71;   // inside the slab span, excluding atriu
     const sub = window.__game.state.substrate;
     return { cols: sub.cols, rows: sub.rows, cs: sub.cellSize, w: sub.worldWidth, h: sub.worldHeight, surfaceY: sub.surfaceY, sprites: sub.levelSprites.length };
   });
-  ok('world box is 80×33 cells', geo.cols === 80 && geo.rows === 33, `${geo.cols}×${geo.rows} cells, ${geo.w}×${geo.h} units, ${geo.sprites} sprites`);
+  // Rows are DERIVED, not hard-coded at 33: an authored map's content box is extended by
+  // CORE_DEPTH_MULT (1.5) past the height its JSON declares, to give the molten core room to
+  // sit below the map (configForLevelDef). The map's own objects keep their absolute
+  // coordinates, so the authored lanes are where they always were and the extra rows are open
+  // soil under them — which is why every assertion below still holds at 49 rows.
+  const declared = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'docs', 'levels', 'three-ways.json'), 'utf8'));
+  const wantRows = Math.floor((declared.world.surfaceY + (declared.world.height - declared.world.surfaceY) * 1.5
+                               - declared.world.surfaceY) / geo.cs);
+  ok('world box is 80 cells wide and 1.5x the declared depth',
+     geo.cols === 80 && geo.rows === wantRows,
+     `${geo.cols}×${geo.rows} cells (declared depth wants ${wantRows}), ${geo.w}×${geo.h} units, ${geo.sprites} sprites`);
 
   // ------------------------------------------------------- the seal + run ----
   // Flood-fills over the FINE mask (substrate._fineSolid: 9 px cells, the grid
