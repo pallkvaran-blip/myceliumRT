@@ -120,6 +120,7 @@ const grown=await p.evaluate(() => {
     for (const j of idx) { const cell=sub.cells[j]; cell.nutrient=50; cell.maxNutrient=50; }
     G.performAction(s,'grow',{});
   }
+  G.settleEnemyTurn();   // turn-based QUEUES each action's world step for the frame loop; settle before measuring
   // Measure only the strands this grow added, and only the SPACE-COLONISATION ones: the
   // pile-mat and pile-runner primitives deliberately step short as they close on food.
   const d=[];
@@ -191,6 +192,7 @@ const rock=await p.evaluate(()=>{
     for (const j of idx){ const c=sub.cells[j]; c.nutrient=30; c.maxNutrient=30; }
     G.performAction(s,'grow',{});
   }
+  G.settleEnemyTurn();
   let counted=0, inside=0, crossing=0;
   for (const n of net.nodes) {
     if (n.colon || n.side) continue;

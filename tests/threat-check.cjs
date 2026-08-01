@@ -211,6 +211,7 @@ const crawl=await p.evaluate(()=>{
     cell.nutrient=60; cell.maxNutrient=60;
   }
   for (let i=0;i<10;i++) G.performAction(s,'grow',{});
+  G.settleEnemyTurn();   // turn-based QUEUES each action's world step for the frame loop to animate; a synchronous probe has to settle it before it measures
   s.nematodes.length=0;
   if (s.clouds) s.clouds.length=0;
   const want=s.config.nematodes.crawlSpeed;
@@ -247,6 +248,7 @@ const bite=await p.evaluate(()=>{
     cell.nutrient=60; cell.maxNutrient=60;
   }
   for (let i=0;i<16;i++) G.performAction(s,'grow',{});
+  G.settleEnemyTurn();
   s.nematodes.length=0;
   if (s.clouds) s.clouds.length=0;
   net.energy=99999;
@@ -400,6 +402,7 @@ const rot=await p.evaluate(()=>{
     cell.nutrient=60; cell.maxNutrient=60;
   }
   for (let i=0;i<14;i++) G.performAction(s,'grow',{});
+  G.settleEnemyTurn();
   s.config.trichoderma.infectionSpreadChance=1;
   // rotAge too, not just `infected`: an earlier probe's cloud leaves survivors part-way
   // through their rot deadline, and a strand re-seeded on top of rotAge 2 expires on its
@@ -575,6 +578,13 @@ const chance=await p.evaluate(()=>{
   const G=window.__game, s=G.state, sub=s.substrate, cs=sub.cellSize, net=s.active, t=s.config.trichoderma;
   s.nematodes.length=0; s.clouds.length=0;
   const build=()=>{
+    // CLEAR THE CLOUDS EVERY TRIAL, not just once before the 60 of them. spreadTrichoderma
+    // rolls respawnChance (0.12) on every tick, so over 60 ticks the map re-populates itself
+    // to initialPatches — and the chain this measures runs straight down the middle of the
+    // map, so a fresh cloud eventually breaches it, claims everything downstream by the
+    // no-clean-tissue-off-rot invariant, and one trial reports 318 rings against a rate of 12.
+    // The block's own comment already says "no cloud, so no first-touch"; this makes it true.
+    s.clouds.length=0;
     net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
     let parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3, null); parent._liveAt=0;
     for (let i=1;i<400;i++){ parent=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3+i*4, parent); parent._liveAt=0; }
@@ -871,6 +881,7 @@ const search=await p.evaluate(()=>{
     s.runOver=false; s.winPending=false; s.won=false; net.alive=true;
     G.performAction(s,'grow',{});
   }
+  G.settleEnemyTurn();
   s.clouds.length=0; s.nematodes.length=0;
   const root=net.nodes[0];
   const minD=sub.worldWidth*n.seedMinColonyDistFrac;

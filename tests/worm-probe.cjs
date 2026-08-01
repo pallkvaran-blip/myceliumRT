@@ -44,6 +44,7 @@ console.log(JSON.stringify(await p.evaluate(()=>{
     cell.rock=0; cell.hazard=0; idx.push(sub.index(c,r));
   }
   for (let i=0;i<14;i++){ for(const j of idx){const cl=sub.cells[j]; cl.nutrient=50; cl.maxNutrient=50;} G.performAction(s,'grow',{}); }
+  G.settleEnemyTurn();   // turn-based QUEUES each action's world step for the frame loop; settle before measuring
   const out={sight:s.config.nematodes.sightRadius/cs, reach:s.config.nematodes.reach};
   // Candidate worm spots: open ground with a strand in sight but out of reach.
   const spots=[];

@@ -24,6 +24,7 @@ const CHECKS = [
   ['level',     'level-check.cjs',   50,  false],
   ['traced',    'traced-check.cjs',  60,  false],
   ['turn-play', 'turn-play.cjs',     40,  false],
+  ['enemy',     'enemy-turn-check.cjs', 60, false],
   ['aim',       'aim-check.cjs',     45,  false],
   ['fixes',     'fixes-check.cjs',   90,  false],
   ['edit',      'edit-check.cjs',    40,  false],

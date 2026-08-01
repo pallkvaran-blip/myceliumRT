@@ -11240,7 +11240,16 @@ function spawnNematodeAt(state, x, y) {
 // sensory range, drift toward the nearest trail cell (worms shadow the ants'
 // foraging lines but never touch the ants); (3) else HOLD position — they don't
 // wander aimlessly. Eaten strands are removed in one batch at the end.
-function stepNematodes(state) {
+//
+// PHASES. Turn-based splits the enemy turn in two so it can be watched — every creature
+// MOVES, the renderer slides it there over ~2s, and only THEN does anything attack — so this
+// is called as 'move' and later as 'attack'. Real time (and any direct tickWorld caller)
+// passes 'both', which is the original single pass: select, close the gap, bite from where
+// the worm ended up. The seam is exactly where it already was, since closing and biting were
+// already separate statements.
+function stepNematodes(state, phase = 'both') {
+  const doMove = phase !== 'attack';
+  const doFeed = phase !== 'move';
   const { config, substrate: sub, rng } = state;
   const n = config.nematodes;
   if (!state.nematodes) state.nematodes = [];
@@ -11252,107 +11261,127 @@ function stepNematodes(state) {
   const claimed = new Set();    // node ids eaten this tick (one worm per strand)
   const targeted = new Set();   // node ids a worm is already HEADING for this tick (fan-out)
   const newborns = [];
+  // The strand a worm bites is the one it PICKED, which in a split turn was picked a couple of
+  // seconds ago — so it's carried as an id (w.targetId) and re-looked-up here. Holding the node
+  // itself across the gap would be holding a reference to tissue that may since have gone.
+  const byId = new Map();
+  if (doFeed) for (const nd of nodes) byId.set(nd.id, nd);
   // Ant-trail cell centres — the worms' secondary attractor. Set by stepAnts
   // earlier this tick; gathered once (the trail is short, so this stays cheap).
   const trailPts = [];
-  sub.forEachCell((cell, col, row) => { if (cell.antTrail) trailPts.push(sub.cellCenter(col, row)); });
+  if (doMove) sub.forEachCell((cell, col, row) => { if (cell.antTrail) trailPts.push(sub.cellCenter(col, row)); });
 
   for (const w of state.nematodes) {
-    // Stuck by a fresh excretion — no move / feed / breed this tick.
-    if (w.stuck > 0) { w.stuck -= 1; w.feeding = false; continue; }
-    w.feeding = false;
+    // Stuck by a fresh excretion — no move / feed / breed this tick. The FLAG is what carries
+    // that decision across a split turn: the counter is spent here, in the move phase, so by
+    // the attack phase `w.stuck > 0` no longer answers "was this worm stunned this step?".
+    if (doMove) {
+      w._stunned = w.stuck > 0;
+      if (w._stunned) { w.stuck -= 1; w.feeding = false; }
+    }
+    if (w._stunned) continue;
 
-    // Each worm heads for the nearest strand it can SEE (clear LOS) that NO other worm
-    // has already picked this tick — so the swarm FANS OUT across the colony instead of
-    // piling onto one node. If every visible strand is already taken (more worms than
-    // strands in sight), fall back to the plain nearest so it still closes in. (Eating
-    // below independently claims a DISTINCT strand, so consumption still scales.)
-    let seen = nearestVisibleNode(sub, nodes, w, n.sightRadius, targeted);
-    if (!seen) seen = nearestVisibleNode(sub, nodes, w, n.sightRadius, null);
-    if (seen) targeted.add(seen.id);
-    w.targetId = seen ? seen.id : null;
-    w.sees = !!seen;                                    // searching vs locked-on (sight overlay)
+    if (doMove) {
+      w.feeding = false;
 
-    if (seen) {
-      const dx = seen.x - w.x, dy = seen.y - w.y;
-      const dist = Math.hypot(dx, dy) || 1;
-      w.heading = Math.atan2(dy, dx);
-      // MOVE AND EAT IN THE SAME STEP. This used to be either/or — close the gap OR bite —
-      // and because a bite removes the strands within reach, a worm settled on the colony
-      // alternated bite / crawl / bite / crawl and only fed every other step. Closing first
-      // and then biting from where it ENDS UP roughly doubles a swarm's throughput: the step
-      // it arrives on is also a feeding step.
-      if (dist > n.reach * cs) {
-        moveWorm(w, dx / dist, dy / dist, Math.min(dist, n.crawlSpeed * cs), sub);
-      }
-      // Re-measured AFTER the move, against the worm's new position — the whole point is that
-      // arriving and feeding happen on one step.
-      if (Math.hypot(seen.x - w.x, seen.y - w.y) <= n.reach * cs) {
-        w.feeding = true;
-        // Breed EVERY tick while in contact — this is the exponential growth.
-        if (state.nematodes.length + newborns.length < n.maxPopulation && rng.chance(n.breedChance)) {
-          let bx = w.x + rng.range(-cs * 0.3, cs * 0.3), by = w.y + rng.range(-cs * 0.3, cs * 0.3);
-          const bc = sub.cellAtWorld(bx, by);
-          if (!bc || bc.rock) { bx = w.x; by = w.y; }   // never spawn a newborn inside rock — fall back to the parent's clear cell
-          newborns.push(makeWorm(bx, by, rng.range(0, Math.PI * 2), rng.range(0, Math.PI * 2)));
-        }
-        // Eat DISTINCT strands whole on a cooldown (one worm per strand/tick), up to
-        // strandsPerBite of them. Each pass re-asks for the nearest strand nobody has claimed
-        // yet, so a bigger bite widens the hole around the worm rather than double-counting
-        // one strand — and every one of them is checked for reach and for hardening, so a
-        // Sclerotial Crust still stops the whole bite at the first protected strand.
-        if (w.feedCd <= 0) {
-          let ate = 0;
-          const want = Math.max(1, n.strandsPerBite | 0);
-          for (let k = 0; k < want; k++) {
-            const bite = (k === 0 && !claimed.has(seen.id))
-              ? seen : nearestVisibleNode(sub, nodes, w, n.sightRadius, claimed);
-            if (!bite || Math.hypot(bite.x - w.x, bite.y - w.y) > n.reach * cs) break;
-            const bcell = sub.cellAtWorld(bite.x, bite.y);
-            if (bcell && bcell.hardened > 0) break;   // Sclerotial Crust: hardened strands can't be eaten (timed)
-            claimed.add(bite.id); ate++;
-          }
-          // Only spend the cooldown on a bite that LANDED — an all-hardened frontier must not
-          // buy the colony a free tick of immunity on top of the crust it already paid for.
-          if (ate) w.feedCd = n.eatEveryTicks;
-        } else w.feedCd -= 1;
-      }
-    } else {
-      // NOTHING VISIBLE. Two fallbacks, and the second one is why worms move at all.
-      //
-      // Worms are SEEDED at least seedMinColonyDistFrac of the map width from the colony —
-      // 0.25 x 2600 = 650 units — and sightRadius is 500. So a fresh worm starts UNABLE TO SEE
-      // the colony, every time. With "hold position when nothing is in sight" that made them
-      // sit still forever unless the player happened to grow into their sight: the reported
-      // "nematodes are failing to move at all", and not a movement bug at all — a searching bug.
-      //
-      // So a worm with no target now CREEPS TOWARD THE NEAREST STRAND WITHOUT NEEDING LINE OF
-      // SIGHT, at wanderSpeed — which is what that knob was for before the behaviour it drove
-      // was removed and left it dead (set in three places, read by nothing). It is deliberately
-      // slower than crawlSpeed: out of sight the worm is casting about, and only once it can
-      // actually see you does it charge at the full crawl. That keeps the original intent —
-      // they do not drift around aimlessly — while letting them arrive.
-      const t = nearestPointInRange(trailPts, w.x, w.y, n.sightRadius, sub);
-      w.trailing = !!t;
-      if (t) {
-        const dx = t.x - w.x, dy = t.y - w.y, d = Math.hypot(dx, dy) || 1;
+      // Each worm heads for the nearest strand it can SEE (clear LOS) that NO other worm
+      // has already picked this tick — so the swarm FANS OUT across the colony instead of
+      // piling onto one node. If every visible strand is already taken (more worms than
+      // strands in sight), fall back to the plain nearest so it still closes in. (Eating
+      // below independently claims a DISTINCT strand, so consumption still scales.)
+      let seen = nearestVisibleNode(sub, nodes, w, n.sightRadius, targeted);
+      if (!seen) seen = nearestVisibleNode(sub, nodes, w, n.sightRadius, null);
+      if (seen) targeted.add(seen.id);
+      w.targetId = seen ? seen.id : null;
+      w.sees = !!seen;                                    // searching vs locked-on (sight overlay)
+
+      if (seen) {
+        const dx = seen.x - w.x, dy = seen.y - w.y;
+        const dist = Math.hypot(dx, dy) || 1;
         w.heading = Math.atan2(dy, dx);
-        moveWorm(w, dx / d, dy / d, Math.min(d, n.crawlSpeed * cs), sub);
-      } else if (nodes.length) {
-        let goal = null, gd = Infinity;
-        for (const nd of nodes) {
-          const d = (nd.x - w.x) ** 2 + (nd.y - w.y) ** 2;
-          if (d < gd) { gd = d; goal = nd; }
+        // MOVE AND EAT IN THE SAME STEP. This used to be either/or — close the gap OR bite —
+        // and because a bite removes the strands within reach, a worm settled on the colony
+        // alternated bite / crawl / bite / crawl and only fed every other step. Closing first
+        // and then biting from where it ENDS UP roughly doubles a swarm's throughput: the step
+        // it arrives on is also a feeding step.
+        if (dist > n.reach * cs) {
+          moveWorm(w, dx / dist, dy / dist, Math.min(dist, n.crawlSpeed * cs), sub);
         }
-        if (goal) {
-          const dx = goal.x - w.x, dy = goal.y - w.y, d = Math.hypot(dx, dy) || 1;
+      } else {
+        // NOTHING VISIBLE. Two fallbacks, and the second one is why worms move at all.
+        //
+        // Worms are SEEDED at least seedMinColonyDistFrac of the map width from the colony —
+        // 0.25 x 2600 = 650 units — and sightRadius is 500. So a fresh worm starts UNABLE TO SEE
+        // the colony, every time. With "hold position when nothing is in sight" that made them
+        // sit still forever unless the player happened to grow into their sight: the reported
+        // "nematodes are failing to move at all", and not a movement bug at all — a searching bug.
+        //
+        // So a worm with no target now CREEPS TOWARD THE NEAREST STRAND WITHOUT NEEDING LINE OF
+        // SIGHT, at wanderSpeed — which is what that knob was for before the behaviour it drove
+        // was removed and left it dead (set in three places, read by nothing). It is deliberately
+        // slower than crawlSpeed: out of sight the worm is casting about, and only once it can
+        // actually see you does it charge at the full crawl. That keeps the original intent —
+        // they do not drift around aimlessly — while letting them arrive.
+        const t = nearestPointInRange(trailPts, w.x, w.y, n.sightRadius, sub);
+        w.trailing = !!t;
+        if (t) {
+          const dx = t.x - w.x, dy = t.y - w.y, d = Math.hypot(dx, dy) || 1;
           w.heading = Math.atan2(dy, dx);
-          const wander = n.wanderSpeed != null ? n.wanderSpeed : n.crawlSpeed * 0.25;
-          moveWorm(w, dx / d, dy / d, Math.min(d, wander * cs), sub);
+          moveWorm(w, dx / d, dy / d, Math.min(d, n.crawlSpeed * cs), sub);
+        } else if (nodes.length) {
+          let goal = null, gd = Infinity;
+          for (const nd of nodes) {
+            const d = (nd.x - w.x) ** 2 + (nd.y - w.y) ** 2;
+            if (d < gd) { gd = d; goal = nd; }
+          }
+          if (goal) {
+            const dx = goal.x - w.x, dy = goal.y - w.y, d = Math.hypot(dx, dy) || 1;
+            w.heading = Math.atan2(dy, dx);
+            const wander = n.wanderSpeed != null ? n.wanderSpeed : n.crawlSpeed * 0.25;
+            moveWorm(w, dx / d, dy / d, Math.min(d, wander * cs), sub);
+          }
         }
       }
     }
+
+    if (!doFeed) continue;
+    const seen = w.targetId != null ? byId.get(w.targetId) : null;
+    if (!seen) continue;                                  // nothing was in sight — the fallbacks never feed
+    // Re-measured AFTER the move, against the worm's new position — the whole point is that
+    // arriving and feeding happen on one step.
+    if (Math.hypot(seen.x - w.x, seen.y - w.y) <= n.reach * cs) {
+      w.feeding = true;
+      // Breed EVERY tick while in contact — this is the exponential growth.
+      if (state.nematodes.length + newborns.length < n.maxPopulation && rng.chance(n.breedChance)) {
+        let bx = w.x + rng.range(-cs * 0.3, cs * 0.3), by = w.y + rng.range(-cs * 0.3, cs * 0.3);
+        const bc = sub.cellAtWorld(bx, by);
+        if (!bc || bc.rock) { bx = w.x; by = w.y; }   // never spawn a newborn inside rock — fall back to the parent's clear cell
+        newborns.push(makeWorm(bx, by, rng.range(0, Math.PI * 2), rng.range(0, Math.PI * 2)));
+      }
+      // Eat DISTINCT strands whole on a cooldown (one worm per strand/tick), up to
+      // strandsPerBite of them. Each pass re-asks for the nearest strand nobody has claimed
+      // yet, so a bigger bite widens the hole around the worm rather than double-counting
+      // one strand — and every one of them is checked for reach and for hardening, so a
+      // Sclerotial Crust still stops the whole bite at the first protected strand.
+      if (w.feedCd <= 0) {
+        let ate = 0;
+        const want = Math.max(1, n.strandsPerBite | 0);
+        for (let k = 0; k < want; k++) {
+          const bite = (k === 0 && !claimed.has(seen.id))
+            ? seen : nearestVisibleNode(sub, nodes, w, n.sightRadius, claimed);
+          if (!bite || Math.hypot(bite.x - w.x, bite.y - w.y) > n.reach * cs) break;
+          const bcell = sub.cellAtWorld(bite.x, bite.y);
+          if (bcell && bcell.hardened > 0) break;   // Sclerotial Crust: hardened strands can't be eaten (timed)
+          claimed.add(bite.id); ate++;
+        }
+        // Only spend the cooldown on a bite that LANDED — an all-hardened frontier must not
+        // buy the colony a free tick of immunity on top of the crust it already paid for.
+        if (ate) w.feedCd = n.eatEveryTicks;
+      } else w.feedCd -= 1;
+    }
   }
+
+  if (!doFeed) return;   // the MOVE phase is over — breeding, biting and respawns are attacks
 
   if (newborns.length) for (const b of newborns) state.nematodes.push(b);
   if (claimed.size && net) net._removeNodes(claimed);
@@ -11660,7 +11689,14 @@ function spawnTrichodermaAt(state, x, y) {
 // --- Per-turn cloud step (B6) -----------------------------------------------
 // Move every cloud toward the nearest food, devour what it sits on, fade any
 // spent cloud, then re-project the clouds into the cell.trich field.
-function spreadTrichoderma(state) {
+// PHASES: 'move' is the creep (and the fade bookkeeping that decides which clouds are still
+// here to creep); 'attack' is devouring the substrate underneath. Turn-based runs them a
+// couple of seconds apart so the drift can be watched; 'both' is the original single pass.
+// The BREACH — a cloud touching the colony and rotting it — isn't here at all; that's
+// infectNetwork, which runs later in the tick and therefore lands in the attack phase.
+function spreadTrichoderma(state, phase = 'both') {
+  const doMove = phase !== 'attack';
+  const doEat = phase !== 'move';
   const { config, substrate: sub, rng } = state;
   const t = config.trichoderma;
   const cs = sub.cellSize;
@@ -11668,7 +11704,7 @@ function spreadTrichoderma(state) {
 
   // Current food cell centres — clouds home in on the nearest food source.
   const food = [];
-  sub.forEachCell((cell, col, row) => {
+  if (doMove) sub.forEachCell((cell, col, row) => {
     if (cell.nutrient > 0 && !cell.rock) food.push(sub.cellCenter(col, row));
   });
   // Your colony counts as a food source too, so a cloud always heads for the
@@ -11676,66 +11712,70 @@ function spreadTrichoderma(state) {
   // Only strands that have actually GROWN IN are visible to a cloud (net.grownIn) — tissue
   // still animating in from a committed grow isn't physically there to be sensed yet.
   const act = state.active;
-  const nodes = act && act.alive ? act.nodes.filter((n) => act.grownIn(n)) : [];
+  const nodes = doMove && act && act.alive ? act.nodes.filter((n) => act.grownIn(n)) : [];
 
   const survivors = [];
   for (const cloud of state.clouds) {
-    // A cloud that spent itself ON YOU last round is gone THIS round (the next play/
-    // skip) — it doesn't linger fading on top of the colony it just infected.
-    if (cloud.vanishNext) continue;
-    // A spent cloud fades to nothing over fadeTurns, then is dropped.
-    if (cloud.dying) {
-      cloud.strength -= 1 / Math.max(1, t.fadeTurns);
-      if (cloud.strength <= 0.01) continue;
-    }
-
-    // Target priority, both WITHIN sight and with a CLEAR LINE OF SIGHT (rock blocks
-    // a cloud's senses): PREFER mycelium — if any colony strand is visible, head for
-    // the nearest one even when a food pile is closer (you're tastier). Only when no
-    // strand is in range does it home in on the nearest visible FOOD pile. Nothing
-    // visible → it STAYS PUT. (sightRadius is shown on screen; LOS tested on improvement.)
-    const step = t.moveSpeed * cs;
-    let tx = null, ty = null, best = t.sightRadius * t.sightRadius;
-    for (const nd of nodes) {   // (1) mycelium preference
-      const d = (nd.x - cloud.cx) ** 2 + (nd.y - cloud.cy) ** 2;
-      if (d < best && sub.segmentClear(cloud.cx, cloud.cy, nd.x, nd.y)) { best = d; tx = nd.x; ty = nd.y; }
-    }
-    if (tx == null) {           // (2) else nearest visible food
-      best = t.sightRadius * t.sightRadius;
-      for (const f of food) {
-        const d = (f.x - cloud.cx) ** 2 + (f.y - cloud.cy) ** 2;
-        if (d < best && sub.segmentClear(cloud.cx, cloud.cy, f.x, f.y)) { best = d; tx = f.x; ty = f.y; }
+    if (doMove) {
+      // A cloud that spent itself ON YOU last round is gone THIS round (the next play/
+      // skip) — it doesn't linger fading on top of the colony it just infected.
+      if (cloud.vanishNext) continue;
+      // A spent cloud fades to nothing over fadeTurns, then is dropped.
+      if (cloud.dying) {
+        cloud.strength -= 1 / Math.max(1, t.fadeTurns);
+        if (cloud.strength <= 0.01) continue;
       }
-    }
-    if (tx != null) {
-      // Creep toward the target, sliding ALONG rock faces (clouds can't travel
-      // through rock) so they route around formations instead of tunnelling.
-      const dx = tx - cloud.cx, dy = ty - cloud.cy;
-      const dist = Math.hypot(dx, dy) || 1;
-      cloud.heading = Math.atan2(dy, dx);
-      moveCloud(cloud, dx / dist, dy / dist, Math.min(dist, step), sub);
-    } else {
-      // Nothing within sensing range — HOLD POSITION. A cloud only ever moves toward a
-      // target it can actually see (food or your mycelium, with clear line of sight); it no
-      // longer drifts around at random, so an idle cloud stays put until something comes
-      // into range (same rule the nematodes follow).
-      cloud.sees = false;
-    }
-    if (tx != null) cloud.sees = true;
 
-    // Devour the substrate it covers: cells within reach are eaten WHOLE, so the
-    // pile visibly shrinks cell-by-cell as the cloud crawls across it. Eating
-    // barely grows the cloud, hard-capped so it never gets giant.
-    // Rate-limited eating: accumulate a per-cloud "bite budget" (leavesPerRound cells
-    // per round, may be fractional) and eat only WHOLE cells, nearest-first. The budget
-    // is capped so a roaming (foodless) cloud can't hoard bites and then gulp a pile.
-    cloud._budget = Math.min((cloud._budget || 0) + t.leavesPerRound, 2);
-    let ateCells = 0;
-    if (cloud._budget >= 1) {
-      ateCells = eatUnder(sub, cloud, t.consumeReachMult, Math.floor(cloud._budget));
-      cloud._budget -= ateCells;   // only spend budget for cells actually eaten
+      // Target priority, both WITHIN sight and with a CLEAR LINE OF SIGHT (rock blocks
+      // a cloud's senses): PREFER mycelium — if any colony strand is visible, head for
+      // the nearest one even when a food pile is closer (you're tastier). Only when no
+      // strand is in range does it home in on the nearest visible FOOD pile. Nothing
+      // visible → it STAYS PUT. (sightRadius is shown on screen; LOS tested on improvement.)
+      const step = t.moveSpeed * cs;
+      let tx = null, ty = null, best = t.sightRadius * t.sightRadius;
+      for (const nd of nodes) {   // (1) mycelium preference
+        const d = (nd.x - cloud.cx) ** 2 + (nd.y - cloud.cy) ** 2;
+        if (d < best && sub.segmentClear(cloud.cx, cloud.cy, nd.x, nd.y)) { best = d; tx = nd.x; ty = nd.y; }
+      }
+      if (tx == null) {           // (2) else nearest visible food
+        best = t.sightRadius * t.sightRadius;
+        for (const f of food) {
+          const d = (f.x - cloud.cx) ** 2 + (f.y - cloud.cy) ** 2;
+          if (d < best && sub.segmentClear(cloud.cx, cloud.cy, f.x, f.y)) { best = d; tx = f.x; ty = f.y; }
+        }
+      }
+      if (tx != null) {
+        // Creep toward the target, sliding ALONG rock faces (clouds can't travel
+        // through rock) so they route around formations instead of tunnelling.
+        const dx = tx - cloud.cx, dy = ty - cloud.cy;
+        const dist = Math.hypot(dx, dy) || 1;
+        cloud.heading = Math.atan2(dy, dx);
+        moveCloud(cloud, dx / dist, dy / dist, Math.min(dist, step), sub);
+      } else {
+        // Nothing within sensing range — HOLD POSITION. A cloud only ever moves toward a
+        // target it can actually see (food or your mycelium, with clear line of sight); it no
+        // longer drifts around at random, so an idle cloud stays put until something comes
+        // into range (same rule the nematodes follow).
+        cloud.sees = false;
+      }
+      if (tx != null) cloud.sees = true;
     }
-    if (ateCells > 0 && !cloud.dying) cloud.r = Math.min(t.cloudRadiusMax, cloud.r + t.growthPerEat);
+
+    if (doEat) {
+      // Devour the substrate it covers: cells within reach are eaten WHOLE, so the
+      // pile visibly shrinks cell-by-cell as the cloud crawls across it. Eating
+      // barely grows the cloud, hard-capped so it never gets giant.
+      // Rate-limited eating: accumulate a per-cloud "bite budget" (leavesPerRound cells
+      // per round, may be fractional) and eat only WHOLE cells, nearest-first. The budget
+      // is capped so a roaming (foodless) cloud can't hoard bites and then gulp a pile.
+      cloud._budget = Math.min((cloud._budget || 0) + t.leavesPerRound, 2);
+      let ateCells = 0;
+      if (cloud._budget >= 1) {
+        ateCells = eatUnder(sub, cloud, t.consumeReachMult, Math.floor(cloud._budget));
+        cloud._budget -= ateCells;   // only spend budget for cells actually eaten
+      }
+      if (ateCells > 0 && !cloud.dying) cloud.r = Math.min(t.cloudRadiusMax, cloud.r + t.growthPerEat);
+    }
 
     survivors.push(cloud);
   }
@@ -11744,10 +11784,13 @@ function spreadTrichoderma(state) {
   // Keep the roaming population topped up: a cloud that infected you and faded
   // is eventually replaced by a fresh one creeping in from elsewhere, so the
   // threat never just ends and there's always something on the move.
-  if (state.clouds.length < t.initialPatches && rng.chance(t.respawnChance)) {
+  if (doMove && state.clouds.length < t.initialPatches && rng.chance(t.respawnChance)) {
     spawnFarCloud(state);
   }
 
+  // Re-project after EITHER phase: the move changes where the field sits, eating can widen
+  // the radius. (In turn-based the renderer overwrites this with interpolated centres while
+  // the clouds are sliding, which lands back on exactly these values at the end of the slide.)
   stampCloudField(sub, state.clouds);
 }
 
@@ -12122,7 +12165,13 @@ function placeAntNests(substrate, config, cols) {
 
 // Per-turn: each nest harvests its target food (retargeting when it's gone),
 // then we re-stamp the trail barrier and eat any strands a trail moved onto.
-function stepAnts(state) {
+// PHASES: 'move' creeps the line out toward its target; 'attack' is the arrival — harvesting
+// the target pile, or retargeting / walking home when it's empty. Turn-based runs them a
+// couple of seconds apart (the trail extends, then the column feeds); 'both' is the original
+// single pass, and the order within it is unchanged.
+function stepAnts(state, phase = 'both') {
+  const doMove = phase !== 'attack';
+  const doHarvest = phase !== 'move';
   const sub = state.substrate;
   const nests = state.ants;
   if (!nests || !nests.length) return;
@@ -12132,14 +12181,15 @@ function stepAnts(state) {
     const plan = nest.path || [];
     if (nest.built == null) nest.built = 0;
     const maxBuilt = Math.max(0, plan.length - 1);          // fractional path index the line's tip has reached
-    if (nest.built < maxBuilt - 1e-6) {
+    if (doMove && nest.built < maxBuilt - 1e-6) {
       // TRAVELING: the ant line hasn't reached its target yet — creep it out a few cells.
       // (Turn-based sets extendSpeed high enough that the whole leg is laid at once, which is
       // how the original played: the trail simply appears, then the nest harvests.)
       nest.built = Math.min(maxBuilt, nest.built + extend);
       nest.dormant = false;
     }
-    if (nest.built >= maxBuilt - 1e-6) {
+    if (doMove) nest.phase = (nest.phase || 0) + 1;         // the column's marching offset
+    if (doHarvest && nest.built >= maxBuilt - 1e-6) {
       // ARRIVED at the trail's end: harvest the target, or EXTEND to the next food when it's
       // empty / sealed (retarget appends a new leg; the line then travels it next ticks).
       let cell = nest.target ? sub.cellAt(nest.target.col, nest.target.row) : null;
@@ -12163,7 +12213,6 @@ function stepAnts(state) {
         nest.dormant = false;
       }
     }
-    nest.phase = (nest.phase || 0) + 1;
   }
   setTrailFields(sub, nests);
   // (Ant trails no longer chew the colony — mycelium and ant trails don't affect each other.
@@ -14251,23 +14300,48 @@ const __m_engine_turn = (function () {
 //
 // Phase 1 plays a single active network, but the tick iterates the whole network
 // list so the generational/autonomous-tick system (A5) drops in later.
+//
+// THE STEP IS SPLIT IN TWO, and turn-based plays the halves seconds apart. `phase` is
+// 'move' (everything that changes where a creature IS), 'attack' (everything that follows
+// from where they ended up — traps, the rot, income, the win check) or 'both'. Real time
+// only ever passes 'both': its clock ticks twice a second and already tweens creatures
+// between ticks, so there is nothing to phase. Turn-based queues an enemy turn per action
+// and the frame loop drives it — wait out the player's growth animation, run 'move',
+// let the renderer slide everything to its new spot over ~2s, then run 'attack'.
 // =============================================================================
 
 
-function tickWorld(state) {
+function tickWorld(state, phase = 'both') {
   if (state.runOver || state.winPending) return;   // goal reached, waiting on the final draft
 
   const { config, substrate } = state;
+  const doMove = phase !== 'attack';
+  const doAttack = phase !== 'move';
 
-  // The threats all act on every step.
-  spreadTrichoderma(state);   // clouds creep toward food/you and devour what they pass
-  stepAnts(state);            // ants harvest their target food, RETARGET when it empties, re-stamp trails
-  // Snapshot worm positions BEFORE they move so a trap can test the swept path
-  // (a fast worm can step clear across a trap's radius between ticks otherwise).
-  const wormPrev = new Map();
-  for (const w of (state.nematodes || [])) wormPrev.set(w, { x: w.x, y: w.y });
-  stepNematodes(state);       // worms crawl in, eat strands whole, and multiply
-  resolveTraps(state, wormPrev);   // Constricting Ring traps digest a worm that crossed one
+  if (doMove) {
+    // Snapshot worm positions BEFORE they move so a trap can test the swept path
+    // (a fast worm can step clear across a trap's radius between ticks otherwise). Parked on
+    // `state` rather than kept local because a SPLIT step resolves the traps seconds later,
+    // in the attack phase, by which time the worms are long since standing still.
+    const wormPrev = new Map();
+    for (const w of (state.nematodes || [])) wormPrev.set(w, { x: w.x, y: w.y });
+    state._wormPrev = wormPrev;
+  }
+
+  // The threats all act on every step. Each of these takes the phase: at 'both' it does its
+  // movement and its attack in one pass, in the original order; split, the same three calls
+  // run twice — once for the whole world's movement, then (a couple of seconds later on
+  // screen) once for the whole world's attacks.
+  spreadTrichoderma(state, phase);   // clouds creep toward food/you and devour what they pass
+  stepAnts(state, phase);            // ants harvest their target food, RETARGET when it empties, re-stamp trails
+  stepNematodes(state, phase);       // worms crawl in, eat strands whole, and multiply
+
+  // THE MOVE PHASE ENDS HERE. Everything below is a consequence of where the creatures now
+  // are — traps springing, the rot racing, income, starvation, the win check — so it all
+  // belongs to the attack half.
+  if (!doAttack) return;
+
+  resolveTraps(state, state._wormPrev);   // Constricting Ring traps digest a worm that crossed one
 
   for (const net of state.networks) {
     if (!net.alive) continue;
@@ -14356,6 +14430,55 @@ function tickWorld(state) {
   state.turn += 1;   // a step counter (each action advances the world one step)
 }
 
+// --- the PHASED enemy turn (TURN-BASED ONLY) --------------------------------
+// The player's action used to resolve the whole world inline, which meant the creatures had
+// already moved and eaten by the time the growth they were reacting to had finished animating
+// in — they looked like they were acting at the same moment the player was. So an action now
+// QUEUES a step here and main.js's frame loop plays it out: wait for the grow reveal, run
+// 'move', hold ~2s while the renderer slides everything to its new position, run 'attack'.
+//
+// The machine lives on `state.enemyTurn` (null when nothing is owed) with two phases:
+//   'wait' — queued; nothing has run. The player's growth is still animating.
+//   'hold' — 'move' has run; the creatures are sliding to where it put them.
+// Real time never uses any of this: its wall clock calls tickWorld('both') directly.
+//
+// ONE STEP PER ACTION IS THE INVARIANT, and it survives a player (or a test) who acts faster
+// than the animation: queueing FLUSHES whatever is still owed first, resolving it instantly.
+// You can outrun the animation, but you can never outrun the world.
+function queueEnemyTurn(state) {
+  flushEnemyTurn(state);
+  state.enemyTurn = { phase: 'wait', queuedAt: null, movedAt: 0, sawReveal: false };
+}
+
+// Run the move half now (the caller then animates the slide and calls enemyTurnAttack).
+function enemyTurnMove(state) {
+  const et = state.enemyTurn;
+  if (!et || et.phase !== 'wait') return false;
+  tickWorld(state, 'move');
+  et.phase = 'hold';
+  return true;
+}
+
+// Run the attack half and close the turn out.
+function enemyTurnAttack(state) {
+  if (!state.enemyTurn) return false;
+  state.enemyTurn = null;
+  tickWorld(state, 'attack');
+  return true;
+}
+
+// Resolve whatever is left of the owed step RIGHT NOW, with no animation. Returns true if
+// there was one. Called on every queue (see above), and by the self-play bot, which wants
+// the world settled before it reads state.won.
+function flushEnemyTurn(state) {
+  const et = state.enemyTurn;
+  if (!et) return false;
+  state.enemyTurn = null;
+  if (et.phase === 'wait') tickWorld(state, 'move');
+  tickWorld(state, 'attack');
+  return true;
+}
+
 // Constricting Ring traps: a one-shot snare on empty ground. When any nematode
 // wanders within a trap's radius it's digested (removed) for a Phosphorus reward,
 // and the trap is spent. Runs after the worms have moved this step.
@@ -14410,14 +14533,14 @@ function resolveIncome(net, substrate, config) {
   return income;
 }
 
-  return { tickWorld };
+  return { tickWorld, queueEnemyTurn, enemyTurnMove, enemyTurnAttack, flushEnemyTurn };
 })();
 
 // ===================== src/engine/actions.js =====================
 const __m_engine_actions = (function () {
   const { isRealtime } = __m_config;
   const { spawnTrichodermaAt } = __m_engine_threats;
-  const { tickWorld } = __m_engine_turn;
+  const { tickWorld, queueEnemyTurn } = __m_engine_turn;
   const { attackNest } = __m_engine_ants;
   const { excrete } = __m_engine_nematodes;
 // =============================================================================
@@ -14600,11 +14723,15 @@ function performAction(state, name, ctx = {}) {
   state.log(result.message, 'action');
 
   // TURN-BASED: there are no turns as such — every action advances the whole world one
-  // step (threats act, passive income flows, the rot races). Fruit ends the run, so the
-  // guard inside tickWorld makes this a no-op in that case.
+  // step (threats act, passive income flows, the rot races). That step is QUEUED rather
+  // than run inline: main.js's frame loop waits for this action's growth to finish
+  // animating, then plays the enemy turn as move → a ~2s slide → attack. Queueing flushes
+  // any step still owed from the previous action, so the one-step-per-action rule holds
+  // however fast the player clicks. Fruit ends the run, so the guard inside tickWorld
+  // makes the whole thing a no-op in that case.
   // REAL-TIME: an action applies its effect instantly and does NOT advance the world —
   // the wall clock does that instead (main.js advanceSim → tickWorld).
-  if (!isRealtime(state.config)) tickWorld(state);
+  if (!isRealtime(state.config)) queueEnemyTurn(state);
 
   return { ok: true, message: result.message, moves, energy };
 }
@@ -20872,7 +20999,7 @@ const __m_main = (function () {
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
   const { infectDescendants } = __m_engine_threats;   // exposed on __game for threat-check
-  const { tickWorld } = __m_engine_turn;
+  const { tickWorld, queueEnemyTurn, enemyTurnMove, enemyTurnAttack, flushEnemyTurn } = __m_engine_turn;
   const { initCards, drawCard, skipRound, playCard, cardNeedsTarget, cardUsesDragAim, dragAimReach, cardBlockedReason, chooseOffer, activateAction, cardAbilityInfo, rebuildCardsFromSnapshot } = __m_engine_cards;
   const { Camera } = __m_render_camera;
   const { SubstrateRenderer } = __m_render_substrate;
@@ -22632,6 +22759,17 @@ function begin(newState) {
   // even with the dev-tools panel off; remove for a public release.
   window.__game = {
     get state() { return state; }, camera, performAction, tickWorld,
+    // The phased enemy turn (turn-based). `enemyTurn` is the live machine — null between
+    // turns, else {phase:'wait'|'hold'}; `settleEnemyTurn` resolves whatever is owed right
+    // now, which is how a test written as a synchronous loop of actions gets a settled world
+    // without waiting on frames it isn't rendering. `enemySlideMs` so a check can time the
+    // walk against the constant rather than repeating the number.
+    get enemyTurn() { return state && state.enemyTurn; },
+    settleEnemyTurn: () => { const did = flushEnemyTurn(state); if (did) afterEnemyTurn(); return did; },
+    enemySlideMs: () => ENEMY_SLIDE_MS,
+    // The interpolation factor every creature is DRAWN at. Reading it is the only way to
+    // assert the slide without measuring pixels against a live rAF loop.
+    renderAlpha: () => renderAlpha(),
     // The rock editor's live state. Module-scoped like everything else here, so a test that
     // wants to assert on a selection or a pending placement has no other way in.
     rockEdit,
@@ -23086,10 +23224,11 @@ function checkWater() {
 function resolveCardOp(res) {
   if (res && res.ok) {
     dismissColonyLos();                   // any successful play clears the LOS helper
-    // TURN-BASED: a play/draw/skip that asks for it advances the world one step.
+    // TURN-BASED: a play/draw/skip that asks for it advances the world one step — queued as
+    // a phased enemy turn (the frame loop waits out the grow, then move → slide → attack).
     // REAL-TIME: it applies instantly and the wall clock does the advancing (advanceSim),
     // so `res.tick` is ignored.
-    if (res.tick && !isRealtime()) tickWorld(state);
+    if (res.tick && !isRealtime()) queueEnemyTurn(state);
     substrateRenderer.markDirty();
     rendererFor(state.active).markStructureDirty();
     checkWater();                         // water warning / dehydration death
@@ -23121,6 +23260,10 @@ function botToGoal(budget = 900) {
     if (idx < 0) { state.cards.hand.push({ id: state.cards.seq++, name: 'Rhizomorph Lance' }); idx = state.cards.hand.length - 1; }
     const before = net.nodes.length;
     resolveCardOp(playCard(state, idx, { x: target.x, y: target.y }));
+    // Turn-based queues the enemy turn for the frame loop to animate; a self-play bot runs
+    // inside a single JS task, so nothing would ever drive it. Settle it here instead, which
+    // makes each iteration exactly one action + one world step, as it was before the phasing.
+    if (!isRealtime() && flushEnemyTurn(state)) afterEnemyTurn();
     if (!state.won && net.nodes.length === before) {
       const dx = Math.sign(target.x - fp.x) || 1;
       net.digThrough(sub, fp.x + dx * sub.cellSize, (fp.y + target.y) / 2, ['boulder', 'formation', 'column', 'lakeBasin']);
@@ -23607,6 +23750,7 @@ function noteInput() { _lastInputAt = performance.now(); }
 
 function needsFullRate(time) {
   if (isRealtime() && !simPaused()) return true;   // the world is ticking — every frame, so it moves smoothly
+  if (state && state.enemyTurn) return true;       // turn-based: the enemy turn is playing out
   if (performance.now() - _lastInputAt < INPUT_GRACE_MS) return true;
   if (camFocus || draftIntro || winCele || previewFruit) return true;
   if (tutorial && tutorial.active) return true;
@@ -23675,7 +23819,8 @@ function advanceSim(time) {
   // has no sim clock to freeze — the board is meant to keep breathing between actions —
   // so there the animation clock simply always runs.
   if (dt > 0 && (!paused || rt.enabled === false)) _worldTime += Math.min(dt, 250);
-  if (rt.enabled === false) return;   // turn-based: the world ticks from performAction, not here
+  // TURN-BASED: no clock to run, but the enemy turn an action queued has to be played out.
+  if (rt.enabled === false) { advanceEnemyTurn(time); return; }
   if (!(dt > 0) || paused) return;
   const step = rt.stepMs || 500;
   const maxN = rt.maxCatchUpTicks || 3;
@@ -23703,6 +23848,75 @@ function advanceSim(time) {
     if (state.runOver) presentRunOver();
     uiDirty = true;
   }
+}
+
+// --- the phased, animated enemy turn (TURN-BASED ONLY) -----------------------
+// The player's action no longer resolves the world inline (engine/turn.js queueEnemyTurn);
+// it queues a step, and this plays it out over three beats so the two sides visibly take
+// turns:
+//   1. WAIT for the player's growth to finish revealing. This is the whole point — the
+//      creatures used to act at the instant a grow STARTED animating, so they read as moving
+//      at the same time as the player.
+//   2. MOVE. Snapshot every mover, run tickWorld('move'), then hold while renderAlpha slides
+//      them from the snapshot to where the step put them (worms, mould clouds, the ant line).
+//   3. ATTACK. tickWorld('attack') — bites, breeding, traps, the rot racing, income, the
+//      goal check. Everything that follows from where they ended up.
+//
+// Both waits are CAPPED. A grow's reveal is 1–3s but a card can commit an arbitrarily long
+// path, and an action with no growth at all (excrete, a trap, a skip) never starts a reveal
+// — so a grace covers "nothing is going to animate" and a ceiling covers "this is taking
+// too long", exactly as the draft intro does.
+const ENEMY_WAIT_GRACE = 350;    // no reveal started by now → there wasn't one; go
+const ENEMY_WAIT_MAX = 5000;     // hard ceiling so a stuck reveal can't hang the turn
+const ENEMY_SLIDE_MS = 2000;     // the creatures' walk to their new positions
+
+function advanceEnemyTurn(time) {
+  const et = state && state.enemyTurn;
+  if (!et) return;
+  // A finished run (or a win waiting on its last drafts) freezes the world — tickWorld
+  // returns early on both — so drop the owed turn rather than holding the frame rate up
+  // for two seconds of animation that cannot move anything.
+  if (state.runOver || state.winPending) { state.enemyTurn = null; return; }
+  if (et.queuedAt == null) et.queuedAt = time;
+
+  if (et.phase === 'wait') {
+    // Stamp the reveal for growth added since the last frame BEFORE asking whether anything
+    // is revealing — an action that ran between frames hasn't been scheduled yet, and would
+    // otherwise read as "no growth" and let the enemies move straight over the top of it.
+    for (const net of state.networks) {
+      const rend = networkRenderers.get(net.id);
+      if (rend && rend.scheduleReveal) rend.scheduleReveal(time);
+    }
+    let revealing = false;
+    try { revealing = !!anyRevealing(time); } catch (_) {}
+    if (revealing) { et.sawReveal = true; return; }
+    const waited = time - et.queuedAt;
+    if (!et.sawReveal && waited < ENEMY_WAIT_GRACE && waited < ENEMY_WAIT_MAX) return;
+
+    snapshotThreatPositions();   // where everything is NOW — the slide tweens from here
+    enemyTurnMove(state);
+    et.movedAt = time;
+    substrateRenderer.markDirty();
+    uiDirty = true;
+    return;
+  }
+
+  // 'hold': the creatures are walking. renderAlpha() reports the progress; the sim is still.
+  if (time - et.movedAt < ENEMY_SLIDE_MS) return;
+  enemyTurnAttack(state);
+  afterEnemyTurn();
+}
+
+// The same settling the real-time clock does after a tick (advanceSim above): the world
+// moved, so the baked substrate and the colony's structure are stale, water may have crossed
+// the death threshold, and the step may have won or lost the run.
+function afterEnemyTurn() {
+  substrateRenderer.markDirty();
+  if (state.active) rendererFor(state.active).markStructureDirty();
+  checkWater();
+  maybeFinalizePendingWin();
+  if (state.runOver) presentRunOver();
+  uiDirty = true;
 }
 
 // --- render interpolation (smooth threat movement between 500ms world ticks) --
@@ -23737,7 +23951,18 @@ function antBuiltPath(nest) {
   return pts;
 }
 // 0 just after a tick → 1 just before the next. Frozen (with _simAccum) while paused.
+//
+// TURN-BASED has no tick clock, so the same tween is driven by the enemy turn's slide
+// instead: 0 the moment the move phase lands, 1 when the creatures have finished walking.
+// It is 1 at every OTHER moment, which is what keeps the interpolation invisible between
+// turns — the snapshots (rx0/ry0) persist after a turn, and an alpha below 1 outside the
+// slide would draw every creature stuck at where it stood one action ago.
 function renderAlpha() {
+  if (!isRealtime()) {
+    const et = state && state.enemyTurn;
+    if (!et || et.phase !== 'hold') return 1;
+    return Math.max(0, Math.min(1, ((lastTime || 0) - et.movedAt) / ENEMY_SLIDE_MS));
+  }
   const step = (CONFIG.realtime && CONFIG.realtime.stepMs) || 500;
   return Math.max(0, Math.min(1, _simAccum / step));
 }
@@ -23856,13 +24081,17 @@ function renderFrame(time, dtFrames = 1) {
   ctx.fillStyle = '#05070d';
   ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
-  // REAL-TIME: slide the baked mould field to the interpolated cloud centres so the mould
-  // creeps smoothly between world ticks (skipped while paused — it freezes in place). Throttled
-  // to ~30fps: it re-bakes the dynamic layer, and the slow creep needs no more than that, which
-  // keeps the extra per-frame work modest on weak machines.
-  // (Turn-based has nothing to interpolate — the clouds only move on an action, and the sim
-  // re-stamps the true field on that tick.)
-  if (isRealtime() && state.clouds && state.clouds.length && !simPaused() && time - _lastMouldBakeAt >= 33) {
+  // Slide the baked mould field to the interpolated cloud centres so the mould creeps
+  // smoothly instead of snapping a cell at a time. Throttled to ~30fps: it re-bakes the
+  // dynamic layer, and the slow creep needs no more than that, which keeps the extra
+  // per-frame work modest on weak machines.
+  //   REAL-TIME: between world ticks, skipped while paused (it freezes in place).
+  //   TURN-BASED: only during the enemy turn's slide. The cloud SPRITE is this field — a
+  //   cloud has no other drawn form — so without this the mould would jump to its new spot
+  //   the instant the move phase ran while the worms were still walking.
+  const _cloudsSliding = state.clouds && state.clouds.length &&
+    (isRealtime() ? !simPaused() : !!(state.enemyTurn && state.enemyTurn.phase === 'hold'));
+  if (_cloudsSliding && time - _lastMouldBakeAt >= 33) {
     _lastMouldBakeAt = time; stampMouldInterp(); substrateRenderer.markDirty();
   }
   substrateRenderer.draw(ctx, camera, time);

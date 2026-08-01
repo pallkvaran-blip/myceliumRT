@@ -34,6 +34,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `hs-check.cjs` | High scores: a ladder per mode, one table, tabs, turn-based default |
 | `level-check.cjs` | The authored map "Three Ways Up": three lanes sealed + traversable, threats per lane |
 | `turn-play.cjs` | 120 turn-based actions: each advances the world exactly one step |
+| `enemy-turn-check.cjs` | The phased, animated enemy turn (turn-based): `tickWorld`'s move/attack split is real in both directions (a worm crawls in one phase and bites in the other, a cloud creeps then devours, the rot only races on the attack), nothing moves while the player's growth is still revealing, the ~2s slide and its tween, and one world step per action even when the player outruns the animation. Plus the negative: real time never grows an `enemyTurn` |
 | `aim-check.cjs` | The forgiving grow-aim radius, pressed repeatedly |
 | `fixes-check.cjs` | Surface-only win, no unprompted pile claims, SURVIVAL placement, dots vs bars |
 | `mode-check.cjs` | Both games in one build: title buttons, per-mode tuning, clock behaviour |

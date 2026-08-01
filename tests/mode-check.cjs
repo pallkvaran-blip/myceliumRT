@@ -139,6 +139,11 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
        `${before.nutrient.toFixed(1)} → ${after.nutrient.toFixed(1)}`);
 
     // An ACTION advances the world exactly one step, and its growth lands at once.
+    // The step is now PHASED: the action QUEUES it and the frame loop plays it out (wait for
+    // the grow reveal → move → a ~2s slide → attack), so the counter moves when the step
+    // lands, not when the action is taken. `settleEnemyTurn` is how a synchronous probe gets
+    // the world it used to get for free. Both halves are asserted — that it was deferred, and
+    // that deferring it still costs exactly one step.
     const stepped = await page.evaluate(() => {
       const g = window.__game, s = g.state, sub = s.substrate, net = s.active;
       s.active.water = 99; s.active.energy = 500;
@@ -152,9 +157,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       }
       const t0 = s.turn, n0 = net.nodes.length;
       const r = g.performAction(s, 'grow', {});
-      return { ok: !!(r && r.ok), msg: r && r.message, t0, t1: s.turn, n0, n1: net.nodes.length };
+      const queued = !!g.enemyTurn, tMid = s.turn, n1 = net.nodes.length;
+      g.settleEnemyTurn();
+      return { ok: !!(r && r.ok), msg: r && r.message, t0, tMid, queued, t1: s.turn, n0, n1 };
     });
     ok('a basic action still works', stepped.ok, stepped.msg);
+    ok('the action QUEUES its world step rather than resolving it inline',
+       stepped.queued === true && stepped.tMid === stepped.t0, `queued=${stepped.queued}, turn ${stepped.t0} → ${stepped.tMid}`);
     ok('the action advanced the world one turn', stepped.t1 === stepped.t0 + 1, `${stepped.t0} → ${stepped.t1}`);
     ok('the grow landed strands immediately (no arrival delay)', stepped.n1 > stepped.n0, `${stepped.n0} → ${stepped.n1}`);
 
