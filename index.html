@@ -1401,6 +1401,12 @@
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     #devMapPanel button:hover { background:rgba(230,180,92,0.14); border-color:rgba(230,180,92,0.5); color:#fff; }
     #devMapPanel button.cur { color:#fff; border-color:rgba(230,180,92,0.7); background:rgba(230,180,92,0.2); }
+    /* Only on saved maps, and only on hover — a delete sitting permanently next to every
+       entry in a list you click through fast is a mis-click waiting to happen. */
+    #devMapPanel .dm-x { float:right; padding:0 2px; margin-left:6px; opacity:0;
+      color:rgba(230,207,154,0.7); }
+    #devMapPanel button:hover .dm-x { opacity:1; }
+    #devMapPanel .dm-x:hover { color:#ff9b7a; }
 
     /* ROCK EDITOR — dev-only, same amber dashed language as the other dev affordances. */
     #devEditBtn { position:fixed; top:74px; right:14px; z-index:31; cursor:pointer;
@@ -7616,7 +7622,69 @@ function levelForNumber(n) {
   return null;
 }
 
-  return { LEVELS, levelForNumber };
+// ---- saved maps ------------------------------------------------------------
+// The in-game rock editor can only hand its work back through the clipboard, because a
+// browser cannot write docs/levels/. "Save as" is the other half: the edited definition goes
+// into localStorage and is merged into the lineup HERE, so a saved map appears in the dev map
+// list, boots from `#level,<id>` and survives a reload with nothing committed. The JSON in
+// docs/levels/ is still the durable copy — this is the working copy between edits.
+const SAVED_KEY = 'mycelium.savedLevels.v1';
+function loadSavedLevels() {
+  try {
+    const v = JSON.parse(localStorage.getItem(SAVED_KEY) || '[]');
+    return Array.isArray(v) ? v.filter((l) => l && l.id && Array.isArray(l.objects)) : [];
+  } catch (_) { return []; }
+}
+function saveSavedLevels(list) {
+  try { localStorage.setItem(SAVED_KEY, JSON.stringify(list)); return true; }
+  catch (_) { return false; }   // quota — a 60-rock map is ~10 KB, but the budget is shared
+}
+// A slug legal as a `#level,<id>` token (the hash splits on commas) and as a folder name.
+function slugId(s) {
+  return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+// The lineup as everything that reads it should see it: saved maps FIRST, so a saved id
+// shadows a generated one instead of sitting behind it where a by-id lookup never reaches.
+function allLevels() {
+  const saved = loadSavedLevels();
+  const ids = new Set(saved.map((l) => slugId(l.id)));
+  return saved.concat(LEVELS.filter((l) => l && l.id && !ids.has(slugId(l.id))));
+}
+// Store `def` under a new name. Returns the stored copy, or null if it could not be saved.
+function saveLevelAs(def, name, chapter) {
+  const base = slugId(name);
+  if (!def || !base) return null;
+  const saved = loadSavedLevels();
+  // Never take a GENERATED id: gen-levels.mjs re-splices those from docs/levels/, and a
+  // saved map shadowing one would make the committed file unreachable in game with no sign
+  // of why. Saving twice under the same NAME does overwrite — that is the expected edit loop.
+  const taken = new Set(LEVELS.map((l) => slugId(l.id)));
+  let id = base;
+  for (let n = 2; taken.has(id); n++) id = base + '-' + n;
+  const out = JSON.parse(JSON.stringify(def));
+  out.id = id;
+  out.name = String(name).trim();
+  out.chapter = chapter || 'Chapter 1';
+  // Sprites live in assets/<id>/ and a new id has no folder — point the loader at the map
+  // this was saved FROM. Chained saves keep the ORIGINAL source, not the intermediate.
+  out.assetsFrom = def.assetsFrom || def.id;
+  // A draft must not inherit the campaign slot of the map it came from; two levels claiming
+  // one slot is a hard failure in gen-levels.mjs and a silent one here.
+  out.campaignLevel = null;
+  const i = saved.findIndex((l) => slugId(l.id) === id);
+  if (i >= 0) saved[i] = out; else saved.push(out);
+  return saveSavedLevels(saved) ? out : null;
+}
+function deleteSavedLevel(id) {
+  const want = slugId(id);
+  const saved = loadSavedLevels();
+  const left = saved.filter((l) => slugId(l.id) !== want);
+  if (left.length === saved.length) return false;
+  saveSavedLevels(left);
+  return true;
+}
+
+  return { LEVELS, levelForNumber, allLevels, loadSavedLevels, saveLevelAs, deleteSavedLevel, slugId };
 })();
 
 // ===================== src/species.js =====================
@@ -18024,7 +18092,7 @@ function growMyceliumTitle(container, opts = {}) {
 const __m_render_species_select = (function () {
   const { SPECIES, LOCKED_TIERS, isRevealed, isPlayable, unlockCost, sporesBalance, purchaseSpecies, loadProgress, devUnlockAll, levelFromUnlock, startLevelRange, defaultStartLevel, loadDeathCarry } = __m_species;
   const { CARD_DATA } = __m_cards_data;
-  const { LEVELS } = __m_levels_data;
+  const { allLevels } = __m_levels_data;
   const { CONFIG, timeify } = __m_config;
   const { cardSlug, SPORE_ICON } = __m_render_ui;
   const { logEvent } = __m_net_scores;
@@ -18328,14 +18396,15 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   // so tracing another map puts its button on screen with no code change. These are the
   // only in-game route to a map that claims no campaign slot — otherwise it's the
   // `#level,<id>` boot hash, which skips the picker and so can't pick a species.
-  const devMaps = devOn ? (LEVELS || []).filter((l) => l && l.id) : [];
-  // Grouped by theme, which is the first word of the display name ("Obsidian 55" → Obsidian).
+  const devMaps = devOn ? allLevels().filter((l) => l && l.id) : [];
+  // Grouped by theme, which is the first word of the display name ("Obsidian 55" → Obsidian),
+  // except for maps saved from the in-game editor, which name their own group ("Chapter 1").
   // LEVELS arrives sorted by id, so same-theme maps are already adjacent and a plain
   // run-length pass is enough — no need to bucket and re-order, which would also lose the
   // deliberate ordering of the hand-authored maps.
   let lastGroup = null;
   const mapBtns = devMaps.map((l, i) => {
-    const group = String(l.name || l.id).split(/[\s-]/)[0];
+    const group = l.chapter || String(l.name || l.id).split(/[\s-]/)[0];
     const head = group !== lastGroup
       ? `<div class="ss-devgroup">${esc(lastGroup = group)}</div>` : '';
     return head +
@@ -20183,7 +20252,7 @@ const __m_main = (function () {
   const { CONFIG, isRealtime, setMode, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState } = __m_engine_state;
   const { isLevel } = __m_engine_level;
-  const { LEVELS, levelForNumber } = __m_levels_data;
+  const { levelForNumber, allLevels, saveLevelAs, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
   const { tickWorld } = __m_engine_turn;
@@ -20410,10 +20479,13 @@ function loadPlaytestLevel() {
 // campaign slot are otherwise unreachable in this repo — upstream's GUI editor,
 // which is what stashed a draft in localStorage for the hook above, didn't come
 // across with the fork. Matches `id`, then `name`, case-insensitively.
+//
+// Over allLevels(), not LEVELS, so a map saved from the in-game editor is reachable by
+// `#level,<id>` and by every dev route the generated ones are.
 function levelById(id) {
   const want = String(id || '').toLowerCase();
   if (!want) return null;
-  for (const l of LEVELS) {
+  for (const l of allLevels()) {
     if (String(l.id || '').toLowerCase() === want) return l;
     if (String(l.name || '').toLowerCase() === want) return l;
   }
@@ -20435,7 +20507,9 @@ function start(seed) {
   // every sprite it needs reports ready, and drawLevelRocks() skips the ones that aren't,
   // so the map fills in over the first frames instead of the run being gated on a decode.
   // Blocking here would put a stall between the picker and the level for no gain.
-  if (def && def.id) loadLevelAssets(def.id);
+  // `assetsFrom` is what a map saved from the editor carries: it has its own id and no
+  // assets/<id>/ folder, and its sprites are still the source map's.
+  if (def && (def.assetsFrom || def.id)) loadLevelAssets(def.assetsFrom || def.id);
   begin(def ? createLevelState(cfg, seed, def) : createState(cfg, seed));
 }
 function startRun() { start((Date.now() & 0x7fffffff) || 1); }
@@ -21035,7 +21109,7 @@ function updateDevMapBtn() {
   const devOn = !!(state && state.config && state.config.dev && state.config.dev.enabled);
   let btn = document.getElementById('devMapBtn');
   let panel = document.getElementById('devMapPanel');
-  const maps = devOn ? (LEVELS || []).filter((l) => l && l.id) : [];
+  const maps = devOn ? allLevels().filter((l) => l && l.id) : [];
   if (!devOn || !maps.length) {
     if (btn) btn.style.display = 'none';
     if (panel) { panel.style.display = 'none'; panel.classList.remove('open'); }
@@ -21065,7 +21139,10 @@ function updateDevMapBtn() {
       let lastGroup = null;
       panel.replaceChildren();
       for (const l of maps) {
-        const group = String(l.name || l.id).split(/[\s-]/)[0];
+        // A saved map names its own group ("Chapter 1"); a generated one falls back to the
+        // first word of its name, which is its theme. allLevels() puts saved maps first, so
+        // the chapters sit at the top of the list without a second sort.
+        const group = l.chapter || String(l.name || l.id).split(/[\s-]/)[0];
         if (group !== lastGroup) {
           lastGroup = group;
           const h = document.createElement('div');
@@ -21077,6 +21154,20 @@ function updateDevMapBtn() {
         b.title = '#level,' + l.id;
         if (playtestLevel && playtestLevel.id === l.id) b.className = 'cur';
         b.onclick = () => devSwitchLevel(l.id);
+        // A saved map can be thrown away from here. Without this a mis-named save is stuck
+        // in the list for the life of the browser profile, since nothing else can reach
+        // localStorage from the game.
+        if (l.chapter) {
+          const x = document.createElement('span');
+          x.className = 'dm-x'; x.textContent = '×'; x.title = 'Forget this saved map';
+          x.onclick = (e) => {
+            e.stopPropagation();
+            if (!window.confirm('Forget saved map "' + (l.name || l.id) + '"?')) return;
+            deleteSavedLevel(l.id);
+            panel._sig = null; updateDevMapBtn();
+          };
+          b.appendChild(x);
+        }
         panel.appendChild(b);
       }
     }
@@ -21283,6 +21374,33 @@ function editApply() {
   startRun();
 }
 
+// Save the edited level under a NEW name, into the lineup. The browser cannot write
+// docs/levels/, so this stores it in localStorage (see __m_levels_data's saved-map block) and
+// then switches into it — which is also what makes pending placements real, since a saved map
+// is loaded through createLevelState exactly like a committed one.
+//
+// The JSON still goes to the clipboard: localStorage is one browser profile, and the durable
+// copy is the file in the repo.
+function editSaveAs() {
+  const def = state && state.levelDef;
+  if (!def) return;
+  let edited;
+  try { edited = JSON.parse(editExport()); } catch (_) { return; }
+  const name = window.prompt('Save this map as:', (def.name || def.id || 'New map'));
+  if (name == null) return;                       // cancelled — not the same as an empty name
+  const saved = saveLevelAs(edited, name.trim(), 'Chapter 1');
+  if (!saved) { window.alert('Could not save — the name needs at least one letter or digit.'); return; }
+  window.__levelJSON = JSON.stringify(saved, null, 1);
+  try { navigator.clipboard.writeText(window.__levelJSON); } catch (_) {}
+  rockEdit.added = [];
+  rockEdit.sel.clear(); rockEdit.selAdded.clear();
+  // The map panel caches its markup against a signature of the ids it drew; the new map is
+  // not in that signature, so force the rebuild rather than wait for something else to.
+  const panel = document.getElementById('devMapPanel');
+  if (panel) panel._sig = null;
+  devSwitchLevel(saved.id);
+}
+
 function updateEditPanel() {
   const p = document.getElementById('devEditPanel');
   if (!p) return;
@@ -21359,9 +21477,12 @@ function updateDevEditBtn() {
       '<label>Saturation <b id="eeSv">1.00</b><input type="range" id="eeS" min="0" max="2" step="0.02" value="1"></label>' +
       '<div class="ee-row"><button id="eeReset">Reset look</button></div>' +
       '<h4>Save</h4>' +
-      '<div class="ee-row"><button id="eeCopy">Copy JSON</button></div>' +
-      '<p class="ee-hint">Paste over <code>docs/levels/&lt;id&gt;.json</code>. Nothing is ' +
-      'written from the browser.</p>';
+      '<div class="ee-row"><button id="eeSaveAs">Save as&hellip;</button>' +
+      '<button id="eeCopy">Copy JSON</button></div>' +
+      '<p class="ee-hint"><b>Save as</b> names a copy and adds it to the map list under ' +
+      '<b>Chapter 1</b>, kept in this browser. Paste the JSON over ' +
+      '<code>docs/levels/&lt;id&gt;.json</code> to keep it for good — nothing is written ' +
+      'to disk from the browser.</p>';
     ui0.appendChild(panel);
     const $ = (id) => panel.querySelector('#' + id);
     const row = $('eePlace');
@@ -21403,6 +21524,7 @@ function updateDevEditBtn() {
       }
       uiDirty = true;
     };
+    $('eeSaveAs').onclick = editSaveAs;
     $('eeCopy').onclick = async () => {
       // ALWAYS park it on window as well as copying. The clipboard needs a secure context
       // and a user gesture, and over plain http or in a headless browser the write can fail
@@ -21605,6 +21727,11 @@ function begin(newState) {
     // The rock editor's live state. Module-scoped like everything else here, so a test that
     // wants to assert on a selection or a pending placement has no other way in.
     rockEdit,
+    // The saved-map lineup. `saveAs` is the button's own path minus the prompt, so a test can
+    // exercise the save without a dialog it cannot answer.
+    levels: allLevels,
+    saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
+    forgetSaved: deleteSavedLevel,
     draw: () => resolveCardOp(drawCard(state)),
     skip: () => resolveCardOp(skipRound(state)),
     play: (i, ctx) => resolveCardOp(playCard(state, i, ctx)),
@@ -22453,7 +22580,7 @@ function setupInput() {
     else if ((e.code === 'BracketLeft' || e.code === 'BracketRight') && !rockEdit.on
              && !e.ctrlKey && !e.metaKey && !e.altKey
              && state && state.config && state.config.dev && state.config.dev.enabled) {
-      const maps = (LEVELS || []).filter((l) => l && l.id);
+      const maps = allLevels().filter((l) => l && l.id);
       if (!maps.length) return;
       const cur = maps.findIndex((l) => playtestLevel && l.id === playtestLevel.id);
       const step = e.code === 'BracketRight' ? 1 : -1;

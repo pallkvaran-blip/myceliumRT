@@ -3,7 +3,11 @@ const {chromium}=require('playwright');
 const ROOT='/home/user/myceliumRT';
 const T={'.html':'text/html','.js':'text/javascript','.json':'application/json','.png':'image/png','.webp':'image/webp','.mp3':'audio/mpeg','.wav':'audio/wav'};
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-const ok=(n,c,x)=>console.log((c?'  PASS  ':'  FAIL  ')+n+(x?'  — '+x:''));
+// Tally as well as print. The runner parses the "==== N passed, M failed ====" line and calls
+// a check that never prints one BROKEN — this file went in without it and so was only ever run
+// by hand. See tests/README.md on the zero-coverage failure mode.
+let PASS=0, FAIL=0;
+const ok=(n,c,x)=>{ c?PASS++:FAIL++; console.log((c?'  PASS  ':'  FAIL  ')+n+(x?'  — '+x:'')); };
 (async()=>{
 const srv=await new Promise(res=>{const s=http.createServer((rq,rs)=>{let p=decodeURIComponent(rq.url.split('?')[0].split('#')[0]);if(p==='/')p='/index.html';const fp=path.join(ROOT,p);if(!fp.startsWith(ROOT)||!fs.existsSync(fp)||fs.statSync(fp).isDirectory()){rs.writeHead(404);rs.end('nf');return;}rs.writeHead(200,{'Content-Type':T[path.extname(fp)]||'application/octet-stream'});fs.createReadStream(fp).pipe(rs);});s.listen(0,()=>res(s));});
 const base='http://localhost:'+srv.address().port;
@@ -196,6 +200,76 @@ await p.evaluate(()=>document.querySelector('#eeApply').click());
 await sleep(2500);
 await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:60000}).catch(()=>{});
 ok('apply rebuilds the level', await p.evaluate(()=>!!(window.__game.state && window.__game.state.active)));
-await p.screenshot({path:'/tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/editor.png',timeout:60000,animations:'disabled'});
+// tests/.artifacts/ like every other check, not a session scratchpad path — the scratchpad is
+// wiped with the container and a committed check must not depend on one session's directory.
+await p.screenshot({path:path.join(__dirname,'.artifacts','editor.png'),timeout:60000,animations:'disabled'});
+
+// ---- Save as -------------------------------------------------------------
+// A FRESH load, deliberately: the steps above delete every rock, and a saved copy of an empty
+// map cannot show that the sprites resolved through `assetsFrom`, which is the one thing about
+// saving that can silently go wrong (a saved map has its own id and no assets/<id>/ folder).
+// `?r=2` only to make the URL DIFFER from the first load — the server drops the query. Going
+// to a byte-identical URL is a same-document navigation, so the page would not reboot and this
+// block would run against the emptied map above.
+await p.goto(base+'/index.html?r=2#level,slate-c24',{waitUntil:'domcontentloaded'});
+await p.waitForSelector('#loadscreen.ld-ready',{timeout:60000}).catch(()=>{});
+await p.click('#loadscreen',{timeout:5000}).catch(()=>{});
+await p.waitForFunction(()=>window.__game&&window.__game.state&&window.__game.state.active,null,{timeout:30000});
+await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:90000});
+const srcRocks = await p.evaluate(()=>window.__game.state.substrate.levelSprites.length);
+await p.evaluate(()=>{ try { localStorage.removeItem('mycelium.savedLevels.v1'); } catch(_){} });
+await p.click('#devEditBtn'); await sleep(400);
+// Go through the BUTTON, not the exposed helper: window.prompt is the whole reason the save
+// path can differ between hand-testing and here, so answer the dialog instead of routing round it.
+//
+// NOT awaited, deliberately. `prompt()` is synchronous in the page, so an awaited evaluate
+// cannot return until the dialog is answered — and the answer arrives over the same connection
+// the evaluate is blocking. That deadlocks until the runner's timeout; fire and wait on the
+// EFFECT instead.
+p.once('dialog', d=>d.accept('Chapter One Test'));
+p.evaluate(()=>document.querySelector('#eeSaveAs').click()).catch(()=>{});
+await p.waitForFunction(()=>(window.__game.state.levelDef||{}).id==='chapter-one-test',null,{timeout:30000}).catch(()=>{});
+await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:90000}).catch(()=>{});
+const sv = await p.evaluate(()=>{
+  const d=window.__game.state.levelDef||{};
+  return {id:d.id,name:d.name,chapter:d.chapter,from:d.assetsFrom,slot:d.campaignLevel,
+          rocks:window.__game.state.substrate.levelSprites.length,
+          stored:JSON.parse(localStorage.getItem('mycelium.savedLevels.v1')||'[]').map(l=>l.id)};
+});
+ok('save as slugs the name into an id', sv.id==='chapter-one-test', `id ${sv.id}, name "${sv.name}"`);
+ok('the saved map is filed under Chapter 1', sv.chapter==='Chapter 1', String(sv.chapter));
+ok('it claims no campaign slot', sv.slot===null||sv.slot===undefined, String(sv.slot));
+ok('it points at the source map for its sprites', sv.from==='slate-c24', String(sv.from));
+// The real failure this guards: a saved map whose sprites never load draws an EMPTY level,
+// which looks like a successful save until you notice the rock is gone.
+ok('the saved map draws the source map\'s rocks', sv.rocks>0 && sv.rocks===srcRocks, `${sv.rocks} of ${srcRocks}`);
+ok('it is in localStorage', sv.stored.includes('chapter-one-test'), sv.stored.join(','));
+ok('it is in the lineup', await p.evaluate(()=>window.__game.levels().some(l=>l.id==='chapter-one-test')));
+ok('#level,<id> finds it', await p.evaluate(()=>{
+  // levelById is module-scoped; the boot hash is the reachable proxy for it, and the dev map
+  // button's title is written from the same id, so assert on that.
+  const b=[...document.querySelectorAll('#devMapPanel button')].find(x=>x.title==='#level,chapter-one-test');
+  return !!b;
+}));
+const grp = await p.evaluate(()=>[...document.querySelectorAll('#devMapPanel .dm-g')].map(n=>n.textContent));
+ok('the map list grows a Chapter 1 heading', grp[0]==='Chapter 1', grp.slice(0,3).join(' / '));
+ok('saved maps sort ahead of the generated ones',
+   await p.evaluate(()=>window.__game.levels()[0].id==='chapter-one-test'));
+// A second save under the same name OVERWRITES rather than piling up copy-of-copy ids.
+await p.evaluate(()=>window.__game.saveAs('Chapter One Test'));
+const dup = await p.evaluate(()=>JSON.parse(localStorage.getItem('mycelium.savedLevels.v1')||'[]').length);
+ok('re-saving the same name overwrites', dup===1, `${dup} stored`);
+// A name that collides with a GENERATED map must not shadow it — the committed file would
+// become unreachable in game with nothing on screen to say why.
+const coll = await p.evaluate(()=>window.__game.saveAs('slate-c24'));
+ok('a name colliding with a generated map is given its own id',
+   coll && coll.id!=='slate-c24' && coll.id.startsWith('slate-c24-'), coll?coll.id:'null');
+ok('forgetting a saved map removes it', await p.evaluate((extra)=>{
+  window.__game.forgetSaved('chapter-one-test');
+  if (extra) window.__game.forgetSaved(extra);
+  return !window.__game.levels().some(l=>l.chapter);
+}, coll && coll.id));
 await b.close();srv.close();
+console.log(`==== ${PASS} passed, ${FAIL} failed ====`);
+process.exit(FAIL?1:0);
 })();

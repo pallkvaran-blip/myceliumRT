@@ -106,7 +106,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~490 assertions across 15 checks. **Run them; don't verify by re-reading your own diff.**
+~525 assertions across 16 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
@@ -507,6 +507,7 @@ they cannot disagree. It is cheap because nothing is resampled.
   written from the browser. It also parks it on `window.__levelJSON` — always, not only when
   the clipboard fails, because headless Chromium's clipboard write SUCCEEDS and the first
   version passed by hand while returning null to its own test.
+- **Save as…** names a copy and puts it in the lineup. See below.
 - Level rocks are clipped to `y >= surfaceY`, so a rock dragged up is cut off at the soil
   line. Clipping rather than reordering the draw: rocks must stay UNDER the lakes and
   reservoirs drawn immediately after them.
@@ -517,8 +518,39 @@ sassafras, mulberry, redbud, sycamore), `cache` → orange (leafOak/leafMaple),
 `cache-engine` → red (maple, oak, sweetgum, japanese, dogwood, beech). What each PAYS —
 plain energy, a card draft, an engine card draft — is in the button's tooltip.
 
-`tests/edit-check.cjs` covers all of it (24 assertions) and asserts on `levelSprites`, not on
-the panel's labels. `rockEdit` is on `window.__game` for that reason.
+### Saved maps ("Save as…", Chapter 1)
+
+A browser cannot write `docs/levels/`, so a save is **localStorage plus a merge at read time**,
+not a file. `__m_levels_data` owns it: `mycelium.savedLevels.v1` holds the saved defs and
+**`allLevels()`** is what every consumer now reads instead of `LEVELS` — `levelById`, the dev
+map panel, the `]`/`[` cycle and the species picker's left column. Saved maps come FIRST in
+that list, so a saved id shadows a generated one rather than sitting behind it where a by-id
+lookup never reaches, and so their group heading lands at the top of the map list.
+
+Three fields make a saved map behave:
+
+- **`chapter`** (`'Chapter 1'`) is what groups it. A generated map has none and falls back to
+  the first word of its name, i.e. its theme — so the chapters and the themes coexist in one
+  list with no second sort. It is also the "is this saved?" test the `×` (forget) button uses.
+- **`assetsFrom`** is the id whose `assets/<id>/` folder holds the sprites. A saved map has a
+  new id and therefore NO folder of its own; `start()` loads `def.assetsFrom || def.id`.
+  Chained saves keep the ORIGINAL, not the intermediate. Without this a save looks fine until
+  you switch into it and the map draws empty — which is the one assertion in `edit-check` that
+  matters here (`sv.rocks === srcRocks`).
+- **`campaignLevel: null`**, always. Inheriting the source map's slot would put two levels in
+  one slot, which `gen-levels.mjs` fails on loudly and the runtime does silently.
+
+The id is the name slugged; a name that would collide with a **generated** id gets `-2`
+appended instead, because shadowing a committed file with a localStorage draft is unreachable-
+with-no-explanation. Re-saving the same NAME does overwrite — that is the edit loop.
+Save also copies the JSON out (clipboard + `window.__levelJSON`) and switches into the saved
+map, which stamps any pending placements the same way Apply does. **localStorage is one
+browser profile: the map is only durable once its JSON is committed to `docs/levels/`.**
+
+`tests/edit-check.cjs` covers all of it (37 assertions) and asserts on `levelSprites`, not on
+the panel's labels. `rockEdit`, `levels`, `saveAs` and `forgetSaved` are on `window.__game` for
+that reason. The save-as block deliberately runs on a FRESH page load — the steps before it
+delete every rock, and a saved copy of an empty map cannot show that `assetsFrom` resolved.
 
 ### Dev conveniences that change what you see
 

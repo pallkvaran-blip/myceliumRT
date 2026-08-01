@@ -39,6 +39,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `mode-check.cjs` | Both games in one build: title buttons, per-mode tuning, clock behaviour |
 | `lure-check.cjs` | Title screen: strands creep to the cursor, branch, trail off, stop on leave |
 | `traced-check.cjs` | The traced map "Maze One": 68 sprites decode, open space runs colony→goal on the real mask, no food sealed off, nothing drawn over a pathClear channel |
+| `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
@@ -80,7 +81,7 @@ See the repo's CLAUDE.md for the rest of the traps.
 ### `edit` — the dev rock editor (`tests/edit-check.cjs`)
 
 Drives the in-game rock editor on a traced map: opens the panel, selects every rock,
-scales, rotates, adjusts the look filter, deletes, and exports. Asserts on state
+scales, rotates, adjusts the look filter, deletes, exports, and saves. Asserts on state
 (`substrate.levelSprites`), never on the panel's own labels — the editor mutates the same
 list the engine draws and collides from, so the sprites are the truth.
 
@@ -88,6 +89,13 @@ Watch the export assertion in particular. The first version parked the JSON on
 `window.__levelJSON` only in the clipboard's failure path, and headless Chromium's clipboard
 write SUCCEEDS — so the by-hand check passed and the test read `null`. It now always parks
 it, and copies as well.
+
+The **Save as…** block runs on a second, FRESH page load, and that is not tidiness: the steps
+before it delete every rock, and the one thing about saving that can silently go wrong is the
+sprite lookup (a saved map has a new id and no `assets/<id>/` folder — it resolves through
+`assetsFrom`). A saved copy of an empty map cannot tell you whether that worked. It answers the
+`window.prompt` through Playwright's dialog handler rather than calling the exposed helper,
+because the prompt is precisely where the button path and a scripted save could differ.
 
 The clip assertion is worth reading before trusting a similar one. Three versions of it
 passed with the feature REMOVED: a grep for a source comment; a mean over a 100px band above
