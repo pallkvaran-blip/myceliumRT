@@ -90,7 +90,7 @@ other — a worm creeping 0.375 cells/tick would barely move if it only stepped 
 
 ### Threat rates (all changed together, all in BOTH tables)
 
-`tests/threat-check.cjs` (61 assertions) measures every one of these through the sim, in both
+`tests/threat-check.cjs` (68 assertions) measures every one of these through the sim, in both
 modes. A rate lives in two places — the CONFIG literal and `MODE_TUNING` — so **changing one
 table only doesn't make the creature faster, it makes one of the two games harder**, and that
 is invisible from inside either mode. **Every retune has to move BOTH by the same factor.**
@@ -102,7 +102,7 @@ is invisible from inside either mode. **Every retune has to move BOTH by the sam
 | `trichoderma.spreadDepthPerTurn` | 6 → 18 → 40 → **16.5** | 1.5 → 4.5 → 10 → **4.125** |
 | `trichoderma.infectionSpreadChance` | **1** — see below, this one is a trap | |
 | `nematodes.strandsPerBite` | 1 → 2 → **4** (one value, both modes) | |
-| `trichoderma.firstTouchRings` | **20** (one value, both modes) | |
+| `trichoderma.firstTouchRings` | 20 → **12** (one value, both modes) | |
 | `trichoderma.rotLifeTurns` | **3** steps, then the strand falls away | |
 | `nematodes.reach` | 0.7 → **1.4** cells | |
 
@@ -148,10 +148,13 @@ CONFIG literal only.
   cells (25 units) against a 25.5-unit growth segment, so past about 4 the bite starts being
   limited by how many strands are physically that close rather than by the knob.
 - **ONE RING IS ONE SEGMENT, and a card "step" is 3 segments.** `grow4Segments` 12 = 4 steps,
-  `grow5Segments` 15 = 5, Rhizomorph Lance's `reachSegments` 18 = 6. So **16.5 rings = 5.5
-  steps**, set deliberately above grow-4 and grow-5 so neither outruns the rot, and below the
-  Lance, which still can. Authored in rings, reasoned about in steps — `threat-check` asserts
-  the conversion so a retune in either unit shows up.
+  `grow5Segments` 15 = 5, Rhizomorph Lance's `reachSegments` 18 = 6. **Always quote rot distances
+  to the owner in STEPS** — that is the unit they think in. So 12 rings = **4 steps**, owner-set
+  LEVEL with grow-4: that card exactly breaks even, grow-5 and the Lance gain ground, a plain
+  grow loses. `firstTouchRings` is 12 = 4 steps too. It was briefly 16.5/20 (5.5 and 6.7 steps),
+  which compounded with the two INSTANT chunks — the first-touch burst and the unbounded
+  downstream claim — into "the infection spreads much too fast". Authored in rings, reasoned
+  about in steps; `threat-check` asserts the conversion so a retune in either unit shows up.
 - **`infectionSpreadChance` BELOW 1 CAPS THE SPREAD, and caps it far under what the depth says.**
   A failed roll drops that node from the frontier and kills the branch for the rest of the call,
   so a filament advances a GEOMETRIC number of rings, mean p/(1−p) — deaf to
@@ -245,7 +248,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~687 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
+~694 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
