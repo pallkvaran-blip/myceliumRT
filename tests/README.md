@@ -40,6 +40,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `lure-check.cjs` | Title screen: strands creep to the cursor, branch, trail off, stop on leave |
 | `traced-check.cjs` | The traced map "Maze One": 68 sprites decode, open space runs colony→goal on the real mask, no food sealed off, nothing drawn over a pathClear channel |
 | `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… |
+| `core-check.cjs` | The molten core: the growth floor IS the drawn line, rocks clip at it, the earth turns red, and procedural maps have none |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
@@ -96,6 +97,19 @@ sprite lookup (a saved map has a new id and no `assets/<id>/` folder — it reso
 `assetsFrom`). A saved copy of an empty map cannot tell you whether that worked. It answers the
 `window.prompt` through Playwright's dialog handler rather than calling the exposed helper,
 because the prompt is precisely where the button path and a scripted save could differ.
+
+### `core` — the molten core (`tests/core-check.cjs`)
+
+The core is drawn by `SubstrateRenderer._bakeEarth` and enforced by `Network._placeOk`, two
+places that share only a number. The assertion that matters is that the line the player SEES
+and the line the engine STOPS them at are the same y — a growth floor a hundred units off the
+visible seam reads as the game refusing a legal move, and nothing but a test keeps them
+together. It scans ACROSS the map at each depth rather than probing one x, because a single
+column lands inside a rock and reports "blocked" for the wrong reason.
+
+Its rock-clip assertion has a **verified negative control**: with the clip removed the rock
+centre reads 84 against bare core 242 (gap 158, tolerance 30); with it, 176 against 184. Run
+that control before trusting it or anything like it — see below for why.
 
 The clip assertion is worth reading before trusting a similar one. Three versions of it
 passed with the feature REMOVED: a grep for a source comment; a mean over a 100px band above

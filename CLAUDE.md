@@ -106,7 +106,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~561 assertions across 16 checks. **Run them; don't verify by re-reading your own diff.**
+~571 assertions across 17 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
@@ -221,6 +221,43 @@ Harness traps that have cost real time:
   content behind an existing filename changes.
 - **Unlocking a species is two steps:** clearing its level *reveals* it, spending Spores *unlocks*
   it. Progress is in localStorage `mycelium.progress.v2`.
+
+## The core (the molten floor)
+
+A second hard boundary, the mirror of the soil line. `world.coreDepthFrac` (a fraction of the
+content depth, `surfaceY`→`height`) puts `substrate.coreY` at half depth; below it the earth is
+molten rock. Three things key off that one number:
+
+- **`substrate.growFloorY`** is what `Network._placeOk` tests — the core when there is one, the
+  content floor otherwise, with the same ±2 margin the soil line uses. Measured: deepest
+  placeable 826 against a core at 829.
+- **`drawLevelRocks` clips at it**, exactly as it clips at `surfaceY`. A rock dragged below the
+  line is cut off by the core the way one dragged up is cut off by the sky. Collision below the
+  line is deliberately left alone — the colony cannot reach it, so an invisible wall down there
+  is unreachable rather than unfair.
+- **`_bakeEarth` paints it.** The soil ramp is compressed to finish AT the line (so the earth
+  reaches near-black just as the red takes over — "black to red", not "brown to red"), then two
+  molten ramps: `cEdge`→`cMid` over the first 0.18 of depth so the red arrives FAST, then
+  `cMid`→`cDeep` across the whole remaining drop into the bottom buffer so it keeps heating.
+  Getting that split wrong is visible and was wrong twice — normalising the far ramp against
+  content depth put its hottest colour at the content floor and the lower half of every map
+  came out a bright orange lava lamp; normalising both ramps against the drawn extent made the
+  band you actually play against read as dark mud.
+
+**It is OFF by default and turned on only for AUTHORED maps** (`configForLevelDef`). Not a style
+choice: the procedural generator spreads food, reservoirs and formations across the full content
+depth, so a core at 0.5 strands about half of every generated map's resources below a line the
+colony cannot cross — and procedural rock is drawn by `drawRockPiles`/`drawRockFormations`,
+which the clip does not cover, so it floats on the red as well. The 100-level campaign is the
+shipped game; it keeps its whole world until generation is taught about the core. An authored
+map places its own food by hand, so it has neither problem. A level can set its own
+`world.coreDepthFrac`, or 1 for no core at all.
+
+`tests/core-check.cjs` (10 assertions) covers the lot. Its clip assertion has a **verified
+negative control** — with the clip removed the rock centre reads 84 against bare core 242, a gap
+of 158 against a tolerance of 30; with it, 176 against 184. Run that control before trusting any
+similar pixel test here, because three earlier versions of the above-ground clip assertion
+passed with the feature deleted.
 
 ## Authored maps
 

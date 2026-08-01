@@ -27,6 +27,7 @@ const CHECKS = [
   ['aim',       'aim-check.cjs',     45,  false],
   ['fixes',     'fixes-check.cjs',   90,  false],
   ['edit',      'edit-check.cjs',    40,  false],
+  ['core',      'core-check.cjs',    75,  false],
   ['mode',      'mode-check.cjs',    100, false],
   ['lure',      'lure-check.cjs',    70,  true],
   ['tut',       'tut-check.cjs',     120, true],

@@ -1721,6 +1721,22 @@ const CONFIG = {
                         //   carousel-covered band, leaving ALL content above it. NO
                         //   rocks/food/etc. are generated here; camera + renderer only.
     surfaceY: 380,      // y of the soil line; air above, underground below
+    // THE CORE. A second hard boundary, the mirror of the soil line: as a fraction of the
+    // content depth (surfaceY → height), the point where the earth turns to molten rock. The
+    // colony cannot grow past it (Network._placeOk reads substrate.growFloorY) and level rocks
+    // are clipped at it (drawLevelRocks), so a rock dragged below the line is cut off by the
+    // core exactly as one dragged above the soil line is cut off by the sky.
+    // 1 (or more) disables it: no line, no clip, growth bounded by `height` as before.
+    //
+    // OFF by default, and turned on at 0.5 for AUTHORED maps by configForLevelDef. Not a
+    // style choice — the procedural generator spreads food, reservoirs and formations across
+    // the full content depth, so a core at 0.5 strands about half of every generated map's
+    // resources below a line the colony cannot cross, and the procedural rock is drawn by
+    // drawRockPiles/drawRockFormations, which the core clip does not cover, so it floats on
+    // the red as well. The 100-level campaign is the shipped game; it keeps its whole world
+    // until generation is taught about the core. An authored map places its own food, so it
+    // has neither problem.
+    coreDepthFrac: 1,
     cellSize: 36,       // substrate grid cell size (square)
   },
 
@@ -2126,6 +2142,15 @@ const CONFIG = {
     soilTop: '#5e4528',
     soilMid: '#45331e',
     soilDeep: '#2a1d12',
+    // THE CORE — the molten rock under the world's floor (substrate.coreY). Read as heat
+    // coming UP through the ground rather than as a lit surface: the seam is the brightest
+    // thing and everything below it is a dark, saturated red that only opens up near the
+    // bottom. Deliberately NOT orange at the line — a bright band there would sit on the map
+    // like a highlighter stripe; the earth has to look like it is glowing from underneath.
+    coreEdge: '#2e0a06',         // the first red, just under the line: almost black, blood-warm
+    coreMid: '#7d1a08',          // the body of the core
+    coreDeep: '#d1490d',         // the hottest, at the very bottom of the buffer
+    coreSeam: 'rgba(255,132,48,0.42)',   // the glowing lip right at the line
     rock: '#23262c',             // small buried pebbles
     soilPebbles: true,           // bake those pebbles into the soil at all (SubstrateRenderer
                                  //   _bakeRocks). Forced OFF for authored maps, where the real
@@ -8707,6 +8732,16 @@ class Substrate {
     // the camera + renderer use, so the player can scroll the deepest content clear
     // of the bottom UI. Engine code never uses this.
     this.viewHeight = height + (config.world.bottomBuffer || 0);
+    // The molten core. `coreY` is where the earth turns to it — the render transition and the
+    // growth floor are the same line, so what the player sees is exactly what stops them.
+    // `growFloorY` is what the engine tests: the core when there is one, the content floor
+    // otherwise, so a map with coreDepthFrac >= 1 behaves exactly as before.
+    const cf = config.world.coreDepthFrac;
+    this.coreDepthFrac = (cf == null ? 1 : +cf);
+    this.coreY = this.coreDepthFrac < 1
+      ? surfaceY + (height - surfaceY) * Math.max(0.05, this.coreDepthFrac)
+      : null;
+    this.growFloorY = this.coreY != null ? this.coreY : height;
     this.cols = Math.floor(width / cellSize);
     this.rows = Math.floor((height - surfaceY) / cellSize);
     // Flat cell array, indexed [row * cols + col].
@@ -9768,7 +9803,9 @@ class Network {
   }
 
   _placeOk(substrate, nx, ny) {
-    if (ny <= substrate.surfaceY + 2 || ny >= substrate.worldHeight - 2) return false;
+    // growFloorY is the CORE line when the map has one, the content floor otherwise. Same
+    // margin as the soil line above, so the two boundaries behave identically.
+    if (ny <= substrate.surfaceY + 2 || ny >= substrate.growFloorY - 2) return false;
     if (nx <= 2 || nx >= substrate.worldWidth - 2) return false;
     const cell = substrate.cellAtWorld(nx, ny);
     if (!cell) return true;
@@ -12056,6 +12093,11 @@ function configForLevelDef(config, level) {
   if (w.height) cfg.world.height = w.height;
   if (w.surfaceY != null) cfg.world.surfaceY = w.surfaceY;
   if (w.cellSize) cfg.world.cellSize = w.cellSize;
+  // THE CORE, on for authored maps. Every object on one of these is placed by hand, so
+  // nothing can end up stranded below the line the way procedural generation would strand it
+  // (see CONFIG.world.coreDepthFrac). A map may move the line or set 1 to have no core.
+  cfg.world.coreDepthFrac = 0.5;
+  if (w.coreDepthFrac != null) cfg.world.coreDepthFrac = w.coreDepthFrac;
   // A TRACED map brings its own lighting, baked into the art by whatever drew it, and the
   // renderer's ambient pass then multiplies the whole underground by a warm tint
   // (rgb(a, a*0.9, a*0.76) at ambientLight 0.62) before adding the colony's glow back. On a
@@ -14592,18 +14634,67 @@ class SubstrateRenderer {
     const img = tctx.createImageData(tw, th);
     const d = img.data;
     const top = hexToRgb(r.soilTop), mid = hexToRgb(r.soilMid), deep = hexToRgb(r.soilDeep);
+    // The core, blended in BELOW the soil ramp rather than replacing it, so the last of the
+    // soil colour still shows through the top of the transition and the two read as one
+    // continuous body of earth rather than two stacked panels.
+    const cFrac = sub.coreY != null ? (sub.coreY - sy) / contentGh : null;
+    const cEdge = hexToRgb(r.coreEdge || '#2e0a06');
+    const cMid = hexToRgb(r.coreMid || '#7d1a08');
+    const cDeep = hexToRgb(r.coreDeep || '#d1490d');
+    // FAST, as asked: black to red over ~5% of the map's depth, starting a hair above the
+    // line so the line itself already reads warm. A slow fade made the whole lower half look
+    // like brown mud going slightly pink.
+    const t0 = cFrac != null ? cFrac - 0.012 : 0, t1 = cFrac != null ? cFrac + 0.05 : 1;
+    const smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+    const maxDepth = gh / contentGh;      // drawn extent, in content-depth units (>1: the buffer)
 
     for (let ty = 0; ty < th; ty++) {
       const worldY = sy + (ty / th) * gh;
       const depth = (worldY - sy) / contentGh;
-      const col = depth < 0.35
-        ? lerpRgb(top, mid, depth / 0.35)
-        : lerpRgb(mid, deep, (depth - 0.35) / 0.65);
+      // The soil ramp is compressed to finish AT the core line rather than at the content
+      // floor, so the earth reaches its deepest near-black just as the red takes over. Without
+      // this the core met mid-brown soil and the sequence read brown-to-red; the intent is
+      // black to red, which needs the black to actually arrive first.
+      const dn = cFrac != null ? Math.min(1, depth / cFrac) : depth;
+      let col = dn < 0.35
+        ? lerpRgb(top, mid, dn / 0.35)
+        : lerpRgb(mid, deep, (dn - 0.35) / 0.65);
+      let heat = 0;
+      if (cFrac != null) {
+        heat = smooth((depth - t0) / (t1 - t0));
+        if (heat > 0) {
+          // Below the line the red climbs with depth — the core is a place you are looking
+          // INTO, so it has to keep going somewhere. Normalised over the FULL DRAWN extent
+          // (content + the 2160-unit bottom buffer), not the content alone: against content
+          // depth the ramp hit its hottest colour at the content floor, which is inside the
+          // play area, and the lower half of every map came out a bright orange lava lamp.
+          // Over the drawn extent the band you actually play against stays a dark blood red
+          // and the heat is somewhere further down, which is what makes it read as depth.
+          // TWO ramps, because the two things being asked for pull in opposite directions.
+          // Near the line the red has to arrive FAST — a fifth of the map's depth gets you
+          // from almost-black to the full blood red, or the band you play against just reads
+          // as dark mud. Past that it heats slowly across the whole remaining drop into the
+          // bottom buffer, which is what makes it read as a depth you are looking into rather
+          // than a coloured panel. Normalising both against the drawn extent (the first
+          // attempt) made the near half far too subtle; normalising both against the content
+          // made the far half a bright orange lava lamp inside the play area.
+          const db = depth - cFrac;                       // how far below the line, in depths
+          const near = Math.min(1, db / 0.18);
+          const far = Math.min(1, Math.max(0, (db - 0.18) / Math.max(0.3, maxDepth - cFrac - 0.18)));
+          const molten = far > 0
+            ? lerpRgb(cMid, cDeep, Math.pow(far, 1.8))
+            : lerpRgb(cEdge, cMid, near);
+          col = lerpRgb(col, molten, heat);
+        }
+      }
       for (let tx = 0; tx < tw; tx++) {
         const wx = (tx / tw) * W;
         const n = this.noise.fbm(wx * 0.006, worldY * 0.006, 4);
         const strata = Math.sin(worldY * 0.03 + this.noise.noise2(wx * 0.002, worldY * 0.01) * 3) * 0.5;
-        const b = 1 + n * 0.22 + strata * 0.08;
+        // The same fbm drives the mottling on both sides of the line, so the core is the same
+        // rock at a different temperature rather than a separate material pasted on. Stronger
+        // below, because molten rock wants visible unevenness.
+        const b = 1 + n * (0.22 + heat * 0.14) + strata * (0.08 + heat * 0.06);
         const i = (ty * tw + tx) * 4;
         d[i] = clamp255(col[0] * b);
         d[i + 1] = clamp255(col[1] * b);
@@ -14614,6 +14705,28 @@ class SubstrateRenderer {
     tctx.putImageData(img, 0, 0);
     this.baseCtx.imageSmoothingEnabled = true;
     this.baseCtx.drawImage(tex, 0, 0, tw, th, 0, sy, W, gh);
+
+    // The seam. Drawn AFTER the earth, at the exact y the colony is stopped at, because the
+    // boundary has to be legible as a boundary — the ramp alone says "it gets warmer down
+    // there", not "you cannot go past this". A short glow rising off it (additive, so it lifts
+    // the soil above rather than painting a bar over it) plus a thin hot lip on the line.
+    if (sub.coreY != null) {
+      const octx = this.baseCtx, cy = sub.coreY;
+      const rise = Math.max(40, (sub.worldHeight - sy) * 0.06);
+      const g = octx.createLinearGradient(0, cy - rise, 0, cy + rise * 0.35);
+      g.addColorStop(0, 'rgba(255,110,30,0)');
+      g.addColorStop(0.75, 'rgba(255,110,30,0.10)');
+      g.addColorStop(1, 'rgba(255,140,55,0.20)');
+      octx.save();
+      octx.globalCompositeOperation = 'lighter';
+      octx.fillStyle = g;
+      octx.fillRect(0, cy - rise, W, rise * 1.35);
+      octx.restore();
+      octx.save();
+      octx.fillStyle = r.coreSeam || 'rgba(255,138,54,0.55)';
+      octx.fillRect(0, cy - 1.5, W, 3);
+      octx.restore();
+    }
   }
 
   _bakeVeins() {
@@ -24586,10 +24699,17 @@ function drawLevelRocks() {
   // rather than after it. Clipping is the right tool rather than reordering the draw — the
   // rocks have to stay UNDER the lakes and reservoirs that come next, so they cannot simply
   // move later in the list.
+  //
+  // The CORE clips the same way at the bottom. It is the same promise as the soil line, in the
+  // other direction: everything below the line belongs to the molten rock, so a rock dragged
+  // down there is cut off by it instead of floating over the glow. Collision below the line is
+  // left alone deliberately — the colony cannot reach it (Network._placeOk stops at
+  // growFloorY), so an invisible wall down there is unreachable rather than unfair.
   ctx.save();
   const _surfY = camera.worldToScreen(0, sub.surfaceY).y;
+  const _coreY = sub.coreY != null ? camera.worldToScreen(0, sub.coreY).y : camera.viewH;
   ctx.beginPath();
-  ctx.rect(0, _surfY, camera.viewW, Math.max(0, camera.viewH - _surfY));
+  ctx.rect(0, _surfY, camera.viewW, Math.max(0, Math.min(_coreY, camera.viewH) - _surfY));
   ctx.clip();
   if (filtered) {
     ctx.filter = `brightness(${rf.brightness}) contrast(${rf.contrast}) saturate(${rf.saturate})`;
