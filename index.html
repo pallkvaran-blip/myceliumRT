@@ -12097,11 +12097,17 @@ function isLevel(o) {
 // needs. 1.5 is the depth the owner settled on: the traced art fills the top two-thirds and
 // the last third is open soil down to the molten floor. Raising this is the ONLY way to put
 // the line deeper, since the line cannot go below the cell grid (see configForLevelDef).
-const CORE_DEPTH_MULT = 1.449;
+const CORE_DEPTH_MULT = 1.0143;
 // Where the line sits WITHIN that box, as a fraction. 1 puts it on the floor (the core then
 // shows only below the map, in the camera buffer); less than 1 lifts it, so the band of molten
 // rock is inside the world and rocks dragged into it are clipped by it.
-const CORE_LINE_FRAC = 0.7;
+//
+// 1.15 is deliberately past 1 and Substrate clamps it: the last two changes asked for a box 30%
+// shallower AND a line 15% deeper, and those fight. Shrinking the box by 30% leaves it exactly
+// as deep as the line already was (1.449 x 0.7 = 1.0143 either way), so there is nowhere below
+// it for the line to go. The constant records the ask and the clamp records the physics —
+// better than quietly writing 1 here and losing the fact that more depth was wanted.
+const CORE_LINE_FRAC = 1.15;
 
 // A clone of `config` with the level's world box applied. The rest of CONFIG
 // (economy, threat behaviour, render) is untouched — an authored map changes

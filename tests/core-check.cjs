@@ -70,9 +70,10 @@ ok(`the content box runs ${mult}x that depth, so the core has room to be deeper`
 // the map. Still clamped at 1: a fraction past it would put the growth floor below the cell
 // grid, where _placeOk would happily grow into a gridless void.
 const lineFrac=await p.evaluate(()=>window.__game.coreLineFrac);
-ok(`the line sits at ${lineFrac} of the box, off the floor`,
-   Math.abs((geom.coreY-geom.surfaceY) - (geom.worldHeight-geom.surfaceY)*lineFrac) < 1
-     && geom.coreY < geom.worldHeight && geom.frac === lineFrac,
+const wantFrac=Math.min(1, lineFrac);
+ok(`the line sits at ${wantFrac} of the box${lineFrac>1?` (asked ${lineFrac}, clamped)`:''}`,
+   Math.abs((geom.coreY-geom.surfaceY) - (geom.worldHeight-geom.surfaceY)*wantFrac) < 1
+     && geom.coreY <= geom.worldHeight && geom.frac === wantFrac,
    `core ${Math.round(geom.coreY)} of ${geom.surfaceY}..${Math.round(geom.worldHeight)}, frac ${geom.frac}`);
 ok('the growth floor IS the core line',
    geom.growFloorY===geom.coreY,
