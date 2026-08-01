@@ -1408,25 +1408,37 @@
       background:rgba(14,18,12,0.82); border:1px dashed rgba(230,180,92,0.6); border-radius:999px;
       padding:6px 12px; backdrop-filter:blur(4px); }
     #devEditBtn.on { color:#0d100c; background:#e6b45c; border-style:solid; }
-    #devEditPanel { position:fixed; left:14px; top:14px; z-index:32; width:236px; display:none;
-      flex-direction:column; gap:9px; padding:12px; background:rgba(10,14,10,0.95);
-      border:1px dashed rgba(230,180,92,0.5); border-radius:12px; backdrop-filter:blur(6px);
-      max-height:calc(100vh - 28px); overflow-y:auto; }
+    /* A horizontal STRIP across the top, not a left column. The column ate a quarter of the
+       width, and level editing is mostly dragging things across the map — the workspace is
+       what the tool is for. Everything is on one row-wrapping flex line, with the sliders
+       narrowed so a full set still fits beside the buttons. */
+    #devEditPanel { position:fixed; left:0; right:0; top:0; z-index:32; display:none;
+      flex-direction:row; flex-wrap:wrap; align-items:center; gap:6px 10px;
+      padding:8px 148px 8px 12px;      /* right pad clears the Dev: win/maps/edit buttons */
+      background:rgba(10,14,10,0.94); border-bottom:1px dashed rgba(230,180,92,0.5);
+      backdrop-filter:blur(6px); max-height:38vh; overflow-y:auto; }
     #devEditPanel.open { display:flex; }
-    #devEditPanel h4 { margin:0; font:700 10px "Segoe UI", system-ui, sans-serif;
-      letter-spacing:.13em; text-transform:uppercase; color:rgba(230,207,154,0.6); }
-    #devEditPanel label { display:block; font:600 10.5px "Segoe UI", system-ui, sans-serif;
-      color:#e6cf9a; letter-spacing:.02em; }
-    #devEditPanel label b { float:right; font-variant-numeric:tabular-nums; color:#fff; }
-    #devEditPanel input[type=range] { width:100%; accent-color:#e6b45c; margin-top:3px; }
-    #devEditPanel .ee-row { display:flex; gap:6px; flex-wrap:wrap; }
+    #devEditPanel h4 { margin:0 0 0 6px; font:700 9px "Segoe UI", system-ui, sans-serif;
+      letter-spacing:.13em; text-transform:uppercase; color:rgba(230,207,154,0.5);
+      align-self:center; border-left:1px solid rgba(230,180,92,0.25); padding-left:10px; }
+    #devEditPanel h4:first-child { border-left:none; padding-left:0; margin-left:0; }
+    #devEditPanel label { display:flex; align-items:center; gap:5px; width:132px;
+      font:600 10px "Segoe UI", system-ui, sans-serif; color:#e6cf9a; letter-spacing:.02em; }
+    #devEditPanel label b { font-variant-numeric:tabular-nums; color:#fff; min-width:26px; }
+    #devEditPanel input[type=range] { flex:1; min-width:52px; accent-color:#e6b45c; margin:0; }
+    #devEditPanel .ee-row { display:flex; gap:5px; flex-wrap:wrap; align-items:center; }
+    /* The hint is the one thing that must not push the controls onto a second screen. */
+    #devEditPanel .ee-hint { flex:1 1 100%; order:99; margin:0; }
     #devEditPanel button { cursor:pointer; font:600 10.5px "Segoe UI", system-ui, sans-serif;
       color:#e6cf9a; background:rgba(230,180,92,0.10); border:1px solid rgba(230,180,92,0.4);
       border-radius:7px; padding:5px 9px; }
     #devEditPanel button:hover { background:rgba(230,180,92,0.24); color:#fff; }
-    #devEditPanel .ee-hint { font:400 10.5px/1.5 "Segoe UI", system-ui, sans-serif;
-      color:rgba(230,207,154,0.65); }
-    #devEditPanel .ee-stat { font:600 10.5px "Segoe UI", system-ui, sans-serif; color:#fff; }
+    #devEditPanel .ee-hint { font:400 10px/1.45 "Segoe UI", system-ui, sans-serif;
+      color:rgba(230,207,154,0.6); }
+    #devEditPanel .ee-stat { font:600 10.5px "Segoe UI", system-ui, sans-serif; color:#fff;
+      white-space:nowrap; }
+    /* The panel is fixed to the top, so the two dev buttons under it would be covered. */
+    #devEditPanel.open ~ #devMapBtn, #devEditPanel.open ~ #devEditBtn { top:auto; }
 
     /* ============================ FIRST-RUN TUTORIAL ============================
        Clean black & white popups with a slight white border-glow (mirrors the
@@ -16195,7 +16207,13 @@ class UI {
     this.armed = null;                // {kind:'hand'|'offer', index?, name} a card awaiting Confirm
     this.armedOffer = null;           // name of the highlighted draft card awaiting Draft-confirm
     this.handFilter = 'all';          // active card-hand filter group key
-    this.handOpen = true;             // the hand carousel starts visible on every screen; only the Show/Hide button toggles it
+    // Starts CLOSED under the dev flag: level editing is most of what a dev session does
+    // now, and the carousel takes the bottom third of the workspace. The Show/Hide button
+    // still works, and a release build (dev off) is unaffected.
+    // `state.config` rather than CONFIG: this module does not import CONFIG, and reaching
+    // for it threw at construction — which took the whole boot with it, since UI is built
+    // before the first frame. state.config is the deep clone the run is actually using.
+    this.handOpen = !(state && state.config && state.config.dev && state.config.dev.enabled);
     this.defaultHint = '';            // cached card-mode hint, restored on cancel
     this.el = {};
     this._build();
@@ -20261,6 +20279,21 @@ function revealMap() {
   // full frame, so snap the canvas fully opaque (no fade) behind a solid black
   // "Level N" overlay, and let that overlay fade ITSELF out on click — that fade
   // is the map fading in. On dismiss it runs onContinue (any deferred tutorial).
+  // The level intro is skipped under the dev flag — hopping between 59 maps means dismissing
+  // it 59 times, and it says nothing useful about a traced map that has no threats yet. Its
+  // callbacks still run, so nothing downstream notices it did not appear.
+  if (pendingLevelIntro && state && state.config && state.config.dev && state.config.dev.enabled) {
+    const info = pendingLevelIntro; pendingLevelIntro = null;
+    // onDismiss is NOT called. Its only job is `ui.setHandOpen(true)` — re-expanding the
+    // carousel that the intro collapsed on its way in — and with no intro there was nothing
+    // to collapse. Calling it anyway is what re-opened the hand a line after the dev flag
+    // had deliberately closed it. onContinue does carry real work (the deferred level
+    // advance), so that one still runs.
+    if (info.onContinue) { try { info.onContinue(); } catch (_) {} }
+    canvas.style.transition = 'none';
+    canvas.style.opacity = '1';
+    return;
+  }
   if (pendingLevelIntro) {
     const info = pendingLevelIntro; pendingLevelIntro = null;
     canvas.style.transition = 'none';
@@ -21071,7 +21104,29 @@ const rockEdit = {
   filter: { brightness: 1, contrast: 1, saturate: 1 },
   place: null,      // armed placement kind, or null
   added: [],        // objects placed this session, not yet stamped — see PLACEABLE
+  selAdded: new Set(),   // which of `added` are selected; a separate set from the rocks'
+                         // because the two are different lists and a shared index would
+                         // silently address the wrong one
 };
+
+// Placed markers are picked in SCREEN space, not world space: a marker is a fixed-size dot
+// however far out you are zoomed, so a world-space radius would be unclickable at 0.5x and
+// swallow half the map at 3x.
+function placedAt(sx, sy) {
+  for (let i = rockEdit.added.length - 1; i >= 0; i--) {
+    const o = rockEdit.added[i];
+    const sub = state.substrate;
+    const c = camera.worldToScreen(+o.x || 0, o.y != null ? +o.y : sub.surfaceY + 40);
+    if (Math.hypot(c.x - sx, c.y - sy) <= 15) return i;
+  }
+  return -1;
+}
+function deletePlaced() {
+  const gone = [...rockEdit.selAdded].sort((a, b) => b - a);
+  for (const i of gone) rockEdit.added.splice(i, 1);
+  rockEdit.selAdded.clear();
+  updateEditPanel(); uiDirty = true;
+}
 
 // What can be dropped into a map, and the object each one writes.
 //
@@ -21091,6 +21146,10 @@ const PLACEABLE = [
     make: (x, y) => ({ t: 'food', kind: 'duff', x: Math.round(x), y: Math.round(y), r: 1, energy: 2 }) },
   { id: 'cache',     label: 'Nut cache',  colour: '#c98a3a',
     make: (x, y) => ({ t: 'food', kind: 'cache', x: Math.round(x), y: Math.round(y), r: 1, energy: 4 }) },
+  // The third kind the engine knows (stampFood -> 'cache-engine'), drawn as red autumn
+  // leaves and the one that pays an engine card rather than plain energy.
+  { id: 'cache-engine', label: 'Engine cache', colour: '#d4564a',
+    make: (x, y) => ({ t: 'food', kind: 'cache-engine', x: Math.round(x), y: Math.round(y), r: 1, energy: 4 }) },
   { id: 'ant',       label: 'Ant',        colour: '#ff9f4a',
     make: (x, y) => ({ t: 'ant', x: Math.round(x) }) },
   { id: 'nematode',  label: 'Nematode',   colour: '#ff6f6f',
@@ -21222,7 +21281,11 @@ function updateEditPanel() {
   if (!p) return;
   const n = rockEdit.sel.size, tot = editSprites().length;
   const st = p.querySelector('#eeSel');
-  if (st) st.textContent = n ? `${n} of ${tot} selected` : `${tot} rocks — none selected`;
+  const np = rockEdit.selAdded.size;
+  if (st) {
+    st.textContent = np ? `${np} placed selected`
+      : n ? `${n} of ${tot} rocks` : `${tot} rocks`;
+  }
   const pend = p.querySelector('#eePend');
   if (pend) {
     const k = rockEdit.place ? (PLACEABLE.find((q) => q.id === rockEdit.place) || {}).label : null;
@@ -21531,6 +21594,9 @@ function begin(newState) {
   // even with the dev-tools panel off; remove for a public release.
   window.__game = {
     get state() { return state; }, camera, performAction, tickWorld,
+    // The rock editor's live state. Module-scoped like everything else here, so a test that
+    // wants to assert on a selection or a pending placement has no other way in.
+    rockEdit,
     draw: () => resolveCardOp(drawCard(state)),
     skip: () => resolveCardOp(skipRound(state)),
     play: (i, ctx) => resolveCardOp(playCard(state, i, ctx)),
@@ -22137,11 +22203,31 @@ function setupInput() {
         return;
       }
     }
+    // A PLACED marker wins over a rock under the same click: it is smaller, it is what you
+    // just put there, and it is drawn on top.
+    const ph = placedAt(e.clientX - rect.left, e.clientY - rect.top);
+    if (ph >= 0) {
+      if (e.shiftKey) {
+        if (rockEdit.selAdded.has(ph)) rockEdit.selAdded.delete(ph); else rockEdit.selAdded.add(ph);
+      } else if (!rockEdit.selAdded.has(ph)) {
+        rockEdit.selAdded = new Set([ph]);
+        rockEdit.sel.clear();
+      }
+      rockEdit.drag = { wx: w.x, wy: w.y, placed: true };
+      canvas.setPointerCapture(e.pointerId);
+      updateEditPanel(); uiDirty = true;
+      e.stopPropagation(); e.preventDefault();
+      return;
+    }
     const hit = rockAt(w.x, w.y);
     if (hit < 0) {
-      if (!e.shiftKey) { rockEdit.sel.clear(); updateEditPanel(); uiDirty = true; }
+      if (!e.shiftKey) {
+        rockEdit.sel.clear(); rockEdit.selAdded.clear();
+        updateEditPanel(); uiDirty = true;
+      }
       return;                                   // empty space: let the camera pan as usual
     }
+    if (!e.shiftKey) rockEdit.selAdded.clear();
     if (e.shiftKey) {
       if (rockEdit.sel.has(hit)) rockEdit.sel.delete(hit); else rockEdit.sel.add(hit);
     } else if (!rockEdit.sel.has(hit)) {
@@ -22159,6 +22245,20 @@ function setupInput() {
     const w = camera.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
     const dx = w.x - rockEdit.drag.wx, dy = w.y - rockEdit.drag.wy;
     rockEdit.drag.wx = w.x; rockEdit.drag.wy = w.y;
+    if (rockEdit.drag.placed) {
+      // A placed object is not in the world yet, so nothing to re-solidify — just move the
+      // marker. Objects with no y (lake, ant, mountain, city, house) are positioned by x
+      // alone and their y is ignored by buildLevel, so do not invent one.
+      for (const i of rockEdit.selAdded) {
+        const o = rockEdit.added[i];
+        if (!o) continue;
+        o.x = Math.round(o.x + dx);
+        if (o.y != null) o.y = Math.round(o.y + dy);
+      }
+      uiDirty = true;
+      e.stopPropagation(); e.preventDefault();
+      return;
+    }
     for (const s of editTargets()) { s.x += dx; s.y += dy; }
     // Collision is rebuilt on every move rather than on release: the point of editing in
     // the running game is that what you see is what blocks, and a mask that lags the art
@@ -22317,6 +22417,21 @@ function setupInput() {
       editNudge((e.code === 'ArrowRight' ? step : e.code === 'ArrowLeft' ? -step : 0),
                 (e.code === 'ArrowDown' ? step : e.code === 'ArrowUp' ? -step : 0));
       e.preventDefault();
+    }
+    else if (rockEdit.on && rockEdit.selAdded.size &&
+             (e.code === 'Delete' || e.code === 'Backspace')) { deletePlaced(); e.preventDefault(); }
+    else if (rockEdit.on && rockEdit.selAdded.size && !e.ctrlKey && !e.metaKey && (
+             e.code === 'ArrowLeft' || e.code === 'ArrowRight' ||
+             e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+      const step = e.shiftKey ? 25 : 3;
+      const dx = e.code === 'ArrowRight' ? step : e.code === 'ArrowLeft' ? -step : 0;
+      const dy = e.code === 'ArrowDown' ? step : e.code === 'ArrowUp' ? -step : 0;
+      for (const i of rockEdit.selAdded) {
+        const o = rockEdit.added[i];
+        if (!o) continue;
+        o.x += dx; if (o.y != null) o.y += dy;
+      }
+      uiDirty = true; e.preventDefault();
     }
     else if (rockEdit.on && rockEdit.sel.size &&
              (e.code === 'Delete' || e.code === 'Backspace')) { editDelete(); e.preventDefault(); }
@@ -24121,9 +24236,11 @@ function drawLevelRocks() {
       const pk = PLACEABLE.find((q) => q.id === (o.kind || o.t)) || {};
       const col = pk.colour || '#ffd27f';
       const c = camera.worldToScreen(+o.x || 0, o.y != null ? +o.y : sub.surfaceY + 40);
-      ctx.strokeStyle = col; ctx.fillStyle = col; ctx.lineWidth = 2;
-      ctx.setLineDash([5, 4]);
-      ctx.beginPath(); ctx.arc(c.x, c.y, 13, 0, Math.PI * 2); ctx.stroke();
+      const isSel = rockEdit.selAdded.has(rockEdit.added.indexOf(o));
+      ctx.strokeStyle = isSel ? '#ffffff' : col; ctx.fillStyle = col;
+      ctx.lineWidth = isSel ? 3 : 2;
+      ctx.setLineDash(isSel ? [] : [5, 4]);
+      ctx.beginPath(); ctx.arc(c.x, c.y, isSel ? 15 : 13, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(c.x, c.y, 3, 0, Math.PI * 2); ctx.fill();
       ctx.fillText(o.kind || o.t, c.x, c.y - 19);

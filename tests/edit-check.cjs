@@ -121,6 +121,11 @@ ok('delete removes rocks', nAfter===0, `${nBefore} -> ${nAfter}`);
 // export
 const json = await p.evaluate(()=>{ window.__levelJSON=null; document.querySelector('#eeCopy').click(); return new Promise(r=>setTimeout(()=>r(window.__levelJSON),300)); });
 ok('export produces level JSON', !!json && json.includes('"format"'), json?('len '+json.length):'null');
+// ---- carousel starts minimised, level intro skipped ----------------------
+ok('the card carousel starts minimised in dev',
+   await p.evaluate(()=>{ const h=document.querySelector('.handbar'); return !!h && !h.classList.contains('open'); }));
+ok('the level intro does not appear in dev', !(await p.$('#levelIntro')));
+
 // ---- placement -----------------------------------------------------------
 ok('placement buttons exist', await p.evaluate(()=>document.querySelectorAll('#eePlace button').length) >= 8,
    String(await p.evaluate(()=>document.querySelectorAll('#eePlace button').length)) + ' kinds');
@@ -132,6 +137,27 @@ const pend = await p.evaluate(()=>document.querySelector('#eePend').textContent)
 ok('placements are pending', /3 pending/.test(pend), pend.slice(0,60));
 const exported = await p.evaluate(()=>{ document.querySelector('#eeCopy').click(); return window.__levelJSON; });
 ok('pending objects reach the export', (JSON.parse(exported).objects||[]).filter(o=>o.t==='food'&&o.kind==='duff').length >= 3);
+
+// ---- move and delete a PLACED object --------------------------------------
+ok('every food kind is offered',
+   await p.evaluate(()=>['Leaf pile','Nut cache','Engine cache']
+     .every(l=>[...document.querySelectorAll('#eePlace button')].some(b=>b.textContent===l))));
+const p0 = await p.evaluate(()=>({n:window.__game.rockEdit.added.length, x:window.__game.rockEdit.added[0].x, y:window.__game.rockEdit.added[0].y}));
+// click the first marker (deselect the armed kind first, or the click places another)
+await p.evaluate(()=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent==='Leaf pile').click(); });
+const mk = await p.evaluate(()=>{ const o=window.__game.rockEdit.added[0];
+  const c=window.__game.camera.worldToScreen(o.x,o.y); return {x:Math.round(c.x),y:Math.round(c.y)}; });
+await p.mouse.move(mk.x, mk.y); await p.mouse.down();
+await p.mouse.move(mk.x+70, mk.y+40, {steps:6}); await p.mouse.up(); await sleep(200);
+const p1 = await p.evaluate(()=>({n:window.__game.rockEdit.added.length, x:window.__game.rockEdit.added[0].x, y:window.__game.rockEdit.added[0].y, sel:window.__game.rockEdit.selAdded.size}));
+ok('a placed object can be selected and dragged', p1.sel===1 && (p1.x!==p0.x || p1.y!==p0.y),
+   `(${p0.x},${p0.y}) -> (${p1.x},${p1.y}), ${p1.sel} selected`);
+await p.keyboard.press('Delete'); await sleep(200);
+const p2 = await p.evaluate(()=>window.__game.rockEdit.added.length);
+ok('a placed object can be deleted', p2 === p1.n-1, `${p1.n} -> ${p2}`);
+// put one back so the apply step below still has something to stamp
+await p.evaluate(()=>{ [...document.querySelectorAll('#eePlace button')].find(b=>b.textContent==='Leaf pile').click(); });
+await p.mouse.click(760, 470); await sleep(200);
 // apply rebuilds the level
 await p.evaluate(()=>document.querySelector('#eeApply').click());
 await sleep(2500);
