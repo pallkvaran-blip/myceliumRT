@@ -12,7 +12,8 @@
  *   • did every sprite decode at all (the mask waits for all of them)?
  *
  * It walks the folder rather than naming maps, so tracing another one is covered the
- * moment its JSON lands. Screenshots (tests/.artifacts/traced-<id>-*.png) are the other
+ * moment its JSON lands. Pass ids to narrow it — `node tests/traced-check.cjs obsidian` —
+ * which is how you check a change that affects every map equally without paying for 59. Screenshots (tests/.artifacts/traced-<id>-*.png) are the other
  * half — look at them; several defects here were only ever visible in a rendered frame.
  */
 const http = require('http'), fs = require('fs'), path = require('path');
@@ -27,7 +28,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 const LEVELDIR = path.join(ROOT, 'docs', 'levels');
 const ALL = fs.readdirSync(LEVELDIR).filter((f) => f.endsWith('.json'))
   .map((f) => JSON.parse(fs.readFileSync(path.join(LEVELDIR, f), 'utf8')));
-const TRACED = ALL.filter((l) => l && l.traced);
+// `node tests/traced-check.cjs obsidian slate` runs only the maps whose id matches, which is
+// the difference between a 15-minute sweep and a 20-second one. The full run walks the folder
+// and is what the runner does; while ITERATING on something that affects every map equally —
+// world depth, the density metric, a render change — one map answers the same question.
+const only = process.argv.slice(2).filter((a) => !a.startsWith('-'));
+const TRACED = ALL.filter((l) => l && l.traced)
+  .filter((l) => !only.length || only.some((o) => l.id.includes(o)));
 
 (async () => {
   fs.mkdirSync(ART, { recursive: true });
