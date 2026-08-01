@@ -96,3 +96,11 @@ the soil line (rocks are dark, the night sky is dark, the mean barely moved); an
 sample moved the wrong way, 184 -> 210). It now samples the rock's own centre and compares it
 to a patch of BARE SKY in the same frame — 73 against 74 with the clip, 210 against 147
 without. Always run a negative control on a pixel assertion.
+
+### `fringe-score.py` is not a check, but read it like one
+
+`python3 scripts/fringe-score.py` measures the pale ring on every traced level's sprites,
+theme-relative (each sprite against itself, so pale `glacier` is not judged against near-black
+`obsidian`). It is the number behind "the rocks have a halo", which was reported by eye twice
+before anything measured it. Median across the 58 levels is -0.1 with 47 under +10; if a
+re-trace pushes that above +10, `--trim` is the first thing to look at.

@@ -162,6 +162,14 @@ Harness traps that have cost real time:
 - Chromium is at `/opt/pw-browsers/chromium` (`executablePath`). Use `deviceScaleFactor` 2–3,
   never 4 (it OOMs), and **one browser per case** — reusing a context across cases has leaked
   state into later assertions.
+- **A screenshot can hang the whole check.** Playwright's default `page.screenshot` waits for
+  fonts and for animations to settle, and against a live rAF loop that wait has no end. At 59
+  levels `traced-check` died on the 47th — inside the screenshot, AFTER that level had passed
+  every assertion — and printed no tally, which the runner shows as `0 passed, 0 failed`. Pass
+  `timeout` and `animations: 'disabled'`, and `.catch()` it, so a lost diagnostic frame can
+  never take the assertions with it.
+- **The runner has its own time budget**, and 59 levels exceeds it. Run a long check directly
+  (`node tests/traced-check.cjs`) when the point is coverage rather than a summary line.
 - **A check can pass with zero coverage.** A harness that bails before its first assertion prints
   `0/0` and exits 0, which the runner counts as green. If a check's count drops, that's a
   failure, not a pass — `aim-check` has done exactly this.
@@ -397,6 +405,13 @@ the hard cases** — the extremes, a near-black mass and the palest one, both ha
 anti-aliased ramp against the ground. If obsidian still reads wrong the lever is generating it
 a shade lighter, not more tracer work.
 
+Scripts, in the order a map goes through them: `gen-map.mjs` → `upscale-map.mjs` →
+`bria-matte.py` → `trace-map.py --guide` → `gen-levels.mjs`, with `implement-maps.py` driving
+all of it over the shortlist in `gen-map-review.py`'s `SELECTIONS`. Two measuring tools worth
+knowing: `matte-score.py` (shadow kept vs rock lost, for judging a matting method) and
+`fringe-score.py` (the pale ring on the shipped sprites, per level, theme-relative). And
+`prune-manifest.py` after ANY level deletion — see the note above about the third deletion.
+
 Tracing traps, all of which cost a debug cycle:
 
 - **A coloured feature is not background.** The `veined` theme's mint-cyan veins sit at
@@ -461,6 +476,63 @@ picker**, one per entry in `LEVELS`, built from the list so a new map needs no c
 set `playtestLevel`, which `levelDefFor()` prefers over every campaign slot — so `onPick`
 and `onDev` clear it, or the map silently serves the rest of the session.
 
+## The in-game level editor
+
+There is one now, and it is IN THE GAME rather than a separate page — upstream's GUI editor
+never came across with the fork, and a page cannot see the sprites. Everything below is
+gated on `CONFIG.dev.enabled`, so a release cut has none of it.
+
+Three dev controls stack top-right: **Dev: win level**, **Dev: maps ▾** (jump to any authored
+map mid-run, grouped by theme) and **Dev: edit rocks**. `]` / `[` step through the maps
+without the mouse. Switching is a full restart, deliberately: a level's world box, cell grid,
+collision mask and food are built together by `createLevelState` and there is no supported
+way to replace them under a live run.
+
+The editor edits `sub.levelSprites` — the same list `drawLevelRocks` draws and `solidifyRock`
+collides from — so what you move is what blocks. Collision is rebuilt on every drag by
+clearing `_rockSolidified`, not on release: the point of editing in the running game is that
+they cannot disagree. It is cheap because nothing is resampled.
+
+- click / shift-click to select, drag to move, arrows to nudge, `+`/`-` resize, `,`/`.`
+  rotate, Delete, **Ctrl+A** for every rock. Transforms are about the SELECTION's centre, so
+  scaling a group holds its composition instead of shrinking each rock in place.
+- Brightness / contrast / saturation apply to the rock ONLY, as a canvas filter rather than
+  baked into the sprites — reversible, and collision reads alpha, which a colour filter
+  cannot touch. Stored per level as `render.rockFilter`.
+- **Placements are pending markers until "Apply & rebuild".** Not laziness: a rock is a
+  sprite, but water, food and threats are STAMPED into the substrate by `buildLevel` and
+  nothing un-stamps them. Apply restarts through `createLevelState` with the edited def,
+  which is the only way to make them real. Place everything, then apply once.
+- **Copy JSON** puts the level on the clipboard in `docs/levels/<id>.json` shape. Nothing is
+  written from the browser. It also parks it on `window.__levelJSON` — always, not only when
+  the clipboard fails, because headless Chromium's clipboard write SUCCEEDS and the first
+  version passed by hand while returning null to its own test.
+- Level rocks are clipped to `y >= surfaceY`, so a rock dragged up is cut off at the soil
+  line. Clipping rather than reordering the draw: rocks must stay UNDER the lakes and
+  reservoirs drawn immediately after them.
+
+**Food piles are named by COLOUR in the editor, because that is what the map shows.**
+`drawSubstrateLeaves` keys the art off `cell.foodKind`: `duff` → yellow (hophornbeam,
+sassafras, mulberry, redbud, sycamore), `cache` → orange (leafOak/leafMaple),
+`cache-engine` → red (maple, oak, sweetgum, japanese, dogwood, beech). What each PAYS —
+plain energy, a card draft, an engine card draft — is in the button's tooltip.
+
+`tests/edit-check.cjs` covers all of it (24 assertions) and asserts on `levelSprites`, not on
+the panel's labels. `rockEdit` is on `window.__game` for that reason.
+
+### Dev conveniences that change what you see
+
+Both gated on the dev flag, both because editing 59 maps is the main dev activity now:
+the **card carousel starts minimised** (it takes the bottom third), and the **level intro is
+skipped**. The intro's `onDismiss` is deliberately NOT called on the skip path — its only job
+is to re-expand the carousel the intro collapsed, so calling it undid the flag one line
+later. `onContinue` still runs; it carries the deferred level advance.
+
+**A traced map ships with rock and nothing else.** `--food` defaults to 0, the tracer never
+placed threats, and `placeRockface()` skips any level with a `levelDef`. The owner places all
+three by hand. So a fresh trace is UNPLAYABLE by design, and `traced-check`'s food-reachability
+assertion passes on 0 of 0 — correct, and saying nothing until food is placed.
+
 ## Campaign shape (so you don't re-derive it)
 
 100 procedural levels. Threats compound from L7 (`threatRatePerLevel` / `threatBonusForLevel`,
@@ -487,9 +559,39 @@ unwinnable by design**: the campaign is a high-score ladder wearing a campaign's
   data URIs. `scripts/gen-map-review.py --inline <path>` does that, downscaling first, because
   24 map images at full size would be several MB of base64.
 
+## If the repo looks like an older version of itself
+
+Twice in one session the working tree and the local branch rolled back to a commit from
+hours earlier — `index.html` with no editor, `trace-map.py` with no `--guide`, files that had
+been committed simply absent. It is not a git operation anyone ran; it appears to be the
+container restoring an older snapshot.
+
+**The commits were safe on the remote both times.** The fix, after checking that origin
+really is ahead:
+
+```bash
+git fetch origin <branch> && git log --oneline origin/<branch> -1
+git reset --hard origin/<branch>
+```
+
+Then VERIFY a few specific things came back (`grep -c rockEdit index.html`, `ls
+tests/edit-check.cjs`) before doing anything else — the failure is silent, and the first
+symptom is usually an edit that "doesn't apply" because the text it targets is gone. Push
+often; anything uncommitted at the moment it happens is lost.
+
 ## Loose ends
 
-- `CONFIG.dev.enabled` is `true` (dev buttons on screen). Flip it off for a public cut.
+- `CONFIG.dev.enabled` is `true` (dev buttons on screen). Flip it off for a public cut — and
+  note it now gates more than buttons: the map switcher, the rock editor, the minimised
+  carousel and the skipped level intro all read it.
+- **The 58 traced maps are not campaign levels yet.** Every one has `campaignLevel: null`, so
+  they claim no slot and are reachable only from the editor's map list or `#level,<id>`. The
+  owner is picking 10-15 of them for a new campaign; the rest are for later.
+- `assets/` is ~108 MB, against the ~25 MB the itch zip was sized at. The owner has said not
+  to worry about it while the set is still being cut down. If it does need cutting, the lever
+  is sprite WebP quality — alpha stays lossless whatever the setting, and alpha is the only
+  channel collision samples, so it costs nothing but what the player sees. Measured on
+  obsidian-c55: q85 is 81% of the shipped size, q80 63%, q75 52%.
 - The global leaderboard needs one migration to split by mode (SQL in README.md and inline at
   `getBoard`). Until then the client falls back to a combined board and says so.
 - The card-timing review decisions in `docs/card-review.html` are still awaiting the user's
