@@ -21406,26 +21406,23 @@ function editNudge(dx, dy) { editTransform((s) => { s.x += dx; s.y += dy; }); }
 // order, so the layering survives a save. Collision is untouched: solidifyRock stamps the UNION
 // of every sprite's alpha, which cannot care what order they arrive in.
 //
-// One step at a time, and a selected rock never swaps with another selected one — otherwise
-// raising a group would shuffle it internally instead of lifting it as a block. `dir` is +1
-// toward the top, -1 toward the back.
+// ALL THE WAY, not one step. A single-step nudge was the first version and it is the wrong
+// tool for this job: the maps have 8-77 rocks, so getting one out from under a neighbour meant
+// clicking twenty times and watching for the frame where it finally cleared. What you actually
+// want is "put this in front of everything" / "put this behind everything".
+//
+// The selection keeps its internal order and moves as a block; `dir` is +1 to the front, -1 to
+// the back. Mutated in place because `levelSprites` is the live list the renderer and
+// solidifyRock read — replacing the array would leave both pointing at the old one.
 function editRaise(dir) {
   const sp = editSprites();
   if (!sp.length || !rockEdit.sel.size) return;
-  // Walk from the edge we are moving TOWARD, so each swap lands in a slot already settled.
-  const order = [...rockEdit.sel].sort((a, b) => (dir > 0 ? b - a : a - b));
-  // `cur` tracks where the selection IS, updated as we go. Testing the target slot against the
-  // original selection instead is wrong and was the first version: with {4,5} moving up, index
-  // 5 has already vacated by the time 4 is considered, so 4 read it as still-selected and
-  // stayed put — the group came apart (4,6) instead of moving (5,6).
-  const cur = new Set(rockEdit.sel);
-  for (const i of order) {
-    const j = i + dir;
-    if (j < 0 || j >= sp.length || cur.has(j)) continue;   // at the edge, or another selected
-    const tmp = sp[i]; sp[i] = sp[j]; sp[j] = tmp;         // rock is already there
-    cur.delete(i); cur.add(j);
-  }
-  rockEdit.sel = cur;
+  const picked = [...rockEdit.sel].sort((a, b) => a - b).map((i) => sp[i]).filter(Boolean);
+  const rest = sp.filter((_, i) => !rockEdit.sel.has(i));
+  const out = dir > 0 ? rest.concat(picked) : picked.concat(rest);
+  sp.length = 0;
+  for (const s of out) sp.push(s);
+  rockEdit.sel = new Set(picked.map((_, k) => (dir > 0 ? rest.length + k : k)));
   uiDirty = true; updateEditPanel();
 }
 function editDelete() {
@@ -21668,8 +21665,8 @@ function updateDevEditBtn() {
       '<div class="ee-row">' +
         '<button id="eeBig">Bigger</button><button id="eeSml">Smaller</button>' +
         '<button id="eeRotL">Rotate &#8630;</button><button id="eeRotR">Rotate &#8631;</button>' +
-        '<button id="eeUp" title="Draw later — in front of the rocks it overlaps (or ] )">Up</button>' +
-        '<button id="eeDown" title="Draw earlier — behind the rocks it overlaps (or [ )">Down</button>' +
+        '<button id="eeUp" title="Bring to front — in front of every other rock (or ] )">Up</button>' +
+        '<button id="eeDown" title="Send to back — behind every other rock (or [ )">Down</button>' +
       '</div>' +
       '<h4>Place</h4>' +
       '<div class="ee-row" id="eePlace"></div>' +
@@ -22627,6 +22624,11 @@ function setupInput() {
   const endEditDrag = (e) => {
     if (!rockEdit.on || !rockEdit.drag) return;
     rockEdit.drag = null;
+    // Refresh the readout HERE rather than in the move handler: dragging an object makes the
+    // level differ from the built world, and the panel is where that is said. The move path
+    // only sets uiDirty, and in turn-based the HUD does not rebuild until you act — so
+    // without this the "edited — Apply to rebuild" note never appeared after a drag.
+    updateEditPanel();
     e.stopPropagation();
   };
   canvas.addEventListener('pointerup', endEditDrag, true);

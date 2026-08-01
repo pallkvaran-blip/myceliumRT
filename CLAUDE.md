@@ -500,14 +500,15 @@ they cannot disagree. It is cheap because nothing is resampled.
   prose across the top of the map, which is read once and in the way after that.
 - The strip **minimises** (`▲`) rather than closing: closing drops the selection and every
   pending placement. Minimised it keeps its own button and the two status readouts.
-- **Up / Down (or `]` / `[`) set the DRAW ORDER** where two rocks overlap. `levelSprites` is
-  drawn in array order, so later = on top, and `editExport` writes the objects in that order,
-  so the layering survives a save. Collision is untouched — `solidifyRock` stamps the UNION of
-  every sprite's alpha and cannot care about order. Two rules the implementation earns:
-  `rockEdit.sel` is a set of INDICES, so a reorder must remap it or it silently starts
-  addressing a different rock; and a selected rock never swaps with another selected one, or
-  a group would shuffle internally instead of moving as a block. `]`/`[` are free here because
-  the map cycle already stands down while the editor is open.
+- **Up / Down (or `]` / `[`) send the selection ALL THE WAY to the front or back.**
+  `levelSprites` is drawn in array order, so later = on top, and `editExport` writes the
+  objects in that order, so the layering survives a save. Collision is untouched —
+  `solidifyRock` stamps the UNION of every sprite's alpha and cannot care about order.
+  One step at a time was the first version and it was the wrong tool: at 8-77 rocks per map,
+  freeing one from under a neighbour took twenty clicks. The selection keeps its internal
+  order and moves as a block. `rockEdit.sel` is a set of INDICES, so the reorder must rebuild
+  it or it silently starts addressing a different rock. `]`/`[` are free here because the map
+  cycle already stands down while the editor is open.
 - Brightness / contrast / saturation apply to the rock ONLY, as a canvas filter rather than
   baked into the sprites — reversible, and collision reads alpha, which a colour filter
   cannot touch. Stored per level as `render.rockFilter`.

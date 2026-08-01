@@ -120,40 +120,42 @@ const zBase = await p.evaluate(()=>{
   window.__game.rockEdit.sel = new Set([2]);          // a rock in the middle of the list
   return {key:sp[2].key, n:sp.length};
 });
+// ALL THE WAY, not one step — a single-step nudge meant twenty clicks to free a rock from
+// under its neighbour on a 47-rock map.
 await p.evaluate(()=>document.querySelector('#eeUp').click());
 const zUp2 = await p.evaluate((k)=>{
   const sp=window.__game.state.substrate.levelSprites, r=window.__game.rockEdit;
-  return {idx:sp.findIndex(s=>s.key===k), sel:[...r.sel]};
+  return {idx:sp.findIndex(s=>s.key===k), last:sp.length-1, sel:[...r.sel]};
 }, zBase.key);
-ok('Up moves a rock one step later in the draw order',
-   zUp2.idx===3 && zUp2.sel.length===1 && zUp2.sel[0]===3, JSON.stringify(zUp2));
-await p.evaluate(()=>{document.querySelector('#eeDown').click();document.querySelector('#eeDown').click();});
+ok('Up brings a rock all the way to the front',
+   zUp2.idx===zUp2.last && zUp2.sel.length===1 && zUp2.sel[0]===zUp2.last, JSON.stringify(zUp2));
+await p.evaluate(()=>document.querySelector('#eeDown').click());
 const zDn = await p.evaluate((k)=>{
   const sp=window.__game.state.substrate.levelSprites, r=window.__game.rockEdit;
-  return {idx:sp.findIndex(s=>s.key===k), sel:[...r.sel]};
+  return {idx:sp.findIndex(s=>s.key===k), n:sp.length, sel:[...r.sel]};
 }, zBase.key);
-ok('Down moves it back again', zDn.idx===1 && zDn.sel[0]===1, JSON.stringify(zDn));
-// A rock at the very back cannot go further back, and must not fall off the list.
-await p.evaluate(()=>{ window.__game.rockEdit.sel=new Set([0]);
-  document.querySelector('#eeDown').click(); });
-ok('the bottom rock stays put and nothing is lost',
+ok('Down sends it all the way to the back, losing nothing',
+   zDn.idx===0 && zDn.sel[0]===0 && zDn.n===zBase.n, JSON.stringify(zDn));
+// Already at the back: a no-op, not a corruption.
+await p.evaluate(()=>document.querySelector('#eeDown').click());
+ok('sending the bottom rock back again changes nothing',
    await p.evaluate((n)=>window.__game.state.substrate.levelSprites.length===n
      && [...window.__game.rockEdit.sel][0]===0, zBase.n));
-// A multi-rock selection lifts as a BLOCK — selected rocks never swap with each other, or a
-// group would shuffle internally instead of moving.
+// A multi-rock selection moves as a BLOCK and keeps its internal order.
 const grp0 = await p.evaluate(()=>{
   const sp=window.__game.state.substrate.levelSprites;
-  window.__game.rockEdit.sel=new Set([4,5]);
-  return [sp[4].key, sp[5].key];
+  window.__game.rockEdit.sel=new Set([2,4]);
+  return [sp[2].key, sp[4].key];
 });
 await p.evaluate(()=>document.querySelector('#eeUp').click());
 const grp1 = await p.evaluate((keys)=>{
   const sp=window.__game.state.substrate.levelSprites;
-  return {a:sp.findIndex(s=>s.key===keys[0]), b:sp.findIndex(s=>s.key===keys[1]),
+  return {a:sp.findIndex(s=>s.key===keys[0]), b:sp.findIndex(s=>s.key===keys[1]), n:sp.length,
           sel:[...window.__game.rockEdit.sel].sort((x,y)=>x-y)};
 }, grp0);
-ok('a group keeps its internal order when it moves',
-   grp1.a===5 && grp1.b===6 && grp1.sel.join()==='5,6', JSON.stringify(grp1));
+ok('a group goes to the front together, in its own order',
+   grp1.a===grp1.n-2 && grp1.b===grp1.n-1 && grp1.sel.join()===`${grp1.n-2},${grp1.n-1}`,
+   JSON.stringify(grp1));
 // The whole point: the order has to survive a save.
 const zJson = await p.evaluate(()=>{ document.querySelector('#eeCopy').click(); return window.__levelJSON; });
 const zRocks = JSON.parse(zJson).objects.filter(o=>o.t==='boulder'||o.t==='formation').map(o=>o.key);
