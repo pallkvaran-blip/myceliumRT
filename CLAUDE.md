@@ -90,7 +90,7 @@ other — a worm creeping 0.375 cells/tick would barely move if it only stepped 
 
 ### Threat rates (all changed together, all in BOTH tables)
 
-`tests/threat-check.cjs` (57 assertions) measures every one of these through the sim, in both
+`tests/threat-check.cjs` (61 assertions) measures every one of these through the sim, in both
 modes. A rate lives in two places — the CONFIG literal and `MODE_TUNING` — so **changing one
 table only doesn't make the creature faster, it makes one of the two games harder**, and that
 is invisible from inside either mode. **Every retune has to move BOTH by the same factor.**
@@ -111,6 +111,15 @@ is a player action or a 500 ms tick — unlike a rate, a single event doesn't sc
 steps-per-second. `firstTouchRings` and `growInfectBurst` are both one-offs and both sit in the
 CONFIG literal only.
 
+- **`moveWorm` / `moveCloud` ADVANCE AS FAR AS THEY CAN**, marching in half-cell probes and
+  keeping the last clear point. They used to be all-or-nothing — full step, then x-only, then
+  y-only, else don't move — which made a creature *strictly less mobile the faster it got*,
+  since a longer ray is likelier to clip something along its length. When fully blocked they
+  also deflect through progressively wider angles off the heading: straight-line pursuit
+  deadlocks in a pocket, measured as a worm crossing 200 units and then holding the same spot
+  for the rest of the run. Not pathfinding — just enough that a creature can never permanently
+  stall. **Any future speed increase depends on this**; without it, raising a speed reduces
+  movement.
 - **Movement is distance per step only.** How often a creature acts, how much it eats
   (`leavesPerRound`) and how far the rot reaches are untouched. `moveWorm` and `moveCloud` sample
   their path by DISTANCE (`ceil(dist / (cs*0.5))`), so a longer step gets proportionally more
@@ -120,13 +129,17 @@ CONFIG literal only.
   bite / crawl / bite / crawl and fed every OTHER step. It now closes first and bites from where
   it ENDS UP, which roughly doubles a swarm's throughput: the step it arrives on is a feeding
   step. The reach test is re-measured after the move, against the new position.
-- **`nematodes.wanderSpeed` IS A DEAD KNOB.** Three occurrences in the file — the CONFIG literal
-  and both `MODE_TUNING` tables — and **no code reads it**. It was the speed of a worm
-  *searching*, back when one with nothing in sight drifted around; that behaviour is gone
-  ("worms no longer wander aimlessly" in `stepNematodes`) and the one non-hunting move a worm
-  still makes, creeping toward an ant trail, uses `crawlSpeed`. Left in place and labelled
-  rather than deleted, but **do not tune it expecting an effect** — an earlier pass here
-  doubled it in all three places for nothing.
+- **`nematodes.wanderSpeed` IS LIVE AGAIN, and reviving it fixed "the worms never move".**
+  It had been dead — set in the CONFIG literal and both `MODE_TUNING` tables, read by nothing —
+  because the behaviour it drove was removed ("worms no longer wander aimlessly"). That removal
+  had a bug behind it: **worms seed at `seedMinColonyDistFrac` of the map width (0.25 × 2600 =
+  650 units) and only see 500**, so a fresh worm has *never* been able to see the colony, and
+  with nothing to head for it sat still forever unless the player grew into its sight. A worm
+  with no visible target now creeps toward the nearest strand **without needing line of sight**,
+  at `wanderSpeed` — casting about, not drifting at random — and charges at `crawlSpeed` only
+  once it can actually see you. (The mould has the same seed-vs-sight gap at 0.2 × 2600 = 520
+  against 500, but a cloud also targets FOOD, which is everywhere on a procedural map, so it
+  finds something to move toward. Worms only target strands and ant trails.)
 - **`strandsPerBite` is a NEW knob** — the count was hard-coded at 1 inside `stepNematodes`.
   `eatEveryTicks` is how OFTEN a worm bites; this is how much comes away each time. Each strand
   is claimed separately and must be in reach, unclaimed by another worm this tick, and not
@@ -232,7 +245,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~683 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
+~687 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)

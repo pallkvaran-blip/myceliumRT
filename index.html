@@ -2178,15 +2178,16 @@ const CONFIG = {
     sightRadius: 500,            // detection range (matches the mould's); rock blocks line of sight (SLIDER)
     crawlSpeed: 1.0,             // cells/tick toward a sensed strand — RT: 3.0 → 0.75 → 0.375 → 0.75 → 1.0. This
                                  //   is the ONLY worm speed: it is also what a worm uses drifting to an ant trail. (SLIDER)
-    // DEAD KNOB — nothing reads this. It is set here and in BOTH MODE_TUNING tables and is
-    // referenced by no code at all (three occurrences in the file, all of them assignments).
-    // It used to be the speed of a worm SEARCHING, back when a worm with nothing in sight
-    // drifted around; that behaviour is gone — "If none is in range, HOLD position — worms no
-    // longer wander aimlessly" (stepNematodes) — and the one non-hunting move a worm still
-    // makes, creeping toward an ant trail, uses crawlSpeed. Kept, and labelled, rather than
-    // deleted: silently removing it would strand anyone who goes looking for the knob, and
-    // silently TUNING it is the trap this comment exists to close.
-    wanderSpeed: 0.25,           // (unread)
+    // LIVE AGAIN, and it fixes a real bug. This was dead for a while — set here and in both
+    // MODE_TUNING tables, read by nothing — because the behaviour it drove had been removed
+    // ("worms no longer wander aimlessly"). That removal had a bug behind it: worms SEED at
+    // seedMinColonyDistFrac of the map width (0.25 x 2600 = 650 units) and only see 500, so a
+    // fresh worm could never see the colony and, having nothing to head for, sat still forever.
+    //
+    // So this is now the speed a worm creeps toward the nearest strand WITHOUT line of sight —
+    // casting about, not drifting at random. Deliberately well under crawlSpeed: out of sight it
+    // closes slowly, and only once it can actually SEE you does it charge at the full crawl.
+    wanderSpeed: 0.25,           // cells/tick while searching (no LOS); crawlSpeed once it sees you
     reach: 1.4,                  // cells: how close to a strand before it feeds — DOUBLED from 0.7.
                                  //   It gates strandsPerBite as well as the approach: one growth
                                  //   segment is 25.5 units and this is now ~50, so a worm has
@@ -2444,7 +2445,7 @@ const MODE_TUNING = {
     'trichoderma.spreadDepthPerTurn': 16.5, // rings per ACTION = 5.5 card steps — 6 → 18 → 40 → 16.5
                                            //   (40 was never reached: infectionSpreadChance capped it at ~6)
     'nematodes.crawlSpeed': 8.0,           // 3.0 → 6.0 → 8.0
-    'nematodes.wanderSpeed': 2.0,          // DEAD — nothing reads it; see the config literal
+    'nematodes.wanderSpeed': 2.0,          // per ACTION, searching without line of sight
     'ants.harvestRate': 40,                // nutrient per action
     'ants.extendSpeed': 999,               // the trail is laid down whole the moment it's planned
   },
@@ -2455,7 +2456,7 @@ const MODE_TUNING = {
     'trichoderma.spreadDepthPerTurn': 4.125, // rings per tick (fractional — accumulated); the turn table's 16.5
                                            //   at the same 4:1 ratio the two have always held
     'nematodes.crawlSpeed': 1.0,           // 0.375 → 0.75 → 1.0, held to the same x1.33 the turn table took
-    'nematodes.wanderSpeed': 0.25,         // DEAD — nothing reads it; see the config literal
+    'nematodes.wanderSpeed': 0.25,         // per tick, searching without line of sight
     'ants.harvestRate': 6.5,               // nutrient per tick
     'ants.extendSpeed': 2,                 // cells/tick the ant line creeps out
   },
@@ -11259,14 +11260,38 @@ function stepNematodes(state) {
         } else w.feedCd -= 1;
       }
     } else {
-      // No colony in reach: drift toward the nearest ANT TRAIL within sensory range.
-      // If none is in range, HOLD position — worms no longer wander aimlessly.
+      // NOTHING VISIBLE. Two fallbacks, and the second one is why worms move at all.
+      //
+      // Worms are SEEDED at least seedMinColonyDistFrac of the map width from the colony —
+      // 0.25 x 2600 = 650 units — and sightRadius is 500. So a fresh worm starts UNABLE TO SEE
+      // the colony, every time. With "hold position when nothing is in sight" that made them
+      // sit still forever unless the player happened to grow into their sight: the reported
+      // "nematodes are failing to move at all", and not a movement bug at all — a searching bug.
+      //
+      // So a worm with no target now CREEPS TOWARD THE NEAREST STRAND WITHOUT NEEDING LINE OF
+      // SIGHT, at wanderSpeed — which is what that knob was for before the behaviour it drove
+      // was removed and left it dead (set in three places, read by nothing). It is deliberately
+      // slower than crawlSpeed: out of sight the worm is casting about, and only once it can
+      // actually see you does it charge at the full crawl. That keeps the original intent —
+      // they do not drift around aimlessly — while letting them arrive.
       const t = nearestPointInRange(trailPts, w.x, w.y, n.sightRadius, sub);
       w.trailing = !!t;
       if (t) {
         const dx = t.x - w.x, dy = t.y - w.y, d = Math.hypot(dx, dy) || 1;
         w.heading = Math.atan2(dy, dx);
         moveWorm(w, dx / d, dy / d, Math.min(d, n.crawlSpeed * cs), sub);
+      } else if (nodes.length) {
+        let goal = null, gd = Infinity;
+        for (const nd of nodes) {
+          const d = (nd.x - w.x) ** 2 + (nd.y - w.y) ** 2;
+          if (d < gd) { gd = d; goal = nd; }
+        }
+        if (goal) {
+          const dx = goal.x - w.x, dy = goal.y - w.y, d = Math.hypot(dx, dy) || 1;
+          w.heading = Math.atan2(dy, dx);
+          const wander = n.wanderSpeed != null ? n.wanderSpeed : n.crawlSpeed * 0.25;
+          moveWorm(w, dx / d, dy / d, Math.min(d, wander * cs), sub);
+        }
       }
     }
   }
@@ -11339,25 +11364,63 @@ function nearestPointInRange(pts, x, y, range, sub) {
 
 // Move a worm by (ux,uy)*s, never THROUGH rock or out of bounds; the whole path
 // is checked, and a blocked straight move slides along x then y (rounds rock).
+// Move a worm up to `s` units along (ux,uy), stopping at whatever it hits.
+//
+// IT ADVANCES AS FAR AS IT CAN. This used to be all-or-nothing — try the whole step, then
+// x-only, then y-only, otherwise don't move — which made a creature STRICTLY LESS mobile the
+// faster it got, because a longer ray is likelier to clip something along its length. Measured
+// over 140 open spots on a procedural map, the share of worms that could not move at all:
+// 18.6% at crawlSpeed 0.375, 57.1% at 1, 59.3% at 3, 67.9% at 6, 75.7% at 8, 83.6% at 12. So
+// raising the speed to 8 froze three worms in four, and even the ORIGINAL 3 stalled well over
+// half of them — the bug was always there, just masked by a step short enough to usually fit.
+//
+// Marching and keeping the last clear point makes speed monotonic: more speed is never less
+// movement. The sub-step is the same half-cell the old sampler used, so what counts as blocked
+// is unchanged — only the response to it is.
 function moveWorm(w, ux, uy, s, sub) {
   const cs = sub.cellSize;
   const minX = cs, maxX = sub.worldWidth - cs;
   const minY = sub.surfaceY + cs, maxY = sub.worldHeight - cs;
-  const clear = (x1, y1) => {
-    const dx = x1 - w.x, dy = y1 - w.y;
-    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / (cs * 0.5)));
-    for (let i = 1; i <= steps; i++) {
-      const x = w.x + dx * (i / steps), y = w.y + dy * (i / steps);
-      if (x < minX || x > maxX || y < minY || y > maxY) return false;
-      const c = sub.cellAtWorld(x, y);
-      if (c && c.rock) return false;
-    }
-    return true;
+  const openAt = (x, y) => {
+    if (x < minX || x > maxX || y < minY || y > maxY) return false;
+    const c = sub.cellAtWorld(x, y);
+    return !(c && c.rock);
   };
-  const fx = w.x + ux * s, fy = w.y + uy * s;
-  if (clear(fx, fy)) { w.x = fx; w.y = fy; return true; }
-  if (ux !== 0 && clear(fx, w.y)) { w.x = fx; return true; }
-  if (uy !== 0 && clear(w.x, fy)) { w.y = fy; return true; }
+  // How far along (dx,dy) it can get, in half-cell probes. Returns 0 if even the first is blocked.
+  const reachAlong = (dx, dy) => {
+    const len = Math.hypot(dx, dy);
+    if (len <= 0) return 0;
+    const n = Math.max(1, Math.ceil(len / (cs * 0.5)));
+    let got = 0;
+    for (let i = 1; i <= n; i++) {
+      const t = i / n;
+      if (!openAt(w.x + dx * t, w.y + dy * t)) break;
+      got = t;
+    }
+    return got;
+  };
+  const dx = ux * s, dy = uy * s;
+  const t = reachAlong(dx, dy);
+  if (t > 0) { w.x += dx * t; w.y += dy * t; return true; }
+  // Fully blocked head-on: SLIDE along a wall on whichever axis gives ground, so a creature
+  // follows a formation round instead of standing against it.
+  const tx = ux !== 0 ? reachAlong(dx, 0) : 0;
+  const ty = uy !== 0 ? reachAlong(0, dy) : 0;
+  if (tx >= ty && tx > 0) { w.x += dx * tx; return true; }
+  if (ty > 0) { w.y += dy * ty; return true; }
+  // STILL nothing: the worm is in a pocket where its heading and both axes are blocked at the
+  // very first probe, and straight-line pursuit cannot get out of one — measured, a worm
+  // closing on the colony crossed 200 units and then sat at the same spot for the rest of the
+  // run. So deflect: try progressively wider angles off the heading and take the first that
+  // gives ground. Not pathfinding, just enough of a local avoider that a worm can never
+  // deadlock permanently; over a few steps it works its way round a formation.
+  const a0 = Math.atan2(uy, ux);
+  for (const off of [0.52, -0.52, 1.05, -1.05, 1.57, -1.57, 2.09, -2.09, 2.62, -2.62]) {
+    const a = a0 + off;
+    const ex = Math.cos(a) * s, ey = Math.sin(a) * s;
+    const te = reachAlong(ex, ey);
+    if (te > 0) { w.x += ex * te; w.y += ey * te; return true; }
+  }
   return false;
 }
 
@@ -11634,25 +11697,37 @@ function spreadTrichoderma(state) {
 // path is checked (not just the destination) so a long step can't jump over a
 // thin wall. If the straight move is blocked, slide along the obstacle (x-only
 // then y-only) so the cloud rounds rock formations. Returns true if it moved.
+// Same shape, and the same fix, as moveWorm — see the note there for the measurements. A cloud
+// creeps 3 cells per action in turn-based, which under the old all-or-nothing rule meant a
+// 3-cell ray had to be clear end to end or the cloud simply sat still.
 function moveCloud(cloud, ux, uy, s, sub) {
   const cs = sub.cellSize;
   const minX = cs, maxX = sub.worldWidth - cs;
   const minY = sub.surfaceY + cs, maxY = sub.worldHeight - cs;
-  const pathClear = (x1, y1) => {
-    const dx = x1 - cloud.cx, dy = y1 - cloud.cy;
-    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / (cs * 0.5)));
-    for (let i = 1; i <= steps; i++) {
-      const x = cloud.cx + dx * (i / steps), y = cloud.cy + dy * (i / steps);
-      if (x < minX || x > maxX || y < minY || y > maxY) return false;
-      const c = sub.cellAtWorld(x, y);
-      if (c && c.rock) return false;
-    }
-    return true;
+  const openAt = (x, y) => {
+    if (x < minX || x > maxX || y < minY || y > maxY) return false;
+    const c = sub.cellAtWorld(x, y);
+    return !(c && c.rock);
   };
-  const fx = cloud.cx + ux * s, fy = cloud.cy + uy * s;
-  if (pathClear(fx, fy)) { cloud.cx = fx; cloud.cy = fy; return true; }
-  if (ux !== 0 && pathClear(fx, cloud.cy)) { cloud.cx = fx; return true; }   // slide along x
-  if (uy !== 0 && pathClear(cloud.cx, fy)) { cloud.cy = fy; return true; }   // slide along y
+  const reachAlong = (dx, dy) => {
+    const len = Math.hypot(dx, dy);
+    if (len <= 0) return 0;
+    const n = Math.max(1, Math.ceil(len / (cs * 0.5)));
+    let got = 0;
+    for (let i = 1; i <= n; i++) {
+      const t = i / n;
+      if (!openAt(cloud.cx + dx * t, cloud.cy + dy * t)) break;
+      got = t;
+    }
+    return got;
+  };
+  const dx = ux * s, dy = uy * s;
+  const t = reachAlong(dx, dy);
+  if (t > 0) { cloud.cx += dx * t; cloud.cy += dy * t; return true; }
+  const tx = ux !== 0 ? reachAlong(dx, 0) : 0;                               // slide along x
+  const ty = uy !== 0 ? reachAlong(0, dy) : 0;                               // slide along y
+  if (tx >= ty && tx > 0) { cloud.cx += dx * tx; return true; }
+  if (ty > 0) { cloud.cy += dy * ty; return true; }
   return false;                                                              // fully blocked
 }
 

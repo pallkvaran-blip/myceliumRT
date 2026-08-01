@@ -371,6 +371,16 @@ ok('a mould cloud creeps moveSpeed cells in one action',
    creep.err || `moved ${creep.moved.toFixed(3)} cells, table says ${creep.want}`);
 
 // ---- 6. the rot races spreadDepthPerTurn rings per action -------------------
+// ON A FRESH PAGE. The worm probes above now leave worms that actually reach and eat the colony
+// (they used to sit still, which is the bug this session fixed), so a colony grown here on the
+// shared page came back at 95 strands instead of ~600 and the rate could not be measured. The
+// chain-based probes after this one build their own network and are immune; this one grows a
+// real branching colony and needs a clean world.
+await ctx.close();
+ctx=await b.newContext({viewport:{width:1400,height:800}});
+await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
+p=await boot(ctx, base+'/index.html#dev,turn');
+await p.evaluate(() => { window.__game.state.nematodes.length = 0; window.__game.state.clouds.length = 0; });
 // Measured as the GROWTH in infected count over one action from an already-infected seed,
 // with infectionSpreadChance forced to 1 so the race is deterministic — at 0.85 the number
 // of rings taken is a coin flip per step and the assertion would be flaky by design.
@@ -752,6 +762,84 @@ const reachVsSeg=await p.evaluate(()=>{
 ok('the reach clears one growth segment, so a bite is not geometry-limited',
    reachVsSeg.reachUnits > reachVsSeg.seg,
    `reach ${reachVsSeg.reachUnits} units vs segment ${reachVsSeg.seg}`);
+
+// ---- 6h. A WORM OUT OF SIGHT STILL CLOSES IN ---------------------------------
+// The bug this guards is "nematodes are failing to move at all", and it was never a movement
+// bug: worms SEED at seedMinColonyDistFrac of the map width (0.25 x 2600 = 650 units) and see
+// only 500, so a fresh worm has never been able to see the colony — and with "hold position
+// when nothing is in sight" it sat still forever unless the player grew into its sight.
+//
+// A worm with no visible target now creeps toward the nearest strand WITHOUT needing line of
+// sight, at wanderSpeed. Two things are asserted: that it closes at all, and that it does not
+// STALL — straight-line pursuit deadlocks in a pocket where the heading and both axes are
+// blocked, which measured as a worm crossing 200 units and then holding the same spot for the
+// rest of the run.
+const search=await p.evaluate(()=>{
+  const G=window.__game, s=G.state, sub=s.substrate, net=s.active, cs=sub.cellSize;
+  const n=s.config.nematodes;
+  s.clouds.length=0; s.nematodes.length=0;
+  const root=net.nodes[0];
+  const minD=sub.worldWidth*n.seedMinColonyDistFrac;
+  const nearest=()=>{ let m=Infinity;
+    for (const w of s.nematodes) for (const nd of net.nodes)
+      m=Math.min(m, Math.hypot(nd.x-w.x, nd.y-w.y));
+    return m; };
+  let placed=0;
+  for (let tries=0; tries<6000 && placed<6; tries++) {
+    const x=cs*2+((tries*97)%Math.max(1,(sub.worldWidth-cs*4)));
+    const y=sub.surfaceY+cs*2+((tries*53)%Math.max(1,(sub.growFloorY-sub.surfaceY-cs*4)));
+    const c=sub.cellAtWorld(x,y); if (!c||c.rock) continue;
+    if (Math.hypot(x-root.x, y-root.y) < minD) continue;
+    s.nematodes.push({x,y,heading:0,phase:0,stuck:0,feedCd:0,hp:0,
+                      sees:false,feeding:false,trailing:false,targetId:null});
+    placed++;
+  }
+  if (!placed) return {err:'nowhere beyond the seed distance to place a worm'};
+  const start=nearest();
+  const seesAtStart=s.nematodes.some(w=>w.sees);
+  const track=[];
+  // PER-WORM stalls, not "did the nearest distance improve": nearest() is a min over every
+  // worm, so a different worm becoming the closest one plateaus it while individuals are moving
+  // fine — and a worm that ARRIVES and starts eating shortens the colony, which moves the
+  // metric on its own. The property that matters is that no single worm sits at the same spot.
+  const runs=new Map(), worstOf=new Map();
+  const prev=new Map();
+  for (const w of s.nematodes) prev.set(w, {x:w.x, y:w.y});
+  for (let k=0;k<12;k++){
+    s.runOver=false; s.winPending=false; s.won=false; net.alive=true;
+    G.tickWorld(s);
+    track.push(nearest());
+    for (const w of s.nematodes) {
+      const q=prev.get(w); if (!q) { prev.set(w,{x:w.x,y:w.y}); continue; }
+      const still=Math.hypot(w.x-q.x, w.y-q.y) < 0.5;
+      // A FEEDING worm is meant to sit still — it is on the colony, eating. Only a worm that
+      // is neither moving nor feeding is stuck.
+      const stuck = still && !w.feeding;
+      const r = stuck ? (runs.get(w)||0)+1 : 0;
+      runs.set(w, r);
+      worstOf.set(w, Math.max(worstOf.get(w)||0, r));
+      q.x=w.x; q.y=w.y;
+    }
+  }
+  let worst=0, everMoved=0;
+  for (const v of worstOf.values()) worst=Math.max(worst,v);
+  for (const [w, v] of worstOf) if (v < 12) everMoved++;
+  return { err:null, placed, minSeedCells:minD/cs, sightCells:n.sightRadius/cs,
+           start, end:track[track.length-1], worstStall:worst, everMoved,
+           total:worstOf.size, seesAtStart };
+});
+ok('worms seed BEYOND their own sight radius (which is what caused this)',
+   !search.err && search.minSeedCells > search.sightCells,
+   search.err || `seeded >=${search.minSeedCells.toFixed(1)} cells out, sight is ${search.sightCells.toFixed(1)}`);
+ok('...so a fresh worm can see nothing at all', !search.err && search.seesAtStart===false);
+ok('a worm with nothing in sight still closes on the colony',
+   !search.err && search.end < search.start - 100,
+   search.err || `nearest ${Math.round(search.start)} → ${Math.round(search.end)} units over 12 steps`);
+// MOST of them, not all: the placement scan can seal a worm into a rock pocket with no opening
+// at all, and no amount of local deflection gets it out of one. That is the map, not the mover.
+ok('...and most worms are moving rather than held in place',
+   !search.err && search.everMoved >= Math.ceil(search.total / 2),
+   search.err || `${search.everMoved} of ${search.total} worms moved; longest stall ${search.worstStall} steps`);
 
 // ---- 7. the visible creep keeps pace with the sim ---------------------------
 // infectCreepMs is the renderer's ms-per-ring. If the sim outruns it the green falls behind

@@ -42,7 +42,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… |
 | `core-check.cjs` | The molten core: the growth floor IS the drawn line, rocks clip at it, the earth turns red, assets stamp into the deepest row, and procedural maps have none |
 | `scale-check.cjs` | The organism scale: every growth LENGTH is base × `growth.scale`, the ratios between them survive it, the step measures what the config says, the drawn thread scales with it, and the longer step doesn't hop a wall |
-| `threat-check.cjs` | Threat rates and rules, measured through the sim in BOTH modes: worm crawl, bite size, reach, move-AND-eat on one step, cloud creep, the rot lifespan (darkens, then falls away, and healing resets the deadline), infected tissue not harvesting while the pile keeps its food, first-touch rot vs the established race (separate, non-stacking), the "no clean mycelium off rot" invariant, `infectionSpreadChance` being 1, and the render creep keeping pace. Does NOT assert `wanderSpeed` — it's a dead knob |
+| `threat-check.cjs` | Threat rates and rules, measured through the sim in BOTH modes: worm crawl, bite size, reach, move-AND-eat on one step, a worm out of sight still closing in, cloud creep, the rot lifespan (darkens, then falls away, and healing resets the deadline), infected tissue not harvesting while the pile keeps its food, first-touch rot vs the established race (separate, non-stacking), the "no clean mycelium off rot" invariant, `infectionSpreadChance` being 1, and the render creep keeping pace. Does NOT assert `wanderSpeed` — it's a dead knob |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
@@ -190,6 +190,12 @@ drops that node from the frontier and kills the branch for the rest of the call.
 measures both: at 1 the advance is exactly the configured rate every time; at 0.85 it collapses
 to min 0 / median ~4 / max 16. That single number is why the rate was raised 6 → 18 → 40 across
 two sessions with almost no effect, so it is worth failing over.
+
+**Threats that actually work break probe isolation.** Once worms could reach the colony (see
+CLAUDE.md on `wanderSpeed`), the shared page's colony was being EATEN by leftover worms from
+earlier probes — the branching-colony rot probe came back with 95 strands instead of ~600 and
+its rate could not be measured. It runs on a fresh page now. The chain-based probes build their
+own network and are immune; anything that grows a real colony is not.
 
 **Every tick-driven probe must clear `state.runOver`.** Now that rot EXPIRES, a probe can rot a
 colony to nothing, which ends the run — and `tickWorld` early-returns on `runOver`, so every
