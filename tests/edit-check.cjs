@@ -400,6 +400,51 @@ const f2 = await readFilter();
 ok('switching back restores the saved look',
    f2.id==='chapter-one-test' && Math.abs(f2.live-1.6)<0.001 && Math.abs(f2.slider-1.6)<0.001 && f2.shown==='1.60',
    JSON.stringify(f2));
+
+// ---- the map name is shown, and renameable ------------------------------
+ok('the panel shows the current map name',
+   await p.evaluate(()=>document.querySelector('#eeName').value)==='Chapter One Test',
+   await p.evaluate(()=>document.querySelector('#eeName').value));
+ok('and its id beside it', /chapter-one-test/.test(await p.evaluate(()=>document.querySelector('#eeId').textContent)),
+   await p.evaluate(()=>document.querySelector('#eeId').textContent));
+// Rename the way a person does: type, then blur. `change` is what commits — renaming per
+// keystroke would rewrite localStorage and rebuild the map list under the cursor.
+await p.click('#eeName');
+await p.evaluate(()=>{document.querySelector('#eeName').select();});
+await p.keyboard.type('Cavern Approach');
+await p.keyboard.press('Enter');
+await sleep(400);
+const rn = await p.evaluate(()=>({
+  live:(window.__game.state.levelDef||{}).name,
+  id:(window.__game.state.levelDef||{}).id,
+  stored:(JSON.parse(localStorage.getItem('mycelium.savedLevels.v1')||'[]')[0]||{}),
+  listed:[...document.querySelectorAll('#devMapPanel button')]
+           .filter(b=>b.title==='#level,chapter-one-test').map(b=>b.textContent.replace('×','')),
+}));
+ok('renaming changes the map name', rn.live==='Cavern Approach', String(rn.live));
+ok('the id is NOT re-slugged, so #level,<id> still works', rn.id==='chapter-one-test', String(rn.id));
+ok('a saved map keeps the new name in localStorage',
+   rn.stored.name==='Cavern Approach' && rn.stored.id==='chapter-one-test', JSON.stringify(rn.stored));
+ok('the map list picks the new label up', rn.listed[0]==='Cavern Approach', JSON.stringify(rn.listed));
+// TYPING MUST NOT DRIVE THE GAME. The editor's key handler is on window, so before the guard
+// every keystroke into this field also nudged rocks and deleted placements.
+const beforeType = await p.evaluate(()=>{
+  const sp=window.__game.state.substrate.levelSprites;
+  window.__game.rockEdit.sel=new Set([0]);
+  return {x:sp[0].x, y:sp[0].y, keys:sp.map(s=>s.key).join()};
+});
+await p.click('#eeName');
+for (const k of ['ArrowRight','ArrowDown','Backspace','BracketRight','Delete']) await p.keyboard.press(k);
+await p.keyboard.press('Escape');            // restores the field, does not touch the map
+await sleep(300);
+const afterType = await p.evaluate(()=>{
+  const sp=window.__game.state.substrate.levelSprites;
+  return {x:sp[0].x, y:sp[0].y, keys:sp.map(s=>s.key).join(), name:(window.__game.state.levelDef||{}).name};
+});
+ok('typing in the name field does not nudge, delete or re-layer rocks',
+   afterType.x===beforeType.x && afterType.y===beforeType.y && afterType.keys===beforeType.keys
+     && afterType.name==='Cavern Approach',
+   `x ${beforeType.x}->${afterType.x}, order ${afterType.keys===beforeType.keys?'kept':'CHANGED'}, name "${afterType.name}"`);
 ok('it is in the lineup', await p.evaluate(()=>window.__game.levels().some(l=>l.id==='chapter-one-test')));
 ok('#level,<id> finds it', await p.evaluate(()=>{
   // levelById is module-scoped; the boot hash is the reachable proxy for it, and the dev map

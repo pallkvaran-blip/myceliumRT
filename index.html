@@ -1439,6 +1439,12 @@
     #devEditPanel button:hover { background:rgba(230,180,92,0.24); color:#fff; }
     #devEditPanel .ee-stat { font:600 10.5px "Segoe UI", system-ui, sans-serif; color:#fff;
       white-space:nowrap; }
+    #devEditPanel #eeId { color:rgba(230,207,154,0.45); font-weight:400; }
+    #devEditPanel #eeName { width:180px; font:600 11px "Segoe UI", system-ui, sans-serif;
+      color:#fff; background:rgba(230,180,92,0.10); border:1px solid rgba(230,180,92,0.4);
+      border-radius:7px; padding:5px 8px; }
+    #devEditPanel #eeName:focus { outline:none; border-color:#e6b45c;
+      background:rgba(230,180,92,0.2); }
     /* MINIMISE. The strip is two rows deep with every kind on it, and the map underneath is
        what you are actually looking at — so it collapses to its own button plus the counts,
        rather than closing (closing drops the selection and the pending placements). */
@@ -7681,6 +7687,19 @@ function saveLevelAs(def, name, chapter) {
   if (i >= 0) saved[i] = out; else saved.push(out);
   return saveSavedLevels(saved) ? out : null;
 }
+// Rename in place. The id is deliberately NOT re-slugged from the new name: it is what
+// `#level,<id>` boots, what the map list keys on and what a chained save records as its
+// `assetsFrom`, so re-deriving it would strand all three and leave the old entry behind.
+// A name is a label; use Save as… to make a differently-identified copy.
+function renameSavedLevel(id, name) {
+  const want = slugId(id), nm = String(name || '').trim();
+  if (!nm) return false;
+  const saved = loadSavedLevels();
+  const l = saved.find((x) => slugId(x.id) === want);
+  if (!l) return false;
+  l.name = nm;
+  return saveSavedLevels(saved);
+}
 function deleteSavedLevel(id) {
   const want = slugId(id);
   const saved = loadSavedLevels();
@@ -7690,7 +7709,8 @@ function deleteSavedLevel(id) {
   return true;
 }
 
-  return { LEVELS, levelForNumber, allLevels, loadSavedLevels, saveLevelAs, deleteSavedLevel, slugId };
+  return { LEVELS, levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel,
+           deleteSavedLevel, slugId };
 })();
 
 // ===================== src/species.js =====================
@@ -20277,7 +20297,7 @@ const __m_main = (function () {
   const { CONFIG, isRealtime, setMode, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState } = __m_engine_state;
   const { isLevel } = __m_engine_level;
-  const { levelForNumber, allLevels, saveLevelAs, deleteSavedLevel } = __m_levels_data;
+  const { levelForNumber, allLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
   const { tickWorld } = __m_engine_turn;
@@ -21158,7 +21178,10 @@ function updateDevMapBtn() {
     ui0.appendChild(panel);
   }
   if (panel) {
-    const sig = maps.map((l) => l.id).join('|') + '#' + (playtestLevel && playtestLevel.id);
+    // NAMES are in the signature, not just ids — the editor can rename the map you are on,
+    // and the id does not change when it does, so an id-only signature would leave the old
+    // label in the list until something else happened to invalidate it.
+    const sig = maps.map((l) => l.id + ':' + (l.name || '')).join('|') + '#' + (playtestLevel && playtestLevel.id);
     if (panel._sig !== sig) {
       panel._sig = sig;
       let lastGroup = null;
@@ -21441,6 +21464,28 @@ function syncEditFilterToLevel() {
   }
 }
 
+// Rename the map you are standing in. Two cases, and neither touches the id:
+//
+//   SAVED map  — persisted to localStorage under its existing id, so the rename survives a
+//                reload. Re-slugging the id from the new name would strand `#level,<id>`,
+//                orphan the old entry and break any later save's `assetsFrom`.
+//   GENERATED  — the name lives in docs/levels/<id>.json and the browser cannot write there,
+//                so this changes the live def only. That flows into Copy JSON and Save as…,
+//                and shows in the map list, but is gone on reload. Honest rather than
+//                clever: the JSON is still the thing that persists a generated map.
+function editRename(name) {
+  const def = state && state.levelDef;
+  const nm = String(name || '').trim();
+  if (!def || !nm || nm === def.name) return false;
+  def.name = nm;
+  if (def.chapter) renameSavedLevel(def.id, nm);
+  const mp = document.getElementById('devMapPanel');
+  if (mp) mp._sig = null;
+  updateDevMapBtn();
+  uiDirty = true;
+  return true;
+}
+
 function editExport() {
   const def = state && state.levelDef;
   if (!def) return '{}';
@@ -21509,6 +21554,16 @@ function editSaveAs() {
 function updateEditPanel() {
   const p = document.getElementById('devEditPanel');
   if (!p) return;
+  const def = (state && state.levelDef) || {};
+  // The name field is WRITTEN only while it isn't focused. This runs on the HUD refresh path,
+  // which in real time is 2 Hz — writing .value under the cursor would reset the caret to the
+  // end on every second keystroke.
+  const nameEl = p.querySelector('#eeName');
+  if (nameEl && document.activeElement !== nameEl) nameEl.value = def.name || '';
+  // The id next to it, because renaming deliberately does NOT change it and the map list, the
+  // boot hash and `assetsFrom` all key on the id rather than the label.
+  const idEl = p.querySelector('#eeId');
+  if (idEl) idEl.textContent = def.id ? '#' + def.id + (def.chapter ? ' · saved' : '') : '';
   const n = rockEdit.sel.size, tot = editSprites().length;
   const st = p.querySelector('#eeSel');
   const np = rockEdit.selAdded.size;
@@ -21561,7 +21616,11 @@ function updateDevEditBtn() {
     // (what is selected, what is pending), which is the one thing the strip has to show.
     panel.innerHTML =
       '<button id="eeMin" type="button" title="Minimise the toolbar">&#9650;</button>' +
-      '<h4>Rock editor</h4>' +
+      '<h4>Map</h4>' +
+      '<input id="eeName" type="text" spellcheck="false" autocomplete="off" ' +
+        'title="Rename this map. Saved maps keep their id, so #level,&lt;id&gt; still works; ' +
+        'a generated map is renamed for this session only until you save or copy its JSON.">' +
+      '<div class="ee-stat" id="eeId"></div>' +
       '<div class="ee-stat" id="eeSel"></div>' +
       '<div class="ee-row">' +
         '<button id="eeAll">Select all</button><button id="eeNone">None</button>' +
@@ -21602,6 +21661,14 @@ function updateDevEditBtn() {
       };
       row.appendChild(b);
     }
+    // Commit on `change` (blur or Enter), never on input: a rename rewrites localStorage and
+    // rebuilds the map list, and doing that per keystroke is the churn that destroys the
+    // element under the cursor. Enter blurs, which fires change.
+    $('eeName').onchange = () => editRename($('eeName').value);
+    $('eeName').onkeydown = (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); $('eeName').blur(); }
+      else if (e.key === 'Escape') { $('eeName').value = (state.levelDef || {}).name || ''; $('eeName').blur(); }
+    };
     $('eeMin').onclick = () => {
       const min = panel.classList.toggle('min');
       $('eeMin').innerHTML = min ? '&#9660;' : '&#9650;';
@@ -22651,6 +22718,12 @@ function setupInput() {
   }, { passive: false });
 
   window.addEventListener('keydown', (e) => {
+    // TYPING WINS. This handler is on `window`, so without this every keystroke into a text
+    // field also drives the game: Backspace deletes the selected placement, the arrows nudge
+    // rocks, `[`/`]` re-layer them. It only became reachable with the editor's rename field,
+    // but it was always the wrong shape.
+    const t = e.target;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return;
     if (e.code === 'Escape') { aim = null; ui.setSelectedAction(null); ui.clearPendingCard(); if (ui.clearPendingAction) ui.clearPendingAction(); if (ui.clearArmed) ui.clearArmed(); ui.resetHint(); placingWorm = false; dismissColonyLos(); uiDirty = true; }
     else if (e.code === 'KeyF') { camera.fitBounds(expandedBounds(), 120); }
     // DEV: step through the authored maps with [ and ]. The panel is for jumping to a

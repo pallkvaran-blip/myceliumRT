@@ -528,6 +528,17 @@ they cannot disagree. It is cheap because nothing is resampled.
   the clipboard fails, because headless Chromium's clipboard write SUCCEEDS and the first
   version passed by hand while returning null to its own test.
 - **Save as…** names a copy and puts it in the lineup. See below.
+- The panel shows the **current map's name (editable) and its id**. Renaming never re-slugs
+  the id — that is what `#level,<id>` boots, what the map list keys on and what a later save
+  records as `assetsFrom`, so re-deriving it would strand all three and leave the old
+  localStorage entry behind. A saved map's new name is persisted under the same id; a
+  GENERATED map is renamed for the session only (the browser cannot write `docs/levels/`),
+  which flows into Copy JSON and Save as… and is gone on reload.
+- **The global keydown handler now stands down inside a text field.** It is on `window`, so
+  before the rename field existed nothing had ever typed into the game — and every keystroke
+  would have nudged rocks (arrows), deleted a placement (Backspace) and re-layered
+  (`[`/`]`). The map list's signature carries NAMES as well as ids for the same reason: a
+  rename does not change the id, so an id-only signature left the stale label on screen.
 - Level rocks are clipped to `y >= surfaceY`, so a rock dragged up is cut off at the soil
   line. Clipping rather than reordering the draw: rocks must stay UNDER the lakes and
   reservoirs drawn immediately after them.
