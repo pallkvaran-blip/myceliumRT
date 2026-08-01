@@ -90,7 +90,7 @@ other — a worm creeping 0.375 cells/tick would barely move if it only stepped 
 
 ### Threat rates (all changed together, all in BOTH tables)
 
-`tests/threat-check.cjs` (68 assertions) measures every one of these through the sim, in both
+`tests/threat-check.cjs` (73 assertions) measures every one of these through the sim, in both
 modes. A rate lives in two places — the CONFIG literal and `MODE_TUNING` — so **changing one
 table only doesn't make the creature faster, it makes one of the two games harder**, and that
 is invisible from inside either mode. **Every retune has to move BOTH by the same factor.**
@@ -165,18 +165,21 @@ CONFIG literal only.
   more than 4-step growth, usually more like 2". Now **1**. Turn it down for a *patchy* rot;
   never turn it down expecting a *slower* one. `threat-check` keeps the 0.85 measurement as a
   live negative control.
-- **NO CLEAN MYCELIUM MAY HANG OFF ROT** (`infectDescendants`). Everything downstream of an
-  infected strand — children, their children, out to the tips — is claimed at once, whatever the
-  rate says. This is **topology, not speed**: `spreadDepthPerTurn` governs the rootward and
-  sibling direction only. Without it you could play a grow card straight through a cloud and keep
-  the far end, because the burst is a fixed `growInfectBurst` 18 rings and **three paths overrun
-  that budget** — `_bridgeInto`'s pile runner walks up to 30 nodes, `colonizeReachablePiles`
-  sprays a mat on top, and the Lance is 18 segments by itself. A food pile at the goal reached
-  through mould came out cream and could still fruit and win. Called from `infectNetwork` (every
-  tick) **and** from `infectStrandsInMould` (the goal check), because a strand that pushed
-  through mould onto the finish line has to be dead *before* the win is tested. **A ward still
-  holds the line** — `cellProofed` blocks it, and blocks it for everything behind that strand
-  too, since a warded node is never pushed onto the stack.
+- **NOTHING CLEAN MAY REACH THE GOAL THROUGH ROT** — and that is ALL it means now. The rule
+  exists for one case, in the owner's words: you must not play a grow-8 PAST a cloud, get
+  infected, and run that growth on to the goal. It is answered at the win test by walking the
+  candidate strand's ancestry (`reachedThroughRot`), so it costs no other tissue.
+  **It used to be `infectDescendants` claiming every strand downstream of any rot, on every
+  tick**, which is a far wider rule than the case it was written for and was reported as a bug:
+  one contact near the base deleted a whole colony in a single step, with no chance to amputate.
+  On a BRANCHING colony "downstream" of a node near the root is everything. Measured with the
+  ring spread turned off, so the claim was the only mechanism acting: a touch at trunk 20/40 of
+  a 40x10 colony took exactly 220 of 440 strands, at 35/40 exactly 55 — the subtree sizes to the
+  strand — and at 5/40 all 440. After: 1, 1 and 242. `tests/infect-probe.cjs` prints it, and it
+  needs a branching colony to show anything at all — `spread-probe`'s linear chain, where rings
+  and descendants are 1:1, is exactly the shape that hides it.
+  `infectDescendants` still exists and `threat-check` still asserts its behaviour directly, but
+  nothing calls it per tick. A ward still holds the line wherever it is used.
 - **ROT HAS A LIFESPAN, and that changes the shape of the whole threat.** An infected strand
   carries `rotAge` in steps, darkens from the mould green toward `render.rotted` (a dead-wood
   brown) across `rotLifeTurns`, and is then **removed from the network**. So the colour IS the
@@ -226,10 +229,13 @@ CONFIG literal only.
   at 612 of 649 strands. A ring is one step along the filaments *in every direction at once*, so
   on a branching network N rings claims far more than N strands. That's why the exact-rate
   assertions run on a linear 160-strand chain, where rings and strands are 1:1.
-- **`turn-play` is an early-warning signal for threat balance.** At the pre-tuning rates (5.5
-  steps/action, 20-ring first touch) its 120-action session died after **2 actions** —
-  `over: true, alive: false`. It survives all 120 at the tuned rates. If it starts failing after
-  a threat change, the balance is the first thing to look at, not the harness.
+- **`turn-play` is an early-warning signal for threat balance, but it is NOISY** — read a
+  single run as a hint, never as evidence. Four consecutive runs of the same build ended with
+  705, 5, 0 and 2700 strands (two ran all 120 actions, one died at 30), and its "the colony
+  actually grew" ratio swings with them; it reported 7/120 once and 120/120 twice on the same
+  code. Sample it 3-4 times before concluding a threat change caused anything. At the
+  pre-tuning rates (5.5 steps/action, 20-ring first touch) its session died after **2** actions
+  — `over: true, alive: false` — which is the size of signal worth acting on.
 - **Three SLIDERS re-ceilinged / added**: mould creep 5→8 and worm speed 6→12 (both had to clear
   the turn-based table, which is the faster one — the worm slider had been pinned exactly at its
   live value), plus a new "Rot on First Touch".
@@ -252,7 +258,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~730 assertions across 20 checks. **Run them; don't verify by re-reading your own diff.**
+~735 assertions across 20 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)

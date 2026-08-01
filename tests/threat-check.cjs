@@ -965,7 +965,69 @@ ok('the render creep is at least as fast as the real-time spread', drawRings >= 
    `draws ${drawRings.toFixed(1)} rings/s vs sim ${simRings.toFixed(1)} rings/s ` +
    `(infectCreepMs ${pace.creepMs}, stepMs ${pace.stepMs})`);
 
+
+// ---- A CONTACT BREACH DOES NOT CLAIM THE SUBTREE ---------------------------
+// The regression guard for "I got infected and it immediately spread to almost all of my very
+// big colony". infectDescendants used to run on EVERY tick, so a touch claimed everything
+// downstream of the strand it caught -- and downstream of a node near the base is the colony.
+//
+// The assertions above this one never caught it because they call infectDescendants DIRECTLY;
+// nothing exercised the per-tick path. This one goes through tickWorld, on a BRANCHING colony
+// (the defect cannot exist on a linear chain), with the ring rates set to ZERO so the subtree
+// claim would be the only mechanism able to act.
+const breach = await p.evaluate(() => {
+  const G=window.__game, s=G.state, sub=s.substrate, cs=sub.cellSize, net=s.active, t=s.config.trichoderma;
+  s.nematodes.length=0; s.clouds.length=0;
+  const TR=40, BR=10;
+  net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  const x0=sub.worldWidth/2, y0=sub.surfaceY+cs*2;
+  const trunk=[]; let par=net.addNode(x0,y0,null); par._liveAt=0; trunk.push(par);
+  for(let i=1;i<TR;i++){ par=net.addNode(x0,y0+i*4,par); par._liveAt=0; trunk.push(par); }
+  for(const tn of trunk){ let q=tn; for(let j=1;j<=BR;j++){ q=net.addNode(tn.x+j*4,tn.y,q); q._liveAt=0; } }
+  for(const n of net.nodes){ n.infected=false; n.rotAge=0;
+    const c=sub.cellAtWorld(n.x,n.y); if(c){c.mouldProof=0;c.reinfectGrace=0;c.trich=0;} }
+  const spread=t.spreadDepthPerTurn, ftr=t.firstTouchRings, life=t.rotLifeTurns;
+  t.spreadDepthPerTurn=0; t.firstTouchRings=0; t.rotLifeTurns=999;
+  net._spreadAccum=0;
+  const at=20;
+  trunk[at].infected=true;                      // an established breach, mid-trunk
+  const before=net.nodes.filter(n=>n.infected).length;
+  G.tickWorld(s);
+  const after=net.nodes.filter(n=>n.infected).length;
+  // the subtree that WOULD have died under the old rule
+  const subtree=(TR-at)*(BR+1);
+  t.spreadDepthPerTurn=spread; t.firstTouchRings=ftr; t.rotLifeTurns=life;
+  return { total:net.nodes.length, before, after, subtree };
+});
+ok('a breach with the rates at zero claims nothing extra', breach.after === breach.before,
+   `${breach.before} -> ${breach.after} of ${breach.total}`);
+ok('and nowhere near the subtree the old per-tick rule took',
+   breach.after < breach.subtree / 4,
+   `${breach.after} claimed vs a ${breach.subtree}-strand subtree below the breach`);
+
+// ---- BUT THE EXPLOIT IT WAS WRITTEN FOR IS STILL BLOCKED -------------------
+// The owner's actual intent: you cannot play a long grow THROUGH a cloud, get caught, and run
+// the far end on to the goal. That is now answered per strand at the win test by walking the
+// ancestry, so it costs no other tissue.
+const thru = await p.evaluate(() => {
+  const G=window.__game, s=G.state, sub=s.substrate, cs=sub.cellSize, net=s.active;
+  net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  let par=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3, null); par._liveAt=0;
+  for(let i=1;i<40;i++){ par=net.addNode(sub.worldWidth/2, sub.surfaceY+cs*3+i*4, par); par._liveAt=0; }
+  for(const n of net.nodes){ n.infected=false; n.rotAge=0; }
+  const tip=net.nodes[net.nodes.length-1];
+  const cleanTip=G.reachedThroughRot(net, tip);          // nothing infected yet
+  net.nodes[10].infected=true;                            // the strand that went through mould
+  return { cleanTip, throughRot:G.reachedThroughRot(net, tip),
+           aboveTheRot:G.reachedThroughRot(net, net.nodes[5]),
+           theRotItself:net.nodes[10].infected };
+});
+ok('a clean strand does not read as reached-through-rot', thru.cleanTip === false);
+ok('a strand beyond rot DOES, so it cannot fruit', thru.throughRot === true);
+ok('a strand ABOVE the rot is unaffected', thru.aboveTheRot === false);
+
 await b.close(); srv.close();
+
 console.log(`==== ${PASS} passed, ${FAIL} failed ====`);
 process.exit(FAIL?1:0);
 })();

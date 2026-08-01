@@ -11946,10 +11946,24 @@ function infectNetwork(net, state) {
     for (const n of established) infectAround(net, n, rings, t.infectionSpreadChance, rng, sub);
   }
 
-  // 3) The invariant: whatever the two passes above claimed, nothing clean may be left hanging
-  //    off it. Runs every tick, so growth committed since the last one is caught here rather
-  //    than only at the win check.
-  infectDescendants(net, sub);
+  // 3) NOT the downstream claim. It used to run here every tick, and that was the invariant
+  //    applied far wider than the thing it was written for.
+  //
+  //    What it was for, in the owner's words: stop a player growing a long card (a grow-8)
+  //    PAST a cloud, getting infected, and then running that growth on to the goal. That case
+  //    is handled where it happens — infectStrandsInMould claims descendants on the grow /
+  //    win path, so tissue pushed through mould still cannot fruit.
+  //
+  //    What it also did, unintended: a CONTACT breach claims everything downstream of the
+  //    strand it touched, instantly. On a branching colony "downstream" of a node near the
+  //    base is the whole colony, so one touch near the root deleted the lot in a single step
+  //    with no chance to amputate. Measured on a 40-trunk x 10-branch colony with the ring
+  //    spread turned off entirely, so this was the only mechanism acting: a touch at trunk
+  //    20/40 took exactly 220 of 440 strands, at 35/40 exactly 55 — the subtree sizes to the
+  //    strand — and at 5/40 all 440. tests/infect-probe.cjs prints it.
+  //
+  //    A contact breach now spreads by the ring race like every other rot, which is what
+  //    makes it survivable: it travels, so you can cut ahead of it.
 
   // 4) ROT AGES AND FALLS AWAY. Every infected strand carries `rotAge` in steps; at
   //    rotLifeTurns it is removed from the network. Aged AFTER the passes above so a strand
@@ -11992,12 +12006,14 @@ function infectStrandsInMould(net, state) {
   // at once, so a long grow (e.g. grow 6) can't just shoot its tip past the cloud and
   // outrun the infection — the tip is claimed too. `growInfectBurst` rings, guaranteed.
   if (burst > 0) for (const n of seeds) infectAround(net, n, burst, 1, (state.rng || Math.random), sub);
-  // And then the invariant, which is what actually stops a grow outrunning the mould it went
-  // through: the burst is a fixed 18 rings, and a pile runner plus its mat can be 30+ nodes
-  // past the caught strand. Called HERE as well as from infectNetwork because this runs on the
-  // goal check — a strand that pushed through mould onto the finish line must be dead before
-  // the win is tested, not one tick later.
-  if (hit) { infectDescendants(net, sub); net.recomputeVitality(); }
+  // NO subtree claim here either. Stopping a grow from outrunning the mould it went through is
+  // a question about ONE strand — the one trying to win — so it is answered at the win test by
+  // walking that strand's ancestry (reachedThroughRot), not by killing every strand that
+  // happens to hang off the caught node. Claiming the subtree did stop the exploit, but it
+  // also meant a cloud drifting onto the trunk deleted the colony below it: with the per-tick
+  // call already removed, this one alone still took all 440 strands of the probe's colony from
+  // a touch at trunk 5/40.
+  if (hit) net.recomputeVitality();
   return hit;
 }
 
@@ -12018,9 +12034,15 @@ function cellProofed(sub, n) {
 // infected strand — its children, their children, all the way to the tips — is infected, at
 // once and regardless of any rate.
 //
-// This is topology, not speed, and that distinction is the whole point. `spreadDepthPerTurn`
-// governs how fast the rot travels ROOTWARD and across into sibling branches; it must not also
-// govern the tip direction, because a strand that grew out of dead tissue was never alive. The
+// SCOPED TO THE GROW / WIN PATH. It is called from infectStrandsInMould, and deliberately NOT
+// from infectNetwork's per-tick pass — see the note there. The rule it enforces is narrow: a
+// strand that grew out of dead tissue was never alive, so you cannot push a long grow through
+// mould and keep the far end. It is NOT "any rot anywhere claims its whole subtree"; applied
+// that widely it made a single contact breach near the base delete an entire colony in one
+// step, which is not what it was written for.
+//
+// This is topology, not speed. `spreadDepthPerTurn` governs how fast the rot travels ROOTWARD
+// and across into sibling branches. The
 // old behaviour let you play a grow card straight through a cloud and keep the far end: the
 // nodes standing in the mould were claimed, `growInfectBurst` took 18 rings around them, and
 // anything past that stayed cream. Three separate paths overrun that 18-ring budget —
@@ -12035,6 +12057,19 @@ function cellProofed(sub, n) {
 // beyond rot, and it is bought with a card.
 //
 // Returns the number of strands claimed, so a caller can log or recompute vitality.
+// Does this strand hang off rot? Walks the parent chain, which is what "you cannot reach the
+// goal THROUGH mould" actually asks — the grow-8-past-a-cloud case the subtree claim was
+// written for, answered per strand at the moment it matters instead of by pre-emptively
+// killing tissue. Bounded by the node count so a malformed parent link cannot spin.
+function reachedThroughRot(net, node) {
+  let cur = node, guard = 0;
+  while (cur && cur.parentId != null && guard++ < net.nodes.length) {
+    cur = net.byId.get(cur.parentId);
+    if (cur && cur.infected) return true;
+  }
+  return false;
+}
+
 function infectDescendants(net, sub) {
   const byId = net.byId;
   const stack = [];
@@ -12098,7 +12133,7 @@ function totalTrichoderma(substrate) {
   return total;
 }
 
-  return { seedTrichoderma, placeClouds, spawnTrichodermaAt, spreadTrichoderma, infectNetwork, infectStrandsInMould, infectDescendants, checkPuzzleGoal, totalTrichoderma };
+  return { seedTrichoderma, placeClouds, spawnTrichodermaAt, spreadTrichoderma, infectNetwork, infectStrandsInMould, infectDescendants, reachedThroughRot, checkPuzzleGoal, totalTrichoderma };
 })();
 
 // ===================== src/engine/ants.js =====================
@@ -12952,7 +12987,7 @@ const __m_engine_cards = (function () {
   const { CARD_DATA, CARD_BY_NAME } = __m_cards_data;
   const { roundsToTime, isRealtime } = __m_config;
   const { attackNest, recalibrateAnts } = __m_engine_ants;
-  const { infectStrandsInMould } = __m_engine_threats;
+  const { infectStrandsInMould, reachedThroughRot } = __m_engine_threats;
 // =============================================================================
 // Card runtime (C1) — the deck / hand / resource layer on top of the action sim.
 //
@@ -13560,7 +13595,11 @@ function checkGoalReached(state) {
     ? state.config.cards.goalSurfaceDepth
     : state.config.actions.fruit.reachDepth;
   for (const n of net.nodes) {
-    if (n.infected || !net.grownIn(n)) continue;
+    // Rotten itself, or hanging off rot. The ancestry walk is what stops the exploit the
+    // subtree claim used to stop: grow a long card THROUGH a cloud, get caught, and run the
+    // far end on to the goal. That tip is clean tissue, but everything joining it to the
+    // colony is dead, so it cannot fruit — and no OTHER strand is harmed to establish it.
+    if (n.infected || reachedThroughRot(net, n) || !net.grownIn(n)) continue;
     const surf = sub.surfaceColumnAtX(n.x);
     if (surf && surf.goal) {
       const depth = n.y - sub.surfaceY;
@@ -20998,7 +21037,7 @@ const __m_main = (function () {
   const { levelForNumber, allLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
-  const { infectDescendants } = __m_engine_threats;   // exposed on __game for threat-check
+  const { infectDescendants, reachedThroughRot } = __m_engine_threats;   // exposed on __game for threat-check
   const { tickWorld, queueEnemyTurn, enemyTurnMove, enemyTurnAttack, flushEnemyTurn } = __m_engine_turn;
   const { initCards, drawCard, skipRound, playCard, cardNeedsTarget, cardUsesDragAim, dragAimReach, cardBlockedReason, chooseOffer, activateAction, cardAbilityInfo, rebuildCardsFromSnapshot } = __m_engine_cards;
   const { Camera } = __m_render_camera;
@@ -22790,9 +22829,10 @@ function begin(newState) {
     // The editor's undo, so a check can drive it without the button — and `rockEdit.undo`
     // above is how it reads the depth (the panel's label is derived from it, not the truth).
     editUndo,
-    // The "nothing clean hangs off rot" invariant, so a check can assert the RULE on a
-    // hand-built chain instead of trying to arrange a cloud, a grow and a pile in one probe.
-    infectDescendants,
+    // The "nothing clean hangs off rot" rule, so a check can assert it on a hand-built chain
+    // instead of trying to arrange a cloud, a grow and a pile in one probe. It is scoped to
+    // the grow/win path now — `reachedThroughRot` is what the win test actually uses.
+    infectDescendants, reachedThroughRot,
     saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
     forgetSaved: deleteSavedLevel,
     draw: () => resolveCardOp(drawCard(state)),
