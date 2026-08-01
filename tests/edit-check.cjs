@@ -298,6 +298,14 @@ const survived = await p.evaluate(()=>{
 ok('the level\'s own objects come back as editable markers after Apply',
    survived.markers>0 && survived.markers===survived.inDef,
    `${survived.markers} markers for ${survived.inDef} objects: ${survived.kinds.join(',')}`);
+// DISARM first. The step before this armed "Leaves — yellow" and Apply does not clear it, so
+// the drag below would PLACE a fourth leaf pile instead of picking up the marker under the
+// cursor — which is exactly how it failed the first time (1167 -> 1167, unmoved).
+await p.evaluate(()=>{
+  const cur = window.__game.rockEdit.place;
+  if (cur) [...document.querySelectorAll('#eePlace button')].find(b=>b.dataset.pk===cur).click();
+});
+await sleep(150);
 // Move one and delete another, both of which were impossible a moment ago.
 const mv0 = await p.evaluate(()=>{
   const a=window.__game.rockEdit.added;
