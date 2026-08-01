@@ -21373,6 +21373,34 @@ function editRotate(rad) {
   });
 }
 function editNudge(dx, dy) { editTransform((s) => { s.x += dx; s.y += dy; }); }
+
+// Draw ORDER — which rock wins where two overlap. `levelSprites` is drawn front-to-back in
+// array order, so later in the list = on top, and `editExport` writes the objects in that same
+// order, so the layering survives a save. Collision is untouched: solidifyRock stamps the UNION
+// of every sprite's alpha, which cannot care what order they arrive in.
+//
+// One step at a time, and a selected rock never swaps with another selected one — otherwise
+// raising a group would shuffle it internally instead of lifting it as a block. `dir` is +1
+// toward the top, -1 toward the back.
+function editRaise(dir) {
+  const sp = editSprites();
+  if (!sp.length || !rockEdit.sel.size) return;
+  // Walk from the edge we are moving TOWARD, so each swap lands in a slot already settled.
+  const order = [...rockEdit.sel].sort((a, b) => (dir > 0 ? b - a : a - b));
+  // `cur` tracks where the selection IS, updated as we go. Testing the target slot against the
+  // original selection instead is wrong and was the first version: with {4,5} moving up, index
+  // 5 has already vacated by the time 4 is considered, so 4 read it as still-selected and
+  // stayed put — the group came apart (4,6) instead of moving (5,6).
+  const cur = new Set(rockEdit.sel);
+  for (const i of order) {
+    const j = i + dir;
+    if (j < 0 || j >= sp.length || cur.has(j)) continue;   // at the edge, or another selected
+    const tmp = sp[i]; sp[i] = sp[j]; sp[j] = tmp;         // rock is already there
+    cur.delete(i); cur.add(j);
+  }
+  rockEdit.sel = cur;
+  uiDirty = true; updateEditPanel();
+}
 function editDelete() {
   const sp = editSprites();
   const gone = [...rockEdit.sel].sort((a, b) => b - a);     // high to low: splice is stable
@@ -21543,6 +21571,8 @@ function updateDevEditBtn() {
       '<div class="ee-row">' +
         '<button id="eeBig">Bigger</button><button id="eeSml">Smaller</button>' +
         '<button id="eeRotL">Rotate &#8630;</button><button id="eeRotR">Rotate &#8631;</button>' +
+        '<button id="eeUp" title="Draw later — in front of the rocks it overlaps (or ] )">Up</button>' +
+        '<button id="eeDown" title="Draw earlier — behind the rocks it overlaps (or [ )">Down</button>' +
       '</div>' +
       '<h4>Place</h4>' +
       '<div class="ee-row" id="eePlace"></div>' +
@@ -21586,6 +21616,8 @@ function updateDevEditBtn() {
     $('eeSml').onclick = () => editScale(1 / 1.06);
     $('eeRotL').onclick = () => editRotate(-Math.PI / 36);
     $('eeRotR').onclick = () => editRotate(Math.PI / 36);
+    $('eeUp').onclick = () => editRaise(1);
+    $('eeDown').onclick = () => editRaise(-1);
     const bind = (id, key, out) => {
       $(id).oninput = () => {
         rockEdit.filter[key] = Number($(id).value);
@@ -22659,6 +22691,11 @@ function setupInput() {
     else if (rockEdit.on && rockEdit.sel.size && e.code === 'Comma') { editRotate(-Math.PI / 36); e.preventDefault(); }
     else if (rockEdit.on && rockEdit.sel.size && e.code === 'Period') { editRotate(Math.PI / 36); e.preventDefault(); }
     else if (rockEdit.on && e.code === 'KeyA' && (e.ctrlKey || e.metaKey)) { editSelectAll(); e.preventDefault(); }
+    // `]` / `[` layer the selection while editing. The map cycle below already stands down
+    // when the editor is open, so the keys are free — and stepping to another MAP is not
+    // something you want a stray keypress to do with an edit in progress anyway.
+    else if (rockEdit.on && rockEdit.sel.size && e.code === 'BracketRight') { editRaise(1); e.preventDefault(); }
+    else if (rockEdit.on && rockEdit.sel.size && e.code === 'BracketLeft') { editRaise(-1); e.preventDefault(); }
     else if ((e.code === 'BracketLeft' || e.code === 'BracketRight') && !rockEdit.on
              && !e.ctrlKey && !e.metaKey && !e.altKey
              && state && state.config && state.config.dev && state.config.dev.enabled) {

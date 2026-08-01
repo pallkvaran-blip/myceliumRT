@@ -109,6 +109,58 @@ await p.evaluate(()=>document.querySelector('#eeRotR').click());
 const rot = await p.evaluate(()=>window.__game.state.substrate.levelSprites[0].rot||0);
 ok('rotate turns them', Math.abs(rot-after.rot) > 0.01, `rot ${rot.toFixed(3)}`);
 ok('collision rebuilds', await p.evaluate(()=>window.__game.state.substrate._rockSolidified===false||window.__game.state.substrate._rockSolidified===true));
+
+// ---- draw order (Up / Down) ----------------------------------------------
+// levelSprites is drawn in array order, so later = on top. Assert on the sprite's POSITION IN
+// THE LIST, and that the selection follows it — the selection is a set of indices, so a
+// reorder that forgets to remap it silently starts addressing a different rock.
+await p.evaluate(()=>document.querySelector('#eeNone').click());
+const zBase = await p.evaluate(()=>{
+  const sp=window.__game.state.substrate.levelSprites;
+  window.__game.rockEdit.sel = new Set([2]);          // a rock in the middle of the list
+  return {key:sp[2].key, n:sp.length};
+});
+await p.evaluate(()=>document.querySelector('#eeUp').click());
+const zUp2 = await p.evaluate((k)=>{
+  const sp=window.__game.state.substrate.levelSprites, r=window.__game.rockEdit;
+  return {idx:sp.findIndex(s=>s.key===k), sel:[...r.sel]};
+}, zBase.key);
+ok('Up moves a rock one step later in the draw order',
+   zUp2.idx===3 && zUp2.sel.length===1 && zUp2.sel[0]===3, JSON.stringify(zUp2));
+await p.evaluate(()=>{document.querySelector('#eeDown').click();document.querySelector('#eeDown').click();});
+const zDn = await p.evaluate((k)=>{
+  const sp=window.__game.state.substrate.levelSprites, r=window.__game.rockEdit;
+  return {idx:sp.findIndex(s=>s.key===k), sel:[...r.sel]};
+}, zBase.key);
+ok('Down moves it back again', zDn.idx===1 && zDn.sel[0]===1, JSON.stringify(zDn));
+// A rock at the very back cannot go further back, and must not fall off the list.
+await p.evaluate(()=>{ window.__game.rockEdit.sel=new Set([0]);
+  document.querySelector('#eeDown').click(); });
+ok('the bottom rock stays put and nothing is lost',
+   await p.evaluate((n)=>window.__game.state.substrate.levelSprites.length===n
+     && [...window.__game.rockEdit.sel][0]===0, zBase.n));
+// A multi-rock selection lifts as a BLOCK — selected rocks never swap with each other, or a
+// group would shuffle internally instead of moving.
+const grp0 = await p.evaluate(()=>{
+  const sp=window.__game.state.substrate.levelSprites;
+  window.__game.rockEdit.sel=new Set([4,5]);
+  return [sp[4].key, sp[5].key];
+});
+await p.evaluate(()=>document.querySelector('#eeUp').click());
+const grp1 = await p.evaluate((keys)=>{
+  const sp=window.__game.state.substrate.levelSprites;
+  return {a:sp.findIndex(s=>s.key===keys[0]), b:sp.findIndex(s=>s.key===keys[1]),
+          sel:[...window.__game.rockEdit.sel].sort((x,y)=>x-y)};
+}, grp0);
+ok('a group keeps its internal order when it moves',
+   grp1.a===5 && grp1.b===6 && grp1.sel.join()==='5,6', JSON.stringify(grp1));
+// The whole point: the order has to survive a save.
+const zJson = await p.evaluate(()=>{ document.querySelector('#eeCopy').click(); return window.__levelJSON; });
+const zRocks = JSON.parse(zJson).objects.filter(o=>o.t==='boulder'||o.t==='formation').map(o=>o.key);
+const zLive = await p.evaluate(()=>window.__game.state.substrate.levelSprites.map(s=>s.key));
+ok('the draw order survives the export', zRocks.join()===zLive.join(),
+   `${zRocks.length} rocks, first three ${zRocks.slice(0,3).join(' ')}`);
+await p.evaluate(()=>document.querySelector('#eeNone').click());
 // filter
 await p.evaluate(()=>{const i=document.querySelector('#eeB');i.value='1.6';i.dispatchEvent(new Event('input'));});
 ok('brightness applied', await p.evaluate(()=>window.__game && document.querySelector('#eeBv').textContent==='1.60'));
