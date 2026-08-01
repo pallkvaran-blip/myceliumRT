@@ -42,7 +42,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… |
 | `core-check.cjs` | The molten core: the growth floor IS the drawn line, rocks clip at it, the earth turns red, assets stamp into the deepest row, and procedural maps have none |
 | `scale-check.cjs` | The organism scale: every growth LENGTH is base × `growth.scale`, the ratios between them survive it, the step measures what the config says, the drawn thread scales with it, and the longer step doesn't hop a wall |
-| `threat-check.cjs` | Threat rates, measured through the sim in BOTH modes: worm crawl, worm bite size, cloud creep, rot spread per step, and the render creep keeping pace with it |
+| `threat-check.cjs` | Threat rates, measured through the sim in BOTH modes: worm crawl, worm bite size, cloud creep, rot spread per step, and the render creep keeping pace with it. Does NOT assert `wanderSpeed` — it's a dead knob |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
@@ -166,6 +166,15 @@ rather than failing, and all of which cost a debug cycle here:
 `window.__stepSpot(step)` in the check searches for a spot that is in bounds, beyond one step,
 with clear line of sight to its nearest strand (or the creature never targets it) and with the
 whole first step provably clear against the same coarse `cell.rock` mask the movers use.
+
+The bite has the mirror-image trap: `nematodes.reach` is 0.7 cells (25 units) against a
+25.5-unit growth segment, so a worm dropped on a random strand often has only a neighbour or
+two that close — and the probe would then measure REACH and pass at whatever the local density
+happened to be, quietly, and more wrongly the bigger the bite gets. So it sits the worm on the
+densest node on the map and asserts the density (`strands in reach > bite`) separately.
+
+**`nematodes.wanderSpeed` is deliberately not asserted.** It is set in three places and read
+by no code — asserting a value would imply it does something. See CLAUDE.md.
 
 The last assertion is a pacing one rather than a rate: `render.infectCreepMs` is the
 renderer's ms-per-ring, and if the sim outruns it the green falls behind until

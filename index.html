@@ -2135,14 +2135,23 @@ const CONFIG = {
     initialCount: 3,             // wandering worms seeded per sandbox map
     seedMinColonyDistFrac: 0.25, // seed at least this fraction of the map from the colony
     sightRadius: 500,            // detection range (matches the mould's); rock blocks line of sight (SLIDER)
-    crawlSpeed: 0.75,            // cells/tick toward a sensed strand — RT: 3.0 → 0.75 → 0.375 → 0.75 (DOUBLED: worms cover twice the ground per step) (SLIDER)
-    wanderSpeed: 0.25,           // cells/tick while searching — RT: 1.0 → 0.25 → 0.125 → 0.25 (doubled with the crawl, to match)
+    crawlSpeed: 1.0,             // cells/tick toward a sensed strand — RT: 3.0 → 0.75 → 0.375 → 0.75 → 1.0. This
+                                 //   is the ONLY worm speed: it is also what a worm uses drifting to an ant trail. (SLIDER)
+    // DEAD KNOB — nothing reads this. It is set here and in BOTH MODE_TUNING tables and is
+    // referenced by no code at all (three occurrences in the file, all of them assignments).
+    // It used to be the speed of a worm SEARCHING, back when a worm with nothing in sight
+    // drifted around; that behaviour is gone — "If none is in range, HOLD position — worms no
+    // longer wander aimlessly" (stepNematodes) — and the one non-hunting move a worm still
+    // makes, creeping toward an ant trail, uses crawlSpeed. Kept, and labelled, rather than
+    // deleted: silently removing it would strand anyone who goes looking for the knob, and
+    // silently TUNING it is the trap this comment exists to close.
+    wanderSpeed: 0.25,           // (unread)
     reach: 0.7,                  // cells: how close to a strand before it feeds
     eatEveryTicks: 0,            // cooldown ticks between bites: a feeding worm eats a strand,
                                  //   then waits this many ticks — so it devours one every N+1
                                  //   ticks (0 → every tick; 1 → every other tick). Lower = deadlier. (SLIDER)
-    strandsPerBite: 2,           // strands one feeding worm takes per BITE — DOUBLED from the
-                                 //   hard-coded 1 this used to be. The two knobs are different
+    strandsPerBite: 4,           // strands one feeding worm takes per BITE — 1 (hard-coded) → 2 → 4.
+                                 //   The two knobs are different
                                  //   levers: eatEveryTicks is how OFTEN a worm bites, this is
                                  //   how much comes away each time. Each strand is claimed
                                  //   separately and must be in reach, unclaimed by another worm
@@ -2361,14 +2370,15 @@ const SLIDERS = [
 // it as state.config.realtime.enabled, so nothing extra has to be threaded through.
 //
 // The two modes need DIFFERENT balance numbers because RT rates are per 500 ms tick while
-// turn-based rates are per player action (a much rarer event): a worm that creeps 0.75
+// turn-based rates are per player action (a much rarer event): a worm that creeps 1.0
 // cells twice a second would barely move if it only stepped when you played a card. So the
 // tables below hold each mode's tuning, and setMode() writes the active one into CONFIG.
 //
-// CREATURE STEP DISTANCE WAS DOUBLED in BOTH tables at once (mould + nematodes, crawl and
-// wander), which is the only way to double it: these two numbers are the same rule measured
-// in different units, so moving one alone changes which game is harder rather than how fast
-// the creature is. What did NOT double is how often a creature ACTS, how much it eats
+// CREATURE STEP DISTANCE WAS RAISED in BOTH tables at once — mould x2, worm x2 then x1.33 —
+// which is the only way to raise it: the two numbers are the same rule measured in different
+// units, so moving one alone changes which game is harder rather than how fast the creature
+// is. Every later retune has to move BOTH by the same factor. What did NOT change is how
+// often a creature ACTS, how much it eats
 // (leavesPerRound) or how fast the rot spreads (spreadDepthPerTurn) — this is distance per
 // step, so a threat closes on you in half the steps and then behaves exactly as before.
 const MODE_TUNING = {
@@ -2377,8 +2387,8 @@ const MODE_TUNING = {
     'trichoderma.moveSpeed': 3.0,          // cells per ACTION (doubled from 1.5)
     'trichoderma.leavesPerRound': 0.22,
     'trichoderma.spreadDepthPerTurn': 18,  // rings per action (tripled from 6)
-    'nematodes.crawlSpeed': 6.0,           // doubled from 3.0
-    'nematodes.wanderSpeed': 2.0,          // doubled from 1.0
+    'nematodes.crawlSpeed': 8.0,           // 3.0 → 6.0 → 8.0
+    'nematodes.wanderSpeed': 2.0,          // DEAD — nothing reads it; see the config literal
     'ants.harvestRate': 40,                // nutrient per action
     'ants.extendSpeed': 999,               // the trail is laid down whole the moment it's planned
   },
@@ -2387,8 +2397,8 @@ const MODE_TUNING = {
     'trichoderma.moveSpeed': 1.5,          // cells per 500 ms tick (doubled from 0.75)
     'trichoderma.leavesPerRound': 0.175,
     'trichoderma.spreadDepthPerTurn': 4.5, // rings per tick (fractional — accumulated); tripled from 1.5
-    'nematodes.crawlSpeed': 0.75,          // doubled from 0.375
-    'nematodes.wanderSpeed': 0.25,         // doubled from 0.125
+    'nematodes.crawlSpeed': 1.0,           // 0.375 → 0.75 → 1.0, held to the same x1.33 the turn table took
+    'nematodes.wanderSpeed': 0.25,         // DEAD — nothing reads it; see the config literal
     'ants.harvestRate': 6.5,               // nutrient per tick
     'ants.extendSpeed': 2,                 // cells/tick the ant line creeps out
   },

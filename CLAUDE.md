@@ -90,29 +90,37 @@ other — a worm creeping 0.375 cells/tick would barely move if it only stepped 
 
 ### Threat rates (all changed together, all in BOTH tables)
 
-`tests/threat-check.cjs` (24 assertions) measures every one of these through the sim, in both
+`tests/threat-check.cjs` (23 assertions) measures every one of these through the sim, in both
 modes. A rate lives in two places — the CONFIG literal and `MODE_TUNING` — so **changing one
 table only doesn't make the creature faster, it makes one of the two games harder**, and that
-is invisible from inside either mode.
+is invisible from inside either mode. **Every retune has to move BOTH by the same factor.**
 
 | | turn (per action) | real time (per tick) |
 |---|---|---|
 | `trichoderma.moveSpeed` | 1.5 → **3.0** | 0.75 → **1.5** |
-| `nematodes.crawlSpeed` | 3.0 → **6.0** | 0.375 → **0.75** |
-| `nematodes.wanderSpeed` | 1.0 → **2.0** | 0.125 → **0.25** |
+| `nematodes.crawlSpeed` | 3.0 → 6.0 → **8.0** | 0.375 → 0.75 → **1.0** |
 | `trichoderma.spreadDepthPerTurn` | 6 → **18** | 1.5 → **4.5** |
-| `nematodes.strandsPerBite` | **2** (one value, both modes) | |
+| `nematodes.strandsPerBite` | 1 → 2 → **4** (one value, both modes) | |
 
-- **Movement was DOUBLED — distance per step only.** How often a creature acts, how much it
-  eats (`leavesPerRound`) and how far the rot reaches are untouched, so a threat closes on you
-  in half the steps and then behaves exactly as before. `moveWorm` and `moveCloud` sample their
-  path by DISTANCE (`ceil(dist / (cs*0.5))`), so the longer step gets proportionally more
+- **Movement is distance per step only.** How often a creature acts, how much it eats
+  (`leavesPerRound`) and how far the rot reaches are untouched, so a threat closes on you in
+  a fraction of the steps and then behaves exactly as before. `moveWorm` and `moveCloud` sample
+  their path by DISTANCE (`ceil(dist / (cs*0.5))`), so a longer step gets proportionally more
   samples and still cannot cross rock.
+- **`nematodes.wanderSpeed` IS A DEAD KNOB.** Three occurrences in the file — the CONFIG literal
+  and both `MODE_TUNING` tables — and **no code reads it**. It was the speed of a worm
+  *searching*, back when one with nothing in sight drifted around; that behaviour is gone
+  ("worms no longer wander aimlessly" in `stepNematodes`) and the one non-hunting move a worm
+  still makes, creeping toward an ant trail, uses `crawlSpeed`. Left in place and labelled
+  rather than deleted, but **do not tune it expecting an effect** — an earlier pass here
+  doubled it in all three places for nothing.
 - **`strandsPerBite` is a NEW knob** — the count was hard-coded at 1 inside `stepNematodes`.
   `eatEveryTicks` is how OFTEN a worm bites; this is how much comes away each time. Each strand
   is claimed separately and must be in reach, unclaimed by another worm this tick, and not
   hardened — and the loop **breaks** at the first hardened strand rather than eating around it,
-  so a Sclerotial Crust still stops the whole bite however high this goes.
+  so a Sclerotial Crust still stops the whole bite however high this goes. Note `reach` is 0.7
+  cells (25 units) against a 25.5-unit growth segment, so past about 4 the bite starts being
+  limited by how many strands are physically that close rather than by the knob.
 - **The rot spread was TRIPLED, and that forced `render.infectCreepMs` 300 → 100.** The creep is
   the renderer's ms-per-ring; at 4.5 rings/tick and 2 ticks/sec the sim advances 9 rings a
   second, against 3.3 at 300 ms. The green would fall behind until `infectMaxLagMs` (2500)
@@ -140,7 +148,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~648 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
+~647 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)

@@ -7,10 +7,10 @@
  * and — for the worm's bite — consumed by code that used to have the value hard-coded. So
  * each one is driven through the real sim and MEASURED:
  *
- *   trichoderma.moveSpeed      cells a cloud creeps per step        (doubled)
- *   nematodes.crawlSpeed       cells a worm crawls per step         (doubled)
- *   nematodes.strandsPerBite   strands one worm eats per bite       (doubled; was hard-coded 1)
- *   trichoderma.spreadDepthPerTurn  rings the rot races per step    (tripled)
+ *   trichoderma.moveSpeed      cells a cloud creeps per step        (x2)
+ *   nematodes.crawlSpeed       cells a worm crawls per step         (x2, then x1.33)
+ *   nematodes.strandsPerBite   strands one worm eats per bite       (1 hard-coded → 2 → 4)
+ *   trichoderma.spreadDepthPerTurn  rings the rot races per step    (x3)
  *
  * BOTH MODES, always. The two tables are the same rule in different units — RT rates are per
  * 500 ms tick, turn-based rates are per player action — so a change applied to one table only
@@ -32,12 +32,18 @@ const ok=(n,c,x)=>{ c?PASS++:FAIL++; console.log((c?'  PASS  ':'  FAIL  ')+n+(x?
 // What each table must hold. Pinned, because "did the double land in BOTH modes?" is the
 // question, and a value read back out of the same table it was written to cannot answer it.
 const WANT = {
-  turn:     { 'trichoderma.moveSpeed': 3.0, 'nematodes.crawlSpeed': 6.0,
-              'nematodes.wanderSpeed': 2.0, 'trichoderma.spreadDepthPerTurn': 18 },
-  realtime: { 'trichoderma.moveSpeed': 1.5, 'nematodes.crawlSpeed': 0.75,
-              'nematodes.wanderSpeed': 0.25, 'trichoderma.spreadDepthPerTurn': 4.5 },
+  turn:     { 'trichoderma.moveSpeed': 3.0, 'nematodes.crawlSpeed': 8.0,
+              'trichoderma.spreadDepthPerTurn': 18 },
+  realtime: { 'trichoderma.moveSpeed': 1.5, 'nematodes.crawlSpeed': 1.0,
+              'trichoderma.spreadDepthPerTurn': 4.5 },
 };
-const STRANDS_PER_BITE = 2;   // shared by both modes — not in MODE_TUNING
+const STRANDS_PER_BITE = 4;   // shared by both modes — not in MODE_TUNING
+// nematodes.wanderSpeed is NOT here, and that is the point: it is a DEAD KNOB. It is set in
+// three places (the CONFIG literal and both MODE_TUNING tables) and read by no code at all.
+// A worm with nothing in sight holds position rather than wandering, and the one non-hunting
+// move it still makes — drifting to an ant trail — uses crawlSpeed. Asserting a value for it
+// would imply it does something. The two tables are still kept in step by hand, and the
+// config comment says why.
 
 const boot = async (ctx, url) => {
   const p=await ctx.newPage();
@@ -64,7 +70,6 @@ const readTable = (page) => page.evaluate(() => {
   return { mode: c.mode,
            'trichoderma.moveSpeed': c.trichoderma.moveSpeed,
            'nematodes.crawlSpeed': c.nematodes.crawlSpeed,
-           'nematodes.wanderSpeed': c.nematodes.wanderSpeed,
            'trichoderma.spreadDepthPerTurn': c.trichoderma.spreadDepthPerTurn,
            'nematodes.strandsPerBite': c.nematodes.strandsPerBite };
 });
@@ -176,9 +181,12 @@ ok('a worm crawls crawlSpeed cells in one action',
    crawl.err || `moved ${crawl.moved.toFixed(3)} cells, table says ${crawl.want}`);
 
 // ---- 3. a feeding worm eats strandsPerBite strands per action ---------------
-// The count used to be hard-coded at 1, so this is the assertion that the new knob is wired
-// in at all. Parked ON a strand with a big colony around it, so there are always more
-// unclaimed strands in reach than the worm can take.
+// The count used to be hard-coded at 1, so this is the assertion that the knob is wired in
+// at all. The worm has to sit where there are MORE strands in reach than it can take, or the
+// probe measures `reach` instead of the knob and quietly passes at whatever the local density
+// happens to be — worse as the bite grows, because `reach` is 0.7 cells (25 units) while one
+// growth segment is now 25.5, so a typical strand has only a neighbour or two that close.
+// Hence: find the densest node on the map, sit on it, and assert the density separately.
 const bite=await p.evaluate(()=>{
   const G=window.__game, s=G.state, sub=s.substrate, net=s.active, cs=sub.cellSize;
   net.energy=99999; net.water=999;
@@ -188,24 +196,35 @@ const bite=await p.evaluate(()=>{
     const cell=sub.cells[sub.index(c,r)]; cell.rock=0; cell.hazard=0;
     cell.nutrient=60; cell.maxNutrient=60;
   }
-  for (let i=0;i<10;i++) G.performAction(s,'grow',{});
-  // A dense knot of strands, one worm sitting in it, nothing else alive on the map.
+  for (let i=0;i<16;i++) G.performAction(s,'grow',{});
   s.nematodes.length=0;
   if (s.clouds) s.clouds.length=0;
   net.energy=99999;
-  const tgt=net.nodes[Math.floor(net.nodes.length/2)];
+  // The densest node: the one with the most OTHER strands inside a worm's reach of it.
+  const reach=s.config.nematodes.reach*cs;
+  let tgt=net.nodes[0], dense=-1;
+  for (const a of net.nodes) {
+    let k=0;
+    for (const b of net.nodes) if (Math.hypot(b.x-a.x, b.y-a.y) <= reach) k++;
+    if (k > dense) { dense=k; tgt=a; }
+  }
   s.nematodes.push({x:tgt.x, y:tgt.y, heading:0, phase:0, stuck:0, feedCd:0, hp:0,
                     sees:false, feeding:false, trailing:false, targetId:null});
   const before=net.nodes.length;
   G.tickWorld(s);
   const after=net.nodes.length;
   return { before, after, eaten:before-after, want:s.config.nematodes.strandsPerBite,
+           inReach:dense, reachCells:s.config.nematodes.reach,
            worms:s.nematodes.length, feeding:!!(s.nematodes[0]&&s.nematodes[0].feeding) };
 });
 // Worms BREED while feeding (breedChance 0.8 per tick), and a newborn does not eat on the
 // tick it is born, so exactly one worm bites here — that is what makes the count readable.
 ok('a big enough colony was grown to bite into', bite.before>60, `${bite.before} strands`);
 ok('the worm fed', bite.feeding===true);
+// Without this the next assertion is vacuous whenever the colony is thinner than the bite.
+ok('the worm was sat somewhere with more strands in reach than it can take',
+   bite.inReach > bite.want,
+   `${bite.inReach} strands within ${bite.reachCells} cells, bite is ${bite.want}`);
 ok('one feeding worm eats strandsPerBite strands per action', bite.eaten===bite.want,
    `ate ${bite.eaten}, want ${bite.want} (${bite.before} → ${bite.after})`);
 
