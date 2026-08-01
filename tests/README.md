@@ -42,7 +42,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… |
 | `core-check.cjs` | The molten core: the growth floor IS the drawn line, rocks clip at it, the earth turns red, assets stamp into the deepest row, and procedural maps have none |
 | `scale-check.cjs` | The organism scale: every growth LENGTH is base × `growth.scale`, the ratios between them survive it, the step measures what the config says, the drawn thread scales with it, and the longer step doesn't hop a wall |
-| `threat-check.cjs` | Threat rates, measured through the sim in BOTH modes: worm crawl, worm bite size, cloud creep, first-touch rot vs the established race (separate, non-stacking), and the render creep keeping pace. Does NOT assert `wanderSpeed` — it's a dead knob |
+| `threat-check.cjs` | Threat rates and rules, measured through the sim in BOTH modes: worm crawl, worm bite size, worm move-AND-eat on one step, cloud creep, first-touch rot vs the established race (separate, non-stacking), the "no clean mycelium off rot" invariant, `infectionSpreadChance` being 1, and the render creep keeping pace. Does NOT assert `wanderSpeed` — it's a dead knob |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
@@ -183,6 +183,26 @@ nothing about the rate. On a single chain rings and strands are 1:1, so `firstTo
 `spreadDepthPerTurn` can actually be compared — and the assertion that matters is the
 ISOLATION: a breach costs 20 + the strand it touched (21), and the step *after* costs exactly
 40. Additive, which is what the old `contactChunk` did, would read ~61 on the breach step.
+
+**`infectionSpreadChance` is kept as a live negative control**, not a comment. Any value below 1
+caps the advance at a geometric ~1/(1−p) rings *regardless of the depth*, because a failed roll
+drops that node from the frontier and kills the branch for the rest of the call. The check
+measures both: at 1 the advance is exactly the configured rate every time; at 0.85 it collapses
+to min 0 / median ~4 / max 16. That single number is why the rate was raised 6 → 18 → 40 across
+two sessions with almost no effect, so it is worth failing over.
+
+**Two probes seed the rot at a TIP, never the root**, and this matters now that everything
+downstream of an infected strand is claimed at once. A root seed claims the entire colony
+through the invariant and measures nothing about the rate — the first version of these
+assertions reported "min 0, median 0, max 399" for exactly that reason, made worse because a
+trial that rots the whole chain leaves `net.alive` false and `infectNetwork` skips a dead
+network, so every trial after the first silently measured zero. The chain builder revives the
+colony between trials.
+
+Same shape of trap in the worm's move-AND-eat probe: "out of reach" has to mean out of reach of
+the NEAREST STRAND, not of the target node. A spot two cells from the densest node still has
+some other strand inside the 0.7-cell reach in a 400-strand colony, and the worm then feeds
+without moving — which passed the eat assertion while proving nothing about the move.
 
 The last assertion is a pacing one rather than a rate: `render.infectCreepMs` is the
 renderer's ms-per-ring, and if the sim outruns it the green falls behind until

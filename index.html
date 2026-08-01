@@ -2067,13 +2067,32 @@ const CONFIG = {
     // and is deliberately left on its own number.)
     firstTouchRings: 20,         // (SLIDER)
     growInfectBurst: 18,         // growing a strand INTO mould instantly rots this many rings (≈6 grow-steps) in EVERY direction from each caught node, so a long grow can't outrun the rot with a white tip past the cloud (SLIDER)
-    spreadDepthPerTurn: 10,      // rings/tick the ESTABLISHED rot races along your filaments — RT: 6 → 3 → 1.5 → 4.5 → 10.
-                                 //   May be fractional; infectNetwork accumulates it and advances whole rings only, carrying
-                                 //   the rest. This is the SPEED of the spread, not its reach: the rot still has to travel
-                                 //   the filaments and still rolls infectionSpreadChance at each step, it just covers more
-                                 //   rings per step. It does NOT apply on the step you are first touched — see
-                                 //   firstTouchRings above, which is the whole of that step.
-    infectionSpreadChance: 0.85, // chance the rot takes each step of that race (SLIDER) — high = real consequences
+    // Rings/step the ESTABLISHED rot races along your filaments. ONE RING IS ONE SEGMENT, and a
+    // card "step" is 3 segments (grow4Segments 12 = 4 steps, grow5Segments 15 = 5, Rhizomorph
+    // Lance's reachSegments 18 = 6). So 16.5 rings is 5.5 STEPS — set deliberately above the
+    // 4-step grow-4 and the 5-step grow-5 so neither card outruns the rot, and below the
+    // 6-step Lance, which still can.
+    //
+    // May be fractional: infectNetwork accumulates it and advances whole rings only, carrying
+    // the rest, so 16.5 alternates 16 and 17. It does NOT apply on the step you are first
+    // touched — see firstTouchRings above, which is the whole of that step. And it governs the
+    // ROOTWARD/sibling direction only: everything downstream of rot is claimed at once by
+    // infectDescendants, whatever this says.
+    spreadDepthPerTurn: 4.125,   // RT: 6 → 3 → 1.5 → 4.5 → 10 → 4.125 (turn-based is 16.5 = 5.5 steps)
+    // 1 = the depth above is REAL. Anything less CAPS the effective spread, and caps it far
+    // below what the depth says, because a failed roll drops that node from the frontier and
+    // kills the branch for the rest of the call — so a filament advances a GEOMETRIC number of
+    // rings with mean p/(1-p), no matter how big spreadDepthPerTurn is.
+    //
+    // Measured on a 300-node chain with the depth set to 40, over 40 trials: at 0.85 the rot
+    // advanced min 0, MEDIAN 5, max 32, mean 6.1 rings — i.e. ~2 steps, wildly uneven, and
+    // completely deaf to the 40. That is why the depth was raised twice (6 → 18 → 40) with
+    // barely any effect, and why the rot "chased at uneven speeds, usually about 2 steps".
+    // At 1 the same setup advances exactly 40, every time.
+    //
+    // Turn it down for a patchy, unreliable rot; do NOT turn it down expecting a slower one —
+    // reach for spreadDepthPerTurn for that, and remember the cap is ~1/(1-p) rings. (SLIDER)
+    infectionSpreadChance: 1,
   },
 
   // ---- The six basic actions (A2, B5) ------------------------------------
@@ -2252,16 +2271,17 @@ const CONFIG = {
     infectFadeMs: 240,           // ms one strand takes to turn cream → infected green. SHORT + crisp: each strand
                                  //   flips cleanly (no long washed-out pale-green state); the gradual look comes from
                                  //   the CREEP below — strands turning one after another along the filaments.
-    // 300 → 100 → 50, tracking spreadDepthPerTurn each time it went up. This has to keep pace
-    // with the sim or the creep stops being a creep: at 10 rings/tick and 2 ticks/sec the rot
-    // advances 20 rings a second, and one ring per 300 ms is 3.3/sec — so the green would fall
-    // behind until infectMaxLagMs (2500) clamped it, then jump a chunk, which is the exact
-    // popping the creep exists to remove. 50 ms is 20 rings/sec, level with the sim.
+    // 300 → 100 → 50 → 100, tracking spreadDepthPerTurn each time it moved. This has to keep
+    // pace with the sim or the creep stops being a creep: at 4.125 rings/tick and 2 ticks/sec
+    // the rot advances 8.25 rings a second, and one ring per 300 ms is 3.3/sec — so the green
+    // would fall behind until infectMaxLagMs (2500) clamped it, then jump a chunk, which is the
+    // exact popping the creep exists to remove. 100 ms is 10 rings/sec, comfortably ahead of
+    // the sim while still slow enough that you SEE the rot travel.
     // RETUNE THIS WHENEVER THE SPREAD RATE MOVES — threat-check asserts the relationship.
-    infectCreepMs: 50,           // ms the rot takes to travel ONE strand step along the mycelium. The renderer gives
+    infectCreepMs: 100,          // ms the rot takes to travel ONE strand step along the mycelium. The renderer gives
                                  //   each rotten strand a moment to turn, one creep-step after the strand the rot came
                                  //   from, so the green flows continuously BETWEEN world ticks instead of a whole ring
-                                 //   popping in per tick. ~matched to the sim's spread rate (10 rings/tick @ 2/sec).
+                                 //   popping in per tick. ~matched to the sim's spread rate (4.125 rings/tick @ 2/sec).
     infectMaxLagMs: 2500,        // cap on how far behind the sim the visible creep may fall (safety valve if the rot
                                  //   ever outruns the creep — e.g. a big first-touch burst)
                                  //   (creep + fade are detail-zoom rendering only; the zoomed-out LOD still snaps)
@@ -2399,7 +2419,8 @@ const MODE_TUNING = {
     'realtime.enabled': false,
     'trichoderma.moveSpeed': 3.0,          // cells per ACTION (doubled from 1.5)
     'trichoderma.leavesPerRound': 0.22,
-    'trichoderma.spreadDepthPerTurn': 40,  // rings per action — 6 → 18 → 40
+    'trichoderma.spreadDepthPerTurn': 16.5, // rings per ACTION = 5.5 card steps — 6 → 18 → 40 → 16.5
+                                           //   (40 was never reached: infectionSpreadChance capped it at ~6)
     'nematodes.crawlSpeed': 8.0,           // 3.0 → 6.0 → 8.0
     'nematodes.wanderSpeed': 2.0,          // DEAD — nothing reads it; see the config literal
     'ants.harvestRate': 40,                // nutrient per action
@@ -2409,7 +2430,8 @@ const MODE_TUNING = {
     'realtime.enabled': true,
     'trichoderma.moveSpeed': 1.5,          // cells per 500 ms tick (doubled from 0.75)
     'trichoderma.leavesPerRound': 0.175,
-    'trichoderma.spreadDepthPerTurn': 10,  // rings per tick — 1.5 → 4.5 → 10, the same x2.22 the turn table took
+    'trichoderma.spreadDepthPerTurn': 4.125, // rings per tick (fractional — accumulated); the turn table's 16.5
+                                           //   at the same 4:1 ratio the two have always held
     'nematodes.crawlSpeed': 1.0,           // 0.375 → 0.75 → 1.0, held to the same x1.33 the turn table took
     'nematodes.wanderSpeed': 0.25,         // DEAD — nothing reads it; see the config literal
     'ants.harvestRate': 6.5,               // nutrient per tick
@@ -11174,7 +11196,17 @@ function stepNematodes(state) {
       const dx = seen.x - w.x, dy = seen.y - w.y;
       const dist = Math.hypot(dx, dy) || 1;
       w.heading = Math.atan2(dy, dx);
-      if (dist <= n.reach * cs) {
+      // MOVE AND EAT IN THE SAME STEP. This used to be either/or — close the gap OR bite —
+      // and because a bite removes the strands within reach, a worm settled on the colony
+      // alternated bite / crawl / bite / crawl and only fed every other step. Closing first
+      // and then biting from where it ENDS UP roughly doubles a swarm's throughput: the step
+      // it arrives on is also a feeding step.
+      if (dist > n.reach * cs) {
+        moveWorm(w, dx / dist, dy / dist, Math.min(dist, n.crawlSpeed * cs), sub);
+      }
+      // Re-measured AFTER the move, against the worm's new position — the whole point is that
+      // arriving and feeding happen on one step.
+      if (Math.hypot(seen.x - w.x, seen.y - w.y) <= n.reach * cs) {
         w.feeding = true;
         // Breed EVERY tick while in contact — this is the exponential growth.
         if (state.nematodes.length + newborns.length < n.maxPopulation && rng.chance(n.breedChance)) {
@@ -11203,8 +11235,6 @@ function stepNematodes(state) {
           // buy the colony a free tick of immunity on top of the crust it already paid for.
           if (ate) w.feedCd = n.eatEveryTicks;
         } else w.feedCd -= 1;
-      } else {
-        moveWorm(w, dx / dist, dy / dist, Math.min(dist, n.crawlSpeed * cs), sub);
       }
     } else {
       // No colony in reach: drift toward the nearest ANT TRAIL within sensory range.
@@ -11717,6 +11747,11 @@ function infectNetwork(net, state) {
     net._spreadAccum -= rings;
     for (const n of established) infectAround(net, n, rings, t.infectionSpreadChance, rng, sub);
   }
+
+  // 3) The invariant, last: whatever the two passes above claimed, nothing clean may be left
+  //    hanging off it. Runs every tick, so growth committed since the last one is caught here
+  //    rather than only at the win check.
+  infectDescendants(net, sub);
 }
 
 // Growing INTO active mould infects you FIRST. Any healthy strand standing in a
@@ -11743,7 +11778,12 @@ function infectStrandsInMould(net, state) {
   // at once, so a long grow (e.g. grow 6) can't just shoot its tip past the cloud and
   // outrun the infection — the tip is claimed too. `growInfectBurst` rings, guaranteed.
   if (burst > 0) for (const n of seeds) infectAround(net, n, burst, 1, (state.rng || Math.random), sub);
-  if (hit) net.recomputeVitality();
+  // And then the invariant, which is what actually stops a grow outrunning the mould it went
+  // through: the burst is a fixed 18 rings, and a pile runner plus its mat can be 30+ nodes
+  // past the caught strand. Called HERE as well as from infectNetwork because this runs on the
+  // goal check — a strand that pushed through mould onto the finish line must be dead before
+  // the win is tested, not one tick later.
+  if (hit) { infectDescendants(net, sub); net.recomputeVitality(); }
   return hit;
 }
 
@@ -11760,6 +11800,47 @@ function cellProofed(sub, n) {
 // Flood infection outward from `seed` up to `depth` rings along the graph
 // (parent + children each step). chance 1 = guaranteed (an instant chunk);
 // < 1 = an organic race that may stall short of `depth`.
+// THE INVARIANT: no clean mycelium may hang off rotten mycelium. Everything DOWNSTREAM of an
+// infected strand — its children, their children, all the way to the tips — is infected, at
+// once and regardless of any rate.
+//
+// This is topology, not speed, and that distinction is the whole point. `spreadDepthPerTurn`
+// governs how fast the rot travels ROOTWARD and across into sibling branches; it must not also
+// govern the tip direction, because a strand that grew out of dead tissue was never alive. The
+// old behaviour let you play a grow card straight through a cloud and keep the far end: the
+// nodes standing in the mould were claimed, `growInfectBurst` took 18 rings around them, and
+// anything past that stayed cream. Three separate paths overrun that 18-ring budget —
+// `_bridgeInto`'s pile runner walks up to 30 nodes, `colonizeReachablePiles` sprays a mat on
+// top of that, and Rhizomorph Lance is 18 segments on its own — so a food pile at the goal
+// reached through mould came out clean and could still fruit and win.
+//
+// A WARD STILL HOLDS THE LINE. `cellProofed` (Melanized Wall, Crust Reserve, Sclerotial
+// Crust/Rind, and Rehydration's hidden grace) blocks the propagation exactly as it blocks every
+// other infection path — and blocks it for everything behind that strand too, since a warded
+// node is never pushed onto the stack. That is the one way to legitimately hold clean tissue
+// beyond rot, and it is bought with a card.
+//
+// Returns the number of strands claimed, so a caller can log or recompute vitality.
+function infectDescendants(net, sub) {
+  const byId = net.byId;
+  const stack = [];
+  for (const n of net.nodes) if (n.infected) stack.push(n);
+  let claimed = 0;
+  // A stack rather than a single forward pass over `nodes`: parents happen to sit before their
+  // children in that array today, but _removeNodes compacts it and nothing guarantees the
+  // ordering, so walking the actual child links is the version that cannot quietly rot.
+  while (stack.length) {
+    const n = stack.pop();
+    for (const cid of n.children) {
+      const c = byId.get(cid);
+      if (!c || c.infected || cellProofed(sub, c)) continue;
+      c.infected = true; claimed++;
+      stack.push(c);
+    }
+  }
+  return claimed;
+}
+
 function infectAround(network, seed, depth, chance, rng, sub) {
   let frontier = [seed];
   for (let d = 0; d < depth && frontier.length; d++) {
@@ -11803,7 +11884,7 @@ function totalTrichoderma(substrate) {
   return total;
 }
 
-  return { seedTrichoderma, placeClouds, spawnTrichodermaAt, spreadTrichoderma, infectNetwork, infectStrandsInMould, checkPuzzleGoal, totalTrichoderma };
+  return { seedTrichoderma, placeClouds, spawnTrichodermaAt, spreadTrichoderma, infectNetwork, infectStrandsInMould, infectDescendants, checkPuzzleGoal, totalTrichoderma };
 })();
 
 // ===================== src/engine/ants.js =====================
@@ -20598,6 +20679,7 @@ const __m_main = (function () {
   const { levelForNumber, allLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
+  const { infectDescendants } = __m_engine_threats;   // exposed on __game for threat-check
   const { tickWorld } = __m_engine_turn;
   const { initCards, drawCard, skipRound, playCard, cardNeedsTarget, cardUsesDragAim, dragAimReach, cardBlockedReason, chooseOffer, activateAction, cardAbilityInfo, rebuildCardsFromSnapshot } = __m_engine_cards;
   const { Camera } = __m_render_camera;
@@ -22378,6 +22460,9 @@ function begin(newState) {
     // The editor's undo, so a check can drive it without the button — and `rockEdit.undo`
     // above is how it reads the depth (the panel's label is derived from it, not the truth).
     editUndo,
+    // The "nothing clean hangs off rot" invariant, so a check can assert the RULE on a
+    // hand-built chain instead of trying to arrange a cloud, a grow and a pile in one probe.
+    infectDescendants,
     saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
     forgetSaved: deleteSavedLevel,
     draw: () => resolveCardOp(drawCard(state)),

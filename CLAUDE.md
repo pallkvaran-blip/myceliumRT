@@ -90,7 +90,7 @@ other — a worm creeping 0.375 cells/tick would barely move if it only stepped 
 
 ### Threat rates (all changed together, all in BOTH tables)
 
-`tests/threat-check.cjs` (30 assertions) measures every one of these through the sim, in both
+`tests/threat-check.cjs` (44 assertions) measures every one of these through the sim, in both
 modes. A rate lives in two places — the CONFIG literal and `MODE_TUNING` — so **changing one
 table only doesn't make the creature faster, it makes one of the two games harder**, and that
 is invisible from inside either mode. **Every retune has to move BOTH by the same factor.**
@@ -99,7 +99,8 @@ is invisible from inside either mode. **Every retune has to move BOTH by the sam
 |---|---|---|
 | `trichoderma.moveSpeed` | 1.5 → **3.0** | 0.75 → **1.5** |
 | `nematodes.crawlSpeed` | 3.0 → 6.0 → **8.0** | 0.375 → 0.75 → **1.0** |
-| `trichoderma.spreadDepthPerTurn` | 6 → 18 → **40** | 1.5 → 4.5 → **10** |
+| `trichoderma.spreadDepthPerTurn` | 6 → 18 → 40 → **16.5** | 1.5 → 4.5 → 10 → **4.125** |
+| `trichoderma.infectionSpreadChance` | **1** — see below, this one is a trap | |
 | `nematodes.strandsPerBite` | 1 → 2 → **4** (one value, both modes) | |
 | `trichoderma.firstTouchRings` | **20** (one value, both modes) | |
 
@@ -109,10 +110,14 @@ steps-per-second. `firstTouchRings` and `growInfectBurst` are both one-offs and 
 CONFIG literal only.
 
 - **Movement is distance per step only.** How often a creature acts, how much it eats
-  (`leavesPerRound`) and how far the rot reaches are untouched, so a threat closes on you in
-  a fraction of the steps and then behaves exactly as before. `moveWorm` and `moveCloud` sample
+  (`leavesPerRound`) and how far the rot reaches are untouched. `moveWorm` and `moveCloud` sample
   their path by DISTANCE (`ceil(dist / (cs*0.5))`), so a longer step gets proportionally more
   samples and still cannot cross rock.
+- **A worm MOVES AND EATS on the same step.** It used to be either/or — close the gap OR bite —
+  and since a bite removes the strands within reach, a worm settled on the colony alternated
+  bite / crawl / bite / crawl and fed every OTHER step. It now closes first and bites from where
+  it ENDS UP, which roughly doubles a swarm's throughput: the step it arrives on is a feeding
+  step. The reach test is re-measured after the move, against the new position.
 - **`nematodes.wanderSpeed` IS A DEAD KNOB.** Three occurrences in the file — the CONFIG literal
   and both `MODE_TUNING` tables — and **no code reads it**. It was the speed of a worm
   *searching*, back when one with nothing in sight drifted around; that behaviour is gone
@@ -127,6 +132,33 @@ CONFIG literal only.
   so a Sclerotial Crust still stops the whole bite however high this goes. Note `reach` is 0.7
   cells (25 units) against a 25.5-unit growth segment, so past about 4 the bite starts being
   limited by how many strands are physically that close rather than by the knob.
+- **ONE RING IS ONE SEGMENT, and a card "step" is 3 segments.** `grow4Segments` 12 = 4 steps,
+  `grow5Segments` 15 = 5, Rhizomorph Lance's `reachSegments` 18 = 6. So **16.5 rings = 5.5
+  steps**, set deliberately above grow-4 and grow-5 so neither outruns the rot, and below the
+  Lance, which still can. Authored in rings, reasoned about in steps — `threat-check` asserts
+  the conversion so a retune in either unit shows up.
+- **`infectionSpreadChance` BELOW 1 CAPS THE SPREAD, and caps it far under what the depth says.**
+  A failed roll drops that node from the frontier and kills the branch for the rest of the call,
+  so a filament advances a GEOMETRIC number of rings, mean p/(1−p) — deaf to
+  `spreadDepthPerTurn`. Measured on a 300-node chain with the depth at 40, 40 trials: **at 0.85
+  the rot advanced min 0, median 5, max 32, mean 6.1 rings — about 2 steps, wildly uneven, and
+  completely indifferent to the 40.** That is why the depth was raised twice (6 → 18 → 40) for
+  almost no effect, and it is exactly the reported symptom: "chases at uneven speeds, sometimes
+  more than 4-step growth, usually more like 2". Now **1**. Turn it down for a *patchy* rot;
+  never turn it down expecting a *slower* one. `threat-check` keeps the 0.85 measurement as a
+  live negative control.
+- **NO CLEAN MYCELIUM MAY HANG OFF ROT** (`infectDescendants`). Everything downstream of an
+  infected strand — children, their children, out to the tips — is claimed at once, whatever the
+  rate says. This is **topology, not speed**: `spreadDepthPerTurn` governs the rootward and
+  sibling direction only. Without it you could play a grow card straight through a cloud and keep
+  the far end, because the burst is a fixed `growInfectBurst` 18 rings and **three paths overrun
+  that budget** — `_bridgeInto`'s pile runner walks up to 30 nodes, `colonizeReachablePiles`
+  sprays a mat on top, and the Lance is 18 segments by itself. A food pile at the goal reached
+  through mould came out cream and could still fruit and win. Called from `infectNetwork` (every
+  tick) **and** from `infectStrandsInMould` (the goal check), because a strand that pushed
+  through mould onto the finish line has to be dead *before* the win is tested. **A ward still
+  holds the line** — `cellProofed` blocks it, and blocks it for everything behind that strand
+  too, since a warded node is never pushed onto the stack.
 - **`firstTouchRings` and `spreadDepthPerTurn` are separate and DO NOT STACK.** Being breached
   costs `firstTouchRings` and *nothing else* on that step; every step after costs
   `spreadDepthPerTurn`. `infectNetwork` snapshots the infected front into `established` BEFORE
@@ -171,7 +203,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~654 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
+~668 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
