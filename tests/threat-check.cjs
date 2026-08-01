@@ -749,6 +749,68 @@ ok('...and the food it left behind is then actually eaten',
    !harvest.err && (harvest.drained.nut < harvest.clean.nut || harvest.drained.gained > 0),
    harvest.err || `nutrient ${harvest.clean.nut} → ${harvest.drained.nut}, +${harvest.drained.gained.toFixed(1)}⚡`);
 
+// ---- 6g2. GROWING THROUGH MOULD INTO A PILE HARVESTS NOTHING ------------------
+// Own page. Verified in isolation this claims 0 of 4 cells; on the shared page — a dozen probes,
+// many ticks and several hand-built networks later — it read 4 of 4. Anything that builds a
+// network and calls colonizeReachablePiles needs a clean world to be measured in.
+await ctx.close();
+ctx=await b.newContext({viewport:{width:1400,height:800}});
+await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
+p=await boot(ctx, base+'/index.html#dev,turn');
+// The reported case, and the one 6g above does NOT cover: the strand was CLEAN at the moment it
+// touched the pile and only became infected later in the same step. A grow resolves its whole
+// path and then claims piles, so the claim ran before infectStrandsInMould (goal check) and
+// before infectNetwork (world tick) had marked anything — the pile was banked, and its draft
+// granted, by tissue that was already dead in the mould it had just crossed.
+const through=await p.evaluate(()=>{
+  const G=window.__game, s=G.state, sub=s.substrate, net=s.active, cs=sub.cellSize;
+  s.nematodes.length=0; s.clouds.length=0;
+  s.runOver=false; s.winPending=false; s.won=false;
+  net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  const x=sub.worldWidth/2, y=sub.surfaceY+cs*4;
+  // A short chain: root, then a strand standing IN mould, then the strand that reached the pile.
+  let root=net.addNode(x, y, null); root._liveAt=0; root._revSeen=true;
+  let mid=net.addNode(x+cs, y, root); mid._liveAt=0; mid._revSeen=true;
+  const col=sub.colAtX(x+cs*2), row=sub.rowAtY(y);
+  const cells=[];
+  for (let c=col;c<=col+1;c++) for (let r=row;r<=row+1;r++) {
+    if (!sub.inBounds(c,r)) continue;
+    const i=sub.index(c,r), cell=sub.cells[i];
+    cell.rock=0; cell.hazard=0; cell.water=0; cell.colonized=0; cell.trich=0;
+    cell.nutrient=40; cell.maxNutrient=40;
+    cells.push(i);
+  }
+  if (!cells.length) return {err:'no room for a pile'};
+  const pc=sub.cellCenter(cells[0]%sub.cols, Math.floor(cells[0]/sub.cols));
+  let tip=net.addNode(pc.x, pc.y, mid); tip._liveAt=0; tip._revSeen=true;
+  // Mould on the MIDDLE strand only — the tip is in clean ground, inside the food.
+  const mc=sub.cellAtWorld(mid.x, mid.y);
+  if (!mc) return {err:'no cell under the mid strand'};
+  mc.trich=1; mc.mouldProof=0; mc.reinfectGrace=0;
+  const nut=()=>cells.reduce((a,i)=>a+sub.cells[i].nutrient,0);
+  const claimed=()=>cells.filter((i)=>sub.cells[i].colonized>=1).length;
+  const e0=net.energy;
+  net.alive=true;
+  net.colonizeReachablePiles(sub, s.rng);
+  return { err:null, cells:cells.length, before:40*cells.length,
+           midRotten:mid.infected===true, tipRotten:tip.infected===true,
+           claimed:claimed(), nut:nut(), gained:net.energy-e0 };
+});
+ok('the mould probe built a pile beyond a mould-covered strand', !through.err && through.cells>0,
+   through.err || `${through.cells} cells`);
+ok('the strand standing in mould is claimed as rot at claim time',
+   !through.err && through.midRotten===true);
+ok('...and so is the strand PAST it that reached the food (downstream of rot is rot)',
+   !through.err && through.tipRotten===true);
+ok('growing THROUGH mould into a pile claims none of it',
+   !through.err && through.claimed===0,
+   through.err || `${through.claimed} of ${through.cells} cells claimed`);
+ok('...banks no energy, so no pile reward and no draft',
+   !through.err && through.gained===0, through.err || `+${through.gained}`);
+ok('...and the food is all still there',
+   !through.err && through.nut===through.before,
+   through.err || `${through.nut} of ${through.before} left`);
+
 // ---- 6f. the worm's reach ----------------------------------------------------
 ok(`nematodes.reach is ${WORM_REACH} cells`,
    Math.abs(await p.evaluate(()=>window.__cfg.nematodes.reach)-WORM_REACH)<1e-9,
@@ -764,6 +826,13 @@ ok('the reach clears one growth segment, so a bite is not geometry-limited',
    `reach ${reachVsSeg.reachUnits} units vs segment ${reachVsSeg.seg}`);
 
 // ---- 6h. A WORM OUT OF SIGHT STILL CLOSES IN ---------------------------------
+// ON A FRESH PAGE, for the same reason section 6 needs one: the probes above leave a hand-built
+// three-node network behind, and worms that now actually arrive eat it — the nearest-distance
+// metric came back as Infinity because there was no colony left to be near.
+await ctx.close();
+ctx=await b.newContext({viewport:{width:1400,height:800}});
+await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
+p=await boot(ctx, base+'/index.html#dev,turn');
 // The bug this guards is "nematodes are failing to move at all", and it was never a movement
 // bug: worms SEED at seedMinColonyDistFrac of the map width (0.25 x 2600 = 650 units) and see
 // only 500, so a fresh worm has never been able to see the colony — and with "hold position
@@ -777,6 +846,23 @@ ok('the reach clears one growth segment, so a bite is not geometry-limited',
 const search=await p.evaluate(()=>{
   const G=window.__game, s=G.state, sub=s.substrate, net=s.active, cs=sub.cellSize;
   const n=s.config.nematodes;
+  s.clouds.length=0; s.nematodes.length=0;
+  // Grow the colony DOWN first. moveWorm's floor is surfaceY + one cell and a fresh colony's
+  // root sits at surfaceY + 6, so a worm heading for it is aiming ABOVE its own movement bound
+  // and gets deflected sideways instead of closing — 698 to 638 units over twelve steps.
+  net.energy=99999; net.water=999;
+  const r0n=net.nodes[0], c0n=sub.colAtX(r0n.x), r0r=sub.rowAtY(r0n.y);
+  const feed=[];
+  for (let c=c0n-2;c<=c0n+2;c++) for (let r=r0r+1;r<=r0r+8;r++) {
+    if (!sub.inBounds(c,r)) continue;
+    const cell=sub.cells[sub.index(c,r)]; cell.rock=0; cell.hazard=0;
+    feed.push(sub.index(c,r));
+  }
+  for (let i=0;i<10;i++) {
+    for (const j of feed) { const cl=sub.cells[j]; cl.nutrient=50; cl.maxNutrient=50; }
+    s.runOver=false; s.winPending=false; s.won=false; net.alive=true;
+    G.performAction(s,'grow',{});
+  }
   s.clouds.length=0; s.nematodes.length=0;
   const root=net.nodes[0];
   const minD=sub.worldWidth*n.seedMinColonyDistFrac;

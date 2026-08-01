@@ -10859,6 +10859,42 @@ class Network {
     // at a time as the front passes each.
     const grownIn = (n) => this.grownIn(n);
 
+    // ROT BEFORE HARVEST. A grow resolves its whole path and then claims piles, so a strand
+    // that pushed THROUGH mould on its way to a pile was still technically clean at the moment
+    // the claim ran — it only got marked infected later in the step, by infectStrandsInMould at
+    // the goal check or by infectNetwork on the world tick. The pile was banked and its draft
+    // granted by tissue that was already dead; you just could not see it yet.
+    //
+    // So the mould test runs HERE, immediately before the claim, rather than being left to the
+    // tick. Done inside colonizeReachablePiles instead of in Network.grow because every grow
+    // primitive claims piles through this one function, and fixing it at each call site would
+    // be a dozen chances to miss one.
+    const tri = this.config.trichoderma || {};
+    const th = tri.growInfectThreshold != null ? tri.growInfectThreshold : 0.05;
+    const proofed = (n) => {
+      const c = substrate.cellAtWorld(n.x, n.y);
+      return !!(c && (c.mouldProof > 0 || c.reinfectGrace > 0));
+    };
+    for (const n of this.nodes) {
+      if (n.infected || n.side || !grownIn(n)) continue;
+      const c = substrate.cellAtWorld(n.x, n.y);
+      if (c && c.trich >= th && !proofed(n)) n.infected = true;
+    }
+    // ...and the downstream invariant with it, or the runner that reached the pile is clean
+    // while the strand it grew out of is rot. Same rule as threats.js infectDescendants; kept
+    // here as a few lines rather than reaching across the module boundary, since Network is
+    // where the parent/child topology lives.
+    const rotStack = [];
+    for (const n of this.nodes) if (n.infected) rotStack.push(n);
+    while (rotStack.length) {
+      const n = rotStack.pop();
+      for (const cid of n.children) {
+        const c = this.byId.get(cid);
+        if (!c || c.infected || proofed(c)) continue;
+        c.infected = true; rotStack.push(c);
+      }
+    }
+
     // Bucket living strands by cell for a bounded nearest-node search.
     const buckets = new Map();
     let liveCount = 0;
@@ -10915,6 +10951,23 @@ class Network {
           }
       }
       if (!best) continue;                                    // pile out of reach — leave it
+      // AND YOU CANNOT REACH THROUGH MOULD TO EAT. Infected strands are already excluded from
+      // `buckets`, but that alone does not close the case the player hit: with the tissue in
+      // the pile rotten, a CLEAN strand further back simply bridged a fresh runner past the
+      // mould and banked the pile anyway. A runner that crossed live mould would be infected
+      // the moment it existed, so let it not be drawn at all — the pile stays for growth that
+      // comes a clean way round.
+      let mouldy = false;
+      {
+        const mdx = entry.x - best.x, mdy = entry.y - best.y;
+        const steps = Math.max(1, Math.ceil(Math.hypot(mdx, mdy) / (cs * 0.5)));
+        for (let i = 0; i <= steps && !mouldy; i++) {
+          const t = i / steps;
+          const c = substrate.cellAtWorld(best.x + mdx * t, best.y + mdy * t);
+          if (c && c.trich >= th && !(c.mouldProof > 0 || c.reinfectGrace > 0)) mouldy = true;
+        }
+      }
+      if (mouldy) continue;
       const bridge = this._bridgeInto(substrate, best, entry);
       if (!bridge.reached) continue;                          // walled off by rock — can't claim it
       created += bridge.created;
