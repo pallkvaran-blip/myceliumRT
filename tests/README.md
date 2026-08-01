@@ -42,6 +42,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… |
 | `core-check.cjs` | The molten core: the growth floor IS the drawn line, rocks clip at it, the earth turns red, assets stamp into the deepest row, and procedural maps have none |
 | `scale-check.cjs` | The organism scale: every growth LENGTH is base × `growth.scale`, the ratios between them survive it, the step measures what the config says, the drawn thread scales with it, and the longer step doesn't hop a wall |
+| `threat-check.cjs` | Threat rates, measured through the sim in BOTH modes: worm crawl, worm bite size, cloud creep, rot spread per step, and the render creep keeping pace with it |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
@@ -141,6 +142,36 @@ One harness note worth keeping: the food is a sparse lattice **re-seeded before 
 not one big pile. A pile the colony reaches is claimed and matted whole, and those mat hyphae
 (`colon`) land wherever the pile's cells are — with food everywhere, 6000 nodes came back and
 only ~20 of them were space-colonisation steps, so the probe was measuring the wrong rule.
+
+### `threat` — how fast a threat takes you apart (`tests/threat-check.cjs`)
+
+Four rates, each set in TWO places (the CONFIG literal and `MODE_TUNING`'s per-mode table),
+read through a deep clone, and — for the worm's bite — consumed by code that had the count
+hard-coded. So each is driven through the real sim and measured, not read back out of the
+table it was written to. **Both modes, always**: RT rates are per 500 ms tick and turn-based
+rates are per player action, so a change applied to one table only doesn't make the creature
+faster, it makes one of the two games harder, and that is invisible from inside either mode.
+
+Placing a creature to measure its step has three traps, all of which report a SHORT step
+rather than failing, and all of which cost a debug cycle here:
+
+- `moveWorm`/`moveCloud` bound themselves at `surfaceY + one cell`, and the colony's ROOT node
+  sits at `surfaceY + 6`. A creature level with the root has every step rejected as
+  out-of-bounds and never moves — a measured speed of exactly zero.
+- Both movers CLAMP the step to the remaining distance, so a creature nearer than one step
+  measures the gap instead of the speed.
+- When the straight step is blocked, both SLIDE along one axis instead — a shorter move that
+  still returns true (this read 3.7 cells against a 6-cell step).
+
+`window.__stepSpot(step)` in the check searches for a spot that is in bounds, beyond one step,
+with clear line of sight to its nearest strand (or the creature never targets it) and with the
+whole first step provably clear against the same coarse `cell.rock` mask the movers use.
+
+The last assertion is a pacing one rather than a rate: `render.infectCreepMs` is the
+renderer's ms-per-ring, and if the sim outruns it the green falls behind until
+`infectMaxLagMs` clamps it and then jumps a chunk — the exact popping the creep exists to
+remove. Tripling the spread meant retuning the creep 300 → 100 ms, and this is what keeps the
+two tied together.
 
 ### `core` — the molten core (`tests/core-check.cjs`)
 

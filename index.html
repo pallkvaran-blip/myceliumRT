@@ -2041,7 +2041,7 @@ const CONFIG = {
     cloudRadiusMax: 1.3,         // HARD cap — a cloud never grows big, however much it eats
     growthPerEat: 0.02,          // radius gained per action it's eating (tiny — stays ~the same size)
     sightRadius: 500,            // how far (world units) a cloud senses food/you and heads for it; rock blocks line of sight (SLIDER); shown on screen as a soft ring
-    moveSpeed: 0.75,             // cells per tick a cloud creeps toward its nearest target — RT: slowed 50% (was 1.5) (SLIDER)
+    moveSpeed: 1.5,              // cells per tick a cloud creeps toward its nearest target — RT: 1.5 → 0.75 → 1.5 (DOUBLED: a cloud covers twice the ground per step) (SLIDER)
     consumeReachMult: 2.2,       // cells within (cloud radius × this) are eligible to be eaten each action
     leavesPerRound: 0.175,       // AVERAGE food cells ("leaves") a cloud clears per round/tick (may be fractional —
                                  //   accumulated in a per-cloud budget, nearest cells first). RT: eating slowed 30%
@@ -2056,8 +2056,12 @@ const CONFIG = {
     growInfectThreshold: 0.05,   // a strand standing in a trich-field cell ≥ this is infected on the spot (growing INTO mould) — so it can't fruit/win at the goal
     contactChunk: 4,             // the breach instantly claims this many rings of mycelium
     growInfectBurst: 18,         // growing a strand INTO mould instantly rots this many rings (≈6 grow-steps) in EVERY direction from each caught node, so a long grow can't outrun the rot with a white tip past the cloud (SLIDER)
-    spreadDepthPerTurn: 1.5,     // rings/tick the rot races along your filaments — RT: 6 → 3 → 1.5 (halved again). May be
+    spreadDepthPerTurn: 4.5,     // rings/tick the rot races along your filaments — RT: 6 → 3 → 1.5 → 4.5 (TRIPLED). May be
                                  //   fractional; infectNetwork accumulates it and advances whole rings only, carrying the rest.
+                                 //   This is the SPEED of the spread, not its reach: the rot still has to travel the
+                                 //   filaments and still rolls infectionSpreadChance at each step, it just covers three
+                                 //   times the rings per step. The one-off bursts (contactChunk on a breach,
+                                 //   growInfectBurst on growing into mould) are deliberately unchanged.
     infectionSpreadChance: 0.85, // chance the rot takes each step of that race (SLIDER) — high = real consequences
   },
 
@@ -2131,12 +2135,19 @@ const CONFIG = {
     initialCount: 3,             // wandering worms seeded per sandbox map
     seedMinColonyDistFrac: 0.25, // seed at least this fraction of the map from the colony
     sightRadius: 500,            // detection range (matches the mould's); rock blocks line of sight (SLIDER)
-    crawlSpeed: 0.375,           // cells/tick toward a sensed strand — RT: 3.0 → 0.75 → 0.375 (halved again) so worms barely creep (SLIDER)
-    wanderSpeed: 0.125,          // cells/tick while searching — RT: 1.0 → 0.25 → 0.125 (halved again) to match
+    crawlSpeed: 0.75,            // cells/tick toward a sensed strand — RT: 3.0 → 0.75 → 0.375 → 0.75 (DOUBLED: worms cover twice the ground per step) (SLIDER)
+    wanderSpeed: 0.25,           // cells/tick while searching — RT: 1.0 → 0.25 → 0.125 → 0.25 (doubled with the crawl, to match)
     reach: 0.7,                  // cells: how close to a strand before it feeds
     eatEveryTicks: 0,            // cooldown ticks between bites: a feeding worm eats a strand,
                                  //   then waits this many ticks — so it devours one every N+1
                                  //   ticks (0 → every tick; 1 → every other tick). Lower = deadlier. (SLIDER)
+    strandsPerBite: 2,           // strands one feeding worm takes per BITE — DOUBLED from the
+                                 //   hard-coded 1 this used to be. The two knobs are different
+                                 //   levers: eatEveryTicks is how OFTEN a worm bites, this is
+                                 //   how much comes away each time. Each strand is claimed
+                                 //   separately and must be in reach, unclaimed by another worm
+                                 //   this tick, and not hardened — so a Sclerotial Crust still
+                                 //   stops the bite dead however high this goes. (SLIDER)
     breedChance: 0.8,            // chance a feeding worm splits each tick — snowballs the swarm fast (SLIDER)
     killHits: 3,                 // Excrete hits to kill one
     maxPopulation: 150,          // hard cap — a safety net, not a visible ceiling (SLIDER)
@@ -2221,10 +2232,15 @@ const CONFIG = {
     infectFadeMs: 240,           // ms one strand takes to turn cream → infected green. SHORT + crisp: each strand
                                  //   flips cleanly (no long washed-out pale-green state); the gradual look comes from
                                  //   the CREEP below — strands turning one after another along the filaments.
-    infectCreepMs: 300,          // ms the rot takes to travel ONE strand step along the mycelium. The renderer gives
+    // 300 → 100 when spreadDepthPerTurn was TRIPLED. This has to keep pace with the sim or the
+    // creep stops being a creep: at 4.5 rings/tick and 2 ticks/sec the rot advances 9 rings a
+    // second, and one ring per 300 ms is 3.3/sec — so the green would fall behind until
+    // infectMaxLagMs (2500) clamped it, then jump a chunk, which is the exact popping the
+    // creep exists to remove. 100 ms is 10 rings/sec, just ahead of the sim.
+    infectCreepMs: 100,          // ms the rot takes to travel ONE strand step along the mycelium. The renderer gives
                                  //   each rotten strand a moment to turn, one creep-step after the strand the rot came
                                  //   from, so the green flows continuously BETWEEN world ticks instead of a whole ring
-                                 //   popping in per tick. ~matched to the sim's spread rate (1.5 rings/tick @ 2/sec).
+                                 //   popping in per tick. ~matched to the sim's spread rate (4.5 rings/tick @ 2/sec).
     infectMaxLagMs: 2500,        // cap on how far behind the sim the visible creep may fall (safety valve if the rot
                                  //   ever outruns the creep — e.g. a big first-touch burst)
                                  //   (creep + fade are detail-zoom rendering only; the zoomed-out LOD still snaps)
@@ -2311,15 +2327,19 @@ const SLIDERS = [
   { path: 'energy.start',                label: 'Starting Energy',     min: 0,   max: 400, step: 5 },
   { path: 'energy.passiveIncomeRate',    label: 'Passive Income Rate', min: 0,   max: 60,  step: 1 },
   { path: 'actions.grow.energyCost',     label: 'Grow Energy Cost',    min: 0,   max: 40,  step: 1 },
-  { path: 'trichoderma.moveSpeed',       label: 'Mold Creep (speed)',  min: 0,   max: 5,   step: 0.5 },
+  // The two speed sliders have to clear TURN-BASED, which is the faster table (per action,
+  // not per 500 ms tick). At the doubled step that is 3.0 mould and 6.0 worm, so the old
+  // ceilings of 5 and 6 left the worm slider pinned AT its live value with nowhere to go.
+  { path: 'trichoderma.moveSpeed',       label: 'Mold Creep (speed)',  min: 0,   max: 8,   step: 0.5 },
   { path: 'trichoderma.sightRadius',     label: 'Mold Sight Range',    min: 100, max: 1500, step: 50 },
   { path: 'trichoderma.infectionSpreadChance', label: 'Infection Spread', min: 0, max: 1, step: 0.05 },
   { path: 'actions.amputate.radius',     label: 'Amputate Radius',     min: 20,  max: 160, step: 5 },
   { path: 'ants.harvestRate',            label: 'Ant Harvest Rate',    min: 0,   max: 200, step: 5 },
   { path: 'actions.attackAnts.energyCost', label: 'Attack Ants Cost',  min: 0,   max: 80,  step: 5 },
   { path: 'nematodes.sightRadius',       label: 'Nematode Sight',      min: 100, max: 700, step: 20 },
-  { path: 'nematodes.crawlSpeed',        label: 'Nematode Speed',      min: 0.5, max: 6,   step: 0.5 },
+  { path: 'nematodes.crawlSpeed',        label: 'Nematode Speed',      min: 0.5, max: 12,  step: 0.5 },
   { path: 'nematodes.eatEveryTicks',     label: 'Worm Eat Cooldown',   min: 0,   max: 5,   step: 1 },
+  { path: 'nematodes.strandsPerBite',    label: 'Worm Bite Size',      min: 1,   max: 8,   step: 1 },
   { path: 'nematodes.breedChance',       label: 'Nematode Breed Rate', min: 0,   max: 1,   step: 0.05 },
   { path: 'nematodes.maxPopulation',     label: 'Nematode Max',        min: 20,  max: 400, step: 10 },
   { path: 'actions.excrete.energyCost',  label: 'Excrete Cost',        min: 0,   max: 40,  step: 2 },
@@ -2341,27 +2361,34 @@ const SLIDERS = [
 // it as state.config.realtime.enabled, so nothing extra has to be threaded through.
 //
 // The two modes need DIFFERENT balance numbers because RT rates are per 500 ms tick while
-// turn-based rates are per player action (a much rarer event): a worm that creeps 0.375
+// turn-based rates are per player action (a much rarer event): a worm that creeps 0.75
 // cells twice a second would barely move if it only stepped when you played a card. So the
 // tables below hold each mode's tuning, and setMode() writes the active one into CONFIG.
+//
+// CREATURE STEP DISTANCE WAS DOUBLED in BOTH tables at once (mould + nematodes, crawl and
+// wander), which is the only way to double it: these two numbers are the same rule measured
+// in different units, so moving one alone changes which game is harder rather than how fast
+// the creature is. What did NOT double is how often a creature ACTS, how much it eats
+// (leavesPerRound) or how fast the rot spreads (spreadDepthPerTurn) — this is distance per
+// step, so a threat closes on you in half the steps and then behaves exactly as before.
 const MODE_TUNING = {
   turn: {
     'realtime.enabled': false,
-    'trichoderma.moveSpeed': 1.5,          // cells per ACTION
+    'trichoderma.moveSpeed': 3.0,          // cells per ACTION (doubled from 1.5)
     'trichoderma.leavesPerRound': 0.22,
-    'trichoderma.spreadDepthPerTurn': 6,   // rings per action
-    'nematodes.crawlSpeed': 3.0,
-    'nematodes.wanderSpeed': 1.0,
+    'trichoderma.spreadDepthPerTurn': 18,  // rings per action (tripled from 6)
+    'nematodes.crawlSpeed': 6.0,           // doubled from 3.0
+    'nematodes.wanderSpeed': 2.0,          // doubled from 1.0
     'ants.harvestRate': 40,                // nutrient per action
     'ants.extendSpeed': 999,               // the trail is laid down whole the moment it's planned
   },
   realtime: {
     'realtime.enabled': true,
-    'trichoderma.moveSpeed': 0.75,         // cells per 500 ms tick
+    'trichoderma.moveSpeed': 1.5,          // cells per 500 ms tick (doubled from 0.75)
     'trichoderma.leavesPerRound': 0.175,
-    'trichoderma.spreadDepthPerTurn': 1.5, // rings per tick (fractional — accumulated)
-    'nematodes.crawlSpeed': 0.375,
-    'nematodes.wanderSpeed': 0.125,
+    'trichoderma.spreadDepthPerTurn': 4.5, // rings per tick (fractional — accumulated); tripled from 1.5
+    'nematodes.crawlSpeed': 0.75,          // doubled from 0.375
+    'nematodes.wanderSpeed': 0.25,         // doubled from 0.125
     'ants.harvestRate': 6.5,               // nutrient per tick
     'ants.extendSpeed': 2,                 // cells/tick the ant line creeps out
   },
@@ -11133,13 +11160,25 @@ function stepNematodes(state) {
           if (!bc || bc.rock) { bx = w.x; by = w.y; }   // never spawn a newborn inside rock — fall back to the parent's clear cell
           newborns.push(makeWorm(bx, by, rng.range(0, Math.PI * 2), rng.range(0, Math.PI * 2)));
         }
-        // Eat a DISTINCT strand whole on a cooldown (one worm per strand/tick).
+        // Eat DISTINCT strands whole on a cooldown (one worm per strand/tick), up to
+        // strandsPerBite of them. Each pass re-asks for the nearest strand nobody has claimed
+        // yet, so a bigger bite widens the hole around the worm rather than double-counting
+        // one strand — and every one of them is checked for reach and for hardening, so a
+        // Sclerotial Crust still stops the whole bite at the first protected strand.
         if (w.feedCd <= 0) {
-          const bite = claimed.has(seen.id) ? nearestVisibleNode(sub, nodes, w, n.sightRadius, claimed) : seen;
-          if (bite && Math.hypot(bite.x - w.x, bite.y - w.y) <= n.reach * cs) {
+          let ate = 0;
+          const want = Math.max(1, n.strandsPerBite | 0);
+          for (let k = 0; k < want; k++) {
+            const bite = (k === 0 && !claimed.has(seen.id))
+              ? seen : nearestVisibleNode(sub, nodes, w, n.sightRadius, claimed);
+            if (!bite || Math.hypot(bite.x - w.x, bite.y - w.y) > n.reach * cs) break;
             const bcell = sub.cellAtWorld(bite.x, bite.y);
-            if (!(bcell && bcell.hardened > 0)) { claimed.add(bite.id); w.feedCd = n.eatEveryTicks; }   // Sclerotial Crust: hardened strands can't be eaten (timed)
+            if (bcell && bcell.hardened > 0) break;   // Sclerotial Crust: hardened strands can't be eaten (timed)
+            claimed.add(bite.id); ate++;
           }
+          // Only spend the cooldown on a bite that LANDED — an all-hardened frontier must not
+          // buy the colony a free tick of immunity on top of the crust it already paid for.
+          if (ate) w.feedCd = n.eatEveryTicks;
         } else w.feedCd -= 1;
       } else {
         moveWorm(w, dx / dist, dy / dist, Math.min(dist, n.crawlSpeed * cs), sub);
@@ -21466,7 +21505,78 @@ const rockEdit = {
   selAdded: new Set(),   // which of `added` are selected; a separate set from the rocks'
                          // because the two are different lists and a shared index would
                          // silently address the wrong one
+  undo: [],         // stack of editSnapshot()s — see the undo block below
+  _undoTag: null,   // which run of same-kind edits the top of the stack belongs to
+  _undoAt: 0,       // when that run last extended, for coalescing
 };
+
+// --- UNDO --------------------------------------------------------------------
+// Whole-editor snapshots rather than per-operation inverses. There are nine mutation sites
+// (transform, layer, delete, drag, place, delete-placed, arrow-nudge for each of the two
+// lists, the look sliders) across two different data models — live sprites and pending
+// markers — and hand-written inverses for each would be nine chances to get it subtly wrong.
+// At 8-77 rocks a snapshot is a few kilobytes and taking one is free.
+//
+// The rocks are captured as REFERENCES plus their geometry, never as clones. `levelSprites`
+// is the live array drawLevelRocks and solidifyRock read, so a restore writes the fields back
+// onto the SAME objects and rebuilds the array in place — replacing it would leave both
+// pointing at the old one, and cloning would drop anything a later pass hangs off a sprite.
+// Holding the refs is also what makes undoing a DELETE work: the deleted sprite is still
+// alive in the snapshot that predates its removal.
+//
+// The markers ARE cloned, because they are plain JSON the editor owns outright.
+const EDIT_UNDO_MAX = 60;      // deep enough for a real session, bounded so it cannot grow forever
+const EDIT_COALESCE_MS = 700;  // a run of same-kind edits inside this window is ONE undo
+
+function editSnapshot() {
+  return {
+    rocks: editSprites().map((s) => ({ s, x: s.x, y: s.y, w: s.w, h: s.h, rot: s.rot || 0 })),
+    added: JSON.parse(JSON.stringify(rockEdit.added)),
+    sel: [...rockEdit.sel],
+    selAdded: [...rockEdit.selAdded],
+    filter: Object.assign({}, rockEdit.filter),
+  };
+}
+
+function editRestore(snap) {
+  const sp = editSprites();
+  sp.length = 0;                                  // in place — see above
+  for (const r of snap.rocks) {
+    r.s.x = r.x; r.s.y = r.y; r.s.w = r.w; r.s.h = r.h; r.s.rot = r.rot;
+    sp.push(r.s);
+  }
+  rockEdit.added = JSON.parse(JSON.stringify(snap.added));
+  // Both selections are sets of INDICES into lists this restore just rewrote, so anything
+  // past the end has to go — otherwise the selection silently addresses a different rock.
+  rockEdit.sel = new Set(snap.sel.filter((i) => i < sp.length));
+  rockEdit.selAdded = new Set(snap.selAdded.filter((i) => i < rockEdit.added.length));
+  rockEdit.filter = Object.assign({}, snap.filter);
+  syncEditFilterInputs();
+}
+
+// Record the state BEFORE a mutation. `tag` names the KIND of edit: consecutive pushes with
+// the same tag inside EDIT_COALESCE_MS extend the run instead of stacking, so holding an
+// arrow key or clicking Bigger ten times is one undo rather than forty. Pass null for
+// anything that must always be its own step (a delete, a placement).
+function editPushUndo(tag) {
+  const now = performance.now();
+  if (tag && rockEdit._undoTag === tag && (now - rockEdit._undoAt) < EDIT_COALESCE_MS) {
+    rockEdit._undoAt = now;
+    return;
+  }
+  rockEdit._undoTag = tag || null;
+  rockEdit._undoAt = now;
+  rockEdit.undo.push(editSnapshot());
+  if (rockEdit.undo.length > EDIT_UNDO_MAX) rockEdit.undo.shift();
+}
+
+function editUndo() {
+  if (!rockEdit.undo.length) return false;
+  editRestore(rockEdit.undo.pop());
+  rockEdit._undoTag = null;      // whatever comes next starts a fresh coalescing run
+  reSolidify(); updateEditPanel(); uiDirty = true;
+  return true;
+}
 
 // Placed markers are picked in SCREEN space, not world space: a marker is a fixed-size dot
 // however far out you are zoomed, so a world-space radius would be unclickable at 0.5x and
@@ -21481,6 +21591,8 @@ function placedAt(sx, sy) {
   return -1;
 }
 function deletePlaced() {
+  if (!rockEdit.selAdded.size) return;
+  editPushUndo(null);                                       // a delete is always its own step
   const gone = [...rockEdit.selAdded].sort((a, b) => b - a);
   for (const i of gone) rockEdit.added.splice(i, 1);
   rockEdit.selAdded.clear();
@@ -21606,9 +21718,12 @@ function selCentre() {
   for (const s of t) { x += s.x; y += s.y; }
   return { x: x / t.length, y: y / t.length };
 }
-function editTransform(fn) {
+// `tag` is the undo coalescing key — a run of Bigger clicks or a held arrow key collapses to
+// one step, but scaling then rotating does not, because the tags differ.
+function editTransform(fn, tag) {
   const t = editTargets();
   if (!t.length) return;
+  editPushUndo(tag);
   const c = selCentre();
   for (const s of t) fn(s, c, t.length);
   reSolidify(); updateEditPanel();
@@ -21617,7 +21732,7 @@ function editScale(k) {
   editTransform((s, c, n) => {
     s.w *= k; s.h *= k;
     if (n > 1) { s.x = c.x + (s.x - c.x) * k; s.y = c.y + (s.y - c.y) * k; }
-  });
+  }, 'scale');
 }
 function editRotate(rad) {
   editTransform((s, c, n) => {
@@ -21628,9 +21743,9 @@ function editRotate(rad) {
       s.x = c.x + dx * co - dy * si;
       s.y = c.y + dx * si + dy * co;
     }
-  });
+  }, 'rotate');
 }
-function editNudge(dx, dy) { editTransform((s) => { s.x += dx; s.y += dy; }); }
+function editNudge(dx, dy) { editTransform((s) => { s.x += dx; s.y += dy; }, 'nudge'); }
 
 // Draw ORDER — which rock wins where two overlap. `levelSprites` is drawn front-to-back in
 // array order, so later in the list = on top, and `editExport` writes the objects in that same
@@ -21648,6 +21763,7 @@ function editNudge(dx, dy) { editTransform((s) => { s.x += dx; s.y += dy; }); }
 function editRaise(dir) {
   const sp = editSprites();
   if (!sp.length || !rockEdit.sel.size) return;
+  editPushUndo('layer' + dir);
   const picked = [...rockEdit.sel].sort((a, b) => a - b).map((i) => sp[i]).filter(Boolean);
   const rest = sp.filter((_, i) => !rockEdit.sel.has(i));
   const out = dir > 0 ? rest.concat(picked) : picked.concat(rest);
@@ -21658,6 +21774,8 @@ function editRaise(dir) {
 }
 function editDelete() {
   const sp = editSprites();
+  if (!rockEdit.sel.size) return;
+  editPushUndo(null);                                       // a delete is always its own step
   const gone = [...rockEdit.sel].sort((a, b) => b - a);     // high to low: splice is stable
   for (const i of gone) sp.splice(i, 1);
   rockEdit.sel.clear();
@@ -21704,15 +21822,11 @@ function syncEditObjectsToLevel() {
   rockEdit._objSig = JSON.stringify(rockEdit.added);
 }
 
-function syncEditFilterToLevel() {
-  if (rockEdit._forState === state) return;
-  rockEdit._forState = state;
-  syncEditObjectsToLevel();
-  const rf = (state && state.config && state.config.render && state.config.render.rockFilter) || null;
-  rockEdit.filter = { brightness: 1, contrast: 1, saturate: 1 };
-  for (const k of ['brightness', 'contrast', 'saturate']) {
-    if (rf && rf[k] != null && isFinite(+rf[k])) rockEdit.filter[k] = +rf[k];
-  }
+// Write rockEdit.filter back onto the three sliders. Its own function because the numbers
+// can now change from THREE directions — a map switch, Reset look, and an undo — and a
+// slider left showing the previous value is exactly the "the look isn't being saved"
+// confusion this whole block exists to prevent.
+function syncEditFilterInputs() {
   const p = document.getElementById('devEditPanel');
   if (!p) return;
   for (const [key, inp, out] of [['brightness', 'eeB', 'eeBv'], ['contrast', 'eeC', 'eeCv'], ['saturate', 'eeS', 'eeSv']]) {
@@ -21720,6 +21834,23 @@ function syncEditFilterToLevel() {
     if (i) i.value = String(rockEdit.filter[key]);
     if (o) o.textContent = rockEdit.filter[key].toFixed(2);
   }
+}
+
+function syncEditFilterToLevel() {
+  if (rockEdit._forState === state) return;
+  rockEdit._forState = state;
+  // The undo stack holds REFERENCES into the previous run's levelSprites, and every map
+  // switch (and every Apply) builds a fresh array of fresh sprite objects. Carrying it
+  // across would let one undo splice a dead rock from the last map into this one.
+  rockEdit.undo.length = 0;
+  rockEdit._undoTag = null;
+  syncEditObjectsToLevel();
+  const rf = (state && state.config && state.config.render && state.config.render.rockFilter) || null;
+  rockEdit.filter = { brightness: 1, contrast: 1, saturate: 1 };
+  for (const k of ['brightness', 'contrast', 'saturate']) {
+    if (rf && rf[k] != null && isFinite(+rf[k])) rockEdit.filter[k] = +rf[k];
+  }
+  syncEditFilterInputs();
 }
 
 // Rename the map you are standing in. Two cases, and neither touches the id:
@@ -21826,6 +21957,15 @@ function updateEditPanel() {
   // boot hash and `assetsFrom` all key on the id rather than the label.
   const idEl = p.querySelector('#eeId');
   if (idEl) idEl.textContent = def.id ? '#' + def.id + (def.chapter ? ' · saved' : '') : '';
+  // Undo says HOW MUCH is on the stack and greys out when there is none. Without the depth
+  // the button is a guess — the coalescing means a burst of edits is often one step, so "can
+  // I get back to where I was?" is not something you can count off the edits you made.
+  const un = p.querySelector('#eeUndo');
+  if (un) {
+    const d = rockEdit.undo.length;
+    un.disabled = d === 0;
+    un.textContent = d ? `Undo (${d})` : 'Undo';
+  }
   const n = rockEdit.sel.size, tot = editSprites().length;
   const st = p.querySelector('#eeSel');
   const np = rockEdit.selAdded.size;
@@ -21889,6 +22029,7 @@ function updateDevEditBtn() {
       '<div class="ee-stat" id="eeId"></div>' +
       '<div class="ee-stat" id="eeSel"></div>' +
       '<div class="ee-row">' +
+        '<button id="eeUndo" title="Undo the last edit (or Ctrl+Z)">Undo</button>' +
         '<button id="eeAll">Select all</button><button id="eeNone">None</button>' +
         '<button id="eeDel">Delete</button>' +
       '</div>' +
@@ -21945,7 +22086,8 @@ function updateDevEditBtn() {
     // REVERT, not clear. The marker list is now every non-rock object in the level, not just
     // the ones placed since the last Apply, so emptying it would delete the map's water, food
     // and threats on one click. Re-seeding from the def is what "undo my object edits" means.
-    $('eeClearAdd').onclick = () => { syncEditObjectsToLevel(); updateEditPanel(); uiDirty = true; };
+    $('eeClearAdd').onclick = () => { editPushUndo(null); syncEditObjectsToLevel(); updateEditPanel(); uiDirty = true; };
+    $('eeUndo').onclick = editUndo;
     $('eeAll').onclick = editSelectAll;
     $('eeNone').onclick = () => { rockEdit.sel.clear(); updateEditPanel(); uiDirty = true; };
     $('eeDel').onclick = editDelete;
@@ -21957,20 +22099,22 @@ function updateDevEditBtn() {
     $('eeDown').onclick = () => editRaise(-1);
     const bind = (id, key, out) => {
       $(id).oninput = () => {
+        // One undo per slider DRAG, not per input event: the tag coalesces the run, so
+        // sliding brightness from 1.0 to 1.6 is a single step back to 1.0.
+        editPushUndo('filter-' + key);
         rockEdit.filter[key] = Number($(id).value);
         $(out).textContent = rockEdit.filter[key].toFixed(2);
-        uiDirty = true;
+        updateEditPanel(); uiDirty = true;
       };
     };
     bind('eeB', 'brightness', 'eeBv');
     bind('eeC', 'contrast', 'eeCv');
     bind('eeS', 'saturate', 'eeSv');
     $('eeReset').onclick = () => {
+      editPushUndo(null);
       rockEdit.filter = { brightness: 1, contrast: 1, saturate: 1 };
-      for (const [i, o] of [['eeB', 'eeBv'], ['eeC', 'eeCv'], ['eeS', 'eeSv']]) {
-        $(i).value = 1; $(o).textContent = '1.00';
-      }
-      uiDirty = true;
+      syncEditFilterInputs();
+      updateEditPanel(); uiDirty = true;
     };
     $('eeSaveAs').onclick = editSaveAs;
     $('eeCopy').onclick = async () => {
@@ -22192,6 +22336,9 @@ function begin(newState) {
     // batched stroke widths are the only readable proof the thread got thicker along with
     // the step, and reading them off pixels would be a coin toss against the soil.
     netRenderer: () => rendererFor(state.active),
+    // The editor's undo, so a check can drive it without the button — and `rockEdit.undo`
+    // above is how it reads the depth (the panel's label is derived from it, not the truth).
+    editUndo,
     saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
     forgetSaved: deleteSavedLevel,
     draw: () => resolveCardOp(drawCard(state)),
@@ -22794,6 +22941,7 @@ function setupInput() {
     if (rockEdit.place) {
       const pk = PLACEABLE.find((q) => q.id === rockEdit.place);
       if (pk) {
+        editPushUndo(null);                    // each drop is its own step
         rockEdit.added.push(pk.make(w.x, w.y));
         updateEditPanel(); uiDirty = true;
         e.stopPropagation(); e.preventDefault();
@@ -22842,6 +22990,12 @@ function setupInput() {
     const w = camera.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
     const dx = w.x - rockEdit.drag.wx, dy = w.y - rockEdit.drag.wy;
     rockEdit.drag.wx = w.x; rockEdit.drag.wy = w.y;
+    // Snapshot on the FIRST move of the drag, not on pointerdown: most pointerdowns are a
+    // plain select-click that moves nothing, and taking one there would fill the stack with
+    // steps that undo to an identical map. Here the state is still pre-move, because the
+    // deltas below have not been applied yet — and `snapped` makes it once per gesture, so a
+    // drag is one undo however many move events it fires.
+    if (!rockEdit.drag.snapped) { rockEdit.drag.snapped = true; editPushUndo(null); }
     if (rockEdit.drag.placed) {
       // A placed object is not in the world yet, so nothing to re-solidify — just move the
       // marker. Objects with no y (lake, ant, mountain, city, house) are positioned by x
@@ -23034,6 +23188,7 @@ function setupInput() {
       const step = e.shiftKey ? 25 : 3;
       const dx = e.code === 'ArrowRight' ? step : e.code === 'ArrowLeft' ? -step : 0;
       const dy = e.code === 'ArrowDown' ? step : e.code === 'ArrowUp' ? -step : 0;
+      editPushUndo('nudge-placed');
       for (const i of rockEdit.selAdded) {
         const o = rockEdit.added[i];
         if (!o) continue;
@@ -23050,6 +23205,12 @@ function setupInput() {
     else if (rockEdit.on && rockEdit.sel.size && e.code === 'Comma') { editRotate(-Math.PI / 36); e.preventDefault(); }
     else if (rockEdit.on && rockEdit.sel.size && e.code === 'Period') { editRotate(Math.PI / 36); e.preventDefault(); }
     else if (rockEdit.on && e.code === 'KeyA' && (e.ctrlKey || e.metaKey)) { editSelectAll(); e.preventDefault(); }
+    // Ctrl/Cmd+Z. Only ever preventDefault when there was something to undo, so the browser's
+    // own undo still reaches the page when the editor's stack is empty. Typing is handled at
+    // the top of this handler — a Ctrl+Z in the rename field never gets here.
+    else if (rockEdit.on && e.code === 'KeyZ' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      if (editUndo()) e.preventDefault();
+    }
     // `]` / `[` layer the selection while editing. The map cycle below already stands down
     // when the editor is open, so the keys are free — and stepping to another MAP is not
     // something you want a stray keypress to do with an edit in progress anyway.

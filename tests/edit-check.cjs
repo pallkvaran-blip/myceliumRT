@@ -27,6 +27,12 @@ for(let i=0;i<6&&await p.$('#levelIntro');i++){await p.mouse.click(1100,300);awa
 ok('edit button exists', !!(await p.$('#devEditBtn')));
 await p.click('#devEditBtn'); await sleep(400);
 ok('panel opens', await p.evaluate(()=>document.getElementById('devEditPanel').classList.contains('open')));
+// Undo starts empty and says so. Asserted HERE because it is the only point in this file
+// where nothing has been edited yet — everything below leaves something on the stack.
+ok('Undo starts disabled, with nothing on the stack', await p.evaluate(()=>{
+  const b=document.querySelector('#eeUndo');
+  return !!b && b.disabled===true && b.textContent==='Undo' && window.__game.rockEdit.undo.length===0;
+}));
 
 // ---- above-ground clip ---------------------------------------------------
 // Sample EXACTLY where a rock is put, not a broad band. A first version averaged a 100px
@@ -176,6 +182,142 @@ const nBefore = await p.evaluate(()=>window.__game.state.substrate.levelSprites.
 await p.evaluate(()=>{document.querySelector('#eeAll').click();document.querySelector('#eeDel').click();});
 const nAfter = await p.evaluate(()=>window.__game.state.substrate.levelSprites.length);
 ok('delete removes rocks', nAfter===0, `${nBefore} -> ${nAfter}`);
+
+// ---- Undo ------------------------------------------------------------------
+// Snapshot-based, so the thing to prove is that a restore puts back the LIST (order and
+// membership) as well as each rock's geometry — and that it does so by writing onto the same
+// sprite objects, because levelSprites is the live array drawLevelRocks and solidifyRock read.
+//
+// Deleting every rock and getting them back is the strongest single case: it exercises
+// membership (the sprites are gone from the array), identity (the snapshot is the only thing
+// still holding them) and order at once.
+const undoDel = await p.evaluate(()=>{
+  const g=window.__game, sp=g.state.substrate.levelSprites;
+  const d0=g.rockEdit.undo.length;
+  g.editUndo();
+  return { d0, d1:g.rockEdit.undo.length, n:sp.length,
+           solid:g.state.substrate._rockSolidified };
+});
+ok('Undo brings every deleted rock back', undoDel.n===nBefore,
+   `${nAfter} -> ${undoDel.n}, wanted ${nBefore}`);
+ok('Undo pops exactly one step', undoDel.d1===undoDel.d0-1, `${undoDel.d0} -> ${undoDel.d1}`);
+ok('Undo re-runs the collision solidify', undoDel.solid===false, `solidified ${undoDel.solid}`);
+await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:60000}).catch(()=>{});
+
+// Geometry, and the coalescing that makes a run of clicks one step. Five rapid Bigger clicks
+// are one undo — otherwise holding a key or nudging a rock into place would bury the stack.
+await sleep(900);   // clear of EDIT_COALESCE_MS, so this starts its own run
+const undoScale = await p.evaluate(()=>{
+  const g=window.__game, sp=g.state.substrate.levelSprites;
+  g.rockEdit.sel=new Set([0]);
+  const s=sp[0], was={x:s.x,y:s.y,w:s.w,h:s.h,rot:s.rot||0};
+  const d0=g.rockEdit.undo.length;
+  for (let i=0;i<5;i++) document.querySelector('#eeBig').click();
+  const grew=sp[0].w;
+  const d1=g.rockEdit.undo.length;
+  g.editUndo();
+  const s2=sp[0];
+  return { was, grew, d0, d1, d2:g.rockEdit.undo.length,
+           now:{x:s2.x,y:s2.y,w:s2.w,h:s2.h,rot:s2.rot||0}, same:s2===s };
+});
+ok('five rapid Bigger clicks are ONE undo step', undoScale.d1===undoScale.d0+1,
+   `${undoScale.d0} -> ${undoScale.d1}`);
+ok('Bigger actually grew it first', undoScale.grew > undoScale.was.w + 0.5,
+   `${undoScale.was.w.toFixed(1)} -> ${undoScale.grew.toFixed(1)}`);
+ok('one Undo restores the geometry from before the whole run',
+   Math.abs(undoScale.now.w-undoScale.was.w)<1e-6 && Math.abs(undoScale.now.h-undoScale.was.h)<1e-6 &&
+   Math.abs(undoScale.now.x-undoScale.was.x)<1e-6 && Math.abs(undoScale.now.y-undoScale.was.y)<1e-6,
+   `w ${undoScale.now.w.toFixed(3)} vs ${undoScale.was.w.toFixed(3)}`);
+// The restore must WRITE ONTO the live sprite, never swap in a clone: the renderer and the
+// collision pass both hold this array, and a clone would leave them drawing the old object.
+ok('the restored rock is the SAME object, not a copy', undoScale.same===true);
+
+// Draw order is part of the snapshot too — editRaise moves array positions, not geometry, so
+// a restore that only wrote x/y/w/h would silently leave the layering wrong.
+await sleep(900);
+const undoOrder = await p.evaluate(()=>{
+  const g=window.__game, sp=g.state.substrate.levelSprites;
+  g.rockEdit.sel=new Set([1]);
+  const before=sp.map(s=>s.key).join('|');
+  document.querySelector('#eeUp').click();
+  const raised=sp.map(s=>s.key).join('|');
+  g.editUndo();
+  return { before, raised, after:sp.map(s=>s.key).join('|') };
+});
+ok('Up really changed the order first', undoOrder.raised!==undoOrder.before);
+ok('Undo restores the draw order', undoOrder.after===undoOrder.before);
+
+// A placement is its own step, never coalesced — you might drop five piles and want them
+// back one at a time. Driven through the real pointerdown handler rather than by poking
+// `added`, because that handler's own editPushUndo is the thing under test.
+await sleep(900);
+const undoPlaced = await p.evaluate(()=>{
+  const g=window.__game;
+  const btn=[...document.querySelectorAll('#eePlace button')][0];
+  btn.click();                                        // arm it
+  const n0=g.rockEdit.added.length, d0=g.rockEdit.undo.length;
+  const cv=[...document.querySelectorAll('canvas')].find(n=>n.clientHeight>0);
+  const r=cv.getBoundingClientRect();
+  cv.dispatchEvent(new PointerEvent('pointerdown',
+    {clientX:r.left+r.width/2, clientY:r.top+r.height/2, bubbles:true, pointerId:1}));
+  const n1=g.rockEdit.added.length, d1=g.rockEdit.undo.length;
+  g.editUndo();
+  btn.click();                                        // disarm, so later blocks are unaffected
+  return {n0, n1, d0, d1, n2:g.rockEdit.added.length};
+});
+ok('clicking the map with a placeable armed added an object',
+   undoPlaced.n1===undoPlaced.n0+1 && undoPlaced.d1===undoPlaced.d0+1,
+   `${undoPlaced.n0} -> ${undoPlaced.n1} objects, stack ${undoPlaced.d0} -> ${undoPlaced.d1}`);
+ok('Undo takes the placement back off', undoPlaced.n2===undoPlaced.n0,
+   `${undoPlaced.n1} -> ${undoPlaced.n2}`);
+
+// The look sliders are in the snapshot as well, and the restore has to move the SLIDER, not
+// just the number behind it — a slider left showing the old value is the exact confusion the
+// per-map filter sync exists to prevent.
+await sleep(900);
+const undoFilter = await p.evaluate(()=>{
+  const g=window.__game;
+  const was=g.rockEdit.filter.brightness;
+  const i=document.querySelector('#eeB');
+  i.value='1.80'; i.dispatchEvent(new Event('input'));
+  const set=g.rockEdit.filter.brightness;
+  g.editUndo();
+  return {was, set, now:g.rockEdit.filter.brightness,
+          slider:Number(document.querySelector('#eeB').value),
+          label:document.querySelector('#eeBv').textContent};
+});
+ok('a look slider moved the filter first', Math.abs(undoFilter.set-1.8)<1e-6, String(undoFilter.set));
+ok('Undo restores the filter value', Math.abs(undoFilter.now-undoFilter.was)<1e-6,
+   `${undoFilter.set} -> ${undoFilter.now}, wanted ${undoFilter.was}`);
+ok('Undo moves the slider and its label back too',
+   Math.abs(undoFilter.slider-undoFilter.was)<1e-6 && undoFilter.label===undoFilter.was.toFixed(2),
+   `slider ${undoFilter.slider}, label ${undoFilter.label}`);
+
+// The button reports the depth, and greys out when the stack runs dry. Drain it rather than
+// counting: the coalescing means the depth is not the number of edits made.
+const undoDrain = await p.evaluate(()=>{
+  const g=window.__game;
+  const shown=document.querySelector('#eeUndo').textContent;
+  let guard=0;
+  while (g.rockEdit.undo.length && guard++ < 500) g.editUndo();
+  return { shown, depth:g.rockEdit.undo.length,
+           text:document.querySelector('#eeUndo').textContent,
+           dis:document.querySelector('#eeUndo').disabled,
+           more:g.editUndo() };
+});
+ok('the button shows the stack depth', /^Undo \(\d+\)$/.test(undoDrain.shown), undoDrain.shown);
+ok('draining the stack disables it again',
+   undoDrain.depth===0 && undoDrain.dis===true && undoDrain.text==='Undo',
+   `depth ${undoDrain.depth}, "${undoDrain.text}", disabled ${undoDrain.dis}`);
+ok('Undo on an empty stack is a no-op, not a throw', undoDrain.more===false);
+
+// Every rock is back where it started — the whole chain above, unwound.
+await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:60000}).catch(()=>{});
+ok('unwinding everything returns the map to its opening state',
+   await p.evaluate((n)=>window.__game.state.substrate.levelSprites.length===n, nBefore),
+   `${await p.evaluate(()=>window.__game.state.substrate.levelSprites.length)} rocks, opened with ${nBefore}`);
+// Re-delete so the blocks below still start from the empty map they were written against.
+await p.evaluate(()=>{document.querySelector('#eeAll').click();document.querySelector('#eeDel').click();});
 // export
 const json = await p.evaluate(()=>{ window.__levelJSON=null; document.querySelector('#eeCopy').click(); return new Promise(r=>setTimeout(()=>r(window.__levelJSON),300)); });
 ok('export produces level JSON', !!json && json.includes('"format"'), json?('len '+json.length):'null');
@@ -500,10 +642,33 @@ const goMap = async (id) => {
 const f0 = await readFilter();
 ok('the saved map comes up with its own look', Math.abs(f0.live-1.6)<0.001 && Math.abs(f0.slider-1.6)<0.001,
    JSON.stringify(f0));
+// Edit something so there IS an undo stack to carry across the switch below.
+await p.evaluate(()=>{
+  window.__game.rockEdit.sel=new Set([0]);
+  document.querySelector('#eeBig').click();
+});
+const stackBefore = await p.evaluate(()=>window.__game.rockEdit.undo.length);
+ok('there is an undo stack to carry over', stackBefore>0, `${stackBefore} steps`);
 await goMap('slate-c40');
 const f1 = await readFilter();
 ok('switching to a map with no look resets the sliders',
    f1.id==='slate-c40' && f1.live===1 && f1.slider===1 && f1.shown==='1.00', JSON.stringify(f1));
+// A snapshot holds REFERENCES into the previous run's levelSprites, and every switch builds a
+// fresh array of fresh sprites. Carried over, one undo would splice a dead rock from the last
+// map into this one — visible, collidable, and belonging to nothing.
+const undoAfterSwitch = await p.evaluate(()=>{
+  const g=window.__game;
+  const n0=g.state.substrate.levelSprites.length;
+  const d=g.rockEdit.undo.length;
+  const took=g.editUndo();
+  return {d, took, n0, n1:g.state.substrate.levelSprites.length,
+          dis:document.querySelector('#eeUndo').disabled};
+});
+ok('a map switch clears the undo stack',
+   undoAfterSwitch.d===0 && undoAfterSwitch.took===false && undoAfterSwitch.dis===true,
+   `depth ${undoAfterSwitch.d}, undo returned ${undoAfterSwitch.took}`);
+ok('so an undo cannot splice the previous map\'s rocks into this one',
+   undoAfterSwitch.n1===undoAfterSwitch.n0, `${undoAfterSwitch.n0} -> ${undoAfterSwitch.n1} rocks`);
 await goMap('chapter-one-test');
 const f2 = await readFilter();
 ok('switching back restores the saved look',

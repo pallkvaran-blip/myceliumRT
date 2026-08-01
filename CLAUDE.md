@@ -88,6 +88,40 @@ called *before* the run begins (the title screen does).
 and turn-based rates are per player action**. Never "fix" one mode's speed without checking the
 other — a worm creeping 0.375 cells/tick would barely move if it only stepped on a card play.
 
+### Threat rates (all changed together, all in BOTH tables)
+
+`tests/threat-check.cjs` (24 assertions) measures every one of these through the sim, in both
+modes. A rate lives in two places — the CONFIG literal and `MODE_TUNING` — so **changing one
+table only doesn't make the creature faster, it makes one of the two games harder**, and that
+is invisible from inside either mode.
+
+| | turn (per action) | real time (per tick) |
+|---|---|---|
+| `trichoderma.moveSpeed` | 1.5 → **3.0** | 0.75 → **1.5** |
+| `nematodes.crawlSpeed` | 3.0 → **6.0** | 0.375 → **0.75** |
+| `nematodes.wanderSpeed` | 1.0 → **2.0** | 0.125 → **0.25** |
+| `trichoderma.spreadDepthPerTurn` | 6 → **18** | 1.5 → **4.5** |
+| `nematodes.strandsPerBite` | **2** (one value, both modes) | |
+
+- **Movement was DOUBLED — distance per step only.** How often a creature acts, how much it
+  eats (`leavesPerRound`) and how far the rot reaches are untouched, so a threat closes on you
+  in half the steps and then behaves exactly as before. `moveWorm` and `moveCloud` sample their
+  path by DISTANCE (`ceil(dist / (cs*0.5))`), so the longer step gets proportionally more
+  samples and still cannot cross rock.
+- **`strandsPerBite` is a NEW knob** — the count was hard-coded at 1 inside `stepNematodes`.
+  `eatEveryTicks` is how OFTEN a worm bites; this is how much comes away each time. Each strand
+  is claimed separately and must be in reach, unclaimed by another worm this tick, and not
+  hardened — and the loop **breaks** at the first hardened strand rather than eating around it,
+  so a Sclerotial Crust still stops the whole bite however high this goes.
+- **The rot spread was TRIPLED, and that forced `render.infectCreepMs` 300 → 100.** The creep is
+  the renderer's ms-per-ring; at 4.5 rings/tick and 2 ticks/sec the sim advances 9 rings a
+  second, against 3.3 at 300 ms. The green would fall behind until `infectMaxLagMs` (2500)
+  clamped it and then jump a chunk — the exact popping the creep exists to remove. The one-off
+  bursts (`contactChunk`, `growInfectBurst`) are deliberately unchanged: those are reach, not
+  speed.
+- **Two SLIDERS had to be re-ceilinged** to clear the turn-based table, which is the faster one:
+  mould 5→8, worm 6→12. The worm slider had been pinned exactly at its live value.
+
 Mode-gated behaviour, roughly in order of subtlety:
 
 - `performAction` / `resolveCardOp` tick the world in turn mode; the wall clock does in RT.
@@ -106,7 +140,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~597 assertions across 18 checks. **Run them; don't verify by re-reading your own diff.**
+~648 assertions across 19 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
@@ -595,7 +629,8 @@ clearing `_rockSolidified`, not on release: the point of editing in the running 
 they cannot disagree. It is cheap because nothing is resampled.
 
 - click / shift-click to select, drag to move, arrows to nudge, `+`/`-` resize, `,`/`.`
-  rotate, Delete, **Ctrl+A** for every rock. Transforms are about the SELECTION's centre, so
+  rotate, Delete, **Ctrl+A** for every rock, **Ctrl+Z** to undo. Transforms are about the
+  SELECTION's centre, so
   scaling a group holds its composition instead of shrinking each rock in place. **Those
   shortcuts are only written down here** — the toolbar used to carry them as four lines of
   prose across the top of the map, which is read once and in the way after that.
@@ -635,6 +670,27 @@ they cannot disagree. It is cheap because nothing is resampled.
     snapshot, not a flag each mutation site must remember to set).
   - **"Clear pending" is now "Revert objects"** and re-seeds from the def. Emptying the list
     would delete the map's water, food and threats in one click.
+- **Undo is snapshot-based, not per-operation inverses**, and `Ctrl/Cmd+Z` does the same thing.
+  There are nine mutation sites across two data models (live sprites, pending markers), so
+  hand-written inverses would be nine chances to get it subtly wrong; at 8-77 rocks a snapshot
+  costs nothing. Three things it has to keep doing:
+  - **Rocks are captured as REFERENCES plus geometry, never clones.** `levelSprites` is the
+    live array, so a restore writes the fields back onto the SAME objects and rebuilds the
+    array in place. Holding the refs is also what makes undoing a *delete* work — the deleted
+    sprite is still alive in the snapshot that predates its removal. Markers ARE cloned; they
+    are plain JSON the editor owns.
+  - **The stack is cleared on every run start** (`syncEditFilterToLevel`). A snapshot points
+    into the previous run's `levelSprites`, and every map switch and every Apply builds a
+    fresh array of fresh sprites — carried over, one undo splices a dead rock from the last
+    map into this one.
+  - **Same-kind edits inside 700 ms coalesce into one step** (`editPushUndo(tag)`), so a held
+    arrow key or ten Bigger clicks is one undo. Deletes and placements pass `tag: null` and are
+    always their own step. A DRAG snapshots on its first `pointermove`, not on `pointerdown` —
+    most pointerdowns are a select-click that moves nothing, and snapshotting there fills the
+    stack with steps that undo to an identical map.
+  Not covered: **rename** (it writes localStorage) and **Apply** (a full restart, which is what
+  clears the stack). The button shows the depth, because coalescing means the depth is not the
+  number of edits you made.
 - **Copy JSON** puts the level on the clipboard in `docs/levels/<id>.json` shape. Nothing is
   written from the browser. It also parks it on `window.__levelJSON` — always, not only when
   the clipboard fails, because headless Chromium's clipboard write SUCCEEDS and the first
@@ -718,7 +774,7 @@ Save also copies the JSON out (clipboard + `window.__levelJSON`) and switches in
 map, which stamps any pending placements the same way Apply does. **localStorage is one
 browser profile: the map is only durable once its JSON is committed to `docs/levels/`.**
 
-`tests/edit-check.cjs` covers all of it (73 assertions) and asserts on `levelSprites`, not on
+`tests/edit-check.cjs` covers all of it (95 assertions) and asserts on `levelSprites`, not on
 the panel's labels. `rockEdit`, `levels`, `saveAs` and `forgetSaved` are on `window.__game` for
 that reason. The save-as block deliberately runs on a FRESH page load — the steps before it
 delete every rock, and a saved copy of an empty map cannot show that `assetsFrom` resolved.
