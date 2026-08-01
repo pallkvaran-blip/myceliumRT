@@ -52,6 +52,18 @@ const geom=await p.evaluate(()=>{const s=window.__game.state.substrate;
   return {surfaceY:s.surfaceY, coreY:s.coreY, growFloorY:s.growFloorY, worldHeight:s.worldHeight,
           frac:s.coreDepthFrac};});
 ok('an authored map has a core line', geom.coreY!=null, JSON.stringify(geom));
+// DEPTH IS THE WORLD'S HEIGHT. The line cannot go below the cell grid, so the only way to put
+// it deeper is a taller content box — extended by CORE_DEPTH_MULT over what the level's JSON
+// declares, with the map's own objects keeping their absolute coordinates. Read the declared
+// box off the level def, which configForLevelDef must NOT have mutated: the multiplier is
+// applied to the config, so a save round-trips the original and cannot compound.
+const decl=await p.evaluate(()=>{const d=window.__game.state.levelDef||{};
+  return {h:(d.world||{}).height, sy:(d.world||{}).surfaceY};});
+ok('the level def keeps the height its tracer wrote', Math.abs(decl.h-1278.6)<0.01,
+   `def height ${decl.h}, surfaceY ${decl.sy}`);
+ok('the content box runs 1.5x that depth, so the core has room to be deeper',
+   Math.abs((geom.worldHeight-geom.surfaceY) - (decl.h-decl.sy)*1.5) < 2,
+   `played depth ${Math.round(geom.worldHeight-geom.surfaceY)} vs declared ${Math.round(decl.h-decl.sy)}`);
 // 1.5 was asked for; the world cannot hold a line 1.5 content-depths down, so Substrate clamps
 // it to the floor. The clamp is the assertion: a fraction past 1 must NOT put the growth floor
 // below the cell grid, where _placeOk would happily grow into a gridless void.

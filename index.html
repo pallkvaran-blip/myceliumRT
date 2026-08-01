@@ -12093,6 +12093,12 @@ function isLevel(o) {
   return !!o && o.format === LEVEL_FORMAT && (o.version | 0) <= LEVEL_VERSION && Array.isArray(o.objects);
 }
 
+// How much deeper an authored map runs than the box its JSON declares — the room the core
+// needs. 1.5 is the depth the owner settled on: the traced art fills the top two-thirds and
+// the last third is open soil down to the molten floor. Raising this is the ONLY way to put
+// the line deeper, since the line cannot go below the cell grid (see configForLevelDef).
+const CORE_DEPTH_MULT = 1.5;
+
 // A clone of `config` with the level's world box applied. The rest of CONFIG
 // (economy, threat behaviour, render) is untouched — an authored map changes
 // GEOMETRY, not rules.
@@ -12105,12 +12111,22 @@ function configForLevelDef(config, level) {
   if (w.cellSize) cfg.world.cellSize = w.cellSize;
   // THE CORE, on for authored maps. Every object on one of these is placed by hand, so
   // nothing can end up stranded below the line the way procedural generation would strand it
-  // (see CONFIG.world.coreDepthFrac). A map may move the line, or set null for no core.
-  // 1.5 asked for, clamped to the content floor by Substrate: three times the depth of the
-  // first version (0.5), which the world cannot actually hold — so the line lands at the map's
-  // own floor, the WHOLE map is playable, and the core begins immediately below it. Set a
-  // value under 1 to bring the line back up inside the map.
-  cfg.world.coreDepthFrac = 1.5;
+  // (see CONFIG.world.coreDepthFrac). A map may set `coreDepthFrac` under 1 to bring the line
+  // back up inside the map, or null for no core at all.
+  //
+  // DEPTH IS THE WORLD'S HEIGHT, not the fraction. The line can only be as deep as there are
+  // cells for it to sit on — a fraction past 1 is clamped, because a growth floor below the
+  // grid would let the colony grow into a gridless void. So "deeper" means a TALLER content
+  // box: it is extended by CORE_DEPTH_MULT and the core sits at its new floor. The map's own
+  // objects keep their absolute coordinates, so the traced art stays exactly where it was and
+  // the extra depth arrives as open soil beneath it.
+  //
+  // Applied to the CONFIG, never to the level — `def.world.height` stays as the tracer wrote
+  // it, so editExport round-trips the original and the multiplier is re-applied on load rather
+  // than compounding through a save.
+  const _sy = cfg.world.surfaceY;
+  cfg.world.height = _sy + (cfg.world.height - _sy) * CORE_DEPTH_MULT;
+  cfg.world.coreDepthFrac = 1;
   if (w.coreDepthFrac !== undefined) cfg.world.coreDepthFrac = w.coreDepthFrac;
   // A TRACED map brings its own lighting, baked into the art by whatever drew it, and the
   // renderer's ambient pass then multiplies the whole underground by a warm tint

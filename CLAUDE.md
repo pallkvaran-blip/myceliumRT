@@ -226,15 +226,19 @@ Harness traps that have cost real time:
 
 A second hard boundary, the mirror of the soil line. `world.coreDepthFrac` (a fraction of the
 content depth, `surfaceY`→`height`) puts `substrate.coreY`; below it the earth is molten rock.
-Authored maps ask for **1.5**, which `Substrate` **clamps to 1** — so the line lands at the
-map's own floor, the whole map is playable, and the core begins immediately under it. The clamp
-is not tidiness: there are no cells below `height`, so a growth floor past it would let the
-colony grow into a gridless void, and a line drawn past it would leave a band of soil you can
-see but cannot enter. `null` (or 0) means no core at all. Three things key off that one number:
+**Depth is the WORLD'S HEIGHT, not the fraction.** The line cannot go below the cell grid — a
+fraction past 1 is clamped, because a growth floor under no cells would let the colony grow into
+a gridless void and a line drawn there would leave soil you can see but cannot enter. So an
+authored map's content box is extended by **`CORE_DEPTH_MULT` (1.5)** over what its JSON
+declares and the core sits at the new floor. The map's objects keep their absolute coordinates,
+so traced art stays put and the extra depth arrives as open soil beneath it. The multiplier is
+applied to the CONFIG, never to the level, so `def.world.height` round-trips through a save
+unchanged instead of compounding. Raising `CORE_DEPTH_MULT` is the only way to go deeper.
+`coreDepthFrac` under 1 brings the line back up INSIDE the map; `null` means no core at all.
+Three things key off that one number:
 
 - **`substrate.growFloorY`** is what `Network._placeOk` tests — the core when there is one, the
-  content floor otherwise, with the same ±2 margin the soil line uses. Measured: deepest
-  placeable 1276 against a core at 1279.
+  content floor otherwise, with the same ±2 margin the soil line uses.
 - **`drawLevelRocks` clips at it**, exactly as it clips at `surfaceY`. A rock dragged below the
   line is cut off by the core the way one dragged up is cut off by the sky. Collision below the
   line is deliberately left alone — the colony cannot reach it, so an invisible wall down there
@@ -256,8 +260,8 @@ depth, so a core at 0.5 strands about half of every generated map's resources be
 colony cannot cross — and procedural rock is drawn by `drawRockPiles`/`drawRockFormations`,
 which the clip does not cover, so it floats on the red as well. The 100-level campaign is the
 shipped game; it keeps its whole world until generation is taught about the core. An authored
-map places its own food by hand, so it has neither problem. A level can set its own
-`world.coreDepthFrac` (under 1 brings the line up INSIDE the map), or `null` for no core.
+map places its own food by hand, so it has neither problem — and the extended box is applied
+in the same place, so a procedural map keeps its declared height too.
 
 `tests/core-check.cjs` (10 assertions) covers the lot, including that a fraction past 1 is
 clamped rather than put through. Its hue assertion is calibrated against the NULL case (no core:
