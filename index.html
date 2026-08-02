@@ -11324,30 +11324,36 @@ function stepNematodes(state, phase = 'both') {
         // sit still forever unless the player happened to grow into their sight: the reported
         // "nematodes are failing to move at all", and not a movement bug at all — a searching bug.
         //
-        // So a worm with no target now CREEPS TOWARD THE NEAREST STRAND WITHOUT NEEDING LINE OF
-        // SIGHT, at wanderSpeed — which is what that knob was for before the behaviour it drove
-        // was removed and left it dead (set in three places, read by nothing). It is deliberately
-        // slower than crawlSpeed: out of sight the worm is casting about, and only once it can
-        // actually see you does it charge at the full crawl. That keeps the original intent —
-        // they do not drift around aimlessly — while letting them arrive.
+        // A worm that cannot see you SEARCHES. It does NOT home in on you.
+        //
+        // The previous fix for "worms never move" pointed them at the nearest strand with no
+        // line-of-sight test and no range limit, at wanderSpeed. That did make them arrive, but
+        // it also made every worm on the map omniscient: it walked straight at the colony
+        // through rock and lakes, from anywhere, forever. Reported as "enemy sensing — they are
+        // not supposed to be able to see through rocks, lakes, etc", and correctly: a worm
+        // rounding a boulder it could not possibly know you were behind reads as cheating.
+        //
+        // So the fallback is a real search — keep a heading, jitter it, turn when you hit
+        // something. Worms still move (the bug that fix was for), still arrive (a searching
+        // worm crosses into sight range and then CHARGES at the full crawl), and nothing
+        // senses through solid ground. The ant-trail fallback below stays, because it is
+        // line-of-sight tested — a trail is a scent you can actually detect from where you are.
         const t = nearestPointInRange(trailPts, w.x, w.y, n.sightRadius, sub);
         w.trailing = !!t;
         if (t) {
           const dx = t.x - w.x, dy = t.y - w.y, d = Math.hypot(dx, dy) || 1;
           w.heading = Math.atan2(dy, dx);
           moveWorm(w, dx / d, dy / d, Math.min(d, n.crawlSpeed * cs), sub);
-        } else if (nodes.length) {
-          let goal = null, gd = Infinity;
-          for (const nd of nodes) {
-            const d = (nd.x - w.x) ** 2 + (nd.y - w.y) ** 2;
-            if (d < gd) { gd = d; goal = nd; }
-          }
-          if (goal) {
-            const dx = goal.x - w.x, dy = goal.y - w.y, d = Math.hypot(dx, dy) || 1;
-            w.heading = Math.atan2(dy, dx);
-            const wander = n.wanderSpeed != null ? n.wanderSpeed : n.crawlSpeed * 0.25;
-            moveWorm(w, dx / d, dy / d, Math.min(d, wander * cs), sub);
-          }
+        } else {
+          // SEARCH. A persistent heading with a small jitter, not a fresh random direction each
+          // step — an unbiased re-roll every tick averages to standing still, which is the bug
+          // this branch exists to avoid. Turn hard when the step is blocked, so a worm works
+          // along a rock face instead of grinding into it.
+          const wander = n.wanderSpeed != null ? n.wanderSpeed : n.crawlSpeed * 0.25;
+          if (w.heading == null) w.heading = rng() * Math.PI * 2;
+          w.heading += (rng() - 0.5) * 0.7;
+          const moved = moveWorm(w, Math.cos(w.heading), Math.sin(w.heading), wander * cs, sub);
+          if (!moved) w.heading = rng() * Math.PI * 2;
         }
       }
     }

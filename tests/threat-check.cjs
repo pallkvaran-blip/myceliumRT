@@ -941,9 +941,15 @@ ok('worms seed BEYOND their own sight radius (which is what caused this)',
    !search.err && search.minSeedCells > search.sightCells,
    search.err || `seeded >=${search.minSeedCells.toFixed(1)} cells out, sight is ${search.sightCells.toFixed(1)}`);
 ok('...so a fresh worm can see nothing at all', !search.err && search.seesAtStart===false);
-ok('a worm with nothing in sight still closes on the colony',
-   !search.err && search.end < search.start - 100,
-   search.err || `nearest ${Math.round(search.start)} → ${Math.round(search.end)} units over 12 steps`);
+// It must MOVE, not close. This assertion used to require the pack to get materially nearer
+// over 12 blind steps, which is only achievable by steering at a colony it cannot see — the
+// omniscient homing the owner rejected ("they are not supposed to be able to see through
+// rocks, lakes, etc"). A searching worm's distance is a random walk, so pinning its direction
+// would be pinning the bug. What matters is that it does not sit still: `everMoved` below is
+// the assertion that the original "nematodes never move" report is still fixed.
+ok('a worm with nothing in sight is searching, not sitting still',
+   !search.err && search.everMoved > 0,
+   search.err || `${search.everMoved}/${search.total} moved; nearest ${Math.round(search.start)} → ${Math.round(search.end)} units over 12 blind steps`);
 // MOST of them, not all: the placement scan can seal a worm into a rock pocket with no opening
 // at all, and no amount of local deflection gets it out of one. That is the map, not the mover.
 ok('...and most worms are moving rather than held in place',
@@ -1025,6 +1031,53 @@ const thru = await p.evaluate(() => {
 ok('a clean strand does not read as reached-through-rot', thru.cleanTip === false);
 ok('a strand beyond rot DOES, so it cannot fruit', thru.throughRot === true);
 ok('a strand ABOVE the rot is unaffected', thru.aboveTheRot === false);
+
+
+// ---- NOTHING SENSES THROUGH ROCK -------------------------------------------
+// Reported twice now in different forms, so it gets an assertion. A worm that cannot SEE the
+// colony must not steer at it: measure the angle between its heading after one step and the
+// bearing to the colony, over every spot on the map that is out of sightRadius AND has no
+// clear line. Homing reads ~0 degrees; searching is spread.
+//
+// Measured: the omniscient version had a MEDIAN of 1 degree with 90% of worms steering within
+// 30 degrees of straight at a colony they could not possibly see. Searching reads ~86 median,
+// ~14% within 30 -- which is what chance gives over a 180-degree spread.
+// A FRESH page. Everything above this has been rebuilding colonies and clearing cells in the
+// live world, and this measurement needs a map that still has its rock: on the reused page the
+// scan found ZERO spots that were open, out of range and blind, so it measured nothing and
+// reported it as a pass-shaped null.
+const sp = await boot(ctx, base + '/index.html?sense#dev,turn');
+const sense = await sp.evaluate(() => {
+  const G=window.__game,s=G.state,sub=s.substrate,net=s.active,cs=sub.cellSize,n=s.config.nematodes;
+  s.clouds.length=0;
+  net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  const cx=400, cy=sub.surfaceY+cs*4;
+  let par=net.addNode(cx,cy,null); par._liveAt=0;
+  for(let i=1;i<30;i++){ par=net.addNode(cx+(i%5)*6, cy+Math.floor(i/5)*6, par); par._liveAt=0; }
+  const angles=[];
+  for (let gx=900; gx<sub.worldWidth-100; gx+=60)
+    for (let gy=sub.surfaceY+40; gy<sub.worldHeight-40; gy+=60) {
+      if (sub.solidAtWorld(gx,gy)) continue;
+      if (Math.hypot(gx-cx,gy-cy) < n.sightRadius) continue;   // must be out of range
+      if (sub.segmentClear(gx,gy,cx,cy)) continue;             // and blind to the colony
+      s.nematodes.length=0;
+      s.nematodes.push({x:gx,y:gy,hp:n.maxHp,heading:null,targetId:null,sees:false,trailing:false});
+      const w=s.nematodes[0];
+      G.tickWorld(s);
+      if (w.heading==null) continue;
+      const bearing=Math.atan2(cy-gy, cx-gx);
+      angles.push(Math.abs(((w.heading-bearing+Math.PI*3)%(Math.PI*2))-Math.PI)*180/Math.PI);
+    }
+  angles.sort((a,b)=>a-b);
+  return { n:angles.length, median:angles.length?Math.round(angles[Math.floor(angles.length/2)]):null,
+           within30:angles.filter(a=>a<30).length };
+});
+await sp.close();
+ok('a blind worm does not steer at the colony', sense.n > 50 && sense.median >= 40,
+   `median ${sense.median} deg off the bearing, over ${sense.n} blind spots (homing measured 1)`);
+ok('and only chance-many of them point roughly at it',
+   sense.n > 50 && sense.within30 / sense.n < 0.35,
+   `${sense.within30}/${sense.n} within 30 deg (homing measured 90%)`);
 
 await b.close(); srv.close();
 
