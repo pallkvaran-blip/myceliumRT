@@ -26019,7 +26019,6 @@ function surfaceProps() {
 // rises from the ground rather than floating. Sized large; the base spans wider
 // than the impassable wall so the slopes reach the ground on both sides.
 let _mtnState = null, _mtns = null;
-let _rangeBuf = null;   // offscreen buffer for the faded range backdrop
 function mountainRuns() {
   if (_mtnState === state) return _mtns;
   const sub = state.substrate, runs = [];
@@ -26084,20 +26083,30 @@ function drawMountains() {
       // drawn straight, the solid base of the range silhouette reads as a flat
       // grey slab hugging the surface (looks like a concrete strip). The buffer
       // also clips to the sky band (its own bounds), like the old clip rect.
-      if (!_rangeBuf) _rangeBuf = document.createElement('canvas');
-      if (_rangeBuf.width !== bandW || _rangeBuf.height !== bandH) { _rangeBuf.width = bandW; _rangeBuf.height = bandH; }
-      const bctx = _rangeBuf.getContext('2d');
-      bctx.clearRect(0, 0, bandW, bandH);
-      bctx.filter = 'brightness(0.72) saturate(0.78) blur(1.0px)';  // atmospheric — far back, but readable
-      bctx.drawImage(img, s.x - sw / 2, (by - sh) - skyTopY, sw, sh);
-      bctx.filter = 'none';
-      const fade = bctx.createLinearGradient(0, bandH * 0.42, 0, bandH);
-      fade.addColorStop(0, 'rgba(0,0,0,0)');                  // keep the peaks up high
-      fade.addColorStop(1, 'rgba(0,0,0,1)');                  // dissolve into the horizon at the surface
-      bctx.globalCompositeOperation = 'destination-out';
-      bctx.fillStyle = fade;
-      bctx.fillRect(0, 0, bandW, bandH);
-      bctx.globalCompositeOperation = 'source-over';
+      // CACHED PER CAMERA POSITION. This buffer is as wide as the viewport and was rebuilt every
+      // frame — a clear, a BLURRED filtered blit and a full-band gradient wipe — though none of
+      // it changes until the camera moves. The blur is the expensive part, and on a phone this
+      // band plus the peaks below were the largest destination-fill item left in the frame.
+      const rk = (img.__mipId || (img.__mipId = ++_mipSeq)) + '|' + bandW + '|' + bandH + '|' +
+                 Math.round(s.x) + '|' + Math.round(sw) + '|' + Math.round(sh) + '|' + Math.round(skyTopY);
+      let _rangeBuf = _formCache.get(rk);
+      if (!_rangeBuf) {
+        if (_formCache.size > 240) _formCache.clear();
+        _rangeBuf = document.createElement('canvas');
+        _rangeBuf.width = bandW; _rangeBuf.height = bandH;
+        const bctx = _rangeBuf.getContext('2d');
+        bctx.filter = 'brightness(0.72) saturate(0.78) blur(1.0px)';  // atmospheric — far back, but readable
+        bctx.drawImage(img, s.x - sw / 2, (by - sh) - skyTopY, sw, sh);
+        bctx.filter = 'none';
+        const fade = bctx.createLinearGradient(0, bandH * 0.42, 0, bandH);
+        fade.addColorStop(0, 'rgba(0,0,0,0)');                  // keep the peaks up high
+        fade.addColorStop(1, 'rgba(0,0,0,1)');                  // dissolve into the horizon at the surface
+        bctx.globalCompositeOperation = 'destination-out';
+        bctx.fillStyle = fade;
+        bctx.fillRect(0, 0, bandW, bandH);
+        bctx.globalCompositeOperation = 'source-over';
+        _formCache.set(rk, _rangeBuf);
+      }
       ctx.save();
       ctx.beginPath(); ctx.rect(homeR, skyTopY, Math.max(0, camera.viewW - homeR), bandH); ctx.clip();   // never haze over the left home hill
       ctx.globalAlpha = 0.55;                                 // distant haze
@@ -26159,8 +26168,12 @@ function drawMountains() {
     ctx.beginPath();                                // clip to the sky band — cut tops at the sky top, hide the buried base
     ctx.rect(0, skyTopY, camera.viewW, surfY - skyTopY);
     ctx.clip();
-    ctx.filter = `brightness(${bright.toFixed(3)}) saturate(0.82)`;
-    ctx.drawImage(img, s.x - sw / 2, by - sh, sw, sh);
+    // Same slow path the leaf heaps were on: a per-draw ctx.filter, every frame, for a constant
+    // dimming. Baked into a cached mip instead — see _spriteMip.
+    const pf = `brightness(${bright.toFixed(3)}) saturate(0.82)`;
+    const pm = _spriteMip(img, sw, sh, pf);
+    if (pm) ctx.drawImage(pm, s.x - sw / 2, by - sh, sw, sh);
+    else { ctx.filter = pf; ctx.drawImage(img, s.x - sw / 2, by - sh, sw, sh); }
     ctx.restore();
   });
 }

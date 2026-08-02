@@ -412,6 +412,78 @@ Harness traps that have cost real time:
 - **A check can pass with zero coverage.** A harness that bails before its first assertion prints
   `0/0` and exits 0, which the runner counts as green. If a check's count drops, that's a
   failure, not a pass — `aim-check` has done exactly this.
+- **MAKING THE GAME FASTER BREAKS CHECKS THAT WERE SECRETLY TIMING IT.** A perf pass took frames
+  from ~520 ms to ~90 ms and `hover-check` went 5/5 → 1/5 with the HUD working perfectly. Three
+  separate dependencies, all the same mistake — waiting on a *proxy* for "the HUD refreshed"
+  instead of on the HUD:
+  - **A rAF callback is not a render.** The frame loop paces an idle board to `IDLE_FPS`, so at
+    30 fps two rAF callbacks can both land inside one window and draw nothing. Wait on
+    `paceInfo().renders` advancing.
+  - **A mutation is not on screen until a refresh puts it there.** The probe replaced the hand
+    and captured `.handlist`'s first child one rAF later — which was still the dev carousel's 61
+    cards, so the element predated its own mutation and the next refresh replaced it. That
+    reported as "the HUD re-created the hovered card", the exact opposite of the truth. Drive
+    ticks until the DOM shows what you put there, and assert that it got there.
+  - **`tickWorld` advances the sim but never marks the HUD dirty.** Calling it in a loop moves
+    the model while the DOM sits still. In REAL TIME the honest way to advance a wall-clock
+    quantity (the round clock, the cadence bars) is to *sleep* and let the real loop tick.
+  Whenever a check's numbers move after a perf change, ask what it was really measuring before
+  believing it found a regression.
+
+## Performance
+
+`tests/perf-probe.cjs` is the measuring tool — a tool, not a check, so it prints and never
+fails. `node tests/perf-probe.cjs 3000` for a desktop window, `... 3000 390 844` for a phone
+(implies dpr 3), `PERF_WORMS=60` for a late-game threat load. It times `renderFrame` and
+`tickWorld` separately, censuses every `drawImage` in one frame by call site, and aggregates a
+CDP profile by SELF time.
+
+- **`__game.renderFrame` draws one frame synchronously, and that is the only way to time the
+  render here.** Headless throttles rAF toward 1-2 Hz, so a stopwatch on the real loop measures
+  the throttle.
+- **PIN THE SEED.** `startRun()` seeds the world from `Date.now()`, so every boot is a different
+  map with a different amount of food on screen — the frame median swung between 91 and 999 ms
+  on identical code. Freeze `Date.now` over the boot (the probe does) or you are comparing maps,
+  not builds. Note `placeRockface()` uses `Math.random()`, NOT the seeded rng, so the troll rock
+  moves every boot however well you pin the seed — it is not a rendering difference.
+- **Headless is a SOFTWARE rasteriser, so absolute render times are inflated and not a phone.**
+  The hardware-independent numbers are the per-frame source pixels READ, the destination pixels
+  WRITTEN, and the number of `ctx.filter` draws — which is what a mobile GPU is actually short
+  of. Quote those, and say which of the rest is software raster.
+
+What the first pass found, all four the same shape — work redone every frame that only changes
+when the camera does:
+
+- **`drawImage` reads the whole source rect however small the destination.** Food piles drew
+  8-11 leaf sprites per CELL, each a ~300 px source scaled to ~12 px: 228 blits reading 21.5 Mpx
+  to write 0.06. `_spriteMip` scales a sprite into a small offscreen canvas once, keyed by
+  (sprite, power-of-two size bracket, filter).
+- **`ctx.filter` per draw is a slow path** — the browser composites through an offscreen buffer
+  for each call. Bake the filter into the cached mip instead. Leaves and mountain peaks both did
+  this for a constant colour tweak, every frame.
+- **Composites rebuilt per frame.** `_blitFormation` re-did each rock's downscale + tint + base
+  gradient from the full-size source every frame; `drawMountains` rebuilt a viewport-wide buffer
+  including a `blur(1px)`. Both cached in `_formCache` keyed by size/tint/camera position.
+- **`nearestVisibleNode` scanned the whole colony, twice per worm.** 82 worms x 5,888 strands is
+  the periodic HITCH, not a steady slowdown, and threats compound from L7 so it arrives exactly
+  as a run gets long. Now a bucket grid scanned as EXPANDING RINGS, which stops as soon as no
+  further ring can hold anything nearer. A coarse sight-sized grid was tried first and barely
+  helped (84 → 71 ms): with a dense colony the 3x3 query still swept most of it.
+- **`checkGoalReached` ran `reachedThroughRot` for every strand every step** — a full parent-chain
+  walk, to answer a question only a strand already touching the goal surface can use. Every
+  condition in that loop is a `continue`, so the order was free to choose. Over half of
+  `tickWorld`.
+
+Measured, fixed seed, 5,888 strands, 82 worms: renderFrame 519.8 → 87.1 ms median at 1280x720,
+tickWorld 17.6 → 1.5 ms, tick p90 83.7 → 7.4 ms, reads 28.5 → 6.4 Mpx. **At a phone viewport the
+render medians are the same in both builds** (76 → 74 ms) — the expensive content is largely off
+a tall narrow screen, and what is left is full-screen destination fill — but reads went 13.6 →
+3.0 Mpx, writes 2.5 → 1.1 Mpx, and the tick p90 75.6 → 7.7 ms. The hitch is the part that was
+fixed for phones; do not claim a render win there off this harness.
+
+Already in place before any of that, and worth not re-deriving: `RENDER_DPR_CAP` 2 and
+`RENDER_PIXEL_BUDGET` 2.3 Mpx (`renderScale`), and `IDLE_FPS` 30 for a still board
+(`needsFullRate`).
 
 ## Things that break if you forget them
 

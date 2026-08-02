@@ -101,7 +101,14 @@ const SPOT_HELPER = `window.__spotOutOfReach = function (step) {
         if (!sub.segmentClear(x, y, best.x, best.y)) continue;  // can't sense through rock
         const ux = (best.x - x) / bd, uy = (best.y - y) / bd;
         if (!pathOk(x, y, x + ux * step, y + uy * step)) continue;   // would slide, not step
-        return { x, y, gap: bd / cs };
+        // THE BEARING TO THE TARGET. A worm travels along its HEADING, turning at
+        // nematodes.turnRate — so a probe that seeds heading 0 and then measures distance is
+        // measuring turn latency: the path cleared above runs toward the target, the worm sets
+        // off along whatever one turn-rate swing allows, and moveWorm stops at the first rock in
+        // THAT direction. It read 8 cells only while the seeded heading happened to suit the
+        // geometry, and 2, 3 and 5.5 when it did not. (The same defect, and the same fix, as
+        // __stepSpot in threat-check.)
+        return { x, y, gap: bd / cs, heading: Math.atan2(best.y - y, best.x - x) };
       }
     }
   }
@@ -170,7 +177,7 @@ const crawl = await p.evaluate(() => {
   const want = s.config.nematodes.crawlSpeed;
   const spot = window.__spotOutOfReach(want * cs);
   if (!spot) return { err: 'no clear spot to measure a crawl from' };
-  s.nematodes.push({ x: spot.x, y: spot.y, heading: 0, phase: 0, stuck: 0, feedCd: 0, hp: 0,
+  s.nematodes.push({ x: spot.x, y: spot.y, heading: spot.heading, phase: 0, stuck: 0, feedCd: 0, hp: 0,
                      sees: false, feeding: false, trailing: false, targetId: null });
   const w = s.nematodes[0], x0 = w.x, y0 = w.y;
   G.tickWorld(s, 'move');
