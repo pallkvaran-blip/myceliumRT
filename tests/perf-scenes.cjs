@@ -104,5 +104,43 @@ for(const [n,setup,step,frames] of scenes){
   console.log(`${n.padEnd(12)} ${pct(r.out,0.5).toFixed(1).padStart(6)} ${pct(r.out,0.9).toFixed(1).padStart(6)} ${Math.max(...r.out).toFixed(1).padStart(7)}   ${String(r.canvases).padStart(6)}`);
 }
 
+// ---- the CARD CAROUSEL, which is DOM and not canvas ------------------------
+// A different cost entirely: the canvas repaints behind it, and the HUD refreshes on every
+// world tick, so the risk is that scrolling the strip races a rebuild and the row under the
+// finger is destroyed mid-drag. `_handSig` exists to stop exactly that, and scrollLeft is
+// deliberately not part of it — this checks that holds while the world is actually ticking,
+// and what a frame costs with the strip open at each zoom.
+for (const [tag, setZoom] of [['out', ZOUT], ['in', ZIN]]) {
+  const r = await p.evaluate(({setZoom})=>{
+    const G=window.__game, s=G.state, cam=G.camera, net=s.active;
+    new Function('G','cam','s',setZoom)(G,cam,s);
+    s.cards.hand.length=0;
+    for (const n of ['Apical Drive','Rhizomorph Lance','Hyphal Extension','Turgor Thrust','Acorn Cache','Tropic Lunge'])
+      s.cards.hand.push({id:s.cards.seq++, name:n});
+    net.energy=1e6; net.water=999;
+    const bar=document.querySelector('.handbar'); if (bar) bar.classList.add('open');
+    G.renderFrame(performance.now(),1);
+    const list=document.querySelector('.handlist');
+    if (!list) return {err:'no carousel'};
+    const first=list.firstElementChild;
+    const t=[]; let rebuilt=0, maxScroll=0;
+    for (let i=0;i<40;i++){
+      const span=Math.max(1, list.scrollWidth-list.clientWidth);
+      maxScroll=Math.max(maxScroll, span);
+      list.scrollLeft=(i*41)%span;                     // drag the strip
+      s.runOver=false; s.winPending=false; net.alive=true;
+      G.tickWorld(s);                                  // ...while the world ticks under it
+      const t0=performance.now(); G.renderFrame(performance.now(),1); t.push(performance.now()-t0);
+      const l2=document.querySelector('.handlist');
+      if (!l2 || l2.firstElementChild!==first) rebuilt++;
+    }
+    return {t, rebuilt, cards:list.children.length, span:maxScroll};
+  },{setZoom});
+  if (r.err) { console.log(`carousel-${tag}  ${r.err}`); continue; }
+  console.log(`carousel-${tag.padEnd(3)}  ${pct(r.t,0.5).toFixed(1).padStart(6)} ${pct(r.t,0.9).toFixed(1).padStart(6)} ` +
+              `${Math.max(...r.t).toFixed(1).padStart(7)}   ${r.cards} cards, ${r.span}px of scroll, ` +
+              `${r.rebuilt} of 40 frames rebuilt the strip`);
+}
+
 await b.close(); srv.close();
 })();

@@ -501,6 +501,34 @@ a tall narrow screen, and what is left is full-screen destination fill — but r
 3.0 Mpx, writes 2.5 → 1.1 Mpx, and the tick p90 75.6 → 7.7 ms. The hitch is the part that was
 fixed for phones; do not claim a render win there off this harness.
 
+**A STILL CAMERA IS THE EASY CASE, AND THE ONE EVERY CACHE LOOKS GOOD IN.** `perf-probe` times a
+parked camera; `tests/perf-scenes.cjs` times still / pan / zoom-tween / grow-revealing at both
+zoom extremes and **counts canvases minted**, which is the difference between a cache and an
+allocator. Run it after touching anything that caches per camera.
+
+- **A cache keyed on the camera is not a cache while the camera moves.** The mountain backdrop's
+  key has to include the camera position (the range slides across the band as you pan), so
+  panning missed every frame AND minted a viewport-sized canvas each time — measured at one per
+  frame, 88.9 ms against 40.1 standing still. That is worse than not caching. The right shape is
+  a **last-key memo over one reused canvas**: the same win standing still, exactly the old
+  redraw-per-frame while moving, no allocation either way (`_rangeBuf` / `_rangeKey`).
+- **Budget a per-size cache by PIXELS, not entries.** A zoom sweep legitimately wants ~16 size
+  brackets per sprite, so an entry cap gets hit mid-sweep and clears what it just built.
+- **Two things tried and REJECTED here, both of which look obviously right.** Quantising the
+  cached formation size into ~8% buckets to stop a zoom minting per rock per frame: saved
+  nothing measurable (63.8 → 62.9 ms) because the mints were never the cost, and put a resample
+  halo on every rock edge in *every* frame including still ones. Same for rounding the tint and
+  base fade into buckets. Don't re-derive them.
+- **Sub-pixel sizing bugs hide in these buffers and only a pixel diff finds them.** Building the
+  buffer by drawing the sprite to the CEIL'd `W/H` instead of the float `sw/sh` stretches every
+  rock by up to a pixel; passing explicit `dw/dh` to a 1:1 blit forces a scaled path. Both read
+  as a thin halo round every formation in a difference image. **Control for the troll rockface**
+  — `placeRockface()` uses `Math.random()`, so it moves every boot: two runs of the SAME build
+  differ by ~0.105%, which is the noise floor any comparison has to beat.
+- **The card carousel is DOM, not canvas, and it is fine.** Scrolling it while the world ticks
+  rebuilt the strip on 0 of 40 frames at both zooms, at the same frame cost as standing still —
+  `_handSig` deliberately excludes `scrollLeft`, and that holds.
+
 Already in place before any of that, and worth not re-deriving: `RENDER_DPR_CAP` 2 and
 `RENDER_PIXEL_BUDGET` 2.3 Mpx (`renderScale`), and `IDLE_FPS` 30 for a still board
 (`needsFullRate`).
