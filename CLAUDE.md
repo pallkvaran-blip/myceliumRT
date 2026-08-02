@@ -164,7 +164,11 @@ CONFIG literal only.
   sideways". Do NOT add a stall-until-aligned gate: it costs a worm its whole step whenever the
   target moves off its nose, and three assertions measure distance-per-step against the speed
   table — with the gate in they measured turn latency and read 0.00 and 1.50 cells against a
-  table saying 8.
+  table saying 8. **A speed probe therefore has to SEED THE HEADING at the target**, or it
+  measures the same thing without the gate: it clears a path toward the colony, the worm sets
+  off along whatever one turn-rate swing allows, and `moveWorm` stops at the first rock in
+  *that* direction. Read 1.50 and 3.00 cells on different procedural maps before
+  `__stepSpot` started returning the bearing along with the spot.
 - **`strandsPerBite` is a NEW knob** — the count was hard-coded at 1 inside `stepNematodes`.
   `eatEveryTicks` is how OFTEN a worm bites; this is how much comes away each time. Each strand
   is claimed separately and must be in reach, unclaimed by another worm this tick, and not
@@ -275,6 +279,20 @@ CONFIG literal only.
   (2500) clamped it and then jump a chunk — the exact popping the creep exists to remove.
   50 ms is 20 rings/s, level with the sim. `threat-check` asserts the relationship, so it fails
   rather than drifting.
+- **THE GREEN STARTS WHERE THE ROT CAME IN, and the sim has to TELL the renderer where that
+  was.** `_scheduleInfection` gives each newly-rotten strand a wall-clock moment one creep-step
+  after whichever neighbour the rot came from — but a breach claims its whole
+  `firstTouchRings` + `freshGrowthRings` neighbourhood on ONE step, so that whole set arrives
+  with no scheduled neighbour and the wave has to be started somewhere. It used to start at the
+  **lowest node id**, and an id is an AGE: the oldest strand in the set won, so the green
+  visibly travelled from the base of the colony *out toward the cloud*. Exactly backwards, and
+  reported as such. Both first-touch paths now stamp `n._infSeed` on the strand actually
+  touched (`infectNetwork`'s contact pass, and every seed in `infectStrandsInMould`), and the
+  renderer starts **every** marked strand at once — two clouds landing on the same step are two
+  points of contact and each owns its own wave. Lowest-id is still the fallback for rot with no
+  marked strand. `_infSeed` is cleared wherever `_infAt` is, so a healed strand stops counting
+  as a breach. Asserted with a negative control in the same probe: strip the marker off the
+  same rot and the wave goes back to starting at the oldest strand.
 - **At 40 rings, one step of the established race reaches essentially a whole colony** — measured
   at 612 of 649 strands. A ring is one step along the filaments *in every direction at once*, so
   on a branching network N rings claims far more than N strands. That's why the exact-rate

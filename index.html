@@ -11963,6 +11963,12 @@ function infectNetwork(net, state) {
     }
     if (hit && !cellProofed(sub, hit) && rng() < t.contactChance) {
       hit.infected = true;
+      // WHERE THE ROT CAME IN. Purely for the renderer: a breach claims its whole
+      // firstTouchRings/freshGrowthRings neighbourhood on this one step, so the creep has a set
+      // of strands with no scheduled neighbour and has to pick a start. Without this it picked
+      // the LOWEST NODE ID, which is the oldest tissue in the set — so the green appeared to
+      // travel out from the start of the colony instead of from the strand the cloud touched.
+      hit._infSeed = true;
       // Guaranteed (chance 1), unlike the race below: the cost of being touched is a fixed
       // number of rings, not a dice roll per ring.
       infectAround(net, hit, t.firstTouchRings, 1, rng, sub);
@@ -12051,7 +12057,10 @@ function infectStrandsInMould(net, state) {
     if (n.infected || n.side) continue;             // already rot / decorative fuzz
     if (!net.grownIn(n)) continue;                  // still growing in — it hasn't reached the mould yet
     const cell = sub.cellAtWorld(n.x, n.y);
-    if (cell && cell.trich >= th && !cellProofed(sub, n)) { n.infected = true; hit++; seeds.push(n); }
+    // `_infSeed` marks where the rot came in, for the renderer's creep — see the note in
+    // infectNetwork's contact pass. Growing INTO mould can catch several strands at once, and
+    // each of them is a genuine point of contact, so each seeds its own wave.
+    if (cell && cell.trich >= th && !cellProofed(sub, n)) { n.infected = true; n._infSeed = true; hit++; seeds.push(n); }
   }
   // First-touch burst: a strand caught in the mould rots a deep chunk in EVERY direction
   // at once, so a long grow (e.g. grow 6) can't just shoot its tip past the cloud and
@@ -16302,7 +16311,7 @@ class NetworkRenderer {
     const ceiling = now + (r.infectMaxLagMs != null ? r.infectMaxLagMs : 2500);
     let pending = null;
     for (const n of net.nodes) {
-      if (!n.infected) { if (n._infAt != null) n._infAt = null; continue; }   // amputated/healed → forget its turn
+      if (!n.infected) { if (n._infAt != null) n._infAt = null; n._infSeed = false; continue; }   // amputated/healed → forget its turn, and that it was ever a breach
       if (n._infAt == null) (pending || (pending = [])).push(n);
     }
     if (!pending) return;
@@ -16320,8 +16329,23 @@ class NetworkRenderer {
         left.delete(n); progressed = true;
       }
       if (!progressed) {
-        // A fresh breach: nothing adjacent has a turn yet, so start the wave at one strand
-        // (lowest id — deterministic) and let the following passes creep outward from it.
+        // A fresh breach: nothing adjacent has a turn yet, so the wave has to start SOMEWHERE
+        // and creep outward from there on the following passes.
+        //
+        // START AT THE STRAND THE ROT ACTUALLY CAME IN ON (`_infSeed`, stamped by the two
+        // first-touch paths in threats). This used to be "lowest id, deterministic", and a node
+        // id is its AGE — so on a breach, which claims its whole firstTouchRings +
+        // freshGrowthRings neighbourhood in one step, the oldest strand in that set won and the
+        // green visibly travelled out from the base of the colony toward the cloud. Exactly
+        // backwards. Lowest id is still the tie-break, so a wave with no marked strand (an old
+        // save, or rot that got disconnected from its breach) behaves as before.
+        // EVERY marked strand starts at once, not one per pass: two clouds landing on the same
+        // step are two points of contact and each is the origin of its own wave. Only after
+        // there is no marked strand left anywhere does the lowest-id fallback run, one strand
+        // per pass as before.
+        let marked = 0;
+        for (const n of left) if (n._infSeed) { n._infAt = now; marked++; }
+        if (marked) { for (const n of [...left]) if (n._infAt != null) left.delete(n); continue; }
         let seed = null;
         for (const n of left) if (!seed || n.id < seed.id) seed = n;
         if (!seed) break;

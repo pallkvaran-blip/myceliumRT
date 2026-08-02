@@ -192,7 +192,13 @@ await p.evaluate(() => {
           if (!sub.segmentClear(x, y, best.x, best.y)) continue;  // can't sense through rock
           const ux = (best.x - x) / bd, uy = (best.y - y) / bd;
           if (!pathOk(x, y, x + ux * step, y + uy * step)) continue;   // would slide, not step
-          return { x, y, gap: bd / cs };
+          // The BEARING to what it will aim at. A worm travels along its HEADING, turning at
+          // nematodes.turnRate, so a probe that seeds heading 0 and then measures distance is
+          // measuring turn latency: the cleared path above runs toward the target, the worm
+          // sets off along whatever direction one turn-rate swing allows, and moveWorm stops at
+          // the first rock in THAT direction. Read 1.5 and 3.0 cells against a table saying 8,
+          // varying with the procedural map. Seed the heading here and it measures speed.
+          return { x, y, gap: bd / cs, heading: Math.atan2(best.y - y, best.x - x) };
         }
       }
     }
@@ -217,11 +223,14 @@ const crawl=await p.evaluate(()=>{
   const want=s.config.nematodes.crawlSpeed;
   const spot=window.__stepSpot(want*cs);
   if (!spot) return {err:'no clear spot to measure a crawl from'};
-  s.nematodes.push({x:spot.x, y:spot.y, heading:0, phase:0, stuck:0, feedCd:0, hp:0,
+  s.nematodes.push({x:spot.x, y:spot.y, heading:spot.heading, phase:0, stuck:0, feedCd:0, hp:0,
                     sees:false, feeding:false, trailing:false, targetId:null});
   const w=s.nematodes[0], x0=w.x, y0=w.y;
   G.tickWorld(s);
-  const w2=s.nematodes[0] || w;
+  // The worm THIS PROBE PLACED, by identity — tickWorld respawns worms, and index 0 is not a
+  // promise about which one it is.
+  const w2=s.nematodes.includes(w) ? w : null;
+  if (!w2) return {err:'the measured worm was removed during the step'};
   return { moved:Math.hypot(w2.x-x0, w2.y-y0)/cs, want, saw:!!w2.sees, gap:spot.gap };
 });
 ok('the worm could see the colony, from beyond one step',
@@ -899,6 +908,62 @@ ok('...but nothing grown on an EARLIER step, at the same distance',
    sprint.oldInRange===false);
 ok('...and nothing past freshGrowthRings, so a long enough grow still outruns it',
    sprint.beyond===false);
+
+// ---- 6g4. THE GREEN STARTS WHERE THE ROT CAME IN ------------------------------
+// Reported: "I'd like to see the green infection animation spread from the point of infection.
+// Right now it seems to spread from the starting point of growth instead." A breach claims its
+// whole firstTouchRings neighbourhood on ONE step, so the renderer's creep gets a set of
+// strands none of which has a scheduled neighbour and has to pick where the wave begins. It
+// picked the lowest node id — and an id is an AGE, so the oldest strand in the set won and the
+// green crawled from the base of the colony out toward the cloud. Exactly backwards.
+//
+// Order, not wall-clock timing: `_infAt` is compared against its neighbours off a FIXED `now`,
+// so nothing here depends on frames headless will not draw (see the animation-timing note in
+// tests/README.md).
+const creepWave=await p.evaluate(()=>{
+  const G=window.__game, s=G.state, sub=s.substrate, net=s.active, cs=sub.cellSize;
+  const t=s.config.trichoderma;
+  s.nematodes.length=0; s.clouds.length=0;
+  s.runOver=false; s.winPending=false; s.won=false;
+  sub.forEachCell((cell)=>{ cell.trich=0; cell.mouldProof=0; cell.reinfectGrace=0; });
+  // firstTouchRings only, so the rotten set is a clean symmetric band around the breach and
+  // "did it start in the middle?" has an unambiguous answer.
+  t.contactChance=1; t.firstTouchRings=12; t.spreadDepthPerTurn=0; t.freshGrowthRings=0;
+  net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  const y=sub.surfaceY+cs*4;
+  let par=null;
+  for (let i=0;i<60;i++){ par=net.addNode(400+i*6, y, par); par._liveAt=0; par._revSeen=true; }
+  const HIT=30;
+  const c=net.nodes[HIT];
+  s.clouds.push({cx:c.x, cy:c.y, r:0.2, strength:1, dying:false, heading:null});
+  net.alive=true;
+  G.tickWorld(s);
+  const R=G.netRenderer(), now=1e6;
+  const earliest=()=>{ let idx=-1, best=Infinity;
+    for (let i=0;i<net.nodes.length;i++){ const n=net.nodes[i];
+      if (n.infected && n._infAt!=null && n._infAt<best){ best=n._infAt; idx=i; } }
+    return idx; };
+  R._scheduleInfection(now);
+  const first=earliest();
+  const at=net.nodes.map((n)=>n.infected ? n._infAt : null);
+  let mono=true, rotCount=0, lo=-1;
+  for (let i=0;i<at.length;i++) if (at[i]!=null){ rotCount++; if (lo<0) lo=i; }
+  for (let i=HIT;i+1<at.length && at[i+1]!=null;i++) if (at[i+1] < at[i]) mono=false;
+  for (let i=HIT;i>0 && at[i-1]!=null;i--) if (at[i-1] < at[i]) mono=false;
+  // NEGATIVE CONTROL, in the same probe: strip the marker off the same rot and reschedule. If
+  // this does not come back with the oldest strand, the assertion above is not measuring the
+  // thing that was fixed.
+  for (const n of net.nodes){ n._infAt=null; n._infSeed=false; }
+  R._scheduleInfection(now);
+  return { hit:HIT, first, mono, rotCount, lo, unmarked:earliest() };
+});
+ok('the creep starts at the strand the cloud touched, not the oldest one',
+   creepWave.first===creepWave.hit,
+   `wave began at strand ${creepWave.first}, the breach was ${creepWave.hit} (${creepWave.rotCount} rotten, oldest is ${creepWave.lo})`);
+ok('...and turns green outward from there along the filaments', creepWave.mono===true);
+ok('...and without the marker it starts at the oldest strand, which was the bug',
+   creepWave.unmarked===creepWave.lo && creepWave.lo!==creepWave.hit,
+   `unmarked wave began at ${creepWave.unmarked}, oldest is ${creepWave.lo}`);
 
 // ---- 6f. the worm's reach ----------------------------------------------------
 ok(`nematodes.reach is ${WORM_REACH} cells`,
