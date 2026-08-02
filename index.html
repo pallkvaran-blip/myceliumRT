@@ -26120,7 +26120,22 @@ function drawMountains() {
         const bctx = _rangeBuf.getContext('2d');
         bctx.clearRect(0, 0, bandW, bandH);
         bctx.filter = 'brightness(0.72) saturate(0.78) blur(1.0px)';  // atmospheric — far back, but readable
-        bctx.drawImage(img, s.x - sw / 2, (by - sh) - skyTopY, sw, sh);
+        // ONLY THE PART THAT LANDS IN THE BUFFER. The range is drawn map-wide, so at zoom 4 this
+        // asked for a rect ~11,000 px across into a viewport-sized buffer — 16.6 Mpx of
+        // destination per call, the single largest item in a panning frame at 1440p, and it is
+        // redrawn on every frame the camera moves. Intersecting first asks for the visible
+        // slice. The margin absorbs the 1px blur so the cut edge cannot show a seam.
+        {
+          const dx0 = s.x - sw / 2, dy0 = (by - sh) - skyTopY, M = 4;
+          const ix0 = Math.max(dx0, -M), iy0 = Math.max(dy0, -M);
+          const ix1 = Math.min(dx0 + sw, bandW + M), iy1 = Math.min(dy0 + sh, bandH + M);
+          if (ix1 > ix0 && iy1 > iy0) {
+            const kx = img.width / sw, ky = img.height / sh;      // dest px -> source px
+            bctx.drawImage(img,
+              (ix0 - dx0) * kx, (iy0 - dy0) * ky, (ix1 - ix0) * kx, (iy1 - iy0) * ky,
+              ix0, iy0, ix1 - ix0, iy1 - iy0);
+          }
+        }
         bctx.filter = 'none';
         const fade = bctx.createLinearGradient(0, bandH * 0.42, 0, bandH);
         fade.addColorStop(0, 'rgba(0,0,0,0)');                  // keep the peaks up high
@@ -26188,6 +26203,16 @@ function drawMountains() {
     // through. Larger peaks stay a touch brighter (a bit more present).
     const t = Math.max(0, Math.min(1, (run.wCells - MOUNTAIN_W_MIN) / (MOUNTAIN_W_MAX - MOUNTAIN_W_MIN)));
     const bright = 0.6 + 0.22 * t;
+    // CLIP THE RECT, DON'T JUST CLIP THE CANVAS. A peak is drawn far larger than the sky band
+    // it shows through — at zoom 4 on a 1440p window these two blits asked for 33.3 Mpx of
+    // destination out of the frame's 53.9, and a ctx.clip() throws those pixels away only
+    // AFTER the rasteriser has been handed them. Intersecting the destination rect with the
+    // band first, and taking the matching sub-rectangle of the source, asks for what is
+    // actually visible instead. The clip stays as the exact edge (sub-pixel bounds).
+    const dx0 = s.x - sw / 2, dy0 = by - sh;
+    const ix0 = Math.max(dx0, 0), iy0 = Math.max(dy0, skyTopY);
+    const ix1 = Math.min(dx0 + sw, camera.viewW), iy1 = Math.min(dy0 + sh, surfY);
+    if (ix1 <= ix0 || iy1 <= iy0) return;           // nothing of it lands in the band
     ctx.save();
     ctx.beginPath();                                // clip to the sky band — cut tops at the sky top, hide the buried base
     ctx.rect(0, skyTopY, camera.viewW, surfY - skyTopY);
@@ -26196,8 +26221,12 @@ function drawMountains() {
     // dimming. Baked into a cached mip instead — see _spriteMip.
     const pf = `brightness(${bright.toFixed(3)}) saturate(0.82)`;
     const pm = _spriteMip(img, sw, sh, pf);
-    if (pm) ctx.drawImage(pm, s.x - sw / 2, by - sh, sw, sh);
-    else { ctx.filter = pf; ctx.drawImage(img, s.x - sw / 2, by - sh, sw, sh); }
+    if (!pm) ctx.filter = pf;
+    const srcImg = pm || img;
+    const kx = srcImg.width / sw, ky = srcImg.height / sh;   // dest px -> source px
+    ctx.drawImage(srcImg,
+      (ix0 - dx0) * kx, (iy0 - dy0) * ky, (ix1 - ix0) * kx, (iy1 - iy0) * ky,
+      ix0, iy0, ix1 - ix0, iy1 - iy0);
     ctx.restore();
   });
 }
