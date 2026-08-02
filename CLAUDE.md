@@ -501,6 +501,30 @@ a tall narrow screen, and what is left is full-screen destination fill — but r
 3.0 Mpx, writes 2.5 → 1.1 Mpx, and the tick p90 75.6 → 7.7 ms. The hitch is the part that was
 fixed for phones; do not claim a render win there off this harness.
 
+**SCREEN SIZE: THE FRAME PLATEAUS ABOVE ~1080p, WHICH IS THE PIXEL BUDGET WORKING.** Measured
+across seven configurations (1024x640 → 4K): still-camera medians climb 44 → 102 → 121 ms up to
+1080p, then flatten at 132-147 ms for a Retina laptop, 1440p, ultrawide and 4K, because
+`renderScale` caps the canvas at 2.3 Mpx (4K renders at scale 0.53). Growing and the card
+carousel track the still cost at every size. The one thing that keeps climbing is **panning
+zoomed in** — 69 ms at 1024x640 to 431 ms at 4K, ~3x the still cost there.
+
+Two ways `perf-scenes` will mislead you if you read it literally: **`pan-out` is not panning**
+(fully zoomed out the camera is clamped to the world bounds, so it cannot move, and its numbers
+are `still-out` by another name), and **"fully zoomed in" is `min(4, minZoom*4)`**, so a big
+window shows MORE world at that zoom than a small one — which inflates its zoomed-in numbers.
+
+**AND A WARNING ABOUT WHAT THIS HARNESS CAN AND CANNOT SHOW.** Chasing that pan cost found a
+real defect — `drawMountains` asked for 33.3 of a frame's 53.9 Mpx of DESTINATION from two
+calls, drawing rects far larger than the surface receiving them and letting a `ctx.clip()`
+discard the rest *after* the rasteriser had processed it. Clipping the rects first halved the
+frame's destination pixels (53.9 → 23.5 Mpx) and changed the wall clock by **nothing**:
+1440p pan-in 325.5 → 330.1 ms, still-in 143.1 → 140.9, over three runs each, every difference
+inside the spread. A single run had said 350.6 → 336.9 and that was noise. **Three runs
+minimum before believing any render number here**, and expect fill-rate work to show up as
+pixels rather than milliseconds — software raster is not GPU-bound, so the thing a phone is
+short of is invisible to it. (The phone improvements the owner confirmed were likewise
+unmeasurable in-harness.)
+
 **A STILL CAMERA IS THE EASY CASE, AND THE ONE EVERY CACHE LOOKS GOOD IN.** `perf-probe` times a
 parked camera; `tests/perf-scenes.cjs` times still / pan / zoom-tween / grow-revealing at both
 zoom extremes and **counts canvases minted**, which is the difference between a cache and an
