@@ -429,6 +429,13 @@ Harness traps that have cost real time:
     quantity (the round clock, the cadence bars) is to *sleep* and let the real loop tick.
   Whenever a check's numbers move after a perf change, ask what it was really measuring before
   believing it found a regression.
+- **A FIXED SLEEP OR A FIXED COUNT IS A BET ABOUT THE MACHINE.** Two more failed only inside a
+  full `run.mjs` sweep and passed standalone, which reads as a regression and is not one:
+  `core-check` sampled pixels after `sleep(700)` and got 58 against a gate of 60 because the
+  camera move had not been drawn yet (67-76 when idle), and `scale-check` grew a fixed 16 times
+  and sampled 19 fresh strands against a floor of 20 on a rockier map (39 on another boot — the
+  seed is `Date.now()`). Wait for `paceInfo().renders` to advance, and loop until the coverage
+  the guard demands actually exists, bounded so a real break still trips it.
 
 ## Performance
 

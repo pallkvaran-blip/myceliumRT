@@ -116,19 +116,30 @@ const grown=await p.evaluate(() => {
   }
   const before=net.nodes.length;
   const seen=new Set(net.nodes.map(n=>n.id));
-  for (let i=0;i<16;i++) {
-    for (const j of idx) { const cell=sub.cells[j]; cell.nutrient=50; cell.maxNutrient=50; }
-    G.performAction(s,'grow',{});
-  }
-  G.settleEnemyTurn();   // turn-based QUEUES each action's world step for the frame loop; settle before measuring
   // Measure only the strands this grow added, and only the SPACE-COLONISATION ones: the
   // pile-mat and pile-runner primitives deliberately step short as they close on food.
-  const d=[];
-  for (const n of net.nodes) {
-    if (seen.has(n.id) || n.parentId==null || n.colon || n.side) continue;
-    const q=net.byId.get(n.parentId); if (!q) continue;
-    d.push(Math.hypot(n.x-q.x, n.y-q.y));
+  const sample=()=>{
+    const out=[];
+    for (const n of net.nodes) {
+      if (seen.has(n.id) || n.parentId==null || n.colon || n.side) continue;
+      const q=net.byId.get(n.parentId); if (!q) continue;
+      out.push(Math.hypot(n.x-q.x, n.y-q.y));
+    }
+    return out;
+  };
+  // GROW UNTIL THERE IS ENOUGH TO MEASURE, rather than a fixed 16 times. The map is seeded from
+  // Date.now(), so how much open ground a fixed number of grows finds is luck: the same code
+  // sampled 39 fresh strands on one boot and 19 on another, and the coverage guard below failed
+  // on the second. Bounded, so a genuinely broken grow still trips that guard instead of
+  // spinning here.
+  let d=[];
+  for (let i=0;i<80 && d.length<30;i++) {
+    for (const j of idx) { const cell=sub.cells[j]; cell.nutrient=50; cell.maxNutrient=50; }
+    G.performAction(s,'grow',{});
+    d=sample();
   }
+  G.settleEnemyTurn();   // turn-based QUEUES each action's world step for the frame loop; settle before measuring
+  d=sample();
   d.sort((a,b)=>a-b);
   return { before, after:net.nodes.length, n:d.length,
            med:d.length?d[Math.floor(d.length/2)]:0, max:d.length?d[d.length-1]:0 };

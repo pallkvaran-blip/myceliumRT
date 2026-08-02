@@ -103,7 +103,16 @@ ok('the deepest placeable point is the line itself',
 // core is a saturated red.
 await p.evaluate(()=>{const g=window.__game,s=g.state.substrate;
   g.camera.zoom=1; g.camera.x=s.worldWidth*0.5; g.camera.y=s.coreY; g.camera.clamp();});
-await sleep(700);
+// WAIT FOR RENDERS, NOT FOR A CLOCK. This was a flat sleep(700), which is a bet that the
+// camera move has been drawn by then — and on a loaded machine (a full run.mjs sweep) it has
+// not: the patch below the line came back at 58 against a gate of 60, on a core that renders
+// correctly, while the same code standalone reads 67. paceInfo().renders counts frames the
+// loop actually drew, so this waits for the thing being sampled.
+await p.evaluate(async()=>{
+  const g=window.__game, r0=g.paceInfo().renders;
+  for (let i=0;i<900 && g.paceInfo().renders<r0+4;i++) await new Promise(r=>requestAnimationFrame(r));
+});
+await sleep(200);
 const hue=await p.evaluate(()=>{
   const g=window.__game, sub=g.state.substrate;
   const c=[...document.querySelectorAll('canvas')].find(n=>n.clientHeight>0);
