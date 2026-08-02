@@ -369,7 +369,15 @@ Harness traps that have cost real time:
     then comes in by a route the probe never built. Clear the whole field's `nutrient` first.
   - **A geometric filter must run against every node, not the seed.** "Out of sight range and
     with no clear line" tested against node 0 of a 30-node colony admitted one spot that could
-    see the far corner, which read as `1 of 362 blind worms moved`.
+    see the far corner, which read as `1 of 362 blind worms moved`. The blind-pack probe had the
+    same defect one step removed: it filtered on `seedMinColonyDistFrac` from the ROOT, having
+    grown the colony ten times first, so a legal spot could be 111 units from the deepest tissue
+    (`3 of 6 worms moved`, `nearest 111 → 51`). Clear the ant trails too — a line in range is a
+    worm's other legitimate target, and a procedural map is criss-crossed with them.
+  - **`tickWorld` CREEPS THE CLOUDS BEFORE THE CONTACT PASS.** A cloud dropped exactly on a
+    strand has already drifted by the time it infects anything, so it breaches its neighbour and
+    every "which strand?" measurement downstream shifts (`34 of 60`, `wave began at 29`). Pin it
+    with `moveSpeed = 0`, and read the breach back off `_infSeed` rather than assuming it.
 - `resolveCardOp` and `__game.play()` **return nothing** — assert on state (`state.turn`,
   node counts), not a result object.
 - Pending offers carry **`choices`** (an array of card names), not `cards`.

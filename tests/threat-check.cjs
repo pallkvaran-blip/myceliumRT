@@ -882,7 +882,10 @@ const sprint=await p.evaluate((RINGS)=>{
   // ONLY the fresh-growth rule. firstTouchRings would claim its own neighbourhood around the
   // breach and the established race would claim more again, and neither is what is being
   // measured here — both have their own assertions above.
-  t.contactChance=1; t.firstTouchRings=0; t.spreadDepthPerTurn=0; t.freshGrowthRings=RINGS;
+  // moveSpeed 0 PINS THE CLOUD. tickWorld creeps the clouds BEFORE the contact pass, so a cloud
+  // dropped exactly on node 30 had drifted by the time it touched anything and breached node 29
+  // instead — which shifts the whole claimed range and read as `34 of 60`.
+  t.contactChance=1; t.firstTouchRings=0; t.spreadDepthPerTurn=0; t.freshGrowthRings=RINGS; t.moveSpeed=0;
   net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
   const y=sub.surfaceY+cs*4;
   let par=null;
@@ -928,7 +931,8 @@ const creepWave=await p.evaluate(()=>{
   sub.forEachCell((cell)=>{ cell.trich=0; cell.mouldProof=0; cell.reinfectGrace=0; });
   // firstTouchRings only, so the rotten set is a clean symmetric band around the breach and
   // "did it start in the middle?" has an unambiguous answer.
-  t.contactChance=1; t.firstTouchRings=12; t.spreadDepthPerTurn=0; t.freshGrowthRings=0;
+  // moveSpeed 0 so the cloud breaches the strand it was placed on — see the note in 6g3.
+  t.contactChance=1; t.firstTouchRings=12; t.spreadDepthPerTurn=0; t.freshGrowthRings=0; t.moveSpeed=0;
   net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
   const y=sub.surfaceY+cs*4;
   let par=null;
@@ -943,26 +947,34 @@ const creepWave=await p.evaluate(()=>{
     for (let i=0;i<net.nodes.length;i++){ const n=net.nodes[i];
       if (n.infected && n._infAt!=null && n._infAt<best){ best=n._infAt; idx=i; } }
     return idx; };
+  // WHERE THE BREACH ACTUALLY LANDED, read back rather than assumed. `_infSeed` is what the sim
+  // stamped, so if a future change lets the cloud drift off the strand it was placed on, the
+  // `breach === HIT` assertion says so instead of the creep assertion failing for the wrong
+  // reason (it did exactly that: node 29 instead of 30).
+  let breach=-1;
+  for (let i=0;i<net.nodes.length;i++) if (net.nodes[i]._infSeed) { breach=i; break; }
   R._scheduleInfection(now);
   const first=earliest();
   const at=net.nodes.map((n)=>n.infected ? n._infAt : null);
   let mono=true, rotCount=0, lo=-1;
   for (let i=0;i<at.length;i++) if (at[i]!=null){ rotCount++; if (lo<0) lo=i; }
-  for (let i=HIT;i+1<at.length && at[i+1]!=null;i++) if (at[i+1] < at[i]) mono=false;
-  for (let i=HIT;i>0 && at[i-1]!=null;i--) if (at[i-1] < at[i]) mono=false;
+  for (let i=breach;i>=0 && i+1<at.length && at[i+1]!=null;i++) if (at[i+1] < at[i]) mono=false;
+  for (let i=breach;i>0 && at[i-1]!=null;i--) if (at[i-1] < at[i]) mono=false;
   // NEGATIVE CONTROL, in the same probe: strip the marker off the same rot and reschedule. If
   // this does not come back with the oldest strand, the assertion above is not measuring the
   // thing that was fixed.
   for (const n of net.nodes){ n._infAt=null; n._infSeed=false; }
   R._scheduleInfection(now);
-  return { hit:HIT, first, mono, rotCount, lo, unmarked:earliest() };
+  return { hit:HIT, breach, first, mono, rotCount, lo, unmarked:earliest() };
 });
+ok('the cloud breached the strand it was placed on', creepWave.breach===creepWave.hit,
+   `breached strand ${creepWave.breach}, placed on ${creepWave.hit}`);
 ok('the creep starts at the strand the cloud touched, not the oldest one',
-   creepWave.first===creepWave.hit,
-   `wave began at strand ${creepWave.first}, the breach was ${creepWave.hit} (${creepWave.rotCount} rotten, oldest is ${creepWave.lo})`);
+   creepWave.first===creepWave.breach && creepWave.breach>=0,
+   `wave began at strand ${creepWave.first}, the breach was ${creepWave.breach} (${creepWave.rotCount} rotten, oldest is ${creepWave.lo})`);
 ok('...and turns green outward from there along the filaments', creepWave.mono===true);
 ok('...and without the marker it starts at the oldest strand, which was the bug',
-   creepWave.unmarked===creepWave.lo && creepWave.lo!==creepWave.hit,
+   creepWave.unmarked===creepWave.lo && creepWave.lo!==creepWave.breach,
    `unmarked wave began at ${creepWave.unmarked}, oldest is ${creepWave.lo}`);
 
 // ---- 6f. the worm's reach ----------------------------------------------------
@@ -1019,6 +1031,11 @@ const search=await p.evaluate(()=>{
   }
   G.settleEnemyTurn();
   s.clouds.length=0; s.nematodes.length=0;
+  // ANT TRAILS OUT, and the ants with them. A line is a worm's other legitimate target and a
+  // procedural map is criss-crossed with them, so a "blind" worm following one is the code
+  // working. The per-spot scan at the end of this file has cleared them for the same reason.
+  sub.forEachCell((cell)=>{ cell.antTrail=false; });
+  if (s.ants) s.ants.length=0;
   const root=net.nodes[0];
   const minD=sub.worldWidth*n.seedMinColonyDistFrac;
   // 0 when the colony is GONE: the worms are dangerous enough now that twelve steps can eat a
@@ -1035,6 +1052,18 @@ const search=await p.evaluate(()=>{
     const y=sub.surfaceY+cs*2+((tries*53)%Math.max(1,(sub.growFloorY-sub.surfaceY-cs*4)));
     const c=sub.cellAtWorld(x,y); if (!c||c.rock) continue;
     if (Math.hypot(x-root.x, y-root.y) < minD) continue;
+    // BLIND TO EVERY STRAND, not just far from the root. This probe GROWS THE COLONY DOWN ten
+    // times before placing anything, so a spot beyond seedMinColonyDistFrac of the root can be
+    // a hundred units from the colony's deepest tissue — and a worm that can genuinely see
+    // mycelium is SUPPOSED to move, which read as `3 of 6 worms moved` and `nearest 111 -> 51`.
+    // Same defect as the per-spot scan further down, which tested node 0 of thirty.
+    let sighted=false;
+    for (const nd of net.nodes) {
+      if (Math.hypot(x-nd.x, y-nd.y) >= n.sightRadius) continue;
+      if (!sub.segmentClear(x, y, nd.x, nd.y)) continue;
+      sighted=true; break;
+    }
+    if (sighted) continue;
     s.nematodes.push({x,y,heading:0,phase:0,stuck:0,feedCd:0,hp:0,
                       sees:false,feeding:false,trailing:false,targetId:null});
     placed++;
