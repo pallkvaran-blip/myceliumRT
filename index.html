@@ -25495,25 +25495,41 @@ function formationGroups() {
 // never band over the sprite's transparent margins. baseBlend fades the bottom
 // into the soil; the lift (scaled inversely with zoom) keeps warm rock readable
 // against the brown earth when zoomed out without washing the detail when close.
-// The composite — downscale the sprite, tint it, fade its base into the soil — was rebuilt from
-// the full-size source EVERY FRAME, for every formation on screen: 34 blits reading 3.96 Mpx to
-// write 0.57, plus a gradient fill each. None of it changes unless the camera zooms, so it is
-// cached per (sprite, size, tint, fade). Rotation stays at blit time — it is applied to the
-// finished buffer, so it costs nothing to leave out of the key.
+let _rangeBuf = null, _rangeKey = '';   // the faded range backdrop: one buffer, redrawn on change
 const _formCache = new Map();
+let _formPx = 0;                       // cached pixels; the budget in _blitFormation is on this
+// The composite — downscale the sprite, tint it, fade its base into the soil — was rebuilt from
+// the full-size source EVERY FRAME for every formation on screen. None of it changes unless the
+// camera zooms, so it is cached per (sprite, exact size, tint, fade). Rotation stays at blit
+// time — applied to the finished buffer, so it costs nothing to leave out of the key.
+//
+// The size in the key is EXACT, deliberately. Quantising it to ~8% buckets was tried, to stop a
+// zoom sweep minting a canvas per rock per frame, and it is not worth it: it saved nothing
+// measurable (zoom tween 63.8 -> 62.9 ms median) because the mints were never the cost, and it
+// put a resample halo on every rock edge in EVERY frame including the still ones — visible as a
+// thin outline around every formation in a difference image. The frequent interaction is
+// panning, and panning is fixed by the range backdrop's memo above, not by this.
 function _blitFormation(img, sw, sh, tlx, tly, z, cs, soil, baseBlend, rot = 0) {
   const W = Math.max(1, Math.ceil(sw)), H = Math.max(1, Math.ceil(sh));
   const liftA = Math.max(0, Math.min(0.16, 0.16 - (z - 0.5) * 0.26));
   const fadeH = baseBlend ? Math.min(sh * 0.24, cs * 1.7 * z) : 0;
   const id = img.__mipId || (img.__mipId = ++_mipSeq);
+  // EXACT liftA and fade in the key, not rounded into buckets. Coarsening them was the same
+  // bet as quantising the size — help a zoom sweep reuse entries — and it fails the same way:
+  // no measurable time saved, and the tint and the base fade shift slightly in every frame.
   const key = id + '|' + W + '|' + H + '|' + liftA.toFixed(3) + '|' + fadeH.toFixed(1) + '|' + soil;
   let buf = _formCache.get(key);
   if (!buf) {
-    if (_formCache.size > 240) _formCache.clear();     // a long zoom sweep — start over
+    // Budget by PIXELS, not entries. A zoom sweep legitimately wants ~16 size brackets per
+    // sprite, so a 240-ENTRY cap was being hit mid-sweep and cleared, which re-minted
+    // everything it had just built (305 new canvases across one tween). Pixels are what
+    // actually costs memory, and a phone is what this is for.
+    if (_formPx > 8e6) { _formCache.clear(); _formPx = 0; }
     buf = document.createElement('canvas');
     buf.width = W; buf.height = H;
     const bctx = buf.getContext('2d');
-    bctx.drawImage(img, 0, 0, sw, sh);
+    bctx.drawImage(img, 0, 0, sw, sh);   // the FLOAT size: W/H are ceil'd, and drawing to
+                                         // them stretches every sprite by up to a pixel
     bctx.globalCompositeOperation = 'source-atop';
     if (liftA > 0.001) { bctx.fillStyle = `rgba(116,128,146,${liftA.toFixed(3)})`; bctx.fillRect(0, 0, W, H); }
     if (fadeH > 0) {
@@ -25524,7 +25540,7 @@ function _blitFormation(img, sw, sh, tlx, tly, z, cs, soil, baseBlend, rot = 0) 
       bctx.fillRect(0, sh - fadeH, W, fadeH);
     }
     bctx.globalCompositeOperation = 'source-over';
-    _formCache.set(key, buf);
+    _formCache.set(key, buf); _formPx += W * H;
   }
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.45)';
@@ -25532,9 +25548,9 @@ function _blitFormation(img, sw, sh, tlx, tly, z, cs, soil, baseBlend, rot = 0) 
   if (rot) {                                          // rotate around the sprite centre
     ctx.translate(tlx + W / 2, tly + H / 2);
     ctx.rotate(rot);
-    ctx.drawImage(buf, -W / 2, -H / 2);
+    ctx.drawImage(buf, -W / 2, -H / 2);   // buf IS W x H — passing dw/dh forces a scaled blit
   } else {
-    ctx.drawImage(buf, tlx, tly);
+    ctx.drawImage(buf, tlx, tly);         // ...which resamples every rock edge for nothing
   }
   ctx.restore();
 }
@@ -26083,18 +26099,26 @@ function drawMountains() {
       // drawn straight, the solid base of the range silhouette reads as a flat
       // grey slab hugging the surface (looks like a concrete strip). The buffer
       // also clips to the sky band (its own bounds), like the old clip rect.
-      // CACHED PER CAMERA POSITION. This buffer is as wide as the viewport and was rebuilt every
-      // frame — a clear, a BLURRED filtered blit and a full-band gradient wipe — though none of
-      // it changes until the camera moves. The blur is the expensive part, and on a phone this
-      // band plus the peaks below were the largest destination-fill item left in the frame.
+      // ONE REUSED BUFFER, REDRAWN ONLY WHEN ITS INPUTS CHANGE. This band is viewport-wide and
+      // its build is a clear, a BLURRED filtered blit and a full-band gradient wipe — none of
+      // which changes until the camera does. The blur is the expensive part, and on a phone
+      // this band plus the peaks below were the largest destination-fill item in the frame.
+      //
+      // A keyed CACHE was the wrong shape for it: the key has to include the camera position
+      // (the range slides across the band as you pan), so panning missed on every frame AND
+      // minted a viewport-sized canvas each time — measured at one new canvas per frame while
+      // panning zoomed in, which is worse than not caching at all. A last-key memo over a
+      // single reused canvas gives the same win standing still and costs exactly the old
+      // redraw-per-frame while moving, with no allocation either way.
       const rk = (img.__mipId || (img.__mipId = ++_mipSeq)) + '|' + bandW + '|' + bandH + '|' +
                  Math.round(s.x) + '|' + Math.round(sw) + '|' + Math.round(sh) + '|' + Math.round(skyTopY);
-      let _rangeBuf = _formCache.get(rk);
-      if (!_rangeBuf) {
-        if (_formCache.size > 240) _formCache.clear();
-        _rangeBuf = document.createElement('canvas');
-        _rangeBuf.width = bandW; _rangeBuf.height = bandH;
+      if (!_rangeBuf) _rangeBuf = document.createElement('canvas');
+      if (_rangeBuf.width !== bandW || _rangeBuf.height !== bandH) {
+        _rangeBuf.width = bandW; _rangeBuf.height = bandH; _rangeKey = '';
+      }
+      if (_rangeKey !== rk) {
         const bctx = _rangeBuf.getContext('2d');
+        bctx.clearRect(0, 0, bandW, bandH);
         bctx.filter = 'brightness(0.72) saturate(0.78) blur(1.0px)';  // atmospheric — far back, but readable
         bctx.drawImage(img, s.x - sw / 2, (by - sh) - skyTopY, sw, sh);
         bctx.filter = 'none';
@@ -26105,7 +26129,7 @@ function drawMountains() {
         bctx.fillStyle = fade;
         bctx.fillRect(0, 0, bandW, bandH);
         bctx.globalCompositeOperation = 'source-over';
-        _formCache.set(rk, _rangeBuf);
+        _rangeKey = rk;
       }
       ctx.save();
       ctx.beginPath(); ctx.rect(homeR, skyTopY, Math.max(0, camera.viewW - homeR), bandH); ctx.clip();   // never haze over the left home hill
