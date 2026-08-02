@@ -138,22 +138,33 @@ CONFIG literal only.
   mould has the same seed-vs-sight gap at 0.2 × 2600 = 520 against 500, but a cloud also targets
   FOOD, which is everywhere on a procedural map, so it finds something to move toward. Worms
   only target strands and ant trails.)
-- **NOTHING SENSES THROUGH ROCK, and a blind worm SEARCHES rather than homes.** A worm steers at
-  you only when you are inside `sightRadius` AND `segmentClear` — which covers water too, since
-  lakes and reservoirs stamp `cell.rock` as well as `cell.water`. With nothing visible it keeps
-  a heading, jitters it, and turns hard when a step is blocked, at `wanderSpeed`.
-  The `wanderSpeed` revival above first pointed a blind worm at the nearest strand with **no
-  line-of-sight test and no range limit**, and since worms are almost always in that branch,
-  every worm on the map became omniscient — it walked at the colony through rock from anywhere.
-  Reported as "enemy sensing — they are not supposed to be able to see through rocks, lakes,
-  etc". Measured over ~390 spots that were open, out of range and blind, as the angle between
-  the worm's heading and the bearing to the colony: **homing 1° median with 90% within 30°;
-  searching 96° median with 11% within 30°** (chance is ~17%). `threat-check` pins both.
-  The cost is real and intended — over 150 steps a pack closed 1357→464 homing vs 1534→1043
-  searching, and the share that ever acquired sight went 31%→18%. If they need to arrive
-  sooner the levers are `wanderSpeed` and `sightRadius`, **not** a blind beeline.
-  The ant-trail fallback is untouched: `nearestPointInRange` IS line-of-sight tested, and a
-  trail is a scent you can legitimately detect from where you stand.
+- **THE SENSING RULE. Read this before touching threat movement — it has now been re-broken
+  three times.** Stated by the owner, verbatim:
+
+  > *Trych: no moving if nothing is in sensing range. Move towards food piles if within range.
+  > Move to mycelium if within range, even if food pile is within range.*
+  > *Nematodes: no moving if nothing is in sensing range. Move towards ant lines if within
+  > range. Move to mycelium if within range, even if ant lines are within range.*
+
+  "Sensing range" = within `sightRadius` **and** `segmentClear` — which covers water too, since
+  lakes and reservoirs stamp `cell.rock` as well as `cell.water`. Mycelium outranks the
+  secondary target even when the secondary is nearer. **Nothing else moves them at all.**
+
+  What keeps getting re-invented, and must not be: creeping toward the nearest strand with no
+  line-of-sight test (omniscience — measured at 90% of blind worms steering within 30° of a
+  colony they could not see), and wandering/jittering to "search" (removed deliberately, long
+  ago). Both were introduced as fixes for **"the worms never move"** — which is not a bug:
+  worms seed at `seedMinColonyDistFrac` (0.25 × 2600 = 650) against a 500 `sightRadius`, so a
+  fresh worm on a procedural map is SUPPOSED to sit still until the colony grows into range. If
+  that ever needs changing the levers are `seedMinColonyDistFrac` and `sightRadius`, never a new
+  sense. The cloud has always been right; only the worm keeps drifting.
+- **A worm TRAVELS ALONG ITS HEADING, turning at `nematodes.turnRate`.** It arcs into its
+  target instead of sliding at it, because the renderer eases the heading across the tick while
+  the position had already moved — "it looks very weird when the animation shows them crawl
+  sideways". Do NOT add a stall-until-aligned gate: it costs a worm its whole step whenever the
+  target moves off its nose, and three assertions measure distance-per-step against the speed
+  table — with the gate in they measured turn latency and read 0.00 and 1.50 cells against a
+  table saying 8.
 - **`strandsPerBite` is a NEW knob** — the count was hard-coded at 1 inside `stepNematodes`.
   `eatEveryTicks` is how OFTEN a worm bites; this is how much comes away each time. Each strand
   is claimed separately and must be in reach, unclaimed by another worm this tick, and not
