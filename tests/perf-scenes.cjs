@@ -1,7 +1,9 @@
 /* FRAME COST UNDER MOVEMENT — zoom, pan, and a grow revealing.
  *
- *     node tests/perf-scenes.cjs                 desktop 1280x720
- *     node tests/perf-scenes.cjs 390 844         phone (implies dpr 3)
+ *     node tests/perf-scenes.cjs                 1280x720 at dpr 1
+ *     node tests/perf-scenes.cjs 390 844 3       a phone
+ *     node tests/perf-scenes.cjs 2560 1440 1     1440p
+ *     node tests/perf-scenes.cjs 1440 900 2      a Retina laptop
  *
  * A measuring tool, not a check. perf-probe.cjs times a STILL camera, which is the easy case
  * and the one every cache looks good in. This one times the cases where a cache can turn into
@@ -22,7 +24,11 @@ const {chromium}=require('playwright');
 const ROOT=process.env.SCENES_ROOT||path.resolve(__dirname,'..');
 const T={'.html':'text/html','.js':'text/javascript','.json':'application/json','.png':'image/png','.webp':'image/webp','.mp3':'audio/mpeg','.wav':'audio/wav'};
 const VW=+(process.argv[2]||1280), VH=+(process.argv[3]||720);
-const DPR=process.argv[2]?3:1;
+// DPR is EXPLICIT. It used to be inferred as 3 whenever a size was given, which is right for a
+// phone and wrong for every desktop size — and desktop is where it matters most, because
+// renderScale's PIXEL BUDGET only engages above ~2.3 Mpx of device pixels and the whole question
+// is whether the frame stays bounded once it does.
+const DPR=+(process.argv[4]||1);
 const pct=(a,q)=>{ if(!a.length) return 0; const s=a.slice().sort((x,y)=>x-y); return s[Math.min(s.length-1,Math.floor(s.length*q))]; };
 
 (async()=>{
