@@ -22971,6 +22971,11 @@ function begin(newState) {
       timeified: timeify('Gain +1 Water every 6 rounds.'), rounds: roundsToTime(4),
     }),
     // Frame-pacing diagnostic: which signal (if any) is holding the loop at full rate.
+    // `renderFrame` draws ONE frame synchronously, which is the only way to time the render on
+    // this harness: headless throttles rAF toward 1-2Hz, so a stopwatch on the real loop
+    // measures the throttle rather than the game (see the animation note in CLAUDE.md).
+    renderFrame: (t, dt) => renderFrame(t == null ? performance.now() : t, dt == null ? 1 : dt),
+    renderScale,
     paceInfo: () => ({
       idleFps: IDLE_FPS, fullRate: needsFullRate(lastTime), renders: _renderCount, frameCalls: _frameCalls,
       sinceInputMs: Math.round(performance.now() - _lastInputAt),
