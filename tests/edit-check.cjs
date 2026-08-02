@@ -116,6 +116,103 @@ const rot = await p.evaluate(()=>window.__game.state.substrate.levelSprites[0].r
 ok('rotate turns them', Math.abs(rot-after.rot) > 0.01, `rot ${rot.toFixed(3)}`);
 ok('collision rebuilds', await p.evaluate(()=>window.__game.state.substrate._rockSolidified===false||window.__game.state.substrate._rockSolidified===true));
 
+// ---- Duplicate -------------------------------------------------------------
+// A copy of the selected rock onto the map. What makes it useful rather than confusing: the
+// copy is the SAME sprite (key, size, rotation), it is OFFSET rather than laid exactly on top
+// (indistinguishable from nothing having happened), the COPIES end up selected so the next drag
+// moves them and not the originals, and collision follows so a duplicate blocks growth.
+await p.evaluate(()=>document.querySelector('#eeNone').click());
+const dup0 = await p.evaluate(()=>{
+  const sp=window.__game.state.substrate.levelSprites;
+  window.__game.rockEdit.sel = new Set([1]);
+  const s=sp[1];
+  return {n:sp.length, key:s.key, style:s.style, x:s.x, y:s.y, w:s.w, h:s.h, rot:s.rot||0,
+          undo:window.__game.rockEdit.undo.length};
+});
+await p.evaluate(()=>document.querySelector('#eeDup').click());
+const dup1 = await p.evaluate(()=>{
+  const sp=window.__game.state.substrate.levelSprites, r=window.__game.rockEdit;
+  const last=sp[sp.length-1];
+  return {n:sp.length, sel:[...r.sel], cs:window.__game.state.substrate.cellSize,
+          undo:r.undo.length,
+          last:{key:last.key, style:last.style, x:last.x, y:last.y, w:last.w, h:last.h, rot:last.rot||0}};
+});
+ok('Duplicate adds exactly one rock', dup1.n===dup0.n+1, `${dup0.n} \u2192 ${dup1.n}`);
+ok('...the SAME sprite, at the same size and angle',
+   dup1.last.key===dup0.key && dup1.last.style===dup0.style
+   && Math.abs(dup1.last.w-dup0.w)<0.01 && Math.abs(dup1.last.h-dup0.h)<0.01
+   && Math.abs(dup1.last.rot-dup0.rot)<1e-6,
+   `${dup1.last.key} ${dup1.last.w.toFixed(0)}x${dup1.last.h.toFixed(0)}`);
+ok('...offset, not hidden exactly under the original',
+   Math.hypot(dup1.last.x-dup0.x, dup1.last.y-dup0.y) > dup1.cs*0.2,
+   `moved ${Math.hypot(dup1.last.x-dup0.x, dup1.last.y-dup0.y).toFixed(1)} units`);
+ok('...in FRONT, and it is the COPY that is selected',
+   dup1.sel.length===1 && dup1.sel[0]===dup1.n-1, JSON.stringify(dup1.sel));
+ok('...and it is its own undo step', dup1.undo===dup0.undo+1, `${dup0.undo} \u2192 ${dup1.undo}`);
+// COLLISION, asserted as an OUTCOME. `_rockSolidified === false` is not readable from here:
+// solidifyRock runs on the next rendered frame and sets it straight back, so the flag races the
+// render loop. Move the copy onto open ground and check that ground BECOMES solid — that needs
+// the rebuild to have actually happened, and it is the property that matters.
+const dupSolid = await p.evaluate(()=>{
+  const G=window.__game, sub=G.state.substrate, sp=sub.levelSprites;
+  const copy=sp[sp.length-1];
+  let spot=null;
+  for (let x=sub.cellSize*3; x<sub.worldWidth-sub.cellSize*3 && !spot; x+=sub.cellSize) {
+    for (let y=sub.surfaceY+sub.cellSize*3; y<sub.worldHeight-sub.cellSize*3; y+=sub.cellSize) {
+      let clear=true;
+      for (let a=-2;a<=2&&clear;a++) for (let bq=-2;bq<=2;bq++)
+        if (sub.solidAtWorld(x+a*sub.cellSize, y+bq*sub.cellSize)) { clear=false; break; }
+      if (clear) { spot={x,y}; break; }
+    }
+  }
+  if (!spot) return {err:'no open ground to move the copy into'};
+  const was = sub.solidAtWorld(spot.x, spot.y);
+  copy.x = spot.x; copy.y = spot.y;
+  sub._rockSolidified = false; sub._fineSolid = null;
+  G.renderFrame(performance.now(), 1);            // solidifyRock runs inside the frame
+  return {err:null, was, now: sub.solidAtWorld(spot.x, spot.y)};
+});
+ok('...and collision follows it: open ground the copy moves onto turns solid',
+   !dupSolid.err && dupSolid.was===false && dupSolid.now===true,
+   dupSolid.err || `solid ${dupSolid.was} \u2192 ${dupSolid.now}`);
+// A MULTI selection duplicates every one of them, and the copies are what stays selected.
+const mdup0 = await p.evaluate(()=>{
+  const sp=window.__game.state.substrate.levelSprites;
+  window.__game.rockEdit.sel = new Set([0,2]);
+  return {n:sp.length, keys:[sp[0].key, sp[2].key]};
+});
+await p.evaluate(()=>window.__game.editDuplicate());
+const mdup1 = await p.evaluate(()=>{
+  const sp=window.__game.state.substrate.levelSprites, r=window.__game.rockEdit;
+  return {n:sp.length, sel:[...r.sel].sort((a,b)=>a-b),
+          tail:[sp[sp.length-2].key, sp[sp.length-1].key]};
+});
+ok('Duplicate copies a whole selection', mdup1.n===mdup0.n+2 && mdup1.tail.join()===mdup0.keys.join(),
+   `${mdup0.n} \u2192 ${mdup1.n}, tail ${mdup1.tail.join(' ')}`);
+ok('...and the copies are what stays selected, not the originals',
+   mdup1.sel.join()===`${mdup1.n-2},${mdup1.n-1}`, JSON.stringify(mdup1.sel));
+// It has to survive a save, or it is a rock you can see and never ship.
+const dupJson = await p.evaluate(()=>{ document.querySelector('#eeCopy').click(); return window.__levelJSON; });
+const dupOut = JSON.parse(dupJson).objects.filter(o=>o.t==='boulder'||o.t==='formation').length;
+ok('duplicates are written out with everything else', dupOut===mdup1.n, `${dupOut} of ${mdup1.n}`);
+// Nothing selected: a no-op, not a stray rock at the origin.
+await p.evaluate(()=>document.querySelector('#eeNone').click());
+await p.evaluate(()=>document.querySelector('#eeDup').click());
+ok('Duplicate with nothing selected does nothing',
+   await p.evaluate((n)=>window.__game.state.substrate.levelSprites.length===n, mdup1.n));
+// PUT THE MAP BACK, via UNDO — which also proves the copies are undoable. Everything below
+// identifies a rock by its KEY, and a key is unique per rock only until a duplicate exists:
+// leaving the copies in made findIndex(s => s.key === k) return the ORIGINAL while the
+// assertion was about the copy, and the draw-order checks failed on a reorder that had worked.
+const dupUndone = await p.evaluate((n0)=>{
+  const G=window.__game;
+  for (let i=0;i<8 && G.state.substrate.levelSprites.length>n0;i++) document.querySelector('#eeUndo').click();
+  return G.state.substrate.levelSprites.length;
+}, dup0.n);
+ok('undo takes the duplicates back off again', dupUndone===dup0.n,
+   `${dupUndone} rocks, started at ${dup0.n}`);
+await p.evaluate(()=>document.querySelector('#eeNone').click());
+
 // ---- draw order (Up / Down) ----------------------------------------------
 // levelSprites is drawn in array order, so later = on top. Assert on the sprite's POSITION IN
 // THE LIST, and that the selection follows it — the selection is a set of indices, so a

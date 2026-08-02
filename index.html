@@ -22441,6 +22441,37 @@ function editSelectAll() {
   updateEditPanel();
 }
 
+// Copy every selected rock, and leave the COPIES selected so the next drag moves them.
+//
+// Offset by a bit, not zero: a copy laid exactly over its original is indistinguishable from
+// nothing having happened, and the only way to find out otherwise is to drag and discover you
+// grabbed one of two. A third of a cell reads as "there are two of these now" while staying
+// near enough to place precisely.
+//
+// The copies go on the END of `levelSprites`, so they land in FRONT of everything — which is
+// what you want for something you are about to position, and matches where a fresh placement
+// goes. A plain field copy is the whole job: a sprite is {key, style, x, y, w, h, rot} and the
+// alpha mask behind it is cached globally by image SOURCE, not per sprite, so a duplicate
+// collides exactly like its original with nothing to rebuild but the stamp.
+//
+// Its own undo step (tag null), like a delete or a placement: duplicating twice in a row is two
+// things you might want back separately, not one run to coalesce.
+function editDuplicate() {
+  const sp = editSprites();
+  if (!sp.length || !rockEdit.sel.size) return;
+  const picked = [...rockEdit.sel].sort((a, b) => a - b).map((i) => sp[i]).filter(Boolean);
+  if (!picked.length) return;
+  editPushUndo(null);
+  const off = ((state && state.substrate && state.substrate.cellSize) || 36) / 3;
+  const base = sp.length;
+  for (const s of picked) {
+    sp.push({ key: s.key, style: s.style, x: s.x + off, y: s.y + off,
+              w: s.w, h: s.h, rot: s.rot || 0 });
+  }
+  rockEdit.sel = new Set(picked.map((_, k) => base + k));
+  reSolidify(); updateEditPanel();
+}
+
 // Load the look sliders AND the object list FROM the level that just started, once per run.
 //
 // `rockEdit.filter` is module state and every map switch is a full restart, so without this it
@@ -22686,6 +22717,7 @@ function updateDevEditBtn() {
       '<div class="ee-row">' +
         '<button id="eeUndo" title="Undo the last edit (or Ctrl+Z)">Undo</button>' +
         '<button id="eeAll">Select all</button><button id="eeNone">None</button>' +
+        '<button id="eeDup" title="Copy the selection — the copies land in front, slightly offset, and stay selected (or D )">Duplicate</button>' +
         '<button id="eeDel">Delete</button>' +
       '</div>' +
       '<h4>Transform selection</h4>' +
@@ -22745,6 +22777,7 @@ function updateDevEditBtn() {
     $('eeUndo').onclick = editUndo;
     $('eeAll').onclick = editSelectAll;
     $('eeNone').onclick = () => { rockEdit.sel.clear(); updateEditPanel(); uiDirty = true; };
+    $('eeDup').onclick = editDuplicate;
     $('eeDel').onclick = editDelete;
     $('eeBig').onclick = () => editScale(1.06);
     $('eeSml').onclick = () => editScale(1 / 1.06);
@@ -23009,6 +23042,9 @@ function begin(newState) {
     // instead of trying to arrange a cloud, a grow and a pile in one probe. It is scoped to
     // the grow/win path now — `reachedThroughRot` is what the win test actually uses.
     infectDescendants, reachedThroughRot,
+    // Duplicate, so a check can exercise it without the button (the panel is only in the DOM
+    // while the editor is open, and clicking it is not what the assertions are about).
+    editDuplicate,
     saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
     forgetSaved: deleteSavedLevel,
     draw: () => resolveCardOp(drawCard(state)),
@@ -23885,6 +23921,10 @@ function setupInput() {
     else if (rockEdit.on && rockEdit.sel.size && e.code === 'Comma') { editRotate(-Math.PI / 36); e.preventDefault(); }
     else if (rockEdit.on && rockEdit.sel.size && e.code === 'Period') { editRotate(Math.PI / 36); e.preventDefault(); }
     else if (rockEdit.on && e.code === 'KeyA' && (e.ctrlKey || e.metaKey)) { editSelectAll(); e.preventDefault(); }
+    // Plain `D`, not Ctrl+D — the browser owns that one (bookmark), and every other editor key
+    // here is unmodified. Guarded on the modifiers being ABSENT so it cannot eat a real one.
+    else if (rockEdit.on && rockEdit.sel.size && e.code === 'KeyD'
+             && !e.ctrlKey && !e.metaKey && !e.altKey) { editDuplicate(); e.preventDefault(); }
     // Ctrl/Cmd+Z. Only ever preventDefault when there was something to undo, so the browser's
     // own undo still reaches the page when the editor's stack is empty. Typing is handled at
     // the top of this handler — a Ctrl+Z in the rename field never gets here.
