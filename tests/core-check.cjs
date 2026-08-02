@@ -103,17 +103,14 @@ ok('the deepest placeable point is the line itself',
 // core is a saturated red.
 await p.evaluate(()=>{const g=window.__game,s=g.state.substrate;
   g.camera.zoom=1; g.camera.x=s.worldWidth*0.5; g.camera.y=s.coreY; g.camera.clamp();});
-// WAIT FOR RENDERS, NOT FOR A CLOCK. This was a flat sleep(700), which is a bet that the
-// camera move has been drawn by then — and on a loaded machine (a full run.mjs sweep) it has
-// not: the patch below the line came back at 58 against a gate of 60, on a core that renders
-// correctly, while the same code standalone reads 67. paceInfo().renders counts frames the
-// loop actually drew, so this waits for the thing being sampled.
-await p.evaluate(async()=>{
-  const g=window.__game, r0=g.paceInfo().renders;
-  for (let i=0;i<900 && g.paceInfo().renders<r0+4;i++) await new Promise(r=>requestAnimationFrame(r));
-});
-await sleep(200);
-const hue=await p.evaluate(()=>{
+// SAMPLE UNTIL THE READING SETTLES. Neither a flat sleep nor a fixed number of renders is
+// enough: this measures the canvas after a camera move, and how many frames that takes to
+// converge depends on the machine. A sleep(700) read 58 against a gate of 60 inside a full
+// run.mjs sweep (67-76 standalone), and waiting four renders still read 53 — both on a core
+// that renders correctly. Two consecutive agreeing samples is a claim about the PICTURE rather
+// than about the clock, so it holds however slow the machine is. If it never settles, the last
+// reading is asserted anyway and fails honestly rather than hanging.
+const sampleHue=()=>p.evaluate(()=>{
   const g=window.__game, sub=g.state.substrate;
   const c=[...document.querySelectorAll('canvas')].find(n=>n.clientHeight>0);
   const x=c.getContext('2d'), k=c.height/c.clientHeight;
@@ -125,6 +122,15 @@ const hue=await p.evaluate(()=>{
   };
   return {above:patch(sub.coreY-120), below:patch(sub.coreY+120)};
 });
+const lead=(h)=>h.below.r-h.below.b;
+let hue=await sampleHue(), settleTries=0;
+for (; settleTries<25; settleTries++) {
+  await sleep(250);
+  const next=await sampleHue();
+  const done=Math.abs(lead(next)-lead(hue))<=2;
+  hue=next;
+  if (done) break;
+}
 // Calibrated against the NULL CASE, not against the observed value: with no core the patch
 // below the line is soil and its lead matches the one above it (~28 vs ~28). Observed with the
 // core: ~79. The gate sits at 60 and 2x, which leaves better than 2x headroom over "no core at
