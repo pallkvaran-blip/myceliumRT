@@ -75,9 +75,23 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
     // Calling tickWorld directly is not a substitute — it advances the sim but never marks the
     // HUD dirty, so the model moves and the DOM does not. Sleeping drives the real loop, which
     // ticks, marks dirty and refreshes, exactly as it does for a player.
+    // BOTH: ticks to move the clock, a real sleep to get it on screen.
+    //
+    // The round clock is a slice of wall clock, so the bar can only fill if the clock moves —
+    // but leaning on elapsed time ALONE is not enough either. Headless throttles rAF, and how
+    // hard depends on what else is running: five 1.1 s sleeps yielded enough round-clock
+    // movement to see standalone and not a single percent inside a full `run.mjs` sweep, where
+    // the same code reported 25.8% -> 25.8%.
+    //
+    // So drive the model explicitly (tickWorld advances _engTick, which is what the fill is a
+    // fraction of) and sleep as well (only the real loop's own ticks mark the HUD dirty, so
+    // without elapsed time the model moves and the DOM does not). Neither half is redundant:
+    // the ticks make the delta big enough to survive the 0.1% the width is rounded to, and the
+    // sleep is what puts it on screen.
     const t0=st.turn;let refreshed=0;
     for(let i=0;i<5;i++){
-      await new Promise(r=>setTimeout(r,1100));
+      for(let k=0;k<4;k++){st.runOver=false;st.winPending=false;net.alive=true;g.tickWorld(st);}
+      await new Promise(r=>setTimeout(r,600));
       await raf2();refreshed++;
     }
     return{refreshed,ticks:st.turn-t0,settled,
