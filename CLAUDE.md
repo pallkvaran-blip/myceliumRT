@@ -90,7 +90,7 @@ other — a worm creeping 0.375 cells/tick would barely move if it only stepped 
 
 ### Threat rates (all changed together, all in BOTH tables)
 
-`tests/threat-check.cjs` (73 assertions) measures every one of these through the sim, in both
+`tests/threat-check.cjs` (75 assertions) measures every one of these through the sim, in both
 modes. A rate lives in two places — the CONFIG literal and `MODE_TUNING` — so **changing one
 table only doesn't make the creature faster, it makes one of the two games harder**, and that
 is invisible from inside either mode. **Every retune has to move BOTH by the same factor.**
@@ -134,12 +134,26 @@ CONFIG literal only.
   because the behaviour it drove was removed ("worms no longer wander aimlessly"). That removal
   had a bug behind it: **worms seed at `seedMinColonyDistFrac` of the map width (0.25 × 2600 =
   650 units) and only see 500**, so a fresh worm has *never* been able to see the colony, and
-  with nothing to head for it sat still forever unless the player grew into its sight. A worm
-  with no visible target now creeps toward the nearest strand **without needing line of sight**,
-  at `wanderSpeed` — casting about, not drifting at random — and charges at `crawlSpeed` only
-  once it can actually see you. (The mould has the same seed-vs-sight gap at 0.2 × 2600 = 520
-  against 500, but a cloud also targets FOOD, which is everywhere on a procedural map, so it
-  finds something to move toward. Worms only target strands and ant trails.)
+  with nothing to head for it sat still forever unless the player grew into its sight. (The
+  mould has the same seed-vs-sight gap at 0.2 × 2600 = 520 against 500, but a cloud also targets
+  FOOD, which is everywhere on a procedural map, so it finds something to move toward. Worms
+  only target strands and ant trails.)
+- **NOTHING SENSES THROUGH ROCK, and a blind worm SEARCHES rather than homes.** A worm steers at
+  you only when you are inside `sightRadius` AND `segmentClear` — which covers water too, since
+  lakes and reservoirs stamp `cell.rock` as well as `cell.water`. With nothing visible it keeps
+  a heading, jitters it, and turns hard when a step is blocked, at `wanderSpeed`.
+  The `wanderSpeed` revival above first pointed a blind worm at the nearest strand with **no
+  line-of-sight test and no range limit**, and since worms are almost always in that branch,
+  every worm on the map became omniscient — it walked at the colony through rock from anywhere.
+  Reported as "enemy sensing — they are not supposed to be able to see through rocks, lakes,
+  etc". Measured over ~390 spots that were open, out of range and blind, as the angle between
+  the worm's heading and the bearing to the colony: **homing 1° median with 90% within 30°;
+  searching 96° median with 11% within 30°** (chance is ~17%). `threat-check` pins both.
+  The cost is real and intended — over 150 steps a pack closed 1357→464 homing vs 1534→1043
+  searching, and the share that ever acquired sight went 31%→18%. If they need to arrive
+  sooner the levers are `wanderSpeed` and `sightRadius`, **not** a blind beeline.
+  The ant-trail fallback is untouched: `nearestPointInRange` IS line-of-sight tested, and a
+  trail is a scent you can legitimately detect from where you stand.
 - **`strandsPerBite` is a NEW knob** — the count was hard-coded at 1 inside `stepNematodes`.
   `eatEveryTicks` is how OFTEN a worm bites; this is how much comes away each time. Each strand
   is claimed separately and must be in reach, unclaimed by another worm this tick, and not
@@ -264,7 +278,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~735 assertions across 20 checks. **Run them; don't verify by re-reading your own diff.**
+~737 assertions across 20 checks. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~12 min)
