@@ -11300,6 +11300,10 @@ function stepNematodes(state, phase = 'both') {
   // Worms can only sense and eat strands that have actually GROWN IN (net.grownIn): a grow
   // commits its whole path at once, so tissue still animating in isn't there to be found yet.
   const nodes = net && net.alive ? net.nodes.filter((n) => net.grownIn(n)) : [];
+  // Built once here, queried 2-3 times per worm below — see buildNodeGrid. Bucket size is a
+  // couple of substrate cells: fine enough that the ring search stops early, coarse enough that
+  // a blind worm's sweep out to sightRadius is a bounded number of empty lookups.
+  const grid = buildNodeGrid(nodes, cs * 2);
   const claimed = new Set();    // node ids eaten this tick (one worm per strand)
   const targeted = new Set();   // node ids a worm is already HEADING for this tick (fan-out)
   const newborns = [];
@@ -11331,8 +11335,8 @@ function stepNematodes(state, phase = 'both') {
       // piling onto one node. If every visible strand is already taken (more worms than
       // strands in sight), fall back to the plain nearest so it still closes in. (Eating
       // below independently claims a DISTINCT strand, so consumption still scales.)
-      let seen = nearestVisibleNode(sub, nodes, w, n.sightRadius, targeted);
-      if (!seen) seen = nearestVisibleNode(sub, nodes, w, n.sightRadius, null);
+      let seen = nearestVisibleNode(sub, grid, w, n.sightRadius, targeted);
+      if (!seen) seen = nearestVisibleNode(sub, grid, w, n.sightRadius, null);
       if (seen) targeted.add(seen.id);
       w.targetId = seen ? seen.id : null;
       w.sees = !!seen;                                    // searching vs locked-on (sight overlay)
@@ -11404,7 +11408,7 @@ function stepNematodes(state, phase = 'both') {
         const want = Math.max(1, n.strandsPerBite | 0);
         for (let k = 0; k < want; k++) {
           const bite = (k === 0 && !claimed.has(seen.id))
-            ? seen : nearestVisibleNode(sub, nodes, w, n.sightRadius, claimed);
+            ? seen : nearestVisibleNode(sub, grid, w, n.sightRadius, claimed);
           if (!bite || Math.hypot(bite.x - w.x, bite.y - w.y) > n.reach * cs) break;
           const bcell = sub.cellAtWorld(bite.x, bite.y);
           if (bcell && bcell.hardened > 0) break;   // Sclerotial Crust: hardened strands can't be eaten (timed)
@@ -11464,12 +11468,61 @@ function excrete(state) {
 // Nearest strand within sight that has CLEAR LINE OF SIGHT (rock blocks it),
 // skipping nodes already claimed for eating this tick. LOS is only tested on a
 // distance improvement, to keep the cost down.
-function nearestVisibleNode(sub, nodes, w, sight, claimed) {
+// A SIGHT-SIZED BUCKET GRID over the strands, built once per step and queried by every worm.
+//
+// `nearestVisibleNode` used to scan the WHOLE colony, and the worm loop calls it twice per worm
+// (once excluding strands another worm already picked, once without) — so a late-game board of
+// 82 worms against 5,888 strands did ~965,000 distance tests per step. Measured: the enemy step
+// spiked to 84-124 ms while a quiet tick was 0.6 ms, which is the periodic hitch rather than a
+// steady slowdown, and threats compound from L7 so it gets worse exactly as the run gets long.
+//
+// Buckets are FINE (a couple of cells) and scanned as EXPANDING RINGS around the worm, because
+// the answer wanted is the NEAREST visible strand — so the search can stop as soon as no
+// unscanned ring could hold anything closer than what it already has. A coarse grid does not
+// help here: with buckets a full sightRadius across, the 3x3 query still swept most of a dense
+// colony (84 -> 71 ms, barely a dent). Ring order turns the common cases into a handful of
+// buckets each — a worm standing on the colony stops at ring 0 or 1, and a worm with nothing in
+// range walks only the buckets that exist, which for a blind worm is almost none.
+//
+// The scan inside a bucket is the original loop verbatim, and rings are visited nearest-first
+// with the same `d < bestD` guard, so what counts as "nearest visible" is unchanged.
+//
+// Keys are numeric, not strings: this is the innermost lookup of the whole enemy step.
+const NODE_GRID_SPAN = 4096;
+const _gridKey = (cx, cy) => (cx + NODE_GRID_SPAN) * (NODE_GRID_SPAN * 2) + (cy + NODE_GRID_SPAN);
+function buildNodeGrid(nodes, cell) {
+  const g = new Map();
+  const c = Math.max(1, cell);
+  for (const nd of nodes) {
+    const k = _gridKey(Math.floor(nd.x / c), Math.floor(nd.y / c));
+    let a = g.get(k); if (!a) g.set(k, (a = []));
+    a.push(nd);
+  }
+  return { cell: c, g };
+}
+
+function nearestVisibleNode(sub, grid, w, sight, claimed) {
   let best = null, bestD = sight * sight;
-  for (const node of nodes) {
-    if (claimed && claimed.has(node.id)) continue;
-    const dx = node.x - w.x, dy = node.y - w.y, d = dx * dx + dy * dy;
-    if (d < bestD && sub.segmentClear(w.x, w.y, node.x, node.y)) { bestD = d; best = node; }
+  const c = grid.cell, gx = Math.floor(w.x / c), gy = Math.floor(w.y / c);
+  const maxR = Math.ceil(sight / c) + 1;
+  for (let r = 0; r <= maxR; r++) {
+    // Nothing in ring r can be nearer than (r-1) buckets, so once that floor is already beaten
+    // the rest of the rings cannot improve on `best` and the search is done.
+    if (best && r > 1) { const floor = (r - 1) * c; if (floor * floor > bestD) break; }
+    for (let ry = gy - r; ry <= gy + r; ry++) {
+      const edgeRow = (ry === gy - r || ry === gy + r);
+      for (let rx = gx - r; rx <= gx + r; rx++) {
+        // Only the ring itself — everything inside it was scanned by a previous, nearer pass.
+        if (!edgeRow && rx !== gx - r && rx !== gx + r) continue;
+        const arr = grid.g.get(_gridKey(rx, ry));
+        if (!arr) continue;
+        for (const node of arr) {
+          if (claimed && claimed.has(node.id)) continue;
+          const dx = node.x - w.x, dy = node.y - w.y, d = dx * dx + dy * dy;
+          if (d < bestD && sub.segmentClear(w.x, w.y, node.x, node.y)) { bestD = d; best = node; }
+        }
+      }
+    }
   }
   return best;
 }
@@ -13686,16 +13739,25 @@ function checkGoalReached(state) {
   const goalDepth = state.config.cards.goalSurfaceDepth != null
     ? state.config.cards.goalSurfaceDepth
     : state.config.actions.fruit.reachDepth;
+  // CHEAPEST TEST FIRST, and the ancestry walk LAST. Every condition here is a `continue`, so
+  // the order is free to choose — and it matters: this runs over every strand on every world
+  // step, and `reachedThroughRot` walks a whole parent chain. Leading with it cost O(nodes x
+  // depth) per tick to answer a question only a strand ALREADY TOUCHING THE GOAL SURFACE can
+  // use, which measured at over half of tickWorld on a 6000-strand colony. Depth is arithmetic,
+  // the column lookup is a lookup, and almost every strand in a colony is neither at the
+  // surface nor in the goal column — so by the time the walk runs there is usually nothing
+  // left to walk.
   for (const n of net.nodes) {
-    // Rotten itself, or hanging off rot. The ancestry walk is what stops the exploit the
-    // subtree claim used to stop: grow a long card THROUGH a cloud, get caught, and run the
-    // far end on to the goal. That tip is clean tissue, but everything joining it to the
-    // colony is dead, so it cannot fruit — and no OTHER strand is harmed to establish it.
-    if (n.infected || reachedThroughRot(net, n) || !net.grownIn(n)) continue;
+    if (n.infected || !net.grownIn(n)) continue;
+    const depth = n.y - sub.surfaceY;
+    if (depth < 0 || depth > goalDepth) continue;
     const surf = sub.surfaceColumnAtX(n.x);
     if (surf && surf.goal) {
-      const depth = n.y - sub.surfaceY;
-      if (depth >= 0 && depth <= goalDepth) {
+      // Rotten itself, or hanging off rot. The ancestry walk is what stops the exploit the
+      // subtree claim used to stop: grow a long card THROUGH a cloud, get caught, and run the
+      // far end on to the goal. That tip is clean tissue, but everything joining it to the
+      // colony is dead, so it cannot fruit — and no OTHER strand is harmed to establish it.
+      if (!reachedThroughRot(net, n)) {
         // WIN — but first FINISH HARVESTING every food pile the colony still occupies
         // (bank its Energy) and hand out any resulting card drafts. The victory sequence
         // only begins once those are resolved: if a draft is now pending we mark the win
@@ -24934,6 +24996,49 @@ function _leafSets() {
 // ORIGINAL footprint (maxNutrient), NOT the live nutrient — so a pile never
 // changes shape or rearranges as it's eaten. It simply fades (via alphaMul) once
 // consumed. Deterministic per (col,row) so a cell's heap is stable frame-to-frame.
+// --- sprite mips: draw a small sprite from a SMALL source ---------------------
+// `drawImage` reads the whole source rect however small the destination is, so a 300px leaf
+// drawn at 12px reads ~90,000 pixels to write ~150. Food piles draw 8-11 pieces per CELL, which
+// measured at 228 blits in one frame reading 21.5 Mpx to write 0.06 Mpx — a 350:1 ratio, and
+// the single biggest item in the frame profile. On a phone that is the whole problem: fill rate
+// and texture bandwidth are exactly what a mobile GPU is short of.
+//
+// The other half is `ctx.filter`. A per-piece filter forces the draw onto a slow path (the
+// browser composites through an offscreen buffer for each call), and it was being set for every
+// nut and every duff leaf, every frame, for a constant colour tweak.
+//
+// Both are fixed ONCE rather than per frame: scale the sprite into a small offscreen canvas
+// with the filter already baked in, keyed by a size bracket, and blit that. Brackets are powers
+// of two so a zooming camera reuses a handful of entries instead of minting one per pixel of
+// scale, and the cache is per (sprite, bracket, filter) — a few dozen small canvases in all.
+const _mipCache = new Map();
+let _mipSeq = 0;
+function _spriteMip(img, w, h, filter) {
+  const iw = img.width | 0, ih = img.height | 0;
+  if (!iw || !ih) return null;                       // not decoded yet — caller falls back
+  const need = Math.max(w, h);
+  if (!(need > 0)) return null;
+  // Nothing to gain from a mip at similar size; with no filter to bake either, skip it.
+  if (!filter && Math.max(iw, ih) < need * 2) return null;
+  let b = 8; while (b < need && b < 2048) b *= 2;
+  const id = img.__mipId || (img.__mipId = ++_mipSeq);
+  const key = id + '|' + b + '|' + (filter || '');
+  const hit = _mipCache.get(key);
+  if (hit) return hit;
+  if (_mipCache.size > 600) _mipCache.clear();       // pathological zoom sweep — start over
+  const sc = Math.min(1, b / Math.max(iw, ih));
+  const cw = Math.max(1, Math.round(iw * sc)), ch = Math.max(1, Math.round(ih * sc));
+  const c = document.createElement('canvas');
+  c.width = cw; c.height = ch;
+  const cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = true;
+  cx.imageSmoothingQuality = 'high';                 // the downscale happens once, so buy quality
+  if (filter) cx.filter = filter;
+  cx.drawImage(img, 0, 0, cw, ch);
+  _mipCache.set(key, c);
+  return c;
+}
+
 function _drawLeafHeap(sets, col, row, kind, alphaMul) {
   const isNut = kind === 'nut';
   const isDuff = kind === 'duff';
@@ -24987,8 +25092,11 @@ function _drawLeafHeap(sets, col, row, kind, alphaMul) {
     // leaves scatter every which way; nuts mostly sit upright (a slight tilt).
     ctx.rotate(isNut ? (h3 - 0.5) * 1.1 : h3 * Math.PI * 2);
     ctx.globalAlpha = alpha * alphaMul;
-    if (filter) ctx.filter = filter;
-    ctx.drawImage(img, -lw / 2, -lh / 2, lw, lh);
+    // The mip carries the filter, so the per-piece ctx.filter goes with it. Aspect is preserved
+    // in the mip, so the destination rect is unchanged and the heap looks the same.
+    const mip = _spriteMip(img, lw, lh, filter);
+    if (mip) ctx.drawImage(mip, -lw / 2, -lh / 2, lw, lh);
+    else { if (filter) ctx.filter = filter; ctx.drawImage(img, -lw / 2, -lh / 2, lw, lh); }
     ctx.restore();
   }
 }
@@ -25387,35 +25495,46 @@ function formationGroups() {
 // never band over the sprite's transparent margins. baseBlend fades the bottom
 // into the soil; the lift (scaled inversely with zoom) keeps warm rock readable
 // against the brown earth when zoomed out without washing the detail when close.
-let _formBuf = null;
+// The composite — downscale the sprite, tint it, fade its base into the soil — was rebuilt from
+// the full-size source EVERY FRAME, for every formation on screen: 34 blits reading 3.96 Mpx to
+// write 0.57, plus a gradient fill each. None of it changes unless the camera zooms, so it is
+// cached per (sprite, size, tint, fade). Rotation stays at blit time — it is applied to the
+// finished buffer, so it costs nothing to leave out of the key.
+const _formCache = new Map();
 function _blitFormation(img, sw, sh, tlx, tly, z, cs, soil, baseBlend, rot = 0) {
   const W = Math.max(1, Math.ceil(sw)), H = Math.max(1, Math.ceil(sh));
-  if (!_formBuf) _formBuf = document.createElement('canvas');
-  if (_formBuf.width !== W || _formBuf.height !== H) { _formBuf.width = W; _formBuf.height = H; }
-  const bctx = _formBuf.getContext('2d');
-  bctx.clearRect(0, 0, W, H);
-  bctx.drawImage(img, 0, 0, sw, sh);
-  bctx.globalCompositeOperation = 'source-atop';
   const liftA = Math.max(0, Math.min(0.16, 0.16 - (z - 0.5) * 0.26));
-  if (liftA > 0.001) { bctx.fillStyle = `rgba(116,128,146,${liftA.toFixed(3)})`; bctx.fillRect(0, 0, W, H); }
-  if (baseBlend) {
-    const fadeH = Math.min(sh * 0.24, cs * 1.7 * z);
-    const grad = bctx.createLinearGradient(0, sh - fadeH, 0, sh);
-    grad.addColorStop(0, `rgba(${soil},0)`);
-    grad.addColorStop(1, `rgba(${soil},0.94)`);
-    bctx.fillStyle = grad;
-    bctx.fillRect(0, sh - fadeH, W, fadeH);
+  const fadeH = baseBlend ? Math.min(sh * 0.24, cs * 1.7 * z) : 0;
+  const id = img.__mipId || (img.__mipId = ++_mipSeq);
+  const key = id + '|' + W + '|' + H + '|' + liftA.toFixed(3) + '|' + fadeH.toFixed(1) + '|' + soil;
+  let buf = _formCache.get(key);
+  if (!buf) {
+    if (_formCache.size > 240) _formCache.clear();     // a long zoom sweep — start over
+    buf = document.createElement('canvas');
+    buf.width = W; buf.height = H;
+    const bctx = buf.getContext('2d');
+    bctx.drawImage(img, 0, 0, sw, sh);
+    bctx.globalCompositeOperation = 'source-atop';
+    if (liftA > 0.001) { bctx.fillStyle = `rgba(116,128,146,${liftA.toFixed(3)})`; bctx.fillRect(0, 0, W, H); }
+    if (fadeH > 0) {
+      const grad = bctx.createLinearGradient(0, sh - fadeH, 0, sh);
+      grad.addColorStop(0, `rgba(${soil},0)`);
+      grad.addColorStop(1, `rgba(${soil},0.94)`);
+      bctx.fillStyle = grad;
+      bctx.fillRect(0, sh - fadeH, W, fadeH);
+    }
+    bctx.globalCompositeOperation = 'source-over';
+    _formCache.set(key, buf);
   }
-  bctx.globalCompositeOperation = 'source-over';
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,0.45)';
   ctx.shadowBlur = Math.max(2, 5 * z);
   if (rot) {                                          // rotate around the sprite centre
     ctx.translate(tlx + W / 2, tly + H / 2);
     ctx.rotate(rot);
-    ctx.drawImage(_formBuf, -W / 2, -H / 2);
+    ctx.drawImage(buf, -W / 2, -H / 2);
   } else {
-    ctx.drawImage(_formBuf, tlx, tly);
+    ctx.drawImage(buf, tlx, tly);
   }
   ctx.restore();
 }
