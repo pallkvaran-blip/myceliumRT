@@ -58,8 +58,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       if (s.turn !== t0 + 1) offBy++;               // ONE step per action, never more
       if (net.nodes.length > n0) grew++;
       // A pile draft freezes the game until it's picked — take the first offer and carry on.
+      // `choices`, NOT `cards`: an offer is { choices: [name, ...], kind }, so `off.cards[0]`
+      // was always undefined and the draft was never actually taken. (CLAUDE.md lists this
+      // exact trap.) A pending offer blocks further plays, so on a map where a pile finished
+      // early the session stalled with every later play refused.
       const off = s.cards.pendingOffers && s.cards.pendingOffers[0];
-      if (off && off.cards && off.cards[0]) g.chooseCard(off.cards[0].name || off.cards[0]);
+      const pick = off && off.choices && off.choices[0];
+      if (pick) g.chooseCard(pick.name || pick);
     }
     return { acts, offBy, grew, turn: s.turn, over: !!s.runOver, alive: !!net.alive, nodes: net.nodes.length };
   });

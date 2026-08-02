@@ -436,6 +436,19 @@ Harness traps that have cost real time:
   and sampled 19 fresh strands against a floor of 20 on a rockier map (39 on another boot — the
   seed is `Date.now()`). Wait for `paceInfo().renders` to advance, and loop until the coverage
   the guard demands actually exists, bounded so a real break still trips it.
+- **`turn-play`'s "a long session plays out" (`acts >= 30`) IS STILL FLAKY, and the perf pass
+  made it flakier** — 4/4 full 120-action sessions on the pre-perf build, 13 / 120 / 37 after.
+  Diagnosed but NOT fixed, so start here rather than from scratch. A turn-based action QUEUES
+  its world step for the frame loop, and no frames run inside a synchronous `page.evaluate`, so
+  the queue sits at `{phase:'wait', sawReveal:false}` and blocks every later play — the session
+  stops dead while still reporting `over:false, alive:true`. Both obvious fixes make it worse,
+  and the numbers say why: `settleEnemyTurn()` AFTER the play adds the queued step to the
+  action's own, so `turn` moves by 2 and the one-step-per-action assertion fails; BEFORE the
+  play it reads `acts: 0` while `turn` still reaches 121, because **the settle is what advances
+  the turn and `g.play` only queues** — so `s.turn === t0` right after a play does NOT mean the
+  play was blocked, which is the assumption the whole loop rests on. A real fix has to count a
+  step across settle+play, not across the play alone. Pinning the seed makes it deterministic
+  without fixing it (that map stalls at 5 actions).
 
 ## Performance
 
