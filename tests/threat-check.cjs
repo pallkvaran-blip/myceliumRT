@@ -785,6 +785,12 @@ const through=await p.evaluate(()=>{
   s.nematodes.length=0; s.clouds.length=0;
   s.runOver=false; s.winPending=false; s.won=false;
   net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  // EVERY OTHER PILE OFF THE MAP FIRST. colonizeReachablePiles flood-fills a pile with
+  // 8-connectivity, so a procedural pile touching this probe's four cells makes ONE pile with
+  // a second entrance — and `entry` then lands somewhere the root can reach without crossing
+  // the mould, which claims the four cells by a route the probe never built. That is what read
+  // `4 of 4` on one boot and `0 of 4` on the next off identical code.
+  sub.forEachCell((cell) => { cell.nutrient=0; cell.maxNutrient=0; cell.trich=0; cell.colonized=0; });
   const x=sub.worldWidth/2, y=sub.surfaceY+cs*4;
   // A short chain: root, then a strand standing IN mould, then the strand that reached the pile.
   let root=net.addNode(x, y, null); root._liveAt=0; root._revSeen=true;
@@ -828,6 +834,71 @@ ok('...banks no energy, so no pile reward and no draft',
 ok('...and the food is all still there',
    !through.err && through.nut===through.before,
    through.err || `${through.nut} of ${through.before} left`);
+
+// ---- 6g3. WHAT YOU GREW THIS STEP NEAR THE BREACH IS ROT TOO -------------------
+// The owner's rule, and the reason it exists: "there is no growth action strong enough to just
+// sprint past trych that is about to infect you". Blocking the pile claim (6g2) stops the
+// reward; this stops the tissue itself arriving clean. Everything grown DURING the step that
+// got infected, within freshGrowthRings of the breach, is claimed with it.
+//
+// The watermark is what makes it "this step": ids come off nextNodeId in order, so the harness
+// can seed an old half and a fresh half of one chain by setting _turnStartId at the join. That
+// distinction is the whole rule — established tissue at the same distance must be left to the
+// ordinary race, or this becomes a second, much faster spread.
+await ctx.close();
+ctx=await b.newContext({viewport:{width:1400,height:800}});
+await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
+p=await boot(ctx, base+'/index.html#dev,turn');
+const FRESH_RINGS=24;
+ok(`trichoderma.freshGrowthRings is ${FRESH_RINGS} rings`,
+   await p.evaluate(()=>window.__cfg.trichoderma.freshGrowthRings)===FRESH_RINGS,
+   `got ${await p.evaluate(()=>window.__cfg.trichoderma.freshGrowthRings)}`);
+// 3 segments to a card "step", so the ring count only means something as grow-steps: it has to
+// out-reach the longest grow in the game or the sprint still works.
+ok('...which is 8 grow-steps, longer than any grow card',
+   await p.evaluate(()=>{
+     const c=window.__cfg;
+     let longest=0;
+     for (const k of ['reachSegments','grow4Segments','grow5Segments','lungeSegments'])
+       if (typeof c.cards[k]==='number') longest=Math.max(longest, c.cards[k]);
+     return c.trichoderma.freshGrowthRings/3 >= longest/3;
+   }),
+   `${FRESH_RINGS/3} steps`);
+const sprint=await p.evaluate((RINGS)=>{
+  const G=window.__game, s=G.state, sub=s.substrate, net=s.active, cs=sub.cellSize;
+  const t=s.config.trichoderma;
+  s.nematodes.length=0; s.clouds.length=0;
+  s.runOver=false; s.winPending=false; s.won=false;
+  sub.forEachCell((cell)=>{ cell.trich=0; cell.mouldProof=0; cell.reinfectGrace=0; });
+  // ONLY the fresh-growth rule. firstTouchRings would claim its own neighbourhood around the
+  // breach and the established race would claim more again, and neither is what is being
+  // measured here — both have their own assertions above.
+  t.contactChance=1; t.firstTouchRings=0; t.spreadDepthPerTurn=0; t.freshGrowthRings=RINGS;
+  net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  const y=sub.surfaceY+cs*4;
+  let par=null;
+  for (let i=0;i<60;i++){ par=net.addNode(400+i*6, y, par); par._liveAt=0; par._revSeen=true; }
+  const OLD=20, HIT=30;                       // 0..19 grown before this step, 20..59 during it
+  net._turnStartId = net.nodes[OLD].id;
+  const c=net.nodes[HIT];
+  s.clouds.push({cx:c.x, cy:c.y, r:0.2, strength:1, dying:false, heading:null});   // makeCloud's shape
+  net.alive=true;
+  G.tickWorld(s);
+  const inf=net.nodes.map((n)=>!!n.infected);
+  return { hit:inf[HIT],
+           freshInRange: inf.slice(OLD, HIT+RINGS+1).every(Boolean),
+           oldInRange: inf.slice(HIT-RINGS, OLD).some(Boolean),
+           beyond: inf.slice(HIT+RINGS+1).some(Boolean),
+           total: inf.filter(Boolean).length };
+}, FRESH_RINGS);
+ok('the breach itself is rot', sprint.hit===true);
+ok('...and every strand grown THIS step within reach of it, however far the grow ran',
+   sprint.freshInRange===true,
+   `${sprint.total} of 60 claimed`);
+ok('...but nothing grown on an EARLIER step, at the same distance',
+   sprint.oldInRange===false);
+ok('...and nothing past freshGrowthRings, so a long enough grow still outruns it',
+   sprint.beyond===false);
 
 // ---- 6f. the worm's reach ----------------------------------------------------
 ok(`nematodes.reach is ${WORM_REACH} cells`,
@@ -904,6 +975,14 @@ const search=await p.evaluate(()=>{
     placed++;
   }
   if (!placed) return {err:'nowhere beyond the seed distance to place a worm'};
+  // ONLY the worms this harness placed. tickWorld RESPAWNS worms, and a respawn arrives near
+  // the colony with something in its sensing range — entirely legitimate movement that this
+  // assertion is not about. Left in, the run measured 150 worms instead of 6 and read
+  // `nearest 24 -> 0` off a worm the harness never positioned. Respawns are also spliced back
+  // out after every step so they cannot eat the colony out from under the metric.
+  const mine=s.nematodes.slice(-placed);
+  const keepMine=()=>{ if (s.nematodes.length!==mine.length) s.nematodes.splice(0, s.nematodes.length, ...mine); };
+  keepMine();
   const start=nearest();
   const seesAtStart=s.nematodes.some(w=>w.sees);
   const track=[];
@@ -917,6 +996,7 @@ const search=await p.evaluate(()=>{
   for (let k=0;k<12;k++){
     s.runOver=false; s.winPending=false; s.won=false; net.alive=true;
     G.tickWorld(s);
+    keepMine();
     track.push(nearest());
     for (const w of s.nematodes) {
       const q=prev.get(w); if (!q) { prev.set(w,{x:w.x,y:w.y}); continue; }
@@ -1069,8 +1149,16 @@ const sense = await sp.evaluate(() => {
   for (let gx=900; gx<sub.worldWidth-100; gx+=60)
     for (let gy=sub.surfaceY+40; gy<sub.worldHeight-40; gy+=60) {
       if (sub.solidAtWorld(gx,gy)) continue;
-      if (Math.hypot(gx-cx,gy-cy) < n.sightRadius) continue;   // must be out of range
-      if (sub.segmentClear(gx,gy,cx,cy)) continue;             // and blind to the colony
+      // Against EVERY node, not just the seed. The colony is 30 nodes spanning ~24x36 units,
+      // so a spot just outside sightRadius of node 0 can be inside it for the far corner, and
+      // one with no clear line to node 0 can have one to another node. That gap put a single
+      // legitimately-sighted worm in the sample and read as "1 of 362 blind worms moved".
+      let anyNear=false;
+      for (const nd of net.nodes) if (Math.hypot(gx-nd.x,gy-nd.y) < n.sightRadius) { anyNear=true; break; }
+      if (anyNear) continue;                                   // must be out of range of ALL of it
+      let anyClear=false;
+      for (const nd of net.nodes) if (sub.segmentClear(gx,gy,nd.x,nd.y)) { anyClear=true; break; }
+      if (anyClear) continue;                                  // and blind to ALL of it
       s.nematodes.length=0;
       s.nematodes.push({x:gx,y:gy,hp:n.maxHp,heading:0.75,targetId:null,sees:false,trailing:false});
       const w=s.nematodes[0];

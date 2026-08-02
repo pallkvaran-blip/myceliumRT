@@ -242,6 +242,25 @@ CONFIG literal only.
   contributes exactly its chunk. This **replaces** `contactChunk: 4`, which was ADDITIVE — a
   breach claimed 4 rings and the freshly-seeded front then took a whole turn's spread on top, so
   "what does first contact cost?" had no single answer.
+- **WHAT YOU GREW THIS STEP NEAR THE BREACH IS ROT TOO** (`freshGrowthRings`, 24 = 8 steps).
+  The owner's rule, and its reason in their words: *"there is no growth action strong enough to
+  just sprint past trych that is about to infect you"*. Blocking the pile claim stops the reward;
+  this stops the tissue arriving clean. `infectFreshGrowth` walks the graph out from the breach
+  in both directions like `infectAround`, but claims only nodes **newer than the step's
+  watermark** — older tissue is traversed so the walk can reach fresh growth beyond it, and
+  otherwise left to the ordinary race. Called from BOTH first-touch paths (the contact pass in
+  `infectNetwork`, and `infectStrandsInMould`).
+  - **The watermark is a node id, not a timestamp.** Ids come off `nextNodeId` in order, so
+    "grown since the last world step" is exactly `id >= net._turnStartId`, which `tickWorld`
+    sets to `nextNodeId` at its END — growth happens in the action, which runs first.
+  - 24 rings deliberately **out-reaches the longest grow card** (`reachSegments` 18 = 6 steps),
+    which is the entire point; `threat-check` asserts that relationship rather than the number.
+  - It does NOT replace the "nothing clean reaches the goal through rot" test above, and it does
+    not un-block the pile claim — the owner asked for all three: *"claiming piles through mold
+    should stay blocked, because infected mycelium should not harvest or draft."*
+- **Infected tissue stops digesting.** `infectNetwork` zeroes `cell.colonized` under every
+  infected node at the end of its pass. Without it the cell stayed claimed, so `checkPileRewards`'
+  `touched` test still fired and rot drafted off a pile it could no longer eat.
 - **`growInfectBurst` is the OTHER first touch** — growing *into* mould rather than being
   touched by it — now **12 = 4 steps**, level with `firstTouchRings` and with the ongoing race,
   so all three ways of being caught cost the same. It was 18 (6 steps), and that was the
@@ -322,6 +341,17 @@ Debug hooks (invisible, no UI): `window.__game` — `state`, `performAction`, `t
 explicitly-empty key genuinely disables it; a missing key falls back to the live project.
 
 Harness traps that have cost real time:
+- **A probe measures whatever the world put there, not what it placed.** Three shapes of this,
+  all found in `threat-check` on the same day, all presenting as flakiness rather than failure:
+  - **`tickWorld` RESPAWNS worms.** A probe that seeds 6 worms and then steps twelve times is
+    measuring 150, and the new ones arrive near the colony with something legitimately in
+    sensing range. Keep a handle on the ones you placed and splice the rest back out each step.
+  - **`colonizeReachablePiles` flood-fills a pile with 8-connectivity**, so a procedural pile
+    touching your four hand-set cells becomes ONE pile with a second entrance — and the claim
+    then comes in by a route the probe never built. Clear the whole field's `nutrient` first.
+  - **A geometric filter must run against every node, not the seed.** "Out of sight range and
+    with no clear line" tested against node 0 of a 30-node colony admitted one spot that could
+    see the far corner, which read as `1 of 362 blind worms moved`.
 - `resolveCardOp` and `__game.play()` **return nothing** — assert on state (`state.turn`,
   node counts), not a result object.
 - Pending offers carry **`choices`** (an array of card names), not `cards`.

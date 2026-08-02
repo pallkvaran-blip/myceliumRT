@@ -2068,6 +2068,13 @@ const CONFIG = {
     // (`growInfectBurst` below is the other way to be first-touched — growing INTO mould —
     // and is deliberately left on its own number.)
     firstTouchRings: 12,         // (SLIDER)
+    // THE SPRINT-PAST RULE. Whatever the colony grew ON THE STEP IT GOT INFECTED, within this
+    // many rings of where the infection happened, rots with it. 24 rings = 8 grow-steps, longer
+    // than any grow card (Rhizomorph Lance is the longest at 18 segments = 6 steps) — so no
+    // growth action is strong enough to sprint past a cloud that is about to catch you and keep
+    // the far end. Infected tissue must not harvest or draft either; that is the `colonized`
+    // release at the end of infectNetwork. One-off, so ONE value for both modes.
+    freshGrowthRings: 24,
     growInfectBurst: 12,         // growing a strand INTO mould instantly rots this many rings — 4 grow-steps,
                                  //   level with firstTouchRings and with the ongoing race, so all three
                                  //   ways of being caught now cost the same 4 steps. Was 18 (6 steps), which
@@ -11959,6 +11966,8 @@ function infectNetwork(net, state) {
       // Guaranteed (chance 1), unlike the race below: the cost of being touched is a fixed
       // number of rings, not a dice roll per ring.
       infectAround(net, hit, t.firstTouchRings, 1, rng, sub);
+      // ...and everything grown THIS STEP near the breach, however far the grow ran.
+      infectFreshGrowth(net, hit, t.freshGrowthRings | 0, sub, net._turnStartId);
     }
     if (touched) { cloud.dying = true; cloud.vanishNext = true; }   // reached you — now it's spent; gone next round (infected or not)
   }
@@ -12001,6 +12010,19 @@ function infectNetwork(net, state) {
   //
   //    A healed strand loses `infected` and its rotAge with it (cureRadius), so the deadline
   //    resets with the infection rather than persisting invisibly on cured tissue.
+  //
+  //    DEAD TISSUE RELEASES THE GROUND FIRST. Income and the pile draft both key off
+  //    `cell.colonized`, which knew nothing about infection — so rotten mycelium sitting on a
+  //    pile kept digesting it and eventually paid out a card. "Infected mycelium should not
+  //    harvest or draft." Clearing the cell under every infected strand is the whole fix: the
+  //    passive income loop and checkPileRewards' `touched` test both read colonized, so both
+  //    stop at once, and the pile keeps its nutrient for whatever grows back.
+  for (const n of net.nodes) {
+    if (!n.infected) continue;
+    const c = sub.cellAtWorld(n.x, n.y);
+    if (c && c.colonized > 0) c.colonized = 0;
+  }
+
   const life = Math.max(1, (t.rotLifeTurns | 0) || 3);
   const fallen = new Set();
   for (const n of net.nodes) {
@@ -12035,6 +12057,10 @@ function infectStrandsInMould(net, state) {
   // at once, so a long grow (e.g. grow 6) can't just shoot its tip past the cloud and
   // outrun the infection — the tip is claimed too. `growInfectBurst` rings, guaranteed.
   if (burst > 0) for (const n of seeds) infectAround(net, n, burst, 1, (state.rng || Math.random), sub);
+  // THE SPRINT-PAST RULE: a grow that pushed through mould has its whole fresh run claimed out
+  // to freshGrowthRings, so the far end cannot arrive clean, take a pile and draft off it.
+  const fresh = t.freshGrowthRings | 0;
+  if (fresh > 0) for (const n of seeds) infectFreshGrowth(net, n, fresh, sub, net._turnStartId);
   // NO subtree claim here either. Stopping a grow from outrunning the mould it went through is
   // a question about ONE strand — the one trying to win — so it is answered at the win test by
   // walking that strand's ancestry (reachedThroughRot), not by killing every strand that
@@ -12115,6 +12141,34 @@ function infectDescendants(net, sub) {
       c.infected = true; claimed++;
       stack.push(c);
     }
+  }
+  return claimed;
+}
+
+// Everything grown THIS STEP within `depth` rings of the infection point. Walks the graph out
+// from the seed in both directions like infectAround, but only CLAIMS nodes newer than the
+// step's watermark — older tissue is traversed so the walk can reach fresh growth beyond it and
+// otherwise left alone, because the ongoing race is what claims established mycelium.
+//
+// `sinceId` is a node-id watermark, not a timestamp: ids come off nextNodeId in order, so
+// "grown since the last world step" is exactly id >= the value nextNodeId held then.
+function infectFreshGrowth(net, seed, depth, sub, sinceId) {
+  if (!(depth > 0) || sinceId == null) return 0;
+  let frontier = [seed], claimed = 0;
+  const seen = new Set([seed.id]);
+  for (let d = 0; d < depth && frontier.length; d++) {
+    const next = [];
+    for (const n of frontier) {
+      const step = (o) => {
+        if (!o || seen.has(o.id)) return;
+        seen.add(o.id);
+        if (o.id >= sinceId && !o.infected && !cellProofed(sub, o)) { o.infected = true; claimed++; }
+        next.push(o);
+      };
+      if (n.parentId != null) step(net.byId.get(n.parentId));
+      for (const cid of n.children) step(net.byId.get(cid));
+    }
+    frontier = next;
   }
   return claimed;
 }
@@ -14496,6 +14550,13 @@ function tickWorld(state, phase = 'both') {
 
   checkPuzzleGoal(state);
   state.turn += 1;   // a step counter (each action advances the world one step)
+
+  // THE WATERMARK FOR "GROWN THIS STEP". Set at the END, because growth happens in the ACTION
+  // and the action runs BEFORE tickWorld: everything created from here on belongs to the next
+  // step, so when the next tick's infection passes run, `id >= _turnStartId` is exactly the
+  // tissue the player just grew. A node-id watermark rather than a per-node timestamp — ids
+  // come off nextNodeId in order, so this is one number instead of a field on every strand.
+  for (const net of (state.networks || [])) net._turnStartId = net.nextNodeId;
 }
 
 // --- the PHASED enemy turn (TURN-BASED ONLY) --------------------------------
