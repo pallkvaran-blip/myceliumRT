@@ -129,7 +129,7 @@ touching the ratio. Before "fixing" it, note it survived four retunes deliberate
 
 ### Threat rates (all changed together, all in BOTH tables)
 
-`tests/threat-check.cjs` (85 assertions) measures every one of these through the sim, in both
+`tests/threat-check.cjs` (114 assertions) measures every one of these through the sim, in both
 modes. A rate lives in two places — the CONFIG literal and `MODE_TUNING` — so **changing one
 table only doesn't make the creature faster, it makes one of the two games harder**, and that
 is invisible from inside either mode. **Every retune has to move BOTH by the same factor.**
@@ -517,15 +517,23 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1397 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
-three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
-**Run them; don't verify by re-reading your own diff.**
+**1489 assertions across 23 checks**, of which `traced` is 818 (one map's worth each). Plus the
+PROBES and PERF TOOLS, which print and never fail — see Loose ends, the Performance section and
+tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
-node tests/run.mjs           # everything, one summary (~30 min)
-node tests/run.mjs --fast    # skip rt/tut/lure (~25 min — `traced` alone is ~19)
+node tests/run.mjs           # everything, one summary (~27 min)
+node tests/run.mjs --fast    # skip rt/tut/lure (~25 min — `traced` alone is ~20)
 node tests/run.mjs hs lure   # by name
 ```
+
+**The last measured sweep: 1470 passed, 10 failed**, and every one of the 10 is a known
+standing failure rather than a regression — 6 `traced` map-data assertions on four maps, 3 `tut`
+real-time flakes, 1 `rt` worm flake (all four in Loose ends). Note the arithmetic doesn't reach
+1489: `aim` contributed **0 of its 9** because it bails to a zero-coverage pass inside a full
+sweep. Per-check, measured: traced 818 · threat 114 · edit 116 · rt 69 · enemy 52 · species 42 ·
+mode 33 · harvest 28 · level 27 · scale 26 · fixes 25 · hs 20 · mould 20 · tut 19 · boot 16 ·
+core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4.
 
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
@@ -533,7 +541,7 @@ See `tests/README.md` for what each covers and how to add one. Playwright lives 
 Two things about running them:
 - **Scale the run to the change.** A docs/CLAUDE.md edit needs none. A one-area change needs
   that check plus `--fast`. Reserve the full sweep for engine or HUD work — and note `--fast`
-  is no longer fast: `traced` is ~19 minutes of its ~25, so `node tests/run.mjs edit threat`
+  is no longer fast: `traced` is ~20 minutes of its ~25, so `node tests/run.mjs edit threat`
   (or whatever the change touches) is usually the right middle gear.
 - **Don't poll for the result.** The runner's output is piped, so the file stays EMPTY until
   the process exits — re-reading it tells you nothing. Start it in the background and wait for
@@ -1417,7 +1425,7 @@ Save also copies the JSON out (clipboard + `window.__levelJSON`) and switches in
 map, which stamps any pending placements the same way Apply does. **localStorage is one
 browser profile: the map is only durable once its JSON is committed to `docs/levels/`.**
 
-`tests/edit-check.cjs` covers all of it (106 assertions) and asserts on `levelSprites`, not on
+`tests/edit-check.cjs` covers all of it (116 assertions) and asserts on `levelSprites`, not on
 the panel's labels. `rockEdit`, `levels`, `saveAs` and `forgetSaved` are on `window.__game` for
 that reason. The save-as block deliberately runs on a FRESH page load — the steps before it
 delete every rock, and a saved copy of an empty map cannot show that `assetsFrom` resolved.
@@ -1536,7 +1544,7 @@ positions → run the **MOVE** pass → hold ~2 s while the renderer interpolate
 `stepNematodes` — the seam sits where those were already move-then-feed.
 
 The three things that make it correct rather than merely animated, all asserted by
-`tests/enemy-turn-check.cjs` (51, twelve of them the turn gate below):
+`tests/enemy-turn-check.cjs` (52, twelve of them the turn gate below):
 
 - **The split is real in BOTH directions.** A worm crawls in one phase and bites in the other; a
   cloud creeps then devours; the rot races only on the attack. Asserting "it moved" alone would
@@ -1668,7 +1676,22 @@ death was firing; the screen was lying about it.
   DATA, not engine: the maps want re-tracing at a different count or dropping from the
   shortlist, and `rust` only ever converted at c90 (see Generated maps). Every sweep reports
   them; nothing else in `traced`'s 818 fails.
-- Two checks are unreliable and both are harness-side, not game-side: `tut`'s five real-time
-  assertions fail on some runs ("0 offer(s), 50 nutrient left" — the starter pile hasn't finished
-  digesting when the assertion fires), and `aim` has reported `0/0`, i.e. it bailed early and was
-  counted as a pass. Re-run before believing either.
+- Three checks are unreliable and all three are harness-side, not game-side. Re-run before
+  believing any of them.
+  - **`tut`'s real-time assertions fail on some runs** — the starter pile hasn't finished
+    digesting when the assertion fires, so it reads "0 offer(s), 50 nutrient left" or a bare
+    `null`. Three of its 19 failed on the last sweep, five on an earlier one.
+  - **`aim` reports `0/0` ONLY INSIDE A FULL SWEEP**, and that is now measured rather than
+    guessed: standalone it is **9/9 in 6s**, and `node tests/run.mjs aim` on its own is 9/9 too.
+    It goes to zero only when the whole suite has run ahead of it — most likely the boot waits
+    (`waitForSelector('#loadscreen.ld-ready', {timeout: 15000}).catch(() => {})` and the click
+    after it) timing out on a loaded container, both swallowed, after which the per-press overlay
+    guard skips every round and the check prints a summary having asserted nothing.
+  - **The runner cannot see this**, which is the part worth fixing: `0 passed, 0 failed` MATCHES
+    its regex, so `parsed` is true and `failed` is 0 — the check prints green and its output is
+    never dumped. A `passed + failed === 0` guard in `run.mjs` would turn every future
+    zero-coverage bail into a visible break, and no check legitimately asserts nothing. Not done
+    — it would change what a sweep reports, so it wants the owner's nod first.
+  - **`rt` loses one worm assertion** ("once the tissue has appeared the worm can find and eat
+    it — eaten=false"), on its long-lived page. Reproduced on the pre-fix build too, so it is
+    the harness, not the arrival gate.
