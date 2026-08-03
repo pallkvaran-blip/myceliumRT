@@ -888,6 +888,59 @@ ok('...and the rock selection is cleared too',
    `sel ${cleared.sel}, placed ${cleared.selAdded}, drag ${cleared.drag}`);
 ok('...and the panel stops saying "placing"', !/placing/i.test(cleared.pend), cleared.pend);
 
+
+// ---- an object that HOLES a rock is flagged ------------------------------
+// markCoverGrid skips every cell holding food or water ("never bury a food pile" — a buried pile
+// is unreachable), but the rock ART still draws over it. So a pile or reservoir overlapping rock
+// leaves a see-through, grow-through hole in a wall that still looks solid. Measured on
+// garnet-c40: one cache dropped inside a rock took the solid area under it from 81 of 81 fine
+// cells to 25. It cannot be caught at stamp time — buildLevel runs before the sprites are loaded,
+// which is why the skip lives in the mask builder — so the author has to be told at placement.
+const holes = await p.evaluate(() => {
+  const G = window.__game, sub = G.state.substrate, fSz = sub._fineSize;
+  const clean0 = G.auditRocks();
+  // Deep inside a rock: solid for a good margin in every direction, so this is not an edge case.
+  let deep = null;
+  for (let col = 6; col < sub.cols - 6 && !deep; col++)
+    for (let row = 4; row < sub.rows - 4 && !deep; row++) {
+      const c = sub.cellCenter(col, row);
+      let all = true;
+      for (let dx = -2; dx <= 2 && all; dx++) for (let dy = -2; dy <= 2 && all; dy++)
+        if (!sub.solidAtWorld(c.x + dx * fSz * 2, c.y + dy * fSz * 2)) all = false;
+      if (all) deep = c;
+    }
+  // And open ground, well clear of any rock, as the control.
+  let open = null;
+  for (let col = 6; col < sub.cols - 6 && !open; col++)
+    for (let row = 4; row < sub.rows - 4 && !open; row++) {
+      const c = sub.cellCenter(col, row);
+      let none = true;
+      for (let dx = -3; dx <= 3 && none; dx++) for (let dy = -3; dy <= 3 && none; dy++)
+        if (sub.solidAtWorld(c.x + dx * fSz * 2, c.y + dy * fSz * 2)) none = false;
+      if (none) open = c;
+    }
+  if (!deep || !open) return { err: 'need both a deep-rock point and open ground' };
+  const def = G.state.levelDef;
+  def.objects = (def.objects || []);
+  const n0 = def.objects.length;
+  def.objects.push({ t: 'food', kind: 'cache', x: Math.round(open.x), y: Math.round(open.y), r: 1, energy: 4 });
+  const afterOpen = G.auditRocks();
+  def.objects.push({ t: 'food', kind: 'cache', x: Math.round(deep.x), y: Math.round(deep.y), r: 1, energy: 4 });
+  const afterRock = G.auditRocks();
+  def.objects.length = n0;                                  // leave the map as we found it
+  return { base: clean0.holing, afterOpen: afterOpen.holing, afterRock: afterRock.holing,
+           where: afterRock.where, restored: G.auditRocks().holing };
+});
+ok('a pile on OPEN ground is not flagged',
+   !holes.err && holes.afterOpen === holes.base, holes.err || `${holes.base} → ${holes.afterOpen}`);
+ok('a pile INSIDE a rock is flagged as holing it',
+   !holes.err && holes.afterRock === holes.afterOpen + 1,
+   holes.err || `${holes.afterOpen} → ${holes.afterRock}`);
+ok('...and it says where', !holes.err && !!(holes.where && holes.where.length),
+   holes.err || JSON.stringify((holes.where || [])[holes.where.length - 1]));
+ok('the probe left the map as it found it', !holes.err && holes.restored === holes.base,
+   holes.err || `${holes.restored} vs ${holes.base}`);
+
 await b.close();srv.close();
 console.log(`==== ${PASS} passed, ${FAIL} failed ====`);
 process.exit(FAIL?1:0);

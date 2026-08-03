@@ -22537,6 +22537,34 @@ function editUndo() {
   return true;
 }
 
+// DOES THIS OBJECT HOLE A ROCK? `markCoverGrid` skips every cell holding food or water — the rule
+// is "never bury a food pile", and it is right, because a pile under rock collision is unreachable.
+// But the rock ART still draws over it, so a pile or reservoir overlapping rock leaves a
+// see-through, grow-through hole in a wall that looks solid. Measured on garnet-c40: one cache
+// dropped inside a rock took the solid area under it from 81 of 81 fine cells to 25.
+//
+// It cannot be fixed at stamp time — buildLevel runs before the sprites are even loaded, which is
+// why the skip lives in the mask builder at all. So it is caught HERE instead, at the moment the
+// author places the thing, which is the only moment anyone can do something about it.
+//
+// Threats are exempt: they are creatures standing on the map, not stamped into the substrate, and
+// one overlapping a rock costs nothing.
+function objectHolesRock(o) {
+  if (!o || (o.t !== 'food' && o.t !== 'water')) return false;
+  const sub = state && state.substrate;
+  if (!sub || !sub._fineSolid) return false;          // mask not built yet — say nothing
+  const x = +o.x || 0, y = o.y != null ? +o.y : sub.surfaceY + 40;
+  // The pile's own footprint, in world units. r is in CELLS (see the trichoderma-cloud note).
+  const reach = Math.max(1, (+o.r || 1)) * sub.cellSize;
+  const step = sub._fineSize || 9;
+  for (let dx = -reach; dx <= reach; dx += step)
+    for (let dy = -reach; dy <= reach; dy += step) {
+      if (dx * dx + dy * dy > reach * reach) continue;
+      if (sub.solidAtWorld(x + dx, y + dy)) return true;
+    }
+  return false;
+}
+
 // Placed markers are picked in SCREEN space, not world space: a marker is a fixed-size dot
 // however far out you are zoomed, so a world-space radius would be unclickable at 0.5x and
 // swallow half the map at 3x.
@@ -22987,6 +23015,10 @@ function updateEditPanel() {
     const bits = [];
     if (k) bits.push('placing ' + k);
     bits.push(rockEdit.added.length + ' object' + (rockEdit.added.length === 1 ? '' : 's'));
+    // Counted here as well as ringed on the map: at the zoom you place things at, an offender can
+    // easily be off screen.
+    const holing = rockEdit.added.filter(objectHolesRock).length;
+    if (holing) bits.push(holing + (holing === 1 ? ' HOLES rock' : ' HOLE rock'));
     // Water, food and threats are stamped into the substrate at build time, so an edit to one
     // shows on its marker immediately and in the WORLD only after a rebuild. Say so, or a moved
     // pile whose leaves stayed put reads as a bug.
@@ -23384,6 +23416,20 @@ function begin(newState) {
     // they deliberately bypass the interface gate — `handlers` is how a check exercises the gate
     // itself, on the same path a click takes. `blockedReason` is the gate's own answer.
     blockedReason: () => playerBlockedReason(),
+    // The rock ART, for auditing collision against it. `solidifyRock` derives both masks from
+    // these two, so a check that re-derives the truth from them is independent of any bug in the
+    // stamping itself — which is the only way to ask "does the mask match the picture?" without
+    // trusting the thing under test.
+    rockArt: (key) => { const img = asset(key); return img ? _alphaMask(img) : null; },
+    // Audit the CURRENT map for objects that hole a rock. On __game because the Chapter 1 maps
+    // live in one browser's localStorage — this is the only way to run the check against them.
+    auditRocks: () => {
+      const def = (state && state.levelDef) || {};
+      const objs = (def.objects || []).filter((o) => o && (o.t === 'food' || o.t === 'water'));
+      const bad = objs.filter(objectHolesRock);
+      return { level: def.id, name: def.name, objects: objs.length, holing: bad.length,
+               where: bad.map((o) => ({ t: o.t, kind: o.kind || null, x: Math.round(+o.x || 0), y: Math.round(+o.y || 0) })) };
+    },
     handlers,
     draw: () => resolveCardOp(drawCard(state)),
     skip: () => resolveCardOp(skipRound(state)),
@@ -26377,6 +26423,15 @@ function drawLevelRocks() {
       ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(c.x, c.y, 3, 0, Math.PI * 2); ctx.fill();
       ctx.fillText(pk.label || o.kind || o.t, c.x, c.y - 19);
+      // OVERLAPPING ROCK: a red ring and a word, because the damage is invisible otherwise — the
+      // rock still draws, and only the collision and the sight lines quietly stop existing.
+      if (objectHolesRock(o)) {
+        ctx.save();
+        ctx.strokeStyle = '#ff5a4a'; ctx.fillStyle = '#ff5a4a'; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.arc(c.x, c.y, 21, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillText('holes the rock', c.x, c.y + 32);
+        ctx.restore();
+      }
     }
     ctx.restore();
   }
