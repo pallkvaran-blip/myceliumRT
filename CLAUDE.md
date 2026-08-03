@@ -517,7 +517,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1489 assertions across 23 checks**, of which `traced` is 818 (one map's worth each). Plus the
+**1529 assertions across 24 checks**, of which `traced` is 818 (one map's worth each). Plus the
 PROBES and PERF TOOLS, which print and never fail — see Loose ends, the Performance section and
 tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -533,7 +533,8 @@ real-time flakes, 1 `rt` worm flake (all four in Loose ends). Note the arithmeti
 1489: `aim` contributed **0 of its 9** because it bails to a zero-coverage pass inside a full
 sweep. Per-check, measured: traced 818 · threat 114 · edit 116 · rt 69 · enemy 52 · species 42 ·
 mode 33 · harvest 28 · level 27 · scale 26 · fixes 25 · hs 20 · mould 20 · tut 19 · boot 16 ·
-core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4.
+core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
+plus **store 40**, measured on its own run rather than in a sweep.
 
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
@@ -659,6 +660,12 @@ Harness traps that have cost real time:
   `reach` 1.4, within one crawl 3.0) — on two map rolls in eight every angle was solid, off-map or
   already in reach, and it bailed with "no out-of-reach spot within one crawl". It tries the twelve
   densest nodes now, so the search is a property of the colony rather than of one node.
+  - **It STILL rolls a bad map occasionally, and the surviving symptom is different**: not the
+    bail, but `AND it ate a full bite on the same step — ate 2, want 4`, i.e. the spot it found
+    has fewer than `strandsPerBite` strands physically within `reach` of where the worm lands.
+    Seen once in a sweep and 114/114 on the two runs straight after, same build. Re-run before
+    believing it; if it needs fixing, the lever is scoring candidate spots by how many strands
+    end up in reach rather than by node density.
 - **A FIXED SLEEP OR A FIXED COUNT IS A BET ABOUT THE MACHINE.** Two more failed only inside a
   full `run.mjs` sweep and passed standalone, which reads as a regression and is not one:
   `core-check` sampled pixels after `sleep(700)` and got 58 against a gate of 60 because the
@@ -1442,6 +1449,78 @@ later. `onContinue` still runs; it carries the deferred level advance.
 placed threats, and `placeRockface()` skips any level with a `levelDef`. The owner places all
 three by hand. So a fresh trace is UNPLAYABLE by design, and `traced-check`'s food-reachability
 assertion passes on 0 of 0 — correct, and saying nothing until food is placed.
+
+## The store (campaign meta-progression)
+
+**Built**, for the new campaign mode: four colonies for sale plus five permanent upgrade
+tracks, all bought with Spores. Reached from a **Store ▸ button next to the wallet on the
+species picker**, and it opens **OVER** that screen (`#ssStore`, z-index 1005) rather than
+replacing it — so Back is a removal and the picker underneath only needs its `refresh()`,
+which it owes because a colony bought here becomes playable in its tier row.
+
+- **It is the SAME screen as the picker, not one that resembles it.** `#ssStore` shares the
+  picker's shell rule (`#speciesSelect, #ssStore { … }`), its grown wordmark (`growMyceliumTitle`
+  with `word: 'STORE'`), its wallet chip, its section headers, and — for the four colonies —
+  literally `speciesCard`. Only `.ss-upg*` (the upgrade tile) is new markup, and its per-track
+  accents come from the palette already on the shell; a shop inventing a sixth hue is how a
+  screen stops matching. `store-check` asserts the shell by **computed style**, because an
+  id-only rename in the stylesheet leaves every element present and the whole screen unstyled.
+- **`.ss-hint` IS DECLARED TWICE and the later rule wins** — the mystery card's how-to-unlock
+  line, `position:absolute; bottom:9px`, centred, with a `✦` in `::before`. So the earlier
+  row-label version is dead CSS, and reusing the class in a section header stacks every hint on
+  top of the others at the foot of the console, past the Back button. That is what it did first
+  time; `.ss-rowhint` is the live one. Only a rendered frame showed it.
+- **A track is a LIST OF PRICES, not a price × a count.** `costs.length` IS the cap, so adding
+  a step is appending a number, and the rising curve is the only thing stopping one cheap track
+  being the obvious first buy forever. Read a total through **`upgradeValue`**, never as
+  `level × step` at the call site.
+
+| track | per step | steps | first→last |
+|---|---|---|---|
+| `water` Water Reserves | +10 starting water | 5 | 400 → 3200 |
+| `phosphorus` Phosphate Store | +4 starting phosphorus | 5 | 500 → 3800 |
+| `carryCards` Spore Memory | +1 basic/event carried out of a dead run | 4 | 600 → 3000 |
+| `carryEngines` Cord Memory | +1 engine carried | 3 | 900 → 3000 |
+| `lives` Sclerotia | +1 retry per run | 3 | 1500 → 5000 |
+
+**EVERY NUMBER, AND ALL FOUR SPECIES, ARE PLACEHOLDERS** — the shape is the owner's ask, the
+economy has been played against nothing. The colonies are four existing roster entries standing
+in (`STORE_SPECIES_IDS`: hydnellum, stropharia, cortinarius, serpula) so the tiles carry real
+art and a real detail sheet; swapping in the real four is that list plus their `SPECIES` entries.
+
+- **`lives` IS SOLD BUT NOT SPENT.** The store banks it and `storeBonuses().lives` reports it;
+  nothing consumes one on death. Deliberate: what a retry restores, whether it re-rolls the map,
+  and what it does to the run's Spores and the high-score entry are the campaign run loop's
+  decisions. The pieces are there — `carryOver` is nulled by `begin()` after use, so a retry
+  needs the level's entering snapshot kept, and `presentRunOver`'s campaign-death branch is
+  where the fork goes (gate it on `lives > 0`, which is zero for every existing save).
+- **Water and phosphorus land in `effectiveSpecies`, on a COPY at seed time.** Not in `SPECIES`
+  — that table is the colony's identity, and a multiply there would compound every run. The
+  picker's detail sheet adds the same bonus to its pills with a note saying where it came from,
+  so the number on the tile is the number the run opens with. Both read `storeBonuses()`.
+- **ADDITIVE ONLY, and the engine pool is the case that needed thinking about.** With no engine
+  track bought, engines stay in the MAIN death-carry pool, where they have always been, spending
+  an ordinary slot; buying the track moves them to their own metered slots. Pulling them out at
+  zero upgrades would quietly take away something every existing save can do, and "I bought
+  nothing and lost a card" is the one thing a shop can't do. `store-check` keeps the zero-upgrade
+  reading as its negative control.
+- Persisted in the existing `mycelium.progress.v2` under **`p.upgrades`** (`{ water: 3, … }`),
+  additive and defaulting safely for older saves. Levels are **clamped** on read, so a
+  hand-edited save (or a track that lost steps in a retune) can't report a bonus with no price
+  behind it.
+- **`isRevealed` now consults `progress.revealedSpecies` for EVERY species**, not only `revealBy`
+  ones — a store purchase is an unlock event, and recording the reveal is what makes a bought
+  colony playable from the old tier picker too (`isPlayable` = revealed AND purchased). One
+  species, one wallet, no double sale. Behaviour at zero purchases is unchanged.
+- `purchaseStoreSpecies` has its **own price table** and does NOT gate on the reveal: the store
+  is the campaign's unlock path, so paying is the whole requirement, and `TIER_COST` has no
+  bearing. The buy sheet is the picker's, reused via `opts.cost` / `opts.purchase`.
+- **`__game.store`** is the model (`level`, `value`, `nextCost`, `buy`, `bonuses`, `species`,
+  `buySpecies`, plus `balance`/`credit`/`reset`/`speciesById`/`playable`) alongside
+  `__game.showStore`. `effectiveSpecies` and `deathCarry` are on it too, so a check reads the
+  EFFECT rather than the setting — every track here is capped by something downstream.
+- `tests/store-check.cjs` (40, ~35s, in the runner) covers the money, the effects, the negative
+  control and the screen.
 
 ## Campaign shape (so you don't re-derive it)
 

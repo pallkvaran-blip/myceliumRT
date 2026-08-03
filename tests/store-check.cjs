@@ -333,7 +333,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 
   await wipe();
   ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));
-  console.log(`\n  ${pass} passed, ${fail} failed`);
+  // The runner parses EXACTLY this shape (`==== n passed, m failed ====`); anything else reads
+  // as "did not report" and the check is counted as broken however green it was.
+  console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   await browser.close(); srv.close();
   process.exit(fail ? 1 : 0);
 })();
