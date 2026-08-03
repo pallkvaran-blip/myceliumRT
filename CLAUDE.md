@@ -170,6 +170,33 @@ CONFIG literal only.
   off along whatever one turn-rate swing allows, and `moveWorm` stops at the first rock in
   *that* direction. Read 1.50 and 3.00 cells on different procedural maps before
   `__stepSpot` started returning the bearing along with the spot.
+- **TISSUE THE COLONY LOSES FADES OUT, IT DOESN'T BLINK OFF THE MAP.** Two owner asks, one
+  mechanism: rot that has run out its `rotLifeTurns`, and **strands a NEMATODE ate**. A removed
+  node cannot draw itself, so **`Network.ghostStrands(ids)`** — called BEFORE `_removeNodes`, while
+  the geometry still exists — hands the renderer the strand's endpoints (`net._rotGhosts`), and
+  `NetworkRenderer._strokeFalling` strokes and fades them over `render.strandFadeMs` (600),
+  draining the list as it draws. Sim-side a ghost is a breadcrumb and nothing else: not in
+  `nodes`/`byId`, so nothing counts, feeds, spreads, blocks or wins through one. The list is capped
+  (1200) because a headless run never draws and so never drains it.
+  - **It lives on `Network`, not in `threats.js`, because the NEMATODES MODULE IS DECLARED FIRST**
+    and declaration order is dependency order here. `Network` is early, so both reach it.
+  - **TWO COLOURS, and the flag is read off the STRAND, not passed by the caller.** `dead` is
+    `n.infected` at record time: rot fades from the dead-wood brown it had decayed to, clean tissue
+    a worm bit out fades from the living cream, and a worm biting an infected strand gets the brown
+    — which is what it looked like a moment earlier. One colour is wrong whichever it picks: brown
+    on cream tissue reads as "it rotted", cream on rot as "it came back to life".
+  - **PER CAUSE, NOT ON EVERY `_removeNodes`.** There are four callers and two must leave nothing:
+    **amputation** is the player deliberately cutting a limb off, and a ghost lingering there reads
+    as "the cut didn't work"; **starvation** prunes tissue that was already dying rather than being
+    taken. `threat-check` asserts the amputation case as a control (44 strands cut, 0 ghosts).
+  - **FADING BEFORE REMOVAL is the obvious version and it is wrong.** In turn-based a step is one
+    player action, i.e. unbounded, so the strand would sit fully invisible for as long as the player
+    thinks while its rot went on racing along the filaments. Invisible tissue that still acts is
+    worse than a hard cut.
+  - Asserted on the MODEL (ghost count, geometry, colour flag), because headless can barely measure
+    an animation — and the ghost list is the model. `tests/mould-shot.cjs` is how you check it reads
+    as a fade; it parks a worm on a clean arm so one capture carries both colours (104 brown, 7
+    cream) and slows both fades to 4 s, since a screenshot needs frames and frames drive the fade.
 - **`strandsPerBite` is a NEW knob** — the count was hard-coded at 1 inside `stepNematodes`.
   `eatEveryTicks` is how OFTEN a worm bites; this is how much comes away each time. Each strand
   is claimed separately and must be in reach, unclaimed by another worm this tick, and not
@@ -226,21 +253,9 @@ CONFIG literal only.
     progressively from the breach outward instead of freezing it green forever, which is what
     rotten tissue used to do for the rest of the run.
   - **AND IT FADES OUT RATHER THAN BLINKING OFF THE MAP** (owner's ask, alongside 3 → **2** steps).
-    A removed node cannot draw itself, so `recordFallenGhosts` hands the renderer the strand's
-    GEOMETRY (`net._rotGhosts`) and `NetworkRenderer._strokeFalling` strokes it in `render.rotted`,
-    fading over `render.strandFadeMs` (600) and draining the list as it draws. Sim-side a ghost is a
-    breadcrumb and nothing else — not in `nodes`/`byId`, so nothing counts, feeds, spreads, blocks
-    or wins through one.
-    **Fading BEFORE removal is the obvious version and it is wrong**: in turn-based a step is one
-    player action, i.e. unbounded, so the strand would sit fully invisible for as long as the
-    player thinks while its rot went on racing along the filaments. Invisible tissue that still
-    acts is worse than a hard cut.
-    Only the rot lifespan feeds it, NOT `_removeNodes` in general — amputation, starvation and a
-    worm's bite all remove strands, and a limb the player deliberately cut lingering as a ghost
-    reads as "the cut didn't work". The list is capped (1200) because a headless run never draws
-    and so never drains it.
     At 2 steps the green→brown ramp is coarse by design: bright green for one step, brown for one,
-    gone.
+    gone. See **TISSUE THE COLONY LOSES FADES OUT** below for the mechanism — it is shared with the
+    worm's bite.
 - **Infected tissue cannot harvest** — `colonizeReachablePiles` skips `n.infected` — and the pile
   it failed to eat **keeps every scrap of its food** for clean growth later. Both halves are
   asserted, because a claim path that marked cells `colonized` or zeroed nutrient before checking
@@ -431,7 +446,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1323 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
+**1349 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
 three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
 **Run them; don't verify by re-reading your own diff.**
 
