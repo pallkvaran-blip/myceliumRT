@@ -10878,15 +10878,16 @@ class Network {
   // neighbours are the mat's drift above, and the reason this is not simply `occupiedIdx`.
   // One O(nodes) pass, and the same answer wherever it is asked.
   //
-  // `requireGrown` is the RT reveal gate (see grownIn): a consumer must not harvest through
-  // tissue that has not physically arrived yet, but the RELEASE pass in infectNetwork passes
-  // false — otherwise a claim made for a mat still animating in would be released and re-taken
-  // on alternating ticks, and `colonized` drives food targeting as well as income.
-  cleanClaimMask(substrate, requireGrown = true) {
+  // NO REVEAL GATE HERE, deliberately (`grownIn`): every claim is stamped by tissue that has
+  // already passed that gate inside colonizeReachablePiles, so re-applying it would only ever
+  // exclude the mat that owns the claim while it is still animating in — which in real time
+  // leaves a just-claimed pile "covered by nothing" for the length of the reveal and DEFERS ITS
+  // DRAFT. Measured as three real-time tutorial assertions failing on "0 offers". The question
+  // this answers is whether the tissue is clean, not whether it has finished appearing.
+  cleanClaimMask(substrate) {
     const own = new Set();
     for (const n of this.nodes) {
       if (n.infected) continue;
-      if (requireGrown && !this.grownIn(n)) continue;
       const col = substrate.colAtX(n.x), row = substrate.rowAtY(n.y);
       if (!substrate.inBounds(col, row)) continue;
       own.add(substrate.index(col, row));
@@ -12132,10 +12133,10 @@ function infectNetwork(net, state) {
   //    targeting skips colonised cells), so what grows back a clean way round can still eat it.
   //
   //    The consumers gate on the same mask themselves rather than trusting this pass to have
-  //    run — income resolves BEFORE the rot spreads within a tick, and Digest is a player
-  //    action that lands between ticks.
+  //    run — income resolves BEFORE the rot spreads within a tick, so on the step a breach lands
+  //    this has not happened yet, and Digest is a player action that falls between ticks.
   {
-    const covered = net.cleanClaimMask(sub, false);
+    const covered = net.cleanClaimMask(sub);
     for (let i = 0; i < sub.cells.length; i++) {
       const c = sub.cells[i];
       if (c && c.colonized > 0 && !covered.has(i)) c.colonized = 0;
@@ -13482,20 +13483,28 @@ function checkPileRewards(state) {
   const sub = state.substrate; if (!sub || !sub.foodPiles) return;
   const net = state.active; if (!net || !net.alive) return;
   // A DRAFT IS PAID TO LIVING TISSUE ONLY. `colonized` says the pile was claimed at some point,
-  // not that clean mycelium is on it now — so the claim is checked against what clean tissue
+  // not that clean mycelium is on it now — so the claim is checked against the ground clean tissue
   // actually covers (Network.cleanClaimMask). Rot that emptied a pile, or rot that fell away and
   // left its claim behind, used to collect the card.
-  const covered = net.cleanClaimMask(sub);
+  //
+  // The mask is built LAZILY, and only once a pile has already passed the claimed-and-empty test:
+  // this runs every tick against every pile, but a pile crosses the finish line once in a run, so
+  // the O(nodes) pass costs nothing on the ticks that pay nobody.
+  let covered = null;
   for (const pile of sub.foodPiles) {
     if (pile.rewarded) continue;
     if (pile.kind === 'duff') continue;         // low-value litter — Energy on digest, but NO card draft
-    let total = 0, touched = false;
+    let total = 0, claimed = false;
     for (const idx of pile.cells) {
       const cell = sub.cells[idx]; if (!cell) continue;
       total += cell.nutrient;
-      if (cell.colonized > 0 && covered.has(idx)) touched = true;   // clean tissue actually digested it
+      if (cell.colonized > 0) claimed = true;
     }
-    if (touched && total <= 1e-6) { pile.rewarded = true; offerPileReward(state, pile); }
+    if (!claimed || total > 1e-6) continue;
+    if (!covered) covered = net.cleanClaimMask(sub);
+    // Clean tissue has to be on it NOW, not merely have claimed it once.
+    const touched = pile.cells.some((idx) => sub.cells[idx] && sub.cells[idx].colonized > 0 && covered.has(idx));
+    if (touched) { pile.rewarded = true; offerPileReward(state, pile); }
   }
 }
 
@@ -13776,6 +13785,7 @@ function activateAction(state, i, ctx) {
 // resolveIncome's energy math but takes all the remaining nutrient at once.
 function finishOccupiedHarvest(state) {
   const net = state.active, sub = state.substrate;
+  if (!net || !sub) return;
   const e = state.config.energy;
   let gained = 0;
   const covered = net.cleanClaimMask(sub);      // rot holds no pile, not even on the winning step

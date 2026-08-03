@@ -230,6 +230,37 @@ CONFIG literal only.
   `infected` would lose the food to tissue that never banked it. Note turn-based **drips** a
   claimed pile down over following turns via `resolveIncome`; only real time banks it whole on
   arrival, so "was it harvested?" is not "did energy jump".
+  - **AND `cell.colonized` IS A CLAIM, NOT A STRAND STANDING THERE — every reader of it has to
+    ask about the tissue itself.** The rule used to be enforced indirectly, by clearing
+    `colonized` under each infected node at the end of `infectNetwork`, and that misses two
+    ordinary cases: the pile mat's tendrils step up to ~0.6 of a cell, so much of a claimed
+    cell's mat lands in the cell NEXT DOOR (nothing infected is ever standing in the cell the
+    claim is on), and rot that ages out is **removed from the network**, after which there is no
+    infected node anywhere to find. Both leave a claim over dead ground, and *five* things read
+    it as "the colony is digesting here": `resolveIncome`, `checkPileRewards`, the `digest`
+    action, `Saprotrophic Digest` and `finishOccupiedHarvest` (the victory sweep). Measured
+    pre-fix on a 650-nutrient pile with the whole colony rotted: income took **325** and Digest
+    another **325**.
+    **`Network.cleanClaimMask(substrate)`** is the direct answer — the cells clean
+    tissue covers right now, each strand's own cell plus its 8 neighbours (the neighbours ARE the
+    mat's drift, which is why this is not `occupiedIdx`) — and all five gate on it themselves
+    rather than trusting the release pass to have run: **income resolves BEFORE `infectNetwork`
+    within a tick**, so on the step the rot lands the claim is still stamped, and Digest is a
+    player action that lands between ticks.
+    `infectNetwork`'s release pass now releases **by coverage** instead of by infected-node
+    position, and releasing (rather than merely refusing to harvest) is the half that keeps the
+    pile winnable: `colonizeReachablePiles` skips a pile that is claimed throughout and food
+    targeting skips colonised cells, so a stale claim would lock clean regrowth out of food it
+    can legitimately reach.
+    **The mask carries NO `grownIn` gate, and adding one is a trap.** Every claim is stamped by
+    tissue that already passed that gate inside `colonizeReachablePiles`, so re-testing it here
+    can only exclude the mat that OWNS the claim while it animates in — which in real time leaves
+    a just-claimed pile covered by nothing for the length of the reveal and **defers its draft**.
+    Cost three real-time `tut` assertions ("0 offers") on the first version.
+    Consequence to expect, and it is deliberate: ground whose tissue a **worm ate** is released
+    too. Any harvest with no living tissue on it is the same defect wearing a different cause.
+    `tests/harvest-check.cjs` (28) covers the lot, with a verified negative control via
+    `MYC_ROOT` (5 fail on the pre-fix build) and clean-tissue controls beside every assertion.
 - **The player's action resolves BEFORE any threat acts, in turn-based.** `performAction` runs
   `action.apply` (growth, and `colonizeReachablePiles` inside it) and only then `tickWorld`
   (clouds move and stamp, worms, `infectNetwork`, and `checkGoalReached` → `infectStrandsInMould`
@@ -262,9 +293,12 @@ CONFIG literal only.
   - It does NOT replace the "nothing clean reaches the goal through rot" test above, and it does
     not un-block the pile claim — the owner asked for all three: *"claiming piles through mold
     should stay blocked, because infected mycelium should not harvest or draft."*
-- **Infected tissue stops digesting.** `infectNetwork` zeroes `cell.colonized` under every
-  infected node at the end of its pass. Without it the cell stayed claimed, so `checkPileRewards`'
-  `touched` test still fired and rot drafted off a pile it could no longer eat.
+- **Infected tissue stops digesting.** `infectNetwork` releases `cell.colonized` on any claimed
+  cell clean tissue no longer covers, at the end of its pass. Without it the cell stayed claimed,
+  so `checkPileRewards`' `touched` test still fired and rot drafted off a pile it could no longer
+  eat. It clears by COVERAGE, not by infected-node position, and the release is only half of it —
+  see the `cleanClaimMask` note under "Infected tissue cannot harvest" for why every reader gates
+  on the mask as well.
 - **`growInfectBurst` is the OTHER first touch** — growing *into* mould rather than being
   touched by it — now **12 = 4 steps**, level with `firstTouchRings` and with the ongoing race,
   so all three ways of being caught cost the same. It was 18 (6 steps), and that was the
@@ -326,7 +360,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1273 assertions across 20 checks**, of which `traced` is 818 (one map's worth each). Plus
+**1301 assertions across 21 checks**, of which `traced` is 818 (one map's worth each). Plus
 three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
 **Run them; don't verify by re-reading your own diff.**
 

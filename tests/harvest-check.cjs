@@ -311,7 +311,9 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ' + m); } else { fai
   ok(R.regrow.n1 === 0, `and digests it (${R.regrow.n0} -> ${R.regrow.n1} nutrient)`);
   ok(R.regrow.rewarded === true, 'and is paid its draft');
 
-  console.log(`\n${pass} passed, ${fail} failed`);
+  // The runner greps for exactly this line (tests/run.mjs) — without the rules it reports the
+  // check as BROKEN however many assertions passed.
+  console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   await b.close(); srv.close();
   process.exit(fail ? 1 : 0);
 })();
