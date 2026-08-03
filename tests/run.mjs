@@ -21,6 +21,7 @@ const CHECKS = [
   ['hover',     'hover-check.cjs',   30,  false],
   ['boot',      'boot-check.cjs',    60,  false],
   ['hs',        'hs-check.cjs',      35,  false],
+  ['store',     'store-check.cjs',   35,  false],
   ['level',     'level-check.cjs',   50,  false],
   ['traced',    'traced-check.cjs',  60,  false],
   ['turn-play', 'turn-play.cjs',     40,  false],
