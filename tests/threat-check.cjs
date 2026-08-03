@@ -1365,6 +1365,67 @@ ok('a blind worm does not move at all', sense.n > 50 && sense.moved === 0,
 ok('and does not even turn toward the colony', sense.n > 50 && sense.turned === 0,
    `${sense.turned} of ${sense.n} changed heading (the homing version steered 90% within 30°)`);
 
+
+// ---- 12. BEING FULLY EATEN IS A DEATH, AND THE SCREEN SAYS SO ----------------
+// Reported as "make sure there is a death if I get fully eaten by nematodes". The run DID end —
+// tickWorld has a catch outside its network loop precisely because worms eat the last strand
+// BEFORE that loop runs, so `net.alive` is already false and the in-loop death block is skipped.
+// What was wrong was the SCREEN: the campaign-death branch of UI.showOverlay hard-coded "you ran
+// out of playable cards or resources" for every cause, so a colony eaten alive was told it had
+// run out of cards. Both halves are asserted here — the cause the model records, and the words
+// the player actually reads — in BOTH modes, because they reach the death down different paths
+// (a queued enemy turn vs the wall clock).
+for (const [label, hash] of [['turn-based', '#dev,turn'], ['real time', '#dev']]) {
+  const dp = await boot(await b.newContext({viewport:{width:1400,height:800}}), base + '/index.html' + hash);
+  const eaten = await dp.evaluate(async () => {
+    const G = window.__game, s = G.state, net = s.active;
+    s.clouds.length = 0; if (s.ants) s.ants.length = 0;
+    // Energy high on purpose: at 0 the colony starves and the death is attributed to 'energy',
+    // which would pass a "did it die?" assertion while proving nothing about the worms.
+    net.energy = 1e6; net.water = 999; net.phosphorus = 999;
+    const rt = !!s.config.realtime.enabled;
+    const n0 = net.nodes.length;
+    for (let i = 0; i < 90 && net.nodes.length; i++) {
+      // Re-seat the swarm on whatever is left each step, so "fully eaten" is actually reached
+      // rather than the worms nibbling one limb and stalling.
+      s.nematodes.length = 0;
+      for (const n of net.nodes.slice(0, 40)) s.nematodes.push({ x: n.x, y: n.y, heading: 0, phase: 0,
+        stuck: 0, feedCd: 0, hp: 0, sees: false, feeding: false, trailing: false, targetId: null });
+      if (!rt) G.tickWorld(s); else await new Promise((r) => setTimeout(r, 120));
+    }
+    const r = s.runResult || {};
+    return { rt, n0, left: net.nodes.length, alive: net.alive, runOver: !!s.runOver,
+             died: !!r.died, cause: r.cause || null };
+  });
+  ok(`${label}: the worms really did eat the whole colony`,
+     eaten.n0 > 0 && eaten.left === 0, `${eaten.n0} strands → ${eaten.left}`);
+  ok(`${label}: being fully eaten ends the run`, eaten.runOver === true && eaten.died === true,
+     `runOver=${eaten.runOver}, died=${eaten.died}`);
+  ok(`${label}: ...and the cause is DEVOURED, not starvation or the mould`,
+     eaten.cause === 'devoured', String(eaten.cause));
+
+  // The screen. A campaign death plays a ~6 s fruiting celebration first, so poll rather than
+  // guess a wait — an earlier probe slept 2.5 s, saw the bare HUD and read as "no death at all".
+  let shown = null;
+  for (let i = 0; i < 40; i++) {
+    shown = await dp.evaluate(() => {
+      const ov = document.querySelector('.overlay, #overlay');
+      if (!ov || ov.classList.contains('hidden')) return null;
+      return (ov.innerText || '').replace(/\n+/g, ' | ');
+    });
+    if (shown) break;
+    await sleep(500);
+  }
+  ok(`${label}: the death screen appears`, !!shown, shown === null ? 'nothing after 20s' : '');
+  ok(`${label}: ...and it says the colony was DEVOURED`, /devoured/i.test(shown || ''),
+     (shown || '').slice(0, 90));
+  // The exact wrong string it used to show, kept as the regression it is: any cause-blind
+  // fallback creeping back in would read like this again.
+  ok(`${label}: ...not the cause-blind "ran out of cards" line`,
+     !/ran out of playable cards/i.test(shown || ''), (shown || '').slice(0, 90));
+  await dp.close();
+}
+
 await b.close(); srv.close();
 
 console.log(`==== ${PASS} passed, ${FAIL} failed ====`);

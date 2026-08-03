@@ -18121,9 +18121,14 @@ class UI {
         ? `The colony crossed the map and fruited at the summer goal in <b>${result.turns}</b> steps.`
         : `The colony threaded the map and reached the chest in <b>${result.turns}</b> turns.`;
     } else if (died && this.cardsOn && !puzzle) {
-      // Campaign death (any cause): the colony was forced to fruit and spore.
-      title = 'Your run has ended';
-      body = 'You ran out of playable cards or resources to continue expanding your colony and were forced to fruit and spore.';
+      // EVERY CAUSE GETS ITS OWN LINE. This branch used to hard-code "you ran out of playable
+      // cards or resources" whatever killed you, so a colony eaten alive by nematodes was told it
+      // had run out of cards — and because it sits AHEAD of the cause branches below, it made
+      // those unreachable in card mode as well. deathText() is the same table the campaign death
+      // carousel reads, so the two screens cannot drift apart.
+      const dt = deathText(result.cause);
+      title = dt.title;
+      body = dt.sub;
     } else if (died && result.cause === 'water') {
       title = 'You ran out of water';
       body = 'Your mycelium colony shrivelled up and died.';
@@ -19120,7 +19125,32 @@ function vitalityColor(v) {
   return `rgb(${r},${g},${b})`;
 }
 
-  return { SPORE_ICON, UI, cardSlug, GROUP_ORDER, cardGroups, catClass, cardFaceHTML };
+// Title + subtitle for a death screen, keyed to the CAUSE (turn.js/cards.js/main.js set
+// state.runResult.cause). The colony always sporulates as it dies — that's why you bank Spores +
+// carry cards — so the subtitle is the same for every "ran out / overrun" death; only the manual
+// force-fruit (abandon) reads differently.
+//
+// IT LIVES HERE, in the UI module, because BOTH death screens have to read the same table: the
+// campaign carousel (main.js showDeathCarry) and the plain overlay (UI.showOverlay). main is
+// declared last so it can import this; the reverse would not link, and a second copy is how the
+// two screens drift apart.
+function deathText(cause) {
+  const titles = {
+    water: 'You ran out of water',
+    energy: 'You ran out of energy',
+    nocards: 'You ran out of cards',
+    infected: 'The mould consumed your colony',
+    devoured: 'Your colony was devoured',
+    abandon: 'You fruited early',
+  };
+  const title = titles[cause] || 'Your run has ended';
+  const sub = cause === 'abandon'
+    ? 'You ended the run, sporing before reaching the east.'
+    : 'Your colony was forced to fruit and spore before reaching the east.';
+  return { title, sub };
+}
+
+  return { SPORE_ICON, UI, deathText, cardSlug, GROUP_ORDER, cardGroups, catClass, cardFaceHTML };
 })();
 
 // ===================== src/render/mycelium_title.js =====================
@@ -21485,7 +21515,7 @@ const __m_main = (function () {
   const { SubstrateRenderer } = __m_render_substrate;
   const { NetworkRenderer, drawFruitBodies } = __m_render_network;
   const { Lighting } = __m_render_lighting;
-  const { UI, cardSlug, SPORE_ICON } = __m_render_ui;
+  const { UI, deathText, cardSlug, SPORE_ICON } = __m_render_ui;   // deathText: one table, both death screens
   const { showSpeciesSelect, showLevelComplete, showGameWon, showSpeciesUnlocked } = __m_render_species_select;
   const { showLoadoutSelect } = __m_render_loadout_select;
   const { showTitleScreen } = __m_render_title_screen;
@@ -21899,26 +21929,6 @@ function forceFruitAbandon() {
   state.won = false;
   state.runResult = { won: false, died: true, cause: 'abandon', turns: state.turn };
   presentRunOver();
-}
-
-// Title + subtitle for the death screen, keyed to the CAUSE of death (turn.js/cards.js/
-// main.js set state.runResult.cause). The colony always sporulates as it dies — that's why
-// you bank Spores + carry cards — so the subtitle is the same for every "ran out / overrun"
-// death; only the manual force-fruit (abandon) reads differently.
-function deathText(cause) {
-  const titles = {
-    water: 'You ran out of water',
-    energy: 'You ran out of energy',
-    nocards: 'You ran out of cards',
-    infected: 'The mould consumed your colony',
-    devoured: 'Your colony was devoured',
-    abandon: 'You fruited early',
-  };
-  const title = titles[cause] || 'Your run has ended';
-  const sub = cause === 'abandon'
-    ? 'You ended the run, sporing before reaching the east.'
-    : 'Your colony was forced to fruit and spore before reaching the east.';
-  return { title, sub };
 }
 
 // The DEATH screen: the memory-style card carousel with the run's death message on top
