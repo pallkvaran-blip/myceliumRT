@@ -10856,6 +10856,53 @@ class Network {
     return income;
   }
 
+  // --- THE INFECTION GATE: which ground CLEAN tissue actually covers ----------
+  // `cell.colonized` is a CLAIM the colony stamped once, not a strand standing there now, and
+  // two perfectly ordinary things outlive the tissue that stamped it:
+  //
+  //   • colonizeReachablePiles claims a pile cell and then sprays its mat with tendrils whose
+  //     steps run up to ~0.6 of a cell, so a good share of that mat ends up in the NEIGHBOURING
+  //     cell rather than the one it was sprayed for.
+  //   • rot that ages out is REMOVED from the network entirely (rotLifeTurns), so after a few
+  //     steps there is no infected node left anywhere near the claim to find.
+  //
+  // That is why "clear cell.colonized under every infected node" — which is all the infection
+  // gate used to be — is not enough on its own: it can only reach cells an infected node is
+  // standing IN. What was left over was rotten or vacated ground still reading as colonised, and
+  // EVERY consumer of `colonized` read it as "the colony is digesting here": passive income, the
+  // pile draft, both Digest paths and the victory sweep. Reported as "infected mycelium clears a
+  // food pile and initiates a draft".
+  //
+  // So this is the direct question, asked at each of those sites instead of inferred: which cells
+  // does clean, living tissue cover right now? A strand's own cell plus its 8 neighbours — the
+  // neighbours are the mat's drift above, and the reason this is not simply `occupiedIdx`.
+  // One O(nodes) pass, and the same answer wherever it is asked.
+  //
+  // `requireGrown` is the RT reveal gate (see grownIn): a consumer must not harvest through
+  // tissue that has not physically arrived yet, but the RELEASE pass in infectNetwork passes
+  // false — otherwise a claim made for a mat still animating in would be released and re-taken
+  // on alternating ticks, and `colonized` drives food targeting as well as income.
+  cleanClaimMask(substrate, requireGrown = true) {
+    const own = new Set();
+    for (const n of this.nodes) {
+      if (n.infected) continue;
+      if (requireGrown && !this.grownIn(n)) continue;
+      const col = substrate.colAtX(n.x), row = substrate.rowAtY(n.y);
+      if (!substrate.inBounds(col, row)) continue;
+      own.add(substrate.index(col, row));
+    }
+    const cols = substrate.cols;
+    const mask = new Set(own);
+    for (const idx of own) {
+      const c = idx % cols, r = (idx - (idx % cols)) / cols;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) {
+        const nc = c + dc, nr = r + dr;
+        if (substrate.inBounds(nc, nr)) mask.add(substrate.index(nc, nr));
+      }
+    }
+    return mask;
+  }
+
   // --- Colonisation: fully claim every substrate pile within reach ------------
   // Called after every grow. For each CONNECTED substrate pile (a blob of food
   // cells) with any cell within sensing/reach range of a living strand — you grew
@@ -12070,16 +12117,29 @@ function infectNetwork(net, state) {
   //    A healed strand loses `infected` and its rotAge with it (cureRadius), so the deadline
   //    resets with the infection rather than persisting invisibly on cured tissue.
   //
-  //    DEAD TISSUE RELEASES THE GROUND FIRST. Income and the pile draft both key off
-  //    `cell.colonized`, which knew nothing about infection — so rotten mycelium sitting on a
-  //    pile kept digesting it and eventually paid out a card. "Infected mycelium should not
-  //    harvest or draft." Clearing the cell under every infected strand is the whole fix: the
-  //    passive income loop and checkPileRewards' `touched` test both read colonized, so both
-  //    stop at once, and the pile keeps its nutrient for whatever grows back.
-  for (const n of net.nodes) {
-    if (!n.infected) continue;
-    const c = sub.cellAtWorld(n.x, n.y);
-    if (c && c.colonized > 0) c.colonized = 0;
+  //    DEAD TISSUE RELEASES THE GROUND. Income, the pile draft, both Digest paths and the
+  //    victory sweep all key off `cell.colonized`, which knows nothing about infection — so
+  //    rotten mycelium sitting on a pile kept digesting it and eventually paid out a card.
+  //    "Infected mycelium should not harvest or draft."
+  //
+  //    This used to clear the cell under every infected strand, which is not the same thing:
+  //    a claim can outlive the tissue that made it in cells no infected node is standing in
+  //    (the mat drifts a cell over; rot that ages out is removed from the network outright).
+  //    So the release is by COVERAGE — any claimed cell that clean tissue no longer covers is
+  //    let go, whether the tissue there rotted, was eaten or fell away. Releasing rather than
+  //    merely refusing to harvest matters: the pile keeps its nutrient AND becomes claimable
+  //    again (colonizeReachablePiles skips a pile that is already claimed throughout, and food
+  //    targeting skips colonised cells), so what grows back a clean way round can still eat it.
+  //
+  //    The consumers gate on the same mask themselves rather than trusting this pass to have
+  //    run — income resolves BEFORE the rot spreads within a tick, and Digest is a player
+  //    action that lands between ticks.
+  {
+    const covered = net.cleanClaimMask(sub, false);
+    for (let i = 0; i < sub.cells.length; i++) {
+      const c = sub.cells[i];
+      if (c && c.colonized > 0 && !covered.has(i)) c.colonized = 0;
+    }
   }
 
   const life = Math.max(1, (t.rotLifeTurns | 0) || 3);
@@ -13421,6 +13481,11 @@ function checkPileRewards(state) {
   const C = state.cards; if (!C || !C.pendingOffers || state.runOver) return;
   const sub = state.substrate; if (!sub || !sub.foodPiles) return;
   const net = state.active; if (!net || !net.alive) return;
+  // A DRAFT IS PAID TO LIVING TISSUE ONLY. `colonized` says the pile was claimed at some point,
+  // not that clean mycelium is on it now — so the claim is checked against what clean tissue
+  // actually covers (Network.cleanClaimMask). Rot that emptied a pile, or rot that fell away and
+  // left its claim behind, used to collect the card.
+  const covered = net.cleanClaimMask(sub);
   for (const pile of sub.foodPiles) {
     if (pile.rewarded) continue;
     if (pile.kind === 'duff') continue;         // low-value litter — Energy on digest, but NO card draft
@@ -13428,7 +13493,7 @@ function checkPileRewards(state) {
     for (const idx of pile.cells) {
       const cell = sub.cells[idx]; if (!cell) continue;
       total += cell.nutrient;
-      if (cell.colonized > 0) touched = true;   // the colony actually digested it
+      if (cell.colonized > 0 && covered.has(idx)) touched = true;   // clean tissue actually digested it
     }
     if (touched && total <= 1e-6) { pile.rewarded = true; offerPileReward(state, pile); }
   }
@@ -13713,8 +13778,11 @@ function finishOccupiedHarvest(state) {
   const net = state.active, sub = state.substrate;
   const e = state.config.energy;
   let gained = 0;
-  for (const cell of sub.cells) {
+  const covered = net.cleanClaimMask(sub);      // rot holds no pile, not even on the winning step
+  for (let i = 0; i < sub.cells.length; i++) {
+    const cell = sub.cells[i];
     if (cell.colonized <= 0 || cell.nutrient <= 0 || cell.hazard) continue;
+    if (!covered.has(i)) continue;
     const take = cell.nutrient;                 // final harvest: take everything left
     cell.nutrient = 0;
     gained += take * (cell.energyPerNutrient != null ? cell.energyPerNutrient : e.incomeEfficiency);
@@ -14169,7 +14237,10 @@ const EFFECTS = {
   // --- digest (Phosphorus) ---
   'Saprotrophic Digest': grow((s) => {
     const net = s.active, sub = s.substrate;
-    const cells = sub.cells.filter((c) => c.colonized > 0 && c.nutrient > 0 && !c.hazard);
+    // Only ground CLEAN tissue still covers — a stale claim is not a pile you can eat, and a
+    // player action lands between world ticks, so it cannot wait for the release pass.
+    const covered = net.cleanClaimMask(sub);
+    const cells = sub.cells.filter((c, i) => c.colonized > 0 && c.nutrient > 0 && !c.hazard && covered.has(i));
     if (!cells.length) return { ok: false, message: 'No colonised substrate to digest.' };
     const d = s.config.actions.digest, eff = s.config.energy.incomeEfficiency;
     let energyRaw = 0;
@@ -14722,8 +14793,15 @@ function resolveIncome(net, substrate, config) {
   // map food piles carry a per-cell rate summing to the pile's fixed 1..8 value; other
   // food (player-dropped caches) falls back to the global incomeEfficiency.
   let energyGained = 0;
-  for (const cell of substrate.cells) {
+  // INFECTED TISSUE DOES NOT HARVEST — asked directly, before a scrap of nutrient moves. The
+  // claim alone is not enough (see Network.cleanClaimMask): it can outlive its tissue, and this
+  // runs BEFORE infectNetwork within the tick, so on the step the rot lands the release pass has
+  // not happened yet and a claim the colony no longer holds would still be worth a turn's income.
+  const covered = net.cleanClaimMask(substrate);
+  for (let i = 0; i < substrate.cells.length; i++) {
+    const cell = substrate.cells[i];
     if (cell.colonized <= 0 || cell.nutrient <= 0 || cell.hazard) continue;
+    if (!covered.has(i)) continue;
     const take = Math.min(cell.nutrient, e.passiveIncomeRate) * cell.colonized;
     cell.nutrient -= take;
     energyGained += take * (cell.energyPerNutrient != null ? cell.energyPerNutrient : e.incomeEfficiency);
@@ -14837,7 +14915,9 @@ const ACTIONS = {
       const d = state.config.actions.digest;
       const net = state.active;
       const sub = state.substrate;
-      const cells = sub.cells.filter((c) => c.colonized > 0 && c.nutrient > 0 && !c.hazard);
+      // Infected/vacated claims excluded — same gate as passive income (Network.cleanClaimMask).
+      const covered = net.cleanClaimMask(sub);
+      const cells = sub.cells.filter((c, i) => c.colonized > 0 && c.nutrient > 0 && !c.hazard && covered.has(i));
       if (cells.length === 0) return { ok: false, message: 'No colonised substrate to digest.' };
       // Drain a fixed fraction of EACH occupied cell — 2 uses fully digests a
       // pile of any size, at no loss (you get its full Energy value, just now).
