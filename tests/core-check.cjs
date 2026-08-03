@@ -123,13 +123,18 @@ const sampleHue=()=>p.evaluate(()=>{
   return {above:patch(sub.coreY-120), below:patch(sub.coreY+120)};
 });
 const lead=(h)=>h.below.r-h.below.b;
-let hue=await sampleHue(), settleTries=0;
+// THREE agreeing samples in a row, not one pair. Breaking on the first pair within +-2 mistakes a
+// SLOW CLIMB for a settled value: inside a full run.mjs sweep the reading rises a couple of points
+// per sample, so 53 -> 55 satisfied the pair test and the assertion read 55 against its gate of 60
+// while the SAME BUILD settles at 78 standalone. That is a false failure on a core that renders
+// correctly — the third failure in this family, after the flat sleep and the fixed render count.
+let hue=await sampleHue(), settleTries=0, steady=0;
 for (; settleTries<25; settleTries++) {
   await sleep(250);
   const next=await sampleHue();
-  const done=Math.abs(lead(next)-lead(hue))<=2;
+  steady = Math.abs(lead(next)-lead(hue))<=2 ? steady+1 : 0;
   hue=next;
-  if (done) break;
+  if (steady>=3) break;
 }
 // Calibrated against the NULL CASE, not against the observed value: with no core the patch
 // below the line is soil and its lead matches the one above it (~28 vs ~28). Observed with the

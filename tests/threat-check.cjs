@@ -345,31 +345,42 @@ const both=await p.evaluate(()=>{
   const n=s.config.nematodes;
   s.nematodes.length=0; if (s.clouds) s.clouds.length=0;
   for (const nd of net.nodes) { const c=sub.cellAtWorld(nd.x,nd.y); if (c) c.hardened=0; }
-  // The densest node again, so there is more than one bite's worth in reach on arrival.
+  // The densest nodes, so there is more than one bite's worth in reach on arrival.
+  //
+  // SEVERAL CANDIDATE TARGETS, not just the single densest one. The usable window is narrow —
+  // beyond `reach` (1.4 cells) and within one crawl (3.0) — so it is a ring barely 1.6 cells wide,
+  // and on a rocky or dense map roll every angle around one node can be either solid, off the map,
+  // or already inside some other strand's reach. That bailed with "no out-of-reach spot within one
+  // crawl" on two map rolls out of about eight, which reads as a regression and is not one. Trying
+  // the twelve densest nodes makes the search a property of the colony rather than of one node.
   const reach=n.reach*cs;
-  let tgt=net.nodes[0], dense=-1;
-  for (const a of net.nodes) {
+  const ranked=net.nodes.map((a)=>{
     let k=0;
     for (const b of net.nodes) if (Math.hypot(b.x-a.x, b.y-a.y) <= reach) k++;
-    if (k > dense) { dense=k; tgt=a; }
-  }
+    return { node:a, k };
+  }).sort((p2,q2)=>q2.k-p2.k);
+  const dense=ranked.length ? ranked[0].k : 0;
+  let tgt=ranked.length ? ranked[0].node : net.nodes[0];
   // Out of reach, inside one crawl, on a clear straight line so the mover doesn't slide.
   // "Out of reach" has to mean of the NEAREST STRAND, not of `tgt`: in a 400-strand colony a
   // spot 2 cells from the densest node still has some other strand inside the 0.7-cell reach,
   // and the worm then feeds without moving — which passed the eat assertion while proving
   // nothing about the move.
   let spot=null;
-  for (const d of [cs*2, cs*3, cs*4, cs*1.5, cs*5, cs*6]) {
-    for (let k=0;k<16 && !spot;k++) {
-      const a=k*Math.PI/8, x=tgt.x+Math.cos(a)*d, y=tgt.y+Math.sin(a)*d;
-      if (x<cs || x>sub.worldWidth-cs || y<sub.surfaceY+cs || y>sub.worldHeight-cs) continue;
-      if (sub.solidAtWorld(x,y)) continue;
-      let near=Infinity, nd=null;
-      for (const b of net.nodes) { const q=Math.hypot(b.x-x, b.y-y); if (q<near) { near=q; nd=b; } }
-      if (near <= reach) continue;                    // already feeding — nothing to prove
-      if (near > n.crawlSpeed*cs) continue;           // couldn't arrive in one step
-      if (!nd || !sub.segmentClear(x,y,nd.x,nd.y)) continue;
-      spot={x,y,d:near};
+  for (const cand of ranked.slice(0, 12)) {
+    for (const d of [cs*2, cs*3, cs*4, cs*1.5, cs*5, cs*6]) {
+      for (let k=0;k<16 && !spot;k++) {
+        const a=k*Math.PI/8, x=cand.node.x+Math.cos(a)*d, y=cand.node.y+Math.sin(a)*d;
+        if (x<cs || x>sub.worldWidth-cs || y<sub.surfaceY+cs || y>sub.worldHeight-cs) continue;
+        if (sub.solidAtWorld(x,y)) continue;
+        let near=Infinity, nd=null;
+        for (const b of net.nodes) { const q=Math.hypot(b.x-x, b.y-y); if (q<near) { near=q; nd=b; } }
+        if (near <= reach) continue;                    // already feeding — nothing to prove
+        if (near > n.crawlSpeed*cs) continue;           // couldn't arrive in one step
+        if (!nd || !sub.segmentClear(x,y,nd.x,nd.y)) continue;
+        spot={x,y,d:near}; tgt=cand.node;               // the spot's own target, for the density report
+      }
+      if (spot) break;
     }
     if (spot) break;
   }

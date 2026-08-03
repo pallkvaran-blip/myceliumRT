@@ -553,6 +553,17 @@ Harness traps that have cost real time:
     quantity (the round clock, the cadence bars) is to *sleep* and let the real loop tick.
   Whenever a check's numbers move after a perf change, ask what it was really measuring before
   believing it found a regression.
+- **"IT SETTLED" IS NOT "TWO SAMPLES AGREED", AND A NARROW SEARCH WINDOW IS A BET ABOUT THE MAP.**
+  Two more false failures, both only inside a full sweep, both fixed in the harness:
+  `core-check`'s hue probe broke out of its settle loop on the FIRST pair within ±2, which a slow
+  CLIMB satisfies — under sweep load the reading rises a couple of points per sample, so 53 → 55
+  ended it and the assertion read 55 against a gate of 60 while the same build settles at 78-91
+  standalone. It now wants three agreeing samples in a row. (Third failure in that family, after
+  the flat sleep and the fixed render count.) And `threat-check`'s move-and-eat probe searched for
+  its start spot around the single densest node, inside a ring barely 1.6 cells wide (beyond
+  `reach` 1.4, within one crawl 3.0) — on two map rolls in eight every angle was solid, off-map or
+  already in reach, and it bailed with "no out-of-reach spot within one crawl". It tries the twelve
+  densest nodes now, so the search is a property of the colony rather than of one node.
 - **A FIXED SLEEP OR A FIXED COUNT IS A BET ABOUT THE MACHINE.** Two more failed only inside a
   full `run.mjs` sweep and passed standalone, which reads as a regression and is not one:
   `core-check` sampled pixels after `sleep(700)` and got 58 against a gate of 60 because the
