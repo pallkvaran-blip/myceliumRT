@@ -45,6 +45,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       s.clouds = []; s.nematodes = []; s.ants = []; s.cards.pendingOffers.length = 0;
       net.energy = 1e6; net.water = 999;
       for (const n of net.nodes) n.infected = false;
+      // AND KEEP THE MOULD OUT OF IT. Emptying `clouds` once is not enough: a tickWorld can
+      // RESPAWN one, and checkGoalReached runs infectStrandsInMould before it tests the surface,
+      // so a cloud that happens to seed near the goal infects the very strand this is about and
+      // the win never fires. That is the mould rule doing its job, not the surface rule failing —
+      // but it reads as `won=false`, which is indistinguishable from the bug this probe exists to
+      // catch. Seen once in about ten runs before this.
+      s.config.trichoderma.respawnChance = 0;
+      s.config.nematodes.respawnChance = 0;
+      for (const c of sub.cells) c.trich = 0;
       // Find a goal column.
       let gx = null;
       for (let c = sub.cols - 1; c >= 0; c--) {
@@ -61,16 +70,26 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       const deepWon = !!s.won;
       // AT the surface.
       s.won = false; s.runOver = false; net.alive = true;
+      s.clouds = []; s.nematodes = [];
+      for (const c of sub.cells) c.trich = 0;
       const top = net.addNode(gx, sub.surfaceY + 4, net.nodes[0]);
       top._revSeen = true; top._liveAt = 0; top.infected = false;
       g.tickWorld(s);
-      return { reachDepth, goalDepth, deepDepth: deep.y - sub.surfaceY, deepWon, surfWon: !!s.won };
+      // Everything that can swallow a win, reported — so a future failure says WHY instead of
+      // leaving the next reader to re-derive it from `won=false`.
+      return { reachDepth, goalDepth, deepDepth: deep.y - sub.surfaceY, deepWon, surfWon: !!s.won,
+               topInfected: !!top.infected, topGone: !net.byId.has(top.id),
+               winPending: !!s.winPending, runOver: !!s.runOver, alive: !!net.alive,
+               clouds: s.clouds.length, trich: sub.cells.reduce((a2, c) => a2 + c.trich, 0) };
     });
     if (r.skip) { ok(`${label}: surface rule`, true, `SKIP (${r.skip})`); }
     else {
       ok(`${label}: a strand deep in the goal does NOT win`, r.deepWon === false,
          `depth ${Math.round(r.deepDepth)} (goal limit ${r.goalDepth}, fruit reach ${r.reachDepth}) → won=${r.deepWon}`);
-      ok(`${label}: touching the surface DOES win`, r.surfWon === true, `won=${r.surfWon}`);
+      ok(`${label}: touching the surface DOES win`, r.surfWon === true,
+         `won=${r.surfWon}` + (r.surfWon ? '' : ` — topInfected=${r.topInfected}, topGone=${r.topGone}, ` +
+          `winPending=${r.winPending}, runOver=${r.runOver}, alive=${r.alive}, ` +
+          `${r.clouds} cloud(s), trich ${Math.round(r.trich * 100) / 100}`));
     }
     ok(`${label}: no page errors`, errs.length === 0, errs.slice(0, 2).join(' | '));
     await page.close();

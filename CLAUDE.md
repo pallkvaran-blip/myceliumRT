@@ -446,7 +446,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1373 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
+**1374 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
 three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
 **Run them; don't verify by re-reading your own diff.**
 
@@ -553,6 +553,15 @@ Harness traps that have cost real time:
     quantity (the round clock, the cadence bars) is to *sleep* and let the real loop tick.
   Whenever a check's numbers move after a perf change, ask what it was really measuring before
   believing it found a regression.
+- **A RESPAWNED THREAT CAN END THE RUN UNDER A PROBE, AND `tickWorld` RETURNS AT ITS FIRST LINE ON
+  `runOver`.** Emptying `state.nematodes` / `state.clouds` once is not enough — every tick can
+  respawn one, and a check that takes 20 world steps is a long time to be lucky. When the run ends
+  mid-probe, later ticks advance NOTHING, which surfaces as an off-by-one nobody can place:
+  `enemy-turn-check`'s burst read `turn 3 → 13 for 11 actions`, and `fixes-check`'s surface win read
+  a bare `won=false` because a respawned cloud had infected the winning strand (checkGoalReached
+  runs `infectStrandsInMould` BEFORE it tests the surface). Both now zero `respawnChance` for the
+  duration and ASSERT the run is still live before trusting a count. Neither probe is about
+  survival, so keeping the threats out costs nothing.
 - **"IT SETTLED" IS NOT "TWO SAMPLES AGREED", AND A NARROW SEARCH WINDOW IS A BET ABOUT THE MAP.**
   Two more false failures, both only inside a full sweep, both fixed in the harness:
   `core-check`'s hue probe broke out of its settle loop on the FIRST pair within ±2, which a slow

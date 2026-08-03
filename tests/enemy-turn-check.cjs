@@ -62,6 +62,13 @@ const PREP = `(function () {
   G.settleEnemyTurn();                      // the grows queued steps — settle before measuring
   s.nematodes.length = 0;
   if (s.clouds) s.clouds.length = 0;
+  // AND KEEP THEM OUT. Emptying the lists once is not enough — every tickWorld can RESPAWN a worm
+  // or a cloud, and this check takes up to 20 world steps in a burst. A threat that arrives
+  // mid-burst can END THE RUN, and tickWorld returns at its first line on runOver, so the final
+  // settle silently advances nothing and "one step per action" fails by one with no hint why
+  // (seen as \`turn 3 → 13 for 11 actions\`). Nothing here is about survival.
+  s.config.trichoderma.respawnChance = 0;
+  s.config.nematodes.respawnChance = 0;
   net.energy = 99999;
 })()`;
 
@@ -432,8 +439,14 @@ const burst = await p.evaluate(() => {
   }
   const mid = s.turn, owedAtEnd = !!G.enemyTurn;
   G.settleEnemyTurn();
-  return { t0, acts, byAction, byCard, dropped, mid, owedAtEnd, end: s.turn, settledOwed: !!G.enemyTurn };
+  return { t0, acts, byAction, byCard, dropped, mid, owedAtEnd, end: s.turn, settledOwed: !!G.enemyTurn,
+           runOver: !!s.runOver, winPending: !!s.winPending, alive: !!net.alive, strands: net.nodes.length };
 });
+// A FINISHED RUN CANNOT TAKE STEPS — tickWorld returns at its first line on runOver/winPending, so
+// the counting assertions below are only meaningful while the run is live. Asserted rather than
+// assumed, so a run that ends mid-burst says so instead of failing the count by one.
+ok('the run is still live, so the step counting means something', burst.runOver === false && burst.winPending === false,
+   `runOver=${burst.runOver}, winPending=${burst.winPending}, alive=${burst.alive}, ${burst.strands} strands`);
 ok('the burst actually took actions, on both paths',
    burst.acts >= 10 && burst.byAction > 0 && burst.byCard > 0,
    `${burst.acts} actions — ${burst.byAction} via performAction, ${burst.byCard} via a card`);
