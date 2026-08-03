@@ -446,7 +446,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1349 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
+**1361 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
 three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
 **Run them; don't verify by re-reading your own diff.**
 
@@ -1375,7 +1375,7 @@ positions → run the **MOVE** pass → hold ~2 s while the renderer interpolate
 `stepNematodes` — the seam sits where those were already move-then-feed.
 
 The three things that make it correct rather than merely animated, all asserted by
-`tests/enemy-turn-check.cjs` (36):
+`tests/enemy-turn-check.cjs` (51, twelve of them the turn gate below):
 
 - **The split is real in BOTH directions.** A worm crawls in one phase and bites in the other; a
   cloud creeps then devours; the rot races only on the attack. Asserting "it moved" alone would
@@ -1391,6 +1391,48 @@ The three things that make it correct rather than merely animated, all asserted 
 
 The reveal can be arbitrarily long, so the wait has a ceiling rather than trusting the animation
 to end.
+
+### ...and the player has to WATCH it (the turn gate)
+
+Second owner ask: *"make sure the player cannot take another action until the enemies have
+finished their turns, including animations. And until food pile consumptions and drafts have
+completed. change the + pointer to a small hourglass when relevant."*
+
+**`playerBlockedReason()`** is the single answer — a reason string or null — and every UI entry
+point that COMMITS something asks it first: a basic action, a card, an installed ability, Draw,
+Skip, the targeted tap (`onCanvasClick`) and the released drag-aim (`fireAim`). `draftLocked()` is
+now just the "ask it and say so" wrapper around it.
+
+- **TWO things hold the turn, and they hand over with no gap.** `state.enemyTurn` spans the growth
+  reveal, the move, the ~2 s slide AND the attack — that span *is* the animation, which is why the
+  flag is the right thing to read rather than any timer of our own. Then any pile draft the attack
+  pushed holds it until taken. `enemyTurnAttack` clears `enemyTurn` BEFORE it ticks, so the offer
+  appears while the turn is already null — but both happen inside one synchronous
+  `advanceEnemyTurn` call, so there is no frame in between for a click to land in.
+- **The BASIC ACTIONS were the gap.** `draftLocked` guarded the card layer only, so Grow went
+  straight over a draft, or over the enemies' walk. The tap and the release are gated as well as
+  the arming: a drag-aim can be started before the turn ends and let go after.
+- **NOT gated in `performAction`, deliberately.** The engine's own rule is that queueing a turn
+  FLUSHES whatever is owed (`queueEnemyTurn`), so acting early can never desync the world. That
+  safety net stays, and so does every check and the self-play bot that drive the engine directly.
+  This is a rule about the INTERFACE. `__game.handlers` is exposed so a check can exercise the
+  gate on the path a click really takes; `__game.play`/`draw`/`skip` still go straight to the
+  engine and are ungated on purpose.
+- **The wording differs by cause**, because "finish your draft" is an instruction the player
+  cannot follow while the cards are still animating in: before `draftSequenceStarted`, it says the
+  colony is still consuming the pile.
+- **The cursor is an inline SVG hourglass**, not the system `wait` keyword — that is a spinning
+  beachball on macOS and a rotating ring on Windows, neither of which says "waiting for a turn".
+  Dark halo under a mint outline so it reads against soil, dark rock and the colony's own cream
+  (checked in a rendered frame, not assumed). `#game.busy`, toggled from the frame loop by
+  `syncBusyCursor` — polled there rather than at each site that starts or ends a turn, because a
+  turn ends inside `advanceEnemyTurn`, a draft ends on a card click and a pile can finish on any
+  tick; guarded on a CHANGE, so it writes on two frames per turn rather than every one.
+- Writing the check: a bare `grow` refuses with "no food within sensing range" once the colony has
+  outrun the map's piles, and a refusal queues NOTHING — so a gate probe whose setup action was a
+  grow held nothing and passed vacuously. And a TARGETED card (Rhizomorph Lance) only *arms* on
+  `onPlayCard` and returns true without playing, so it cannot tell a refusal from a normal aim.
+  `Condense` resolves on the spot and is the card to probe with.
 
 ## Loose ends
 
