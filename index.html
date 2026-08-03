@@ -2046,7 +2046,16 @@ const CONFIG = {
     leavesPerRound: 0.175,       // AVERAGE food cells ("leaves") a cloud clears per round/tick (may be fractional —
                                  //   accumulated in a per-cloud budget, nearest cells first). RT: eating slowed 30%
                                  //   (was 0.25), so a typical ~5-cell pile now takes ~14 s of mould contact to devour.
-    fadeTurns: 3,                // after infecting you, a cloud dies off and vanishes over this many steps (actions or end-turns)
+    // A cloud that reaches you is SPENT, and it goes on the SAME turn — it does not linger on
+    // top of the colony it just infected waiting for you to act again. Owner's words: "have the
+    // trych disappear on the same turn that it infects. but have it fade away, not just disappear
+    // in a tick." So the fade is WALL CLOCK, in ms, and main.js advanceSim runs it down every
+    // frame in BOTH modes — a turn-based turn is one player action long, i.e. unbounded, so a
+    // per-STEP fade (this was `fadeTurns: 3`) could only ever end on the player's next action.
+    // Both the drawn mould and the sim's trich field read `cloud.strength`, so the fade takes the
+    // cloud's bite with it: once strength falls under growInfectThreshold, growing through the
+    // remnant no longer infects.
+    fadeMs: 700,
     seedMinColonyDistFrac: 0.2,  // clouds seed in OPEN ground at least this fraction of the map-width from the colony, so they visibly creep IN toward food/you
     respawnChance: 0.12,         // per action, chance a faded cloud is replaced by a fresh one creeping in (keeps the threat present)
     guardAnchors: null,          // optional list of scripted-gate anchors where the FIRST clouds are forced to seed (e.g. level 2's gauntlet — main.js configForLevel sets it per level); null → all clouds roam. Each anchor is EITHER world-relative {xFrac,depthFrac} (fractions of width / soil depth) OR goal-hill-relative {goalRelX (0=hill left edge,1=right), depthCells (rows below surface)}
@@ -2068,6 +2077,20 @@ const CONFIG = {
     // (`growInfectBurst` below is the other way to be first-touched — growing INTO mould —
     // and is deliberately left on its own number.)
     firstTouchRings: 12,         // (SLIDER)
+    // THE BREACH IS A DISC, NOT A POINT. Owner's words: "have the trych infect all mycelium
+    // within a small radius, not just one contact point strand." Every clean strand within this
+    // many CELLS of the cloud's centre is seeded, and each seeds its own firstTouchRings walk —
+    // so a cloud landing across a bundle of filaments takes the bundle, not the single nearest
+    // strand while its neighbours a few units away stay cream.
+    //
+    // FLOORED AT THE CLOUD'S OWN REACH (`cloud.r`, 0.8–1.3 cells), so whatever the mould visibly
+    // covers is infected however this is tuned — a radius under the cloud would leave clean
+    // strands inside the green, which is the thing that looked wrong. This is the same shape
+    // `infectStrandsInMould` (growing INTO mould) has always had; contact was the odd one out.
+    //
+    // It costs far less than it looks: the seeds are within ~2 growth segments of each other, so
+    // the union of their 12-ring walks is roughly one 12-ring ball plus that gap, NOT seeds × 12.
+    firstTouchRadius: 1.5,       // cells (SLIDER)
     // THE SPRINT-PAST RULE. Whatever the colony grew ON THE STEP IT GOT INFECTED, within this
     // many rings of where the infection happened, rots with it. 24 rings = 8 grow-steps, longer
     // than any grow card (Rhizomorph Lance is the longest at 18 segments = 6 steps) — so no
@@ -2118,11 +2141,16 @@ const CONFIG = {
     //
     // Before this, rotten tissue sat there for the rest of the run: permanently green, dead
     // weight, and still anchoring the shape of a colony that had lost it. Now the rot is a
-    // deadline — either you cure it in three steps or that limb is gone. Removing a strand
+    // deadline — either you cure it in two steps or that limb is gone. Removing a strand
     // orphans whatever hung off it, which is the point: everything downstream is already
     // infected (see infectDescendants) and rots away on its own slightly later, so a breach
     // eats a limb progressively from the breach outward rather than freezing it in place.
-    rotLifeTurns: 3,             // (SLIDER)
+    //
+    // 3 → 2 at the owner's request ("1 less turn to die off"). The strand does not blink out at
+    // the deadline: infectNetwork hands its geometry to the renderer as a GHOST that fades over
+    // render.rotFadeMs (see _strokeFalling). Note the shade IS the countdown, so at 2 steps the
+    // green→brown ramp is coarser — a strand is bright green for one step, brown for one, gone.
+    rotLifeTurns: 2,             // (SLIDER)
   },
 
   // ---- The six basic actions (A2, B5) ------------------------------------
@@ -2331,6 +2359,13 @@ const CONFIG = {
     infectMaxLagMs: 2500,        // cap on how far behind the sim the visible creep may fall (safety valve if the rot
                                  //   ever outruns the creep — e.g. a big first-touch burst)
                                  //   (creep + fade are detail-zoom rendering only; the zoomed-out LOD still snaps)
+    // A strand that has run out its rotLifeTurns FADES OUT over this, rather than blinking off
+    // the map the instant the sim drops it. It is drawn from a GHOST — infectNetwork hands the
+    // renderer the removed strand's geometry, because the node itself is gone from the network by
+    // then (see _strokeFalling). Fading BEFORE removal was the other option and it is worse: in
+    // turn-based a step is one player action long, so the strand would sit fully invisible for
+    // however long the player thinks while its rot went on racing along the filaments.
+    rotFadeMs: 600,
     warded: '#2f5fe6',           // a strand hardened/warded by a defense card — a deep blue "crust",
                                  //   distinct from the pale-mint colony and yellow-green mould
     // the living network (luminous accent — the brightest thing on screen)
@@ -2421,6 +2456,9 @@ const SLIDERS = [
   { path: 'trichoderma.sightRadius',     label: 'Mold Sight Range',    min: 100, max: 1500, step: 50 },
   { path: 'trichoderma.infectionSpreadChance', label: 'Infection Spread', min: 0, max: 1, step: 0.05 },
   { path: 'trichoderma.firstTouchRings',  label: 'Rot on First Touch',   min: 0,   max: 60,  step: 2 },
+  // The breach DISC. 0 doesn't switch it off — the radius is floored at the cloud's own reach
+  // (0.8–1.3 cells), so at 0 a cloud infects exactly what it covers and nothing more.
+  { path: 'trichoderma.firstTouchRadius', label: 'Rot Radius on Touch',  min: 0,   max: 6,   step: 0.5 },
   { path: 'trichoderma.rotLifeTurns',     label: 'Rot Lifespan (steps)', min: 1,   max: 20,  step: 1 },
   { path: 'nematodes.reach',              label: 'Worm Reach (cells)',   min: 0.4, max: 4,   step: 0.2 },
   { path: 'actions.amputate.radius',     label: 'Amputate Radius',     min: 20,  max: 160, step: 5 },
@@ -11842,8 +11880,9 @@ function spawnTrichodermaAt(state, x, y) {
 }
 
 // --- Per-turn cloud step (B6) -----------------------------------------------
-// Move every cloud toward the nearest food, devour what it sits on, fade any
-// spent cloud, then re-project the clouds into the cell.trich field.
+// Move every cloud toward the nearest food, devour what it sits on, then re-project the clouds
+// into the cell.trich field. The FADE of a spent cloud is not here: it is wall-clock, run by
+// main.js advanceSim every frame, so a cloud can go on the turn it infects (see fadeMs).
 // PHASES: 'move' is the creep (and the fade bookkeeping that decides which clouds are still
 // here to creep); 'attack' is devouring the substrate underneath. Turn-based runs them a
 // couple of seconds apart so the drift can be watched; 'both' is the original single pass.
@@ -11871,16 +11910,12 @@ function spreadTrichoderma(state, phase = 'both') {
 
   const survivors = [];
   for (const cloud of state.clouds) {
+    // A SPENT CLOUD IS DONE ACTING. It has already infected you; it does not creep another step
+    // and it does not eat another leaf while it fades. The fade itself (and dropping it) is
+    // wall-clock work that main.js advanceSim does every frame in both modes — see fadeMs — so
+    // that a cloud goes on the turn it infects rather than on the player's next action.
+    if (cloud.spent) { survivors.push(cloud); continue; }
     if (doMove) {
-      // A cloud that spent itself ON YOU last round is gone THIS round (the next play/
-      // skip) — it doesn't linger fading on top of the colony it just infected.
-      if (cloud.vanishNext) continue;
-      // A spent cloud fades to nothing over fadeTurns, then is dropped.
-      if (cloud.dying) {
-        cloud.strength -= 1 / Math.max(1, t.fadeTurns);
-        if (cloud.strength <= 0.01) continue;
-      }
-
       // Target priority, both WITHIN sight and with a CLEAR LINE OF SIGHT (rock blocks
       // a cloud's senses): PREFER mycelium — if any colony strand is visible, head for
       // the nearest one even when a food pile is closer (you're tastier). Only when no
@@ -12067,34 +12102,49 @@ function infectNetwork(net, state) {
   for (const n of net.nodes) if (n.infected) established.push(n);
 
   // 1) Contact — a cloud that touches you spends itself and fades out. It infects
-  //    a fresh strand if one is in reach; but EVEN IF every strand it reaches is
-  //    already rotten, reaching you still spends it (so it never sits there idle).
+  //    every fresh strand under it; but EVEN IF every strand it reaches is already
+  //    rotten, reaching you still spends it (so it never sits there idle).
+  //
+  //    THE BREACH IS A DISC, NOT A POINT (firstTouchRadius, floored at the cloud's own reach).
+  //    It used to seed the single NEAREST clean strand, which left clean cream filaments lying
+  //    inside the green wherever a cloud landed across a bundle — the reported symptom. Every
+  //    clean strand in the disc is seeded now, and each seeds its own firstTouchRings walk. The
+  //    seeds are all marked BEFORE any walk runs, so a walk that meets another seed stops there
+  //    instead of spending its depth re-claiming ground that seed covers itself.
   for (const cloud of (state.clouds || [])) {
     if (cloud.dying) continue;                 // already spent — fading away
     const reach = cloud.r * cs;
-    let hit = null, best = Infinity, touched = false;
+    const breach = Math.max(reach, (t.firstTouchRadius || 0) * cs);
+    const reach2 = reach * reach, breach2 = breach * breach;
+    const seeds = [];
+    let touched = false;
     for (const n of net.nodes) {
       if (!net.grownIn(n)) continue;               // hasn't grown in yet — nothing there to touch
       const d = (n.x - cloud.cx) ** 2 + (n.y - cloud.cy) ** 2;
-      if (d > reach * reach) continue;
-      touched = true;                          // in contact with the colony
-      if (!n.infected && d < best) { best = d; hit = n; }
+      if (d <= reach2) touched = true;         // in contact with the colony — this is what spends it
+      if (d > breach2 || n.infected || cellProofed(sub, n)) continue;
+      seeds.push(n);
     }
-    if (hit && !cellProofed(sub, hit) && rng() < t.contactChance) {
-      hit.infected = true;
+    if (seeds.length && rng() < t.contactChance) {
       // WHERE THE ROT CAME IN. Purely for the renderer: a breach claims its whole
       // firstTouchRings/freshGrowthRings neighbourhood on this one step, so the creep has a set
       // of strands with no scheduled neighbour and has to pick a start. Without this it picked
       // the LOWEST NODE ID, which is the oldest tissue in the set — so the green appeared to
       // travel out from the start of the colony instead of from the strand the cloud touched.
-      hit._infSeed = true;
-      // Guaranteed (chance 1), unlike the race below: the cost of being touched is a fixed
-      // number of rings, not a dice roll per ring.
-      infectAround(net, hit, t.firstTouchRings, 1, rng, sub);
-      // ...and everything grown THIS STEP near the breach, however far the grow ran.
-      infectFreshGrowth(net, hit, t.freshGrowthRings | 0, sub, net._turnStartId);
+      // Every strand in the disc is marked, so the wave starts along the whole contact face.
+      for (const n of seeds) { n.infected = true; n._infSeed = true; }
+      for (const n of seeds) {
+        // Guaranteed (chance 1), unlike the race below: the cost of being touched is a fixed
+        // number of rings, not a dice roll per ring.
+        infectAround(net, n, t.firstTouchRings, 1, rng, sub);
+        // ...and everything grown THIS STEP near the breach, however far the grow ran.
+        infectFreshGrowth(net, n, t.freshGrowthRings | 0, sub, net._turnStartId);
+      }
     }
-    if (touched) { cloud.dying = true; cloud.vanishNext = true; }   // reached you — now it's spent; gone next round (infected or not)
+    // Reached you — now it's spent (infected or not), and it goes THIS turn: main.js advanceSim
+    // runs `strength` down to nothing on the wall clock and drops it, so it fades out on the
+    // same turn instead of sitting on the colony until the player's next action.
+    if (touched) { cloud.dying = true; cloud.spent = true; }
   }
 
   // 2) Internal spread — the ESTABLISHED rot races along the filaments. `established` is the
@@ -12168,7 +12218,33 @@ function infectNetwork(net, state) {
     n.rotAge = (n.rotAge || 0) + 1;
     if (n.rotAge >= life) fallen.add(n.id);
   }
-  if (fallen.size) net._removeNodes(fallen);
+  if (fallen.size) { recordFallenGhosts(net, fallen); net._removeNodes(fallen); }
+}
+
+// IT FADES AWAY, IT DOESN'T BLINK OUT. A strand that has run out its rot life leaves the
+// network here, and a removed node cannot draw itself — so its GEOMETRY is handed to the
+// renderer as a ghost (`net._rotGhosts`), which strokes it in the dead-wood colour and fades it
+// over render.rotFadeMs. Sim-side this is a breadcrumb and nothing more: no ghost is in
+// `nodes`/`byId`, so nothing counts, feeds, spreads, blocks or wins through one.
+//
+// The alternative — fade the strand while it is still IN the network, over its last step — was
+// rejected: in turn-based a step is one player action, i.e. unbounded, so the strand would sit
+// fully invisible for as long as the player thinks while its rot went on racing along the
+// filaments. Invisible tissue that still acts is a worse bug than a hard cut.
+//
+// Only the ROT lifespan feeds this, not `_removeNodes` in general. Amputation, starvation and a
+// worm's bite all remove strands too, and a limb the player deliberately cut lingering as a ghost
+// reads as "the cut didn't work".
+function recordFallenGhosts(net, fallen) {
+  const ghosts = net._rotGhosts || (net._rotGhosts = []);
+  for (const id of fallen) {
+    const n = net.byId.get(id); if (!n || n.parentId == null) continue;
+    const p = net.byId.get(n.parentId); if (!p) continue;
+    ghosts.push({ ax: p.x, ay: p.y, bx: n.x, by: n.y, at: null });
+  }
+  // A colony-wide collapse can drop thousands of strands at once. They expire inside a second,
+  // but the cap keeps the worst case bounded even if nothing is drawing them (headless).
+  if (ghosts.length > 1200) ghosts.splice(0, ghosts.length - 1200);
 }
 
 // Growing INTO active mould infects you FIRST. Any healthy strand standing in a
@@ -12357,7 +12433,7 @@ function totalTrichoderma(substrate) {
   return total;
 }
 
-  return { seedTrichoderma, placeClouds, spawnTrichodermaAt, spreadTrichoderma, infectNetwork, infectStrandsInMould, infectDescendants, reachedThroughRot, checkPuzzleGoal, totalTrichoderma };
+  return { seedTrichoderma, placeClouds, spawnTrichodermaAt, spreadTrichoderma, stampCloudField, infectNetwork, infectStrandsInMould, infectDescendants, reachedThroughRot, checkPuzzleGoal, totalTrichoderma };
 })();
 
 // ===================== src/engine/ants.js =====================
@@ -16730,6 +16806,7 @@ class NetworkRenderer {
     ctx.lineCap = 'round';
     if (simplify) this._strokeBatched(ctx, brightness);
     else this._strokeStructure(ctx, brightness, cull, detailAmt);
+    this._strokeFalling(ctx, time, brightness, cull);   // rot that just fell away, fading out
     ctx.restore();
 
     // --- Dynamic layer (screen space) ---
@@ -16761,6 +16838,46 @@ class NetworkRenderer {
       ctx.stroke();
     }
     ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  // --- Rot falling away -----------------------------------------------------
+  // Strands whose rot life ran out (threats.js recordFallenGhosts) stroked in the dead-wood
+  // colour and faded to nothing over render.rotFadeMs, so a limb comes apart rather than
+  // vanishing between two frames. Each ghost is stamped with its moment the FIRST FRAME IT IS
+  // SEEN, not when the sim dropped it: the sim has no wall clock of its own, and stamping here
+  // also means a fade cannot silently complete while the tab is in the background.
+  //
+  // The list is drained here as well, which is why the cap in recordFallenGhosts exists — a
+  // headless run never draws, so nothing would ever prune it.
+  _strokeFalling(ctx, time, brightness, cull) {
+    const net = this.network;
+    const ghosts = net._rotGhosts;
+    if (!ghosts || !ghosts.length) return;
+    const r = this.config.render;
+    const ms = Math.max(1, r.rotFadeMs != null ? r.rotFadeMs : 600);
+    const col = r.rotted || '#3d2c1c';
+    const sc = this._sc();
+    let live = 0;
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.0 * sc;
+    for (const g of ghosts) {
+      if (g.at == null) g.at = time;
+      const k = (time - g.at) / ms;
+      if (k >= 1) continue;                       // done — dropped by the compaction below
+      ghosts[live++] = g;
+      // Cull AFTER keeping it, so an off-screen ghost still expires instead of waiting for the
+      // camera to look at it.
+      const exlo = g.ax < g.bx ? g.ax : g.bx, exhi = g.ax < g.bx ? g.bx : g.ax;
+      const eylo = g.ay < g.by ? g.ay : g.by, eyhi = g.ay < g.by ? g.by : g.ay;
+      if (exhi < cull.minX || exlo > cull.maxX || eyhi < cull.minY || eylo > cull.maxY) continue;
+      ctx.globalAlpha = (1 - k) * 0.95 * brightness;
+      ctx.beginPath();
+      ctx.moveTo(g.ax, g.ay);
+      ctx.lineTo(g.bx, g.by);
+      ctx.stroke();
+    }
+    ghosts.length = live;
     ctx.globalAlpha = 1;
   }
 
@@ -21321,7 +21438,7 @@ const __m_main = (function () {
   const { levelForNumber, allLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
-  const { infectDescendants, reachedThroughRot } = __m_engine_threats;   // exposed on __game for threat-check
+  const { infectDescendants, reachedThroughRot, stampCloudField } = __m_engine_threats;   // infectDescendants/reachedThroughRot are exposed on __game for threat-check; stampCloudField re-projects the clouds when a spent one finishes fading
   const { tickWorld, queueEnemyTurn, enemyTurnMove, enemyTurnAttack, flushEnemyTurn } = __m_engine_turn;
   const { initCards, drawCard, skipRound, playCard, cardNeedsTarget, cardUsesDragAim, dragAimReach, cardBlockedReason, chooseOffer, activateAction, cardAbilityInfo, rebuildCardsFromSnapshot } = __m_engine_cards;
   const { Camera } = __m_render_camera;
@@ -24174,6 +24291,47 @@ function simPaused() {
 }
 // Called every animation frame (even while paused, so the clock never banks a huge dt
 // across a menu/tab-away and then fast-forwards on resume).
+// A cloud that reached the colony is SPENT and leaves on the same turn, fading rather than
+// blinking out. Wall clock, every frame, in BOTH modes — that is the whole point: a turn-based
+// "turn" is one player action long, so anything measured in world steps could only ever end on
+// the player's next action, which is exactly the lingering the owner asked to be rid of.
+//
+// `strength` is the lever rather than a render-only alpha because BOTH cloud stamps read it
+// (threats.js stampCloudField for the sim's trich field, main.js stampCloudRender for the drawn
+// mould), so the fade takes the cloud's bite with it as it goes — the remnant stops infecting
+// growth once it falls under growInfectThreshold instead of staying lethal until it pops.
+// Frozen while the sim is paused (a draft), like _worldTime, so the board doesn't move under a
+// player who is reading cards.
+// `_cloudFading` is what makes the fade VISIBLE, and it has to exist because the mould has no
+// sprite of its own: it is drawn from cell.trich, which is only re-stamped per frame while the
+// clouds are known to be moving (`_cloudsSliding` below). In turn-based that window is the enemy
+// turn's HOLD phase, and a breach happens in the ATTACK phase after it — so without this the
+// fade would run in the model with nothing on screen changing.
+let _cloudFading = false;
+function fadeSpentClouds(dt, paused) {
+  const clouds = state && state.clouds;
+  _cloudFading = false;
+  if (!clouds || !clouds.length || !(dt > 0)) return;
+  if (paused && (CONFIG.realtime || {}).enabled !== false) return;
+  const ms = Math.max(1, (CONFIG.trichoderma && CONFIG.trichoderma.fadeMs) || 700);
+  let gone = false;
+  for (const c of clouds) {
+    if (!c.spent || c.strength <= 0) continue;
+    c.strength = (c.strength == null ? 1 : c.strength) - Math.min(dt, 250) / ms;
+    _cloudFading = true;
+    if (c.strength <= 0.01) { c.strength = 0; gone = true; }
+  }
+  // Drop the finished ones, and clear the sim's trich field of them NOW rather than waiting for
+  // the next tick to rebuild it: a cloud that has visibly gone must not still infect a grow the
+  // player plays before the world steps again. `_cloudFading` is still true on this frame, so the
+  // per-frame re-stamp that follows in the draw wipes the remnant off the screen in the same
+  // breath — if it were cleared here only, the last stamped mould would sit there for good.
+  if (gone) {
+    state.clouds = clouds.filter((c) => !(c.spent && c.strength <= 0));
+    if (state.substrate) stampCloudField(state.substrate, state.clouds);
+  }
+}
+
 function advanceSim(time) {
   const rt = CONFIG.realtime || {};
   if (_lastSimTime < 0) _lastSimTime = time;
@@ -24188,6 +24346,7 @@ function advanceSim(time) {
   // has no sim clock to freeze — the board is meant to keep breathing between actions —
   // so there the animation clock simply always runs.
   if (dt > 0 && (!paused || rt.enabled === false)) _worldTime += Math.min(dt, 250);
+  fadeSpentClouds(dt, paused);   // a cloud that infected you goes THIS turn, fading out (BOTH modes)
   // TURN-BASED: no clock to run, but the enemy turn an action queued has to be played out.
   if (rt.enabled === false) { advanceEnemyTurn(time); return; }
   if (!(dt > 0) || paused) return;
@@ -24458,8 +24617,11 @@ function renderFrame(time, dtFrames = 1) {
   //   TURN-BASED: only during the enemy turn's slide. The cloud SPRITE is this field — a
   //   cloud has no other drawn form — so without this the mould would jump to its new spot
   //   the instant the move phase ran while the worms were still walking.
-  const _cloudsSliding = state.clouds && state.clouds.length &&
-    (isRealtime() ? !simPaused() : !!(state.enemyTurn && state.enemyTurn.phase === 'hold'));
+  //   ALSO whenever a SPENT cloud is fading out (`_cloudFading`), which is not either of those
+  //   windows: a breach lands in the attack phase, after the slide, and in real time a fade can
+  //   start mid-tick. Same reason — no re-stamp, no visible fade.
+  const _cloudsSliding = _cloudFading || (state.clouds && state.clouds.length &&
+    (isRealtime() ? !simPaused() : !!(state.enemyTurn && state.enemyTurn.phase === 'hold')));
   if (_cloudsSliding && time - _lastMouldBakeAt >= 33) {
     _lastMouldBakeAt = time; stampMouldInterp(); substrateRenderer.markDirty();
   }

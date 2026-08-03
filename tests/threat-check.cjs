@@ -49,7 +49,10 @@ const SPREAD_CHANCE = 1;
 const SEGMENTS_PER_STEP = 3;   // cards-design: "1 step = 3 segments", and 1 ring = 1 segment
 const FIRST_TOUCH = 12;   // one-off, so one value for both modes (like growInfectBurst)
 const STRANDS_PER_BITE = 4;   // shared by both modes — not in MODE_TUNING
-const ROT_LIFE = 3;           // steps an infected strand survives before falling away
+const ROT_LIFE = 2;           // steps an infected strand survives before falling away (was 3 —
+                              //   owner: "1 less turn to die off"). The strand does not blink out
+                              //   at the deadline: its geometry becomes a renderer ghost that
+                              //   fades over render.rotFadeMs (mould-check covers that half).
 const WORM_REACH = 1.4;       // cells
 // nematodes.wanderSpeed is NOT here, and that is the point: it is a DEAD KNOB. It is set in
 // three places (the CONFIG literal and both MODE_TUNING tables) and read by no code at all.
@@ -469,7 +472,20 @@ const touch=await p.evaluate(()=>{
   // the whole chain in ONE direction to eat — a mid-chain seed would spread both ways and
   // double the count.
   const tip=net.nodes[net.nodes.length-1];
-  s.clouds.push({cx:tip.x, cy:tip.y, r:0.4, heading:0, fade:0, sees:true, _budget:0});
+  // A POINT BREACH, DELIBERATELY. Contact is a DISC now (firstTouchRadius, floored at the cloud's
+  // own reach) — every clean strand under it is seeded, each seeding its own ring walk. On this
+  // chain, whose nodes are 4 units apart, the shipped 1.5-cell radius covers ~27 of them, so the
+  // claim is the union of 27 overlapping ring walks and "how many rings did ONE touch cost?" has
+  // no readable answer. Shrinking the radius to 0 and the cloud to well under one node spacing
+  // leaves exactly one seed, which is what makes the ring count below exact. The disc itself is
+  // measured in mould-check, on a fan of separate filaments where it can be attributed.
+  const rad=t.firstTouchRadius; t.firstTouchRadius=0;
+  // AND HOLD THE ROT. At rotLifeTurns 2 the strands claimed by the breach fall away on the very
+  // next step, so the race step measured FEWER rotten strands than the breach step (13 -> 12) and
+  // the chain came back 147 long instead of 160. The rate and the lifespan have to be measured
+  // separately or each corrupts the other.
+  const rlife=t.rotLifeTurns; t.rotLifeTurns=999;
+  s.clouds.push({cx:tip.x, cy:tip.y, r:0.05, heading:0, fade:0, sees:true, _budget:0});
   const before=net.nodes.filter(n=>n.infected).length;
   // Now that rot EXPIRES, a probe above can rot a colony to nothing — which ends the run, and
   // tickWorld early-returns on state.runOver. Every tick-driven probe has to clear it or it
@@ -483,8 +499,9 @@ const touch=await p.evaluate(()=>{
   s.runOver=false; s.winPending=false; s.won=false; net.alive=true;
   G.tickWorld(s);
   const afterRace=net.nodes.filter(n=>n.infected).length;
+  t.firstTouchRadius=rad; t.rotLifeTurns=rlife;   // the probes after this one share the page
   return { len:net.nodes.length, before, afterTouch, afterRace,
-           first:t.firstTouchRings, rate:t.spreadDepthPerTurn };
+           first:t.firstTouchRings, rate:t.spreadDepthPerTurn, radius:rad };
 });
 ok('the breach seeded a clean chain', touch.before===0 && touch.len>=160,
    `${touch.len} strands, ${touch.before} already rotten`);
@@ -886,23 +903,33 @@ const sprint=await p.evaluate((RINGS)=>{
   // dropped exactly on node 30 had drifted by the time it touched anything and breached node 29
   // instead — which shifts the whole claimed range and read as `34 of 60`.
   t.contactChance=1; t.firstTouchRings=0; t.spreadDepthPerTurn=0; t.freshGrowthRings=RINGS; t.moveSpeed=0;
+  // AND A POINT BREACH. Contact is a DISC (firstTouchRadius): at the shipped 1.5 cells its 54-unit
+  // radius seeds strands 21-39 of this 6-unit-spaced chain, and EACH seed runs its own
+  // freshGrowthRings walk — so the fresh claim reaches 39+24 and `beyond` is true for a reason
+  // that has nothing to do with the rule under test. The disc genuinely widens every first-touch
+  // effect by its own radius; that is measured in mould-check, isolated from this.
+  const rad=t.firstTouchRadius; t.firstTouchRadius=0;
   net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  net.energy=5000; net.water=999; net.phosphorus=999;   // 0 Energy prunes strands and shifts every index
   const y=sub.surfaceY+cs*4;
   let par=null;
   for (let i=0;i<60;i++){ par=net.addNode(400+i*6, y, par); par._liveAt=0; par._revSeen=true; }
   const OLD=20, HIT=30;                       // 0..19 grown before this step, 20..59 during it
   net._turnStartId = net.nodes[OLD].id;
   const c=net.nodes[HIT];
-  s.clouds.push({cx:c.x, cy:c.y, r:0.2, strength:1, dying:false, heading:null});   // makeCloud's shape
+  s.clouds.push({cx:c.x, cy:c.y, r:0.05, strength:1, dying:false, heading:null});   // makeCloud's shape
   net.alive=true;
   G.tickWorld(s);
   const inf=net.nodes.map((n)=>!!n.infected);
-  return { hit:inf[HIT],
+  t.firstTouchRadius=rad;
+  return { hit:inf[HIT], nodes:net.nodes.length,
            freshInRange: inf.slice(OLD, HIT+RINGS+1).every(Boolean),
            oldInRange: inf.slice(HIT-RINGS, OLD).some(Boolean),
            beyond: inf.slice(HIT+RINGS+1).some(Boolean),
            total: inf.filter(Boolean).length };
 }, FRESH_RINGS);
+// The claim is read by INDEX, so a pruned strand would shift every one of them.
+ok('the chain is intact, so the indices below mean what they say', sprint.nodes===60, `${sprint.nodes} strands`);
 ok('the breach itself is rot', sprint.hit===true);
 ok('...and every strand grown THIS step within reach of it, however far the grow ran',
    sprint.freshInRange===true,
@@ -933,13 +960,24 @@ const creepWave=await p.evaluate(()=>{
   // "did it start in the middle?" has an unambiguous answer.
   // moveSpeed 0 so the cloud breaches the strand it was placed on — see the note in 6g3.
   t.contactChance=1; t.firstTouchRings=12; t.spreadDepthPerTurn=0; t.freshGrowthRings=0; t.moveSpeed=0;
+  // A POINT BREACH. Contact is a DISC now (firstTouchRadius), so at the shipped 1.5 cells the
+  // 54-unit radius covers strands 21-39 of this 6-unit-spaced chain and marks EVERY one of them
+  // as a contact point — which is correct behaviour (each owns its own wave, see mould-check) but
+  // leaves "the strand the cloud touched" with nineteen answers. Reduced to one here so the
+  // creep-direction assertions below still have a single origin to be measured against.
+  const rad=t.firstTouchRadius; t.firstTouchRadius=0;
   net.nodes.length=0; net.byId.clear(); net.nextNodeId=0;
+  // ENERGY. Every index below is an index into net.nodes, and at 0 Energy tickWorld starves the
+  // colony and PRUNES strands — one pruned strand shifts the whole array, which reads as "the
+  // cloud breached strand 29, placed on 30", i.e. exactly like the cloud-drift bug this probe
+  // pins moveSpeed to rule out.
+  net.energy=5000; net.water=999; net.phosphorus=999;
   const y=sub.surfaceY+cs*4;
   let par=null;
   for (let i=0;i<60;i++){ par=net.addNode(400+i*6, y, par); par._liveAt=0; par._revSeen=true; }
   const HIT=30;
   const c=net.nodes[HIT];
-  s.clouds.push({cx:c.x, cy:c.y, r:0.2, strength:1, dying:false, heading:null});
+  s.clouds.push({cx:c.x, cy:c.y, r:0.05, strength:1, dying:false, heading:null});
   net.alive=true;
   G.tickWorld(s);
   const R=G.netRenderer(), now=1e6;
@@ -951,8 +989,14 @@ const creepWave=await p.evaluate(()=>{
   // stamped, so if a future change lets the cloud drift off the strand it was placed on, the
   // `breach === HIT` assertion says so instead of the creep assertion failing for the wrong
   // reason (it did exactly that: node 29 instead of 30).
-  let breach=-1;
-  for (let i=0;i<net.nodes.length;i++) if (net.nodes[i]._infSeed) { breach=i; break; }
+  let breach=-1, breachId=-1;
+  for (let i=0;i<net.nodes.length;i++) if (net.nodes[i]._infSeed) { breach=i; breachId=net.nodes[i].id; break; }
+  const DIAG = { seedIds: net.nodes.filter((n)=>n._infSeed).map((n)=>n.id),
+                 infIds: net.nodes.filter((n)=>n.infected).map((n)=>n.id),
+                 cloud: s.clouds[0] ? { x:Math.round(s.clouds[0].cx), y:Math.round(s.clouds[0].cy), r:s.clouds[0].r, spent:!!s.clouds[0].spent } : null,
+                 hitAt: { x:Math.round(c.x), y:Math.round(c.y), id:c.id },
+                 radiusUsed: t.firstTouchRadius, cs,
+                 trichCells: sub.cells.filter((x)=>x.trich>0).length };
   R._scheduleInfection(now);
   const first=earliest();
   const at=net.nodes.map((n)=>n.infected ? n._infAt : null);
@@ -965,10 +1009,25 @@ const creepWave=await p.evaluate(()=>{
   // thing that was fixed.
   for (const n of net.nodes){ n._infAt=null; n._infSeed=false; }
   R._scheduleInfection(now);
-  return { hit:HIT, breach, first, mono, rotCount, lo, unmarked:earliest() };
+  t.firstTouchRadius=rad;
+  return { hit:HIT, breach, first, mono, rotCount, lo, nodes:net.nodes.length, unmarked:earliest(),
+           // Every contact point the sim marked, not just the first — a DISC breach marks the
+           // whole contact face, so if this probe's point-breach pinning ever stops working the
+           // list says so directly instead of leaving "breached 29, placed on 30" to be guessed at.
+           breachId, hitId:c.id, diag:DIAG,
+           seeds: net.nodes.map((n,i)=>n._infSeed?i:-1).filter((i)=>i>=0),
+           radius: t.firstTouchRadius, cloudMoved: s.clouds[0] ? Math.round(Math.hypot(s.clouds[0].cx-c.x, s.clouds[0].cy-c.y)) : -1,
+           trichCells: sub.cells.filter((x)=>x.trich>0).length };
 });
-ok('the cloud breached the strand it was placed on', creepWave.breach===creepWave.hit,
-   `breached strand ${creepWave.breach}, placed on ${creepWave.hit}`);
+ok('the chain is intact, so the strand indices mean what they say', creepWave.nodes===60, `${creepWave.nodes} strands`);
+// BY NODE ID, not by array position. `_removeNodes` compacts net.nodes, so a single strand lost
+// anywhere before the breach shifts every later index by one and this read "breached strand 29,
+// placed on 30" — indistinguishable from the cloud-drift bug the pinned moveSpeed rules out. The
+// index is still what the creep assertions below walk, and they walk the same compacted array, so
+// they stay consistent either way.
+ok('the cloud breached the strand it was placed on', creepWave.breachId===creepWave.hitId,
+   `breached node id ${creepWave.breachId} (index ${creepWave.breach}), placed on id ${creepWave.hitId} ` +
+   `(index ${creepWave.hit}); ` + JSON.stringify(creepWave.diag));
 ok('the creep starts at the strand the cloud touched, not the oldest one',
    creepWave.first===creepWave.breach && creepWave.breach>=0,
    `wave began at strand ${creepWave.first}, the breach was ${creepWave.breach} (${creepWave.rotCount} rotten, oldest is ${creepWave.lo})`);
