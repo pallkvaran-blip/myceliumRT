@@ -103,7 +103,8 @@ is invisible from inside either mode. **Every retune has to move BOTH by the sam
 | `trichoderma.infectionSpreadChance` | **1** — see below, this one is a trap | |
 | `nematodes.strandsPerBite` | 1 → 2 → **4** (one value, both modes) | |
 | `trichoderma.firstTouchRings` | 20 → **12** (one value, both modes) | |
-| `trichoderma.rotLifeTurns` | **3** steps, then the strand falls away | |
+| `trichoderma.firstTouchRadius` | **1.5** cells — the breach DISC (one value, both modes) | |
+| `trichoderma.rotLifeTurns` | 3 → **2** steps, then the strand falls away | |
 | `nematodes.reach` | 0.7 → **1.4** cells | |
 
 **A one-off burst is NOT in `MODE_TUNING`; a rate is.** 20 rings is 20 rings whether the step
@@ -224,6 +225,22 @@ CONFIG literal only.
     already infected (the invariant) and rots away slightly later, so a breach eats a limb
     progressively from the breach outward instead of freezing it green forever, which is what
     rotten tissue used to do for the rest of the run.
+  - **AND IT FADES OUT RATHER THAN BLINKING OFF THE MAP** (owner's ask, alongside 3 → **2** steps).
+    A removed node cannot draw itself, so `recordFallenGhosts` hands the renderer the strand's
+    GEOMETRY (`net._rotGhosts`) and `NetworkRenderer._strokeFalling` strokes it in `render.rotted`,
+    fading over `render.rotFadeMs` (600) and draining the list as it draws. Sim-side a ghost is a
+    breadcrumb and nothing else — not in `nodes`/`byId`, so nothing counts, feeds, spreads, blocks
+    or wins through one.
+    **Fading BEFORE removal is the obvious version and it is wrong**: in turn-based a step is one
+    player action, i.e. unbounded, so the strand would sit fully invisible for as long as the
+    player thinks while its rot went on racing along the filaments. Invisible tissue that still
+    acts is worse than a hard cut.
+    Only the rot lifespan feeds it, NOT `_removeNodes` in general — amputation, starvation and a
+    worm's bite all remove strands, and a limb the player deliberately cut lingering as a ghost
+    reads as "the cut didn't work". The list is capped (1200) because a headless run never draws
+    and so never drains it.
+    At 2 steps the green→brown ramp is coarse by design: bright green for one step, brown for one,
+    gone.
 - **Infected tissue cannot harvest** — `colonizeReachablePiles` skips `n.infected` — and the pile
   it failed to eat **keeps every scrap of its food** for clean growth later. Both halves are
   asserted, because a claim path that marked cells `colonized` or zeroed nutrient before checking
@@ -272,6 +289,23 @@ CONFIG literal only.
   last of all). So growing past a cloud without touching it harvests normally and the cloud
   infects on its own turn afterwards. In REAL TIME this does not hold and cannot: the wall clock
   ticks during the ~1–3 s growth reveal, so clouds move while your growth is still arriving.
+- **THE BREACH IS A DISC, NOT A POINT** (`firstTouchRadius`, **1.5 cells**, owner's ask: *"have the
+  trych infect all mycelium within a small radius, not just one contact point strand"*). Every
+  clean strand inside it is seeded and **each seeds its own `firstTouchRings` walk**, and every one
+  is marked `_infSeed` so the renderer's creep starts along the whole contact face rather than at
+  whichever strand won. Contact used to seed the single NEAREST clean strand, which is why clean
+  cream filaments were left lying inside the green wherever a cloud landed across a bundle.
+  - **FLOORED AT THE CLOUD'S OWN REACH** (`cloud.r`, 0.8–1.3 cells), so whatever the mould visibly
+    covers is always infected — including at radius 0, which is therefore *not* an off switch.
+  - It costs far less than it looks: the seeds sit within ~2 growth segments of each other, so the
+    union of their ring walks is roughly one ball plus that gap, NOT seeds × rings. All seeds are
+    marked infected BEFORE any walk runs, so a walk meeting another seed stops instead of spending
+    depth on ground that seed covers itself.
+  - **IT WIDENS EVERY FIRST-TOUCH EFFECT BY ITS OWN RADIUS**, `freshGrowthRings` included. That is
+    why `threat-check`'s exact-rate probes now pin it to 0 AND shrink the cloud below one node
+    spacing: on their 4–6-unit chains the shipped radius covers 19–27 strands, so "what did ONE
+    touch cost?" has no readable answer. `mould-check` measures the disc instead, on a fan of
+    SEPARATE filaments — the defect is invisible on a chain, where rings and geometry coincide.
 - **`firstTouchRings` and `spreadDepthPerTurn` are separate and DO NOT STACK.** Being breached
   costs `firstTouchRings` and *nothing else* on that step; every step after costs
   `spreadDepthPerTurn`. `infectNetwork` snapshots the infected front into `established` BEFORE
@@ -304,6 +338,29 @@ CONFIG literal only.
   eat. It clears by COVERAGE, not by infected-node position, and the release is only half of it —
   see the `cleanCover` note under "Infected tissue cannot harvest" for why every reader gates
   on the mask as well.
+- **A SPENT CLOUD GOES ON THE TURN IT INFECTS, FADING** (owner: *"have the trych disappear on the
+  same turn that it infects. but have it fade away, not just disappear in a tick"*). Contact sets
+  `cloud.spent`, after which the cloud neither creeps nor eats, and **`fadeSpentClouds` in
+  `advanceSim` runs `strength` down on the WALL CLOCK every frame in BOTH modes** over
+  `trichoderma.fadeMs` (700), then drops it.
+  - **It replaced `fadeTurns: 3`, and the units were the whole bug.** A fade measured in world
+    STEPS can only end on the player's next action in turn-based, which is exactly the lingering
+    that was complained about (`vanishNext` made it "gone next round"). A ms duration is
+    mode-independent, so CONFIG-only, no `MODE_TUNING` entry.
+  - **`strength` is the lever, not a render-only alpha**, because BOTH cloud stamps read it
+    (`stampCloudField` for the sim's trich field, `stampMouldInterp` for the drawn mould). So the
+    fade takes the cloud's BITE with it — the remnant stops infecting growth once it falls under
+    `growInfectThreshold` instead of staying lethal until it pops. The drop also re-stamps the sim
+    field immediately, so a grow played between ticks can't be caught by a cloud that has visibly
+    gone.
+  - **`_cloudFading` is what makes it VISIBLE, and it is easy to miss.** The mould has no sprite —
+    it IS `cell.trich`, re-stamped per frame only while the clouds are known to be moving
+    (`_cloudsSliding`). In turn-based that window is the enemy turn's HOLD phase and a breach lands
+    in the ATTACK phase after it, so without opening that gate the fade runs in the model with
+    nothing changing on screen. `tests/mould-shot.cjs` is how you check it still reads as a fade —
+    and it has to SLOW both fades to 4 s to catch them, because a screenshot needs frames and
+    frames are what drive the fade.
+  - Read `fadeMs` off `state.config`, not the CONFIG literal, or a per-level override is ignored.
 - **`growInfectBurst` is the OTHER first touch** — growing *into* mould rather than being
   touched by it — now **12 = 4 steps**, level with `firstTouchRings` and with the ongoing race,
   so all three ways of being caught cost the same. It was 18 (6 steps), and that was the
@@ -343,9 +400,10 @@ CONFIG literal only.
   code. Sample it 3-4 times before concluding a threat change caused anything. At the
   pre-tuning rates (5.5 steps/action, 20-ring first touch) its session died after **2** actions
   — `over: true, alive: false` — which is the size of signal worth acting on.
-- **Three SLIDERS re-ceilinged / added**: mould creep 5→8 and worm speed 6→12 (both had to clear
+- **Four SLIDERS re-ceilinged / added**: mould creep 5→8 and worm speed 6→12 (both had to clear
   the turn-based table, which is the faster one — the worm slider had been pinned exactly at its
-  live value), plus a new "Rot on First Touch".
+  live value), plus a new "Rot on First Touch" and a new "Rot Radius on Touch" (the breach disc, in
+  cells; 0 is not an off switch — see below).
 
 Mode-gated behaviour, roughly in order of subtlety:
 
@@ -365,7 +423,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1301 assertions across 21 checks**, of which `traced` is 818 (one map's worth each). Plus
+**1323 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
 three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
 **Run them; don't verify by re-reading your own diff.**
 

@@ -45,6 +45,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `scale-check.cjs` | The organism scale: every growth LENGTH is base × `growth.scale`, the ratios between them survive it, the step measures what the config says, the drawn thread scales with it, and the longer step doesn't hop a wall |
 | `threat-check.cjs` | Threat rates and rules, measured through the sim in BOTH modes: worm crawl, bite size, reach, move-AND-eat on one step, a worm out of sight still closing in, cloud creep, the rot lifespan (darkens, then falls away, and healing resets the deadline), infected tissue not harvesting while the pile keeps its food, first-touch rot vs the established race (separate, non-stacking), the "no clean mycelium off rot" invariant, `infectionSpreadChance` being 1, and the render creep keeping pace. Does NOT assert `wanderSpeed` — it's a dead knob |
 | `harvest-check.cjs` | Infected mycelium neither harvests nor drafts, asked at every reader of `cell.colonized`: passive income, the pile draft (including an already-empty pile), and both Digest paths. Covers the two cases a claim outlives its tissue — the mat drifting a cell over, and rot ageing out and being removed — plus the release: the pile keeps its food and clean regrowth can win it back. Controls throughout (clean tissue on the identical pile must still eat, digest and draft), and `MYC_ROOT` points it at a pre-fix build for the negative control |
+| `mould-check.cjs` | The mould's three owner-requested rules: contact is a DISC (`firstTouchRadius`, floored at the cloud's own reach) so no clean strand is left inside the green, with the old nearest-strand breach reproduced by hand as the control and every seed marked so the creep starts along the whole contact face; a rotten strand survives exactly `rotLifeTurns` (2) steps and leaves a fading ghost the renderer drains; a spent cloud goes on the SAME turn, on the wall clock, with no further world step, taking its trich field with it. `tests/mould-shot.cjs` is the visual companion (a tool — it slows both fades to 4 s so a screenshot can catch them) |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
 
@@ -64,9 +65,10 @@ relevant one after any change to those systems, and read `worm-probe`'s header b
 it — its first version reused one colony across every sample and the worms ate it, which
 produced a clean-looking table supporting the wrong conclusion.
 
-`shot.cjs`, `hs-shot.cjs`, `lure-shot.cjs`, `core-shot.cjs` and `level-shots.cjs` aren't checks —
-they capture frames for eyeballing: the title screen, the leaderboard, the pointer lure, the
-whole-world core view, and every authored map. Every depth and colour decision in the core was
+`shot.cjs`, `hs-shot.cjs`, `lure-shot.cjs`, `core-shot.cjs`, `mould-shot.cjs` and
+`level-shots.cjs` aren't checks — they capture frames for eyeballing: the title screen, the
+leaderboard, the pointer lure, the whole-world core view, the mould/rot fades, and every authored
+map. Every depth and colour decision in the core was
 made by looking at `core-shot`'s frame, not by reading a number.
 
 ## Writing another one

@@ -24312,8 +24312,12 @@ function fadeSpentClouds(dt, paused) {
   const clouds = state && state.clouds;
   _cloudFading = false;
   if (!clouds || !clouds.length || !(dt > 0)) return;
-  if (paused && (CONFIG.realtime || {}).enabled !== false) return;
-  const ms = Math.max(1, (CONFIG.trichoderma && CONFIG.trichoderma.fadeMs) || 700);
+  if (paused && isRealtime()) return;   // turn-based has no clock to freeze; the board keeps breathing
+  // The RUN's config, not the CONFIG literal — state.config is the deep clone every per-level
+  // override and every dev slider lands on, so reading the literal here would quietly ignore a
+  // level that tuned the fade. CONFIG is only the fallback for before a run exists.
+  const cfgT = (state.config && state.config.trichoderma) || CONFIG.trichoderma || {};
+  const ms = Math.max(1, cfgT.fadeMs || 700);
   let gone = false;
   for (const c of clouds) {
     if (!c.spent || c.strength <= 0) continue;
