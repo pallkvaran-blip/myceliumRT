@@ -2106,12 +2106,22 @@ const CONFIG = {
     // colony has 4-UNIT spacing and overstates any geometric rule by about an order of magnitude.
     firstTouchRadius: 1.5,       // cells (SLIDER)
     // THE SPRINT-PAST RULE. Whatever the colony grew ON THE STEP IT GOT INFECTED, within this
-    // many rings of where the infection happened, rots with it. 24 rings = 8 grow-steps, longer
-    // than any grow card (Rhizomorph Lance is the longest at 18 segments = 6 steps) — so no
-    // growth action is strong enough to sprint past a cloud that is about to catch you and keep
-    // the far end. Infected tissue must not harvest or draft either; that is the `colonized`
-    // release at the end of infectNetwork. One-off, so ONE value for both modes.
-    freshGrowthRings: 24,
+    // many rings of where the infection happened, rots with it — so no growth action can sprint a
+    // tip past a cloud that is about to catch you and keep the far end. Infected tissue must not
+    // harvest or draft either; that is the `colonized` release at the end of infectNetwork.
+    // One-off, so ONE value for both modes.
+    //
+    // 24 → 80 (owner). It counts RINGS FROM THE INFECTION POINT along the filaments, not "all
+    // fresh growth" — measured on an 80-node chain the claim stopped dead at ring 24 and a fresh
+    // limb 30 units away with no graph path took nothing. So the number is a REACH, and 80 rings
+    // is ~27 card steps against the 8 that 24 bought (1 ring = 1 segment, 3 segments = 1 step;
+    // Rhizomorph Lance, the longest grow, is 18 segments = 6 steps).
+    //
+    // Two things compound it, and both are worth remembering before tuning it again: the walk
+    // travels THROUGH established tissue without claiming it, so old mycelium in the path costs
+    // rings but yields nothing; and a cloud's touch is a DISC (firstTouchRadius), so every clean
+    // strand in the disc seeds its own 80-ring walk rather than there being one origin.
+    freshGrowthRings: 80,
     growInfectBurst: 12,         // growing a strand INTO mould instantly rots this many rings — 4 grow-steps,
                                  //   level with firstTouchRings and with the ongoing race, so all three
                                  //   ways of being caught now cost the same 4 steps. Was 18 (6 steps), which

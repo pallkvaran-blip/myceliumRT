@@ -924,13 +924,13 @@ await ctx.close();
 ctx=await b.newContext({viewport:{width:1400,height:800}});
 await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
 p=await boot(ctx, base+'/index.html#dev,turn');
-const FRESH_RINGS=24;
+const FRESH_RINGS=80;   // 24 → 80 (owner). It is a REACH along the filaments from the breach.
 ok(`trichoderma.freshGrowthRings is ${FRESH_RINGS} rings`,
    await p.evaluate(()=>window.__cfg.trichoderma.freshGrowthRings)===FRESH_RINGS,
    `got ${await p.evaluate(()=>window.__cfg.trichoderma.freshGrowthRings)}`);
 // 3 segments to a card "step", so the ring count only means something as grow-steps: it has to
 // out-reach the longest grow in the game or the sprint still works.
-ok('...which is 8 grow-steps, longer than any grow card',
+ok(`...which is ${(FRESH_RINGS/3).toFixed(1)} grow-steps, longer than any grow card`,
    await p.evaluate(()=>{
      const c=window.__cfg;
      let longest=0;
@@ -938,7 +938,7 @@ ok('...which is 8 grow-steps, longer than any grow card',
        if (typeof c.cards[k]==='number') longest=Math.max(longest, c.cards[k]);
      return c.trichoderma.freshGrowthRings/3 >= longest/3;
    }),
-   `${FRESH_RINGS/3} steps`);
+   `${(FRESH_RINGS/3).toFixed(1)} steps vs the longest card's 6`);
 const sprint=await p.evaluate((RINGS)=>{
   const G=window.__game, s=G.state, sub=s.substrate, net=s.active, cs=sub.cellSize;
   const t=s.config.trichoderma;
@@ -962,8 +962,12 @@ const sprint=await p.evaluate((RINGS)=>{
   net.energy=5000; net.water=999; net.phosphorus=999;   // 0 Energy prunes strands and shifts every index
   const y=sub.surfaceY+cs*4;
   let par=null;
-  for (let i=0;i<60;i++){ par=net.addNode(400+i*6, y, par); par._liveAt=0; par._revSeen=true; }
-  const OLD=20, HIT=30;                       // 0..19 grown before this step, 20..59 during it
+  // THE CHAIN LENGTH SCALES WITH THE RULE. It was a flat 60, which at 24 rings left room past the
+  // claim for `beyond` to test — and at 80 would not: slice(HIT+RINGS+1) would be empty and the
+  // assertion would pass having examined nothing, which is the failure mode that looks most like
+  // success. Derived from RINGS so raising the knob can never quietly hollow it out again.
+  const OLD=20, HIT=30, LEN=HIT+RINGS+20;     // 0..19 grown before this step, 20.. during it
+  for (let i=0;i<LEN;i++){ par=net.addNode(400+i*6, y, par); par._liveAt=0; par._revSeen=true; }
   net._turnStartId = net.nodes[OLD].id;
   const c=net.nodes[HIT];
   s.clouds.push({cx:c.x, cy:c.y, r:0.05, strength:1, dying:false, heading:null});   // makeCloud's shape
@@ -971,18 +975,24 @@ const sprint=await p.evaluate((RINGS)=>{
   G.tickWorld(s);
   const inf=net.nodes.map((n)=>!!n.infected);
   t.firstTouchRadius=rad;
-  return { hit:inf[HIT], nodes:net.nodes.length,
+  return { hit:inf[HIT], nodes:net.nodes.length, len:LEN,
            freshInRange: inf.slice(OLD, HIT+RINGS+1).every(Boolean),
-           oldInRange: inf.slice(HIT-RINGS, OLD).some(Boolean),
+           oldInRange: inf.slice(Math.max(0,HIT-RINGS), OLD).some(Boolean),
            beyond: inf.slice(HIT+RINGS+1).some(Boolean),
+           beyondTested: Math.max(0, LEN-(HIT+RINGS+1)),
            total: inf.filter(Boolean).length };
 }, FRESH_RINGS);
 // The claim is read by INDEX, so a pruned strand would shift every one of them.
-ok('the chain is intact, so the indices below mean what they say', sprint.nodes===60, `${sprint.nodes} strands`);
+ok('the chain is intact, so the indices below mean what they say', sprint.nodes===sprint.len,
+   `${sprint.nodes} of ${sprint.len} strands`);
+// Without this, raising freshGrowthRings past the chain's length makes the `beyond` assertion
+// examine an EMPTY slice and pass regardless.
+ok('there is chain beyond the claim for `beyond` to actually test', sprint.beyondTested>=15,
+   `${sprint.beyondTested} strands past ring ${FRESH_RINGS}`);
 ok('the breach itself is rot', sprint.hit===true);
 ok('...and every strand grown THIS step within reach of it, however far the grow ran',
    sprint.freshInRange===true,
-   `${sprint.total} of 60 claimed`);
+   `${sprint.total} of ${sprint.len} claimed`);
 ok('...but nothing grown on an EARLIER step, at the same distance',
    sprint.oldInRange===false);
 ok('...and nothing past freshGrowthRings, so a long enough grow still outruns it',

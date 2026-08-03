@@ -105,6 +105,7 @@ is invisible from inside either mode. **Every retune has to move BOTH by the sam
 | `nematodes.strandsPerBite` | 1 → 2 → **4** (one value, both modes) | |
 | `trichoderma.firstTouchRings` | 20 → **12** (one value, both modes) | |
 | `trichoderma.firstTouchRadius` | **1.5** cells — the breach DISC (one value, both modes) | |
+| `trichoderma.freshGrowthRings` | 24 → **80** rings (one value, both modes) | |
 | `trichoderma.rotLifeTurns` | 3 → **2** steps, then the strand falls away | |
 | `nematodes.reach` | 0.7 → **1.4** cells | |
 
@@ -400,6 +401,21 @@ CONFIG literal only.
     and it has to SLOW both fades to 4 s to catch them, because a screenshot needs frames and
     frames are what drive the fade.
   - Read `fadeMs` off `state.config`, not the CONFIG literal, or a per-level override is ignored.
+- **`freshGrowthRings` IS A REACH, AND IT IS CAPPED BY WHAT YOU GREW — raising it does almost
+  nothing on its own.** It claims rings FROM THE INFECTION POINT along the filaments, and only
+  nodes newer than `net._turnStartId`. Measured on an 80-node chain the claim stopped dead at ring
+  24; a fresh limb 30 units away with no graph path took nothing. So it is graph distance, not
+  world distance, and not "all fresh growth".
+  - **24 → 80 (owner), and on a real colony that changed almost nothing: 338 → 343 claimed of 870
+    strands, 39% either way.** The reason is the cap: only tissue grown THIS STEP can be claimed,
+    and the longest grow card (Rhizomorph Lance, 18 segments) is 18 rings — so 24 already covered
+    every single-card grow and the extra 56 rings find nothing to take.
+  - **Where the extra rings DO bite is a step that creates a lot of connected fresh tissue at
+    once** — above all a pile claim, where `colonizeReachablePiles` lays a bridge runner of up to
+    30 nodes plus a mat through every cell, all in the same step. That is past 24 and inside 80.
+  - The walk travels THROUGH established tissue without claiming it (the ongoing race owns that),
+    but the traversal still SPENDS rings. And since contact is a disc, every seed in it runs its
+    own walk.
 - **`growInfectBurst` is the OTHER first touch** — growing *into* mould rather than being
   touched by it — now **12 = 4 steps**, level with `firstTouchRings` and with the ongoing race,
   so all three ways of being caught cost the same. It was 18 (6 steps), and that was the
@@ -462,7 +478,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1391 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
+**1397 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
 three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
 **Run them; don't verify by re-reading your own diff.**
 
