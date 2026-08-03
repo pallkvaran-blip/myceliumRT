@@ -228,7 +228,7 @@ CONFIG literal only.
   - **AND IT FADES OUT RATHER THAN BLINKING OFF THE MAP** (owner's ask, alongside 3 → **2** steps).
     A removed node cannot draw itself, so `recordFallenGhosts` hands the renderer the strand's
     GEOMETRY (`net._rotGhosts`) and `NetworkRenderer._strokeFalling` strokes it in `render.rotted`,
-    fading over `render.rotFadeMs` (600) and draining the list as it draws. Sim-side a ghost is a
+    fading over `render.strandFadeMs` (600) and draining the list as it draws. Sim-side a ghost is a
     breadcrumb and nothing else — not in `nodes`/`byId`, so nothing counts, feeds, spreads, blocks
     or wins through one.
     **Fading BEFORE removal is the obvious version and it is wrong**: in turn-based a step is one

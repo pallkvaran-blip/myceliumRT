@@ -13,7 +13,7 @@
  *   2. "have the infected strands take 1 less turn to die off" — rotLifeTurns 3 -> 2, asserted as
  *      the number of steps a strand actually survives, not as the config number.
  *      "when they do die off, have it fade away" — the removed strand's geometry is handed to the
- *      renderer as a ghost (`_rotGhosts`) which fades it over render.rotFadeMs.
+ *      renderer as a ghost (`_rotGhosts`) which fades it over render.strandFadeMs.
  *   3. "have the trych disappear on the same turn that it infects. but have it fade away" — the
  *      cloud is spent on contact and its `strength` runs down on the WALL CLOCK, so it goes
  *      without waiting for another world step. Asserted in turn-based, where "another world step"
@@ -47,7 +47,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ' + m); } else { fai
   const R = await p.evaluate(() => {
     const G = window.__game, s = G.state, sub = s.substrate, net = s.active, cs = sub.cellSize;
     const t = s.config.trichoderma, cfgT = window.__cfg.trichoderma;
-    const out = { cfg: { rotLifeTurns: cfgT.rotLifeTurns, firstTouchRadius: cfgT.firstTouchRadius, fadeMs: cfgT.fadeMs, rotFadeMs: window.__cfg.render.rotFadeMs } };
+    const out = { cfg: { rotLifeTurns: cfgT.rotLifeTurns, firstTouchRadius: cfgT.firstTouchRadius, fadeMs: cfgT.fadeMs, strandFadeMs: window.__cfg.render.strandFadeMs } };
 
     // A FAN of separate filaments through one spot. The defect only shows on a shape where
     // several strands pass close together WITHOUT being neighbours in the graph: a breach that
@@ -196,7 +196,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ' + m); } else { fai
   ok(R.cfg.rotLifeTurns === 2, `rotLifeTurns is 2, was 3 (${R.cfg.rotLifeTurns})`);
   ok(R.lifespan.runOver === false, `the run is still going, so the steps were really taken (healthy ${R.lifespan.healthy} of ${R.lifespan.nodes})`);
   ok(R.lifespan.steps === 2, `a rotten strand survives exactly 2 steps (${R.lifespan.steps}, ages seen ${JSON.stringify(R.lifespan.rotAgeSeen)})`);
-  ok(R.cfg.rotFadeMs > 0, `render.rotFadeMs is set (${R.cfg.rotFadeMs} ms)`);
+  ok(R.cfg.strandFadeMs > 0, `render.strandFadeMs is set (${R.cfg.strandFadeMs} ms)`);
   ok(R.lifespan.ghosts > 0, `falling away left ghost strands for the renderer to fade (${R.lifespan.ghosts})`);
 
   // ===== the ghost actually fades and is then dropped (needs real frames) =====

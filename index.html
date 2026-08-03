@@ -2153,7 +2153,7 @@ const CONFIG = {
     //
     // 3 → 2 at the owner's request ("1 less turn to die off"). The strand does not blink out at
     // the deadline: infectNetwork hands its geometry to the renderer as a GHOST that fades over
-    // render.rotFadeMs (see _strokeFalling). Note the shade IS the countdown, so at 2 steps the
+    // render.strandFadeMs (see _strokeFalling). Note the shade IS the countdown, so at 2 steps the
     // green→brown ramp is coarser — a strand is bright green for one step, brown for one, gone.
     rotLifeTurns: 2,             // (SLIDER)
   },
@@ -2364,13 +2364,16 @@ const CONFIG = {
     infectMaxLagMs: 2500,        // cap on how far behind the sim the visible creep may fall (safety valve if the rot
                                  //   ever outruns the creep — e.g. a big first-touch burst)
                                  //   (creep + fade are detail-zoom rendering only; the zoomed-out LOD still snaps)
-    // A strand that has run out its rotLifeTurns FADES OUT over this, rather than blinking off
-    // the map the instant the sim drops it. It is drawn from a GHOST — infectNetwork hands the
-    // renderer the removed strand's geometry, because the node itself is gone from the network by
-    // then (see _strokeFalling). Fading BEFORE removal was the other option and it is worse: in
-    // turn-based a step is one player action long, so the strand would sit fully invisible for
-    // however long the player thinks while its rot went on racing along the filaments.
-    rotFadeMs: 600,
+    // TISSUE THE COLONY LOSES FADES OUT OVER THIS, rather than blinking off the map the instant
+    // the sim drops it: rot that has run out its `rotLifeTurns`, and strands a NEMATODE ate — both
+    // owner requests. It is drawn from a GHOST, because by then the node is gone from the network:
+    // `Network.ghostStrands` hands the renderer its geometry and `_strokeFalling` draws it, in the
+    // dead-wood brown for rot and in the living cream for clean tissue a worm bit out.
+    // Fading BEFORE removal was the other option and it is worse: in turn-based a step is one
+    // player action long, so the strand would sit fully invisible for however long the player
+    // thinks while its rot went on racing along the filaments.
+    // (Amputation and starvation deliberately do NOT fade — see the note on ghostStrands.)
+    strandFadeMs: 600,
     warded: '#2f5fe6',           // a strand hardened/warded by a defense card — a deep blue "crust",
                                  //   distinct from the pale-mint colony and yellow-green mould
     // the living network (luminous accent — the brightest thing on screen)
@@ -11222,6 +11225,38 @@ class Network {
     for (const n of this.nodes) n.health -= v.starvationDamage;
   }
 
+  // --- STRANDS THAT LEAVE FADE OUT, THEY DON'T BLINK OUT ----------------------
+  // A removed node cannot draw itself, so its GEOMETRY is handed to the renderer as a ghost
+  // (`_rotGhosts`, drawn and drained by NetworkRenderer._strokeFalling over
+  // render.strandFadeMs). Sim-side a ghost is a breadcrumb and nothing else: it is not in
+  // `nodes`/`byId`, so nothing counts, feeds, spreads, blocks or wins through one.
+  //
+  // Call it BEFORE `_removeNodes` — the geometry has to be read while the nodes still exist, and
+  // a strand's parent is needed to know where it was drawn from.
+  //
+  // `dead` is read off the strand itself rather than passed in by the caller, so the colour is
+  // always right whatever removed it: rot fades from the dead-wood brown it had decayed to, and
+  // clean tissue a worm ate fades from the living cream. A worm that bites an infected strand
+  // therefore gets the brown, which is what it looked like a moment earlier.
+  //
+  // ON THIS SIDE OF `_removeNodes` AND NOT INSIDE IT, deliberately. Two of the four callers must
+  // NOT leave a trail: amputation is the player deliberately cutting a limb off and a lingering
+  // ghost reads as "the cut didn't work", and starvation prunes tissue that was already dying
+  // rather than being taken. The two that do are the rot running out its life and a worm's bite.
+  ghostStrands(ids) {
+    const ghosts = this._rotGhosts || (this._rotGhosts = []);
+    for (const id of ids) {
+      const n = this.byId.get(id); if (!n || n.parentId == null) continue;
+      const p = this.byId.get(n.parentId); if (!p) continue;
+      ghosts.push({ ax: p.x, ay: p.y, bx: n.x, by: n.y, at: null, dead: !!n.infected });
+    }
+    // A colony-wide collapse can drop thousands of strands at once, and a swarm's bite is
+    // strandsPerBite × the swarm. They expire inside a second, but the cap keeps the worst case
+    // bounded even when nothing is drawing them (headless never drains the list).
+    if (ghosts.length > 1200) ghosts.splice(0, ghosts.length - 1200);
+    return ghosts.length;
+  }
+
   // Remove starved-out nodes; their healthy children survive as free fragments.
   pruneDead() {
     const dead = this.config.vitality.deadNodeHealth;
@@ -11533,7 +11568,9 @@ function stepNematodes(state, phase = 'both') {
   if (!doFeed) return;   // the MOVE phase is over — breeding, biting and respawns are attacks
 
   if (newborns.length) for (const b of newborns) state.nematodes.push(b);
-  if (claimed.size && net) net._removeNodes(claimed);
+  // WHAT A WORM EATS FADES OUT TOO (owner's ask), the same way rot that falls away does — see
+  // Network.ghostStrands. Before the removal, or the geometry is already gone.
+  if (claimed.size && net) { net.ghostStrands(claimed); net._removeNodes(claimed); }
 
   // Keep a baseline of wanderers trickling in (up to initialCount), capped.
   if (state.nematodes.length < n.initialCount && state.nematodes.length < n.maxPopulation && rng.chance(n.respawnChance)) {
@@ -12223,34 +12260,11 @@ function infectNetwork(net, state) {
     n.rotAge = (n.rotAge || 0) + 1;
     if (n.rotAge >= life) fallen.add(n.id);
   }
-  if (fallen.size) { recordFallenGhosts(net, fallen); net._removeNodes(fallen); }
+  if (fallen.size) { net.ghostStrands(fallen); net._removeNodes(fallen); }   // fade out, don't blink out
 }
 
-// IT FADES AWAY, IT DOESN'T BLINK OUT. A strand that has run out its rot life leaves the
-// network here, and a removed node cannot draw itself — so its GEOMETRY is handed to the
-// renderer as a ghost (`net._rotGhosts`), which strokes it in the dead-wood colour and fades it
-// over render.rotFadeMs. Sim-side this is a breadcrumb and nothing more: no ghost is in
-// `nodes`/`byId`, so nothing counts, feeds, spreads, blocks or wins through one.
-//
-// The alternative — fade the strand while it is still IN the network, over its last step — was
-// rejected: in turn-based a step is one player action, i.e. unbounded, so the strand would sit
-// fully invisible for as long as the player thinks while its rot went on racing along the
-// filaments. Invisible tissue that still acts is a worse bug than a hard cut.
-//
-// Only the ROT lifespan feeds this, not `_removeNodes` in general. Amputation, starvation and a
-// worm's bite all remove strands too, and a limb the player deliberately cut lingering as a ghost
-// reads as "the cut didn't work".
-function recordFallenGhosts(net, fallen) {
-  const ghosts = net._rotGhosts || (net._rotGhosts = []);
-  for (const id of fallen) {
-    const n = net.byId.get(id); if (!n || n.parentId == null) continue;
-    const p = net.byId.get(n.parentId); if (!p) continue;
-    ghosts.push({ ax: p.x, ay: p.y, bx: n.x, by: n.y, at: null });
-  }
-  // A colony-wide collapse can drop thousands of strands at once. They expire inside a second,
-  // but the cap keeps the worst case bounded even if nothing is drawing them (headless).
-  if (ghosts.length > 1200) ghosts.splice(0, ghosts.length - 1200);
-}
+// The rot's own removal fades out through Network.ghostStrands — see the note there, including
+// why fading a strand while it is still IN the network was rejected.
 
 // Growing INTO active mould infects you FIRST. Any healthy strand standing in a
 // trich-filled cell (above growInfectThreshold, and not warded) is overrun on the
@@ -16846,25 +16860,34 @@ class NetworkRenderer {
     ctx.globalAlpha = 1;
   }
 
-  // --- Rot falling away -----------------------------------------------------
-  // Strands whose rot life ran out (threats.js recordFallenGhosts) stroked in the dead-wood
-  // colour and faded to nothing over render.rotFadeMs, so a limb comes apart rather than
-  // vanishing between two frames. Each ghost is stamped with its moment the FIRST FRAME IT IS
-  // SEEN, not when the sim dropped it: the sim has no wall clock of its own, and stamping here
-  // also means a fade cannot silently complete while the tab is in the background.
+  // --- Strands falling away --------------------------------------------------
+  // Tissue the colony has LOST — rot that ran out its life, and strands a worm ate — stroked and
+  // faded to nothing over render.strandFadeMs, so a limb comes apart rather than vanishing
+  // between two frames. The geometry comes from Network.ghostStrands; see the note there for
+  // which removals feed it and which deliberately don't.
   //
-  // The list is drained here as well, which is why the cap in recordFallenGhosts exists — a
-  // headless run never draws, so nothing would ever prune it.
+  // TWO COLOURS, chosen per ghost off the `dead` flag the sim captured: rot fades from the
+  // dead-wood brown it had already decayed to, and clean tissue a worm bit out fades from the
+  // living cream. One colour for both would have been wrong in whichever direction it picked —
+  // brown on cream tissue reads as "it rotted", cream on rot as "it came back to life".
+  //
+  // Each ghost is stamped with its moment the FIRST FRAME IT IS SEEN, not when the sim dropped
+  // it: the sim has no wall clock of its own, and stamping here also means a fade cannot silently
+  // complete while the tab is in the background.
+  //
+  // The list is drained here as well, which is why the cap in ghostStrands exists — a headless
+  // run never draws, so nothing would ever prune it.
   _strokeFalling(ctx, time, brightness, cull) {
     const net = this.network;
     const ghosts = net._rotGhosts;
     if (!ghosts || !ghosts.length) return;
     const r = this.config.render;
-    const ms = Math.max(1, r.rotFadeMs != null ? r.rotFadeMs : 600);
-    const col = r.rotted || '#3d2c1c';
+    const ms = Math.max(1, r.strandFadeMs != null ? r.strandFadeMs : 600);
+    const rotCol = r.rotted || '#3d2c1c';
+    const liveCol = r.filament || '#cfe8d6';
     const sc = this._sc();
     let live = 0;
-    ctx.strokeStyle = col;
+    let cur = null;
     ctx.lineWidth = 1.0 * sc;
     for (const g of ghosts) {
       if (g.at == null) g.at = time;
@@ -16876,6 +16899,11 @@ class NetworkRenderer {
       const exlo = g.ax < g.bx ? g.ax : g.bx, exhi = g.ax < g.bx ? g.bx : g.ax;
       const eylo = g.ay < g.by ? g.ay : g.by, eyhi = g.ay < g.by ? g.by : g.ay;
       if (exhi < cull.minX || exlo > cull.maxX || eyhi < cull.minY || eylo > cull.maxY) continue;
+      // Set the colour only when it CHANGES: a swarm's bite and a collapsing limb arrive as long
+      // runs of the same kind, and assigning strokeStyle per strand is the kind of per-call state
+      // change the perf pass went out of its way to remove elsewhere.
+      const want = g.dead ? rotCol : liveCol;
+      if (want !== cur) { ctx.strokeStyle = want; cur = want; }
       ctx.globalAlpha = (1 - k) * 0.95 * brightness;
       ctx.beginPath();
       ctx.moveTo(g.ax, g.ay);

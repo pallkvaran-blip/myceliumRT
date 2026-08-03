@@ -52,7 +52,7 @@ const STRANDS_PER_BITE = 4;   // shared by both modes — not in MODE_TUNING
 const ROT_LIFE = 2;           // steps an infected strand survives before falling away (was 3 —
                               //   owner: "1 less turn to die off"). The strand does not blink out
                               //   at the deadline: its geometry becomes a renderer ghost that
-                              //   fades over render.rotFadeMs (mould-check covers that half).
+                              //   fades over render.strandFadeMs (mould-check covers that half).
 const WORM_REACH = 1.4;       // cells
 // nematodes.wanderSpeed is NOT here, and that is the point: it is a DEAD KNOB. It is set in
 // three places (the CONFIG literal and both MODE_TUNING tables) and read by no code at all.
@@ -275,11 +275,24 @@ const bite=await p.evaluate(()=>{
   s.nematodes.push({x:tgt.x, y:tgt.y, heading:0, phase:0, stuck:0, feedCd:0, hp:0,
                     sees:false, feeding:false, trailing:false, targetId:null});
   const before=net.nodes.length;
+  // Clear the ghost list first: rot from an earlier probe on this page leaves its own, and the
+  // renderer only drains them when it DRAWS, which it does not do inside a page.evaluate.
+  net._rotGhosts=[];
   G.tickWorld(s);
   const after=net.nodes.length;
+  const gh=net._rotGhosts||[];
+  // AND THE AMPUTATION CONTROL, on the same colony: the fade is per-CAUSE, not something every
+  // removal does. A limb the player deliberately cut must leave nothing behind, or the cut
+  // reads as not having worked.
+  net._rotGhosts=[];
+  const cutFrom=net.nodes[Math.floor(net.nodes.length/2)];
+  const cutN=net.amputateAt(cutFrom.x, cutFrom.y, 40);
   return { before, after, eaten:before-after, want:s.config.nematodes.strandsPerBite,
            inReach:dense, reachCells:s.config.nematodes.reach,
-           worms:s.nematodes.length, feeding:!!(s.nematodes[0]&&s.nematodes[0].feeding) };
+           worms:s.nematodes.length, feeding:!!(s.nematodes[0]&&s.nematodes[0].feeding),
+           ghosts:gh.length, ghostsDead:gh.filter((g)=>g.dead).length,
+           ghostGeom:gh.every((g)=>[g.ax,g.ay,g.bx,g.by].every((v)=>typeof v==='number')),
+           cutStrands:cutN, cutGhosts:(net._rotGhosts||[]).length };
 });
 // Worms BREED while feeding (breedChance 0.8 per tick), and a newborn does not eat on the
 // tick it is born, so exactly one worm bites here — that is what makes the count readable.
@@ -291,6 +304,19 @@ ok('the worm was sat somewhere with more strands in reach than it can take',
    `${bite.inReach} strands within ${bite.reachCells} cells, bite is ${bite.want}`);
 ok('one feeding worm eats strandsPerBite strands per action', bite.eaten===bite.want,
    `ate ${bite.eaten}, want ${bite.want} (${bite.before} → ${bite.after})`);
+// WHAT A WORM EATS FADES OUT (owner's ask), the same way rot that falls away does. The strand
+// is gone from the network the instant it is bitten, so the fade is drawn from a GHOST holding
+// its geometry (Network.ghostStrands → NetworkRenderer._strokeFalling). Asserted on the model:
+// headless can barely measure an animation, and the ghost list IS the model.
+ok('...and every strand it ate left a ghost to fade out', bite.ghosts===bite.eaten,
+   `${bite.ghosts} ghost(s) for ${bite.eaten} eaten`);
+ok('...with the geometry the renderer needs to draw it', bite.ghostGeom===true);
+// The colour is chosen off this flag: clean tissue a worm bit out fades from the LIVING cream,
+// only rot fades from the dead-wood brown. Marking a worm's bite dead would read as "it rotted".
+ok('...marked as living tissue, not as rot', bite.ghostsDead===0,
+   `${bite.ghostsDead} of ${bite.ghosts} marked dead`);
+ok('CONTROL: amputation removes strands and leaves NO ghost', bite.cutStrands>0 && bite.cutGhosts===0,
+   `cut ${bite.cutStrands} strands, ${bite.cutGhosts} ghosts`);
 
 // ---- 4. a hardened strand still stops the whole bite ------------------------
 // Sclerotial Crust must not be cheapened by the bigger bite: the loop breaks at the first

@@ -3,16 +3,18 @@
  *     node tests/mould-shot.cjs
  *
  * Writes tests/.artifacts/mould-fade-{0..3}.png — a spent cloud fading off the colony it just
- * infected, and the rot falling away behind it. A tool, not a check: mould-check asserts the
- * model (strength runs down, the cloud is dropped, ghosts are stamped and drained), and this is
- * how you see whether it READS as a fade. Both were owner requests phrased visually ("fade away,
- * not just disappear"), so the model passing is not the same as the job being done.
+ * infected, the rot falling away behind it, and (in the same frames) strands a WORM has eaten
+ * fading out in the living cream rather than the rot's brown. A tool, not a check: mould-check
+ * and threat-check assert the model (strength runs down, the cloud is dropped, ghosts are stamped
+ * with the right colour flag and drained), and this is how you see whether it READS as a fade.
+ * All three were owner requests phrased visually ("fade away, not just disappear"), so the model
+ * passing is not the same as the job being done.
  *
  * Read them as a sequence. Frame 0 is just after the breach (mould at full strength, the limb
  * green), and each later frame is ~600 ms on. By the last the mould should be gone and the rotted
  * strands with it.
  *
- * BOTH FADES ARE SLOWED TO 4 s HERE (fadeMs / render.rotFadeMs) and that is not cheating, it is
+ * BOTH FADES ARE SLOWED TO 4 s HERE (fadeMs / render.strandFadeMs) and that is not cheating, it is
  * the only way to see them: at their shipped 700/600 ms the whole thing is over before the first
  * screenshot lands, because a screenshot needs frames and frames are what drive the fade. The
  * first version of this tool captured four identical frames of an empty patch of soil.
@@ -46,7 +48,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     for (const c of sub.cells) { c.trich = 0; c.mouldProof = 0; c.reinfectGrace = 0; }
     net.energy = 5000; net.water = 999; net.phosphorus = 999;
     t.moveSpeed = 0; t.respawnChance = 0;
-    t.fadeMs = 4000; s.config.render.rotFadeMs = 4000;   // see the header — slowed so a shot can catch them
+    t.fadeMs = 4000; s.config.render.strandFadeMs = 4000;   // see the header — slowed so a shot can catch them
     // A fan of filaments so the disc breach has several to take, at a comfortable zoom.
     net.nodes.length = 0; net.byId.clear(); net.nextNodeId = 0; net._rotGhosts = [];
     const hub = { x: sub.worldWidth / 2, y: sub.surfaceY + cs * 5 };
@@ -67,11 +69,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const mid = net.nodes[Math.floor(net.nodes.length / 2)];
     s.clouds.push({ cx: mid.x, cy: mid.y, r: 1.3, strength: 1, dying: false, heading: null });
     G.camera.x = mid.x; G.camera.y = mid.y;
-    G.tickWorld(s);                     // contact: the disc rots, the cloud is spent
+    // A worm parked on a CLEAN arm, so the same frames carry both colours of ghost: the rot's
+    // dead-wood brown where the cloud landed, and living cream where the worm bit.
+    const clean = net.nodes[Math.floor(net.nodes.length * 0.9)];
+    s.nematodes.push({ x: clean.x, y: clean.y, heading: 0, phase: 0, stuck: 0, feedCd: 0, hp: 0,
+                       sees: false, feeding: false, trailing: false, targetId: null });
+    G.tickWorld(s);                     // contact: the disc rots, the cloud is spent, the worm bites
     const green = net.nodes.filter((n) => n.infected).length;
     G.tickWorld(s);                     // one more step so some of that rot reaches its deadline
+    const gh = net._rotGhosts || [];
     return { greenAfterBreach: green, rotten: net.nodes.filter((n) => n.infected).length, nodes: net.nodes.length,
-             ghosts: (net._rotGhosts || []).length, clouds: s.clouds.length,
+             ghosts: gh.length, ghostsBrown: gh.filter((g) => g.dead).length,
+             ghostsCream: gh.filter((g) => !g.dead).length, clouds: s.clouds.length,
              spent: s.clouds[0] ? !!s.clouds[0].spent : null, at: { x: Math.round(mid.x), y: Math.round(mid.y) } };
   });
   console.log('setup: ' + JSON.stringify(setup));
