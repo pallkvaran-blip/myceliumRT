@@ -38,11 +38,16 @@ const ok=(n,c,x)=>{ c?PASS++:FAIL++; console.log((c?'  PASS  ':'  FAIL  ')+n+(x?
 // What each table must hold. Pinned, because "did the double land in BOTH modes?" is the
 // question, and a value read back out of the same table it was written to cannot answer it.
 const WANT = {
-  turn:     { 'trichoderma.moveSpeed': 3.0, 'nematodes.crawlSpeed': 8.0,
-              'trichoderma.spreadDepthPerTurn': 12 },
-  realtime: { 'trichoderma.moveSpeed': 1.5, 'nematodes.crawlSpeed': 1.0,
-              'trichoderma.spreadDepthPerTurn': 3 },
+  turn:     { 'trichoderma.moveSpeed': 5.0, 'nematodes.crawlSpeed': 8.0,
+              'trichoderma.spreadDepthPerTurn': 12, 'trichoderma.leavesPerRound': 0.85 },
+  realtime: { 'trichoderma.moveSpeed': 2.5, 'nematodes.crawlSpeed': 1.0,
+              'trichoderma.spreadDepthPerTurn': 3, 'trichoderma.leavesPerRound': 0.85 },
 };
+// leavesPerRound is the one rate that is the SAME in both tables, and that is deliberate: it was
+// set from an OUTCOME ("a 5-cell pile in 6 rounds") rather than from a speed, and a step is one
+// action in turn-based and one tick in real time. Pinned in both so a future "fix one mode's
+// number" has to notice.
+const PILE_STEPS = 6;      // steps a cloud parked on a 5-cell pile needs to clear it, both modes
 // 1 = the configured depth is REAL. Below 1 it CAPS the advance at a geometric ~1/(1-p) rings
 // no matter how big the depth is — see the assertions at the end.
 const SPREAD_CHANCE = 1;
@@ -85,6 +90,7 @@ const readTable = (page) => page.evaluate(() => {
   const c = window.__game.state.config;
   return { mode: c.mode,
            'trichoderma.moveSpeed': c.trichoderma.moveSpeed,
+           'trichoderma.leavesPerRound': c.trichoderma.leavesPerRound,
            'nematodes.crawlSpeed': c.nematodes.crawlSpeed,
            'trichoderma.spreadDepthPerTurn': c.trichoderma.spreadDepthPerTurn,
            'trichoderma.firstTouchRings': c.trichoderma.firstTouchRings,
@@ -1424,6 +1430,61 @@ for (const [label, hash] of [['turn-based', '#dev,turn'], ['real time', '#dev']]
   ok(`${label}: ...not the cause-blind "ran out of cards" line`,
      !/ran out of playable cards/i.test(shown || ''), (shown || '').slice(0, 90));
   await dp.close();
+}
+
+
+// ---- 13. A CLOUD CLEARS A 5-CELL PILE IN SIX STEPS --------------------------
+// leavesPerRound was set from this OUTCOME rather than from a rate ("clear a 5-cell pile in 6
+// rounds"), so the outcome is what has to be asserted — the number in the table is just the
+// current way of reaching it. Cells are eaten WHOLE out of an accumulating budget, so the arithmetic
+// is not simply 5/rate: the window that lands on exactly 6 is [0.834, 0.999], and 1.0 would finish
+// on the 5th step.
+for (const [label, hash] of [['turn-based', '#dev,turn'], ['real time', '#dev']]) {
+  const ep = await boot(await b.newContext({viewport:{width:1400,height:800}}), base + '/index.html' + hash);
+  const eat = await ep.evaluate(() => {
+    const G = window.__game, s = G.state, sub = s.substrate, net = s.active;
+    const t = s.config.trichoderma;
+    s.clouds.length = 0; s.nematodes.length = 0; if (s.ants) s.ants.length = 0;
+    for (const c of sub.cells) { c.nutrient = 0; c.maxNutrient = 0; c.foodKind = ''; c.colonized = 0; c.trich = 0; c.energyPerNutrient = null; }
+    sub.foodPiles = [];
+    s.runOver = false; s.winPending = false; net.alive = true; net.energy = 1e6; net.water = 999;
+    t.respawnChance = 0; s.config.nematodes.respawnChance = 0;
+    // Open ground, clear of rock, so the pile is the full diamond and the cloud sits on all of it.
+    let spot = null;
+    for (let col = 10; col < sub.cols - 10 && !spot; col++)
+      for (let row = 6; row < sub.rows - 6 && !spot; row++) {
+        let okc = true;
+        for (let dr = -3; dr <= 3 && okc; dr++) for (let dc = -3; dc <= 3 && okc; dc++) {
+          const c = sub.cellAt(col + dc, row + dr);
+          if (!c || c.rock || c.water || sub.rockNear(col + dc, row + dr, 1.5)) okc = false;
+        }
+        if (okc) spot = { col, row };
+      }
+    if (!spot) return { err: 'no open ground' };
+    sub.injectFoodPile(spot.col, spot.row, 1, 6, 50, 'normal');     // diamond r=1 → 5 cells
+    const pile = sub.foodPiles[0];
+    const left = () => pile.cells.reduce((a, i) => a + (sub.cells[i] ? sub.cells[i].nutrient : 0), 0);
+    const n0 = left(), cells = pile.cells.length;
+    // PIN THE CLOUD. tickWorld creeps the clouds BEFORE they eat, so a drifting cloud slides off
+    // the pile and the count measures its walk instead of its appetite.
+    const speed = t.moveSpeed; t.moveSpeed = 0;
+    const ctr = sub.cellCenter(spot.col, spot.row);
+    const mk = () => ({ cx: ctr.x, cy: ctr.y, r: 1.05, strength: 1, dying: false, heading: null });
+    s.clouds.push(mk());
+    let steps = 0;
+    for (let i = 0; i < 200 && left() > 0; i++) {
+      G.tickWorld(s); steps++;
+      if (!s.clouds.length) s.clouds.push(mk());   // it never touches the colony here, but be safe
+    }
+    t.moveSpeed = speed;
+    return { cells, n0, steps, left: left(), rate: t.leavesPerRound };
+  });
+  ok(`${label}: the pile was the full 5 cells`, !eat.err && eat.cells === 5 && eat.n0 === 250,
+     eat.err || `${eat.cells} cells, ${eat.n0} nutrient`);
+  ok(`${label}: a cloud clears a 5-cell pile in ${PILE_STEPS} steps`,
+     !eat.err && eat.steps === PILE_STEPS && eat.left === 0,
+     eat.err || `${eat.steps} steps at leavesPerRound ${eat.rate}, ${eat.left} nutrient left`);
+  await ep.close();
 }
 
 await b.close(); srv.close();

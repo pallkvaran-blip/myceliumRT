@@ -97,7 +97,8 @@ is invisible from inside either mode. **Every retune has to move BOTH by the sam
 
 | | turn (per action) | real time (per tick) |
 |---|---|---|
-| `trichoderma.moveSpeed` | 1.5 → **3.0** | 0.75 → **1.5** |
+| `trichoderma.moveSpeed` | 1.5 → 3.0 → **5.0** | 0.75 → 1.5 → **2.5** |
+| `trichoderma.leavesPerRound` | 0.22 → **0.85** | 0.175 → **0.85** — the ONE rate that is the same in both |
 | `nematodes.crawlSpeed` | 3.0 → 6.0 → **8.0** | 0.375 → 0.75 → **1.0** |
 | `trichoderma.spreadDepthPerTurn` | 6 → 18 → 40 → 16.5 → **12** (= 4 steps) | 1.5 → 4.5 → 10 → 4.125 → **3** |
 | `trichoderma.infectionSpreadChance` | **1** — see below, this one is a trap | |
@@ -106,6 +107,21 @@ is invisible from inside either mode. **Every retune has to move BOTH by the sam
 | `trichoderma.firstTouchRadius` | **1.5** cells — the breach DISC (one value, both modes) | |
 | `trichoderma.rotLifeTurns` | 3 → **2** steps, then the strand falls away | |
 | `nematodes.reach` | 0.7 → **1.4** cells | |
+
+**A RATE SET FROM AN OUTCOME MAY BE THE SAME IN BOTH TABLES.** `leavesPerRound` is 0.85 in both,
+and that is not an oversight: the owner set it as *"clear a 5-cell pile in 6 rounds"*, and a step is
+one action in turn-based and one tick in real time — so the same number is what produces the same
+outcome. Every other rate scales, because every other rate was given as a speed.
+
+- **Cells are eaten WHOLE out of an accumulating budget** (capped at 2), so the arithmetic is not
+  5/rate: the window that lands on exactly 6 steps is **[0.834, 0.999]**, and 1.0 finishes on the
+  5th. `threat-check` asserts the OUTCOME (6 steps, measured, both modes) as well as the number, so
+  a future retune has to keep the thing that was actually asked for.
+- **"Round" is a trap here.** In turn-based a round IS one action, but in real time
+  `cards.roundSeconds` is 10 s = 20 ticks — so "6 rounds" read literally would be 60 s, i.e. SLOWER
+  than the 14.5 s it replaced. The unit that makes "increase their eating speed" true in both modes
+  is the STEP.
+- In wall clock the real-time swing is large: a 5-cell pile now goes in **3 s** where it took 14.5.
 
 **A one-off burst is NOT in `MODE_TUNING`; a rate is.** 20 rings is 20 rings whether the step
 is a player action or a 500 ms tick — unlike a rate, a single event doesn't scale with
@@ -446,7 +462,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1374 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
+**1380 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
 three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
 **Run them; don't verify by re-reading your own diff.**
 

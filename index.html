@@ -2048,11 +2048,13 @@ const CONFIG = {
     cloudRadiusMax: 1.3,         // HARD cap — a cloud never grows big, however much it eats
     growthPerEat: 0.02,          // radius gained per action it's eating (tiny — stays ~the same size)
     sightRadius: 500,            // how far (world units) a cloud senses food/you and heads for it; rock blocks line of sight (SLIDER); shown on screen as a soft ring
-    moveSpeed: 1.5,              // cells per tick a cloud creeps toward its nearest target — RT: 1.5 → 0.75 → 1.5 (DOUBLED: a cloud covers twice the ground per step) (SLIDER)
+    moveSpeed: 2.5,              // cells per tick a cloud creeps toward its nearest target — RT: 1.5 → 0.75 → 1.5 → 2.5; turn-based 5.0 (SLIDER)
     consumeReachMult: 2.2,       // cells within (cloud radius × this) are eligible to be eaten each action
-    leavesPerRound: 0.175,       // AVERAGE food cells ("leaves") a cloud clears per round/tick (may be fractional —
-                                 //   accumulated in a per-cloud budget, nearest cells first). RT: eating slowed 30%
-                                 //   (was 0.25), so a typical ~5-cell pile now takes ~14 s of mould contact to devour.
+    leavesPerRound: 0.85,        // AVERAGE food cells ("leaves") a cloud clears per round/tick (may be fractional —
+                                 //   accumulated in a per-cloud budget, capped at 2, nearest cells first). Owner-set
+                                 //   from an OUTCOME: "clear a 5-cell pile in 6 rounds". Measured at 6 steps in both
+                                 //   modes — 6 actions turn-based, 6 ticks (3 s) in real time, against 23 and 29
+                                 //   before. MODE_TUNING overrides this literal; both tables carry 0.85.
     // A cloud that reaches you is SPENT, and it goes on the SAME turn — it does not linger on
     // top of the colony it just infected waiting for you to act again. Owner's words: "have the
     // trych disappear on the same turn that it infects. but have it fade away, not just disappear
@@ -2518,8 +2520,13 @@ const SLIDERS = [
 const MODE_TUNING = {
   turn: {
     'realtime.enabled': false,
-    'trichoderma.moveSpeed': 3.0,          // cells per ACTION (doubled from 1.5)
-    'trichoderma.leavesPerRound': 0.22,
+    'trichoderma.moveSpeed': 5.0,          // cells per ACTION — 1.5 → 3.0 → 5.0 (owner)
+    // EATING IS SET FROM AN OUTCOME, not a rate: "clear a 5-cell pile in 6 rounds". Cells are
+    // eaten WHOLE out of an accumulating budget, so the rate that lands exactly on 6 is anything
+    // in [0.834, 0.999] — 5/6 rounds up to 6, and 1.0 would finish on the 5th. 0.85 sits in the
+    // middle of that window. Both tables carry the SAME number here, unlike every other rate,
+    // because the instruction was in steps and a step is one action here and one tick there.
+    'trichoderma.leavesPerRound': 0.85,    // 0.22 → 0.85 (owner: a 5-cell pile in 6 steps)
     'trichoderma.spreadDepthPerTurn': 12,  // rings per ACTION = 4 card steps, level with grow-4
                                            //   6 → 18 → 40 → 16.5 → 12 (40 was never reached:
                                            //   infectionSpreadChance capped it at ~6)
@@ -2530,8 +2537,18 @@ const MODE_TUNING = {
   },
   realtime: {
     'realtime.enabled': true,
-    'trichoderma.moveSpeed': 1.5,          // cells per 500 ms tick (doubled from 0.75)
-    'trichoderma.leavesPerRound': 0.175,
+    'trichoderma.moveSpeed': 2.5,          // cells per 500 ms tick — HALF the turn table's 5.0,
+                                           //   the ratio these two have always held for the mould.
+                                           //   Matching 5.0 outright would be 10 cells/second, i.e.
+                                           //   across the whole 82-cell map in eight seconds.
+    'trichoderma.leavesPerRound': 0.85,    // same as turn — see the note there. In wall clock this
+                                           //   is a big swing: a 5-cell pile now goes in 6 ticks
+                                           //   (3 s) where it took 29 (14.5 s).
+                                           //   NOTE a "round" in RT is cards.roundSeconds = 10 s
+                                           //   (20 ticks). Read literally, "6 rounds" would be 60 s
+                                           //   here — SLOWER than before, which cannot be what
+                                           //   "increase their eating speed" meant. So the unit is
+                                           //   the STEP, which is exactly a round in turn-based.
     'trichoderma.spreadDepthPerTurn': 3,   // rings per tick; the turn table's 12 at the same 4:1
                                            //   ratio the two tables have always held
     'nematodes.crawlSpeed': 1.0,           // 0.375 → 0.75 → 1.0, held to the same x1.33 the turn table took
