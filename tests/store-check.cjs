@@ -1,4 +1,5 @@
-/* The campaign STORE: four for-sale colonies + five permanent upgrade tracks, bought with Spores.
+/* The campaign store, which IS the species-selection screen: three colonies you start with,
+ * four for sale, six permanent upgrade tracks, all bought with Spores.
  *
  * What this is really guarding, in the order the mistakes are easy to make:
  *   - THE MONEY. A purchase must debit exactly the listed price, once, and must be refused when
@@ -11,9 +12,10 @@
  *   - ADDITIVE ONLY. At zero upgrades every one of these paths must behave exactly as it did
  *     before the store existed. Engines staying in the main death-carry pool until the engine
  *     track is bought is the case that needed the negative control.
- *   - The SCREEN. It shares the picker's shell rule (`#speciesSelect, #ssStore`), so an id-only
- *     rename in the stylesheet would leave the store unstyled with every element still present —
- *     hence the computed-style assertion rather than a "did the div appear?" one.
+ *   - The SCREEN's shape, which is now the owner's spec rather than an accident: THREE colonies
+ *     you own and FOUR for sale, both visible from the start, no "?" tiles and no tier rows; a
+ *     Select button UNDER each tile; and a detail sheet with NO buttons but the X. Each of those
+ *     is a thing a later refactor could quietly undo, so each is asserted directly.
  *
  * Runs entirely on the picker (no run needed), so it is seconds rather than minutes.
  */
@@ -38,6 +40,8 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   const errs = []; page.on('pageerror', (e) => errs.push(String(e && e.message)));
   page.on('console', (m) => { if (m.type() === 'error') errs.push('console:' + m.text()); });
+  page.on('requestfailed', (r) => errs.push('reqfail:' + r.url().slice(-70)));
+  page.on('response', (r) => { if (r.status() >= 400) errs.push('http' + r.status() + ':' + r.url().slice(-70)); });
   // Never let a probe write to the live leaderboard.
   await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
 
@@ -45,7 +49,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   await page.goto(base + '/index.html#dev', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#loadscreen.ld-ready', { timeout: 25000 }).catch(() => {});
   await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
-  await page.waitForFunction(() => window.__game && window.__game.store, null, { timeout: 25000 });
+  await page.waitForFunction(() => window.__game && window.__game.store && window.__game.showPicker, null, { timeout: 25000 });
   for (let i = 0; i < 4 && await page.$('#levelIntro'); i++) { await page.mouse.click(720, 450); await sleep(1000); }
 
   const wipe = () => page.evaluate(() => window.__game.store.reset());
@@ -56,9 +60,16 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     return S.upgrades.map((u) => ({ id: u.id, steps: u.costs.length, step: u.step,
       rising: u.costs.every((c, i) => i === 0 || c > u.costs[i - 1]) }));
   });
-  ok('five upgrade tracks, the ones the owner listed',
-     shape.map((s) => s.id).join(',') === 'water,phosphorus,carryCards,carryEngines,lives',
+  // Order matters as well as membership: the three resource tracks come first, in the game's own
+  // energy / water / phosphorus order, so the store reads in the order of the numbers it raises.
+  ok('six upgrade tracks, in the owner\'s order',
+     shape.map((s) => s.id).join(',') === 'energy,water,phosphorus,carryCards,carryEngines,lives',
      shape.map((s) => s.id).join(','));
+  // The owner set these three by hand; they are the whole point of the last pass.
+  const stepOf = (id) => (shape.find((s) => s.id === id) || {}).step;
+  ok('the resource steps are the ones the owner asked for',
+     stepOf('energy') === 3 && stepOf('water') === 5 && stepOf('phosphorus') === 2,
+     `energy +${stepOf('energy')}, water +${stepOf('water')}, phosphorus +${stepOf('phosphorus')}`);
   ok('every track has at least one step and a per-step value',
      shape.every((s) => s.steps > 0 && s.step > 0), JSON.stringify(shape.map((s) => s.id + ':' + s.steps + 'x' + s.step)));
   // Not a taste judgement: a flat price ladder means the last step of a track costs what the
@@ -135,8 +146,31 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('a store purchase reveals the colony as well as owning it', spBuy.revealed === true, JSON.stringify(spBuy));
   ok('buying an owned colony again is free and harmless',
      spBuy.again === true && spBuy.balance === 0, `ok=${spBuy.again}, balance ${spBuy.balance}`);
-  // isPlayable = revealed AND purchased, which is what the picker's tier row reads.
+  // isPlayable = revealed AND purchased, which is what "Your colonies" reads.
   ok('a bought colony is playable from the species picker', spBuy.playable === true, spBuy.id);
+
+  // With the tier rows retired, REVEALING a species no longer means the screen can offer it —
+  // a level clear still walks the old ladder, and the troll rock still reveals Magic Mushroom.
+  // Both announcements filter on `isObtainable`, so a reward is never promised with nowhere to
+  // collect it. This is the assertion that the dead end stays closed.
+  const reach = await page.evaluate(() => {
+    const S = window.__game.store;
+    S.reset();
+    const by = (id) => S.speciesById(id);
+    const before = { starter: S.obtainable(by('marasmius')), forSale: S.obtainable(by('cortinarius')),
+                     tierOnly: S.obtainable(by('suillus')), rockOnly: S.obtainable(by('psilocybe')) };
+    // A tier species the player ALREADY OWNS stays reachable — it just has no row of its own.
+    const p = JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}');
+    p.purchased = p.purchased || {}; p.revealedSpecies = p.revealedSpecies || {};
+    p.purchased.suillus = true; p.revealedSpecies.suillus = true;
+    localStorage.setItem('mycelium.progress.v2', JSON.stringify(p));
+    return { ...before, ownedTier: S.obtainable(by('suillus')) };
+  });
+  ok('a starter and a for-sale colony are obtainable',
+     reach.starter === true && reach.forSale === true, JSON.stringify(reach));
+  ok('a colony with no row and no price is NOT announced as a reward',
+     reach.tierOnly === false && reach.rockOnly === false, JSON.stringify(reach));
+  ok('a tier colony already owned stays obtainable', reach.ownedTier === true, JSON.stringify(reach));
 
   // ---- the EFFECTS, read where the run loop reads them ----------------------
   const res = await page.evaluate(() => {
@@ -145,23 +179,24 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const base = S.speciesById('marasmius');
     const before = { ...(base.res || {}) };
     S.credit(1e6);
-    S.buy('water'); S.buy('water'); S.buy('phosphorus');
+    S.buy('water'); S.buy('water'); S.buy('phosphorus'); S.buy('energy'); S.buy('energy');
     const eff = S.effectiveSpecies(base).res;
     return { before, after: { water: eff.water, phosphorus: eff.phosphorus, energy: eff.energy },
-             wBonus: S.value('water'), pBonus: S.value('phosphorus'),
-             tableUntouched: { water: base.res.water, phosphorus: base.res.phosphorus } };
+             wBonus: S.value('water'), pBonus: S.value('phosphorus'), eBonus: S.value('energy'),
+             tableUntouched: { water: base.res.water, phosphorus: base.res.phosphorus, energy: base.res.energy } };
   });
   ok('bought water reaches the run as starting water',
      res.after.water === res.before.water + res.wBonus, `${res.before.water} + ${res.wBonus} -> ${res.after.water}`);
   ok('bought phosphorus reaches the run as starting phosphorus',
      res.after.phosphorus === (res.before.phosphorus || 0) + res.pBonus,
      `${res.before.phosphorus || 0} + ${res.pBonus} -> ${res.after.phosphorus}`);
-  ok('the species\' own energy is untouched by the store', res.after.energy === res.before.energy,
-     `${res.before.energy} -> ${res.after.energy}`);
+  ok('bought energy reaches the run as starting energy',
+     res.after.energy === res.before.energy + res.eBonus, `${res.before.energy} + ${res.eBonus} -> ${res.after.energy}`);
   // The bonus is applied to a COPY at seed time, never written into SPECIES — otherwise it
   // compounds every run and the table stops describing the colony.
   ok('the species table itself is never mutated',
-     res.tableUntouched.water === res.before.water && res.tableUntouched.phosphorus === res.before.phosphorus,
+     res.tableUntouched.water === res.before.water && res.tableUntouched.phosphorus === res.before.phosphorus
+       && res.tableUntouched.energy === res.before.energy,
      JSON.stringify(res.tableUntouched));
 
   const zero = await page.evaluate(() => {
@@ -169,7 +204,8 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     S.reset();
     const base = S.speciesById('marasmius');
     const eff = S.effectiveSpecies(base);
-    return { same: eff.res.water === base.res.water && eff.res.phosphorus === (base.res.phosphorus || 0),
+    return { same: eff.res.water === base.res.water && eff.res.phosphorus === (base.res.phosphorus || 0)
+                   && eff.res.energy === base.res.energy,
              bonuses: S.bonuses() };
   });
   ok('with nothing bought a species opens exactly as it always did',
@@ -218,118 +254,154 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   }
 
   // ---- the screen ----------------------------------------------------------
+  // ONE screen: the colonies you own, the colonies for sale, and the upgrades.
   await page.evaluate(() => {
     window.__game.store.reset();
     window.__game.store.credit(12000);
-    document.querySelectorAll('#ssStore, #speciesSelect, #loadoutSelect').forEach((n) => n.remove());
-    window.__game.showStore({});
+    document.querySelectorAll('#speciesSelect, #ssStore, #loadoutSelect').forEach((n) => n.remove());
+    window.__game.showPicker();
   });
-  await sleep(900);
+  await page.waitForSelector('#speciesSelect #ssUpg .ss-upg', { timeout: 15000 });
+  await sleep(600);
   const ui = await page.evaluate(() => {
-    const root = document.getElementById('ssStore');
+    const root = document.getElementById('speciesSelect');
     if (!root) return { missing: true };
-    const cs = getComputedStyle(root);
-    const ref = document.createElement('div'); ref.id = 'speciesSelect'; ref.style.visibility = 'hidden';
-    document.body.appendChild(ref);
-    const rcs = getComputedStyle(ref);
-    const shared = { pos: cs.position === rcs.position, bg: cs.backgroundColor === rcs.backgroundColor,
-      font: cs.fontFamily === rcs.fontFamily, color: cs.color === rcs.color };
-    ref.remove();
-    const btns = [...root.querySelectorAll('.ss-upg-btn')];
+    const slots = (sel) => [...root.querySelectorAll(sel + ' .ss-slot')];
+    const own = slots('#ssAvail'), sale = slots('#ssForSale');
+    const btnText = (l) => l.map((sl) => (sl.querySelector('.ss-selbtn') || {}).textContent.trim().replace(/\s+/g, ' '));
     return {
-      shared,
       title: !!root.querySelector('.ss-title canvas'),
-      wallet: (root.querySelector('#ssStWallet') || {}).textContent,
-      speciesTiles: root.querySelectorAll('#ssStSpecies .ss-card').length,
-      priced: root.querySelectorAll('#ssStSpecies .ss-buybadge').length,
-      tiles: root.querySelectorAll('.ss-upg').length,
-      pips: root.querySelectorAll('.ss-upg .ss-upg-pip').length,
-      buyable: btns.filter((b) => !b.disabled).length,
-      back: !!root.querySelector('#ssStBack'),
+      wallet: (root.querySelector('#ssWallet') || {}).textContent,
+      // The owner's spec, in numbers.
+      owned: own.length, forSale: sale.length,
+      ownNames: own.map((sl) => sl.querySelector('.ss-sp-name').textContent),
+      ownBtns: btnText(own), saleBtns: btnText(sale),
+      // Every tile has exactly one commit button, under its card, not inside it.
+      buttonsUnderCards: [...own, ...sale].every((sl) => {
+        const c = sl.querySelector('.ss-card'), b = sl.querySelector('.ss-selbtn');
+        return !!c && !!b && !c.contains(b) &&
+          b.getBoundingClientRect().top >= c.getBoundingClientRect().bottom - 1;
+      }),
+      // Retired with the tier rows: no "?" tiles, no "Complete level N" headers.
+      mystery: root.querySelectorAll('.ss-lock-card').length,
+      tierRows: [...root.querySelectorAll('.ss-lk')].filter((n) => /complete level|\?/i.test(n.textContent)).length,
+      headers: [...root.querySelectorAll('.ss-lk')].map((n) => n.textContent),
+      tracks: root.querySelectorAll('#ssUpg .ss-upg').length,
+      pips: root.querySelectorAll('#ssUpg .ss-upg-pip').length,
+      buyable: [...root.querySelectorAll('.ss-upg-btn')].filter((b) => !b.disabled).length,
+      storeScreen: !!document.getElementById('ssStore'),
     };
   });
-  ok('the store screen opens', !ui.missing);
-  // The whole point of the shared shell rule: if the stylesheet stops naming #ssStore the
-  // markup is all still there and the screen is unstyled, which no element count would catch.
-  ok('it inherits the species screen\'s shell, not a copy of it',
-     ui.shared && ui.shared.pos && ui.shared.bg && ui.shared.font && ui.shared.color, JSON.stringify(ui.shared));
-  ok('it grows its own mycelium wordmark, like the picker', ui.title === true);
+  ok('the species screen opens', !ui.missing);
+  ok('there is no separate store screen any more', ui.storeScreen === false);
+  ok('it still grows its mycelium wordmark', ui.title === true);
   ok('the wallet shows the balance', /12000/.test(ui.wallet || ''), ui.wallet);
-  ok('four colony tiles, each with a Spore price', ui.speciesTiles === 4 && ui.priced === 4,
-     `${ui.speciesTiles} tiles, ${ui.priced} priced`);
-  ok('five upgrade tiles', ui.tiles === 5, String(ui.tiles));
+  // The owner's spec: "the campaign mode only has a total of 3 species at start and then 4 more
+  // available for purchase (viewable from the start)".
+  ok('three colonies to start with', ui.owned === 3, `${ui.owned}: ${ui.ownNames.join(', ')}`);
+  ok('four more for sale, visible from the start', ui.forSale === 4, String(ui.forSale));
+  ok('every owned colony has a Select button', ui.ownBtns.length === 3 && ui.ownBtns.every((t) => t === 'Select'),
+     ui.ownBtns.join(' | '));
+  ok('every for-sale colony has an Unlock button with a price',
+     ui.saleBtns.length === 4 && ui.saleBtns.every((t) => /^Unlock\s*\d+$/.test(t)), ui.saleBtns.join(' | '));
+  // "below each is a Select button" — geometry, not just presence.
+  ok('the button sits BELOW its card, not inside it', ui.buttonsUnderCards === true);
+  ok('no "?" tiles remain', ui.mystery === 0, String(ui.mystery));
+  ok('no "Complete level N" tier rows remain', ui.tierRows === 0, ui.headers.join(' / '));
+  ok('three sections: owned, for sale, upgrades',
+     ui.headers.join('|') === 'Your colonies|New colonies|Colony upgrades', ui.headers.join(' / '));
+  ok('six upgrade tiles', ui.tracks === 6, String(ui.tracks));
   ok('every tile draws one pip per step it has',
      ui.pips === shape.reduce((a, s) => a + s.steps, 0), `${ui.pips} pips vs ${shape.reduce((a, s) => a + s.steps, 0)} steps`);
   ok('affordable steps are clickable', ui.buyable > 0, `${ui.buyable} buyable at 12000 Spores`);
-  ok('there is a way back to the species screen', ui.back === true);
 
-  // A section hint must sit in ITS OWN row label. `.ss-hint` is declared twice in the
-  // stylesheet and the later rule (the mystery card's unlock line) wins with position:absolute
-  // + bottom:9px — so using that class here silently stacked both hints on top of each other
-  // at the foot of the console, past the Back button. Only a rendered frame showed it, which is
-  // why the geometry is asserted rather than the presence of the elements.
+  // A section hint must sit in ITS OWN row label. `.ss-hint` used to be declared twice in the
+  // stylesheet, and the later rule (the "?" tile's unlock line) won with position:absolute +
+  // bottom:9px — so using that class in a header silently stacked every hint on top of the
+  // others at the foot of the console. Both those rules are gone now; the geometry stays
+  // asserted, because no element count would have caught it.
   const hints = await page.evaluate(() => {
-    const root = document.getElementById('ssStore');
-    const out = [...root.querySelectorAll('.ss-rowlabel')].map((row) => {
+    const root = document.getElementById('speciesSelect');
+    return [...root.querySelectorAll('.ss-rowlabel')].map((row) => {
       const h = row.querySelector('.ss-rowhint, .ss-hint');
       if (!h) return null;
       const rb = row.getBoundingClientRect(), hb = h.getBoundingClientRect();
-      return { text: h.textContent.trim().slice(0, 24), inside: hb.top >= rb.top - 2 && hb.bottom <= rb.bottom + 2,
-               top: Math.round(hb.top), h: Math.round(hb.height) };
+      return { text: h.textContent.trim().slice(0, 22), inside: hb.top >= rb.top - 2 && hb.bottom <= rb.bottom + 2,
+               top: Math.round(hb.top) };
     }).filter(Boolean);
-    return out;
   });
-  ok('each section hint sits inside its own header row', hints.length === 2 && hints.every((h) => h.inside),
+  ok('each section hint sits inside its own header row', hints.length === 3 && hints.every((h) => h.inside),
      JSON.stringify(hints));
-  ok('the two hints do not land on top of one another',
-     hints.length === 2 && Math.abs(hints[0].top - hints[1].top) > 20, JSON.stringify(hints.map((h) => h.top)));
+  ok('the hints do not land on top of one another',
+     new Set(hints.map((h) => h.top)).size === hints.length, JSON.stringify(hints.map((h) => h.top)));
 
-  // The buy sheet must quote the STORE's price, not the tier ladder's — a store colony is
-  // bought without clearing the tier that reveals it, so TIER_COST has no bearing here and
-  // showing it would take the wrong number of Spores.
+  // ---- the detail sheet: no buttons but the X ------------------------------
   const sheet = await page.evaluate(async () => {
-    const S = window.__game.store;
-    const root = document.getElementById('ssStore');
-    const sp = S.species()[0];
-    root.querySelector('#ssStSpecies .ss-card').click();
-    await new Promise((r) => setTimeout(r, 250));
-    const n = document.querySelector('#ssIBuy .ss-buyn');
-    const shown = n ? +n.textContent.trim() : null;
-    document.querySelector('#ssIClose').click();
-    return { shown, store: S.speciesCost(sp), id: sp.id };
+    const root = document.getElementById('speciesSelect');
+    root.querySelector('#ssAvail .ss-card').click();
+    await new Promise((r) => setTimeout(r, 350));
+    const wrap = document.getElementById('ssInspector');
+    const open = !!(wrap && wrap.classList.contains('open'));
+    // Every button inside the sheet, and whether the actions row survived at all.
+    const btns = wrap ? [...wrap.querySelectorAll('button')].map((b) => (b.id || b.className) + ':' + b.textContent.trim().slice(0, 14)) : [];
+    const acts = wrap ? wrap.querySelector('#ssIActions') : null;
+    const actsShown = !!(acts && acts.offsetParent !== null);
+    const name = wrap ? wrap.querySelector('#ssIName').textContent : null;
+    const hand = wrap ? wrap.querySelectorAll('#ssIHand .ss-gc').length : 0;
+    const res = wrap ? wrap.querySelectorAll('#ssIRes .ss-respill').length : 0;
+    return { open, btns, actsShown, name, hand, res };
   });
-  ok('the buy sheet quotes the store\'s own price', sheet.shown === sheet.store,
-     `${sheet.id}: sheet ${sheet.shown} vs store ${sheet.store}`);
+  ok('pressing a colony opens its details', sheet.open === true, sheet.name);
+  // The owner's ask, and the one most likely to be undone by a later "helpful" addition.
+  ok('the details carry NO buttons but the X',
+     sheet.btns.length === 1 && /ssIClose/.test(sheet.btns[0]), sheet.btns.join(' | ') || '(none)');
+  ok('the actions row is gone rather than merely empty', sheet.actsShown === false);
+  ok('the details still show the hand and the starting resources',
+     sheet.hand > 0 && sheet.res > 0, `${sheet.hand} cards, ${sheet.res} resource pills`);
 
-  // Clicking a real button, on the path a player takes.
+  const closed = await page.evaluate(async () => {
+    document.querySelector('#ssIClose').click();
+    await new Promise((r) => setTimeout(r, 350));
+    return !document.querySelector('#ssInspector.open');
+  });
+  ok('the X closes it', closed === true);
+
+  // ---- buying through the real buttons -------------------------------------
   const clicked = await page.evaluate(async () => {
     const S = window.__game.store;
     const before = S.level('water');
     const bal0 = S.balance();
-    document.querySelector('#ssStore .ss-upg-btn[data-upg="water"]').click();
-    await new Promise((r) => setTimeout(r, 120));
-    return { before, after: S.level('water'),
-             spent: bal0 - S.balance(),
-             pipsOn: document.querySelectorAll('#ssStore .ss-upg.water .ss-upg-pip.on').length,
-             wallet: document.querySelector('#ssStWallet').textContent };
+    document.querySelector('#speciesSelect .ss-upg-btn[data-upg="water"]').click();
+    await new Promise((r) => setTimeout(r, 150));
+    return { before, after: S.level('water'), spent: bal0 - S.balance(),
+             pipsOn: document.querySelectorAll('#speciesSelect .ss-upg.water .ss-upg-pip.on').length,
+             wallet: document.querySelector('#ssWallet').textContent };
   });
   ok('clicking Buy buys one step and re-renders the tile',
      clicked.after === clicked.before + 1 && clicked.pipsOn === clicked.after, JSON.stringify(clicked));
   ok('the wallet on screen follows the purchase',
      clicked.wallet.includes(String(12000 - clicked.spent)), `${clicked.wallet} after spending ${clicked.spent}`);
 
-  // A diagnostic frame, not an assertion — .catch'd and timed out, because a screenshot against
-  // a live rAF loop can otherwise wait forever and take the whole tally with it (CLAUDE.md).
+  // Unlocking a colony MOVES it: out of New colonies and up into Your colonies, where its button
+  // is now a Select. That is the whole shape of the merged screen in one assertion.
+  const moved = await page.evaluate(async () => {
+    const root = document.getElementById('speciesSelect');
+    const btn = root.querySelector('#ssForSale .ss-selbtn');
+    const nameBefore = root.querySelector('#ssForSale .ss-sp-name').textContent;
+    btn.click();
+    await new Promise((r) => setTimeout(r, 200));
+    const names = (sel) => [...root.querySelectorAll(sel + ' .ss-sp-name')].map((n) => n.textContent);
+    const own = names('#ssAvail');
+    return { nameBefore, owned: own.length, has: own.includes(nameBefore), forSale: names('#ssForSale').length,
+             btn: (root.querySelector('#ssAvail .ss-slot:nth-child(4) .ss-selbtn') || {}).textContent };
+  });
+  ok('unlocking a colony moves it into Your colonies with a Select button',
+     moved.has === true && moved.owned === 4 && moved.forSale === 3,
+     `${moved.nameBefore}: owned ${moved.owned}, for sale ${moved.forSale}`);
+
   await page.screenshot({ path: path.join(__dirname, '.artifacts', 'store.png'),
     animations: 'disabled', timeout: 8000 }).catch(() => {});
   console.log('  shot → tests/.artifacts/store.png');
-
-  const back = await page.evaluate(async () => {
-    document.querySelector('#ssStBack').click();
-    await new Promise((r) => setTimeout(r, 200));
-    return !document.getElementById('ssStore');
-  });
-  ok('Back closes the store', back === true);
 
   await wipe();
   ok('no page errors', errs.length === 0, errs.slice(0, 3).join(' | '));

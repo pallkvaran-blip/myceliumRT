@@ -517,7 +517,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1529 assertions across 24 checks**, of which `traced` is 818 (one map's worth each). Plus the
+**1543 assertions across 24 checks**, of which `traced` is 818 (one map's worth each). Plus the
 PROBES and PERF TOOLS, which print and never fail — see Loose ends, the Performance section and
 tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -534,7 +534,7 @@ real-time flakes, 1 `rt` worm flake (all four in Loose ends). Note the arithmeti
 sweep. Per-check, measured: traced 818 · threat 114 · edit 116 · rt 69 · enemy 52 · species 42 ·
 mode 33 · harvest 28 · level 27 · scale 26 · fixes 25 · hs 20 · mould 20 · tut 19 · boot 16 ·
 core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 40**, measured on its own run rather than in a sweep.
+plus **store 54**, measured on its own run rather than in a sweep.
 
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
@@ -1450,43 +1450,91 @@ placed threats, and `placeRockface()` skips any level with a `levelDef`. The own
 three by hand. So a fresh trace is UNPLAYABLE by design, and `traced-check`'s food-reachability
 assertion passes on 0 of 0 — correct, and saying nothing until food is placed.
 
-## The store (campaign meta-progression)
+## The store, which IS the species-selection screen
 
-**Built**, for the new campaign mode: four colonies for sale plus five permanent upgrade
-tracks, all bought with Spores. Reached from a **Store ▸ button next to the wallet on the
-species picker**, and it opens **OVER** that screen (`#ssStore`, z-index 1005) rather than
-replacing it — so Back is a removal and the picker underneath only needs its `refresh()`,
-which it owes because a colony bought here becomes playable in its tier row.
+**Built**, for the new campaign mode. **ONE SCREEN** (owner's ask — an earlier version had a
+separate `#ssStore` overlay and it was the wrong shape, because everything on it was already
+speaking the picker's vocabulary). `showSpeciesSelect` renders three sections:
 
-- **It is the SAME screen as the picker, not one that resembles it.** `#ssStore` shares the
-  picker's shell rule (`#speciesSelect, #ssStore { … }`), its grown wordmark (`growMyceliumTitle`
-  with `word: 'STORE'`), its wallet chip, its section headers, and — for the four colonies —
-  literally `speciesCard`. Only `.ss-upg*` (the upgrade tile) is new markup, and its per-track
-  accents come from the palette already on the shell; a shop inventing a sixth hue is how a
-  screen stops matching. `store-check` asserts the shell by **computed style**, because an
-  id-only rename in the stylesheet leaves every element present and the whole screen unstyled.
-- **`.ss-hint` IS DECLARED TWICE and the later rule wins** — the mystery card's how-to-unlock
-  line, `position:absolute; bottom:9px`, centred, with a `✦` in `::before`. So the earlier
-  row-label version is dead CSS, and reusing the class in a section header stacks every hint on
-  top of the others at the foot of the console, past the Back button. That is what it did first
-  time; `.ss-rowhint` is the live one. Only a rendered frame showed it.
-- **A track is a LIST OF PRICES, not a price × a count.** `costs.length` IS the cap, so adding
-  a step is appending a number, and the rising curve is the only thing stopping one cheap track
-  being the obvious first buy forever. Read a total through **`upgradeValue`**, never as
-  `level × step` at the call site.
+| section | what | the button under each tile |
+|---|---|---|
+| **Your colonies** | `STARTER_SPECIES_IDS` (3) + anything bought | **Select** — starts the run |
+| **New colonies** | `STORE_SPECIES_IDS` (4), minus what's bought | **Unlock ⟨price⟩** |
+| **Colony upgrades** | the six permanent tracks | Buy the next step |
+
+**The campaign's whole roster is 3 + 4, and all seven are visible from the start** (owner,
+verbatim: *"the campaign mode only has a total of 3 species at start and then 4 more available
+for purchase (viewable from the start)"*). So there are **no "?" tiles and no "Complete level N"
+tier rows** — retired on the owner's call, along with `mysteryCard`, `startTag`,
+`tierStartRange`, and their CSS.
+
+- **The tier MACHINERY still exists** in the species module (`LOCKED_TIERS`, `tierSpecies`,
+  `newlyRevealedByClear`, `unlockCost`, `TIER_COST`) and a level clear still walks it. A colony
+  bought before the change is still owned and still appears under **Your colonies** — it just has
+  no row of its own. Moving one of the other eight into the campaign is one entry in
+  `STORE_SPECIES_IDS`.
+- **REVEALING A SPECIES NO LONGER MEANS THE SCREEN CAN OFFER IT, so both announcements filter on
+  `isObtainable`** (starter, or in `STORE_SPECIES_IDS`, or already owned). Retiring the rows left
+  two paths promising a colony with nowhere to collect it: the level-complete "species revealed"
+  card, and the troll rock's `showSpeciesUnlocked` for Magic Mushroom. The reveal is still
+  RECORDED either way, so putting one of them in `STORE_SPECIES_IDS` later brings the whole moment
+  back for a player who already earned it — but **today the rock's popup does not fire** and
+  psilocybe plus the eight tier species are out of reach on a fresh save. That is the accepted
+  cost of 3 + 4; `store-check` asserts the dead end stays closed.
+- **`STARTER_SPECIES_IDS` is a LIST OF IDS, not an `unlock: null` edit.** Clearing a species'
+  `unlock` would silently resize the tier it left, which `tierIndexOf` and `newlyRevealedByClear`
+  both read. `isStarter` short-circuits `isRevealed` AND `isPlayable`, so a starter needs no
+  purchase and no clears whatever its `unlock` says. Placeholders: marasmius, armillaria,
+  pleurotus — swapping them is one line.
+- **THE TILE IS A READER; THE BUTTON UNDER IT COMMITS.** Owner: *"below each is a Select button.
+  As before, you press the species to see the details."* `speciesCard` opens the detail sheet and
+  does nothing else; `speciesSlot` wraps it with the one button that can start a run or spend
+  Spores. Nothing else on the screen starts a run.
+  - **`speciesCard` wires its listener STRAIGHT to the callback**, so `onClick: onRead` hands it
+    the click EVENT, not the species — which presents as *"the detail sheet doesn't open"* (it
+    throws on `species.hand.map`) rather than as a wrong argument. Close over the species.
+- **THE DETAIL SHEET HAS NO BUTTONS BUT THE X** (owner). It used to end in an actions row that
+  changed with the caller — Cancel + Start game, Close + a Locked pill, or a buy row — which made
+  it the place a run began. Read-only means `openSpeciesDetail(species)` takes no options and can
+  be opened from anywhere without the caller saying what it is FOR.
+  - **The start-level stepper went with it** (owner: everything starts on level 1). It was the only
+    control for `startLevelRange`, so the memory colonies now begin on their `defaultStartLevel`;
+    the range helpers are still in the species module if the choice is ever wanted elsewhere.
+- Because it is now one screen there is nothing to share the shell rule with — `#speciesSelect`
+  stands alone again, and `.ss-rowhint` exists rather than `.ss-hint` for a reason recorded at
+  the CSS: `.ss-hint` was **declared twice** and the later rule (the "?" tile's unlock line) won
+  with `position:absolute; bottom:9px`, so a section header using it stacked every hint at the
+  foot of the console. Both those rules are gone; the name isn't coming back. Only a rendered
+  frame showed it.
+
+### The six upgrade tracks
+
+**A track is a LIST OF PRICES, not a price × a count.** `costs.length` IS the cap, so adding a
+step is appending a number, and the rising curve is the only thing stopping one cheap track being
+the obvious first buy forever. Read a total through **`upgradeValue`**, never as `level × step`
+at the call site.
 
 | track | per step | steps | first→last |
 |---|---|---|---|
-| `water` Water Reserves | +10 starting water | 5 | 400 → 3200 |
-| `phosphorus` Phosphate Store | +4 starting phosphorus | 5 | 500 → 3800 |
+| `energy` Carbon Reserves | +3 starting energy | 5 | 450 → 3400 |
+| `water` Water Reserves | +5 starting water | 5 | 400 → 3200 |
+| `phosphorus` Phosphate Store | +2 starting phosphorus | 5 | 500 → 3800 |
 | `carryCards` Spore Memory | +1 basic/event carried out of a dead run | 4 | 600 → 3000 |
 | `carryEngines` Cord Memory | +1 engine carried | 3 | 900 → 3000 |
 | `lives` Sclerotia | +1 retry per run | 3 | 1500 → 5000 |
 
-**EVERY NUMBER, AND ALL FOUR SPECIES, ARE PLACEHOLDERS** — the shape is the owner's ask, the
-economy has been played against nothing. The colonies are four existing roster entries standing
-in (`STORE_SPECIES_IDS`: hydnellum, stropharia, cortinarius, serpula) so the tiles carry real
-art and a real detail sheet; swapping in the real four is that list plus their `SPECIES` entries.
+The three resource tracks come **first, in the game's own energy / water / phosphorus order** —
+the order the HUD, `resPills` and the detail sheet all use, so the store reads in the order of the
+numbers it raises. **The steps are owner-set** (+3 / +5 / +2); the PRICES are still placeholders
+and were not rescaled when water went 10 → 5 and phosphorus 4 → 2, so per-Spore value on those two
+halved. Accents come from the palette the shell already declares — energy takes `--ss-gold`
+because that IS the game's energy colour, so `carryEngines` moved to mint beside `carryCards`
+(they are siblings; the icons tell them apart).
+
+**ALL FOUR COLONIES AND EVERY PRICE ARE PLACEHOLDERS** — the shape is the owner's ask, the economy
+has been played against nothing. The colonies are four existing roster entries standing in
+(`STORE_SPECIES_IDS`: hydnellum, stropharia, cortinarius, serpula) so the tiles carry real art and
+a real detail sheet.
 
 - **`lives` IS SOLD BUT NOT SPENT.** The store banks it and `storeBonuses().lives` reports it;
   nothing consumes one on death. Deliberate: what a retry restores, whether it re-rolls the map,
@@ -1494,10 +1542,11 @@ art and a real detail sheet; swapping in the real four is that list plus their `
   decisions. The pieces are there — `carryOver` is nulled by `begin()` after use, so a retry
   needs the level's entering snapshot kept, and `presentRunOver`'s campaign-death branch is
   where the fork goes (gate it on `lives > 0`, which is zero for every existing save).
-- **Water and phosphorus land in `effectiveSpecies`, on a COPY at seed time.** Not in `SPECIES`
-  — that table is the colony's identity, and a multiply there would compound every run. The
-  picker's detail sheet adds the same bonus to its pills with a note saying where it came from,
-  so the number on the tile is the number the run opens with. Both read `storeBonuses()`.
+- **Energy, water and phosphorus land in `effectiveSpecies`, on a COPY at seed time.** Not in
+  `SPECIES` — that table is the colony's identity, and a multiply there would compound every run.
+  The detail sheet adds the same bonus to its pills with a note saying where it came from, so the
+  number on the tile is the number the run opens with. **Two places read `storeBonuses()` for the
+  same sum and they have to stay in step.**
 - **ADDITIVE ONLY, and the engine pool is the case that needed thinking about.** With no engine
   track bought, engines stay in the MAIN death-carry pool, where they have always been, spending
   an ordinary slot; buying the track moves them to their own metered slots. Pulling them out at
@@ -1508,19 +1557,23 @@ art and a real detail sheet; swapping in the real four is that list plus their `
   additive and defaulting safely for older saves. Levels are **clamped** on read, so a
   hand-edited save (or a track that lost steps in a retune) can't report a bonus with no price
   behind it.
-- **`isRevealed` now consults `progress.revealedSpecies` for EVERY species**, not only `revealBy`
+- **`isRevealed` consults `progress.revealedSpecies` for EVERY species**, not only `revealBy`
   ones — a store purchase is an unlock event, and recording the reveal is what makes a bought
-  colony playable from the old tier picker too (`isPlayable` = revealed AND purchased). One
-  species, one wallet, no double sale. Behaviour at zero purchases is unchanged.
+  colony playable through `isPlayable` (= revealed AND purchased). One species, one wallet, no
+  double sale. Behaviour at zero purchases is unchanged.
 - `purchaseStoreSpecies` has its **own price table** and does NOT gate on the reveal: the store
   is the campaign's unlock path, so paying is the whole requirement, and `TIER_COST` has no
-  bearing. The buy sheet is the picker's, reused via `opts.cost` / `opts.purchase`.
-- **`__game.store`** is the model (`level`, `value`, `nextCost`, `buy`, `bonuses`, `species`,
-  `buySpecies`, plus `balance`/`credit`/`reset`/`speciesById`/`playable`) alongside
-  `__game.showStore`. `effectiveSpecies` and `deathCarry` are on it too, so a check reads the
-  EFFECT rather than the setting — every track here is capped by something downstream.
-- `tests/store-check.cjs` (40, ~35s, in the runner) covers the money, the effects, the negative
-  control and the screen.
+  bearing.
+- **`__game.showPicker`** opens the screen (a check has no other route — the real one is the title
+  screen's New behind a name dialog and a mode choice), and **`__game.store`** is the model beside
+  it: `level`, `value`, `nextCost`, `buy`, `bonuses`, `species`, `buySpecies`, plus
+  `balance`/`credit`/`reset`/`speciesById`/`playable`, and `effectiveSpecies`/`deathCarry` so a
+  check reads the EFFECT rather than the setting — every track here is capped by something
+  downstream.
+- `tests/store-check.cjs` (54, ~35s, in the runner) covers the money, the effects, the negative
+  control at zero upgrades, and the screen's shape — 3 owned and 4 for sale, the Select button's
+  geometry BELOW its card, no "?" tiles, no tier rows, a detail sheet with exactly one button, and
+  that unlocking a colony MOVES it up a section. It also fails on any 4xx or page error.
 
 ## Campaign shape (so you don't re-derive it)
 

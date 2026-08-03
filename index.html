@@ -1011,14 +1011,10 @@
        Everything is namespaced (#speciesSelect / .ss-*) so it never
        collides with the in-game .card / .overlay UI above.
 
-       #ssStore (the campaign store) SHARES this shell rather than
-       restating it: the owner's ask was "the same look as the species
-       selection screen", and two copies of a 12-line gradient + palette
-       block is exactly how two screens drift apart. The store lives at a
-       higher z-index and opens OVER the picker, so both roots exist at
-       once and the shell has to be a shared selector, not an id swap.
+       The store used to be a second root sharing this rule. It is one
+       screen now (owner's ask), so there is nothing to share it with.
        ============================================================ */
-    #speciesSelect, #ssStore {
+    #speciesSelect {
       --ss-mint:#7fe6a3; --ss-mint-hi:#c8fff0; --ss-ink:#d7e6dc; --ss-ink-dim:#8aa193; --ss-ink-faint:#57685f;
       --ss-gold:#e6b45c; --ss-water:#7fd0e0; --ss-white-rim:rgba(226,238,232,0.9);
       --ss-serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
@@ -1031,9 +1027,7 @@
       animation:ssIn .5s ease both;
     }
     @keyframes ssIn { from { opacity:0; } to { opacity:1; } }
-    #ssStore { z-index:1005; }   /* over the picker (1000) and its dev buttons (1003) */
-    #speciesSelect *, #speciesSelect *::before, #speciesSelect *::after,
-    #ssStore *, #ssStore *::before, #ssStore *::after { box-sizing:border-box; }
+    #speciesSelect *, #speciesSelect *::before, #speciesSelect *::after { box-sizing:border-box; }
 
     .ss-dev { position:fixed; top:14px; right:16px; z-index:1003; cursor:pointer; font-family:var(--ss-sans);
       font-size:11.5px; font-weight:600; letter-spacing:.03em; color:var(--ss-ink-dim);
@@ -1083,16 +1077,10 @@
     .ss-section:first-child { margin-top:8px; }
     .ss-rowlabel { display:flex; align-items:baseline; gap:12px; margin-bottom:14px; }
     .ss-lk { font-size:12px; letter-spacing:0.2em; text-transform:uppercase; font-weight:700; color:var(--ss-ink); }
-    .ss-locked-label .ss-lk { color:var(--ss-ink-dim); font-weight:600; }
     .ss-badge { font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--ss-mint); font-weight:700;
       padding:3px 9px; border-radius:999px; border:1px solid rgba(127,230,163,0.35); background:rgba(127,230,163,0.08); }
-    .ss-hint { font-size:12px; color:var(--ss-ink-faint); margin-left:auto; letter-spacing:.02em; }
     .ss-rule { flex:1; height:1px; background:rgba(120,160,140,0.14); align-self:center; }
     .ss-lock { color:var(--ss-ink-faint); font-size:12px; }
-    /* Far-right on a tier-row header: which campaign level a colony from that tier begins on. */
-    .ss-startlvl { flex:0 0 auto; font-size:11px; letter-spacing:0.14em; text-transform:uppercase; font-weight:700;
-      color:var(--ss-mint); white-space:nowrap; }
-    .ss-locked-label .ss-startlvl { color:var(--ss-ink-dim); }
 
     .ss-grid { display:grid; gap:14px; grid-template-columns:repeat(4,1fr); }
 
@@ -1155,12 +1143,6 @@
     .ss-buybadge .spore-ic { width:12px; height:12px; }
     .ss-buybadge .ss-sp-n { font-size:10.5px; font-weight:700; color:#dff2ff; }
     .ss-card.ss-locked .ss-choose { color:#bfe0f2; border-color:rgba(150,210,240,0.45); }
-    /* Buy sheet (species detail, purchase mode). */
-    .ss-buyhint { flex:0 0 100%; order:-1; font-size:12.5px; color:var(--ss-ink-dim); line-height:1.5;
-      display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
-    .ss-buyhint b { color:#dff2ff; font-weight:700; }
-    .ss-btn.ss-buybtn { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
-    .ss-btn.ss-buybtn .spore-ic { width:17px; height:17px; filter:brightness(0) invert(1) drop-shadow(0 0 4px rgba(120,170,210,0.5)); }
     .ss-buyn { font-weight:700; }
     /* Spores line on the win / run-complete banners. */
     .ss-win-spores { display:inline-flex; align-items:center; gap:8px; font-family:var(--ss-serif);
@@ -1170,23 +1152,12 @@
     .ss-win-bal { font-family:var(--ss-sans); font-size:0.66em; color:#9fc4d8; font-weight:600; }
     .ss-lc-spores { justify-content:center; margin:4px auto 0; }
 
-    /* no display:flex on the box — Safari lets a flex child's min-height override
-       aspect-ratio (→ "?" cards taller than the available cards). Match .ss-card's
-       box model: aspect-ratio only, with the ? absolutely centred. */
-    .ss-lock-card { position:relative; aspect-ratio:16/10; border-radius:13px; overflow:hidden;
-      background:radial-gradient(90% 120% at 50% 40%, rgba(24,34,30,0.5), rgba(6,9,14,0.85)); border:1px solid rgba(120,160,140,0.16); }
+    /* The pulsing "?" — the not-yet-revealed tile is gone with the tier rows, but a memory
+       species' "Choose N" placeholder in the detail sheet still draws one. */
     .ss-q { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
       font-family:var(--ss-serif); font-size:clamp(30px,6vw,44px); font-weight:700; color:rgba(236,246,240,0.6);
       text-shadow:0 0 14px rgba(236,246,240,0.45), 0 0 30px rgba(236,246,240,0.22); animation:ssQ 4.2s ease-in-out infinite; }
-    .ss-lock-card:nth-child(3n) .ss-q { animation-delay:-1.4s; } .ss-lock-card:nth-child(3n+1) .ss-q { animation-delay:-2.6s; }
     @keyframes ssQ { 0%,100% { opacity:0.5; } 50% { opacity:0.95; } }
-    /* A "?" tile carrying a how-to-unlock hint (e.g. Magic Mushroom's "Touch rockface"). */
-    .ss-lock-card.ss-hinted { border-color:rgba(199,155,230,0.42); box-shadow:inset 0 0 22px rgba(199,155,230,0.15); }
-    .ss-hinted .ss-q { align-items:flex-start; padding-top:15%; }
-    .ss-hint { position:absolute; left:0; right:0; bottom:9px; text-align:center; padding:0 6px;
-      font-family:var(--ss-serif); font-size:clamp(9px,1.9vw,11.5px); font-weight:700; letter-spacing:0.01em;
-      color:#ecd9fd; text-shadow:0 0 10px rgba(199,155,230,0.75); }
-    .ss-hint::before { content:'✦ '; opacity:0.85; }
 
     .ss-detailwrap { position:fixed; inset:0; z-index:1002; display:flex; align-items:center; justify-content:center;
       padding:clamp(12px,3vw,36px); background:rgba(3,5,9,0.72); backdrop-filter:blur(7px);
@@ -1293,16 +1264,6 @@
     .ss-btn.ghost:hover { background:#1a1a1a; }
     .ss-btn.primary { flex:1.6; background:#fff; color:#000; border:1px solid #fff; }
     .ss-btn.primary:hover { background:#e6e6e6; border-color:#e6e6e6; }
-    .ss-detail .ss-btn.primary.is-locked { background:#111; color:var(--ss-ink-dim); border-color:rgba(255,255,255,0.2); cursor:not-allowed; }
-    /* Start-level stepper — memory colonies dial in which campaign level to begin on, next to Start game. */
-    .ss-lvlstep { flex:0 0 auto; display:inline-flex; align-items:center; gap:8px; padding:0 10px; border-radius:13px;
-      background:#000; border:1px solid #fff; color:#fff; font-size:13px; font-weight:600; }
-    .ss-lvllbl { min-width:56px; text-align:center; letter-spacing:.02em; }
-    .ss-lvllbl b { font-weight:800; }
-    .ss-lvlpm { width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:18px; line-height:1; font-weight:700;
-      background:transparent; border:1px solid rgba(255,255,255,0.4); color:#fff; display:flex; align-items:center; justify-content:center; }
-    .ss-lvlpm:hover:not(:disabled) { background:#1a1a1a; }
-    .ss-lvlpm:disabled { opacity:.3; cursor:not-allowed; }
 
     .ss-close { position:absolute; top:12px; right:12px; z-index:3; width:34px; height:34px; border-radius:999px; cursor:pointer;
       background:rgba(6,10,14,0.7); border:1px solid rgba(160,190,175,0.35); color:var(--ss-ink); font-size:18px; line-height:1;
@@ -1318,18 +1279,30 @@
        the phosphorus violet, --ss-mint, --ss-gold) rather than new hues: the
        style guide spends mint on the player and amber on the ants, and a shop
        inventing a sixth colour is how a screen stops matching. */
-    .ss-storebtn { flex:0 0 auto; cursor:pointer; font-family:var(--ss-sans); font-size:12px; font-weight:700;
-      letter-spacing:.14em; text-transform:uppercase; color:var(--ss-mint); background:rgba(8,14,11,0.7);
-      border:1px solid rgba(127,230,163,0.45); border-radius:999px; padding:8px 16px;
-      transition:background .16s, border-color .16s, color .16s; }
-    .ss-storebtn:hover { background:rgba(18,30,23,0.92); border-color:var(--ss-mint); color:var(--ss-mint-hi); }
-    /* The wallet + Store button travel together at the right end of the header row. */
-    .ss-headtools { display:inline-flex; align-items:center; gap:12px; margin-left:auto; }
-    /* NOT `.ss-hint` — that name is DECLARED TWICE in this sheet and the later rule (the
-       mystery card's "how to unlock" line) wins: position:absolute, bottom:9px, centred, with
-       a ✦ in ::before. So the earlier row-label version is dead CSS, and reusing the class in
-       a section header stacks every hint on top of the others at the foot of the console,
-       which is exactly what it did here first time round. */
+    /* A tile and the one button that commits to it. The grid's children are SLOTS, not cards,
+       so the button sits under the art at the tile's own width and the row's tops still line up
+       however tall a name wraps. */
+    .ss-slot { display:flex; flex-direction:column; gap:9px; }
+    .ss-slot .ss-card { width:100%; }
+    .ss-selbtn { font:inherit; font-size:13.5px; font-weight:700; letter-spacing:.02em; cursor:pointer;
+      display:inline-flex; align-items:center; justify-content:center; gap:6px;
+      border-radius:11px; padding:11px 14px; background:#fff; color:#000; border:1px solid #fff;
+      transition:background .16s, border-color .16s, color .16s, transform .06s; }
+    .ss-selbtn:hover:not(:disabled) { background:#e6e6e6; border-color:#e6e6e6; }
+    .ss-selbtn:active:not(:disabled) { transform:translateY(1px); }
+    /* For sale reads as an offer rather than a commitment: the Spore blue, outlined not filled,
+       so the owned colonies' solid white Select stays the brightest thing in the grid. */
+    .ss-selbtn.buy { background:rgba(6,12,16,0.8); color:#dff2ff; border-color:rgba(150,210,240,0.6); }
+    .ss-selbtn.buy:hover:not(:disabled) { background:rgba(14,26,34,0.95); border-color:#bfe0f2; color:#eaf7ff; }
+    .ss-selbtn.buy .spore-ic { width:15px; height:15px; filter:brightness(0) invert(1) drop-shadow(0 0 4px rgba(120,170,210,0.5)); }
+    .ss-selbtn.off { background:#0d1110; color:var(--ss-ink-faint); border-color:rgba(255,255,255,0.14); cursor:not-allowed; }
+    .ss-selbtn.off .spore-ic { filter:brightness(0) invert(1) opacity(0.4); }
+    /* Called `ss-rowhint` and not `ss-hint` for a reason worth keeping: `.ss-hint` used to be
+       declared TWICE in this sheet, and the later rule (the "?" tile's how-to-unlock line) won
+       with position:absolute + bottom:9px + a ✦ in ::before — so a section header using that
+       class stacked every hint on top of the others at the foot of the console, which is exactly
+       what happened here first time round. Both of those rules are gone now, but the name isn't
+       coming back. */
     .ss-rowhint { flex:0 0 auto; margin-left:auto; font-size:12px; color:var(--ss-ink-faint); letter-spacing:.02em; }
 
     .ss-upgrades { display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(258px,1fr)); }
@@ -1339,7 +1312,7 @@
       border:1px solid rgba(120,160,140,0.24); box-shadow:0 14px 30px -22px rgba(0,0,0,0.95); }
     .ss-upg.water { --u-acc:var(--ss-water); --u-accdim:rgba(127,208,224,0.45); }
     .ss-upg.phos  { --u-acc:#c79be6;        --u-accdim:rgba(199,155,230,0.45); }
-    .ss-upg.eng   { --u-acc:var(--ss-gold); --u-accdim:rgba(230,180,92,0.45); }
+    .ss-upg.energy { --u-acc:var(--ss-gold); --u-accdim:rgba(230,180,92,0.45); }
     .ss-upg.life  { --u-acc:#eef7f1;        --u-accdim:rgba(226,238,232,0.5); }
     .ss-upg.maxed { border-color:var(--u-accdim); box-shadow:inset 0 0 26px -12px var(--u-acc), 0 14px 30px -22px rgba(0,0,0,0.95); }
     .ss-upg-top { display:flex; align-items:center; gap:9px; }
@@ -1365,11 +1338,7 @@
     .ss-upg-btn:disabled { background:#0d1110; color:var(--ss-ink-faint); border-color:rgba(255,255,255,0.14); cursor:not-allowed; }
     .ss-upg-btn:disabled .spore-ic { filter:brightness(0) invert(1) opacity(0.45); }
     .ss-upg-max { margin-left:auto; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--u-acc); }
-    /* Back sits alone on its row, so it reads as leaving the screen rather than as
-       one more thing to buy. */
-    .ss-storefoot { display:flex; margin-top:clamp(22px,3vw,34px); padding-top:16px;
-      border-top:1px solid rgba(120,160,140,0.14); }
-    .ss-storefoot .ss-btn { flex:0 0 auto; min-width:200px; }
+
 
     /* level-win: NO container — a procedural mycelium headline (with lighting behind),
        a plain sub-line, then the new-species card(s) and/or a plain black Proceed button.
@@ -8693,16 +8662,22 @@ function purchaseSpecies(sp, progress) {
 //     It is linear today; a track with uneven steps (or a diminishing one) then costs one
 //     function rather than every consumer.
 const STORE_UPGRADES = [
-  { id: 'water', name: 'Water Reserves', icon: 'water', accent: 'water', step: 10, unit: 'water',
-    effect: 'Start every run with <b>+10 water</b> — any species, any level you begin on.',
+  // The three resource tracks first, in the game's own energy / water / phosphorus order — the
+  // order the HUD, the detail sheet's pills and `resPills` all use, so the store reads in the
+  // same order as the number it is raising.
+  { id: 'energy', name: 'Carbon Reserves', icon: 'energy', accent: 'energy', step: 3, unit: 'energy',
+    effect: 'Start every run with <b>+3 energy</b> — what every card is played with.',
+    costs: [450, 900, 1500, 2400, 3400] },
+  { id: 'water', name: 'Water Reserves', icon: 'water', accent: 'water', step: 5, unit: 'water',
+    effect: 'Start every run with <b>+5 water</b> — any species, any level you begin on.',
     costs: [400, 800, 1400, 2200, 3200] },
-  { id: 'phosphorus', name: 'Phosphate Store', icon: 'phos', accent: 'phos', step: 4, unit: 'phosphorus',
-    effect: 'Start every run with <b>+4 phosphorus</b>, the mineral the heavier grows and the defences gate on.',
+  { id: 'phosphorus', name: 'Phosphate Store', icon: 'phos', accent: 'phos', step: 2, unit: 'phosphorus',
+    effect: 'Start every run with <b>+2 phosphorus</b>, the mineral the heavier grows and the defences gate on.',
     costs: [500, 1000, 1700, 2600, 3800] },
   { id: 'carryCards', name: 'Spore Memory', icon: 'cards', accent: 'mint', step: 1, unit: 'cards', unit1: 'card',
     effect: 'Carry <b>+1 basic or event card</b> you played out of a dead run and into your next one.',
     costs: [600, 1200, 2000, 3000] },
-  { id: 'carryEngines', name: 'Cord Memory', icon: 'engine', accent: 'eng', step: 1, unit: 'engines', unit1: 'engine',
+  { id: 'carryEngines', name: 'Cord Memory', icon: 'engine', accent: 'mint', step: 1, unit: 'engines', unit1: 'engine',
     effect: 'Carry <b>+1 engine card</b> out of a dead run. Engines are the expensive half of a deck, so this is the slower track.',
     costs: [900, 1800, 3000] },
   { id: 'lives', name: 'Sclerotia', icon: 'life', accent: 'life', step: 1, unit: 'retries', unit1: 'retry',
@@ -8754,6 +8729,20 @@ function storeBonuses(progress) {
   return out;
 }
 
+// The new campaign's OPENING ROSTER: the three colonies you have before you have bought
+// anything. PLACEHOLDER, like the store's four.
+//
+// It is a LIST OF IDS rather than an `unlock: null` edit on the table because the old campaign's
+// tier machinery still reads `unlock` — `tierSpecies`, `unlockCost`, `newlyRevealedByClear` — and
+// promoting a species by clearing its `unlock` would silently resize the tier it left. A list is
+// one line to change and changes nothing else. `isStarter` short-circuits both reveal and
+// playability, so a starter needs no purchase and no clears whatever its `unlock` says.
+const STARTER_SPECIES_IDS = ['marasmius', 'armillaria', 'pleurotus'];
+const isStarter = (sp) => !!sp && STARTER_SPECIES_IDS.indexOf(sp.id) >= 0;
+function starterSpecies() {
+  return STARTER_SPECIES_IDS.map((id) => SPECIES.find((s) => s.id === id)).filter(Boolean);
+}
+
 // The store's for-sale species. PLACEHOLDER: four colonies already in the roster stand in for
 // the four new ones, so the tiles carry real art and a real detail sheet instead of "?" boxes
 // — swapping in the real four is this list plus their SPECIES entries, and nothing else.
@@ -8763,6 +8752,20 @@ const STORE_SPECIES_IDS = ['hydnellum', 'stropharia', 'cortinarius', 'serpula'];
 const STORE_SPECIES_COST = { hydnellum: 3000, stropharia: 4500, cortinarius: 6000, serpula: 8000 };
 function storeSpecies() {
   return STORE_SPECIES_IDS.map((id) => SPECIES.find((s) => s.id === id)).filter(Boolean);
+}
+// Can the player actually GET this colony? The selection screen shows exactly two kinds — the
+// opening roster and the store's for-sale list — plus whatever is already owned, so anything
+// else is in the roster but out of reach until it is moved into STORE_SPECIES_IDS.
+//
+// It exists because REVEALING a species is still a thing that happens (a level clear walks the
+// old tier ladder, and touching the troll rock reveals Magic Mushroom), and announcing one the
+// screen can't then offer is a dead end wearing a reward's clothes. Both announcement paths
+// filter on this rather than on `isRevealed`.
+function isObtainable(sp, progress) {
+  if (!sp) return false;
+  if (isStarter(sp) || !sp.unlock) return true;
+  if (STORE_SPECIES_IDS.indexOf(sp.id) >= 0) return true;
+  return isPlayable(sp, progress);
 }
 function storeSpeciesCost(sp) {
   if (!sp) return 0;
@@ -8791,6 +8794,7 @@ function purchaseStoreSpecies(sp) {
 // tile flips to a viewable "Locked" card (k-th species needs k+1 clears of the level).
 function isRevealed(sp, progress) {
   if (!sp || !sp.unlock) return true;
+  if (isStarter(sp)) return true;   // an opening-roster colony is never gated, whatever its `unlock` says
   // An EVENT can reveal a species outright, no clears involved — Magic Mushroom's rockface
   // (revealBy:'rockface'), and a store purchase, both land in progress.revealedSpecies. It is
   // checked FIRST and for every species, so buying in the store is enough on its own; a
@@ -8817,6 +8821,7 @@ function revealSpecies(id) {
 // PLAYABLE: revealed AND bought with Spores (ungated species are always playable).
 function isPlayable(sp, progress) {
   if (!sp || !sp.unlock) return true;
+  if (isStarter(sp)) return true;   // ...and needs no purchase either
   return isRevealed(sp, progress) && isPurchased(sp, progress);
 }
 // The species newly REVEALED by clearing `level`, given progress BEFORE this clear.
@@ -8827,7 +8832,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeathCarry, saveDeathCarry, clearDeathCarry, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, newlyRevealedByClear, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeathCarry, saveDeathCarry, clearDeathCarry, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -19569,7 +19574,7 @@ function growMyceliumTitle(container, opts = {}) {
 
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
-  const { SPECIES, LOCKED_TIERS, isRevealed, isPlayable, unlockCost, sporesBalance, purchaseSpecies, loadProgress, devUnlockAll, levelFromUnlock, startLevelRange, defaultStartLevel, loadDeathCarry,
+  const { SPECIES, isPlayable, isStarter, sporesBalance, loadProgress, devUnlockAll, defaultStartLevel, loadDeathCarry,
     STORE_UPGRADES, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
@@ -19615,24 +19620,12 @@ const RI = {
   // above so the upgrade tiles sit in the same family: a fanned pair of cards, an engine's
   // looped cord, and the knot of a sclerotium (the resting body a retry comes back from).
   cards: '<svg class="ss-ri" viewBox="0 0 24 24" fill="#7fe6a3" aria-hidden="true"><path d="M9.4 2.6 3.1 5.1a1.6 1.6 0 0 0-.9 2.1l4.4 11.1 2.8-1.1V2.6zM11.3 2.5h5.4c.9 0 1.6.7 1.6 1.6v15.8c0 .9-.7 1.6-1.6 1.6h-5.4c-.9 0-1.6-.7-1.6-1.6V4.1c0-.9.7-1.6 1.6-1.6zM20.1 5.2l1.5.6c.8.3 1.2 1.2.9 2.1L18.9 18V5.6l1.2-.4z"/></svg>',
-  engine: '<svg class="ss-ri" viewBox="0 0 24 24" fill="#e6b45c" aria-hidden="true"><path d="M12 1.6 14 4.4l3.3-.9.4 3.4 3.2 1.3-1.7 3 1.7 3-3.2 1.3-.4 3.4-3.3-.9-2 2.8-2-2.8-3.3.9-.4-3.4L2.8 15.2l1.7-3-1.7-3 3.2-1.3.4-3.4 3.3.9L12 1.6zm0 5.9a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4zm0 2.6a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2z"/></svg>',
+  engine: '<svg class="ss-ri" viewBox="0 0 24 24" fill="#7fe6a3" aria-hidden="true"><path d="M12 1.6 14 4.4l3.3-.9.4 3.4 3.2 1.3-1.7 3 1.7 3-3.2 1.3-.4 3.4-3.3-.9-2 2.8-2-2.8-3.3.9-.4-3.4L2.8 15.2l1.7-3-1.7-3 3.2-1.3.4-3.4 3.3.9L12 1.6zm0 5.9a4.7 4.7 0 1 0 0 9.4 4.7 4.7 0 0 0 0-9.4zm0 2.6a2.1 2.1 0 1 1 0 4.2 2.1 2.1 0 0 1 0-4.2z"/></svg>',
   life: '<svg class="ss-ri" viewBox="0 0 24 24" fill="#eef7f1" aria-hidden="true"><path d="M12 2.4c3.1 0 5.2 1.4 6.6 3.1 1.5 1.9 2.2 4.3 2.2 6.3 0 4.9-4 8.8-8.8 8.8S3.2 16.7 3.2 11.8c0-2 .7-4.4 2.2-6.3C6.8 3.8 8.9 2.4 12 2.4zm0 4.2a5.2 5.2 0 0 0-5.2 5.2c0 2.9 2.3 5.2 5.2 5.2s5.2-2.3 5.2-5.2A5.2 5.2 0 0 0 12 6.6zm0 2.5a2.7 2.7 0 1 1 0 5.4 2.7 2.7 0 0 1 0-5.4z"/></svg>',
 };
 
 const el = (t, c, h) => { const n = document.createElement(t); if (c) n.className = c; if (h != null) n.innerHTML = h; return n; };
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
-// Far-right badge on a tier-row header ("Complete level N  ————  Starts on level N")
-// telling the player which campaign level a colony from that tier begins its run on.
-const startTag = (level) => '<span class="ss-startlvl">Starts on level ' + level + '</span>';
-// The span of start levels across a tier's species → "3" (all fixed / equal) or "2-5"
-// (a memory colony can dial it down): min of every species' min, max of every max.
-function tierStartRange(list) {
-  let lo = Infinity, hi = -Infinity;
-  for (const s of list) { const r = startLevelRange(s); lo = Math.min(lo, r.min); hi = Math.max(hi, r.max); }
-  if (!isFinite(lo)) return null;
-  return lo === hi ? String(lo) : (lo + '-' + hi);
-}
 
 // The shiny-spore currency chip (wallet balance / cost badges).
 const sporeChip = (n, cls) => '<span class="ss-spores' + (cls ? ' ' + cls : '') + '">' + SPORE_ICON +
@@ -19723,8 +19716,9 @@ function inspector() {
   return _insp;
 }
 
-// opts.mode: 'start' (Cancel + Start→onStart) · 'locked' (Close + disabled Locked pill) · 'inspect' (Close)
-function openSpeciesDetail(species, opts = {}) {
+// Read-only: portrait, blurb, any special power, the starting resources (store bonuses folded
+// in) and the opening hand. Closed by its X, the backdrop or Escape — see `inspector()`.
+function openSpeciesDetail(species) {
   const ins = inspector();
   ins.detail.className = 'ss-detail ' + species.vibe;
   const art = ins.wrap.querySelector('#ssIArt');
@@ -19759,19 +19753,23 @@ function openSpeciesDetail(species, opts = {}) {
     specialEl.innerHTML = '<span class="ss-d-special-tag">Special</span> ' + esc(species.specialText);
     specialEl.style.display = '';
   } else { specialEl.style.display = 'none'; }
-  // Starting resources INCLUDING the store's permanent water/phosphorus upgrades — what the
-  // player will actually open with, since those apply to every species. The note says where
-  // the difference came from, so a boosted figure never reads as the species' own number.
+  // Starting resources INCLUDING the store's permanent energy / water / phosphorus upgrades —
+  // what the player will actually open with, since those apply to every species. The note says
+  // where the difference came from, so a boosted figure never reads as the species' own number.
+  // Must stay in step with main's `effectiveSpecies`, which is what the run really seeds from.
   const sb = storeBonuses();
   const baseRes = species.res || {};
-  const res = (sb.water || sb.phosphorus)
-    ? { ...baseRes, water: (baseRes.water || 0) + sb.water, phosphorus: (baseRes.phosphorus || 0) + sb.phosphorus }
+  const res = (sb.energy || sb.water || sb.phosphorus)
+    ? { ...baseRes, energy: (baseRes.energy || 0) + sb.energy,
+        water: (baseRes.water || 0) + sb.water, phosphorus: (baseRes.phosphorus || 0) + sb.phosphorus }
     : baseRes;
   const boost = [];
+  if (sb.energy) boost.push('+' + sb.energy + ' energy');
   if (sb.water) boost.push('+' + sb.water + ' water');
   if (sb.phosphorus) boost.push('+' + sb.phosphorus + ' phosphorus');
+  const boostTxt = boost.length > 1 ? boost.slice(0, -1).join(', ') + ' and ' + boost[boost.length - 1] : boost[0];
   ins.wrap.querySelector('#ssIRes').innerHTML = resPills(res) +
-    (boost.length ? '<span class="ss-resnote">includes ' + boost.join(' and ') + ' from the Store</span>' : '');
+    (boost.length ? '<span class="ss-resnote">includes ' + boostTxt + ' from the Store</span>' : '');
   ins.wrap.querySelector('#ssIHand').innerHTML = species.hand.map(cardFace).join('') + (species.memory ? chooseFiveFace(species) : '');
   // Universal death-carry: cards the player kept from their last dead run, shown for EVERY
   // species (they join whatever colony you pick). Hidden when there's nothing carried.
@@ -19783,77 +19781,34 @@ function openSpeciesDetail(species, opts = {}) {
   } else {
     carryWrap.style.display = 'none';
   }
+  // NOTHING BUT THE X (owner's ask). The sheet used to end in an actions row that changed with
+  // the caller — Cancel + Start game, Close + a Locked pill, or a buy row — and that made it the
+  // place a run began, which is now the Select button under the tile. Read-only means one job:
+  // it can be opened from anywhere without the caller having to say what it is FOR.
+  //
+  // The start-level stepper went with it (owner's call: everything starts on level 1). It was
+  // the only control for `startLevelRange`, so the memory colonies now begin on their
+  // `defaultStartLevel` like everything else; the range helpers are still in the species module
+  // if the new campaign wants the choice back somewhere.
   const actions = ins.wrap.querySelector('#ssIActions');
-  if (opts.mode === 'start') {
-    // Which campaign level this colony begins on. Fixed for most species; an adjustable-start
-    // colony (Split Gill, 1–8 since START_LEVEL_SHIFT) gets a "Lvl: X" stepper the player
-    // dials in right next to Start game. onStart carries the chosen level to onPick.
-    const range = startLevelRange(species);
-    let lvl = defaultStartLevel(species);
-    const stepper = range.adjustable
-      ? '<div class="ss-lvlstep" title="Which campaign level this colony starts on">' +
-          '<button type="button" class="ss-lvlpm" id="ssILvlDn" aria-label="Lower start level">−</button>' +
-          '<span class="ss-lvllbl">Lvl: <b id="ssILvlN">' + lvl + '</b></span>' +
-          '<button type="button" class="ss-lvlpm" id="ssILvlUp" aria-label="Raise start level">+</button>' +
-        '</div>'
-      : '';
-    actions.innerHTML = '<button class="ss-btn ghost" id="ssICancel">Cancel</button>' + stepper +
-      '<button class="ss-btn primary" id="ssIStart">Start game</button>';
-    actions.querySelector('#ssICancel').onclick = ins.close;
-    actions.querySelector('#ssIStart').onclick = () => { ins.close(); opts.onStart && opts.onStart(lvl); };
-    if (range.adjustable) {
-      const nEl = actions.querySelector('#ssILvlN');
-      const dn = actions.querySelector('#ssILvlDn'), up = actions.querySelector('#ssILvlUp');
-      const set = (v) => { lvl = Math.max(range.min, Math.min(range.max, v)); nEl.textContent = lvl;
-        dn.disabled = lvl <= range.min; up.disabled = lvl >= range.max; };
-      dn.onclick = () => set(lvl - 1);
-      up.onclick = () => set(lvl + 1);
-      set(lvl);
-    }
-  } else if (opts.mode === 'locked') {
-    actions.innerHTML = '<button class="ss-btn ghost" id="ssICancel">Close</button><button class="ss-btn primary is-locked" disabled>Locked · ' + esc(species.unlock) + '</button>';
-    actions.querySelector('#ssICancel').onclick = ins.close;
-  } else if (opts.mode === 'purchase') {
-    // Revealed but not yet bought: offer to spend Spores to unlock it for play. `opts.cost` /
-    // `opts.purchase` let the STORE reuse this exact sheet with its own price table and its own
-    // (reveal-free) purchase path — one buy sheet, so the two routes can't drift apart.
-    const cost = opts.cost != null ? opts.cost : unlockCost(species);
-    const bal = sporesBalance();
-    const afford = bal >= cost;
-    actions.innerHTML =
-      '<div class="ss-buyhint">' + (afford
-        ? 'Unlock <b>' + esc(species.name) + '</b> for play.'
-        : 'You need <b>' + (cost - bal) + '</b> more.') +
-        ' You have ' + sporeChip(bal, 'inline') + '</div>' +
-      '<button class="ss-btn ghost" id="ssICancel">Close</button>' +
-      '<button class="ss-btn primary ss-buybtn' + (afford ? '' : ' is-locked') + '" id="ssIBuy"' + (afford ? '' : ' disabled') + '>' +
-        'Unlock · ' + SPORE_ICON + '<span class="ss-buyn">' + cost + '</span></button>';
-    actions.querySelector('#ssICancel').onclick = ins.close;
-    const buy = actions.querySelector('#ssIBuy');
-    if (afford && buy) buy.onclick = () => {
-      const r = (opts.purchase || purchaseSpecies)(species);
-      if (r.ok) { if (species.unlock) logEvent('purchase', { species: species.id }); ins.close(); opts.onBuy && opts.onBuy(); }
-    };
-  } else {
-    actions.innerHTML = '<button class="ss-btn primary" id="ssIOk">Continue</button>';
-    actions.querySelector('#ssIOk').onclick = ins.close;
-  }
+  actions.innerHTML = '';
+  actions.style.display = 'none';
   ins.wrap.classList.add('open');
 }
 
 // --- a species card tile ------------------------------------------------------
-// Three visual states: playable (bright, "Inspect"), revealed-but-unbought
-// (greyed, a Spore-cost badge + "Unlock"), and — via mysteryCard() below — the
-// not-yet-revealed "?" placeholder.
+// TWO visual states now: owned (bright) and for sale (greyed, with a Spore-cost badge).
+// The tile is a READER — clicking it opens the detail sheet and nothing else — and the
+// commitment (Select / Unlock) is a separate button under it, built by `speciesSlot`. That
+// split is the owner's: "you press the species to see the details", and the details
+// themselves carry no buttons but the X.
 function speciesCard(s, { locked, cost, onClick }) {
   const card = el('button', 'ss-card ' + s.vibe + (locked ? ' ss-locked' : ''));
   card.type = 'button';
-  const buyable = cost != null;
-  card.setAttribute('aria-label', (buyable ? 'Unlock ' : locked ? 'Preview ' : 'Inspect ') + s.name);
-  const badge = buyable
+  card.setAttribute('aria-label', 'Read about ' + s.name);
+  const badge = cost != null
     ? '<span class="ss-lockbadge ss-buybadge">' + SPORE_ICON + '<span class="ss-sp-n">' + cost + '</span></span>'
-    : (locked ? '<span class="ss-lockbadge">Locked</span>' : '');
-  const choose = buyable ? 'Unlock ▸' : (locked ? 'Preview ▸' : 'Inspect ▸');
+    : '';
   // Optional per-species card framing: the grid card shows only the middle band of the
   // 560×720 portrait (object-fit cover). `cardPos` shifts that band (e.g. 'center 20%'
   // pulls it up) so a subject near the top of the photo isn't cropped in the card —
@@ -19862,22 +19817,89 @@ function speciesCard(s, { locked, cost, onClick }) {
   card.innerHTML =
     '<div class="ss-card-art"><img src="' + speciesImg(s.img) + '" alt="' + esc(s.name) + '" onerror="this.style.opacity=0"' + artPos + '></div>' +
     badge +
-    '<span class="ss-choose">' + choose + '</span>' +
+    '<span class="ss-choose">Read ▸</span>' +
     '<div class="ss-card-info"><div class="ss-sp-name">' + esc(s.name) + '</div><div class="ss-sp-latin">' + esc(s.latin) + '</div></div>';
   card.addEventListener('click', onClick);
   return card;
 }
 
-// The "?" placeholder for a species that hasn't been revealed yet. An optional `hint`
-// (e.g. "Touch rockface" for Magic Mushroom) prints a small how-to-unlock line inside
-// the card, so a specially-unlocked species tells the player where to look.
-function mysteryCard(hint) {
-  const lc = el('div', 'ss-lock-card' + (hint ? ' ss-hinted' : '')); lc.setAttribute('aria-hidden', 'true');
-  lc.innerHTML = '<span class="ss-q">?</span>' + (hint ? '<span class="ss-hint">' + esc(hint) + '</span>' : '');
-  return lc;
+// A tile plus the one button that commits to it. `cost == null` → Select (start the run);
+// `cost` set → Unlock, disabled and explained when the wallet is short. Nothing else on the
+// screen starts a run, so this is the only place that can.
+function speciesSlot(s, { cost, balance, onRead, onSelect, onBuy }) {
+  const slot = el('div', 'ss-slot');
+  // The species has to be CLOSED OVER, not passed through: `speciesCard` wires its listener
+  // straight to this callback, so a bare `onClick: onRead` hands the click EVENT to a function
+  // expecting a species — which read as "the detail sheet doesn't open" (it threw on
+  // `species.hand.map`) rather than as a wrong argument.
+  slot.appendChild(speciesCard(s, { locked: cost != null, cost, onClick: () => onRead(s) }));
+  const buying = cost != null;
+  const afford = !buying || balance >= cost;
+  const btn = el('button', 'ss-selbtn' + (buying ? ' buy' : '') + (afford ? '' : ' off'));
+  btn.type = 'button';
+  btn.disabled = !afford;
+  btn.innerHTML = buying
+    ? 'Unlock ' + SPORE_ICON + '<span class="ss-buyn">' + cost + '</span>'
+    : 'Select';
+  btn.setAttribute('aria-label', (buying ? 'Unlock ' + s.name + ' for ' + cost + ' Spores' : 'Select ' + s.name + ' and start'));
+  if (buying && !afford) btn.title = 'You need ' + (cost - balance) + ' more Spores';
+  if (afford) btn.addEventListener('click', () => (buying ? onBuy : onSelect)(s));
+  slot.appendChild(btn);
+  return slot;
 }
 
-// ============================ boot picker ====================================
+// ======================= boot picker + the store ==============================
+// ONE SCREEN, by the owner's ask: the colonies you own, the colonies for sale and the
+// permanent upgrades all live on the species-selection screen. There is no separate store
+// overlay — an earlier version had one and it was the wrong shape, because everything on it
+// was already speaking the picker's vocabulary.
+//
+// The three sections in order, and what each one is for:
+//   YOUR COLONIES   the opening roster (STARTER_SPECIES_IDS, 3) plus anything bought. Select.
+//   NEW COLONIES    the store's for-sale list (STORE_SPECIES_IDS, 4). Unlock.
+//   UPGRADES        the five permanent tracks. Buy a step.
+//
+// The old "Complete level N" tier rows and their "?" tiles are GONE (owner's call): species
+// come from the store now, not from clearing levels. The tier machinery still exists in the
+// species module — `LOCKED_TIERS`, `tierSpecies`, `newlyRevealedByClear` — and a colony bought
+// before this change is still owned and still appears under YOUR COLONIES, it just has no row
+// of its own. Moving one of those eight into the store is one entry in STORE_SPECIES_IDS.
+
+// One upgrade track's tile: name, what it is currently granting, the effect, a pip per step,
+// and the price of the next one. Rebuilt whole on every purchase — see `refresh` below.
+function upgradeTile(u, progress, onBuy) {
+  const lvl = upgradeLevel(u.id, progress);
+  const max = upgradeMax(u);
+  const cost = upgradeNextCost(u.id, progress);       // null = maxed
+  const have = upgradeValue(u.id, progress);
+  const bal = sporesBalance(progress);
+  const afford = cost != null && bal >= cost;
+  const node = el('div', 'ss-upg ' + (u.accent || 'mint') + (cost == null ? ' maxed' : ''));
+  let pips = '';
+  for (let i = 0; i < max; i++) pips += '<span class="ss-upg-pip' + (i < lvl ? ' on' : '') + '"></span>';
+  node.innerHTML =
+    '<div class="ss-upg-top">' + (RI[u.icon] || '') +
+      '<span class="ss-upg-nm">' + esc(u.name) + '</span>' +
+      // `unit1` only where the plural isn't just the word + s ("retry"/"retries"). The three
+      // resource tracks step by 3, 5 and 2, so their value is never 1 and they need no singular.
+      '<span class="ss-upg-now">' + (have ? '+' + have + ' ' + esc(have === 1 ? (u.unit1 || u.unit) : u.unit) : 'none yet') + '</span>' +
+    '</div>' +
+    '<p class="ss-upg-eff">' + u.effect + '</p>' +
+    '<div class="ss-upg-pips" aria-hidden="true">' + pips + '</div>' +
+    '<div class="ss-upg-foot">' +
+      '<span class="ss-upg-lvl">' + lvl + ' of ' + max + ' bought</span>' +
+      (cost == null
+        ? '<span class="ss-upg-max">Maxed</span>'
+        : '<button class="ss-upg-btn" type="button" data-upg="' + esc(u.id) + '"' + (afford ? '' : ' disabled') +
+          ' aria-label="Buy one step of ' + esc(u.name) + ' for ' + cost + ' Spores"' +
+          ' title="' + (afford ? 'Buy the next step' : 'You need ' + (cost - bal) + ' more Spores') + '">' +
+          SPORE_ICON + '<span class="ss-buyn">' + cost + '</span></button>') +
+    '</div>';
+  const btn = node.querySelector('.ss-upg-btn');
+  if (btn && afford) btn.addEventListener('click', () => { if (buyUpgrade(u.id).ok) onBuy && onBuy(u); });
+  return node;
+}
+
 function showSpeciesSelect({ onPick, onDev, onLevel }) {
   let progress = loadProgress();
   const root = el('div'); root.id = 'speciesSelect';
@@ -19918,19 +19940,27 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
       devBtns + mapCol +
       '<header class="ss-head">' +
         '<div class="ss-headrow"><h1>Select your species</h1>' +
-          // Wallet + Store travel together: the store is where Spores go, so the button that
-          // opens it belongs next to the number it will spend.
-          '<span class="ss-headtools">' +
-            '<span class="ss-spores ss-wallet" id="ssWallet" title="Spores — earned by finishing levels, spent to unlock species"></span>' +
-            '<button class="ss-storebtn" id="ssStoreOpen" type="button" title="Spend Spores on new colonies and permanent upgrades">Store ▸</button>' +
-          '</span></div>' +
+          '<span class="ss-spores ss-wallet" id="ssWallet" title="Spores — earned by finishing levels, spent here"></span></div>' +
+        '<p class="ss-lede">Press a colony to read it. <b>Select</b> to begin a run with it, or spend ' +
+          '<b>Spores</b> below on a new colony or a permanent upgrade — upgrades apply to ' +
+          '<b>every later run, whatever species you pick</b>.</p>' +
       '</header>' +
       '<div class="ss-body">' +
         '<section class="ss-section">' +
-          '<div class="ss-rowlabel"><span class="ss-lk">Starter species</span><span class="ss-rule"></span>' + startTag(1) + '</div>' +
+          '<div class="ss-rowlabel"><span class="ss-lk">Your colonies</span><span class="ss-rule"></span>' +
+            '<span class="ss-rowhint">Select one to start a run</span></div>' +
           '<div class="ss-grid" id="ssAvail"></div>' +
         '</section>' +
-        '<div id="ssLocked"></div>' +
+        '<section class="ss-section" id="ssForSaleSec">' +
+          '<div class="ss-rowlabel"><span class="ss-lk">New colonies</span><span class="ss-rule"></span>' +
+            '<span class="ss-rowhint">Bought outright — no level to clear first</span></div>' +
+          '<div class="ss-grid" id="ssForSale"></div>' +
+        '</section>' +
+        '<section class="ss-section">' +
+          '<div class="ss-rowlabel"><span class="ss-lk">Colony upgrades</span><span class="ss-rule"></span>' +
+            '<span class="ss-rowhint">Permanent, and they stack</span></div>' +
+          '<div class="ss-upgrades" id="ssUpg"></div>' +
+        '</section>' +
       '</div>' +
     '</div>';
   document.body.appendChild(root);
@@ -19939,57 +19969,40 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   function hide() { title.destroy(); root.remove(); }
 
   const wallet = root.querySelector('#ssWallet');
-  function updateWallet() {
-    wallet.innerHTML = SPORE_ICON + '<span class="ss-sp-n">' + sporesBalance(progress) + '</span>';
-  }
-
   const availGrid = root.querySelector('#ssAvail');
-  for (const s of SPECIES) {
-    if (s.unlock) continue;   // gated species stay in their tier row below, even once unlocked
-    availGrid.appendChild(speciesCard(s, { locked: false, onClick: () =>
-      openSpeciesDetail(s, { mode: 'start', onStart: (lvl) => { hide(); onPick && onPick(s, lvl); } }) }));
-  }
+  const saleGrid = root.querySelector('#ssForSale');
+  const saleSec = root.querySelector('#ssForSaleSec');
+  const upgGrid = root.querySelector('#ssUpg');
 
-  const lockedRows = root.querySelector('#ssLocked');
-  function renderLocked() {
-    lockedRows.innerHTML = '';
-    for (const row of LOCKED_TIERS) {
-      const sec = el('section', 'ss-section' + (row.communal ? ' ss-communal' : ''));
-      const label = el('div', 'ss-rowlabel ss-locked-label');
-      const tier = SPECIES.filter((s) => s.unlock === row.label);
-      // Far-right badge: the span of start levels this tier's species can begin on — a single
-      // level for fixed tiers ("3"), a range where a memory colony dials it ("2-5" for the L5
-      // tier = Split Gill 2-5 + Wine Cap 5; "3-10" for the L10 tier = Artist's Conk). Communal
-      // "?" tier has no species yet → falls back to its unlock level, or nothing if unlabelled.
-      const rangeStr = tier.length ? tierStartRange(tier) : (levelFromUnlock(row.label) || null);
-      label.innerHTML = '<span class="ss-lk">' + esc(row.label) + '</span><span class="ss-rule"></span>' + (rangeStr ? startTag(rangeStr) : '');
-      const grid = el('div', 'ss-grid');
-      for (const s of tier) {
-        // Not yet revealed → stays a "?" (with an optional how-to-unlock hint, e.g.
-        // Magic Mushroom's "Touch rockface"); revealed+bought → playable; revealed but
-        // unbought → a viewable Locked card with a Spore price (opens the buy sheet).
-        if (!isRevealed(s, progress)) { grid.appendChild(mysteryCard(s.revealHint)); continue; }
-        if (isPlayable(s, progress)) {
-          grid.appendChild(speciesCard(s, { locked: false, onClick: () =>
-            openSpeciesDetail(s, { mode: 'start', onStart: (lvl) => { hide(); onPick && onPick(s, lvl); } }) }));
-        } else {
-          grid.appendChild(speciesCard(s, { locked: true, cost: unlockCost(s), onClick: () =>
-            openSpeciesDetail(s, { mode: 'purchase', onBuy: refresh }) }));
-        }
-      }
-      for (let k = tier.length; k < row.n; k++) grid.appendChild(mysteryCard());
-      sec.appendChild(label); sec.appendChild(grid);
-      lockedRows.appendChild(sec);
+  const read = (s) => openSpeciesDetail(s);
+  const select = (s) => { hide(); onPick && onPick(s, defaultStartLevel(s)); };
+
+  function render() {
+    const bal = sporesBalance(progress);
+    wallet.innerHTML = SPORE_ICON + '<span class="ss-sp-n">' + bal + '</span>';
+    // YOUR COLONIES: the opening three, then anything bought — in roster order, so a purchase
+    // lands where the species sits in SPECIES rather than at the end in purchase order.
+    availGrid.innerHTML = '';
+    const owned = SPECIES.filter((s) => isStarter(s) || (s.unlock && isPlayable(s, progress)) || !s.unlock);
+    for (const s of owned) availGrid.appendChild(speciesSlot(s, { balance: bal, onRead: read, onSelect: select }));
+    // NEW COLONIES: the for-sale list minus whatever has been bought (it moved up a section).
+    // The heading goes with it when the list empties, rather than leaving a bare rule.
+    saleGrid.innerHTML = '';
+    const sale = storeSpecies().filter((s) => !isPlayable(s, progress));
+    for (const s of sale) {
+      saleGrid.appendChild(speciesSlot(s, { cost: storeSpeciesCost(s), balance: bal, onRead: read,
+        onBuy: (sp) => { if (purchaseStoreSpecies(sp).ok) { logEvent('purchase', { species: sp.id }); refresh(); } } }));
     }
+    saleSec.style.display = sale.length ? '' : 'none';
+    upgGrid.innerHTML = '';
+    for (const u of STORE_UPGRADES) upgGrid.appendChild(upgradeTile(u, progress, refresh));
   }
-  function refresh() { progress = loadProgress(); updateWallet(); renderLocked(); }
+  // One re-read of progress after any purchase: a buy moves the wallet, the pips, which
+  // section a colony sits in AND whether every other button is still affordable, so
+  // re-rendering the lot is the only version that can't leave a stale price behind.
+  function refresh() { progress = loadProgress(); render(); }
 
-  updateWallet();
-  renderLocked();
-  // The store opens OVER this screen and Back only removes itself, so all the picker owes it
-  // is a refresh: a colony bought in the store is revealed AND purchased, i.e. its tier tile
-  // has to flip from a "?" or a price to a playable card, and the wallet has moved.
-  root.querySelector('#ssStoreOpen').addEventListener('click', () => { showStore({ onBack: refresh }); });
+  render();
   if (devOn) {
     root.querySelector('#ssDev').addEventListener('click', () => { hide(); onDev && onDev(); });
     root.querySelector('#ssDevUnlock').addEventListener('click', () => { devUnlockAll(); refresh(); });
@@ -19997,129 +20010,6 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
       root.querySelector('#ssDevMap' + i).addEventListener('click', () => { hide(); onLevel && onLevel(l.id); });
     });
   }
-  return { hide, root };
-}
-
-// ============================== the store ====================================
-// The new campaign mode's between-runs shop, and deliberately the SAME SCREEN as the picker
-// rather than a screen that resembles it: #ssStore shares the picker's shell rule, its grown
-// mycelium wordmark, its wallet chip, its section headers, and — for the four for-sale
-// colonies — literally `speciesCard`. Only the upgrade tile is new markup.
-//
-// It opens OVER the picker at a higher z-index instead of replacing it, so Back is a plain
-// removal: the picker underneath never had to be torn down and rebuilt, and it only needs a
-// refresh() on the way out because a species bought here becomes playable in its tier row.
-//
-// The ECONOMY (prices, step sizes, which four species) is placeholder — see STORE_UPGRADES in
-// the species module for what each number is and is not.
-function upgradeTile(u, progress, onBuy) {
-  const lvl = upgradeLevel(u.id, progress);
-  const max = upgradeMax(u);
-  const cost = upgradeNextCost(u.id, progress);       // null = maxed
-  const have = upgradeValue(u.id, progress);
-  const bal = sporesBalance(progress);
-  const afford = cost != null && bal >= cost;
-  const node = el('div', 'ss-upg ' + (u.accent || 'mint') + (cost == null ? ' maxed' : ''));
-  let pips = '';
-  for (let i = 0; i < max; i++) pips += '<span class="ss-upg-pip' + (i < lvl ? ' on' : '') + '"></span>';
-  node.innerHTML =
-    '<div class="ss-upg-top">' + (RI[u.icon] || '') +
-      '<span class="ss-upg-nm">' + esc(u.name) + '</span>' +
-      // `unit1` only where the plural isn't just the word + s ("retry"/"retries"). The two
-      // resource tracks step by 10 and 4, so their value is never 1 and they need no singular.
-      '<span class="ss-upg-now">' + (have ? '+' + have + ' ' + esc(have === 1 ? (u.unit1 || u.unit) : u.unit) : 'none yet') + '</span>' +
-    '</div>' +
-    '<p class="ss-upg-eff">' + u.effect + '</p>' +
-    '<div class="ss-upg-pips" aria-hidden="true">' + pips + '</div>' +
-    '<div class="ss-upg-foot">' +
-      '<span class="ss-upg-lvl">' + lvl + ' of ' + max + ' bought</span>' +
-      (cost == null
-        ? '<span class="ss-upg-max">Maxed</span>'
-        : '<button class="ss-upg-btn" type="button" data-upg="' + esc(u.id) + '"' + (afford ? '' : ' disabled') +
-          ' aria-label="Buy one step of ' + esc(u.name) + ' for ' + cost + ' Spores"' +
-          ' title="' + (afford ? 'Buy the next step' : 'You need ' + (cost - bal) + ' more Spores') + '">' +
-          SPORE_ICON + '<span class="ss-buyn">' + cost + '</span></button>') +
-    '</div>';
-  const btn = node.querySelector('.ss-upg-btn');
-  if (btn && afford) btn.addEventListener('click', () => { if (buyUpgrade(u.id).ok) onBuy && onBuy(u); });
-  return node;
-}
-
-function showStore({ onBack } = {}) {
-  let progress = loadProgress();
-  const root = el('div'); root.id = 'ssStore';
-  root.innerHTML =
-    '<div class="ss-title" aria-label="Store"></div>' +
-    '<div class="ss-console" role="dialog" aria-label="Store">' +
-      '<header class="ss-head">' +
-        '<div class="ss-headrow"><h1>Store</h1>' +
-          '<span class="ss-headtools">' +
-            '<span class="ss-spores ss-wallet" id="ssStWallet" title="Spores — earned by finishing levels, spent here"></span>' +
-          '</span></div>' +
-        '<p class="ss-lede">Spend <b>Spores</b> between runs. Colonies you buy here are yours for good, and every ' +
-          'upgrade applies to <b>every later run, whatever species you pick</b>.</p>' +
-      '</header>' +
-      '<div class="ss-body">' +
-        '<section class="ss-section">' +
-          '<div class="ss-rowlabel"><span class="ss-lk">New colonies</span><span class="ss-rule"></span>' +
-            '<span class="ss-rowhint">Bought outright — no level to clear first</span></div>' +
-          '<div class="ss-grid" id="ssStSpecies"></div>' +
-        '</section>' +
-        '<section class="ss-section">' +
-          '<div class="ss-rowlabel"><span class="ss-lk">Colony upgrades</span><span class="ss-rule"></span>' +
-            '<span class="ss-rowhint">Permanent, and they stack</span></div>' +
-          '<div class="ss-upgrades" id="ssStUpg"></div>' +
-        '</section>' +
-        '<div class="ss-storefoot"><button class="ss-btn ghost" id="ssStBack" type="button">◂ Back to species</button></div>' +
-      '</div>' +
-    '</div>';
-  document.body.appendChild(root);
-
-  // Its own grown wordmark, same as the picker's — the word is what tells you which screen
-  // you are on, since everything below it is deliberately identical.
-  const title = growMyceliumTitle(root.querySelector('.ss-title'), { word: 'STORE' });
-  function hide() { title.destroy(); root.remove(); }
-
-  const wallet = root.querySelector('#ssStWallet');
-  const speciesGrid = root.querySelector('#ssStSpecies');
-  const upgGrid = root.querySelector('#ssStUpg');
-
-  function render() {
-    wallet.innerHTML = SPORE_ICON + '<span class="ss-sp-n">' + sporesBalance(progress) + '</span>';
-    // Owned → the bright playable tile (Inspect); not owned → the greyed tile with a Spore
-    // price, opening the same buy sheet the tier rows use, pointed at the store's own price
-    // and purchase path so nothing here depends on a level having been cleared.
-    speciesGrid.innerHTML = '';
-    for (const s of storeSpecies()) {
-      const owned = isPlayable(s, progress);
-      speciesGrid.appendChild(speciesCard(s, {
-        locked: !owned,
-        cost: owned ? null : storeSpeciesCost(s),
-        onClick: () => openSpeciesDetail(s, owned ? { mode: 'inspect' } : {
-          mode: 'purchase', cost: storeSpeciesCost(s), purchase: purchaseStoreSpecies, onBuy: refresh }),
-      }));
-    }
-    upgGrid.innerHTML = '';
-    for (const u of STORE_UPGRADES) upgGrid.appendChild(upgradeTile(u, progress, refresh));
-  }
-  // One re-read of progress after any purchase: a buy moves the wallet, the pips AND whether
-  // every other tile is still affordable, so re-rendering the lot is the only version that
-  // can't leave a stale "buy" button behind.
-  function refresh() { progress = loadProgress(); render(); }
-
-  render();
-  const back = () => { hide(); onBack && onBack(); };
-  root.querySelector('#ssStBack').addEventListener('click', back);
-  // Escape leaves the store — but NOT while the species detail sheet is open over it, which
-  // has its own Escape and would otherwise close both in one keypress.
-  const onKey = (e) => {
-    if (e.key !== 'Escape' || !document.body.contains(root)) return;
-    const ins = document.getElementById('ssInspector');
-    if (ins && ins.classList.contains('open')) return;
-    document.removeEventListener('keydown', onKey);
-    back();
-  };
-  document.addEventListener('keydown', onKey);
   return { hide, refresh, root };
 }
 
@@ -20145,7 +20035,7 @@ function showLevelComplete({ level, maxLevel, unlocked, earned, balance, onNext 
   function hide() { title.destroy(); root.remove(); }
   if (hasUnlock) {
     const cards = root.querySelector('#ssWinCards');
-    for (const s of unlocked) cards.appendChild(speciesCard(s, { locked: false, onClick: () => openSpeciesDetail(s, { mode: 'inspect' }) }));
+    for (const s of unlocked) cards.appendChild(speciesCard(s, { locked: false, onClick: () => openSpeciesDetail(s) }));
   }
   root.querySelector('#ssWinProceed').addEventListener('click', () => { hide(); onNext && onNext(); });
   return { hide, root };
@@ -20167,7 +20057,7 @@ function showSpeciesUnlocked({ species, onContinue }) {
   const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: 'UNLOCKED', stepRate: 3.2 });
   function hide() { title.destroy(); root.remove(); }
   root.querySelector('#ssUnlockCards').appendChild(
-    speciesCard(species, { locked: false, onClick: () => openSpeciesDetail(species, { mode: 'inspect' }) }));
+    speciesCard(species, { locked: false, onClick: () => openSpeciesDetail(species) }));
   root.querySelector('#ssUnlockProceed').addEventListener('click', () => { hide(); onContinue && onContinue(); });
   return { hide, root };
 }
@@ -20189,7 +20079,7 @@ function showGameWon({ spores, balance, onNewRun }) {
   return { hide, root };
 }
 
-  return { showSpeciesSelect, showLevelComplete, showSpeciesUnlocked, showGameWon, showStore };
+  return { showSpeciesSelect, showLevelComplete, showSpeciesUnlocked, showGameWon };
 })();
 
 // ===================== src/render/loadout_select.js =====================
@@ -21895,12 +21785,12 @@ const __m_main = (function () {
   const { NetworkRenderer, drawFruitBodies } = __m_render_network;
   const { Lighting } = __m_render_lighting;
   const { UI, deathText, cardSlug, SPORE_ICON } = __m_render_ui;   // deathText: one table, both death screens
-  const { showSpeciesSelect, showLevelComplete, showGameWon, showSpeciesUnlocked, showStore } = __m_render_species_select;
+  const { showSpeciesSelect, showLevelComplete, showGameWon, showSpeciesUnlocked } = __m_render_species_select;
   const { showLoadoutSelect } = __m_render_loadout_select;
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro } = __m_render_level_intro;
-  const { SPECIES, MAX_LEVEL, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeathCarry, saveDeathCarry, clearDeathCarry, loadResume, saveResume, clearResume, revealSpecies, isSpeciesRevealed, isPlayable, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, MAX_LEVEL, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeathCarry, saveDeathCarry, clearDeathCarry, loadResume, saveResume, clearResume, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -22204,8 +22094,8 @@ const isEngineCard = (name) => ENGINE_CARD_NAMES.has(name);
 // A "memory" species (species.js `memory:true`, e.g. Split Gill) opens with its FIXED
 // hand PLUS the loadout the player curated at the end of their last run with it.
 //
-// AND every species opens with the campaign STORE's permanent water / phosphorus on top of
-// its own `res`. Applied HERE rather than to the species table because the table is the
+// AND every species opens with the campaign STORE's permanent energy / water / phosphorus on
+// top of its own `res`. Applied HERE rather than to the species table because the table is the
 // colony's identity — the store is the player's, so a bought reserve has to reach whichever
 // colony they picked without editing twelve entries. The picker's detail sheet adds the same
 // bonus to the pills it shows (with a note saying so), so the number on the tile is the number
@@ -22214,9 +22104,10 @@ function effectiveSpecies(sp) {
   if (!sp) return sp;
   let out = sp;
   const b = storeBonuses();
-  if (b.water || b.phosphorus) {
+  if (b.energy || b.water || b.phosphorus) {
     const r = sp.res || {};
-    out = { ...out, res: { ...r, water: (r.water || 0) + b.water, phosphorus: (r.phosphorus || 0) + b.phosphorus } };
+    out = { ...out, res: { ...r, energy: (r.energy || 0) + b.energy,
+      water: (r.water || 0) + b.water, phosphorus: (r.phosphorus || 0) + b.phosphorus } };
   }
   if (sp.memory) {
     const lo = loadoutFor(sp.id);                      // [{name,count}] copies chosen last run
@@ -22634,7 +22525,12 @@ function onLevelWon() {
   const cleared = currentLevel;
   logEvent('level_clear', { species: chosenSpecies && chosenSpecies.id, level: cleared });
   const prev = loadProgress();
-  const newlyRevealed = newlyRevealedByClear(cleared, prev);   // one species revealed per clear, in tier order
+  // One species revealed per clear, in tier order — but only announced if the selection screen
+  // can actually offer it. The old tier ROWS are gone (the campaign's roster is the opening three
+  // plus the store's four), so a reveal outside that set would promise a colony with nowhere to be
+  // bought. The reveal is still RECORDED either way, so moving one into STORE_SPECIES_IDS later
+  // makes it buyable for a player who already earned it.
+  const newlyRevealed = newlyRevealedByClear(cleared, prev).filter((sp) => isObtainable(sp, prev));
   recordLevelCleared(cleared);
   // Finishing a level pays Spores (100 × level) into the persistent wallet; also
   // tallied into this run's total for the death card.
@@ -23803,11 +23699,12 @@ function begin(newState) {
     editDuplicate,
     saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
     forgetSaved: deleteSavedLevel,
-    // The campaign STORE. `showStore` opens the screen directly — the picker's button is the
-    // only other way in, and a check can't reasonably click through a species picker to reach
-    // it. `store` is the MODEL beside it (levels, next prices, and the bonuses the run loop
-    // actually reads), so an assertion about what a purchase did never has to scrape a tile.
-    showStore: (opts) => showStore(opts || {}),
+    // The species-selection screen, which is also the STORE — one screen. On __game because a
+    // check has no other way to it: the real route is the title screen's New button, behind a
+    // name dialog and a mode choice. `store` is the MODEL beside it (levels, next prices, and the
+    // bonuses the run loop actually reads), so an assertion about what a purchase did never has
+    // to scrape a tile.
+    showPicker: () => showPicker(),
     store: {
       upgrades: STORE_UPGRADES,
       level: upgradeLevel, value: upgradeValue, nextCost: upgradeNextCost, buy: buyUpgrade,
@@ -23827,6 +23724,9 @@ function begin(newState) {
       reset: () => resetProgress(),
       speciesById: (id) => SPECIES.find((s) => s.id === id) || null,
       playable: (sp) => isPlayable(sp),
+      // "can the screen offer this at all?" — what both reveal announcements filter on now that
+      // the tier rows are retired, so a check can assert the dead-end is closed.
+      obtainable: (sp) => isObtainable(sp),
     },
     // WHOSE TURN IS IT, and the real UI entry points. `play`/`draw`/`skip` below go straight to
     // the engine (that is what every existing check drives, and what the self-play bot needs), so
@@ -25399,8 +25299,12 @@ function touchRockface() {
   revealSpecies('psilocybe');
   try { logEvent('unlock_rock', { species: 'psilocybe', level: currentLevel }); } catch (_) {}
   if (state.log) state.log('You brushed an old troll stone... it stirs, and a new species is revealed.', 'good');
+  // The reveal is RECORDED whatever happens (above) — the popup only fires if the selection
+  // screen can then offer the colony. Magic Mushroom lived in the retired "?" tier row, so today
+  // that is false and the rock quietly does nothing visible beyond its log line; putting
+  // 'psilocybe' in STORE_SPECIES_IDS brings the whole moment back with no other change.
   const sp = SPECIES.find((s) => s.id === 'psilocybe');
-  if (sp) {
+  if (sp && isObtainable(sp)) {
     // Collapse the hand carousel while the reveal popup is up — its layout clears the
     // COLLAPSED strip, so an expanded hand would overlap the card + Continue button.
     if (ui && ui.setHandOpen) ui.setHandOpen(false);
