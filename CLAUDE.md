@@ -6,7 +6,7 @@ See README.md for the player/config-facing description; this file is the stuff t
 
 ## Shape of the codebase
 
-- **Everything is `index.html`** (~20k lines, 37 modules): one inline `<script>` holding the game
+- **Everything is `index.html`** (~27k lines, 37 modules): one inline `<script>` holding the game
   as a chain of IIFE modules, `const __m_<name> = (function () { … })()`. No build step, no
   bundler — you edit the single file and reload. `assets/` holds runtime art/audio.
 - Modules read each other by destructuring at the top (`const { CONFIG } = __m_config;`), so
@@ -87,6 +87,45 @@ called *before* the run begins (the title screen does).
 `MODE_TUNING` holds each mode's balance numbers because **real-time rates are per 500 ms tick
 and turn-based rates are per player action**. Never "fix" one mode's speed without checking the
 other — a worm creeping 0.375 cells/tick would barely move if it only stepped on a card play.
+
+### All three threats at a glance
+
+The owner asked for this as a table and it existed only in one chat reply, so it lives here now.
+Speeds are **turn (per action) / real time (per tick)**; everything else is one value for both.
+The CONFIG comments carry the *why* — this is the lookup, not the explanation.
+
+| | **Trichoderma** (mould cloud) | **Nematodes** (worms) | **Ants** |
+|---|---|---|---|
+| what it wants | food, and you | your strands | food only |
+| seeded per map | 3 clouds | 3 worms | 2 nests |
+| senses at | 500 units, rock blocks LoS | 500 units, rock blocks LoS | n/a — trail is pathed to a pile at build time |
+| moves | **5.0 / 2.5** cells | **8.0 / 1.0** cells, arcing at 1.2 rad/tick | line creeps 2 cells/tick |
+| eats food at | 0.85 cells/step **both modes** → a 5-cell pile in **6 steps** | doesn't eat food | **40 / 6.5** nutrient |
+| eats YOU at | infection, not consumption — see below | **4 strands per bite**, no cooldown, within **1.4** cells | never — `stepAnts` only drains `cell.nutrient` |
+| moves AND eats on one step | yes | yes (closes first, bites from where it lands) | n/a |
+| multiplies | `respawnChance` 0.12/action, radius hard-capped 1.3 | **`breedChance` 0.8 per feeding tick**, cap 150 | no |
+| killed by | fades on contact (`fadeMs` 700) | 3 Excrete hits (`killHits`) | Excrete |
+| ends the run | rot reaching everything (cause `infected`) | eating the last strand (cause `devoured`) | not directly |
+
+**The ants are FOOD COMPETITION, not a predator** — `stepAnts` never touches `net.nodes`; it
+drains `cell.nutrient` and re-stamps its trail, and that is the whole of it. The comment on the
+`devoured` catch says "worms or ants ate the last strand", which is defensive rather than
+descriptive; don't read it as a second bite mechanic. Their turn:RT split is also the widest in
+the game — **40 per action against 6.5 per tick** — so a nest is a slow bleed in real time and a
+serious clock in turn-based.
+
+The mould does not *remove* tissue, it **converts** it: a breach infects a disc of radius
+`firstTouchRadius` (1.5 cells, floored at the cloud's own 0.8–1.3), each seed claims
+`firstTouchRings` (12) rings, plus everything grown that step within `freshGrowthRings` (80);
+thereafter the established race takes `spreadDepthPerTurn` (12 / 3) rings per step, and each
+rotten strand falls away `rotLifeTurns` (2) steps later. Infected tissue can neither harvest nor
+draft.
+
+**The two hunters swap places between the modes, and that is arithmetic, not a bug.** Per step a
+worm moves 8.0 cells against the cloud's 5.0 in turn-based, and 1.0 against 2.5 in real time —
+because `crawlSpeed` has carried an **8:1** turn:RT ratio since the first tuning while `moveSpeed`
+carries **2:1**, and every retune since has scaled both tables by the same factor rather than
+touching the ratio. Before "fixing" it, note it survived four retunes deliberately.
 
 ### Threat rates (all changed together, all in BOTH tables)
 
@@ -780,6 +819,30 @@ Already in place before any of that, and worth not re-deriving: `RENDER_DPR_CAP`
     had simply got busier between sessions. `segmentClear` is called only on IMPROVEMENT in the
     nearest-target search, so its sample count is small next to everything else in a tick. Do not
     trust a single perf delta against a number recorded earlier in the day.
+- **THE COMMITTED MAPS ARE CLEAN; A HOLE COMES FROM WHAT YOU PLACED ON ONE.** The obvious next
+  worry after the LoS fix — "is the fine mask itself missing rock the art draws?" — was measured
+  across all 59 committed maps with `tests/rock-audit.cjs`, and **58 are EXACT**: zero cells drawn
+  as rock that the mask misses. The check re-derives the truth from each sprite's own alpha
+  (`__game.rockArt(key)`) rather than reading `markCoverGrid`'s output, which is the only way to
+  ask "does the mask match the picture?" without trusting the thing under test. The one exception
+  is hand-authored `three-ways`, and all 1,162 of its gap cells are intended: 1,065 are the
+  `pathClear` entry/goal channels and 97 are the food-holes-a-wall rule. Traced maps can't show
+  the first — the tracer sizes the world so no sprite reaches a channel.
+  - **So the see-through wall is `markCoverGrid` skipping every cell that holds food or water.**
+    That skip is deliberate ("never bury a food pile" — a buried pile is unreachable), but the
+    rock art still draws over it, so a pile dropped inside a rock leaves a hole you can see
+    through and grow through in a wall that still looks solid. Measured on `garnet-c40`: one
+    cache took the solid area under it from **81 of 81 fine cells to 25**.
+  - **It cannot be caught at stamp time** — `buildLevel` runs before the sprites are loaded,
+    which is *why* the skip lives in the mask builder — so it is caught at PLACEMENT instead.
+    `objectHolesRock(o)` rings the offending marker in red on the map, labels it "holes the rock",
+    and the editor panel counts them. `__game.auditRocks()` runs the same test over whatever map
+    is loaded, which is the only way to reach a saved Chapter 1 map living in one browser's
+    localStorage.
+  - A traced map ships with **no food**, so it cannot exhibit this until you place some. That is
+    why the owner saw it on their own Chapter 1 maps and `traced-check` never has.
+  - The audit is a measuring tool, not a check: it prints numbers, is not in the runner, and 59
+    maps is ~20 minutes. Run it by name — `node tests/rock-audit.cjs garnet-c40 rust-c90`.
 - **Rock has two masks.** `cell.rock` is coarse; `substrate.solidAtWorld(x,y)` matches the drawn
   sprite, which overhangs its cells. Anything that must look right against the art (growth, ant
   trails) tests `solidAtWorld` — destination *and* midpoint.
@@ -1386,6 +1449,12 @@ unwinnable by design**: the campaign is a high-score ladder wearing a campaign's
 - Push with `git push -u origin <branch>`, retrying with backoff on network failure.
 - Verify by running the checks and report the actual numbers. Screenshot anything visual —
   several bugs in this project were only visible in a rendered frame.
+- **A TUNING CHANGE IS NOT DONE WHEN THE NUMBER CHANGES — MEASURE WHAT IT DID.** Several knobs
+  here are capped by a *different* rule, so raising one moves nothing and the check still passes
+  (it asserts the value). `freshGrowthRings` 24 → 80 changed a real colony's loss by 5 strands in
+  870, because only tissue grown that step is eligible and the longest grow card is 18 rings. Run
+  the relevant probe on a realistic colony and tell the owner the delta — otherwise they test it,
+  see nothing, and reasonably conclude it wasn't implemented.
 - **A new check goes into `tests/` and gets committed with the work that motivated it**, not
   left in the session scratchpad. The scratchpad is wiped when the container is reclaimed; a
   check written there is a check the next session has to reinvent.
@@ -1403,10 +1472,23 @@ unwinnable by design**: the campaign is a high-score ladder wearing a campaign's
 The working tree and the local branch roll back to a commit from hours earlier —
 `index.html` with no editor, `trace-map.py` with no `--guide`, files that had been committed
 simply absent. It is not a git operation anyone ran; it appears to be the container restoring
-an older snapshot. **Twice in one session, then FIVE times in another** — assume it will
-happen, not that it might.
+an older snapshot. **Twice in one session, then FIVE times in another, then again on the
+next** — assume it will happen, not that it might.
 
-Two things the later run added to the picture:
+**CHECK FOR IT THE MOMENT A SESSION RESUMES, before doing anything else.** The most recent one
+landed on a resume from compaction, and it announced itself in the cheapest way there is:
+`git log --oneline -1` and `git log --oneline -25` in two ADJACENT Bash calls named different
+commits. Same repo, seconds apart, disagreeing — that is the whole diagnosis. So the opening
+move of any resumed session is:
+
+```bash
+git rev-parse HEAD origin/<branch> && ls tests/ | wc -l
+```
+
+Two SHAs that differ, or a test count that dropped, is a rollback and nothing else. It is
+cheaper than discovering it from an edit that won't apply.
+
+Three things the later runs added to the picture:
 
 - **THE SCRATCHPAD ROLLS BACK TOO**, and to a different session's contents. A tool written
   there and not committed is gone, and what replaces it is old files that look plausible.
@@ -1419,6 +1501,11 @@ Two things the later run added to the picture:
   `grep -c "_rangeKey\|renderFrame:" index.html` — and if it is zero, reset to origin and
   re-apply. Re-applying is also how the Duplicate button ended up participating in the undo
   stack: the stale base had no undo, so the first version silently did not.
+- **`ls tests/` IS THE FASTEST TELL, because the rollback deletes whole files.** The last one
+  took the directory from 39 entries to 20 — every check written that session gone, while
+  `index.html` still parsed and still ran. A count is one glance; grepping markers one at a
+  time is several. The scratchpad gives the same signal for free: if its newest mtime is days
+  old when this session wrote to it minutes ago, the tree went back with it.
 
 **The commits have been safe on the remote every time.** The fix, after checking that origin
 really is ahead:
@@ -1541,18 +1628,30 @@ death was firing; the screen was lying about it.
 
 ## Loose ends
 
-- **Three measuring PROBES live in `tests/` alongside the checks** — `spread-probe.cjs` (what
-  the rot actually advances per step vs the config), `worm-probe.cjs` (what share of worms can
-  move, and WHY the stuck ones are stuck), `hop-probe.cjs` (how often a growth step passes the
-  endpoint test while crossing rock). They print numbers rather than PASS/FAIL and are not in
-  the runner. Each found a real defect this session; each header says which, and `worm-probe`'s
-  header records how its first version misled me.
+- **Measuring PROBES live in `tests/` alongside the checks**, and there are five now:
+  `spread-probe.cjs` (what the rot actually advances per step vs the config), `worm-probe.cjs`
+  (what share of worms can move, and WHY the stuck ones are stuck), `hop-probe.cjs` (how often a
+  growth step passes the endpoint test while crossing rock), `breach-probe.cjs` (what the
+  first-touch DISC costs on real tissue, radius by radius) and `infect-probe.cjs` (how far one
+  breach reaches). Plus `rock-audit.cjs` (mask vs art, per map) and the three perf tools. They
+  print numbers rather than PASS/FAIL and are **not in the runner** — several are minutes long.
+  Each found a real defect; each header says which, and `worm-probe`'s and `infect-probe`'s
+  headers record how their first versions misled me (`infect-probe`'s 4-unit-spaced colony
+  overstates any geometric rule tenfold — read `breach-probe` for anything about radii).
 - `CONFIG.dev.enabled` is `true` (dev buttons on screen). Flip it off for a public cut — and
   note it now gates more than buttons: the map switcher, the rock editor, the minimised
   carousel and the skipped level intro all read it.
 - **The 58 traced maps are not campaign levels yet.** Every one has `campaignLevel: null`, so
   they claim no slot and are reachable only from the editor's map list or `#level,<id>`. The
   owner is picking 10-15 of them for a new campaign; the rest are for later.
+- **THE OWNER'S CHAPTER 1 MAPS ARE NOT IN THE REPO.** Zero of the 59 committed JSONs carry a
+  `chapter` field — the named ones they work on ("3 - Rust 90", "5 - Garnet 40") live only in
+  their browser's localStorage, because Save as… cannot write `docs/levels/`. So a bug they
+  report on one of those maps **cannot be reproduced here from the repo**: the committed source
+  map has no food or threats placed, which is exactly the input the bug needs. Work the
+  mechanism instead — reproduce it by placing the object yourself on the source map — and give
+  them `__game.auditRocks()` or an equivalent in-page hook to run against their own copy. Asking
+  them to commit the JSON is the other option and they haven't yet.
 - `assets/` is ~108 MB, against the ~25 MB the itch zip was sized at. The owner has said not
   to worry about it while the set is still being cut down. If it does need cutting, the lever
   is sprite WebP quality — alpha stays lossless whatever the setting, and alpha is the only

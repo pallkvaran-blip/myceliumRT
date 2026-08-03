@@ -40,7 +40,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `mode-check.cjs` | Both games in one build: title buttons, per-mode tuning, clock behaviour |
 | `lure-check.cjs` | Title screen: strands creep to the cursor, branch, trail off, stop on leave |
 | `traced-check.cjs` | Every traced map (pass ids to narrow it): sprites decode, open space runs colony→goal on the real mask, no food sealed off, nothing drawn over a pathClear channel |
-| `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… |
+| `edit-check.cjs` | The dev rock editor: select/transform/delete, the look filter, placement, the above-ground clip, export, and Save as… Plus Apply & rebuild dropping the armed placement kind as well as the selection (so the next click is neutral), and the "holes the rock" flag on a food/water marker dropped inside a rock — with a pile on open ground as the control |
 | `core-check.cjs` | The molten core: the growth floor IS the drawn line, rocks clip at it, the earth turns red, assets stamp into the deepest row, and procedural maps have none |
 | `scale-check.cjs` | The organism scale: every growth LENGTH is base × `growth.scale`, the ratios between them survive it, the step measures what the config says, the drawn thread scales with it, and the longer step doesn't hop a wall |
 | `threat-check.cjs` | Threat rates and rules, measured through the sim in BOTH modes: worm crawl, bite size, reach, move-AND-eat on one step, a worm out of sight still closing in, cloud creep, the rot lifespan (darkens, then falls away, and healing resets the deadline), tissue the colony loses fading out rather than blinking off the map (a worm's bite leaves one ghost per strand eaten, marked as living tissue so it fades in cream not the rot's brown — with amputation as the control: it removes strands and leaves none), infected tissue not harvesting while the pile keeps its food, first-touch rot vs the established race (separate, non-stacking), the "no clean mycelium off rot" invariant, `infectionSpreadChance` being 1, and the render creep keeping pace. Plus DEATH BY BEING EATEN in both modes: a swarm that eats the whole colony ends the run with cause `devoured` (Energy held high, or starvation takes the credit), and the death screen says the colony was devoured rather than the cause-blind "ran out of cards" line it used to show — poll for that overlay, a campaign death plays a ~6 s celebration first. Does NOT assert `wanderSpeed` — it's a dead knob |
@@ -66,6 +66,16 @@ rather than `infect-probe`, whose 4-unit-spaced colony overstates any geometric 
 relevant one after any change to those systems, and read `worm-probe`'s header before trusting
 it — its first version reused one colony across every sample and the worms ate it, which
 produced a clean-looking table supporting the wrong conclusion.
+
+**`rock-audit.cjs` is the same kind of tool, at map scale**: `node tests/rock-audit.cjs
+garnet-c40 rust-c90` asks whether each map's collision mask matches its rock ART, re-deriving the
+truth from every sprite's own alpha through `__game.rockArt` instead of reading `markCoverGrid`'s
+output — the only way to test the mask without trusting it. All 59 committed maps are clean (58
+exact; `three-ways`' 1,162 gap cells are the `pathClear` channels and the food rule, both
+intended). Its second half is the one to watch: `holingObjects` counts food/water markers that
+punch a hole in a rock, which is what a see-through wall on a Chapter 1 map actually is. Not in
+the runner — 59 maps is ~20 minutes. `__game.auditRocks()` is the in-page version, and the only
+way to reach a saved map that exists solely in one browser's localStorage.
 
 `shot.cjs`, `hs-shot.cjs`, `lure-shot.cjs`, `core-shot.cjs`, `mould-shot.cjs` and
 `level-shots.cjs` aren't checks — they capture frames for eyeballing: the title screen, the
