@@ -90,7 +90,7 @@ other — a worm creeping 0.375 cells/tick would barely move if it only stepped 
 
 ### Threat rates (all changed together, all in BOTH tables)
 
-`tests/threat-check.cjs` (75 assertions) measures every one of these through the sim, in both
+`tests/threat-check.cjs` (85 assertions) measures every one of these through the sim, in both
 modes. A rate lives in two places — the CONFIG literal and `MODE_TUNING` — so **changing one
 table only doesn't make the creature faster, it makes one of the two games harder**, and that
 is invisible from inside either mode. **Every retune has to move BOTH by the same factor.**
@@ -326,11 +326,13 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-~737 assertions across 20 checks. **Run them; don't verify by re-reading your own diff.**
+**1273 assertions across 20 checks**, of which `traced` is 818 (one map's worth each). Plus
+three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
+**Run them; don't verify by re-reading your own diff.**
 
 ```bash
-node tests/run.mjs           # everything, one summary (~12 min)
-node tests/run.mjs --fast    # skip rt/tut/lure (~6 min)
+node tests/run.mjs           # everything, one summary (~30 min)
+node tests/run.mjs --fast    # skip rt/tut/lure (~25 min — `traced` alone is ~19)
 node tests/run.mjs hs lure   # by name
 ```
 
@@ -339,7 +341,9 @@ See `tests/README.md` for what each covers and how to add one. Playwright lives 
 
 Two things about running them:
 - **Scale the run to the change.** A docs/CLAUDE.md edit needs none. A one-area change needs
-  that check plus `--fast`. Reserve the full ~12-minute sweep for engine or HUD work.
+  that check plus `--fast`. Reserve the full sweep for engine or HUD work — and note `--fast`
+  is no longer fast: `traced` is ~19 minutes of its ~25, so `node tests/run.mjs edit threat`
+  (or whatever the change touches) is usually the right middle gear.
 - **Don't poll for the result.** The runner's output is piped, so the file stays EMPTY until
   the process exits — re-reading it tells you nothing. Start it in the background and wait for
   the completion notification, or watch it with a Monitor until-loop. (An entire session's worth
@@ -978,11 +982,33 @@ clearing `_rockSolidified`, not on release: the point of editing in the running 
 they cannot disagree. It is cheap because nothing is resampled.
 
 - click / shift-click to select, drag to move, arrows to nudge, `+`/`-` resize, `,`/`.`
-  rotate, Delete, **Ctrl+A** for every rock, **Ctrl+Z** to undo. Transforms are about the
+  rotate, Delete, **`D` to duplicate**, **Ctrl+A** for every rock, **Ctrl+Z** to undo.
+  Transforms are about the
   SELECTION's centre, so
   scaling a group holds its composition instead of shrinking each rock in place. **Those
   shortcuts are only written down here** — the toolbar used to carry them as four lines of
   prose across the top of the map, which is read once and in the way after that.
+- **Duplicate copies the selection onto the map** (`editDuplicate`, and `D` — unmodified,
+  because Ctrl+D is the browser's bookmark and every other editor key here is unmodified).
+  Four decisions in it, each of which is the difference between useful and confusing:
+  the copy is **offset by a third of a cell**, because one laid exactly on top is
+  indistinguishable from nothing having happened and you only find out by dragging and getting
+  the wrong one; the **copies** end up selected, so the next drag moves them and not the
+  originals; they go on the END of `levelSprites`, so they land in FRONT, where a fresh
+  placement goes; and it is **its own undo step** (tag `null`), because two duplicates are two
+  things you might want back separately. A plain field copy is the whole job — a sprite is
+  `{key, style, x, y, w, h, rot}` and `_alphaMask` is cached globally by image SOURCE, not per
+  sprite, so a duplicate collides exactly like its original with nothing to rebuild but the
+  stamp.
+  - Two traps its assertions found, both general: **`_rockSolidified === false` is not
+    readable from a test** — `solidifyRock` runs on the next rendered frame and sets it
+    straight back, so the flag races the render loop (the older `collision rebuilds`
+    assertion above it settles for "it is a boolean", which is why). Assert the OUTCOME
+    instead: move the copy onto open ground and check that ground turns solid.
+    And **a rock's `key` stops being unique the moment a duplicate exists**, so every
+    `findIndex(s => s.key === k)` below started returning the original — the draw-order checks
+    failed on a reorder that had worked perfectly. The Duplicate block undoes itself for that
+    reason.
 - The strip **minimises** (`▲`) rather than closing: closing drops the selection and every
   pending placement. Minimised it keeps its own button and the two status readouts.
 - **Up / Down (or `]` / `[`) send the selection ALL THE WAY to the front or back.**
@@ -1123,7 +1149,7 @@ Save also copies the JSON out (clipboard + `window.__levelJSON`) and switches in
 map, which stamps any pending placements the same way Apply does. **localStorage is one
 browser profile: the map is only durable once its JSON is committed to `docs/levels/`.**
 
-`tests/edit-check.cjs` covers all of it (95 assertions) and asserts on `levelSprites`, not on
+`tests/edit-check.cjs` covers all of it (106 assertions) and asserts on `levelSprites`, not on
 the panel's labels. `rockEdit`, `levels`, `saveAs` and `forgetSaved` are on `window.__game` for
 that reason. The save-as block deliberately runs on a FRESH page load — the steps before it
 delete every rock, and a saved copy of an empty map cannot show that `assetsFrom` resolved.
@@ -1169,12 +1195,27 @@ unwinnable by design**: the campaign is a high-score ladder wearing a campaign's
 
 ## If the repo looks like an older version of itself
 
-Twice in one session the working tree and the local branch rolled back to a commit from
-hours earlier — `index.html` with no editor, `trace-map.py` with no `--guide`, files that had
-been committed simply absent. It is not a git operation anyone ran; it appears to be the
-container restoring an older snapshot.
+The working tree and the local branch roll back to a commit from hours earlier —
+`index.html` with no editor, `trace-map.py` with no `--guide`, files that had been committed
+simply absent. It is not a git operation anyone ran; it appears to be the container restoring
+an older snapshot. **Twice in one session, then FIVE times in another** — assume it will
+happen, not that it might.
 
-**The commits were safe on the remote both times.** The fix, after checking that origin
+Two things the later run added to the picture:
+
+- **THE SCRATCHPAD ROLLS BACK TOO**, and to a different session's contents. A tool written
+  there and not committed is gone, and what replaces it is old files that look plausible.
+- **THE DANGEROUS CASE IS A ROLLBACK MID-EDIT.** It happened between two edits to
+  `index.html`: the second landed cleanly on a file that had silently lost a whole day's work,
+  so the tree then held the new feature ON TOP OF a stale base, and committing it would have
+  reverted everything else in one commit that looked like a feature. What caught it was a
+  *hook that had vanished* (`G.renderFrame is not a function` from a check that had been
+  passing). **Before committing, grep for a marker from EARLIER work, not just your own** —
+  `grep -c "_rangeKey\|renderFrame:" index.html` — and if it is zero, reset to origin and
+  re-apply. Re-applying is also how the Duplicate button ended up participating in the undo
+  stack: the stale base had no undo, so the first version silently did not.
+
+**The commits have been safe on the remote every time.** The fix, after checking that origin
 really is ahead:
 
 ```bash
@@ -1185,7 +1226,9 @@ git reset --hard origin/<branch>
 Then VERIFY a few specific things came back (`grep -c rockEdit index.html`, `ls
 tests/edit-check.cjs`) before doing anything else — the failure is silent, and the first
 symptom is usually an edit that "doesn't apply" because the text it targets is gone. Push
-often; anything uncommitted at the moment it happens is lost.
+often; anything uncommitted at the moment it happens is lost. **Commit each piece of work as
+soon as it stands up**, rather than batching — a session that commits five times loses at most
+the last one, and the reset above is then a 30-second interruption instead of a re-derivation.
 
 ## The phased, animated enemy turn (turn-based only)
 
@@ -1242,6 +1285,12 @@ to end.
 - The card-timing review decisions in `docs/card-review.html` are still awaiting the user's
   picks; nothing has been converted to N×-per-level yet.
 - **`logEvent` telemetry doesn't record the mode**, so the analytics funnel mixes the two games.
+- **Six `traced` assertions fail on four maps, and have for a while** — `ice-c24` and
+  `side-biolum-c20-2` on channel clearance, `rust-c110` / `rust-c40` / `side-veined-c28` /
+  `side-biolum-c20-2` on density (61.9-64.9% solid, and 7.9% at the other extreme). This is MAP
+  DATA, not engine: the maps want re-tracing at a different count or dropping from the
+  shortlist, and `rust` only ever converted at c90 (see Generated maps). Every sweep reports
+  them; nothing else in `traced`'s 818 fails.
 - Two checks are unreliable and both are harness-side, not game-side: `tut`'s five real-time
   assertions fail on some runs ("0 offer(s), 50 nutrient left" — the starter pile hasn't finished
   digesting when the assertion fires), and `aim` has reported `0/0`, i.e. it bailed early and was

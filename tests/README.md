@@ -257,6 +257,34 @@ sample moved the wrong way, 184 -> 210). It now samples the rock's own centre an
 to a patch of BARE SKY in the same frame — 73 against 74 with the clip, 210 against 147
 without. Always run a negative control on a pixel assertion.
 
+### The perf tools are not checks either — they print, they never fail
+
+Three of them, and they answer different questions. All three PIN THE MAP SEED (freezing
+`Date.now` over the boot), because `startRun()` seeds the world from the clock and an unpinned
+run compares maps rather than builds — the frame median swung 91 to 999 ms on identical code
+before that was noticed.
+
+- **`node tests/perf-probe.cjs [strands] [w] [h]`** — a STILL camera. Times `renderFrame` and
+  `tickWorld` separately, censuses one frame's `drawImage` calls by call site, and aggregates a
+  CDP profile by SELF time. `PERF_WORMS=60` adds a late-game threat load, which is the only way
+  to see the enemy-step hitch.
+- **`node tests/perf-scenes.cjs [w] [h] [dpr]`** — a MOVING camera: still / pan / zoom-tween /
+  grow-revealing at both zoom extremes, plus the card carousel, and it counts **canvases
+  minted**, which is how you tell a cache from an allocator. `PERF_CENSUS=1` adds the by-call-
+  site pixel breakdown for one PANNING frame — that is what found `drawMountains` asking for
+  33.3 of a frame's 53.9 Mpx of destination. It patches the context PROTOTYPE, so it sees
+  draws into offscreen buffers too, which is where that worst call turned out to be.
+- **`node tests/perf-shot.cjs out.png`** — one deterministic frame, captured with the canvas's
+  own `toDataURL` rather than `page.screenshot`, which waits for animations to settle and
+  against a live rAF loop at ~520 ms a frame never returns.
+
+Two things to know before believing a number from any of them. **Run it three times** — a
+single run reported a 4% improvement that three runs showed was noise in both directions. And
+**headless is a SOFTWARE rasteriser**: fill-rate work shows up as pixels, not milliseconds.
+Halving a frame's destination pixels changed the wall clock by nothing here, on a change whose
+whole point is the resource a phone is short of. Quote the pixel counts, which are
+hardware-independent, and say which of the rest is software raster.
+
 ### `fringe-score.py` is not a check, but read it like one
 
 `python3 scripts/fringe-score.py` measures the pale ring on every traced level's sprites,

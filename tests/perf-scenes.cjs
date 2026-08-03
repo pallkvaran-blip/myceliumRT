@@ -148,5 +148,49 @@ for (const [tag, setZoom] of [['out', ZOUT], ['in', ZIN]]) {
               `${r.rebuilt} of 40 frames rebuilt the strip`);
 }
 
+// ---- WHERE THE PIXELS GO IN A MOVING FRAME ---------------------------------
+// `PERF_CENSUS=1 node tests/perf-scenes.cjs 2560 1440 1`
+//
+// A profile says 93% of self time is in drawImage, which is true and useless — the question is
+// WHICH drawImage. This patches the 2D context for exactly one PANNING frame and tallies source
+// and destination pixels by call site. It is how the largest render defect in this file's
+// history was found: two calls in drawMountains asking for 33.3 of a frame's 53.9 Mpx of
+// DESTINATION, drawing rects far larger than the surface receiving them and letting a
+// ctx.clip() throw the rest away after the rasteriser had been handed it.
+//
+// Note it patches the PROTOTYPE, so it catches draws into offscreen buffers as well as onto the
+// visible canvas — which is what exposed that one, since the worst call was building the
+// mountain backdrop's buffer rather than painting the screen.
+if (process.env.PERF_CENSUS) {
+  const census = await p.evaluate(({setZoom})=>{
+    const G=window.__game, cam=G.camera, s=G.state;
+    new Function('G','cam','s',setZoom)(G,cam,s);
+    G.renderFrame(performance.now(),1);                       // warm the caches
+    const C=CanvasRenderingContext2D.prototype, real=C.drawImage;
+    const by=new Map(); let calls=0, src=0, dst=0;
+    C.drawImage=function(img,...a){
+      calls++;
+      const iw=img.width||0, ih=img.height||0;
+      let s2,d2;
+      if (a.length>=8){ s2=(a[2]||0)*(a[3]||0); d2=(a[6]||0)*(a[7]||0); }
+      else if (a.length>=4){ s2=iw*ih; d2=(a[2]||0)*(a[3]||0); }
+      else { s2=iw*ih; d2=iw*ih; }
+      src+=s2; dst+=d2;
+      const st=(new Error().stack||'').split('\n');
+      let who='?'; for(let i=1;i<st.length;i++){ if(!/drawImage/.test(st[i])){ who=st[i].trim().replace(/^at\s+/,'').replace(/\s*\(.*$/,''); break; } }
+      const e=by.get(who)||{n:0,s:0,d:0}; e.n++; e.s+=s2; e.d+=d2; by.set(who,e);
+      return real.apply(this,[img,...a]);
+    };
+    cam.x+=9; cam.clamp(); G.renderFrame(performance.now(),1);   // ONE panning frame
+    C.drawImage=real;
+    return { calls, src:src/1e6, dst:dst/1e6,
+      top:[...by.entries()].sort((a,b)=>b[1].d-a[1].d).slice(0,10)
+        .map(([k,v])=>`${String(v.n).padStart(5)} calls  ${(v.s/1e6).toFixed(2).padStart(7)} Mpx src  ${(v.d/1e6).toFixed(2).padStart(7)} Mpx dst  ${k}`) };
+  }, {setZoom: ZIN});
+  console.log(`\nONE PANNING FRAME (zoomed in): ${census.calls} calls, ` +
+              `${census.src.toFixed(1)} Mpx read, ${census.dst.toFixed(1)} Mpx written`);
+  for (const l of census.top) console.log('  '+l);
+}
+
 await b.close(); srv.close();
 })();
