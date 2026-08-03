@@ -297,10 +297,18 @@ CONFIG literal only.
   cream filaments were left lying inside the green wherever a cloud landed across a bundle.
   - **FLOORED AT THE CLOUD'S OWN REACH** (`cloud.r`, 0.8–1.3 cells), so whatever the mould visibly
     covers is always infected — including at radius 0, which is therefore *not* an off switch.
-  - It costs far less than it looks: the seeds sit within ~2 growth segments of each other, so the
-    union of their ring walks is roughly one ball plus that gap, NOT seeds × rings. All seeds are
-    marked infected BEFORE any walk runs, so a walk meeting another seed stops instead of spending
-    depth on ground that seed covers itself.
+  - **MEASURED, on real tissue** (`tests/breach-probe.cjs`, two ~1000-strand colonies at the real
+    25.5-unit segment): one touch claims **30-39%** of the colony at radius 0 and **37-48%** at the
+    shipped 1.5 — about seven to nine points more, well short of proportional, because 48 seeds sit
+    within ~2 segments of each other and their walks are largely the same ground. (All seeds are
+    marked infected BEFORE any walk runs, so a walk meeting another seed stops rather than spending
+    depth on ground that seed covers itself.) At 3 cells it takes about two thirds in one touch, so
+    the knob does bite.
+    **Do NOT read `infect-probe` for this**: its hand-built colony has 4-UNIT spacing against the
+    real 25.5, so it reports the disc claiming 42-94% and overstates any geometric rule by roughly
+    an order of magnitude. And `freshGrowthRings` has to be off to compare radii at all —
+    `tickWorld` moves `_turnStartId` at its END, so only the first breach measured in a loop gets a
+    fresh-growth claim, which read as the disc making a breach *smaller* (130 strands vs 50).
   - **IT WIDENS EVERY FIRST-TOUCH EFFECT BY ITS OWN RADIUS**, `freshGrowthRings` included. That is
     why `threat-check`'s exact-rate probes now pin it to 0 AND shrink the cloud below one node
     spacing: on their 4–6-unit chains the shipped radius covers 19–27 strands, so "what did ONE

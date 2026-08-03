@@ -2088,8 +2088,13 @@ const CONFIG = {
     // strands inside the green, which is the thing that looked wrong. This is the same shape
     // `infectStrandsInMould` (growing INTO mould) has always had; contact was the odd one out.
     //
-    // It costs far less than it looks: the seeds are within ~2 growth segments of each other, so
-    // the union of their 12-ring walks is roughly one 12-ring ball plus that gap, NOT seeds × 12.
+    // MEASURED, because "a small radius" hides a balance change. On two ~1000-strand colonies at the
+    // real 25.5-unit segment (tests/breach-probe.cjs), one touch claims 30-39% of the colony at
+    // radius 0 and 37-48% at 1.5 — so about seven to nine points more, well short of proportional:
+    // 48 seeds are nowhere near 48 × 12 rings, because they sit within ~2 segments of each other and
+    // their walks are largely the same ground. At 3 cells it takes roughly two thirds in one touch,
+    // so the knob does bite if it is turned up. Do NOT read `infect-probe` for this — its hand-built
+    // colony has 4-UNIT spacing and overstates any geometric rule by about an order of magnitude.
     firstTouchRadius: 1.5,       // cells (SLIDER)
     // THE SPRINT-PAST RULE. Whatever the colony grew ON THE STEP IT GOT INFECTED, within this
     // many rings of where the infection happened, rots with it. 24 rings = 8 grow-steps, longer

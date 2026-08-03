@@ -72,21 +72,29 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ' + m); } else { fai
       net.energy = 500;
     };
 
-    // An open column of cells with no rock anywhere near, well clear of the edges.
-    const findSpot = () => {
-      for (let col = 8; col < sub.cols - 8; col++)
-        for (let row = 6; row < sub.rows - 6; row++) {
+    // An open pocket with no rock near it, well clear of the edges: room for the pile plus the stem
+    // that runs into its western edge.
+    //
+    // IT RELAXES RATHER THAN GIVING UP. The map is procedural and seeded from Date.now(), so the
+    // widest clearance is not always available — asking for one flat size made the check bail with
+    // a FATAL on some boots, and the runner reports that as `did not report (exit 1) ← BROKEN`
+    // without printing the reason (its failure filter greps FAIL/Error). Shrinking the margin keeps
+    // every assertion meaningful; only the stem gets shorter.
+    const findSpot = (west, pad) => {
+      for (let col = pad + 2; col < sub.cols - pad - 2; col++)
+        for (let row = pad + 2; row < sub.rows - pad - 2; row++) {
           let clear = true;
-          for (let dr = -3; dr <= 3 && clear; dr++) for (let dc = -6; dc <= 3 && clear; dc++) {
+          for (let dr = -pad; dr <= pad && clear; dr++) for (let dc = -west; dc <= pad && clear; dc++) {
             const c = sub.cellAt(col + dc, row + dr);
             if (!c || c.rock || c.water || sub.rockNear(col + dc, row + dr, 1.5)) clear = false;
           }
-          if (clear) return { col, row };
+          if (clear) return { col, row, west, pad };
         }
       return null;
     };
-    const spot = findSpot();
-    if (!spot) return { fatal: 'no open ground on this map' };
+    let spot = null;
+    for (const [west, pad] of [[6, 3], [5, 3], [4, 2], [3, 2]]) { spot = findSpot(west, pad); if (spot) break; }
+    if (!spot) return { fatal: 'no open ground on this map, even at the smallest clearance' };
 
     // A pile at `spot`, a stem of clean strands running into its western edge, and a DISCONNECTED
     // anchor limb on the far side of the map.
@@ -101,7 +109,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ' + m); } else { fai
     let anchorIds = new Set();
     const build = (radius) => {
       reset();
-      const ctr = sub.injectFoodPile(spot.col, spot.row, radius, 6, 50, 'normal');
+      const ctr = sub.injectFoodPile(spot.col, spot.row, Math.min(radius, spot.pad), 6, 50, 'normal');
       const pile = sub.foodPiles[sub.foodPiles.length - 1];
       const far = sub.cellCenter(sub.cols - 4, spot.row);
       let anchor = null; anchorIds = new Set();
@@ -110,8 +118,10 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ' + m); } else { fai
         anchor._liveAt = 0; anchorIds.add(anchor.id);
       }
       const west = sub.cellCenter(spot.col - radius - 1, spot.row);
+      // As many stem nodes as the clearance found actually allows (spot.west cells of it).
+      const steps = Math.max(4, Math.round((spot.west - radius - 1) / 0.8));
       let par = null; const stem = [];
-      for (let i = 10; i >= 1; i--) {
+      for (let i = steps; i >= 1; i--) {
         const n = net.addNode(west.x - i * cs * 0.8, west.y, par);
         n._liveAt = 0; par = n; stem.push(n);
       }
@@ -257,7 +267,7 @@ const ok = (c, m) => { if (c) { pass++; console.log('  PASS ' + m); } else { fai
       net._removeNodes(rotten);
       const west = sub.cellCenter(spot.col - 3, spot.row);
       let par = null;
-      for (let i = 10; i >= 1; i--) { par = net.addNode(west.x - i * cs * 0.8, west.y, par); par._liveAt = 0; }
+      for (let i = Math.max(4, spot.west - 2); i >= 1; i--) { par = net.addNode(west.x - i * cs * 0.8, west.y, par); par._liveAt = 0; }
       net.colonizeReachablePiles(sub, s.rng);
       const reclaimed = claimedCells(pile);
       for (let i = 0; i < 8 && pileNutrient(pile) > 0; i++) step();

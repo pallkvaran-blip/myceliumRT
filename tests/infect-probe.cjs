@@ -19,6 +19,13 @@
  *
  * Those first two match the subtree sizes to the strand, which is what identifies
  * infectDescendants as the mechanism rather than either of the rates.
+ *
+ * DO NOT READ THIS PROBE FOR ANYTHING GEOMETRIC. Its colony is hand-built at 4-UNIT spacing against
+ * the game's real 25.5-unit segment, which is fine for a rule measured in graph RINGS (that is the
+ * point — rings and strands stay comparable) and badly wrong for a rule measured in world units.
+ * The breach disc (`firstTouchRadius`, 1.5 cells = 54 units) covers ~6 strands along a real filament
+ * and ~27 along one of these, so this probe reports it claiming 42-94% of the colony and overstates
+ * it by roughly an order of magnitude. `tests/breach-probe.cjs` grows a real colony for that.
  */
 const http=require('http'),fs=require('fs'),path=require('path');
 const {chromium}=require('playwright');

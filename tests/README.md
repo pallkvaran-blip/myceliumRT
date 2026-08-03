@@ -56,11 +56,13 @@ re-renders the row for legitimate reasons, and the copies reported failures they
 justify. `rt-test` keeps only the structural claims (the old dots are gone, a bar is drawn).
 If you add a churn assertion, give it a fresh page and pin resources.
 
-`spread-probe.cjs`, `worm-probe.cjs` and `hop-probe.cjs` aren't checks either — they print
-MEASUREMENTS, not PASS/FAIL, and aren't in the runner. Each exists because a number somewhere
-was not what the config claimed: what the rot really advances per step (the
+`spread-probe.cjs`, `worm-probe.cjs`, `hop-probe.cjs` and `breach-probe.cjs` aren't checks either —
+they print MEASUREMENTS, not PASS/FAIL, and aren't in the runner. Each exists because a number
+somewhere was not what the config claimed: what the rot really advances per step (the
 `infectionSpreadChance` cap), what share of worms can actually move and why the stuck ones are
-stuck, and how often a growth step clears the endpoint test while crossing rock. Re-run the
+stuck, how often a growth step clears the endpoint test while crossing rock, and what the breach
+DISC (`firstTouchRadius`) actually costs on a colony at the real organism scale — read that one
+rather than `infect-probe`, whose 4-unit-spaced colony overstates any geometric rule tenfold. Re-run the
 relevant one after any change to those systems, and read `worm-probe`'s header before trusting
 it — its first version reused one colony across every sample and the worms ate it, which
 produced a clean-looking table supporting the wrong conclusion.
