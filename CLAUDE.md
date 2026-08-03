@@ -569,6 +569,13 @@ Harness traps that have cost real time:
     quantity (the round clock, the cadence bars) is to *sleep* and let the real loop tick.
   Whenever a check's numbers move after a perf change, ask what it was really measuring before
   believing it found a regression.
+- **RAISING A THREAT'S SPEED BREAKS PROBES THAT DIDN'T PIN IT.** `tickWorld` CREEPS the clouds
+  before the contact pass, so any probe that drops a cloud on a strand and expects a breach is
+  really betting that the cloud won't drift off it first. The first-touch probe shrinks its cloud to
+  `r 0.05` (1.8 units) so exactly one strand is in the disc — which survived at `moveSpeed` 3.0 and
+  began failing intermittently at 5.0 with `0 rotten after the breach, wanted 13`, because the cloud
+  now moves 180 units before it is asked to touch anything. Every cloud probe wants `moveSpeed = 0`;
+  three of the four already had it.
 - **A RESPAWNED THREAT CAN END THE RUN UNDER A PROBE, AND `tickWorld` RETURNS AT ITS FIRST LINE ON
   `runOver`.** Emptying `state.nematodes` / `state.clouds` once is not enough — every tick can
   respawn one, and a check that takes 20 world steps is a long time to be lucky. When the run ends

@@ -523,6 +523,12 @@ const touch=await p.evaluate(()=>{
   // leaves exactly one seed, which is what makes the ring count below exact. The disc itself is
   // measured in mould-check, on a fan of separate filaments where it can be attributed.
   const rad=t.firstTouchRadius; t.firstTouchRadius=0;
+  // AND PIN THE CLOUD, as 6g3/6g4 do. tickWorld CREEPS the clouds before the contact pass, and this
+  // probe shrinks the cloud to r 0.05 (1.8 units) so exactly one strand is in the disc — so any
+  // drift at all can carry it past the chain and breach nothing. It survived at moveSpeed 3.0 and
+  // started failing intermittently at 5.0 with '0 rotten after the breach, wanted 13': the cloud
+  // was moving 180 units before it was asked to touch anything.
+  const mspeed=t.moveSpeed; t.moveSpeed=0;
   // AND HOLD THE ROT. At rotLifeTurns 2 the strands claimed by the breach fall away on the very
   // next step, so the race step measured FEWER rotten strands than the breach step (13 -> 12) and
   // the chain came back 147 long instead of 160. The rate and the lifespan have to be measured
@@ -542,7 +548,7 @@ const touch=await p.evaluate(()=>{
   s.runOver=false; s.winPending=false; s.won=false; net.alive=true;
   G.tickWorld(s);
   const afterRace=net.nodes.filter(n=>n.infected).length;
-  t.firstTouchRadius=rad; t.rotLifeTurns=rlife;   // the probes after this one share the page
+  t.firstTouchRadius=rad; t.rotLifeTurns=rlife; t.moveSpeed=mspeed;   // the probes after this one share the page
   return { len:net.nodes.length, before, afterTouch, afterRace,
            first:t.firstTouchRings, rate:t.spreadDepthPerTurn, radius:rad };
 });
