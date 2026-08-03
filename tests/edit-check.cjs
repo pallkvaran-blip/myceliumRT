@@ -844,6 +844,50 @@ ok('forgetting a saved map removes it', await p.evaluate((extra)=>{
   if (extra) window.__game.forgetSaved(extra);
   return !window.__game.levels().some(l=>l.chapter);
 }, coll && coll.id));
+
+// ---- Apply / Save leave NOTHING armed ------------------------------------
+// Owner: "when I press apply & rebuild, please deselect everything. E.g. if the last thing I did
+// was place a nematode - you'd deselect that button so that the next click is neutral."
+//
+// `place` is the one piece of selection with no presence on the map — a highlighted button in the
+// panel and nothing else — so coming back from a rebuild still armed drops another creature on the
+// first click. The BUTTON is asserted as well as the flag: its amber border used to be painted only
+// inside its own onclick, so clearing the state alone would have left it looking armed while doing
+// nothing, which is the worse of the two failures.
+await p.evaluate(()=>{ if(!window.__game.rockEdit.on) document.querySelector('#devEditBtn').click(); });
+await sleep(300);
+const armedNow = await p.evaluate(()=>{
+  const r = window.__game.rockEdit;
+  const btns = [...document.querySelectorAll('#eePlace button')];
+  const worm = btns.find((b)=>/nemat|worm/i.test(b.textContent)) || btns[0];
+  worm.click();                                     // arm a placeable, the owner's example
+  const sp = window.__game.state.substrate.levelSprites || [];
+  r.sel = new Set(sp.length ? [0] : []);            // and select a rock, so both kinds are live
+  return { armedId: r.place, label: worm.textContent.trim(), sel: r.sel.size,
+           lit: btns.filter((b)=>b.style.borderColor).length };
+});
+ok('a placeable can be armed, and its button lights up',
+   !!armedNow.armedId && armedNow.lit === 1, `armed ${armedNow.armedId} (${armedNow.label}), ${armedNow.lit} button lit`);
+ok('...and a rock is selected alongside it', armedNow.sel === 1, `${armedNow.sel} selected`);
+
+await p.evaluate(()=>document.querySelector('#eeApply').click());
+await sleep(1200);
+await p.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:90000}).catch(()=>{});
+await p.evaluate(()=>{ if(!window.__game.rockEdit.on) document.querySelector('#devEditBtn').click(); });
+await sleep(400);
+const cleared = await p.evaluate(()=>{
+  const r = window.__game.rockEdit;
+  return { place: r.place, sel: r.sel.size, selAdded: r.selAdded.size, drag: r.drag,
+           lit: [...document.querySelectorAll('#eePlace button')].filter((b)=>b.style.borderColor).length,
+           pend: (document.querySelector('#eePend')||{}).textContent || '' };
+});
+ok('Apply disarms the placeable', cleared.place === null, String(cleared.place));
+ok('...and no button is left looking armed', cleared.lit === 0, `${cleared.lit} still lit`);
+ok('...and the rock selection is cleared too',
+   cleared.sel === 0 && cleared.selAdded === 0 && !cleared.drag,
+   `sel ${cleared.sel}, placed ${cleared.selAdded}, drag ${cleared.drag}`);
+ok('...and the panel stops saying "placing"', !/placing/i.test(cleared.pend), cleared.pend);
+
 await b.close();srv.close();
 console.log(`==== ${PASS} passed, ${FAIL} failed ====`);
 process.exit(FAIL?1:0);

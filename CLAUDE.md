@@ -462,7 +462,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1380 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
+**1387 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
 three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
 **Run them; don't verify by re-reading your own diff.**
 
@@ -1222,6 +1222,16 @@ they cannot disagree. It is cheap because nothing is resampled.
   Not covered: **rename** (it writes localStorage) and **Apply** (a full restart, which is what
   clears the stack). The button shows the depth, because coalescing means the depth is not the
   number of edits you made.
+- **APPLY AND SAVE DESELECT EVERYTHING** (`editClearSelection`) — both restart the run, and coming
+  back with a placeable still ARMED means the first click on the rebuilt map drops another creature
+  you never asked for. `place` is the one piece of selection with no presence on the map, so it is
+  the easiest to leave on by accident. It clears `sel`, `selAdded`, `place` and `drag`; `added` is
+  deliberately kept, since the restart re-seeds it and that is what keeps placed objects selectable.
+  - **The armed button's highlight is DERIVED now** (`syncPlaceButtons`). It used to be written only
+    inside the button's own `onclick`, i.e. a record of the last click rather than of the state — so
+    clearing `place` from anywhere else would have left a button still looking armed while the next
+    click did nothing. That is the worse of the two failures, and `edit-check` asserts the button's
+    appearance as well as the flag.
 - **Copy JSON** puts the level on the clipboard in `docs/levels/<id>.json` shape. Nothing is
   written from the browser. It also parks it on `window.__levelJSON` — always, not only when
   the clipboard fails, because headless Chromium's clipboard write SUCCEEDS and the first

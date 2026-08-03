@@ -22882,14 +22882,29 @@ function editExport() {
 // createLevelState like any other level start rather than poking the live substrate — the
 // substrate's cells, masks, reservoirs and spawn lists are built together and there is no
 // supported way to add to them halfway.
+// EVERYTHING DESELECTED, so the next click is neutral. Apply and Save both restart the run, and
+// coming back with a placeable still ARMED means the first click on the new map drops another
+// nematode you never asked for — the owner's example, and the easiest of these to do by accident
+// because `place` is the one piece of selection that isn't visible on the map.
+//
+// `sel`/`selAdded` are what is highlighted, `place` is what the next click WILL do, and `drag` is a
+// gesture that cannot survive a rebuild. `added` is deliberately NOT cleared: the restart re-seeds
+// it from the edited def (syncEditObjectsToLevel), which is what keeps placed objects selectable
+// across an Apply.
+function editClearSelection() {
+  rockEdit.sel.clear();
+  rockEdit.selAdded.clear();
+  rockEdit.place = null;
+  rockEdit.drag = null;
+  syncPlaceButtons();      // the armed button's highlight is not derived — see below
+}
+
 function editApply() {
   const def = state && state.levelDef;
   if (!def) return;
   let edited;
   try { edited = JSON.parse(editExport()); } catch (_) { return; }
-  // `added` is NOT cleared: the restart re-seeds it from the edited def (syncEditObjectsToLevel),
-  // so the objects stay selectable across an Apply, which is the whole point.
-  rockEdit.sel.clear();
+  editClearSelection();
   playtestLevel = edited;
   currentLevel = edited.campaignLevel || 1; runStartLevel = currentLevel;
   carryOver = null; runSpores = 0;
@@ -22914,7 +22929,7 @@ function editSaveAs() {
   if (!saved) { window.alert('Could not save — the name needs at least one letter or digit.'); return; }
   window.__levelJSON = JSON.stringify(saved, null, 1);
   try { navigator.clipboard.writeText(window.__levelJSON); } catch (_) {}
-  rockEdit.sel.clear();      // `added` is re-seeded by the restart, as in editApply
+  editClearSelection();      // same as Apply: it restarts too, so nothing may stay armed
   // The map panel caches its markup against a signature of the ids it drew; the new map is
   // not in that signature, so force the rebuild rather than wait for something else to.
   const panel = document.getElementById('devMapPanel');
@@ -22967,6 +22982,20 @@ function updateEditPanel() {
     pend.textContent = bits.join(' · ');
   }
 }
+// The armed placeable's amber border, painted FROM `rockEdit.place`. It used to be set only
+// inside the button's own onclick, which meant the highlight was a record of the last click
+// rather than of the state — so anything that disarmed `place` from elsewhere (Apply, Save,
+// Escape) left a button still looking armed while the next click did nothing. A style write to
+// the value it already holds is a no-op for the DOM, so this is safe to call as often as it likes;
+// it never rebuilds the row, which is what would destroy the element under the cursor.
+function syncPlaceButtons() {
+  const row = document.getElementById('eePlace');
+  if (!row) return;
+  row.querySelectorAll('button').forEach((x) => {
+    x.style.borderColor = x.dataset.pk === rockEdit.place ? '#e6b45c' : '';
+  });
+}
+
 function updateDevEditBtn() {
   const ui0 = document.getElementById('ui');
   const devOn = !!(state && state.config && state.config.dev && state.config.dev.enabled);
@@ -23042,8 +23071,7 @@ function updateDevEditBtn() {
       if (pk.title) b.title = pk.title;      // what it PAYS; the label says what it looks like
       b.onclick = () => {
         rockEdit.place = (rockEdit.place === pk.id) ? null : pk.id;
-        row.querySelectorAll('button').forEach((x) =>
-          x.style.borderColor = x.dataset.pk === rockEdit.place ? '#e6b45c' : '');
+        syncPlaceButtons();
         updateEditPanel();
       };
       row.appendChild(b);
