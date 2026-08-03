@@ -462,7 +462,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1387 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
+**1391 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
 three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
 **Run them; don't verify by re-reading your own diff.**
 
@@ -748,6 +748,22 @@ Already in place before any of that, and worth not re-deriving: `RENDER_DPR_CAP`
   progress gets rebuilt at 2 Hz, which destroys the element under the cursor (flicker, swallowed
   clicks). Hence the `_handSig` / `_filterSig` / `_ledgerHTML` / `_actMenuHTML` guards and the
   cadence bar writing its fill via `syncCadenceBars` instead of the markup.
+- **LINE OF SIGHT TESTS THE DRAWN ART, and forgetting that is what "they can see through the rocks"
+  looks like.** `segmentClear` (the sim's LoS) and `visionPolygon` (the sight circle you see) both
+  used to test the coarse `cell.rock`. Both masks are stamped from the same sprite alpha, but each
+  samples at its OWN cell centres — so a rock covering part of a 36px cell sets the 9px fine cells
+  under it and leaves the coarse flag clear. Measured on the traced map `rust-c90`: **7.2% of the
+  drawn rock area is invisible to `cell.rock`** (1,394 of 19,239 fine cells), concentrated at the
+  edges, which is exactly where a sight ray grazes. Worst on TRACED maps — irregular sprites with
+  thin tapered edges; a procedural boulder field is squarer and hides it.
+  - Both now march `solidAtWorld` at `_losStep()` (the fine size, 9). One helper, because the
+    overlay's promise is "what you see is what it will see" and the two drifting apart would be
+    worse than either being wrong alone. `threat-check` pins that they share a step.
+  - **It costs nothing measurable.** Halving the step looked like +1.8 ms on `tickWorld`, but an A/B
+    of the two step sizes, and then of the pre-change build, both measured the SAME — the container
+    had simply got busier between sessions. `segmentClear` is called only on IMPROVEMENT in the
+    nearest-target search, so its sample count is small next to everything else in a tick. Do not
+    trust a single perf delta against a number recorded earlier in the day.
 - **Rock has two masks.** `cell.rock` is coarse; `substrate.solidAtWorld(x,y)` matches the drawn
   sprite, which overhangs its cells. Anything that must look right against the art (growth, ant
   trails) tests `solidAtWorld` — destination *and* midpoint.

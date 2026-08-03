@@ -9174,14 +9174,25 @@ class Substrate {
   // True if a clear straight line runs from (x0,y0) to (x1,y1): no rock cell
   // lies on the segment (sampled at half-cell steps, endpoint included). Rock
   // blocks line of sight — worms and mould clouds can't sense through it.
+  // LINE OF SIGHT IS TESTED AGAINST THE DRAWN ART, like growth and ant trails — not against the
+  // coarse `cell.rock` flag. Both masks are stamped from the same sprite alpha, but each samples
+  // at its OWN cell centres: a rock covering part of a 36px cell sets the 9px fine cells under it
+  // and leaves the coarse flag clear. Measured on the traced map rust-c90, **7.2% of the drawn rock
+  // area is invisible to `cell.rock`** (1,394 of 19,239 fine cells), and it is concentrated at the
+  // edges — exactly where a sight ray grazes past. Reported as "they can see through the rocks",
+  // and it was true of the SIM as well as the overlay, because both tested the coarse flag.
+  //
+  // Worst on traced maps, whose sprites are irregular and full of thin tapered edges; a procedural
+  // boulder field is squarer and leaks less. `solidAtWorld` falls back to `cell.rock` until
+  // solidifyRock has run, so a headless sim with no renderer behaves exactly as before.
+  _losStep() { return this._fineSize || this.cellSize * 0.5; }
+
   segmentClear(x0, y0, x1, y1) {
-    const cs = this.cellSize;
     const dx = x1 - x0, dy = y1 - y0;
-    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / (cs * 0.5)));
+    const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / this._losStep()));
     for (let i = 1; i <= steps; i++) {
       const x = x0 + dx * (i / steps), y = y0 + dy * (i / steps);
-      const c = this.cellAtWorld(x, y);
-      if (c && c.rock) return false;
+      if (this.solidAtWorld(x, y)) return false;
     }
     return true;
   }
@@ -9190,9 +9201,11 @@ class Substrate {
   // the first rock cell it meets. Returns the ray endpoints (world coords) as a
   // closed, star-shaped polygon of what the point can actually SEE — so a sight
   // overlay drawn from it is occluded by rock instead of bleeding through it.
-  // Marched at half-cell steps (same resolution as segmentClear).
+  // Marched at the same step, against the same mask, as segmentClear — see the note there. That
+  // identity is the whole point of the overlay: what you see has to be what the threat will see,
+  // and the two drifting apart would be worse than either being wrong on its own.
   visionPolygon(ox, oy, radius, rays = 96) {
-    const stepLen = this.cellSize * 0.5;
+    const stepLen = this._losStep();
     const steps = Math.max(1, Math.ceil(radius / stepLen));
     const poly = new Array(rays);
     for (let i = 0; i < rays; i++) {
@@ -9202,8 +9215,7 @@ class Substrate {
       for (let s = 1; s <= steps; s++) {
         const t = s * stepLen;
         if (t >= radius) break;                          // reached the edge in the open
-        const c = this.cellAtWorld(ox + dx * t, oy + dy * t);
-        if (c && c.rock) { reach = t; break; }           // blocked — die at the rock face
+        if (this.solidAtWorld(ox + dx * t, oy + dy * t)) { reach = t; break; }   // die at the rock face
       }
       poly[i] = { x: ox + dx * reach, y: oy + dy * reach };
     }

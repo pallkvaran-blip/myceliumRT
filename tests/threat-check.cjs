@@ -1493,6 +1493,73 @@ for (const [label, hash] of [['turn-based', '#dev,turn'], ['real time', '#dev']]
   await ep.close();
 }
 
+
+// ---- 14. LINE OF SIGHT IS BLOCKED BY THE DRAWN ROCK -------------------------
+// Reported on a saved copy of rust-c90: "the enemy vision circles - they can see through the
+// rocks." Both the overlay (visionPolygon) and the sim (segmentClear) tested the COARSE
+// `cell.rock` flag, while the art and growth collision use the fine mask. The two are stamped from
+// the same sprite alpha but each samples at its OWN cell centres, so a rock covering part of a 36px
+// cell sets the 9px cells under it and leaves the coarse flag clear.
+//
+// Measured on a TRACED map deliberately — irregular sprites with thin tapered edges are where the
+// two masks part company; a procedural boulder field is squarer and would hide it.
+{
+const lp = await boot(await b.newContext({viewport:{width:1400,height:800}}), base + '/index.html#level,rust-c90');
+await lp.waitForFunction(()=>window.__game.state.substrate._rockSolidified===true,null,{timeout:120000}).catch(()=>{});
+const los = await lp.evaluate(() => {
+  const sub = window.__game.state.substrate;
+  if (!sub._fineSolid) return { err: 'fine mask not built' };
+  const fs_ = sub._fineSolid, fC = sub._fineCols, fR = sub._fineRows, fSz = sub._fineSize;
+  // The gap itself: fine cells the ART says are solid where cell.rock is clear. These are the
+  // places a sight ray used to walk straight through a drawn rock.
+  let fineSolid = 0, leaking = 0;
+  const leaks = [];
+  for (let r = 0; r < fR; r++) for (let c = 0; c < fC; c++) {
+    if (fs_[r * fC + c] !== 1) continue;
+    fineSolid++;
+    const wx = c * fSz + fSz / 2, wy = sub.surfaceY + r * fSz + fSz / 2;
+    const cell = sub.cellAtWorld(wx, wy);
+    if (!(cell && cell.rock)) { leaking++; if (leaks.length < 300) leaks.push({ wx, wy }); }
+  }
+  // A short ray straight through each: both axes, so a sliver aligned with one still blocks.
+  let seenThrough = 0;
+  for (const L of leaks) {
+    if (sub.segmentClear(L.wx - 40, L.wy, L.wx + 40, L.wy)
+     && sub.segmentClear(L.wx, L.wy - 40, L.wx, L.wy + 40)) seenThrough++;
+  }
+  // The OVERLAY, from OPEN ground beside a rock: its rays must die short of the full radius.
+  // Centring INSIDE rock proves nothing — every direction is trivially blocked.
+  let polyTested = 0, polyTruncated = 0;
+  for (const L of leaks) {
+    if (polyTested >= 40) break;
+    let ox = null, oy = null;
+    for (let d = fSz; d <= fSz * 8 && ox === null; d += fSz)
+      for (const [sx, sy] of [[-d, 0], [d, 0], [0, -d], [0, d]])
+        if (!sub.solidAtWorld(L.wx + sx, L.wy + sy)) { ox = L.wx + sx; oy = L.wy + sy; break; }
+    if (ox === null) continue;
+    const poly = sub.visionPolygon(ox, oy, 240, 48);
+    if (!poly) continue;
+    polyTested++;
+    if (poly.some((v) => Math.hypot(v.x - ox, v.y - oy) < 239)) polyTruncated++;
+  }
+  return { fineSolid, leaking, leakPct: +(100 * leaking / fineSolid).toFixed(1),
+           tested: leaks.length, seenThrough, polyTested, polyTruncated,
+           losStep: sub._losStep(), fineSize: fSz };
+});
+ok('the traced map has rock the coarse flag misses (or there is nothing to prove)',
+   !los.err && los.leaking > 0, los.err || `${los.leaking} of ${los.fineSolid} fine cells (${los.leakPct}%)`);
+ok('sight is BLOCKED everywhere the art draws rock', !los.err && los.seenThrough === 0,
+   los.err || `${los.seenThrough} of ${los.tested} sample points still see through`);
+ok('...and the overlay is truncated by rock, not drawn over it',
+   !los.err && los.polyTested > 0 && los.polyTruncated === los.polyTested,
+   los.err || `${los.polyTruncated} of ${los.polyTested} polygons stop short`);
+// The overlay promises "what you see is what it will see", which only holds while both march the
+// same mask at the same step. Pinned, because a future tune of one and not the other is silent.
+ok('the sim and the overlay march at the same resolution as the art',
+   !los.err && los.losStep === los.fineSize, los.err || `step ${los.losStep} vs fine ${los.fineSize}`);
+await lp.close();
+}
+
 await b.close(); srv.close();
 
 console.log(`==== ${PASS} passed, ${FAIL} failed ====`);
