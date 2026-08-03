@@ -446,7 +446,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1361 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
+**1373 assertions across 22 checks**, of which `traced` is 818 (one map's worth each). Plus
 three PERF TOOLS that print and never fail — see the Performance section and tests/README.md.
 **Run them; don't verify by re-reading your own diff.**
 
@@ -1433,6 +1433,37 @@ now just the "ask it and say so" wrapper around it.
   grow held nothing and passed vacuously. And a TARGETED card (Rhizomorph Lance) only *arms* on
   `onPlayCard` and returns true without playing, so it cannot tell a refusal from a normal aim.
   `Condense` resolves on the spot and is the card to probe with.
+
+## Dying, and being TOLD what killed you
+
+The run-over path is two screens sharing one table, and the table is the thing to keep straight.
+**`deathText(cause)` lives in the UI module and is exported** (main imports it) so both read it:
+the campaign carousel (`showDeathCarry`) and the plain overlay (`UI.showOverlay`). It used to live
+in main, which the UI module cannot reach — so `showOverlay`'s campaign-death branch hard-coded
+*"you ran out of playable cards or resources"* whatever killed you, and because that branch sits
+AHEAD of the cause-specific ones it made those unreachable in card mode too (a water death read
+the same way). Reported as *"make sure there is a death if I get fully eaten by nematodes"* — the
+death was firing; the screen was lying about it.
+
+- **Being fully eaten IS a death, and it is caught OUTSIDE `tickWorld`'s network loop.** Worms (and
+  ants) eat the last strand BEFORE that loop runs, so `_removeNodes` has already set
+  `net.alive = false` and `if (!net.alive) continue` skips the in-loop death block. The catch after
+  the loop is what makes `cause: 'devoured'` happen at all — don't "simplify" it away.
+- **`healthyCount() === 0` is the trigger, not `nodes.length === 0`**, so a colony left as nothing
+  but rot dies as `infected` and one starved to nothing as `energy`. When probing a devoured death,
+  set Energy high or the death is attributed to starvation and a "did it die?" assertion passes
+  while proving nothing about the worms.
+- **A campaign death plays a ~6 s fruiting celebration BEFORE the card** (`startDeathCelebration`
+  on the home hill — "forced to fruit and spore"). A probe that slept 2.5 s saw the bare HUD and
+  read as *"no death at all"*. POLL for the overlay; never guess a wait. This is also the most
+  likely reason a player reports no death: for six seconds nothing on screen says you lost, though
+  the log line lands immediately.
+- **`showDeathCarry` vs `showOverlay` depends on `chosenSpecies`** — a real campaign run takes the
+  carousel, a `#dev` boot (and the picker's "Dev quick-start") takes the overlay. So a bug in the
+  overlay's wording is invisible to a scripted real-species run and vice versa; `threat-check`
+  asserts the overlay path, which is the one `#dev` gives a test.
+- `tests/threat-check.cjs` covers it in both modes (12 assertions): the cause the model records and
+  the words the player reads, including the exact old wrong string kept as the regression it is.
 
 ## Loose ends
 
