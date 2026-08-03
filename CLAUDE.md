@@ -241,7 +241,7 @@ CONFIG literal only.
     action, `Saprotrophic Digest` and `finishOccupiedHarvest` (the victory sweep). Measured
     pre-fix on a 650-nutrient pile with the whole colony rotted: income took **325** and Digest
     another **325**.
-    **`Network.cleanClaimMask(substrate)`** is the direct answer — the cells clean
+    **`Network.cleanCover(substrate)`** is the direct answer — the cells clean
     tissue covers right now, each strand's own cell plus its 8 neighbours (the neighbours ARE the
     mat's drift, which is why this is not `occupiedIdx`) — and all five gate on it themselves
     rather than trusting the release pass to have run: **income resolves BEFORE `infectNetwork`
@@ -259,6 +259,11 @@ CONFIG literal only.
     Cost three real-time `tut` assertions ("0 offers") on the first version.
     Consequence to expect, and it is deliberate: ground whose tissue a **worm ate** is released
     too. Any harvest with no living tissue on it is the same defect wearing a different cause.
+    It costs about **+0.3 ms of a 4.8 ms `tickWorld`** at 6,000 strands (three runs each side) —
+    the O(nodes) build, not the neighbourhood, which is resolved per query rather than expanded
+    into the set. Don't share the build with `collectOccupiedCells`' identical `occupiedIdx` to
+    win that back: the ~0.2 ms is not worth a gate that stops gating if that function's skip rule
+    ever changes.
     `tests/harvest-check.cjs` (28) covers the lot, with a verified negative control via
     `MYC_ROOT` (5 fail on the pre-fix build) and clean-tissue controls beside every assertion.
 - **The player's action resolves BEFORE any threat acts, in turn-based.** `performAction` runs
@@ -297,7 +302,7 @@ CONFIG literal only.
   cell clean tissue no longer covers, at the end of its pass. Without it the cell stayed claimed,
   so `checkPileRewards`' `touched` test still fired and rot drafted off a pile it could no longer
   eat. It clears by COVERAGE, not by infected-node position, and the release is only half of it —
-  see the `cleanClaimMask` note under "Infected tissue cannot harvest" for why every reader gates
+  see the `cleanCover` note under "Infected tissue cannot harvest" for why every reader gates
   on the mask as well.
 - **`growInfectBurst` is the OTHER first touch** — growing *into* mould rather than being
   touched by it — now **12 = 4 steps**, level with `firstTouchRings` and with the ongoing race,
