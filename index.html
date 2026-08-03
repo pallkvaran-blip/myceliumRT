@@ -25,6 +25,13 @@
       user-select: none; -webkit-user-select: none; }
     #game { position: fixed; inset: 0; display: block; cursor: crosshair; touch-action: none;
       opacity: 0; }   /* revealed (faded in) by main.js once the map's art has loaded */
+    /* NOT THE PLAYER'S TURN: the crosshair becomes a small hourglass while the enemies are
+       moving or a pile/draft is resolving (main.js playerBlockedReason toggles .busy). Drawn
+       inline rather than left to the system `wait` keyword, which is a spinning beachball on
+       macOS and a rotating ring on Windows — neither of which says "waiting for a turn". Dark
+       halo under a mint outline so it reads against both the pale colony and the dark soil.
+       `wait` stays as the fallback for anything that refuses a data-URI cursor. */
+    #game.busy { cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='22' height='26' viewBox='0 0 22 26'><g fill='none' stroke='%2305070d' stroke-width='5' stroke-linejoin='round' stroke-linecap='round'><path d='M5 3h12M5 23h12'/><path d='M6.5 4h9l-4.5 9 4.5 9h-9l4.5-9z'/></g><g fill='none' stroke='%23cfe8d6' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'><path d='M5 3h12M5 23h12'/><path d='M6.5 4h9l-4.5 9 4.5 9h-9l4.5-9z'/></g><path d='M11 14.5l3.2 6.5h-6.4z' fill='%23cfe8d6'/><circle cx='11' cy='9.6' r='1.15' fill='%23cfe8d6'/></svg>") 11 13, wait; }
     #ui { position: fixed; inset: 0; pointer-events: none; }
     #ui > * { pointer-events: auto; }
 
@@ -23305,6 +23312,12 @@ function begin(newState) {
     editDuplicate,
     saveAs: (name) => saveLevelAs(JSON.parse(editExport()), name, 'Chapter 1'),
     forgetSaved: deleteSavedLevel,
+    // WHOSE TURN IS IT, and the real UI entry points. `play`/`draw`/`skip` below go straight to
+    // the engine (that is what every existing check drives, and what the self-play bot needs), so
+    // they deliberately bypass the interface gate — `handlers` is how a check exercises the gate
+    // itself, on the same path a click takes. `blockedReason` is the gate's own answer.
+    blockedReason: () => playerBlockedReason(),
+    handlers,
     draw: () => resolveCardOp(drawCard(state)),
     skip: () => resolveCardOp(skipRound(state)),
     play: (i, ctx) => resolveCardOp(playCard(state, i, ctx)),
@@ -23477,6 +23490,9 @@ const handlers = {
   // saveResumeSnapshot), so just drop to the title WITHOUT ending the run — "Old" resumes it.
   onSaveExit: () => showMainMenu(),
   onAction(name, ctx) {
+    // The basic actions were the gap: `draftLocked` guarded the card layer only, so a player
+    // could Grow straight over a draft, or over the enemies' walk.
+    if (draftLocked()) return;
     placingWorm = false;              // selecting an action leaves worm-placement mode
     const a = ACTIONS[name];
     // Targeted actions: first click selects targeting mode; the canvas click
@@ -23683,14 +23699,53 @@ const handlers = {
 // play/draw/skip or use abilities until they choose. Returns true (and toasts why)
 // when locked, so callers bail. When the draft panel is open it's a full-screen modal
 // so these paths are unreachable anyway; this guard is what enforces it once minimized.
-function draftLocked() {
+// --- IS IT THE PLAYER'S TURN? ------------------------------------------------
+// A short reason the player must not act right now, or null. Every UI entry point that COMMITS
+// something — a basic action, a card, an installed ability, Draw, Skip, a targeted tap, a
+// released drag-aim — asks this first, and the canvas cursor turns into an hourglass while it
+// answers (see #game.busy).
+//
+// TWO THINGS HOLD THE TURN, and they hand over to each other with no gap the player can slip
+// through:
+//
+//   1. THE ENEMY TURN, ANIMATIONS INCLUDED. `state.enemyTurn` is created the instant the player
+//      acts and lives until the attack half has resolved — waiting out the player's own growth
+//      reveal, the move, the ~2 s slide, then the attack. That span IS the animation, which is
+//      why the flag is the right thing to read rather than any timer of our own.
+//   2. THE PILE AND ITS DRAFT. `enemyTurnAttack` clears `enemyTurn` BEFORE it ticks, so a pile
+//      that finishes digesting on that tick pushes its offer while the turn is already null —
+//      but both happen inside one synchronous `advanceEnemyTurn` call, so there is no frame in
+//      between for a click to land in. The offer then holds the turn until it is taken.
+//
+// NOT a gate in `performAction`: the engine's own rule is that queueing a turn FLUSHES whatever
+// is still owed, so acting early costs the player nothing and can never desync the world (see
+// queueEnemyTurn). That safety net stays exactly as it was — and tests and the self-play bot go
+// on driving the engine directly. This is a rule about the INTERFACE: you should not be able to
+// play over the top of an animation you are supposed to be watching.
+function playerBlockedReason() {
+  if (!state || !state.active || state.runOver) return null;   // the run-over card owns the screen
+  if (!isRealtime() && state.enemyTurn) return 'The enemies are still moving — wait for their turn to finish.';
   const c = state.cards;
-  if (c && c.pendingOffers && c.pendingOffers.length && !state.runOver) {
-    if (ui.restoreOffer) ui.restoreOffer();   // pop the draft back open so they can act on the nudge
-    ui.toast('Finish your draft first — choose one of the cards.');
-    return true;
+  if (c && c.pendingOffers && c.pendingOffers.length) {
+    // Before the sequence is on screen the cards are not there to be chosen yet, so "finish your
+    // draft" would be an instruction the player cannot follow. Say what is actually happening.
+    return draftSequenceStarted(c.pendingOffers[0])
+      ? 'Finish your draft first — choose one of the cards.'
+      : 'The colony is still consuming that pile.';
   }
-  return false;
+  return null;
+}
+
+// The gate itself: true if the player may NOT act, having said so. Named for what it replaced —
+// it was `draftLocked`, and every caller of that wanted this.
+function draftLocked() {
+  const why = playerBlockedReason();
+  if (!why) return false;
+  const c = state.cards;
+  // Pop the draft back open so they can act on the nudge (only meaningful once it exists).
+  if (c && c.pendingOffers && c.pendingOffers.length && draftSequenceStarted(c.pendingOffers[0]) && ui.restoreOffer) ui.restoreOffer();
+  ui.toast(why);
+  return true;
 }
 
 // Cancel any in-progress map aim (a targeted card OR a targeted installed action)
@@ -23793,6 +23848,8 @@ function botToGoal(budget = 900) {
 function onCanvasClick(worldX, worldY) {
   const sel = ui.selectedAction;
   if (!sel) return;
+  if (draftLocked()) return;          // the tap that COMMITS a targeted action is an action
+
   const a = ACTIONS[sel];
   if (a.target === 'point' || a.target === 'node') {
     const res = performAction(state, sel, { x: worldX, y: worldY });
@@ -23879,6 +23936,10 @@ function updateAim(e) {
 // Commit a completed aim: grow from the pressed source toward the drag point.
 // ctx.srcX/srcY tell the engine to start growth exactly where the player pressed.
 function fireAim(a) {
+  // The RELEASE is the commit, and a gesture can be started before the turn ends and let go
+  // after — so the gate belongs here rather than only at beginAim. The aim is dropped either
+  // way, so a blocked release doesn't leave a stale line armed on the map.
+  if (draftLocked()) { aim = null; if (ui.clearPendingCard) ui.clearPendingCard(); if (ui.clearPendingAction) ui.clearPendingAction(); ui.resetHint(); uiDirty = true; return; }
   const ctx = { x: a.cur.x, y: a.cur.y, srcX: a.origin.x, srcY: a.origin.y };
   if (a.kind === 'card') {
     const idx = state.cards.hand.findIndex((h) => h.id === a.ref.id);
@@ -24571,6 +24632,20 @@ function stampMouldInterp() {
   }
 }
 
+// The hourglass on the canvas, kept in step with playerBlockedReason. Toggled from the frame
+// loop rather than from each thing that starts or ends a turn: the turn ends inside
+// advanceEnemyTurn, a draft ends on a card click, a pile can finish on any tick, and one poll
+// covers all of them without every one of those sites having to remember. Guarded on a CHANGE,
+// so it is a no-op on all but two frames per turn — a classList write every frame would be exactly
+// the HUD churn the rest of the render path goes out of its way to avoid.
+let _busyCursor = null;
+function syncBusyCursor() {
+  const busy = !!playerBlockedReason();
+  if (busy === _busyCursor) return;
+  _busyCursor = busy;
+  if (canvas) canvas.classList.toggle('busy', busy);
+}
+
 function frame(time) {
   // The species picker runs before the first run is created; there's nothing to
   // render until then, so idle the loop (keeps requesting frames) while state is null.
@@ -24579,6 +24654,7 @@ function frame(time) {
   // the run being over). Runs before the menu/pacing early-returns below so the clock stays
   // fresh across menus and never fast-forwards on resume.
   advanceSim(time);
+  syncBusyCursor();
   // A full-screen menu (title / species picker / loadout / death-carry) fully covers the
   // canvas. Don't render the (possibly finished) run behind it: it's invisible anyway, and
   // with a stale post-run camera a backdrop drawImage can balloon to millions of px and

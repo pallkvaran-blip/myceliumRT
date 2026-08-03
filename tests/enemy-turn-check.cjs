@@ -470,6 +470,147 @@ ok('real time never grows an enemyTurn', ticked.queued === false);
 await p.close();
 }
 
+
+// =============================================================================
+// 5. THE PLAYER CANNOT ACT OVER THE TOP OF IT
+// =============================================================================
+// The animation is only worth playing if the player is made to watch it. Everything above is
+// about the ENGINE staying consistent while they act early; this is the INTERFACE rule that they
+// cannot. Two things hold the turn and hand over to each other: `state.enemyTurn` (which spans the
+// wait, the move, the ~2 s slide and the attack — the animation IS that span), and then any pile
+// draft the attack just pushed.
+//
+// Driven through `__game.handlers`, which is what a click actually calls. `__game.play` /
+// `performAction` go straight to the engine and are deliberately NOT gated — that is the whole
+// design (the engine's flush keeps them safe), so testing the gate on them would prove nothing.
+{
+const p = await boot(b, base + '/index.html#dev,turn');
+await p.evaluate(PREP);
+
+// Queue a turn through the engine, then try every UI entry point while it is live. `enemyTurn`
+// identity is the test for "did this get through?" — a blocked action queues nothing, so the
+// machine object is still the one the setup action installed.
+// A basic grow refuses with "no food within sensing range" once the colony has outrun the map's
+// piles, and a refusal queues nothing — which would leave the gate with nothing to hold and every
+// assertion below passing vacuously. So lay unclaimed food at the frontier first, the same way the
+// burst above does. The card used to probe the gate is CONDENSE, deliberately: a targeted card
+// (Rhizomorph Lance) only ARMS on onPlayCard and returns true without playing, so it cannot tell a
+// refusal from a normal aim. Condense resolves on the spot.
+const feed = () => {
+  const G = window.__game, s = G.state, net = s.active, sub = s.substrate;
+  const fp = net.frontierPoint(); if (!fp) return;
+  const fc = sub.colAtX(fp.x), fr = sub.rowAtY(fp.y);
+  for (let col = fc; col <= fc + 3; col++) for (let row = fr - 1; row <= fr + 2; row++) {
+    if (!sub.inBounds(col, row)) continue;
+    const cell = sub.cells[sub.index(col, row)];
+    if (cell.rock) continue;
+    cell.hazard = 0; cell.colonized = 0; cell.nutrient = 50; cell.maxNutrient = 50;
+  }
+};
+const held = await p.evaluate(`(${feed.toString()})();` + `(() => {
+  const G = window.__game, s = G.state, net = s.active;
+  net.energy = 99999; net.water = 5; net.phosphorus = 99;
+  const setup = G.performAction(s, 'grow', {});   // the setup action: queues the enemy turn
+  const et0 = G.enemyTurn, turn0 = s.turn, e0 = net.energy, w0 = net.water, n0 = net.nodes.length;
+  const why = G.blockedReason();
+  const H = G.handlers;
+  H.onAction('grow', {});                         // a basic action
+  const actQueued = G.enemyTurn !== et0;
+  let idx = s.cards.hand.findIndex((h) => h.name === 'Condense');
+  if (idx < 0) { s.cards.hand.push({ id: s.cards.seq++, name: 'Condense' }); idx = s.cards.hand.length - 1; }
+  const handBefore = s.cards.hand.length;
+  const played = H.onPlayCard(idx);               // a card that resolves without a target
+  H.onDraw();                                     // Draw
+  H.onSkip();                                     // Skip (turn-based only)
+  return { setupOk: !!(setup && setup.ok), why, live: !!G.enemyTurn, actQueued, played,
+           handBefore, handAfter: s.cards.hand.length, turn0, turn: s.turn,
+           spent: e0 - net.energy, gainedWater: net.water - w0, grew: net.nodes.length - n0 };
+})()`);
+ok('the setup action really took (or the gate has nothing to hold)', held.setupOk === true);
+ok('the enemy turn is live and the gate says so',
+   held.live === true && typeof held.why === 'string' && held.why.length > 0, JSON.stringify(held.why));
+ok('a basic action is refused while the enemies move', held.actQueued === false && held.grew === 0,
+   `queued=${held.actQueued}, ${held.grew} strands grown`);
+ok('a card is refused', held.played === false && held.handAfter === held.handBefore && held.gainedWater === 0,
+   `returned ${held.played}, hand ${held.handBefore} → ${held.handAfter}, +${held.gainedWater} Water`);
+ok('Draw and Skip are refused', held.spent === 0 && held.turn === held.turn0,
+   `spent ${held.spent} Energy, turn ${held.turn0} → ${held.turn}`);
+
+// The cursor. It is toggled from the frame loop, so a frame has to run before it can be read —
+// which is also the honest test, since that is when the player sees it.
+await sleep(120);
+const busyNow = await p.evaluate(() => {
+  const c = [...document.querySelectorAll('canvas')].find((n) => n.clientHeight > 0);
+  return { cls: !!(c && c.classList.contains('busy')), cursor: c ? getComputedStyle(c).cursor : null };
+});
+ok('the canvas wears the busy cursor while it is not the player\'s turn', busyNow.cls === true);
+ok('...and that cursor is the hourglass, not the crosshair',
+   /svg|url\(|wait/.test(busyNow.cursor || ''), String(busyNow.cursor).slice(0, 60));
+
+// Let the turn finish, then the same entry points must work again.
+const freed = await p.evaluate(() => {
+  const G = window.__game, s = G.state, net = s.active;
+  G.settleEnemyTurn();
+  const c = s.cards;
+  if (c && c.pendingOffers) c.pendingOffers.length = 0;   // a pile the setup finished would hold it
+  net.energy = 99999; net.water = 5; net.phosphorus = 99;
+  const why = G.blockedReason();
+  const et0 = G.enemyTurn, w0 = net.water;
+  let idx = s.cards.hand.findIndex((h) => h.name === 'Condense');
+  if (idx < 0) { s.cards.hand.push({ id: s.cards.seq++, name: 'Condense' }); idx = s.cards.hand.length - 1; }
+  const handBefore = s.cards.hand.length;
+  const played = G.handlers.onPlayCard(idx);
+  return { why, played, queued: G.enemyTurn !== et0, gainedWater: net.water - w0,
+           handBefore, handAfter: s.cards.hand.length };
+});
+ok('once the turn is over the gate opens', freed.why === null, JSON.stringify(freed.why));
+ok('...and the same card now plays', freed.played === true && freed.gainedWater > 0 && freed.handAfter < freed.handBefore,
+   `played=${freed.played}, +${freed.gainedWater} Water, hand ${freed.handBefore} → ${freed.handAfter}`);
+// AND THE HOURGLASS COMES OFF once nothing is holding the turn. Settle first: the play above
+// queued a turn of its own, so reading the class straight after would be reading that turn's
+// hourglass and would pass whether the flag ever clears or not.
+await p.evaluate(() => { window.__game.settleEnemyTurn(); const c = window.__game.state.cards; if (c && c.pendingOffers) c.pendingOffers.length = 0; });
+await sleep(120);
+const cursorAfter = await p.evaluate(() => {
+  const c = [...document.querySelectorAll('canvas')].find((n) => n.clientHeight > 0);
+  return { cls: !!(c && c.classList.contains('busy')), cursor: c ? getComputedStyle(c).cursor : null,
+           why: window.__game.blockedReason() };
+});
+ok('the hourglass comes off once the turn is the player\'s again',
+   cursorAfter.cls === false && cursorAfter.why === null, JSON.stringify(cursorAfter.why));
+ok('...back to the crosshair', /crosshair/.test(cursorAfter.cursor || ''), String(cursorAfter.cursor).slice(0, 40));
+
+// A PILE AND ITS DRAFT hold the turn after the enemies are done, and they say different things:
+// before the cards are on screen "finish your draft" is an instruction the player cannot follow.
+const drafting = await p.evaluate(() => {
+  const G = window.__game, s = G.state;
+  G.settleEnemyTurn();
+  const c = s.cards;
+  c.pendingOffers.length = 0;
+  // No `center` → the intro is skipped and the panel shows at once (draftSequenceStarted).
+  c.pendingOffers.push({ choices: ['Hyphal Extension'], pile: null });
+  const onScreen = G.blockedReason();
+  c.pendingOffers.length = 0;
+  // WITH a centre and no intro run yet → the pile is still being consumed.
+  c.pendingOffers.push({ choices: ['Hyphal Extension'], pile: null, center: { x: 100, y: 100 } });
+  const consuming = G.blockedReason();
+  const et0 = G.enemyTurn, n0 = s.active.nodes.length;
+  G.handlers.onAction('grow', {});
+  const leaked = G.enemyTurn !== et0 || s.active.nodes.length !== n0;
+  c.pendingOffers.length = 0;
+  return { onScreen, consuming, leaked, free: G.blockedReason() };
+});
+ok('a draft on screen blocks, and says to choose a card',
+   /draft/i.test(drafting.onScreen || ''), JSON.stringify(drafting.onScreen));
+ok('a pile still being consumed blocks, and says THAT instead',
+   /consum/i.test(drafting.consuming || '') && drafting.consuming !== drafting.onScreen,
+   JSON.stringify(drafting.consuming));
+ok('an action during either is refused', drafting.leaked === false);
+ok('clearing the offer opens the gate again', drafting.free === null, JSON.stringify(drafting.free));
+
+await p.close();
+}
+
 console.log(`\n==== ${PASS} passed, ${FAIL} failed ====`);
 await b.close(); srv.close();
 process.exit(FAIL ? 1 : 0);
