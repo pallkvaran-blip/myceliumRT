@@ -54,12 +54,33 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // put their rock in cells (the fine mask is stamped from AUTHORED sprites and is empty on a
   // generated map, so flooding it would pass every level vacuously).
   await page.evaluate(() => {
-    window.__probe = (level) => {
+    window.__probe = async (level) => {
       const g = window.__game;
       g.campaign.play('marasmius', level);
       const st = g.state, sub = st.substrate;
+      // WAIT FOR THE FINE MASK, and drive frames to build it. solidifyRock runs during RENDER and
+      // only on the frame where every rock sprite has decoded, and loadLevelAssets is deliberately
+      // not awaited — so straight after campaign.play() an authored level has NO rock stamped
+      // anywhere. Measuring there is not merely imprecise: the flood fill then runs over an empty
+      // mask, so "the goal is reachable on every level" — the assertion this file calls the one
+      // that matters — passed without touching a single wall.
+      for (let i = 0; i < 120 && !sub._rockSolidified; i++) {
+        try { g.renderFrame(); } catch (_) {}
+        await new Promise((r) => setTimeout(r, 50));
+      }
       const C = sub.cols, R = sub.rows, cells = sub.cells;
-      const solid = (i) => !!(cells[i] && cells[i].rock);
+      // ROCK IS `solidAtWorld`, NOT `cell.rock`. The campaign's ten levels are AUTHORED now:
+      // their rock is a list of sprites and a fine alpha mask, and the coarse cell flag those
+      // generated maps used is never set — so every one of them read ~0% rock and their mask
+      // digests were identical, which surfaced as "5 distinct of 10" and a pathological-density
+      // failure on nine levels. solidAtWorld answers for both kinds (it falls back to the coarse
+      // flag when no fine mask exists), so this measures the rock the player actually collides
+      // with whichever way the level was built.
+      const solid = (i) => {
+        const c = i % C, r = (i / C) | 0;
+        return sub.solidAtWorld(c * sub.cellSize + sub.cellSize / 2,
+                                sub.surfaceY + r * sub.cellSize + sub.cellSize / 2);
+      };
       // Root cell = where the colony was seeded.
       const n0 = st.active.nodes[0];
       const rc = Math.min(C - 1, Math.max(0, Math.floor(n0.x / sub.cellSize)));
@@ -84,8 +105,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       // A digest of the ROCK mask: the map's identity, cheap to compare and stable.
       let h = 2166136261 >>> 0;
       for (let i = 0; i < C * R; i++) { h ^= solid(i) ? 1 : 0; h = Math.imul(h, 16777619) >>> 0; }
-      const rock = cells.reduce((a, c) => a + (c.rock ? 1 : 0), 0);
-      return { level, cols: C, rows: R, digest: h, rock, rockPct: Math.round((rock / (C * R)) * 100),
+      let rock = 0;
+      for (let i = 0; i < C * R; i++) if (solid(i)) rock++;
+      // An AUTHORED level's identity is its id — two campaign slots holding the same map is the
+      // thing being guarded, and the id says so directly and without depending on the mask being
+      // stamped yet. A generated level has no def and falls back to the mask digest.
+      const ident = (st.levelDef && st.levelDef.id) || ('gen:' + h);
+      return { level, cols: C, rows: R, digest: h, ident, authored: !!st.levelDef, rock,
+               rockPct: Math.round((rock / (C * R)) * 100),
                filled, reachesGoal, rootAt: rc + ',' + rr, goalFrom,
                food: (sub.foodPiles || []).length, nodes: st.active.nodes.length,
                water: cells.reduce((a, c) => a + (c.reservoir ? 1 : 0), 0) };
@@ -159,10 +186,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   const odd = maps.filter((m) => m.rockPct > 60 || m.rockPct < 2);
   ok('no level is a pathological amount of rock', odd.length === 0,
      odd.map((m) => 'L' + m.level + ' ' + m.rockPct + '%').join(', ') || 'all 2-60%');
-  // Ten identical maps would mean the seed isn't reaching the generator at all.
+  // Ten identical maps would mean the seed isn't reaching the generator at all — or, now that
+  // the ten are AUTHORED, that two campaign slots are serving the same file. Compared by
+  // identity (the level id where there is one, the mask digest otherwise) so it answers the
+  // same question for either kind.
   ok('the ten levels are ten different maps',
-     new Set(maps.map((m) => m.digest)).size === maps.length,
-     new Set(maps.map((m) => m.digest)).size + ' distinct of ' + maps.length);
+     new Set(maps.map((m) => m.ident)).size === maps.length,
+     new Set(maps.map((m) => m.ident)).size + ' distinct of ' + maps.length +
+     (maps.every((m) => m.authored) ? ' (authored)' : ''));
 
   // ---- determinism: a level is a MAP, not a roll ----------------------------
   // If any `Math.random()` gets into the generation path the seeds silently stop meaning
@@ -257,20 +288,35 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // ---- ending a run deliberately ------------------------------------------
   // "Players decide what cards to keep when they decide to end each run" — the exit is a normal
   // campaign move, so it must reach the keep screen, not a game-over.
+  // TWO SCREENS NOW. Ending a run lands on showDeathScreen — what happened, and the two things
+  // you can do — and the keep screen is behind its "End run: Choose which cards to keep" button.
+  // The check follows the player's route rather than reaching past it, so it would catch either
+  // screen going missing.
   const ended = await page.evaluate(async () => {
-    document.querySelectorAll('#loadoutSelect, #ssLevelComplete, #ssGameWon').forEach((n) => n.remove());
+    document.querySelectorAll('#ssDeath, #loadoutSelect, #ssLevelComplete, #ssGameWon').forEach((n) => n.remove());
     window.__game.campaign.play('marasmius', 2);
     await new Promise((r) => setTimeout(r, 300));
     window.__game.campaign.endRun();
+    for (let i = 0; i < 60 && !document.getElementById('ssDeath'); i++) await new Promise((r) => setTimeout(r, 200));
+    const death = document.getElementById('ssDeath');
+    const dTitle = death ? (death.querySelector('.ss-lc-title') || {}).textContent : null;
+    const keepBtn = death ? death.querySelector('#ssDeathKeep') : null;
+    if (keepBtn) keepBtn.click();
     for (let i = 0; i < 60 && !document.getElementById('loadoutSelect'); i++) await new Promise((r) => setTimeout(r, 200));
     const root = document.getElementById('loadoutSelect');
     const title = root ? (root.querySelector('.lo-h-title') || {}).textContent : null;
     const instr = root ? (root.querySelector('.lo-h-instr') || {}).textContent : null;
     if (root) root.remove();
-    return { reached: !!root, title, instr };
+    if (death) death.remove();
+    return { death: !!death, dTitle, keepLabel: keepBtn ? keepBtn.textContent.trim() : null, reached: !!root, title, instr };
   });
+  ok('ending a run reaches the death screen first', ended.death === true, ended.dTitle || '(never appeared)');
+  ok('...whose first button leads to the cards', /choose which cards to keep/i.test(ended.keepLabel || ''), ended.keepLabel);
   ok('ending a run reaches the keep screen', ended.reached === true, ended.title || '(never appeared)');
-  ok('...and it asks what to keep in your deck', /deck/i.test(ended.instr || ''), ended.instr);
+  // The word "deck" is in the screen's TITLE now — the death text moved out to showDeathScreen,
+  // so the instruction under it no longer has to carry it.
+  ok('...and it asks what to keep in your deck', /deck/i.test((ended.title || '') + ' ' + (ended.instr || '')),
+     ((ended.title || '') + ' / ' + (ended.instr || '')).trim());
 
   // ---- retries --------------------------------------------------------------
   // "When a player dies they should be given the option of trying the same level again if they
@@ -278,7 +324,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // death screen, just not usable." Every clause of that is an assertion below.
   const die = (level, lives, deck) => page.evaluate(async (a) => {
     const g = window.__game;
-    document.querySelectorAll('#loadoutSelect, #ssLevelComplete, #ssGameWon, #levelIntro').forEach((n) => n.remove());
+    document.querySelectorAll('#ssDeath, #loadoutSelect, #ssLevelComplete, #ssGameWon, #levelIntro').forEach((n) => n.remove());
     g.store.reset();
     if (a.lives) { g.store.credit(1e6); for (let i = 0; i < a.lives; i++) g.store.buy('lives'); }
     if (a.deck) g.deck.set(a.deck);
@@ -299,7 +345,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   const dieAndShow = async (level, lives) => {
     const before = await page.evaluate(async (a) => {
       const g = window.__game;
-      document.querySelectorAll('#loadoutSelect, #ssLevelComplete, #ssGameWon, #levelIntro').forEach((n) => n.remove());
+      document.querySelectorAll('#ssDeath, #loadoutSelect, #ssLevelComplete, #ssGameWon, #levelIntro').forEach((n) => n.remove());
       g.store.reset();
       if (a.lives) { g.store.credit(1e6); for (let i = 0; i < a.lives; i++) g.store.buy('lives'); }
       g.campaign.play('marasmius', a.level);
@@ -307,8 +353,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       const snap = { lives: g.campaign.lives(), entry: g.campaign.entry(), spores: g.store.balance(),
                      level: g.campaign.level() };
       g.campaign.endRun();
-      for (let i = 0; i < 60 && !document.getElementById('loadoutSelect'); i++) await new Promise((r) => setTimeout(r, 200));
-      const btn = document.getElementById('loTertiary');
+      // The retry is showDeathScreen's second button now, not the carousel's third — it is taken
+      // BEFORE any deck is curated, which is the point: a retry throws that choice away.
+      for (let i = 0; i < 60 && !document.getElementById('ssDeath'); i++) await new Promise((r) => setTimeout(r, 200));
+      const btn = document.getElementById('ssDeathRetry');
       return { ...snap, shown: !!btn, label: btn ? btn.textContent.trim() : null,
                disabled: btn ? btn.disabled : null, sporesAfterDeath: g.store.balance() };
     }, { level, lives });
@@ -327,14 +375,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const g = window.__game;
     const before = { lives: g.campaign.lives(), spores: g.store.balance(), level: g.campaign.level(),
                      entry: g.campaign.entry() };
-    document.getElementById('loTertiary').click();
+    document.getElementById('ssDeathRetry').click();
     for (let i = 0; i < 60; i++) {
-      if (!document.getElementById('loadoutSelect') && g.state && g.state.active && !g.state.runOver) break;
+      if (!document.getElementById('ssDeath') && g.state && g.state.active && !g.state.runOver) break;
       await new Promise((r) => setTimeout(r, 200));
     }
     const st = g.state;
     return { before, lives: g.campaign.lives(), level: g.campaign.level(), spores: g.store.balance(),
-             over: !!st.runOver, alive: !!st.active.alive, screen: !!document.getElementById('loadoutSelect'),
+             over: !!st.runOver, alive: !!st.active.alive, screen: !!document.getElementById('ssDeath'),
              res: { energy: st.active.energy, water: st.active.water, phosphorus: st.active.phosphorus },
              hand: (st.cards.hand || []).map((h) => h.name).sort().join(','),
              deckLen: (st.cards.drawDeck || []).length };
@@ -387,25 +435,25 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // which makes this the more useful test anyway: buy nothing, die, retry, die again.
   const spent = await page.evaluate(async () => {
     const g = window.__game;
-    document.querySelectorAll('#loadoutSelect, #levelIntro').forEach((n) => n.remove());
+    document.querySelectorAll('#ssDeath, #loadoutSelect, #levelIntro').forEach((n) => n.remove());
     g.store.reset();                       // no purchases: the base retry and nothing else
     g.campaign.play('marasmius', 2);
     await new Promise((r) => setTimeout(r, 350));
     const stocked = g.campaign.lives();
     const toDeath = async () => {
       g.campaign.endRun();
-      for (let i = 0; i < 60 && !document.getElementById('loadoutSelect'); i++) await new Promise((r) => setTimeout(r, 200));
-      const b = document.getElementById('loTertiary');
+      for (let i = 0; i < 60 && !document.getElementById('ssDeath'); i++) await new Promise((r) => setTimeout(r, 200));
+      const b = document.getElementById('ssDeathRetry');
       return { label: b ? b.textContent.trim() : null, disabled: b ? b.disabled : null, shown: !!b };
     };
     const first = await toDeath();
-    document.getElementById('loTertiary').click();          // spend the only one
-    for (let i = 0; i < 60; i++) { if (!document.getElementById('loadoutSelect') && !g.state.runOver) break;
+    document.getElementById('ssDeathRetry').click();        // spend the only one
+    for (let i = 0; i < 60; i++) { if (!document.getElementById('ssDeath') && !g.state.runOver) break;
       await new Promise((r) => setTimeout(r, 200)); }
     await new Promise((r) => setTimeout(r, 300));
     const after = g.campaign.lives();
     const second = await toDeath();
-    document.querySelectorAll('#loadoutSelect').forEach((n) => n.remove());
+    document.querySelectorAll('#ssDeath, #loadoutSelect').forEach((n) => n.remove());
     return { stocked, first, after, second };
   });
   ok('a run with no purchases still gets the one retry everyone starts with',
@@ -470,19 +518,25 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const board = () => hs.allTimeBoard(cfg.mode === 'turn' ? 'turn' : 'realtime').length;
     localStorage.removeItem('mycelium.highscores.v1');
     const run = async (game) => {
-      document.querySelectorAll('#loadoutSelect, #hsPrompt, .hs-prompt').forEach((n) => n.remove());
+      document.querySelectorAll('#ssDeath, #loadoutSelect, #hsPrompt, .hs-prompt').forEach((n) => n.remove());
       cfg.game = game;
       g.campaign.play('marasmius', 3);
       cfg.game = game;                       // campaign.play forces 'campaign'; put it back for Survival
       await new Promise((r) => setTimeout(r, 300));
       const before = board();
       g.campaign.endRun();
+      // Through BOTH screens: the death screen, then its "End run" button, then the carousel's
+      // "Next run" — which is still the door that files a score. Scoring did not move; the route
+      // to it gained a step.
+      for (let i = 0; i < 60 && !document.getElementById('ssDeath'); i++) await new Promise((r) => setTimeout(r, 200));
+      const keep = document.getElementById('ssDeathKeep');
+      if (keep) keep.click();
       for (let i = 0; i < 60 && !document.getElementById('loadoutSelect'); i++) await new Promise((r) => setTimeout(r, 200));
       document.getElementById('loConfirm').click();          // "Next run" — the door that files a score
       await new Promise((r) => setTimeout(r, 900));
       const out = { before, after: board(),
                     prompt: !!document.querySelector('#hsPrompt, .hs-prompt, [id*="highscorePrompt" i]') };
-      document.querySelectorAll('#speciesSelect, #loadoutSelect').forEach((n) => n.remove());
+      document.querySelectorAll('#speciesSelect, #ssDeath, #loadoutSelect').forEach((n) => n.remove());
       return out;
     };
     const camp = await run('campaign');

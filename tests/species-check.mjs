@@ -87,9 +87,11 @@ for (const k of Object.keys(EXPECT_BASE)) {
 // the old per-species block did, and nothing on screen would say which number was in force.
 ok('no species declares its own starting resources', !/res: \{ energy: \d/.test(SRC),
    'species rows carry a hand only');
-// The baseline must NOT also be added at the run loop, or every player quietly gets 6.
-ok('the memory baseline is the track base, not a constant at the run loop',
-   /const keep = cleared \+ store\.carryCards;/.test(SRC), 'keep = cleared + store.carryCards');
+// The baseline must NOT also be added at the run loop, or every player quietly gets 6 — and
+// `cleared` must not be added either: levels cleared no longer widen the allowance (owner), so
+// the store track is the whole answer.
+ok('the keep allowance is the store track alone',
+   /const keep = store\.carryCards;/.test(SRC), 'keep = store.carryCards');
 
 for (const [id, cards] of Object.entries(EXPECT)) {
   const s = now[id];
