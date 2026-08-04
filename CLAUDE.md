@@ -517,7 +517,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1560 assertions across 24 checks**, of which `traced` is 818 (one map's worth each). Plus the
+**1585 assertions across 25 checks**, of which `traced` is 818 (one map's worth each). Plus the
 PROBES and PERF TOOLS, which print and never fail — see Loose ends, the Performance section and
 tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -534,7 +534,7 @@ real-time flakes, 1 `rt` worm flake (all four in Loose ends). Note the arithmeti
 sweep. Per-check, measured: traced 818 · threat 114 · edit 116 · rt 69 · enemy 52 · species 42 ·
 mode 33 · harvest 28 · level 27 · scale 26 · fixes 25 · hs 20 · mould 20 · tut 19 · boot 16 ·
 core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 71**, measured on its own run rather than in a sweep.
+plus **store 71** and **campaign 25**, measured on their own runs rather than in a sweep.
 
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
@@ -1613,13 +1613,59 @@ a real detail sheet.
   geometry BELOW its card, no "?" tiles, no tier rows, a detail sheet with exactly one button, and
   that unlocking a colony MOVES it up a section. It also fails on any 4xx or page error.
 
-## Campaign shape (so you don't re-derive it)
+## The campaign (implemented)
 
-100 procedural levels. Threats compound from L7 (`threatRatePerLevel` / `threatBonusForLevel`,
-roughly quadratic — L10 ≈ 19 threats, L20 ≈ 66, L100 ≈ 1162), so **past about L35 a run is
-unwinnable by design**: the campaign is a high-score ladder wearing a campaign's clothes, and a
-"balance bug" up there is usually the intent. Higher-tier species start deeper
-(`START_LEVEL_SHIFT` = 2, plus per-species starting levels and a stepper for the memory colonies).
+**Ten levels, and each one is a specific map.** `CAMPAIGN_LEVELS = 10` in the species module.
+Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
+
+- **PLACEHOLDER maps: procedural, with a FIXED SEED each** (`CAMPAIGN_SEEDS`, ten arbitrary
+  31-bit constants). The fixed seed is the whole point — `createState` derives every generator
+  decision from `makeRng(seed)`, so **level 3 is the same shape every time you play it**, which is
+  the difference between a campaign and a ladder. Reroll a slot by editing its number.
+  - **Swapping in an authored map needs no code**: `levelForNumber` already prefers a map whose
+    JSON claims that `campaignLevel`, and `levelDefFor` prefers that over the procedural path. The
+    seed simply stops being consulted for that level.
+  - `startRun()` uses the fixed seed only for a **campaign run** — `campaignRun()` = a chosen
+    species and no playtest map. The dev quick-start and authored-map playtests keep the old clock
+    seed and roll fresh worlds.
+- **`MAX_LEVEL` (100) IS DELIBERATELY UNTOUCHED.** It describes the THREAT CURVE's ladder, not the
+  campaign's length, and levels 1..11 are hand-authored in `LEVEL_THREATS` — exactly the span the
+  campaign uses. So the difficulty curve needed no change at all: the campaign is the authored
+  part of a curve that used to run off into the unwinnable. The win check reads `CAMPAIGN_LEVELS`
+  for a campaign run and `MAX_LEVEL` otherwise.
+- **Every colony opens on level 1** (`CAMPAIGN_START_LEVEL`). `startLevelRange` /
+  `defaultStartLevel` — which let a higher tier skip the early grind — are still in the species
+  module but the picker no longer consults them: over ten levels that hands away half the campaign,
+  and the owner settled it when the start-level stepper was dropped from the detail sheet.
+- **A full clear pays 5500 Spores** (`campaignPayout()`, the sum of `sporesForLevel(1..10)`; a
+  death pays half the current level). Measure the store against that number, not against a guess —
+  it is derived rather than written down twice. For scale: the cheapest colony is 3000 and the
+  dearest 8000, so one full clear is most of one colony.
+- **Ending a run is a normal campaign move, not a rage-quit.** The settings menu's
+  `set-forcefruit` is **"End run & keep cards"** now (it was "Force Fruiting (abandon run)") and
+  routes through `forceFruitAbandon` → `presentRunOver` → the keep screen, same as a death.
+- **The level intro counts: "4 of 10"** (`.li-count`, quiet mint above the red escalation taunt) —
+  a finite campaign has to say it is finite, and the grown wordmark can't carry the total ("LEVEL
+  THREE OF TEN" is a different shape every level). Passed as `of`, null off the ladder.
+  - **The dev build SKIPS the level intro**, so a check that just looks for the counter passes on a
+    screen that was never built. `campaign-check` turns `__cfg.dev.enabled` off before starting the
+    level — `state.config` is a deep clone taken at run start, so the live flag is what decides.
+- `tests/campaign-check.cjs` (25, ~45s, in the runner) boots once and replays levels through
+  `__game.campaign.play`. What it actually guards: the ladder ENDS at 10 and not at 9; level 3
+  builds **the same map twice** (if a `Math.random()` gets into the generation path the seeds
+  silently stop meaning anything and nothing else notices); and **every level's goal is reachable**
+  by a flood over `cell.rock` from the colony's own root — with a fixed seed a sealed map is
+  unwinnable for everyone, forever, where a random roll would be gone next run. It floods the
+  COARSE mask deliberately: the fine one is stamped from authored sprites and is empty on a
+  generated map, so flooding it would pass every level vacuously.
+
+### The old ladder, for context
+
+100 procedural levels with threats compounding from L7 (`threatRatePerLevel` /
+`threatBonusForLevel`, roughly quadratic — L10 ≈ 19 threats, L20 ≈ 66, L100 ≈ 1162), so **past
+about L35 a run was unwinnable by design**: a high-score ladder wearing a campaign's clothes. That
+is what the 10-level campaign replaces. The constants are all still there and still drive the
+threat counts for levels 1-10.
 
 ## Conventions here
 
@@ -1846,8 +1892,8 @@ death was firing; the screen was lying about it.
   DATA, not engine: the maps want re-tracing at a different count or dropping from the
   shortlist, and `rust` only ever converted at c90 (see Generated maps). Every sweep reports
   them; nothing else in `traced`'s 818 fails.
-- Four checks are unreliable and all four are harness-side, not game-side. Re-run before
-  believing any of them.
+- Three checks are unreliable and all three are harness-side, not game-side. Re-run before
+  believing any of them. (`turn-play` was a fourth and is fixed — see below.)
   - **`tut`'s real-time assertions fail on some runs** — the starter pile hasn't finished
     digesting when the assertion fires, so it reads "0 offer(s), 50 nutrient left" or a bare
     `null`. Three of its 19 failed on the last sweep, five on an earlier one.
@@ -1865,9 +1911,10 @@ death was firing; the screen was lying about it.
   - **`rt` loses one worm assertion** ("once the tissue has appeared the worm can find and eat
     it — eaten=false"), on its long-lived page. Reproduced on the pre-fix build too, so it is
     the harness, not the arrival gate.
-  - **`turn-play`'s "a long turn-based session plays out" dies on some map rolls** — it plays 20
-    real actions and the seed occasionally hands it a run that ends inside them
-    (`over: true, alive: false, turn: 21`). Seen once in a sweep and **5/5 on three runs straight
-    after, same build**. If it wants fixing the lever is spawning it with no threats
-    (`noTrich` / a sandbox map) rather than tuning the action count — the assertion is about the
-    ACTION LOOP surviving 20 plays, not about surviving the map.
+  - **`turn-play` — FIXED, and worth reading as a pattern.** Its long-session probe kept dying
+    on a map roll (`over: true, alive: false` at ~25 of the 30 acts it needs), failing in two
+    consecutive sweeps and ~1 run in 3 standalone. The assertion is about the ACTION LOOP — one
+    world step per play, most plays growing — and not about surviving level 1, so the probe now
+    **empties `state.nematodes` / `clouds` / `ants` and zeroes their respawn chances** before it
+    starts. 5/5 on five consecutive runs after. When a check is flaky, delete the variable it
+    was never asserting on rather than widening the tolerance.

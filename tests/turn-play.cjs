@@ -41,6 +41,16 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // defining turn-based property), and the run must stay coherent throughout.
   const session = await page.evaluate(() => {
     const g = window.__game, s = g.state, sub = s.substrate, net = s.active;
+    // CLEAR THE THREATS FIRST. This probe is about the ACTION LOOP — one world step per play,
+    // 30+ plays, most of them growing — and not about surviving level 1. With them in, the run
+    // occasionally ended inside the loop (`over: true, alive: false` at ~25 acts) and the check
+    // failed on a map roll rather than on a regression; it fired in two consecutive sweeps and
+    // ~1 run in 3 standalone, which is loud enough to hide a real break. Respawns are off too,
+    // or the ones that arrive mid-loop put the flake straight back.
+    s.nematodes.length = 0; s.clouds.length = 0; s.ants.length = 0;
+    if (s.config.nematodes) s.config.nematodes.respawnChance = 0;
+    if (s.config.trichoderma) { s.config.trichoderma.respawnChance = 0; s.config.trichoderma.spreadChance = 0; }
+    if (s.config.ants) s.config.ants.respawnChance = 0;
     let acts = 0, offBy = 0, grew = 0;
     for (let k = 0; k < 120 && !s.runOver; k++) {
       net.energy = Math.max(net.energy, 300); net.water = 99; net.phosphorus = 99;

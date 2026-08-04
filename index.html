@@ -1728,6 +1728,14 @@
       color:#c0281f; max-width:min(700px,92vw);
       text-shadow:0 0 20px rgba(190,30,22,0.45); }
     @media (max-width:720px) { .li-sub { font-size:clamp(11px,2.9vw,14px); } }
+    /* "3 of 10" — how far through the campaign this level is. Deliberately QUIET and in the
+       colony's own mint rather than the taunt's red: it is a position, not a threat, and it sits
+       directly above a line whose whole job is to be alarming. Same mono face as .li-sub so the
+       two read as one block; tabular figures so the number doesn't jitter between levels. */
+    .li-count { font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+      font-weight:700; letter-spacing:0.22em; text-transform:uppercase;
+      font-size:clamp(10px,1.25vw,12.5px); font-variant-numeric:tabular-nums;
+      color:rgba(127,230,163,0.72); text-shadow:0 0 16px rgba(127,230,163,0.3); }
     .li-threats { display:flex; align-items:flex-start; justify-content:center;
       gap:clamp(16px,4.4vw,46px); flex-wrap:wrap; }
     .li-threat { display:flex; flex-direction:column; align-items:center; gap:clamp(10px,1.6vh,16px); }
@@ -8287,6 +8295,51 @@ const LOCKED_TIERS = [
 // =============================================================================
 const MAX_LEVEL = 100;
 
+// =============================================================================
+// THE CAMPAIGN — ten levels, and each one is a SPECIFIC MAP.
+//
+// PLACEHOLDER, per the owner: the ten are procedurally generated, one FIXED SEED each, until
+// authored or traced maps are chosen for the slots. The fixed seed is the whole point —
+// `createState` derives every generator decision from `makeRng(seed)`, so level 3 is the same
+// shape every time you play it. That is the difference between a campaign and a ladder: a level
+// you can learn, rather than a fresh roll wearing the same number.
+//
+// Swapping a slot for an authored map needs no code: `levelForNumber` already prefers a map
+// whose JSON claims that `campaignLevel`, and `levelDefFor` prefers THAT over the procedural
+// path. The seeds simply stop being consulted for that level.
+//
+// MAX_LEVEL (100) is deliberately UNTOUCHED: it describes the THREAT CURVE's ladder, not the
+// campaign's length. Levels 1..11 are hand-authored in LEVEL_THREATS, which is exactly the span
+// the campaign uses, so the difficulty curve needed no change at all — the campaign is the
+// authored part of a curve that used to run off into the unwinnable.
+const CAMPAIGN_LEVELS = 10;
+// Every colony opens on level 1. The old ladder let a higher tier skip the early grind
+// (START_LEVEL_SHIFT and startLevelRange, both still here), which made sense over 100 levels and
+// would hand away half a campaign over 10. The owner settled it when the start-level stepper was
+// dropped from the detail sheet: everything starts at the beginning.
+const CAMPAIGN_START_LEVEL = 1;
+// Ten arbitrary, fixed 31-bit seeds. Nothing distinguishes them but being CONSTANT — reroll any
+// slot by editing its number, and the level becomes a different map for everyone from that build
+// on. `campaign-check` asserts they are distinct and that each one builds the same world twice.
+const CAMPAIGN_SEEDS = [
+  0x1A3F0C5, 0x2C71E93, 0x3B0D4A7, 0x47E2B19, 0x5D19F60,
+  0x6402C8B, 0x71BE35D, 0x8A5701E, 0x93CD2F4, 0xA6841B2,
+];
+const isCampaignLevel = (n) => (n | 0) >= 1 && (n | 0) <= CAMPAIGN_LEVELS;
+// The seed for a campaign level, or null off the ladder (dev runs, playtests, anything past the
+// end) — null means "roll a fresh one", which is what the game did everywhere before.
+function campaignSeed(level) {
+  const n = level | 0;
+  return isCampaignLevel(n) ? (CAMPAIGN_SEEDS[n - 1] >>> 0) : null;
+}
+// Total Spores a full clear pays: sum of sporesForLevel(1..N). The store's whole economy is
+// measured against this one number, so it is derived rather than written down twice.
+function campaignPayout() {
+  let t = 0;
+  for (let l = 1; l <= CAMPAIGN_LEVELS; l++) t += sporesForLevel(l);
+  return t;
+}
+
 // Ant nests never exceed this, however deep the run goes.
 const MAX_ANT_NESTS = 8;
 
@@ -8885,7 +8938,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -17871,7 +17924,10 @@ class UI {
       +   `<button class="setitem" id="set-sfx" type="button" role="menuitemcheckbox">Sound effects<span class="settoggle" id="set-sfx-state"></span></button>`
       +   `<button class="setitem" id="set-tutorial" type="button" role="menuitem">Replay tutorial</button>`
       +   `<button class="setitem" id="set-saveexit" type="button" role="menuitem">Save &amp; exit to menu</button>`
-      +   `<button class="setitem setitem-danger" id="set-forcefruit" type="button" role="menuitem">Force Fruiting (abandon run)</button>`
+      // The campaign's deliberate exit, not a rage-quit: ending a run is how you BANK a deck, so
+      // the label says what you get rather than what you give up. Still `setitem-danger` — it
+      // does end the run — but "abandon" was the ladder's word for it.
+      +   `<button class="setitem setitem-danger" id="set-forcefruit" type="button" role="menuitem">End run &amp; keep cards</button>`
       + `</div>`
       + `<div class="logdrop hidden" id="logdrop"><div class="loglist" id="loglist"></div></div>`;
     root.appendChild(hud);
@@ -19627,7 +19683,7 @@ function growMyceliumTitle(container, opts = {}) {
 
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
-  const { SPECIES, isPlayable, isStarter, sporesBalance, loadProgress, devUnlockAll, defaultStartLevel, loadDeck, deckSize,
+  const { SPECIES, isPlayable, isStarter, sporesBalance, loadProgress, devUnlockAll, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, loadDeck, deckSize,
     STORE_UPGRADES, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
@@ -19841,8 +19897,8 @@ function openSpeciesDetail(species) {
   //
   // The start-level stepper went with it (owner's call: everything starts on level 1). It was
   // the only control for `startLevelRange`, so the memory colonies now begin on their
-  // `defaultStartLevel` like everything else; the range helpers are still in the species module
-  // if the new campaign wants the choice back somewhere.
+  // level 1 like everything else; `startLevelRange` / `defaultStartLevel` are still in the
+  // species module if the new campaign ever wants the choice back somewhere.
   const actions = ins.wrap.querySelector('#ssIActions');
   actions.innerHTML = '';
   actions.style.display = 'none';
@@ -20080,9 +20136,9 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
               'Your deck<span class="ss-deckn" id="ssDeckN"></span></button>' +
             '<span class="ss-spores ss-wallet" id="ssWallet" title="Spores — earned by finishing levels, spent here"></span>' +
           '</span></div>' +
-        '<p class="ss-lede">Press a colony to read it. <b>Select</b> to begin a run with it, or spend ' +
-          '<b>Spores</b> below on a new colony or a permanent upgrade — upgrades apply to ' +
-          '<b>every later run, whatever species you pick</b>.</p>' +
+        '<p class="ss-lede">Press a colony to read it. <b>Select</b> to begin a run — ' + CAMPAIGN_LEVELS +
+          ' levels to the surface. Between runs, spend <b>Spores</b> below on a new colony or a ' +
+          'permanent upgrade; upgrades apply to <b>every later run, whatever species you pick</b>.</p>' +
       '</header>' +
       '<div class="ss-body">' +
         '<section class="ss-section">' +
@@ -20116,7 +20172,10 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   const upgGrid = root.querySelector('#ssUpg');
 
   const read = (s) => openSpeciesDetail(s);
-  const select = (s) => { hide(); onPick && onPick(s, defaultStartLevel(s)); };
+  // Every colony opens on level 1 (CAMPAIGN_START_LEVEL). `defaultStartLevel` — which let a
+  // higher tier skip the early grind — is not consulted: over a 10-level campaign that hands away
+  // half of it, and the owner settled it when the start-level stepper was dropped.
+  const select = (s) => { hide(); onPick && onPick(s, CAMPAIGN_START_LEVEL); };
 
   function render() {
     const bal = sporesBalance(progress);
@@ -21561,9 +21620,15 @@ function showLevelIntro(opts) {
   // can't just live inside it.
   const head = el('div', 'li-head');
   const titleWrap = el('div', 'li-level');
+  const of = (opts && opts.of) || 0;
   titleWrap.setAttribute('role', 'img');
-  titleWrap.setAttribute('aria-label', 'Level ' + level);
+  titleWrap.setAttribute('aria-label', 'Level ' + level + (of ? ' of ' + of : ''));
   head.appendChild(titleWrap);
+  // "3 of 10" — small, above the escalation taunt. A campaign has an end and the screen that
+  // names each level is where the player counts toward it; the wordmark itself can't carry the
+  // total (it is grown from the word LEVEL THREE, and "LEVEL THREE OF TEN" is a different shape
+  // every level and unreadable at the small end).
+  if (of) head.appendChild(el('div', 'li-count', level + ' of ' + of));
   if (opts && opts.note) head.appendChild(el('div', 'li-sub', String(opts.note)));
   inner.appendChild(head);
 
@@ -21937,7 +22002,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro } = __m_render_level_intro;
-  const { SPECIES, MAX_LEVEL, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -22040,6 +22105,7 @@ function revealMap() {
     if (levelIntro) { try { levelIntro.destroy(); } catch (_) {} levelIntro = null; }
     levelIntro = showLevelIntro({
       level: info.level,
+      of: info.of,
       threats: info.threats,
       note: info.note,                // escalation taunt, on the levels where the rate steps up
       onDismiss: info.onDismiss,      // re-expand the hand while the screen is still black
@@ -22182,7 +22248,18 @@ function start(seed) {
   if (def && (def.assetsFrom || def.id)) loadLevelAssets(def.assetsFrom || def.id);
   begin(def ? createLevelState(cfg, seed, def) : createState(cfg, seed));
 }
-function startRun() { start((Date.now() & 0x7fffffff) || 1); }
+// A CAMPAIGN level is a fixed map: its seed comes from the ladder, so level 3 is the same shape
+// every time — including after a death, which is the point of a campaign you can learn. Anything
+// off the ladder (the dev quick-start, an authored-map playtest, a level past the end) keeps the
+// old clock seed and rolls a fresh world.
+//
+// `chosenSpecies` is the "is this a real run?" test the rest of main.js already uses; a playtest
+// brings its own geometry, so a seed would decide nothing there anyway.
+function campaignRun() { return !!chosenSpecies && !playtestLevel; }
+function startRun() {
+  const fixed = campaignRun() ? campaignSeed(currentLevel) : null;
+  start(fixed != null ? fixed : ((Date.now() & 0x7fffffff) || 1));
+}
 
 // Show the start-of-run picker (also used on death → back to picker).
 function showPicker() {
@@ -22717,14 +22794,16 @@ function onLevelWon() {
   // Collapse the hand carousel so the (containerless) win banner has clear room
   // over the map on short screens; begin() re-opens it when the next level loads.
   if (ui.setHandOpen) ui.setHandOpen(false);
-  if (cleared >= MAX_LEVEL) {
+  // The campaign ENDS at level 10 (CAMPAIGN_LEVELS), not at MAX_LEVEL — that constant belongs to
+  // the threat curve now. A dev/playtest run has no ladder to finish, so it never wins here.
+  if (campaignRun() ? cleared >= CAMPAIGN_LEVELS : cleared >= MAX_LEVEL) {
     clearResume();   // whole campaign won — no level left to continue
     logEvent('run_end', { species: chosenSpecies && chosenSpecies.id, level: cleared, cause: 'won', turns: state && state.turn });
     showGameWon({ spores: runSpores, balance, onNewRun: () => runEndThen(backToPicker) });
   } else {
     const snap = snapshotCarry();
     showLevelComplete({
-      level: cleared, maxLevel: MAX_LEVEL, unlocked: newlyRevealed, earned, balance,
+      level: cleared, maxLevel: campaignRun() ? CAMPAIGN_LEVELS : MAX_LEVEL, unlocked: newlyRevealed, earned, balance,
       onNext: () => { currentLevel = cleared + 1; carryOver = snap; startRun(); },
     });
   }
@@ -23910,6 +23989,24 @@ function begin(newState) {
       // the tier rows are retired, so a check can assert the dead-end is closed.
       obtainable: (sp) => isObtainable(sp),
     },
+    // THE CAMPAIGN: its shape, and the two things a check can't reach any other way — starting a
+    // run at a chosen level on the real species path, and ending one the way the menu does.
+    campaign: {
+      levels: CAMPAIGN_LEVELS, startLevel: CAMPAIGN_START_LEVEL,
+      seeds: CAMPAIGN_SEEDS.slice(), seed: (n) => campaignSeed(n), payout: campaignPayout(),
+      isRun: () => campaignRun(),
+      level: () => currentLevel,
+      play: (id, level) => {
+        const sp = SPECIES.find((x) => x.id === id);
+        if (!sp) return false;
+        playtestLevel = null; chosenSpecies = sp;
+        currentLevel = Math.max(1, (level | 0) || CAMPAIGN_START_LEVEL); runStartLevel = currentLevel;
+        carryOver = null; runSpores = 0;
+        startRun();
+        return true;
+      },
+      endRun: () => forceFruitAbandon(),
+    },
     // THE DECK carried between runs: the model, the viewer, and `runDeck` — what the player owned
     // when THIS run seeded, which is the part of the end-of-run pool that exists nowhere else
     // (`withDeathCarry` consumes the stored copy at seed time).
@@ -24066,7 +24163,11 @@ function begin(newState) {
     // tutorial still waits for DONE: its camera moves and popups need a visible map.
     const deferred = afterIntro;
     pendingLevelIntro = {
-      level: currentLevel, threats: levelThreatList(), note: escalationNote(currentLevel),
+      // `of` tells the player the campaign ENDS, which a ladder never had to say — the wordmark
+      // reads "LEVEL THREE" and the counter under it reads "3 of 10". Omitted off the ladder
+      // (dev quick-start, playtest), where there is no total to be part of.
+      level: currentLevel, of: campaignRun() ? CAMPAIGN_LEVELS : null,
+      threats: levelThreatList(), note: escalationNote(currentLevel),
       onDismiss: () => { if (ui && ui.setHandOpen) ui.setHandOpen(true); },
       onContinue: () => { if (deferred) deferred(); },
     };
