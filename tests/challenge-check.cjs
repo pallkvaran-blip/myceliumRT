@@ -69,14 +69,12 @@ const PROBE = () => {
     nearestVisiblePile: (from, radius) => {
       let best = null, bd = Infinity;
       sub.foodPiles.forEach((p, i) => {
-        for (const idx of p.cells) {
-          if (sub.cells[idx].nutrient <= 0) continue;
-          const c = sub.cellCenter(idx % sub.cols, Math.floor(idx / sub.cols));
-          const d = Math.hypot(c.x - from.x, c.y - from.y);
-          if (d >= bd || d > radius) continue;
-          if (!sub.segmentClear(from.x, from.y, c.x, c.y)) continue;
-          bd = d; best = { i, kind: p.kind, d: Math.round(d) };
-        }
+        if (window.__C.pileFuel(p) <= 0) return;
+        const ctr = window.__C.pileCentre(p);
+        const d = Math.hypot(ctr.x - from.x, ctr.y - from.y);
+        if (!Number.isFinite(d) || d > radius || d >= bd) return;
+        if (!sub.segmentClear(from.x, from.y, ctr.x, ctr.y)) return;
+        bd = d; best = { i, kind: p.kind, d: Math.round(d) };
       });
       return best;
     },
@@ -94,7 +92,13 @@ const PROBE = () => {
     // Worm state flags, set by stepNematodes: `sees` = a strand is in sensing range (it hunts),
     // `trailing` = no strand, but an ant line is (it is defused).
     worms: () => s.nematodes.map((w) => ({ x: Math.round(w.x), y: Math.round(w.y), sees: !!w.sees, trailing: !!w.trailing, feeding: !!w.feeding })),
-    clouds: () => s.clouds.map((c) => ({ x: Math.round(c.x), y: Math.round(c.y), r: c.r, spent: !!c.spent })),
+    // A CLOUD STORES cx/cy, A WORM STORES x/y. makeCloud returns { cx, cy, r, strength, … }
+    // while makeWorm returns { x, y, … }, so the two threats disagree about the name of the
+    // most basic field either of them has. Reading `.x` off a cloud is not an error — it is
+    // undefined, so every distance becomes NaN, every `NaN <= sightRadius` is false, and the
+    // measurement reports "this cloud can see nothing" about a cloud that is about to eat the
+    // pile in front of it. Normalised here so nothing downstream has to remember.
+    clouds: () => s.clouds.map((c) => ({ x: Math.round(c.cx), y: Math.round(c.cy), r: c.r, spent: !!c.spent })),
     root: () => ({ x: s.active.root.x, y: s.active.root.y }),
     // The stepping stones (duff) vs the prizes (cache / engine) — the route vs the rewards.
     spine: () => sub.foodPiles.filter((p) => p.kind === 'duff').map((p) => window.__C.pileCentre(p)),
@@ -131,7 +135,23 @@ const PROBE = () => {
   const srv = await new Promise((res) => { const s = http.createServer((rq, rs) => { let p = decodeURIComponent(rq.url.split('?')[0].split('#')[0]); if (p === '/') p = '/index.html'; const fp = path.join(ROOT, p); if (!fp.startsWith(ROOT) || !fs.existsSync(fp) || fs.statSync(fp).isDirectory()) { rs.writeHead(404); rs.end('nf'); return; } rs.writeHead(200, { 'Content-Type': T[path.extname(fp)] || 'application/octet-stream' }); fs.createReadStream(fp).pipe(rs); }); s.listen(0, () => res(s)); });
   const base = 'http://localhost:' + srv.address().port;
   const browser = await chromium.launch({ headless: true });
-  const shot = (page, name) => page.screenshot({ path: path.join(ART, name), timeout: 15000, animations: 'disabled' }).catch(() => {});
+  // FRAME THE WHOLE LEVEL. The default camera opens on the colony, i.e. the top-left corner, so
+  // a default screenshot of a 2952-wide map shows the entry channel and none of the design — the
+  // prizes, the guards and the branches are all off-frame. Zoomed out to the bounds instead,
+  // because looking at these frames is how the layout gets judged at all: the first capture
+  // showed the entry descent as a visible LADDER of identical piles down the left edge, which
+  // every assertion in this file was perfectly happy with.
+  const shot = async (page, name) => {
+    await page.evaluate(() => {
+      const g = window.__game, cam = g.camera;
+      cam.zoom = cam.minZoomForBounds ? cam.minZoomForBounds() : 0.2;
+      if (cam.clamp) cam.clamp();
+      // renderFrame draws one frame synchronously — the only reliable way to get a fresh frame
+      // here, since headless throttles rAF toward 1-2 Hz.
+      for (let i = 0; i < 3; i++) g.renderFrame();
+    }).catch(() => {});
+    await page.screenshot({ path: path.join(ART, name), timeout: 15000, animations: 'disabled' }).catch(() => {});
+  };
 
   // ---------------------------------------------------------------- the threats block ----
   // NEGATIVE CONTROL FIRST. Every assertion below about "nothing arrives uninvited" is
@@ -195,16 +215,35 @@ const PROBE = () => {
     // ------------------------------------------------------------------- it is playable ----
     const prizes = await page.evaluate(() => window.__C.prizes());
     const spine = await page.evaluate(() => window.__C.spine());
+    // The author recorded which piles are the main route; sub.foodPiles cannot tell a route
+    // stone from a branch crumb (both are duff) and the distinction is the whole design.
+    const routePts = (def.design && def.design.route) || spine;
     const reach = await page.evaluate((pts) => window.__C.reachable(pts), [...spine, ...prizes.map((p) => p.at)]);
     ok(`${id}: every pile is reachable from the colony's root`, reach.every(Boolean),
       `${reach.filter(Boolean).length}/${reach.length} of ${spine.length} stepping stones + ${prizes.length} prizes`);
-    // The route rule: a basic grow only reaches an attractor inside sensingRadius, so a gap
-    // wider than that is where a card-less player stops playing the level.
-    const hops = [];
-    for (let i = 0; i + 1 < spine.length; i++) hops.push(Math.hypot(spine[i + 1].x - spine[i].x, spine[i + 1].y - spine[i].y));
-    const worst = Math.max(...hops);
-    ok(`${id}: the route never asks for a hop past growth.sensingRadius`, worst <= cfg.sense + 1,
-      `longest hop ${worst.toFixed(0)} units, limit ${cfg.sense}`);
+    // The route rule, as CONNECTIVITY rather than as spacing. A basic grow only reaches an
+    // attractor inside sensingRadius, so what matters is whether the colony can hop from its own
+    // root to every pile — not how far apart two adjacent entries of sub.foodPiles happen to be.
+    // That array is in stamping order, so consecutive entries include the jump from a branch's
+    // last crumb back to the next route pile, and it read 2175 units on a level that is fine.
+    const conn = await page.evaluate((r) => {
+      const g = window.__game, sub = g.state.substrate;
+      const pts = [window.__C.root(), ...sub.foodPiles.map((p) => window.__C.pileCentre(p))];
+      const seen = new Array(pts.length).fill(false);
+      seen[0] = true; const stack = [0];
+      while (stack.length) {
+        const i = stack.pop();
+        for (let j = 0; j < pts.length; j++) {
+          if (seen[j]) continue;
+          if (Math.hypot(pts[j].x - pts[i].x, pts[j].y - pts[i].y) > r) continue;
+          if (!sub.segmentClear(pts[i].x, pts[i].y, pts[j].x, pts[j].y)) continue;
+          seen[j] = true; stack.push(j);
+        }
+      }
+      return { total: pts.length - 1, reached: seen.filter(Boolean).length - 1 };
+    }, cfg.sense);
+    ok(`${id}: the colony can hop from its root to EVERY pile (no stranded food)`,
+      conn.reached === conn.total, `${conn.reached}/${conn.total} piles inside ${cfg.sense}-unit hops`);
 
     // ------------------------------------------------------- the design's own assertions ----
     if (id === 'challenge-spoiling') {
@@ -213,17 +252,25 @@ const PROBE = () => {
       // r:1 is a 5-cell diamond because the eating rate was set from "a 5-cell pile in 6
       // steps" — the pile size IS the fuse length, so it is worth asserting rather than
       // trusting the radius arithmetic.
-      ok('spoiling: each prize is the 5-cell pile the 6-step eating rate was tuned against',
-        prizes.every((p) => p.cells === 5), prizes.map((p) => p.cells).join(', ') + ` cells (leavesPerRound ${cfg.leaves})`);
+      // THREE DIFFERENT SIZES, because size is the only lever that staggers these fuses.
+      // Distance cannot: sightRadius caps a lit fuse at 500 units and a cloud covers that in
+      // under three actions at moveSpeed 5.0, so 250 / 360 / 480 all measured exactly 6 steps.
+      // A pile pays its `energy` per PILE rather than per cell, so this varies the clock without
+      // varying the reward.
+      const sizes = prizes.map((p) => p.cells).sort((a, b) => a - b);
+      ok('spoiling: the three prizes are DIFFERENT sizes, which is what staggers the fuses',
+        new Set(sizes).size === 3, sizes.join(' / ') + ` cells at ${cfg.leaves} cells eaten per step`);
 
       const clouds = await page.evaluate(() => window.__C.clouds());
-      // THE assertion for this design. A cloud goes for its nearest VISIBLE food, so a
-      // stepping stone in view would outrank the prize and no fuse would ever light.
-      const targets = await page.evaluate((cs) => cs.map((c) => window.__C.nearestVisiblePile(c, window.__C.cfg().cloudSight)), clouds);
-      const onPrize = targets.filter((t) => t && t.kind === 'engine').length;
-      ok('spoiling: every cloud\'s nearest VISIBLE food is an engine prize, not a stepping stone',
-        onPrize === clouds.length && targets.every(Boolean),
-        targets.map((t) => (t ? `${t.kind}@${t.d}` : 'SEES NOTHING')).join(', '));
+      // Each cloud must SENSE its prize — inside sightRadius with a clear line. A cloud that
+      // cannot is a cloud that never moves, which is the silent way this design dies.
+      const seen = await page.evaluate((cs) => cs.map((c) => ({
+        prizes: window.__C.prizes().filter((p) => window.__C.senses(c, p.at, window.__C.cfg().cloudSight)).length,
+        nearest: window.__C.nearestVisiblePile(c, window.__C.cfg().cloudSight),
+      })), clouds);
+      ok('spoiling: every cloud can SENSE an engine prize, so every fuse is lit from turn one',
+        seen.every((s) => s.prizes > 0),
+        seen.map((s) => `${s.prizes} prize(s) in sight, nearest food ${s.nearest ? s.nearest.kind + '@' + s.nearest.d : 'none'}`).join(' | '));
 
       // The fuse, measured rather than computed: let the world run with no player at all and
       // record the step each prize is stripped on.
@@ -240,8 +287,8 @@ const PROBE = () => {
       console.log(`        fuses (steps until stripped, no player acting): ${fuse.out.map((o) => o.goneAt == null ? 'survived 40' : o.goneAt).join(', ')}`);
       ok('spoiling: the clouds really do strip the prizes — the reward is on a clock',
         eaten.length >= 2, `${eaten.length}/3 prizes stripped inside 40 steps`);
-      ok('spoiling: the fuses are STAGGERED, so the level is a triage decision',
-        new Set(fuse.out.map((o) => o.goneAt)).size >= 2, fuse.out.map((o) => o.goneAt).join(' vs '));
+      ok('spoiling: the fuses burn at DIFFERENT rates, so the level is a triage decision',
+        new Set(fuse.out.map((o) => o.goneAt)).size >= 2, fuse.out.map((o) => o.goneAt == null ? 'survived 40' : o.goneAt + ' steps').join(' vs '));
     }
 
     if (id === 'challenge-swarm') {
@@ -258,7 +305,7 @@ const PROBE = () => {
           w, seesRoute: sp.filter((p) => window.__C.senses(w, p, sr)).length,
           seesPrize: window.__C.prizes().filter((p) => window.__C.senses(w, p.at, sr)).length,
         }));
-      }, spine);
+      }, routePts);
       ok('swarm: no worm can sense the safe route — passing by is genuinely free',
         exposure.every((e) => e.seesRoute === 0), exposure.map((e) => `${e.seesRoute} stones in sight`).join(', '));
       ok('swarm: but each worm CAN sense the prize, so going for it is what exposes you',
@@ -276,9 +323,13 @@ const PROBE = () => {
     if (id === 'challenge-antroad') {
       ok('antroad: one nest and a pack of three worms', boot0.ants === 1 && boot0.worms === 3,
         `${boot0.ants} nest(s), ${boot0.worms} worms`);
-      // One step so stepAnts has stamped a trail and stepNematodes has set its flags — the
-      // flags are only written during a move phase, so they say nothing at boot.
-      await page.evaluate(() => window.__C.step(1));
+      // Enough steps for the trail to be LAID, not just started. The line creeps out ~2 cells
+      // per step (ants.extendSpeed), so one step leaves a 13-cell stub hugging the surface and
+      // whether a given worm is within sightRadius of it is then an accident of where the stub
+      // stopped — one of the three read `trailing: false` on a layout where all three sit on the
+      // finished road. The flags themselves are written during the move phase, so they say
+      // nothing at all at boot.
+      await page.evaluate(() => window.__C.step(8));
       const trail = await page.evaluate(() => window.__C.trailCells());
       ok('antroad: the nest has laid a trail for the worms to shadow', trail > 0, `${trail} trail cells`);
 

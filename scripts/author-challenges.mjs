@@ -80,11 +80,11 @@ const DESIGNS = [
     // near one is already half gone by the time it could be reached, so the level is a
     // triage decision and not a completeness exercise.
     blurb: 'Three engine piles, three clouds already eating them. You cannot have all three.',
-    spine: [{ col: 4, row: 31 }, { col: 20, row: 31 }, { col: 45, row: 31 }, { col: 65, row: 31 }, { col: 74, row: 31 }],
+    spine: [{ col: 1, row: 1 }, { col: 1, row: 16 }, { col: 2, row: 38 }, { col: 20, row: 38 }, { col: 45, row: 38 }, { col: 65, row: 38 }, { col: 74, row: 38 }, { col: 75, row: 18 }, { col: 75, row: 1 }],
     branches: [
-      { at: { col: 20, row: 31 }, to: { col: 20, row: 21 }, prize: 'cache-engine', cloudFrom: 480 },
-      { at: { col: 45, row: 31 }, to: { col: 45, row: 21 }, prize: 'cache-engine', cloudFrom: 360 },
-      { at: { col: 65, row: 31 }, to: { col: 65, row: 21 }, prize: 'cache-engine', cloudFrom: 250 },
+      { at: { col: 20, row: 38 }, to: { col: 20, row: 24 }, prize: 'cache-engine', prizeR: 3, cloudFrom: 480 },
+      { at: { col: 45, row: 38 }, to: { col: 45, row: 24 }, prize: 'cache-engine', prizeR: 2, cloudFrom: 360 },
+      { at: { col: 65, row: 38 }, to: { col: 65, row: 24 }, prize: 'cache-engine', prizeR: 1, cloudFrom: 250 },
     ],
     threats: { trych: 3, nematodes: 0, ants: 0, respawn: false },
   },
@@ -97,7 +97,7 @@ const DESIGNS = [
     // the safe route threads the rock where they have no line of sight. The lesson only
     // lands if the worms cannot see the colony at the start, which is measured below.
     blurb: 'Two worms watching open ground. The first bite is the expensive one, not the last.',
-    spine: [{ col: 4, row: 30 }, { col: 18, row: 30 }, { col: 33, row: 30 }, { col: 50, row: 30 }, { col: 66, row: 30 }, { col: 74, row: 30 }],
+    spine: [{ col: 1, row: 1 }, { col: 1, row: 15 }, { col: 2, row: 30 }, { col: 18, row: 30 }, { col: 33, row: 30 }, { col: 50, row: 30 }, { col: 66, row: 30 }, { col: 74, row: 30 }, { col: 75, row: 16 }, { col: 75, row: 1 }],
     branches: [
       { at: { col: 33, row: 30 }, to: { col: 33, row: 40 }, prize: 'cache', wormFrom: 300 },
       { at: { col: 50, row: 30 }, to: { col: 50, row: 41 }, prize: 'cache', wormFrom: 300 },
@@ -116,12 +116,12 @@ const DESIGNS = [
     // has weight; the nest goes over the pile it should work (placeAntNests paths its trail
     // at build time, before the rock mask exists, so it wants its food close).
     blurb: 'The worms are shadowing the ant trail. Kill the ants and they come looking for you.',
-    spine: [{ col: 4, row: 32 }, { col: 20, row: 32 }, { col: 36, row: 32 }, { col: 52, row: 32 }, { col: 68, row: 32 }, { col: 74, row: 32 }],
+    spine: [{ col: 1, row: 1 }, { col: 1, row: 16 }, { col: 2, row: 32 }, { col: 20, row: 32 }, { col: 36, row: 32 }, { col: 52, row: 32 }, { col: 68, row: 32 }, { col: 74, row: 32 }, { col: 75, row: 18 }, { col: 75, row: 1 }],
     branches: [
       // Three worms at staggered distances around the trail's far end. A pack, because the
       // choice ("leave the ants alone and they keep the worms busy") has to cost something
       // real to be a choice at all.
-      { at: { col: 36, row: 32 }, to: { col: 36, row: 14 }, prize: 'cache-engine', wormsFrom: [260, 320, 380], antNest: true },
+      { at: { col: 36, row: 32 }, to: { col: 36, row: 14 }, prize: 'cache-engine', prizeR: 2, wormsFrom: [260, 320, 380], antNest: true },
     ],
     threats: { trych: 0, nematodes: 3, ants: 1, respawn: false },
   },
@@ -151,7 +151,7 @@ const HELPERS = () => {
     // Nearest genuinely open spot to a request, searched as expanding rings so the answer is
     // the closest one rather than the first one found in some scan order.
     snap: (x, y, rad, maxR) => {
-      if (window.__A.free(x, y, rad)) return { x, y, moved: 0 };
+      if (window.__A.free(x, y, rad)) return { x: Math.round(x), y: Math.round(y), moved: 0 };
       for (let r = cs * 0.5; r <= maxR; r += cs * 0.5) {
         for (let a = 0; a < 32; a++) {
           const t = (a / 32) * Math.PI * 2;
@@ -196,6 +196,9 @@ const HELPERS = () => {
     },
     root: () => (g.state.active && g.state.active.root ? { x: g.state.active.root.x, y: g.state.active.root.y } : null),
     sight: { cloud: g.state.config.trichoderma.sightRadius, worm: g.state.config.nematodes.sightRadius },
+    // Already scaled: applyOrganismScale multiplies growth lengths into CONFIG at module
+    // load, so this is the live 202.5 and not the 135 written in the literal.
+    sense: g.state.config.growth.sensingRadius,
   };
   return true;
 };
@@ -242,120 +245,244 @@ async function boot(page, base, id) {
     console.log(`\n=== ${d.id}  (${d.name})  <- ${d.from} ===`);
 
     const built = await page.evaluate((design) => {
-      const A = window.__A, notes = [], objects = [];
-      const PILE_RAD = A.cs * 1.2;      // room for a small pile's diamond plus its mat
-      const CREEP_RAD = A.cs * 0.9;     // room for a creature to sit and move off
+      const A = window.__A, notes = [];
 
-      // ---- the route: hop-spaced duff along the spine ----------------------
-      const route = [];
-      const pts = design.spine.map((s) => A.xy(s.col, s.row));
-      for (let i = 0; i + 1 < pts.length; i++) {
-        const a = pts[i], b = pts[i + 1];
-        const seg = Math.hypot(b.x - a.x, b.y - a.y);
-        const n = Math.max(1, Math.ceil(seg / 150));
-        for (let k = 0; k < n; k++) {
-          const t = k / n;
-          const want = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-          const s = A.snap(want.x, want.y, PILE_RAD, A.cs * 5);
-          if (!s) { notes.push(`spine point ${i}.${k} had no open spot within 5 cells`); continue; }
-          route.push(s);
+      // ---- collect every pile as a REQUEST, then resolve conflicts ----------
+      // stampFood skips a cell another pile already owns, so two piles whose diamonds overlap
+      // do not merge — the second one silently comes out SMALLER. That matters here because a
+      // prize's size IS its fuse length (a 5-cell pile is the 6-step pile the eating rate was
+      // tuned against), so a crumb stealing two of its cells shortens the fuse with nothing to
+      // say so. Two r:1 diamonds need their centres 3 cells apart to be disjoint: centres 2
+      // apart still share the cell between them.
+      const MIN_SEP = A.cs * 3;
+      const reqs = [];
+      // Diamonds must not touch: two piles of radius rA and rB need (rA + rB + 1) cells between
+      // their centres. Only food is consulted — a creature standing near a pile is fine.
+      const fits = (x, y, r) => !reqs.some((q) => q.t === 'food'
+        && Math.hypot(q.x - x, q.y - y) < A.cs * ((q.r == null ? 1 : q.r) + (r == null ? 1 : r) + 1));
+
+      // THE ROUTE, laid as a SEQUENTIAL WALK rather than as interpolated points.
+      //
+      // Interpolating and then dropping whatever collided was the obvious version and it is
+      // wrong in a way that is invisible until the level is played: the chain is LINEAR, so one
+      // dropped pile doubles a gap to ~270 units, the colony cannot hop it, and every pile
+      // beyond that point is orphaned. Measured — a single drop near the top of the entry
+      // descent orphaned 31 of 33 piles.
+      //
+      // So the walk carries the constraint instead. It marches the polyline in small steps and
+      // places a pile only where the spot is legal on BOTH bounds at once: at least MIN_SEP from
+      // the last one (or their diamonds merge and both come out the wrong size) and no more than
+      // MAX_HOP with a clear line (or the colony cannot reach it). Where rock makes that
+      // impossible it keeps marching, which is what routes the food through a gap instead of
+      // into a wall.
+      const MAX_HOP = A.sense - 12;              // stay inside the real limit, not level with it
+      const walk = (poly, role, startFrom, jitter) => {
+        const placed = [];
+        let last = startFrom || null;
+        for (let i = 0; i + 1 < poly.length; i++) {
+          const a = poly[i], b = poly[i + 1];
+          const len = Math.hypot(b.x - a.x, b.y - a.y);
+          for (let t = 0; t <= len; t += 18) {
+            const px = a.x + (b.x - a.x) * (t / len), py = a.y + (b.y - a.y) * (t / len);
+            // SCATTER THE STONES OFF THE CENTRELINE. Laid exactly on the polyline the route
+            // reads as a machine-placed ladder of identical piles — most obviously down the
+            // entry descent and the goal ascent, which are straight vertical lines hugging the
+            // channel walls, and it was the first thing visible in a rendered frame while all
+            // 50 assertions were perfectly happy. Offset perpendicular by up to ~1.2 cells,
+            // from a HASH of the position rather than Math.random so re-running the script
+            // reproduces the same level rather than a new one each time.
+            const h = Math.sin((px * 0.017 + py * 0.031 + i * 7.3)) * 43758.5453;
+            // Only the long ROUTE is scattered. A branch is a few piles bridging a verified
+            // straight line to its prize, so pushing them sideways costs the clearance the line
+            // was chosen for and breaks the chain at one link — it orphaned a prize on the first
+            // attempt, which the connectivity gate caught.
+            const j = jitter ? ((h - Math.floor(h)) - 0.5) * 2 * A.cs * 1.2 : 0;
+            const nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;   // unit normal to the leg
+            const want = { x: px + nx * j, y: py + ny * j };
+            // Nothing to do until we are far enough from the last pile to want another.
+            if (last && Math.hypot(want.x - last.x, want.y - last.y) < MIN_SEP) continue;
+            // Modest clearance, and only a short search. A stepping stone is an ATTRACTOR, not
+            // a chamber: stampFood simply skips the cells it cannot use, so a crumb in a narrow
+            // corridor comes out smaller and works exactly as well. Demanding a 1.2-cell disc
+            // made the snap shove crumbs several cells sideways to find room, which is what
+            // broke chains inside corridors that segmentClear had already proved passable.
+            const s2 = A.snap(want.x, want.y, A.cs * 0.7, A.cs * 2);
+            if (!s2 || !fits(s2.x, s2.y, 0)) continue;
+            if (last) {
+              const d = Math.hypot(s2.x - last.x, s2.y - last.y);
+              if (d < MIN_SEP) continue;
+              // Past the hop limit (or behind rock) the chain is BROKEN here. Re-anchor so the
+              // rest of the route still gets laid — a truncated route looks like a shorter
+              // level, while a recorded break says which stretch of spine to move.
+              if (d > MAX_HOP || !A.clear(last, s2)) {
+                notes.push(`${role} chain breaks before ${s2.x},${s2.y} — ${Math.round(d)} units from the last pile (limit ${Math.round(MAX_HOP)}), re-anchoring`);
+                reqs.push({ x: s2.x, y: s2.y, t: 'food', kind: 'duff', r: 0, energy: 2, role });
+                placed.push(s2); last = s2;
+                continue;
+              }
+            }
+            reqs.push({ x: s2.x, y: s2.y, t: 'food', kind: 'duff', r: 0, energy: 2, role });
+            placed.push(s2); last = s2;
+          }
         }
-      }
-      const last = pts[pts.length - 1];
-      const ls = A.snap(last.x, last.y, PILE_RAD, A.cs * 5);
-      if (ls) route.push(ls);
+        return { placed, last };
+      };
+      // Start the walk AT THE COLONY. The colony seeds at the surface, so a route whose first
+      // pile is deep is unreachable on turn one however tidy its own spacing is.
+      const route = walk(design.spine.map((sp) => A.xy(sp.col, sp.row)), 'route', A.root(), true).placed;
 
-      // Dedupe spots that snapped onto each other (stampFood skips a cell another pile owns,
-      // so a duplicate is a silently empty pile rather than an error).
-      const kept = [];
-      for (const p of route) if (!kept.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < A.cs * 0.9)) kept.push(p);
-
-      // The gaps are the thing that decides whether the level is playable at all.
-      const gaps = [];
-      for (let i = 0; i + 1 < kept.length; i++) {
-        const a = kept[i], b = kept[i + 1];
-        gaps.push({ d: Math.round(Math.hypot(b.x - a.x, b.y - a.y)), clear: A.clear(a, b) });
-      }
-      for (const p of kept) objects.push({ t: 'food', kind: 'duff', x: p.x, y: p.y, r: 1, energy: 2 });
-
-      // ---- branches: a prize, its guard, and the crumbs to reach it --------
-      const prizes = [];
+      // THE PRIZES, placed after the route because each one is chosen BY its line back to the
+      // route (see below) — but still EMITTED first, via the `order` map, so a prize wins every
+      // cell of its diamond and a crumb gives way rather than the other way round.
+      const plans = [];
       for (const br of design.branches) {
-        const from = A.xy(br.at.col, br.at.row), to = A.xy(br.to.col, br.to.row);
-        const pz = A.snap(to.x, to.y, PILE_RAD, A.cs * 6);
-        if (!pz) { notes.push(`branch prize at ${br.to.col},${br.to.row} had no open spot`); continue; }
-        // Crumbs from the spine up to the prize, same hop rule.
-        const seg = Math.hypot(pz.x - from.x, pz.y - from.y);
-        const n = Math.max(1, Math.ceil(seg / 150));
-        const crumbs = [];
-        for (let k = 1; k < n; k++) {
-          const s = A.snap(from.x + (pz.x - from.x) * (k / n), from.y + (pz.y - from.y) * (k / n), PILE_RAD, A.cs * 4);
-          if (s && !crumbs.some((q) => Math.hypot(q.x - s.x, q.y - s.y) < A.cs * 0.9)) crumbs.push(s);
+        const pr = br.prizeR || 1;
+        // FIND A POCKET WITH A CLEAR SHOT FROM THE ROUTE, rather than insisting on the column
+        // the design named. A branch has to climb off the route into the traced art, and on a
+        // map whose lower edge is a near-continuous band (obsidian-c15) no straight vertical
+        // line gets through anywhere — shifting columns just fails in a different column. What
+        // a branch actually needs is a spot that is open, near where the design wanted it, and
+        // joined to SOME existing route pile by a clear straight line long enough to need a few
+        // crumbs. Then the walk along that line cannot be blocked, by construction.
+        //
+        // Deliberately searched against the route piles that EXIST rather than the requested
+        // junction: the route was itself placed by the mask, so the junction is wherever the
+        // mask allowed, not where the spine said.
+        const wantAt = A.xy(br.to.col, br.to.row);
+        let pz = null, anchor = null, moved = 0;
+        for (let k = 0; k <= 20 && !pz; k++) {
+          for (const sg of (k === 0 ? [0] : [-k, k])) {
+            for (const dr of [0, -2, 2, -4, 4]) {
+              const cand = A.xy(br.to.col + sg, br.to.row + dr);
+              const sp = A.snap(cand.x, cand.y, A.cs * (pr + 0.3), A.cs * 2);
+              if (!sp || !fits(sp.x, sp.y, pr)) continue;
+              // The join: a route pile with an unobstructed line, far enough away that the
+              // branch is a real detour and close enough that a few crumbs bridge it.
+              // The join has to leave ROOM FOR A CRUMB. A big prize pushes MIN_SEP out (an r:2
+              // diamond reaches 2 cells), so an anchor ~250 away is simultaneously too far for
+              // a direct hop (MAX_HOP 191) and too close to fit anything between — the walk
+              // places nothing and the branch is orphaned by a gap of exactly one link.
+              const roomForOne = A.cs * (pr + 2) + MIN_SEP + 20;
+              const near = Math.max(300, roomForOne);
+              let best = null, bd = Infinity;
+              for (const rp of route) {
+                const dd = Math.hypot(rp.x - sp.x, rp.y - sp.y);
+                if (dd < near || dd > 700 || dd >= bd) continue;
+                if (!A.clear(rp, sp)) continue;
+                bd = dd; best = rp;
+              }
+              if (!best) continue;
+              pz = sp; anchor = best; moved = Math.round(Math.hypot(sp.x - wantAt.x, sp.y - wantAt.y));
+              break;
+            }
+            if (pz) break;
+          }
         }
-        for (const c of crumbs) objects.push({ t: 'food', kind: 'duff', x: c.x, y: c.y, r: 1, energy: 2 });
-        objects.push({ t: 'food', kind: br.prize, x: pz.x, y: pz.y, r: 1 });
+        if (!pz) { notes.push(`no pocket near col ${br.to.col} with a clear line back to the route — the ${br.prize} branch is dropped`); continue; }
+        if (moved > A.cs) notes.push(`${br.prize} prize moved ${moved} units from the requested spot to find a clear line back to the route`);
+        reqs.push({ x: pz.x, y: pz.y, t: 'food', kind: br.prize, r: pr, role: 'prize' });
+        plans.push({ br, pz, anchor });
+      }
 
-        const rec = { at: { x: pz.x, y: pz.y }, kind: br.prize, guards: [] };
-        // A guard has to SEE its target or it never moves. Take the candidate furthest from
-        // the colony root, so the creature sits beyond the prize rather than between the
-        // player and it — being ambushed on the approach is a different level.
+      // ---- the branches: crumbs up to each prize, then its guards -----------
+      const prizes = [];
+      for (const { br, pz, anchor } of plans) {
+        // WALKED OUTWARD FROM THE PRIZE, not inward from the route. The walk stops placing once
+        // `fits` rejects everything within MIN_SEP of an existing pile, so whichever end it
+        // finishes at is the end that ends up with a full-width gap in front of it. Starting at
+        // the prize puts that gap next to the ANCHOR — a pile the walk marches right up to, so
+        // the last crumb lands MIN_SEP-ish from it and connects. Starting at the anchor instead
+        // left the gap in front of the PRIZE, which is the one pile that must be reachable.
+        const branch = walk([{ x: pz.x, y: pz.y }, anchor], 'branch', pz).placed;
+
+        const rec = { at: { x: pz.x, y: pz.y }, kind: br.prize, r: br.prizeR || 1, guards: [], branch };
+        // A guard must see its prize and NOT sense THE ROUTE. Deliberately the route only, not
+        // the branch crumbs: the branch is the detour that exposes you, so a guard seeing it is
+        // the design working. Testing against the branch too is unsatisfiable — the crumbs run
+        // right up to the prize the guard is required to see.
         const place = (dist, t) => {
           const sr = t === 'cloud' ? A.sight.cloud : A.sight.worm;
-          // Widen the ring until a spot satisfies BOTH conditions; report if none ever does,
-          // because the honest answer is "this branch is too close to the route" and the fix
-          // is the design, not a relaxed constraint.
-          // Search the ring OUTWARD AND INWARD. Only growing it is wrong for the failure that
-          // actually happens here: the constraint that bites is "too close to the route", and
-          // a wider ring reaches further toward the route, so growing makes the very case it
-          // is meant to rescue strictly worse. Alternating means the requested distance is
-          // still preferred and the nearest satisfiable one wins.
           let cands = [], used = dist;
           for (let k = 0; k <= 8 && !cands.length; k++) {
-            for (const s of (k === 0 ? [0] : [-k, k])) {
-              const dd = dist + s * A.cs;
-              if (dd < A.cs * 1.5) continue;                 // closer than this is "on top of it"
-              cands = A.watcher(pz, dd, CREEP_RAD, kept, sr);
+            for (const sg of (k === 0 ? [0] : [-k, k])) {
+              const dd = dist + sg * A.cs;
+              if (dd < A.cs * 1.5) continue;
+              cands = A.watcher(pz, dd, A.cs * 0.9, route, sr);
               if (cands.length) { used = dd; break; }
             }
           }
-          if (cands.length && used !== dist) notes.push(`${t} moved to ${used} units from the ${br.prize} prize (asked ${dist}) to stay blind to the route`);
           if (!cands.length) { notes.push(`no spot that can see the ${br.prize} prize at ~${dist} units AND cannot sense the route — move the branch further from the spine`); return null; }
+          if (used !== dist) notes.push(`${t} moved to ${used} units from the ${br.prize} prize (asked ${dist}) to stay blind to the route`);
+          // Furthest from the colony root, so the creature sits BEYOND its prize rather than
+          // between the player and it — being ambushed on the approach is a different level.
           const root = A.root();
           cands.sort((p, q) => (Math.hypot(q.x - root.x, q.y - root.y) - Math.hypot(p.x - root.x, p.y - root.y)));
           const c = cands[0];
-          objects.push(t === 'cloud' ? { t: 'trichoderma', x: c.x, y: c.y } : { t: 'nematode', x: c.x, y: c.y });
+          reqs.push({ x: c.x, y: c.y, t: t === 'cloud' ? 'trichoderma' : 'nematode', role: 'guard' });
           rec.guards.push({ t, x: c.x, y: c.y, dist: Math.round(Math.hypot(c.x - pz.x, c.y - pz.y)) });
           return c;
         };
         if (br.cloudFrom) place(br.cloudFrom, 'cloud');
         if (br.wormFrom) place(br.wormFrom, 'worm');
-        // Staggered pack. Each is placed independently, so two can land close together; that
-        // is fine (a pack reads as a pack) as long as each has its own line to the target.
         for (const dist of br.wormsFrom || []) place(dist, 'worm');
-        if (br.antNest) {
-          // A nest is a COLUMN and sits at the surface; its trail is pathed to the nearest
-          // food at build time, so it belongs over the pile it should be working.
-          objects.push({ t: 'ant', x: pz.x });
-          rec.ant = Math.round(pz.x);
-        }
+        if (br.antNest) { reqs.push({ x: pz.x, t: 'ant', role: 'nest' }); rec.ant = Math.round(pz.x); }
         prizes.push(rec);
       }
-      return { objects, kept: kept.length, gaps, prizes, notes, root: A.root(), sight: A.sight };
+
+      // ---- is the food a CONNECTED route from the colony's own root? --------
+      // The real playability question, and not the same as "are the waypoints evenly spaced":
+      // the colony seeds at the SURFACE, so a spine that starts deep is unreachable from turn
+      // one however tidy its internal spacing is. Edges are sensingRadius AND a clear line,
+      // which is exactly what a tip can reach.
+      const foodPts = reqs.filter((r) => r.t === 'food');
+      const root = A.root();
+      const nodes = [root, ...foodPts];
+      const seen = new Array(nodes.length).fill(false);
+      const SENSE_R = window.__A.sense;
+      seen[0] = true;
+      const stack = [0];
+      while (stack.length) {
+        const i = stack.pop();
+        for (let j = 0; j < nodes.length; j++) {
+          if (seen[j]) continue;
+          if (Math.hypot(nodes[j].x - nodes[i].x, nodes[j].y - nodes[i].y) > SENSE_R) continue;
+          if (!A.clear(nodes[i], nodes[j])) continue;
+          seen[j] = true; stack.push(j);
+        }
+      }
+      const orphans = [];
+      for (let j = 1; j < nodes.length; j++) if (!seen[j]) orphans.push({ x: nodes[j].x, y: nodes[j].y, role: foodPts[j - 1].role });
+
+      // Emit prizes before route/branch food so the prizes win their cells.
+      const order = { prize: 0, route: 1, branch: 2, guard: 3, nest: 4 };
+      const objects = reqs.slice().sort((a, b) => order[a.role] - order[b.role]).map((r) => {
+        const o = { t: r.t };
+        if (r.x != null) o.x = r.x;
+        if (r.t !== 'ant' && r.y != null) o.y = r.y;
+        if (r.t === 'food') { o.kind = r.kind; o.r = r.r; if (r.energy != null) o.energy = r.energy; }
+        return o;
+      });
+
+      return {
+        objects, prizes, notes, root, sense: SENSE_R,
+        route: route.map((p) => ({ x: p.x, y: p.y })),
+        counts: { route: route.length, branch: reqs.filter((r) => r.role === 'branch').length, food: foodPts.length },
+        orphans,
+      };
     }, d);
 
     // ---- report + gate ------------------------------------------------------
-    const overlong = built.gaps.filter((g) => g.d > 202);
-    const blocked = built.gaps.filter((g) => !g.clear);
-    console.log(`  route: ${built.kept} stepping-stone piles, longest hop ${Math.max(0, ...built.gaps.map((g) => g.d))} units (limit 202)`);
-    console.log(`  hops over the sensing limit: ${overlong.length}   hops crossing rock: ${blocked.length}`);
+    console.log(`  food: ${built.counts.food} piles — ${built.counts.route} on the route, ${built.counts.branch} on branches, ${built.prizes.length} prizes`);
+    console.log(`  every pile reachable from the colony root by ${built.sense.toFixed(1)}-unit hops: ${built.orphans.length === 0 ? 'yes' : 'NO — ' + built.orphans.length + ' orphaned'}`);
+    for (const o of built.orphans.slice(0, 5)) console.log(`      orphan (${o.role}) at ${o.x},${o.y}`);
     for (const p of built.prizes) {
-      console.log(`  prize ${p.kind} at ${p.at.x},${p.at.y}` + (p.ant != null ? `  + ant nest at x=${p.ant}` : ''));
+      console.log(`  prize ${p.kind} r${p.r} at ${p.at.x},${p.at.y}` + (p.ant != null ? `  + ant nest at x=${p.ant}` : ''));
       for (const g of p.guards) console.log(`      ${g.t} at ${g.x},${g.y} — ${g.dist} units to its prize, sees it; CANNOT sense the route`);
     }
     for (const n of built.notes) console.log(`  NOTE: ${n}`);
     if (errs.length) console.log(`  page errors: ${errs.slice(0, 3).join(' | ')}`);
-    if (overlong.length || blocked.length) {
-      console.log(`  ** ${d.id} is NOT playable as laid out — a hop the basic grow cannot make means the run stalls. Adjust the spine. **`);
+    if (built.orphans.length) {
+      console.log(`  ** ${d.id} is NOT playable as laid out — food the colony can never hop to means the run stalls. Adjust the spine. **`);
       bad++;
     }
 
@@ -367,6 +494,13 @@ async function boot(page, base, id) {
       assetsFrom: src.assetsFrom || src.id,
       derivedFrom: src.id,
       challenge: d.blurb,
+      // Roles, for tests/challenge-check.cjs. buildLevel ignores unknown top-level fields, and
+      // sub.foodPiles carries no role of its own — but "no worm can sense the SAFE ROUTE" needs
+      // the route told apart from the branch that is meant to be exposed.
+      design: {
+        route: built.route,
+        prizes: built.prizes.map((p) => ({ kind: p.kind, r: p.r, at: p.at, guards: p.guards, branch: p.branch })),
+      },
       world: src.world,
       layout: src.layout,
       render: src.render || undefined,
