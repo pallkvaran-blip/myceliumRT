@@ -504,16 +504,23 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const names = lower ? [...lower.querySelectorAll('[data-name]')].map((n) => n.getAttribute('data-name')) : [];
     const label = (document.querySelectorAll('#loadoutSelect .lo-label')[0] || {}).textContent || '';
     const instr = (document.querySelector('#loadoutSelect .lo-h-instr') || {}).textContent || '';
+    // The screen's own title. The death title and sub-line moved out to showDeathScreen, so
+    // "deck" now lives here rather than in the instruction under it.
+    const htitle = (document.querySelector('#loadoutSelect .lo-h-title') || {}).textContent || '';
     document.getElementById('loadoutSelect').remove();
-    return { names, label, instr, ownedAtSeed: owned.length };
+    return { names, label, instr, htitle, ownedAtSeed: owned.length };
   });
   ok('cards you PLAYED are offered to keep', keepPool.names.includes('Turgor Thrust'), keepPool.names.join(', '));
   ok('cards you DRAFTED are offered to keep', keepPool.names.includes('Foraging Fan'), keepPool.names.join(', '));
   ok('engines you drafted are offered too', keepPool.names.includes('Cord Capillary'), keepPool.names.join(', '));
   ok('the screen says the pool is played, drafted and owned',
      /played/i.test(keepPool.label) && /drafted/i.test(keepPool.label) && /owned/i.test(keepPool.label), keepPool.label);
+  // Against the HEADER, not one line of it. The death title and sub-line moved out to
+  // showDeathScreen, and "deck" now sits in this screen's own title ("Your deck for the next
+  // run") rather than in the instruction under it — the screen still says it, in one place
+  // instead of buried mid-sentence.
   ok('it asks you to keep cards for your DECK, not just carry them',
-     /deck/i.test(keepPool.instr), keepPool.instr);
+     /deck/i.test(keepPool.htitle + ' ' + keepPool.instr), (keepPool.htitle + ' / ' + keepPool.instr).trim());
 
   // The case the whole `runDeck` variable exists for: a card you OWNED coming in but never drew,
   // never played and never drafted. Seeding consumes the stored deck, so without remembering it

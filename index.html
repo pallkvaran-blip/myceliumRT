@@ -1449,6 +1449,11 @@
     .ss-lc-cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 188px)); justify-content:center; gap:14px; margin:14px auto 4px; max-width:420px; }
     .ss-lc-actions { margin-top:22px; display:flex; justify-content:center; }
     .ss-lc-actions .ss-btn { flex:0 0 auto; min-width:240px; }
+    /* The death screen carries TWO actions where the win screen carries one. */
+    .ss-lc-actions2 { gap:12px; flex-wrap:wrap; }
+    .ss-lc-actions2 .ss-btn { min-width:0; }
+    .ss-lc-actions2 .ss-btn[disabled] { opacity:0.42; cursor:not-allowed; }
+    .ss-lc-badge-died { color:#ffb4a6; border-color:rgba(255,140,120,0.45); }
 
     /* TEMP dev button: instantly clear the current level (amber dashed = dev affordance) */
     #devWin { position:fixed; top:14px; right:14px; z-index:31; cursor:pointer;
@@ -20337,7 +20342,11 @@ class UI {
     // `state.config` rather than CONFIG: this module does not import CONFIG, and reaching
     // for it threw at construction — which took the whole boot with it, since UI is built
     // before the first frame. state.config is the deep clone the run is actually using.
-    this.handOpen = !(state && state.config && state.config.dev && state.config.dev.enabled);
+    // OPEN. It used to start minimised whenever the dev flag was on, as a convenience while
+    // editing maps — the carousel takes the bottom third — but that is a worse default than the
+    // thing it optimised for: the hand is how the game is played, and a run that opens with it
+    // collapsed reads as a missing HUD.
+    this.handOpen = true;
     this.defaultHint = '';            // cached card-mode hint, restored on cancel
     this.el = {};
     this._build();
@@ -22194,7 +22203,7 @@ function growMyceliumTitle(container, opts = {}) {
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
   const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, loadDeck, deckSize,
-    STORE_UPGRADES, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+    STORE_UPGRADES, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
   const { CONFIG, timeify } = __m_config;
@@ -22569,6 +22578,10 @@ function speciesSlot(s, { cost, balance, onRead, onSelect, onBuy }) {
 // before this change is still owned and still appears under YOUR COLONIES, it just has no row
 // of its own. Moving one of those eight into the store is one entry in STORE_SPECIES_IDS.
 
+// The three tracks that raise a STARTING resource rather than granting something new. Their
+// tile states the absolute figure the run opens with; every other track states what it adds.
+const RESOURCE_TRACK = /^(energy|water|phosphorus)$/;
+
 // One upgrade track's tile: name, what it is currently granting, the effect, a pip per step,
 // and the price of the next one. Rebuilt whole on every purchase — see `refresh` below.
 function upgradeTile(u, progress, onBuy) {
@@ -22586,7 +22599,15 @@ function upgradeTile(u, progress, onBuy) {
       '<span class="ss-upg-nm">' + esc(u.name) + '</span>' +
       // `unit1` only where the plural isn't just the word + s ("retry"/"retries"). The three
       // resource tracks step by 3, 5 and 2, so their value is never 1 and they need no singular.
-      '<span class="ss-upg-now">' + (have ? '+' + have + ' ' + esc(have === 1 ? (u.unit1 || u.unit) : u.unit) : 'none yet') + '</span>' +
+      // THE THREE RESOURCE TRACKS SHOW WHAT A RUN ACTUALLY OPENS WITH, not what this track has
+      // added to it. They read "none yet" until the first purchase, which is true of the track
+      // and false of the game — a run starts with 20 energy and 20 water whatever the store
+      // says — so the one number the player wants here was the one number missing. Absolute, so
+      // no leading "+": startingResources() is CONFIG's base plus every resource track, which is
+      // the figure the run seeds from.
+      '<span class="ss-upg-now">' + (RESOURCE_TRACK.test(u.id)
+        ? (startingResources(progress)[u.id] | 0) + ' ' + esc(u.unit)
+        : (have ? '+' + have + ' ' + esc(have === 1 ? (u.unit1 || u.unit) : u.unit) : 'none yet')) + '</span>' +
     '</div>' +
     '<p class="ss-upg-eff">' + u.effect + '</p>' +
     '<div class="ss-upg-pips" aria-hidden="true">' + pips + '</div>' +
@@ -22620,27 +22641,11 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
       // the species and the store has nothing left to sell, so it cannot be used to try buying.
       '<button class="ss-dev ss-dev3" id="ssDevSpores" type="button" title="DEV: credit the wallet with 10,000 Spores">Dev: +10,000 spores ▸</button>'
     : '';
-  // One button per hand-authored / traced map (__m_levels_data, GENERATED from
-  // docs/levels/*.json), down the LEFT edge. Built from the list rather than named here,
-  // so tracing another map puts its button on screen with no code change. These are the
-  // only in-game route to a map that claims no campaign slot — otherwise it's the
-  // `#level,<id>` boot hash, which skips the picker and so can't pick a species.
-  const devMaps = devOn ? allLevels().filter((l) => l && l.id) : [];
-  // Grouped by theme, which is the first word of the display name ("Obsidian 55" → Obsidian),
-  // except for maps saved from the in-game editor, which name their own group ("Chapter 1").
-  // LEVELS arrives sorted by id, so same-theme maps are already adjacent and a plain
-  // run-length pass is enough — no need to bucket and re-order, which would also lose the
-  // deliberate ordering of the hand-authored maps.
-  let lastGroup = null;
-  const mapBtns = devMaps.map((l, i) => {
-    const group = l.chapter || String(l.name || l.id).split(/[\s-]/)[0];
-    const head = group !== lastGroup
-      ? `<div class="ss-devgroup">${esc(lastGroup = group)}</div>` : '';
-    return head +
-      `<button class="ss-dev ss-dev-l" id="ssDevMap${i}" type="button"` +
-      ` title="DEV: play the authored map &quot;${esc(l.name)}&quot;">${esc(l.name)} ▸</button>`;
-  }).join('');
-  const mapCol = mapBtns ? `<div class="ss-devmaps">${mapBtns}</div>` : '';
+  // The per-map dev buttons that used to run down the LEFT edge are gone (owner). They listed
+  // every entry in allLevels(), which is 72 maps now, and the column covered the left third of
+  // the picker. The routes that remain: the `#level,<id>` boot hash, and "Dev: maps ▾" inside a
+  // running level, which is the one that matters because it can switch maps mid-session.
+  const mapCol = '';
   root.innerHTML =
     '<div class="ss-title" aria-label="Mycelium"></div>' +
     '<div class="ss-console" role="dialog" aria-label="Select your species">' +
@@ -22725,9 +22730,9 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
     root.querySelector('#ssDev').addEventListener('click', () => { hide(); onDev && onDev(); });
     root.querySelector('#ssDevUnlock').addEventListener('click', () => { devUnlockAll(); refresh(); });
     root.querySelector('#ssDevSpores').addEventListener('click', () => { addSpores(DEV_SPORES); refresh(); });
-    devMaps.forEach((l, i) => {
-      root.querySelector('#ssDevMap' + i).addEventListener('click', () => { hide(); onLevel && onLevel(l.id); });
-    });
+    // No per-map wiring: the left-hand map column is gone. `onLevel` is still in the signature
+    // because showSpeciesSelect's caller passes it and the in-level "Dev: maps ▾" switcher uses
+    // the same route — this screen simply no longer offers it.
   }
   return { hide, refresh, root };
 }
@@ -22781,6 +22786,39 @@ function showSpeciesUnlocked({ species, onContinue }) {
   return { hide, root };
 }
 
+// ============================ death (run over) ===============================
+// THE DEATH SCREEN IS ITS OWN SCREEN NOW. It used to BE the card-keep carousel with a
+// cause-matched message stuck on top, which asked the player to curate a deck in the same
+// breath as telling them they had died — and buried the retry among the carousel's buttons,
+// where it read as a third way of leaving rather than the way of carrying on.
+//
+// Shaped like the run-complete screen (same ss-lc card over the map) because they are the same
+// beat: the run has ended, here is what happened, here is what you can do about it. The two
+// actions are the only two that exist — go on to keep cards, or take the level again.
+function showDeathScreen({ title, sub, spores, retryLabel, retryOff, retryTitle, onKeep, onRetry }) {
+  const root = el('div', 'ss-detailwrap open'); root.id = 'ssDeath';
+  root.innerHTML =
+    '<div class="ss-lc">' +
+      '<div class="ss-lc-badge ss-lc-badge-died">Run over</div>' +
+      '<h2 class="ss-lc-title">' + esc(title || 'Your run has ended') + '</h2>' +
+      (sub ? '<p class="ss-lc-sub">' + esc(sub) + '</p>' : '') +
+      (spores ? '<div class="ss-win-spores ss-lc-spores">You fruited and spored <b>+' + spores + '</b>' + SPORE_ICON + '</div>' : '') +
+      '<div class="ss-lc-actions ss-lc-actions2">' +
+        '<button class="ss-btn primary" id="ssDeathKeep">End run: Choose which cards to keep</button>' +
+        '<button class="ss-btn" id="ssDeathRetry"' + (retryOff ? ' disabled' : '') +
+          (retryTitle ? ' title="' + esc(retryTitle) + '"' : '') + '>' + esc(retryLabel) + '</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(root);
+  function hide() { root.remove(); }
+  root.querySelector('#ssDeathKeep').addEventListener('click', () => { hide(); onKeep && onKeep(); });
+  const rb = root.querySelector('#ssDeathRetry');
+  // A retry with none left stays on screen and disabled rather than hidden — a player who has
+  // never bought one has to be able to learn the option exists (same rule the carousel used).
+  if (rb && !retryOff) rb.addEventListener('click', () => { hide(); onRetry && onRetry(); });
+  return { hide, root };
+}
+
 // =========================== game won (final) ================================
 function showGameWon({ spores, balance, onNewRun }) {
   const root = el('div', 'ss-detailwrap open'); root.id = 'ssGameWon';
@@ -22798,7 +22836,7 @@ function showGameWon({ spores, balance, onNewRun }) {
   return { hide, root };
 }
 
-  return { showSpeciesSelect, showLevelComplete, showSpeciesUnlocked, showGameWon, showDeckView };
+  return { showDeathScreen, showSpeciesSelect, showLevelComplete, showSpeciesUnlocked, showGameWon, showDeckView };
 })();
 
 // ===================== src/render/loadout_select.js =====================
@@ -24533,7 +24571,7 @@ const __m_main = (function () {
   const { NetworkRenderer, drawFruitBodies } = __m_render_network;
   const { Lighting } = __m_render_lighting;
   const { UI, deathText, cardSlug, SPORE_ICON } = __m_render_ui;   // deathText: one table, both death screens
-  const { showSpeciesSelect, showLevelComplete, showGameWon, showSpeciesUnlocked, showDeckView } = __m_render_species_select;
+  const { showDeathScreen, showSpeciesSelect, showLevelComplete, showGameWon, showSpeciesUnlocked, showDeckView } = __m_render_species_select;
   const { showLoadoutSelect } = __m_render_loadout_select;
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
@@ -24624,11 +24662,13 @@ function revealMap() {
   // callbacks still run, so nothing downstream notices it did not appear.
   if (pendingLevelIntro && state && state.config && state.config.dev && state.config.dev.enabled) {
     const info = pendingLevelIntro; pendingLevelIntro = null;
-    // onDismiss is NOT called. Its only job is `ui.setHandOpen(true)` — re-expanding the
-    // carousel that the intro collapsed on its way in — and with no intro there was nothing
-    // to collapse. Calling it anyway is what re-opened the hand a line after the dev flag
-    // had deliberately closed it. onContinue does carry real work (the deferred level
-    // advance), so that one still runs.
+    // onDismiss IS called now. Its only job is `ui.setHandOpen(true)`, and skipping it was what
+    // left a dev run staring at a collapsed carousel: begin() closes the hand for every
+    // non-puzzle run on the assumption that the intro will re-open it, and the skip meant
+    // nothing ever did. It used to be deliberate, back when the dev build WANTED the tray
+    // collapsed while editing maps — the owner has since asked for it open. onContinue carries
+    // the deferred level advance and has always run.
+    if (info.onDismiss) { try { info.onDismiss(); } catch (_) {} }
     if (info.onContinue) { try { info.onContinue(); } catch (_) {} }
     canvas.style.transition = 'none';
     canvas.style.opacity = '1';
@@ -25048,7 +25088,12 @@ function showDeathCarry(r) {
   // the whole allowance on them. showLoadoutSelect already meters the two independently (it
   // does this for Split Gill's 15+2), so the split is free here.
   const store = storeBonuses();
-  const keep = cleared + store.carryCards;   // the baseline 3 is the track's `base` now
+  // THE STORE IS THE ONLY THING THAT WIDENS THIS. It used to be `cleared + store.carryCards`, so
+  // a deep run kept more cards than a shallow one on top of whatever had been bought — which
+  // made the Basic/Event Memory track's number a floor rather than the answer, and meant the
+  // deck you could carry depended on how the last run happened to go. Now the allowance is
+  // exactly what the player owns: the track's base (3) plus the steps they paid for.
+  const keep = store.carryCards;
   const keepEng = store.carryEngines;
   // THE POOL IS EVERYTHING THE PLAYER TOUCHED: what they PLAYED, what they DRAFTED, and what
   // they already OWNED coming in. Offering only what was cast made the deck impossible to hold
@@ -25079,18 +25124,18 @@ function showDeathCarry(r) {
   const enginePool = keepEng > 0 ? all.filter((e) => isEngineCard(e.name)) : [];
   const { title, sub } = deathText(r && r.cause);
   const sporeLine = (r && r.runSpores != null)
-    ? `<p class="lo-h-spores">${SPORE_ICON}<b>${r.runSpores}</b> earned this run — use them to buy new species</p>` : '';
+    ? `<p class="lo-h-spores">${SPORE_ICON}<b>${r.runSpores}</b> earned this run</p>` : '';
+  // JUST THE CARD SCREEN. The death title and sub-line, and the retry, live on showDeathScreen
+  // now — this is reached by pressing "End run: Choose which cards to keep", so repeating the
+  // news here would be telling the player twice and asking them to grieve and curate at once.
+  //
+  // The note names the ONE thing that sets the allowance. It used to add "levels cleared", which
+  // is no longer true (owner: only the store widens it), and before that repeated the baseline 3
+  // that `store.carryCards` already contains.
   const header =
-    `<h1 class="lo-h-title">${title}</h1>` +
-    `<p class="lo-h-body">${sub}</p>` +
-    sporeLine +
+    `<h1 class="lo-h-title">Your deck for the next run</h1>` +
     `<p class="lo-h-instr">Choose ${keep} cards${keepEng > 0 ? ` and ${keepEng} engine${keepEng > 1 ? 's' : ''}` : ''}` +
-      // The note must not repeat the baseline. It used to read "3 + levels cleared + N from the
-      // Store" because the 3 was a literal at the run loop; now that it is the carryCards track's
-      // `base`, `store.carryCards` ALREADY contains it, and the old wording announced 6 slots
-      // above a counter that offered 3.
-      ` to keep in your deck for the next run <span class="lo-h-note">(levels cleared` +
-      ` + ${store.carryCards} from the Store)</span></p>`;
+      ` to keep <span class="lo-h-note">(${store.carryCards} from the Store)</span></p>`;
   // Kick off the Top-10 CHECK now (in the background) so the prompt is ready the instant the
   // player leaves this screen — it shows AFTER Next run / Main menu, not here.
   //
@@ -25110,8 +25155,6 @@ function showDeathCarry(r) {
   // the run has a retry banked AND there is an entry snapshot to go back to — a run that died on
   // its very first frame, before begin() took one, has nothing to restore. Shown DISABLED
   // otherwise (owner's ask), so the option is visible to a player who has never bought one.
-  const canRetry = runLives > 0 && !!levelEntry;
-  const retryLbl = runLives > 0 ? 'Retry level · ' + runLives + ' left' : 'Retry level · none left';
   showLoadoutSelect({
     drafted: pool, enginePool, fixed: [], maxPick: keep, maxEngines: keepEng, layout: 'death',
     header,
@@ -25120,12 +25163,10 @@ function showDeathCarry(r) {
     emptyText: 'Nothing to keep — you played, drafted and owned no cards this run.',
     confirmText: 'Next run',
     secondaryText: 'Main menu',
-    tertiaryText: retryLbl,
-    tertiaryOff: !canRetry,
-    tertiaryTitle: canRetry
-      ? 'Play level ' + currentLevel + ' again with the cards and reserves you started it with'
-      : (levelEntry ? 'Buy Sclerotia in the store to bank retries' : 'Nothing to go back to on this level'),
-    onTertiary: () => { if (!retryLevel()) backToPicker(); },
+    // No retry here: it is one of showDeathScreen's two buttons, taken before this screen is
+    // ever reached. Leaving a copy would offer it twice and, worse, offer it AFTER the player
+    // has curated a deck the retry would throw away.
+    
     onConfirm: (picked) => { saveDeck(picked); afterDeath(hsPromise, backToPicker); },
     onSecondary: (picked) => { saveDeck(picked); afterDeath(hsPromise, backToTitle); },
   });
@@ -25176,9 +25217,22 @@ function presentRunOver() {
     // name the player entered at New Game, and flag it on the run-over card ("Top 10 score"
     // + a High Scores link). Only real species runs score (dev/testall have none).
     if (cardsCampaign() && r.died && chosenSpecies) {
-      // The death screen IS the card-carry carousel (cause-matched message on top). It runs
-      // the Top-10 check itself and shows that prompt AFTER the player leaves the carousel.
-      showDeathCarry(r);
+      // TWO SCREENS NOW, in the order the player thinks in: what happened, then what to keep.
+      // The carousel used to be the death screen, which asked for a deck decision in the same
+      // breath as the news. It still runs the Top-10 check and shows that prompt on the way out,
+      // so nothing about scoring moves — the carousel is simply reached through a button.
+      const { title, sub } = deathText(r.cause);
+      const canRetry = runLives > 0 && !!levelEntry;
+      showDeathScreen({
+        title, sub, spores: r.runSpores,
+        retryLabel: runLives > 0 ? 'Retry level · ' + runLives + ' left' : 'Retry level · none left',
+        retryOff: !canRetry,
+        retryTitle: canRetry
+          ? 'Play level ' + currentLevel + ' again with the cards and reserves you started it with'
+          : (levelEntry ? 'Buy Sclerotia in the store to bank retries' : 'Nothing to go back to on this level'),
+        onKeep: () => showDeathCarry(r),
+        onRetry: () => { if (!retryLevel()) backToPicker(); },
+      });
       return;
     }
     ui.showOverlay(r);
@@ -26671,6 +26725,13 @@ function begin(newState) {
       // property — a probe that wants "what does a run start with" has nowhere else to ask.
       start: (p) => startingResources(p),
       deathCarry: (r) => showDeathCarry(r || {}),
+      // The screen that now comes FIRST on a death. Exposed beside deathCarry for the same
+      // reason: a real death needs a chosen species and a lost run, and a check wants the screen.
+      deathScreen: (o) => showDeathScreen(Object.assign({
+        title: 'Your run has ended', sub: '', spores: 0,
+        retryLabel: 'Retry level · none left', retryOff: true,
+        onKeep: () => {}, onRetry: () => {},
+      }, o || {})),
       // The wallet and the roster. A probe needs to fund itself and name a species, and doing
       // that by hand-building `mycelium.progress.v2` skips loadProgress's migrations.
       balance: () => sporesBalance(),
@@ -26799,9 +26860,10 @@ function begin(newState) {
   };
   if (ui) ui.setState(state); else ui = new UI(state, handlers);
   ui.hideOverlay();
-  // Keep the hand carousel CLOSED while a "Level N" intro is pending (campaign) so it
-  // can't flash on screen in the gap before the intro overlay appears — the intro's
-  // onContinue re-opens it. Puzzle mode has no intro, so open it now.
+  // Keep the hand carousel CLOSED while a "Level N" intro is coming (every non-puzzle run), so
+  // it cannot flash on screen in the gap before the intro overlay appears — the intro's
+  // onDismiss re-opens it. `pendingLevelIntro` is assigned further down in begin(), AFTER this
+  // line, so it cannot be tested here; the mode is the proxy.
   if (ui.setHandOpen) ui.setHandOpen(state.mode === 'puzzle');
   ui.setSelectedAction(null);
   // Clear any armed aim/selection so a stale index never carries into the new run.
