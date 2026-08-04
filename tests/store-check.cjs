@@ -109,10 +109,17 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      sub('carryCards') + ' / ' + sub('carryEngines'));
   ok('Retries explains what a retry is for',
      /attempt completing the same level again/.test(sub('lives')), sub('lives'));
-  // Everyone starts with one retry, bought or not — the only track with a base.
-  ok('you start with one retry and nothing else has a base',
-     track('lives').base === 1 && shape.filter((t) => t.base).length === 1,
-     shape.map((t) => t.id + ':' + t.base).join(' '));
+  const bases = {};
+  for (const t of shape) bases[t.id] = t.base || 0;
+  // TWO tracks have a base — what you have before buying a step. Retries is 1 (everyone gets
+  // one), Basic/Event Memory is 3. The memory baseline used to be a bare `3 +` at the run loop,
+  // where the store could not see it, so the tile reported "none yet" about an allowance the
+  // player already had. Asserted per track rather than as "only lives has one", because that
+  // phrasing is what silently went stale when the second base arrived.
+  ok('the tracks with a base are Retries (1) and Basic/Event Memory (3)',
+     bases.lives === 1 && bases.carryCards === 3
+       && bases.energy === 0 && bases.water === 0 && bases.phosphorus === 0 && bases.carryEngines === 0,
+     Object.entries(bases).map(([k, v]) => k + ':' + v).join(' '));
 
   const four = await page.evaluate(() => window.__game.store.species().map((s) => s.id + '@' + window.__game.store.speciesCost(s)));
   ok('four colonies are for sale', four.length === 4, four.join(', '));
@@ -217,13 +224,18 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const S = window.__game.store;
     S.reset();
     const base = S.speciesById('marasmius');
-    const before = { ...(base.res || {}) };
+    // The opening is UNIVERSAL now — CONFIG's base plus the tracks — so it is read from the
+    // store, not off the species. `base.res` used to be the number here and is undefined today;
+    // reading it would have thrown, which is exactly how this check reported the change.
+    const before = S.start();
     S.credit(1e6);
     S.buy('water'); S.buy('water'); S.buy('phosphorus'); S.buy('energy'); S.buy('energy');
     const eff = S.effectiveSpecies(base).res;
     return { before, after: { water: eff.water, phosphorus: eff.phosphorus, energy: eff.energy },
              wBonus: S.value('water'), pBonus: S.value('phosphorus'), eBonus: S.value('energy'),
-             tableUntouched: { water: base.res.water, phosphorus: base.res.phosphorus, energy: base.res.energy } };
+             // A species must still carry no resources of its own after a seed — effectiveSpecies
+             // builds a COPY, and writing the sum back onto the table would compound it every run.
+             tableStillBare: base.res === undefined };
   });
   ok('bought water reaches the run as starting water',
      res.after.water === res.before.water + res.wBonus, `${res.before.water} + ${res.wBonus} -> ${res.after.water}`);
@@ -232,26 +244,27 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      `${res.before.phosphorus || 0} + ${res.pBonus} -> ${res.after.phosphorus}`);
   ok('bought energy reaches the run as starting energy',
      res.after.energy === res.before.energy + res.eBonus, `${res.before.energy} + ${res.eBonus} -> ${res.after.energy}`);
-  // The bonus is applied to a COPY at seed time, never written into SPECIES — otherwise it
-  // compounds every run and the table stops describing the colony.
-  ok('the species table itself is never mutated',
-     res.tableUntouched.water === res.before.water && res.tableUntouched.phosphorus === res.before.phosphorus
-       && res.tableUntouched.energy === res.before.energy,
-     JSON.stringify(res.tableUntouched));
+  ok('the species table still declares no resources of its own', res.tableStillBare === true,
+     'marasmius.res is undefined after a seed');
 
   const zero = await page.evaluate(() => {
     const S = window.__game.store;
     S.reset();
     const base = S.speciesById('marasmius');
     const eff = S.effectiveSpecies(base);
-    return { same: eff.res.water === base.res.water && eff.res.phosphorus === (base.res.phosphorus || 0)
-                   && eff.res.energy === base.res.energy,
-             bonuses: S.bonuses() };
+    const c = window.__cfg;
+    // With nothing bought, a run opens on the CONFIG base exactly — no species contribution and
+    // no stray bonus. This is the assertion that would catch the base being applied twice.
+    return { same: eff.res.water === c.cards.startWater && eff.res.phosphorus === c.cards.startPhosphorus
+                   && eff.res.energy === c.energy.start,
+             opening: eff.res, bonuses: S.bonuses() };
   });
-  // Every track reads 0 with nothing bought EXCEPT retries, which everyone starts with one of.
-  ok('with nothing bought a species opens exactly as it always did',
-     zero.same === true && ['energy', 'water', 'phosphorus', 'carryCards', 'carryEngines']
-       .every((k) => zero.bonuses[k] === 0) && zero.bonuses.lives === 1, JSON.stringify(zero.bonuses));
+  // With nothing bought every track reads 0 except the two with a base: Retries 1, and
+  // Basic/Event Memory 3.
+  ok('with nothing bought a run opens on the universal base',
+     zero.same === true && ['energy', 'water', 'phosphorus', 'carryEngines']
+       .every((k) => zero.bonuses[k] === 0) && zero.bonuses.lives === 1 && zero.bonuses.carryCards === 3,
+     JSON.stringify(zero.opening) + ' ' + JSON.stringify(zero.bonuses));
 
   // ---- the death-carry caps ------------------------------------------------
   const carry = await page.evaluate(() => {
@@ -284,15 +297,17 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   if (carry.err) {
     ok('the death carousel opens for the carry assertions', false, carry.err);
   } else {
-    // At zero upgrades the cap is the old "3 + levels cleared" and there is NO engine meter —
-    // the negative control for the whole feature.
+    // At zero upgrades the cap is the baseline 3 (the track's `base`) and there is NO engine
+    // meter — the negative control for the whole feature.
     ok('with nothing bought the carry cap is unchanged and has no engine meter',
        /^\s*\d+\s*\/\s*3\s*$/.test((carry.none.count || '').replace(/ /g, ' ')) && !/engine/i.test(carry.none.count || ''),
        JSON.stringify(carry.none));
+    // NO `3 +` here any more: the baseline is the carryCards track's own `base`, so
+    // `bonuses.carryCards` already includes it and adding 3 again expects a cap twice the size.
     ok('bought card memory widens the basic/event cap',
-       (carry.cards.count || '').includes('/ ' + (3 + carry.bonus.carryCards)) ||
-       (carry.cards.count || '').includes('/' + (3 + carry.bonus.carryCards)),
-       `${carry.cards.count} (bonus +${carry.bonus.carryCards})`);
+       (carry.cards.count || '').includes('/ ' + carry.bonus.carryCards) ||
+       (carry.cards.count || '').includes('/' + carry.bonus.carryCards),
+       `${carry.cards.count} (cap = base 3 + bought = ${carry.bonus.carryCards})`);
     ok('the instruction says where the extra slots came from',
        /from the Store/i.test(carry.cards.instr || ''), carry.cards.instr);
     ok('bought engine memory adds a SEPARATE engine meter',
@@ -539,7 +554,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const actsShown = !!(acts && acts.offsetParent !== null);
     const name = wrap ? wrap.querySelector('#ssIName').textContent : null;
     const hand = wrap ? wrap.querySelectorAll('#ssIHand .ss-gc').length : 0;
-    const res = wrap ? wrap.querySelectorAll('#ssIRes .ss-respill').length : 0;
+    // #ssIRes is gone entirely — not merely emptied — so this counts the ELEMENT, which is
+    // what would come back if the pills were ever restored.
+    const res = wrap ? wrap.querySelectorAll('#ssIRes, .ss-respill').length : 0;
     return { open, btns, actsShown, name, hand, res };
   });
   ok('pressing a colony opens its details', sheet.open === true, sheet.name);
@@ -547,12 +564,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('the details carry NO buttons but the X',
      sheet.btns.length === 1 && /ssIClose/.test(sheet.btns[0]), sheet.btns.join(' | ') || '(none)');
   ok('the actions row is gone rather than merely empty', sheet.actsShown === false);
-  ok('the details still show the hand and the starting resources',
-     sheet.hand > 0 && sheet.res > 0, `${sheet.hand} cards, ${sheet.res} resource pills`);
+  // NO resource pills. Starting energy / water / phosphorus are universal — CONFIG's base plus
+  // the store's three tracks — so a figure printed beside a mushroom's portrait would describe
+  // the player, not the colony. The store tiles carry those numbers instead. The hand stays: it
+  // IS the species.
+  ok('the details show the hand and no starting resources',
+     sheet.hand > 0 && sheet.res === 0, `${sheet.hand} cards, ${sheet.res} resource elements`);
 
-  const closed = await page.evaluate(async () => {
+  const closed = await page.evaluate(() => {
     document.querySelector('#ssIClose').click();
-    await new Promise((r) => setTimeout(r, 350));
     return !document.querySelector('#ssInspector.open');
   });
   ok('the X closes it', closed === true);

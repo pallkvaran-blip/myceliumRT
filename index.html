@@ -14102,6 +14102,39 @@ function stepAnts(state, phase = 'both') {
     return;
   }
   state._antTrailLive = true;
+  // RE-PLAN THE FIRST TRAIL ONCE THE FINE MASK EXISTS.
+  //
+  // buildTrail tests every step against solidAtWorld precisely so a trail cannot thread cells
+  // that are visually inside a boulder — rock SPRITES overhang the cells they are flagged on.
+  // But solidAtWorld falls back to the coarse `cell.rock` flag whenever the fine mask is absent:
+  //
+  //     if (!fs) { const c = this.cellAtWorld(x, y); return !!(c && c.rock); }
+  //
+  // and the mask is published by solidifyRock during RENDER, while placeAntNests → retarget →
+  // buildTrail runs at BUILD time, inside createLevelState, before a single frame has drawn. So
+  // the opening trail was ALWAYS planned against the coarse grid however carefully buildTrail
+  // tested it, and on a traced map — where the sprite and its cells disagree most — the ants came
+  // out walking over the rocks. It was self-correcting only by luck, whenever the nest happened
+  // to retarget later.
+  //
+  // Re-planning here rather than deferring the build-time plan: the nest must have a trail from
+  // the moment the level exists (the renderer, the worms' attractor and recalibrateAnts all read
+  // it), so the fix is to redo it with better information, not to withhold it.
+  //
+  // Guarded on `built` still being 0 — nothing has been laid down yet, so the new line replaces
+  // the old one invisibly. Past that the column has physically marched, and snapping the trail
+  // out from under it would be a worse artefact than the one being fixed; a later retarget picks
+  // those up. In practice the first tick always lands here, since placeAntNests plans with
+  // built = 0 and this runs before anything advances it.
+  if (sub._fineSolid) {
+    for (const nest of nests) {
+      if (nest._finePath) continue;
+      nest._finePath = true;
+      if ((nest.built || 0) > 0) continue;
+      nest.path = []; nest.built = 0; nest.target = null;
+      retarget(sub, nest);
+    }
+  }
   const a = state.config.ants;
   const extend = a.extendSpeed != null ? a.extendSpeed : 2;
   for (const nest of nests) {
@@ -23847,8 +23880,12 @@ function showDeathCarry(r) {
     `<p class="lo-h-body">${sub}</p>` +
     sporeLine +
     `<p class="lo-h-instr">Choose ${keep} cards${keepEng > 0 ? ` and ${keepEng} engine${keepEng > 1 ? 's' : ''}` : ''}` +
-      ` to keep in your deck for the next run <span class="lo-h-note">(3 + levels cleared` +
-      `${store.carryCards ? ` + ${store.carryCards} from the Store` : ''})</span></p>`;
+      // The note must not repeat the baseline. It used to read "3 + levels cleared + N from the
+      // Store" because the 3 was a literal at the run loop; now that it is the carryCards track's
+      // `base`, `store.carryCards` ALREADY contains it, and the old wording announced 6 slots
+      // above a counter that offered 3.
+      ` to keep in your deck for the next run <span class="lo-h-note">(levels cleared` +
+      ` + ${store.carryCards} from the Store)</span></p>`;
   // Kick off the Top-10 CHECK now (in the background) so the prompt is ready the instant the
   // player leaves this screen — it shows AFTER Next run / Main menu, not here.
   //
@@ -25345,6 +25382,10 @@ function begin(newState) {
       // `effectiveSpecies` is what the run seeds from; `deathCarry` opens the real carousel,
       // whose two counters ARE the carry caps.
       effectiveSpecies: (sp) => effectiveSpecies(sp),
+      // The universal opening (CONFIG base + the three resource tracks). Exposed because the
+      // base stopped being readable off a species the moment it stopped being a species'
+      // property — a probe that wants "what does a run start with" has nowhere else to ask.
+      start: (p) => startingResources(p),
       deathCarry: (r) => showDeathCarry(r || {}),
       // The wallet and the roster. A probe needs to fund itself and name a species, and doing
       // that by hand-building `mycelium.progress.v2` skips loadProgress's migrations.
