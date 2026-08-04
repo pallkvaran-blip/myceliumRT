@@ -251,6 +251,123 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('ending a run reaches the keep screen', ended.reached === true, ended.title || '(never appeared)');
   ok('...and it asks what to keep in your deck', /deck/i.test(ended.instr || ''), ended.instr);
 
+  // ---- retries --------------------------------------------------------------
+  // "When a player dies they should be given the option of trying the same level again if they
+  // have retries left... if they are out of retries, that option should still be visible on the
+  // death screen, just not usable." Every clause of that is an assertion below.
+  const die = (level, lives, deck) => page.evaluate(async (a) => {
+    const g = window.__game;
+    document.querySelectorAll('#loadoutSelect, #ssLevelComplete, #ssGameWon, #levelIntro').forEach((n) => n.remove());
+    g.store.reset();
+    if (a.lives) { g.store.credit(1e6); for (let i = 0; i < a.lives; i++) g.store.buy('lives'); }
+    if (a.deck) g.deck.set(a.deck);
+    g.campaign.play('marasmius', a.level);
+    await new Promise((r) => setTimeout(r, 300));
+    const before = { lives: g.campaign.lives(), entry: g.campaign.entry(), spores: g.store.balance(),
+                     level: g.campaign.level(), water: g.state.active.water };
+    // Kill the colony the way the engine does, then let presentRunOver run.
+    g.state.active.alive = false; g.state.runOver = true;
+    g.state.runResult = { won: false, died: true, cause: 'devoured', turns: g.state.turn };
+    g.killColony ? null : null;
+    window.__present ? window.__present() : null;
+    return before;
+  }, { level, lives, deck });
+
+  // presentRunOver is driven from the render loop; the simplest honest trigger is the same one
+  // the settings menu uses, which ends the run and lands on the identical screen.
+  const dieAndShow = async (level, lives) => {
+    const before = await page.evaluate(async (a) => {
+      const g = window.__game;
+      document.querySelectorAll('#loadoutSelect, #ssLevelComplete, #ssGameWon, #levelIntro').forEach((n) => n.remove());
+      g.store.reset();
+      if (a.lives) { g.store.credit(1e6); for (let i = 0; i < a.lives; i++) g.store.buy('lives'); }
+      g.campaign.play('marasmius', a.level);
+      await new Promise((r) => setTimeout(r, 350));
+      const snap = { lives: g.campaign.lives(), entry: g.campaign.entry(), spores: g.store.balance(),
+                     level: g.campaign.level() };
+      g.campaign.endRun();
+      for (let i = 0; i < 60 && !document.getElementById('loadoutSelect'); i++) await new Promise((r) => setTimeout(r, 200));
+      const btn = document.getElementById('loTertiary');
+      return { ...snap, shown: !!btn, label: btn ? btn.textContent.trim() : null,
+               disabled: btn ? btn.disabled : null, sporesAfterDeath: g.store.balance() };
+    }, { level, lives });
+    return before;
+  };
+
+  const withLives = await dieAndShow(3, 2);
+  ok('the run stocks the retries bought in the store', withLives.lives === 2, String(withLives.lives));
+  ok('the level records the state it was entered in', !!withLives.entry && withLives.entry.level === 3,
+     withLives.entry ? `level ${withLives.entry.level}, ${withLives.entry.hand.length} in hand` : 'no snapshot');
+  ok('the death screen offers a retry', withLives.shown === true && withLives.disabled === false, withLives.label);
+  ok('...and says how many are left', /2 left/.test(withLives.label || ''), withLives.label);
+
+  const retried = await page.evaluate(async () => {
+    const g = window.__game;
+    const before = { lives: g.campaign.lives(), spores: g.store.balance(), level: g.campaign.level(),
+                     entry: g.campaign.entry() };
+    document.getElementById('loTertiary').click();
+    for (let i = 0; i < 60; i++) {
+      if (!document.getElementById('loadoutSelect') && g.state && g.state.active && !g.state.runOver) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    const st = g.state;
+    return { before, lives: g.campaign.lives(), level: g.campaign.level(), spores: g.store.balance(),
+             over: !!st.runOver, alive: !!st.active.alive, screen: !!document.getElementById('loadoutSelect'),
+             res: { energy: st.active.energy, water: st.active.water, phosphorus: st.active.phosphorus },
+             hand: (st.cards.hand || []).map((h) => h.name).sort().join(','),
+             deckLen: (st.cards.drawDeck || []).length };
+  });
+  ok('retrying restarts the SAME level', retried.level === retried.before.level && retried.over === false,
+     `level ${retried.before.level} → ${retried.level}, over=${retried.over}`);
+  ok('a retry costs one of them', retried.lives === retried.before.lives - 1,
+     `${retried.before.lives} → ${retried.lives}`);
+  ok('the death screen closes', retried.screen === false);
+  // "start with the same cards and resources as they previously had" — against the snapshot the
+  // level was entered with, not against whatever was left when the colony died.
+  const e = retried.before.entry;
+  ok('...with the resources it was entered with',
+     !!e && retried.res.energy === e.res.energy && retried.res.water === e.res.water
+        && retried.res.phosphorus === e.res.phosphorus,
+     e ? `entered ${JSON.stringify(e.res)}, retried ${JSON.stringify(retried.res)}` : 'no snapshot');
+  ok('...and the same cards in hand',
+     !!e && retried.hand === e.hand.slice().sort().join(','),
+     e ? `entered [${e.hand.sort().join(',')}] vs [${retried.hand}]` : 'no snapshot');
+  ok('...and the same draw deck', !!e && retried.deckLen === e.deck.length,
+     e ? `${e.deck.length} vs ${retried.deckLen}` : 'no snapshot');
+  // A death pays half the level's Spores. A retry cancels the death, so it must cancel the pay —
+  // otherwise a three-retry run banks the bonus four times on one level.
+  ok('a retry hands back the Spores the cancelled death paid',
+     retried.spores === withLives.spores, `${withLives.spores} → death ${withLives.sporesAfterDeath} → retry ${retried.spores}`);
+
+  // The map has to come back identical, or "the same level" is only half true. Fixed seeds are
+  // what make that so, and this is where it pays off for a player.
+  //
+  // Both digests are taken a beat AFTER the level starts, deliberately: the rock mask settles
+  // over the first frames, so a digest read synchronously (as `__probe` does) and one read after
+  // a pause disagree on the same map. Comparing across that gap is a false failure — which is
+  // exactly what this assertion did first time round.
+  const sameMap = await page.evaluate(async () => {
+    const g = window.__game;
+    const dig = () => { let h = 2166136261 >>> 0;
+      for (const c of g.state.substrate.cells) { h ^= c.rock ? 1 : 0; h = Math.imul(h, 16777619) >>> 0; }
+      return h; };
+    const retried = dig();
+    const level = g.campaign.level();
+    g.campaign.play('marasmius', level);          // a FRESH build of the same level, same wait
+    await new Promise((r) => setTimeout(r, 400));
+    return { retried, fresh: dig(), level, seed: g.state.seed };
+  });
+  ok('the retried level is the same map as a fresh build of it',
+     sameMap.retried === sameMap.fresh,
+     `level ${sameMap.level} (seed ${sameMap.seed}): retried ${sameMap.retried} vs fresh ${sameMap.fresh}`);
+
+  // Out of retries: still shown, still explained, not usable.
+  const none = await dieAndShow(2, 0);
+  ok('with no retries the option is still on screen', none.shown === true, none.label);
+  ok('...but not usable', none.disabled === true, `disabled=${none.disabled}`);
+  ok('...and says so', /none left/i.test(none.label || ''), none.label);
+  await page.evaluate(() => { document.querySelectorAll('#loadoutSelect').forEach((n) => n.remove()); window.__game.store.reset(); });
+
   // The menu's own label for it — a campaign exit that banks a deck, not a rage-quit.
   const label = await page.evaluate(() => {
     const b = document.getElementById('set-forcefruit');

@@ -517,7 +517,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1587 assertions across 25 checks**, of which `traced` is 818 (one map's worth each). Plus the
+**1602 assertions across 25 checks**, of which `traced` is 818 (one map's worth each). Plus the
 PROBES and PERF TOOLS, which print and never fail — see Loose ends, the Performance section and
 tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -534,7 +534,7 @@ real-time flakes, 1 `rt` worm flake (all four in Loose ends). Note the arithmeti
 sweep. Per-check, measured: traced 818 · threat 114 · edit 116 · rt 69 · enemy 52 · species 42 ·
 mode 33 · harvest 28 · level 27 · scale 26 · fixes 25 · hs 20 · mould 20 · tut 19 · boot 16 ·
 core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 71** and **campaign 27**, measured on their own runs rather than in a sweep.
+plus **store 71** and **campaign 42**, measured on their own runs rather than in a sweep.
 
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
@@ -1507,6 +1507,32 @@ tier rows** — retired on the owner's call, along with `mysteryCard`, `startTag
   foot of the console. Both those rules are gone; the name isn't coming back. Only a rendered
   frame showed it.
 
+### Retries
+
+**On death the keep screen offers "Retry level · N left"**, which replays the level from exactly
+the state it was entered in. Bought as `lives` (Sclerotia) in the store; `runLives` is stocked
+per RUN by `stockRun()` and spent by `retryLevel()`.
+
+- **The state comes from `levelEntry`, and the snapshot already existed.** `saveResumeSnapshot()`
+  has always built a serialisable picture of the level as ENTERED for the title screen's "Old";
+  it is now kept in memory as well. **A retry cannot read the stored copy** — `presentRunOver`
+  clears the resume slot before the death screen is built, and it should, since a dead run has
+  nothing to continue.
+- **The MAP comes back identical too**, because a campaign level's seed is fixed. That is where
+  the fixed seed actually pays off for a player rather than for a tidy design.
+- **A retry HANDS BACK the half-Spores the death paid** (`r._deathSpores` → `takeSpores`).
+  Without it a three-retry run banks the death bonus four times on one level, which is a farm.
+  `takeSpores` exists for this one caller — `addSpores` clamps negatives away.
+- **The high score is recorded in `afterDeath`, not when the check resolves.** This screen no
+  longer means the run is over: recording on resolve filed a score for a run the player then
+  continued, and filed it again at the real end from a level they had already beaten.
+- **Out of retries, the button is still there and still explains itself** (owner's ask) —
+  `tertiaryOff` renders it disabled rather than hiding it, so a player who has never bought one
+  learns the option exists. Its tooltip points at the store.
+- The retry deliberately **does not collect the deck picks**: the run continues, so there is no
+  deck to bank. `showLoadoutSelect` gained a third action (`tertiaryText` / `onTertiary` /
+  `tertiaryOff`) for it.
+
 ### The deck (cards carried between runs)
 
 **The campaign's persistence.** At the end of every run — death or a deliberate stop, both land on
@@ -1574,12 +1600,7 @@ has been played against nothing. The colonies are four existing roster entries s
 (`STORE_SPECIES_IDS`: hydnellum, stropharia, cortinarius, serpula) so the tiles carry real art and
 a real detail sheet.
 
-- **`lives` IS SOLD BUT NOT SPENT.** The store banks it and `storeBonuses().lives` reports it;
-  nothing consumes one on death. Deliberate: what a retry restores, whether it re-rolls the map,
-  and what it does to the run's Spores and the high-score entry are the campaign run loop's
-  decisions. The pieces are there — `carryOver` is nulled by `begin()` after use, so a retry
-  needs the level's entering snapshot kept, and `presentRunOver`'s campaign-death branch is
-  where the fork goes (gate it on `lives > 0`, which is zero for every existing save).
+- **`lives` IS SPENT NOW — see "Retries" below.**
 - **Energy, water and phosphorus land in `effectiveSpecies`, on a COPY at seed time.** Not in
   `SPECIES` — that table is the colony's identity, and a multiply there would compound every run.
   The detail sheet adds the same bonus to its pills with a note saying where it came from, so the
@@ -1658,7 +1679,7 @@ Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
     through both times — what catches it is asserting the two elements look DIFFERENT
     (`campaign-check` compares computed font-family/colour against the threat tally), and before
     that, looking at a rendered frame.
-- `tests/campaign-check.cjs` (27, ~45s, in the runner) boots once and replays levels through
+- `tests/campaign-check.cjs` (42, ~45s, in the runner) boots once and replays levels through
   `__game.campaign.play`. What it actually guards: the ladder ENDS at 10 and not at 9; level 3
   builds **the same map twice** (if a `Math.random()` gets into the generation path the seeds
   silently stop meaning anything and nothing else notices); and **every level's goal is reachable**

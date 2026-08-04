@@ -1675,6 +1675,12 @@
     /* secondary (e.g. "Main menu" on the death screen) — outlined, not solid */
     .lo-btn2 { color:#fff; background:transparent; border-color:rgba(255,255,255,0.4); }
     .lo-btn2:hover { background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.72); }
+    /* "Retry level" — the colony's own mint, so it reads as the one action that keeps the run
+       alive next to two that end it. Shown DISABLED rather than hidden when there are no retries
+       left: a player who has never bought one should still learn the option exists. */
+    .lo-btn3 { color:#7fe6a3; background:rgba(10,20,14,0.75); border-color:rgba(127,230,163,0.65); }
+    .lo-btn3:hover:not(:disabled) { background:rgba(20,38,26,0.9); border-color:#7fe6a3; color:#c8fff0; }
+    .lo-btn3.off { color:rgba(150,170,158,0.5); background:rgba(12,16,14,0.6); border-color:rgba(150,170,158,0.22); cursor:not-allowed; }
     /* Death-screen header sitting ATOP the carry carousel (title matches the cause of death). */
     .lo-header { width:100%; max-width:680px; text-align:center; margin:0 auto; }
     .lo-h-title { margin:0 0 6px; font-size:clamp(20px,3.2vw,28px); font-weight:800; color:#fff; letter-spacing:.01em; }
@@ -8638,6 +8644,15 @@ function addSpores(amount) {
   saveProgress(p);
   return p.spores;
 }
+// Take Spores back out of the wallet, floored at zero. The mirror of addSpores, and it exists
+// for exactly one caller: a RETRY undoes the half-payout the death it cancels had already
+// banked. Without it, a run with three retries banks the death bonus four times on one level.
+function takeSpores(amount) {
+  const p = loadProgress();
+  p.spores = Math.max(0, sporesBalance(p) - Math.max(0, amount | 0));
+  saveProgress(p);
+  return p.spores;
+}
 function isPurchased(sp, progress) {
   const p = progress || loadProgress();
   return !!(sp && p.purchased && p.purchased[sp.id]);
@@ -8943,7 +8958,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -20357,7 +20372,8 @@ function enableDragScroll(el) {
 }
 
 function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEngines, onConfirm,
-  header, upperLabel, lowerLabel, midText: midTextOpt, confirmText, secondaryText, onSecondary, emptyText, layout }) {
+  header, upperLabel, lowerLabel, midText: midTextOpt, confirmText, secondaryText, onSecondary,
+  tertiaryText, onTertiary, tertiaryOff, tertiaryTitle, emptyText, layout }) {
   const root = el('div'); root.id = 'loadoutSelect';
   const MAX_PICK = maxPick || 8;
   const MAX_ENG = maxEngines || 0;
@@ -20392,8 +20408,14 @@ function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEn
   const midBlock = poolTop
     ? '<div class="lo-mid lo-mid-death"><span class="lo-count lo-count-big" id="loCount"></span></div>'
     : '<div class="lo-mid"><span class="lo-mid-txt">' + esc(midTxt) + '</span><span class="lo-count" id="loCount"></span></div>';
+  // A THIRD action, used by the death screen for "Retry level". It is rendered even when it
+  // can't be used (`tertiaryOff`) — the owner's ask: a player with no retries left should still
+  // see that retries exist, and what they are missing, rather than the option vanishing.
   const actionsBlock = '<div class="lo-actions">' +
     (secondaryText ? '<button class="lo-btn lo-btn2" id="loSecondary" type="button">' + esc(secondaryText) + '</button>' : '') +
+    (tertiaryText ? '<button class="lo-btn lo-btn3' + (tertiaryOff ? ' off' : '') + '" id="loTertiary" type="button"' +
+      (tertiaryOff ? ' disabled' : '') + (tertiaryTitle ? ' title="' + esc(tertiaryTitle) + '"' : '') + '>' +
+      esc(tertiaryText) + '</button>' : '') +
     '<button class="lo-btn" id="loConfirm" type="button">' + esc(confLbl) + '</button>' +
     '</div>';
 
@@ -20488,6 +20510,10 @@ function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEn
   root.querySelector('#loConfirm').addEventListener('click', () => { const list = collect(); hide(); onConfirm && onConfirm(list); });
   const secBtn = root.querySelector('#loSecondary');
   if (secBtn) secBtn.addEventListener('click', () => { const list = collect(); hide(); onSecondary && onSecondary(list); });
+  // The tertiary deliberately does NOT collect the picks: it is "Retry level", and a retry means
+  // the run continues, so there is no deck to bank. Whatever was selected is simply dropped.
+  const terBtn = root.querySelector('#loTertiary');
+  if (terBtn && !tertiaryOff) terBtn.addEventListener('click', () => { hide(); onTertiary && onTertiary(); });
   return { hide, root };
 }
 
@@ -22007,7 +22033,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro } = __m_render_level_intro;
-  const { SPECIES, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -22261,6 +22287,37 @@ function start(seed) {
 // `chosenSpecies` is the "is this a real run?" test the rest of main.js already uses; a playtest
 // brings its own geometry, so a seed would decide nothing there anyway.
 function campaignRun() { return !!chosenSpecies && !playtestLevel; }
+
+// Called at the start of a fresh RUN (not a level): stock the retries bought in the store and
+// drop the previous run's entry snapshot. Deliberately not folded into `startRun`, which runs
+// once per LEVEL and on every retry — stocking there would hand out infinite lives.
+function stockRun() {
+  runLives = storeBonuses().lives | 0;
+  levelEntry = null;
+}
+
+// RETRY: play the current level again, from exactly the state it was entered in. Returns false
+// when there is nothing to retry with, so the caller can leave the button disabled rather than
+// guessing.
+//
+// The state comes from `levelEntry`, the same snapshot the title screen's "Old" resumes from —
+// deck, hand, discard, engines, actions, and the three reserves as they stood when the level
+// began. The MAP comes back identical too, because a campaign level's seed is fixed: retrying
+// level 3 is the same level 3, which is the whole reason a fixed seed was worth having.
+function retryLevel() {
+  if (runLives <= 0 || !levelEntry) return false;
+  runLives--;
+  // Undo the half-payout the cancelled death had already banked. It is only "you fruited as you
+  // died" if the death stands; a retry means it didn't, and without this a three-retry run banks
+  // the bonus four times on one level.
+  const r = state && state.runResult;
+  if (r && r._deathSpores) { takeSpores(r._deathSpores); runSpores = Math.max(0, runSpores - r._deathSpores); r._deathSpores = 0; }
+  resumeSnapshot = levelEntry;   // begin() rebuilds the deck from it, exactly like a tab-close resume
+  carryOver = null;
+  winCele = null;                // a death celebration may still be running on the old map
+  startRun();
+  return true;
+}
 function startRun() {
   const fixed = campaignRun() ? campaignSeed(currentLevel) : null;
   start(fixed != null ? fixed : ((Date.now() & 0x7fffffff) || 1));
@@ -22275,7 +22332,7 @@ function showPicker() {
     // hash, which skips the picker — now the dev map buttons below set it from inside the
     // picker, and levelDefFor() prefers it over every campaign slot, so leaving it set
     // would silently serve the authored map for the rest of the session.
-    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
+    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
     onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; startRun(); },
     // DEV: play an authored map with the dev loadout — the same thing `#level,<id>` does,
     // reachable without retyping the URL.
@@ -22417,7 +22474,11 @@ function applyCarry(st, carry) {
 function saveResumeSnapshot() {
   if (!chosenSpecies || !cardsCampaign() || !state.cards) return;
   const C = state.cards, net = state.active;
-  saveResume({
+  // Built once and kept in TWO places: localStorage (the title screen's "Old") and `levelEntry`
+  // (a RETRY). The retry can't read the stored copy, because `presentRunOver` clears the resume
+  // slot before the death screen is even built — and it should, since a dead run has nothing to
+  // continue. The in-memory copy is the level as ENTERED, which is exactly what a retry restores.
+  const snap = {
     v: 1, level: currentLevel, runStartLevel,
     speciesId: chosenSpecies.id,
     res: { energy: net.energy, water: net.water, phosphorus: net.phosphorus },
@@ -22435,8 +22496,14 @@ function saveResumeSnapshot() {
       // Species special power (Magic Mushroom conjure clock) so a tab-close resume keeps it.
       special: C.special || null, magicEvery: C.magicEvery || 0, magicCountdown: C.magicCountdown != null ? C.magicCountdown : null,
     },
-  });
+  };
+  levelEntry = snap;
+  saveResume(snap);
 }
+// The current level's opening state, and the retries left in this run. Both module-scoped
+// because both must survive a level transition, which rebuilds `state`.
+let levelEntry = null;
+let runLives = 0;
 
 // Route a finished run: a level win advances the campaign; puzzle wins / deaths
 // fall through to the generic overlay (death's button goes back to the picker).
@@ -22518,13 +22585,22 @@ function showDeathCarry(r) {
     `<p class="lo-h-instr">Choose ${keep} cards${keepEng > 0 ? ` and ${keepEng} engine${keepEng > 1 ? 's' : ''}` : ''}` +
       ` to keep in your deck for the next run <span class="lo-h-note">(3 + levels cleared` +
       `${store.carryCards ? ` + ${store.carryCards} from the Store` : ''})</span></p>`;
-  // Kick off the Top-10 check now (in the background) + record it, so the prompt is ready the
-  // instant the player leaves this screen — it shows AFTER Next run / Main menu, not here.
+  // Kick off the Top-10 CHECK now (in the background) so the prompt is ready the instant the
+  // player leaves this screen — it shows AFTER Next run / Main menu, not here.
+  //
+  // RECORDING happens in `afterDeath`, not here, and the difference is the retry: this screen no
+  // longer means the run is over. Recording on resolve would file a score for a run the player
+  // then continued — and file it again at the real end, from a level they had already beaten.
   const hsPromise = (cardsCampaign() && chosenSpecies)
     ? checkHighScore({ level: currentLevel, species: chosenSpecies.id, speciesName: chosenSpecies.name, mode: CONFIG.mode })
-        .then((hs) => { if (hs) recordHighScore({ name: loadPlayerName(), level: hs.level, species: hs.species, speciesName: hs.speciesName, mode: hs.mode, isGlobal: hs.isGlobal }); return hs; })
         .catch(() => null)
     : Promise.resolve(null);
+  // RETRY: same level, same map, same cards and reserves you entered it with. Offered whenever
+  // the run has a retry banked AND there is an entry snapshot to go back to — a run that died on
+  // its very first frame, before begin() took one, has nothing to restore. Shown DISABLED
+  // otherwise (owner's ask), so the option is visible to a player who has never bought one.
+  const canRetry = runLives > 0 && !!levelEntry;
+  const retryLbl = runLives > 0 ? 'Retry level · ' + runLives + ' left' : 'Retry level · none left';
   showLoadoutSelect({
     drafted: pool, enginePool, fixed: [], maxPick: keep, maxEngines: keepEng, layout: 'death',
     header,
@@ -22533,6 +22609,12 @@ function showDeathCarry(r) {
     emptyText: 'Nothing to keep — you played, drafted and owned no cards this run.',
     confirmText: 'Next run',
     secondaryText: 'Main menu',
+    tertiaryText: retryLbl,
+    tertiaryOff: !canRetry,
+    tertiaryTitle: canRetry
+      ? 'Play level ' + currentLevel + ' again with the cards and reserves you started it with'
+      : (levelEntry ? 'Buy Sclerotia in the store to bank retries' : 'Nothing to go back to on this level'),
+    onTertiary: () => { if (!retryLevel()) backToPicker(); },
     onConfirm: (picked) => { saveDeck(picked); afterDeath(hsPromise, backToPicker); },
     onSecondary: (picked) => { saveDeck(picked); afterDeath(hsPromise, backToTitle); },
   });
@@ -22542,6 +22624,9 @@ function showDeathCarry(r) {
 // show the score prompt first (with a link to the board), then continue.
 function afterDeath(hsPromise, next) {
   hsPromise.then((hs) => {
+    // Recorded HERE — the player has left the death screen, so the run really is over. A retry
+    // leaves by a different door and never reaches this.
+    if (hs) recordHighScore({ name: loadPlayerName(), level: hs.level, species: hs.species, speciesName: hs.speciesName, mode: hs.mode, isGlobal: hs.isGlobal });
     if (hs && ui) ui.showHighScorePrompt(hs.level, { onView: () => showHighScores({ mode: hs.mode }), onContinue: next });
     else next();
   });
@@ -22568,7 +22653,9 @@ function presentRunOver() {
       if (r.died && !r._sporesAwarded) {
         r._sporesAwarded = true;
         const half = Math.floor(sporesForLevel(currentLevel) / 2);
-        if (half > 0) { addSpores(half); runSpores += half; }
+        // Remembered on the result so `retryLevel` can hand it back: a retry cancels the death,
+        // and a cancelled death should not have paid.
+        if (half > 0) { addSpores(half); runSpores += half; r._deathSpores = half; }
       }
       r.runSpores = runSpores;                      // banked-this-run total, shown on the death card
       if (r.died) logEvent('run_end', { species: chosenSpecies && chosenSpecies.id, level: currentLevel, cause: r.cause || 'died', turns: (state && state.turn) });
@@ -22855,6 +22942,7 @@ function showMainMenu() {
         // snapshot's deck, and reaches the pool through what they play or draft from here.
         runDeck = [];
         runSpores = 0; for (let l = runStartLevel; l < currentLevel; l++) runSpores += sporesForLevel(l);
+        stockRun();   // a resumed run gets its retries too — they are bought, not earned in-run
         startRun();   // → begin() rebuilds the saved deck via rebuildCardsFromSnapshot
       } else {
         showPicker();
@@ -24007,10 +24095,21 @@ function begin(newState) {
         playtestLevel = null; chosenSpecies = sp;
         currentLevel = Math.max(1, (level | 0) || CAMPAIGN_START_LEVEL); runStartLevel = currentLevel;
         carryOver = null; runSpores = 0;
+        stockRun();   // same as the picker's Select — a run without this has no retries to spend
         startRun();
         return true;
       },
       endRun: () => forceFruitAbandon(),
+      // Retries. `lives` is the count left in THIS run (stocked from the store at run start),
+      // `retry` is the death screen's button minus the click, and `entry` is the snapshot it
+      // restores — the level as entered, which exists nowhere a check could otherwise reach.
+      lives: () => runLives,
+      stock: () => stockRun(),
+      retry: () => retryLevel(),
+      entry: () => (levelEntry ? { level: levelEntry.level, res: { ...levelEntry.res },
+        hand: (levelEntry.cards.hand || []).map((h) => h.name),
+        deck: (levelEntry.cards.drawDeck || []).slice(),
+        engines: (levelEntry.cards.engines || []).slice() } : null),
     },
     // THE DECK carried between runs: the model, the viewer, and `runDeck` — what the player owned
     // when THIS run seeded, which is the part of the end-of-run pool that exists nowhere else
