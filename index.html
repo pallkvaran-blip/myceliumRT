@@ -25635,7 +25635,7 @@ function placedAt(sx, sy) {
   for (let i = rockEdit.added.length - 1; i >= 0; i--) {
     const o = rockEdit.added[i];
     const sub = state.substrate;
-    const c = camera.worldToScreen(+o.x || 0, o.y != null ? +o.y : sub.surfaceY + 40);
+    const c = camera.worldToScreen(+o.x || 0, markerY(o, sub));
     if (Math.hypot(c.x - sx, c.y - sy) <= 15) return i;
   }
   return -1;
@@ -25665,6 +25665,43 @@ function deletePlaced() {
 // The two object types that are SPRITES rather than stamps — everything else is a marker the
 // editor owns. See syncEditFilterToLevel.
 const ROCK_OBJECT = /^(boulder|formation)$/;
+// SURFACE DECOR. These three carry no `y` at all: buildLevel places them by COLUMN (spanCols
+// for mountain/city, colAtX for a prop) and the renderers anchor them to the soil line. So the
+// editor cannot treat them as points in the world the way it treats a pile or a worm.
+const SURFACE_OBJECT = /^(mountain|city|prop)$/;
+
+// Where a marker's HANDLE sits. Surface decor goes ON the soil line, which is where the art it
+// stands for actually is — the shared fallback used to drop every y-less object 40 units under
+// the ground, so a mountain's handle sat buried below a peak drawn above it and you grabbed at
+// empty sky. Lakes and ant nests keep the old offset: both hang off the waterline and their
+// handles would otherwise sit inside the art they mark.
+function markerY(o, sub) {
+  if (o && o.y != null) return +o.y;
+  return sub.surfaceY + (SURFACE_OBJECT.test((o && o.t) || '') ? 0 : 40);
+}
+
+// WHICH FIELD IS THIS MARKER'S SIZE, and in what unit — there is no single answer, which is why
+// the editor could not resize any of them. buildLevel reads a different field per type:
+// mountain/city/lake measure a WIDTH in world units (and for mountain/city that width IS the
+// column span, so resizing one is the only way to say how much surface it covers), a prop
+// measures a HEIGHT, a reservoir a radius in world units — and food and trichoderma measure
+// theirs in CELLS. The cell ones are flagged because a multiplier is the wrong gesture for a
+// 0-6 integer: x1.06 on r:1 rounds straight back to 1, so those step by whole cells instead.
+function markerSize(o) {
+  if (!o) return null;
+  switch (o.t) {
+    case 'mountain': case 'city': case 'lake': return { k: 'w', min: 36, max: 4000, def: 324 };
+    case 'prop':      return { k: 'h', min: 24, max: 800, def: 124 };
+    case 'reservoir': return { k: 'r', min: 18, max: 600, def: 72 };
+    case 'food':        return { k: 'r', min: 0, max: 6, def: 1, cells: true };
+    case 'trichoderma': return { k: 'r', min: 1, max: 8, def: 1, cells: true };
+    default: return null;                                   // ant: a column and nothing else
+  }
+}
+// The selected MARKERS, mirroring editTargets() for rocks.
+function editMarkers() {
+  return [...rockEdit.selAdded].map((i) => rockEdit.added[i]).filter(Boolean);
+}
 
 const PLACEABLE = [
   { id: 'lake1',     label: 'Lake 1',     colour: '#5fc9e8',
@@ -25783,8 +25820,50 @@ function editScale(k) {
     s.w *= k; s.h *= k;
     if (n > 1) { s.x = c.x + (s.x - c.x) * k; s.y = c.y + (s.y - c.y) * k; }
   }, 'scale');
+  editScaleMarkers(k);
+}
+// The same gesture on a MARKER. It could not be folded into editTransform because that walks
+// rocks, which all carry w/h/rot in world units — a marker's size is a different field per type
+// and sometimes a different unit (see markerSize). Nothing here re-solidifies: a marker is not
+// in the world until Apply, which is the whole marker contract.
+function editScaleMarkers(k) {
+  const m = editMarkers();
+  if (!m.length) return;
+  editPushUndo('scale-placed');
+  for (const o of m) {
+    const sz = markerSize(o);
+    if (!sz) continue;                                   // an ant nest is a column, nothing to size
+    const cur = o[sz.k] != null ? +o[sz.k] : sz.def;
+    // CELLS STEP, WORLD UNITS SCALE. A food pile's r is a 0-6 integer diamond radius, so a
+    // multiplier is a no-op on the small end (1.06 x 1 rounds back to 1) — it moves by whole
+    // cells or not at all. Everything else is a real length and scales.
+    const next = sz.cells ? cur + (k > 1 ? 1 : -1) : cur * k;
+    o[sz.k] = Math.max(sz.min, Math.min(sz.max, sz.cells ? Math.round(next) : Math.round(next * 10) / 10));
+  }
+  updateEditPanel(); uiDirty = true;
+}
+// Rotation is meaningless for surface decor — a mountain sits on the horizon — so the rotate
+// control does the type-appropriate thing instead of nothing: it cycles a mountain's peak and a
+// city's skyline through the art pool, and flips a prop. Choosing the art matters as much as
+// choosing the place (there are five peaks and six skylines, and the palette can only ever place
+// one of each), and this is the control with nothing else to do.
+const MARKER_ART = { mountain: ['mountain1', 'mountain2', 'mountain3', 'mountain4', 'mountain5'],
+                     city: ['skyline1', 'skyline2', 'skyline3', 'skyline4', 'skyline5', 'skyline6'] };
+function editRotateMarkers(dir) {
+  const m = editMarkers();
+  if (!m.length) return;
+  editPushUndo('art-placed');
+  for (const o of m) {
+    if (o.t === 'prop') { o.flip = !o.flip; continue; }
+    const pool = MARKER_ART[o.t];
+    if (!pool) continue;
+    const i = Math.max(0, pool.indexOf(o.key));
+    o.key = pool[(i + (dir > 0 ? 1 : pool.length - 1)) % pool.length];
+  }
+  updateEditPanel(); uiDirty = true;
 }
 function editRotate(rad) {
+  editRotateMarkers(rad);
   editTransform((s, c, n) => {
     s.rot = (s.rot || 0) + rad;
     if (n > 1) {
@@ -29548,7 +29627,7 @@ function drawLevelRocks() {
       if (!o) continue;
       const sight = threatSight(o);
       if (!(sight > 0)) continue;
-      drawOccludedSight(+o.x || 0, o.y != null ? +o.y : sub.surfaceY + 40, sight,
+      drawOccludedSight(+o.x || 0, markerY(o, sub), sight,
                         o.t === 'trichoderma' ? '120,155,45' : '130,165,80', 0.28);
     }
   }
@@ -29562,7 +29641,7 @@ function drawLevelRocks() {
     for (const o of rockEdit.added) {
       const pk = placeableFor(o);
       const col = pk.colour || '#ffd27f';
-      const c = camera.worldToScreen(+o.x || 0, o.y != null ? +o.y : sub.surfaceY + 40);
+      const c = camera.worldToScreen(+o.x || 0, markerY(o, sub));
       const isSel = rockEdit.selAdded.has(rockEdit.added.indexOf(o));
       ctx.strokeStyle = isSel ? '#ffffff' : col; ctx.fillStyle = col;
       ctx.lineWidth = isSel ? 3 : 2;
@@ -29570,7 +29649,42 @@ function drawLevelRocks() {
       ctx.beginPath(); ctx.arc(c.x, c.y, isSel ? 15 : 13, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(c.x, c.y, 3, 0, Math.PI * 2); ctx.fill();
-      ctx.fillText(pk.label || o.kind || o.t, c.x, c.y - 19);
+      // THE EXTENT, not just the handle. A mountain or a city IS its span — buildLevel turns the
+      // object's width straight into the columns it covers — so a lone dot says nothing about
+      // what you are moving, and resizing one would be blind. Drawn along the anchor line with
+      // end ticks; a prop gets the vertical bar its height means instead.
+      const sz = markerSize(o);
+      if (sz && !sz.cells) {
+        const v = o[sz.k] != null ? +o[sz.k] : sz.def;
+        ctx.save();
+        ctx.strokeStyle = isSel ? '#ffffff' : col;
+        ctx.lineWidth = isSel ? 3 : 2;
+        ctx.globalAlpha = isSel ? 0.95 : 0.6;
+        if (sz.k === 'h') {
+          const top = camera.worldToScreen(+o.x || 0, markerY(o, sub) - v);
+          ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(top.x, top.y); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(top.x - 7, top.y); ctx.lineTo(top.x + 7, top.y); ctx.stroke();
+        } else {
+          const half = sz.k === 'r' ? v : v / 2;
+          const a = camera.worldToScreen((+o.x || 0) - half, markerY(o, sub));
+          const b = camera.worldToScreen((+o.x || 0) + half, markerY(o, sub));
+          ctx.beginPath(); ctx.moveTo(a.x, c.y); ctx.lineTo(b.x, c.y); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(a.x, c.y - 7); ctx.lineTo(a.x, c.y + 7); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(b.x, c.y - 7); ctx.lineTo(b.x, c.y + 7); ctx.stroke();
+        }
+        ctx.restore();
+      }
+      // The label carries the SIZE as well as the name — in CELLS for the two whose width is a
+      // column span, because "how many columns does this cover" is the question being answered.
+      let lbl = pk.label || o.kind || o.t;
+      if (sz) {
+        const v = o[sz.k] != null ? +o[sz.k] : sz.def;
+        lbl += SURFACE_OBJECT.test(o.t) && sz.k === 'w'
+          ? '  ' + Math.max(1, Math.round(v / sub.cellSize)) + 'c'
+          : '  ' + (sz.cells ? v + 'c' : Math.round(v));
+      }
+      if (o.key && MARKER_ART[o.t]) lbl += '  ' + o.key;
+      ctx.fillText(lbl, c.x, c.y - 19);
       // OVERLAPPING ROCK: a red ring and a word, because the damage is invisible otherwise — the
       // rock still draws, and only the collision and the sight lines quietly stop existing.
       if (objectHolesRock(o)) {
