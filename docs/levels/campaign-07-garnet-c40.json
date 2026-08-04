@@ -1,0 +1,637 @@
+{
+  "format": "mycelium-level",
+  "version": 1,
+  "id": "campaign-07-garnet-c40",
+  "name": "7 — Garnet",
+  "campaignLevel": 7,
+  "assetsFrom": "garnet-c40",
+  "world": {
+    "width": 2952,
+    "height": 1444.9,
+    "surfaceY": 380,
+    "cellSize": 36
+  },
+  "layout": {
+    "startCols": 2,
+    "goalCols": 6,
+    "summerCols": 7,
+    "clearChannels": true
+  },
+  "traced": {
+    "image": "docs/maps/top-garnet-scatter-c40-1@4x.webp",
+    "threshold": 128,
+    "minArea": 9600
+  },
+  "render": {
+    "rockFilter": {
+      "brightness": 0.84,
+      "contrast": 1.08,
+      "saturate": 1.88
+    }
+  },
+  "objects": [
+    {
+      "t": "boulder",
+      "key": "garnet-c40R011",
+      "x": 1317.1,
+      "y": 1449.9,
+      "w": 353.6,
+      "h": 366.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R001",
+      "x": 885.7,
+      "y": 755.2,
+      "w": 701.7,
+      "h": 830.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R002",
+      "x": 244.4,
+      "y": 1234.8,
+      "w": 572.6,
+      "h": 947.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R003",
+      "x": 1567.3,
+      "y": 870.4,
+      "w": 718.4,
+      "h": 587.3,
+      "rot": 0.6109
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R004",
+      "x": 980.9,
+      "y": 1687.3,
+      "w": 559.3,
+      "h": 567,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R006",
+      "x": 2142.1,
+      "y": 535.4,
+      "w": 526.9,
+      "h": 372.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R007",
+      "x": 2519.5,
+      "y": 1726.2,
+      "w": 582.2,
+      "h": 377,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R008",
+      "x": 2438.3,
+      "y": 720.4,
+      "w": 451.1,
+      "h": 397.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R009",
+      "x": 2854.3,
+      "y": 635.6,
+      "w": 291.7,
+      "h": 465.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R010",
+      "x": 1780.9,
+      "y": 1773.7,
+      "w": 393.7,
+      "h": 322.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R012",
+      "x": 275.5,
+      "y": 469.9,
+      "w": 392.7,
+      "h": 220,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R013",
+      "x": 722.7,
+      "y": 1332.8,
+      "w": 403.4,
+      "h": 257.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R014",
+      "x": 2169.5,
+      "y": 1471.1,
+      "w": 360.7,
+      "h": 278.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R015",
+      "x": 2111.2,
+      "y": 1086,
+      "w": 235.3,
+      "h": 263.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R016",
+      "x": 21.7,
+      "y": 654.6,
+      "w": 181.3,
+      "h": 286.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R018",
+      "x": 2822.5,
+      "y": 1571.8,
+      "w": 156.5,
+      "h": 133.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R021",
+      "x": 1104.4,
+      "y": 677.8,
+      "w": 116.3,
+      "h": 97.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R024",
+      "x": 325,
+      "y": 1857.3,
+      "w": 100.6,
+      "h": 95.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R025",
+      "x": 1349.7,
+      "y": 1693.9,
+      "w": 94,
+      "h": 98.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R026",
+      "x": 134.7,
+      "y": 792.7,
+      "w": 85.4,
+      "h": 84.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R027",
+      "x": 1478,
+      "y": 818.4,
+      "w": 80.8,
+      "h": 90.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R028",
+      "x": 2401.7,
+      "y": 648.1,
+      "w": 80.8,
+      "h": 87.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R030",
+      "x": 1262.2,
+      "y": 733,
+      "w": 78.3,
+      "h": 84.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R031",
+      "x": 2494,
+      "y": 659.3,
+      "w": 75.7,
+      "h": 88.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R032",
+      "x": 494.5,
+      "y": 394.3,
+      "w": 73.1,
+      "h": 91.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R033",
+      "x": 1564.9,
+      "y": 1393,
+      "w": 79.8,
+      "h": 77.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c40R005",
+      "x": 2464.6,
+      "y": 982.1,
+      "w": 450.1,
+      "h": 537.1,
+      "rot": 0
+    },
+    {
+      "t": "trichoderma",
+      "x": 137,
+      "y": 1840
+    },
+    {
+      "t": "trichoderma",
+      "x": 1438,
+      "y": 1862
+    },
+    {
+      "t": "trichoderma",
+      "x": 2128,
+      "y": 1803
+    },
+    {
+      "t": "trichoderma",
+      "x": 2016,
+      "y": 769
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 2176,
+      "y": 796,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 1382,
+      "y": 1871,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 2100,
+      "y": 1835,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "trichoderma",
+      "x": 1870,
+      "y": 616
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2165,
+      "y": 1880,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2039,
+      "y": 1891,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1272,
+      "y": 1897,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1499,
+      "y": 1878,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 191,
+      "y": 1914,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 200,
+      "y": 1734,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 125,
+      "y": 1774,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 226,
+      "y": 1822,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "trichoderma",
+      "x": 280,
+      "y": 1938
+    },
+    {
+      "t": "trichoderma",
+      "x": 1295,
+      "y": 1791
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1621,
+      "y": 1905,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1414,
+      "y": 1787,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2199,
+      "y": 916,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2054,
+      "y": 739,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2014,
+      "y": 844,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1822,
+      "y": 570,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1719,
+      "y": 518,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 65,
+      "y": 891,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 504,
+      "y": 467,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 558,
+      "y": 662,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 510,
+      "y": 1199,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 616,
+      "y": 1609,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 480,
+      "y": 1743,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1233,
+      "y": 536,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1817,
+      "y": 1290,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2795,
+      "y": 947,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 374,
+      "y": 632,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1016,
+      "y": 1311,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1376,
+      "y": 1125,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1797,
+      "y": 1391,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2575,
+      "y": 1362,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "nematode",
+      "x": 2388,
+      "y": 539
+    },
+    {
+      "t": "nematode",
+      "x": 2120,
+      "y": 1903
+    },
+    {
+      "t": "nematode",
+      "x": 1361,
+      "y": 1837
+    },
+    {
+      "t": "nematode",
+      "x": 169,
+      "y": 1886
+    },
+    {
+      "t": "nematode",
+      "x": 123,
+      "y": 890
+    },
+    {
+      "t": "ant",
+      "x": 1574
+    },
+    {
+      "t": "trichoderma",
+      "x": 1351,
+      "y": 944
+    },
+    {
+      "t": "trichoderma",
+      "x": 2818,
+      "y": 1410
+    },
+    {
+      "t": "mountain",
+      "key": "mountain3",
+      "x": 1026,
+      "w": 540
+    },
+    {
+      "t": "mountain",
+      "key": "mountain1",
+      "x": 1890,
+      "w": 756
+    },
+    {
+      "t": "city",
+      "key": "skyline5",
+      "x": 486,
+      "w": 324
+    },
+    {
+      "t": "city",
+      "key": "skyline3",
+      "x": 1404,
+      "w": 216
+    },
+    {
+      "t": "city",
+      "key": "skyline6",
+      "x": 2376,
+      "w": 216
+    }
+  ]
+}

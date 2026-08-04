@@ -1,0 +1,879 @@
+{
+  "format": "mycelium-level",
+  "version": 1,
+  "id": "campaign-08-hematite-c24",
+  "name": "8 — Hematite",
+  "campaignLevel": 8,
+  "assetsFrom": "hematite-c24",
+  "world": {
+    "width": 2952,
+    "height": 1467.1,
+    "surfaceY": 380,
+    "cellSize": 36
+  },
+  "layout": {
+    "startCols": 2,
+    "goalCols": 6,
+    "summerCols": 7,
+    "clearChannels": true
+  },
+  "traced": {
+    "image": "docs/maps/top-hematite-scatter-c24-1@4x.webp",
+    "threshold": 128,
+    "minArea": 9600
+  },
+  "render": {
+    "rockFilter": {
+      "brightness": 0.66,
+      "contrast": 1.04,
+      "saturate": 0.76
+    }
+  },
+  "objects": [
+    {
+      "t": "boulder",
+      "key": "hematite-c24R004",
+      "x": 693.4,
+      "y": 1069.4,
+      "w": 334.7,
+      "h": 366.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R005",
+      "x": 2834.4,
+      "y": 665.5,
+      "w": 269.5,
+      "h": 367.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R006",
+      "x": 654.6,
+      "y": 1926,
+      "w": 326,
+      "h": 330.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R007",
+      "x": 1428.7,
+      "y": 772.9,
+      "w": 308.9,
+      "h": 297.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R008",
+      "x": 2145.4,
+      "y": 1609.4,
+      "w": 341.9,
+      "h": 283.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R009",
+      "x": 630.8,
+      "y": 1544.7,
+      "w": 264.1,
+      "h": 291.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R010",
+      "x": 323.4,
+      "y": 1617.9,
+      "w": 268.6,
+      "h": 268.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R011",
+      "x": 1214,
+      "y": 1104.7,
+      "w": 305.7,
+      "h": 261.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R012",
+      "x": 1855,
+      "y": 943.9,
+      "w": 241.1,
+      "h": 303.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R013",
+      "x": 591.6,
+      "y": 457.1,
+      "w": 313.8,
+      "h": 178.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R014",
+      "x": 2302.8,
+      "y": 861.6,
+      "w": 256.9,
+      "h": 241.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R015",
+      "x": 1361.9,
+      "y": 1947.8,
+      "w": 267.7,
+      "h": 188.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R016",
+      "x": 83.8,
+      "y": 640.4,
+      "w": 213,
+      "h": 261.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R017",
+      "x": 2879.4,
+      "y": 1271.1,
+      "w": 170,
+      "h": 266.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R018",
+      "x": 1800.3,
+      "y": 452,
+      "w": 254.6,
+      "h": 181.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R019",
+      "x": 1528.3,
+      "y": 1565.3,
+      "w": 253.7,
+      "h": 199.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R020",
+      "x": 2635.6,
+      "y": 1022.6,
+      "w": 172.3,
+      "h": 238.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R021",
+      "x": 2742.8,
+      "y": 1935.8,
+      "w": 207.6,
+      "h": 197.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R022",
+      "x": 2124.8,
+      "y": 436,
+      "w": 254.2,
+      "h": 130.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R023",
+      "x": 1034.8,
+      "y": 1529,
+      "w": 214.8,
+      "h": 159.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R024",
+      "x": 913.4,
+      "y": 441.5,
+      "w": 256.9,
+      "h": 138.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R025",
+      "x": 238.4,
+      "y": 1220,
+      "w": 164.6,
+      "h": 222.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R026",
+      "x": 1720.5,
+      "y": 1714.3,
+      "w": 193.6,
+      "h": 174.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R027",
+      "x": 2452.7,
+      "y": 424.6,
+      "w": 272.7,
+      "h": 103.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R028",
+      "x": 1308.8,
+      "y": 1406.3,
+      "w": 210.7,
+      "h": 161,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R029",
+      "x": 42.5,
+      "y": 1031.6,
+      "w": 105.8,
+      "h": 280.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R030",
+      "x": 832.9,
+      "y": 1315.6,
+      "w": 144.7,
+      "h": 154.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R031",
+      "x": 1303,
+      "y": 429.3,
+      "w": 202.5,
+      "h": 109,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R032",
+      "x": 2627.2,
+      "y": 1279.9,
+      "w": 170,
+      "h": 121.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R033",
+      "x": 2897.8,
+      "y": 1009,
+      "w": 145.6,
+      "h": 166.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R034",
+      "x": 245.1,
+      "y": 1976.1,
+      "w": 212.1,
+      "h": 101.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R035",
+      "x": 426.2,
+      "y": 1238,
+      "w": 144.8,
+      "h": 140.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R036",
+      "x": 962.2,
+      "y": 1968.2,
+      "w": 173.2,
+      "h": 92.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R037",
+      "x": 1737.4,
+      "y": 1978.1,
+      "w": 205.7,
+      "h": 72.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R038",
+      "x": 918.5,
+      "y": 767.1,
+      "w": 118.5,
+      "h": 125.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R039",
+      "x": 1608.4,
+      "y": 1234.4,
+      "w": 148.3,
+      "h": 99.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R040",
+      "x": 906.1,
+      "y": 1760.5,
+      "w": 113,
+      "h": 109.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R041",
+      "x": 337.3,
+      "y": 406.1,
+      "w": 185.9,
+      "h": 71.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R042",
+      "x": 1493.1,
+      "y": 406.2,
+      "w": 163.2,
+      "h": 67.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R043",
+      "x": 1093,
+      "y": 580.2,
+      "w": 90,
+      "h": 100,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R044",
+      "x": 8.3,
+      "y": 1302.8,
+      "w": 62,
+      "h": 92.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R045",
+      "x": 2292.9,
+      "y": 1989.2,
+      "w": 116.2,
+      "h": 56.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R046",
+      "x": 2028.1,
+      "y": 769.4,
+      "w": 79.6,
+      "h": 83.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R047",
+      "x": 13.8,
+      "y": 1467.1,
+      "w": 48.4,
+      "h": 132.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R048",
+      "x": 2642,
+      "y": 1613.1,
+      "w": 94.5,
+      "h": 75,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R049",
+      "x": 1167.4,
+      "y": 1739.8,
+      "w": 81.9,
+      "h": 68.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R050",
+      "x": 105.9,
+      "y": 1623.9,
+      "w": 70.5,
+      "h": 64.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R001",
+      "x": 583.3,
+      "y": 682.1,
+      "w": 369.8,
+      "h": 433.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R003",
+      "x": 2402.1,
+      "y": 618.3,
+      "w": 360.9,
+      "h": 363.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "hematite-c24R002",
+      "x": 2277.3,
+      "y": 1116.2,
+      "w": 366.3,
+      "h": 415.6,
+      "rot": 0
+    },
+    {
+      "t": "trichoderma",
+      "x": 909,
+      "y": 607
+    },
+    {
+      "t": "trichoderma",
+      "x": 1364,
+      "y": 573
+    },
+    {
+      "t": "trichoderma",
+      "x": 2031,
+      "y": 613
+    },
+    {
+      "t": "trichoderma",
+      "x": 2538,
+      "y": 839
+    },
+    {
+      "t": "trichoderma",
+      "x": 2777,
+      "y": 893
+    },
+    {
+      "t": "trichoderma",
+      "x": 114,
+      "y": 1419
+    },
+    {
+      "t": "trichoderma",
+      "x": 1065,
+      "y": 1379
+    },
+    {
+      "t": "trichoderma",
+      "x": 2040,
+      "y": 1390
+    },
+    {
+      "t": "nematode",
+      "x": 1122,
+      "y": 490
+    },
+    {
+      "t": "nematode",
+      "x": 1963,
+      "y": 469
+    },
+    {
+      "t": "nematode",
+      "x": 2677,
+      "y": 879
+    },
+    {
+      "t": "nematode",
+      "x": 1585,
+      "y": 1051
+    },
+    {
+      "t": "nematode",
+      "x": 1141,
+      "y": 1920
+    },
+    {
+      "t": "nematode",
+      "x": 2080,
+      "y": 1834
+    },
+    {
+      "t": "trichoderma",
+      "x": 2509,
+      "y": 1852
+    },
+    {
+      "t": "trichoderma",
+      "x": 180,
+      "y": 1855
+    },
+    {
+      "t": "trichoderma",
+      "x": 1465,
+      "y": 1217
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 58,
+      "y": 842,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 377,
+      "y": 510,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 798,
+      "y": 485,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1149,
+      "y": 422,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1607,
+      "y": 445,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2291,
+      "y": 442,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2897,
+      "y": 888,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2875,
+      "y": 1100,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2418,
+      "y": 1005,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2505,
+      "y": 1954,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1582,
+      "y": 1965,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1072,
+      "y": 1978,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 404,
+      "y": 1951,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 55,
+      "y": 1557,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 91,
+      "y": 1165,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 361,
+      "y": 1116,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1105,
+      "y": 802,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1811,
+      "y": 708,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 2152,
+      "y": 635,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 1404,
+      "y": 564,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 2088,
+      "y": 1426,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 321,
+      "y": 719,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 255,
+      "y": 957,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1230,
+      "y": 672,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1690,
+      "y": 595,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1401,
+      "y": 953,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1012,
+      "y": 976,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 380,
+      "y": 1406,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 424,
+      "y": 1822,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 767,
+      "y": 1757,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1342,
+      "y": 1700,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1731,
+      "y": 1360,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2455,
+      "y": 1488,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2629,
+      "y": 704,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "ant",
+      "x": 1953
+    },
+    {
+      "t": "ant",
+      "x": 235
+    },
+    {
+      "t": "mountain",
+      "key": "mountain2",
+      "x": 936,
+      "w": 504
+    },
+    {
+      "t": "mountain",
+      "key": "mountain4",
+      "x": 1728,
+      "w": 648
+    },
+    {
+      "t": "city",
+      "key": "skyline2",
+      "x": 432,
+      "w": 360
+    },
+    {
+      "t": "city",
+      "key": "skyline5",
+      "x": 1296,
+      "w": 216
+    },
+    {
+      "t": "city",
+      "key": "skyline6",
+      "x": 2268,
+      "w": 432
+    }
+  ]
+}

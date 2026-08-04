@@ -1,0 +1,627 @@
+{
+  "format": "mycelium-level",
+  "version": 1,
+  "id": "campaign-01-magnetite-c40",
+  "name": "1 — Magnetite",
+  "campaignLevel": 1,
+  "assetsFrom": "magnetite-c40",
+  "world": {
+    "width": 2952,
+    "height": 1467.1,
+    "surfaceY": 380,
+    "cellSize": 36
+  },
+  "layout": {
+    "startCols": 2,
+    "goalCols": 6,
+    "summerCols": 7,
+    "clearChannels": true
+  },
+  "traced": {
+    "image": "docs/maps/top-magnetite-scatter-c40-1@4x.webp",
+    "threshold": 128,
+    "minArea": 9600
+  },
+  "render": {
+    "rockFilter": {
+      "brightness": 0.92,
+      "contrast": 1.08,
+      "saturate": 0.32
+    }
+  },
+  "objects": [
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R027",
+      "x": 1115.5,
+      "y": 684,
+      "w": 160.6,
+      "h": 153.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R018",
+      "x": 1434.5,
+      "y": 1299.9,
+      "w": 236,
+      "h": 209.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R001",
+      "x": 1372.8,
+      "y": 1047.2,
+      "w": 501.9,
+      "h": 516,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R002",
+      "x": 2048.8,
+      "y": 713.8,
+      "w": 403.8,
+      "h": 447.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R003",
+      "x": 479.2,
+      "y": 1304.9,
+      "w": 371.3,
+      "h": 445.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R004",
+      "x": 2840.3,
+      "y": 719.9,
+      "w": 390.7,
+      "h": 418.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R005",
+      "x": 1734.5,
+      "y": 1880.7,
+      "w": 436.4,
+      "h": 279.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R006",
+      "x": 829,
+      "y": 462.3,
+      "w": 397,
+      "h": 260,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R007",
+      "x": 1946.5,
+      "y": 1197.7,
+      "w": 350.4,
+      "h": 289.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R008",
+      "x": 1327.4,
+      "y": 431.7,
+      "w": 403.4,
+      "h": 194.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R009",
+      "x": 924.9,
+      "y": 802.5,
+      "w": 307.9,
+      "h": 239.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R010",
+      "x": 71.4,
+      "y": 1431.1,
+      "w": 200.3,
+      "h": 339.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R012",
+      "x": 777.5,
+      "y": 1691.9,
+      "w": 299.8,
+      "h": 287.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R014",
+      "x": 2339.7,
+      "y": 461.9,
+      "w": 364.5,
+      "h": 187.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R016",
+      "x": 741.1,
+      "y": 947.8,
+      "w": 231.5,
+      "h": 236.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R017",
+      "x": 2895.6,
+      "y": 496.7,
+      "w": 177.7,
+      "h": 255,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R019",
+      "x": 2373.7,
+      "y": 1943.9,
+      "w": 252.8,
+      "h": 175,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R020",
+      "x": 2517.3,
+      "y": 1136.5,
+      "w": 216.1,
+      "h": 210.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R021",
+      "x": 1751.9,
+      "y": 944,
+      "w": 217.6,
+      "h": 200.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R023",
+      "x": 1667.2,
+      "y": 539.2,
+      "w": 168.2,
+      "h": 181.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R024",
+      "x": 53.1,
+      "y": 862.9,
+      "w": 148.3,
+      "h": 197.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R026",
+      "x": 37.6,
+      "y": 1082.9,
+      "w": 117.6,
+      "h": 197.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R028",
+      "x": 1922.3,
+      "y": 420.3,
+      "w": 176.8,
+      "h": 107.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R029",
+      "x": 990.6,
+      "y": 1159.2,
+      "w": 140.2,
+      "h": 145.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R030",
+      "x": 2922.1,
+      "y": 958.9,
+      "w": 84.6,
+      "h": 203.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R031",
+      "x": 181.7,
+      "y": 1228.6,
+      "w": 122.6,
+      "h": 129.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R032",
+      "x": 2821.6,
+      "y": 1164.9,
+      "w": 135.6,
+      "h": 122.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R033",
+      "x": 2588.2,
+      "y": 1456.9,
+      "w": 127.5,
+      "h": 119.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R035",
+      "x": 763.3,
+      "y": 1347.8,
+      "w": 115.8,
+      "h": 102.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R036",
+      "x": 977.3,
+      "y": 1510,
+      "w": 99.1,
+      "h": 105.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R039",
+      "x": 1153.7,
+      "y": 630.4,
+      "w": 90.5,
+      "h": 95.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R040",
+      "x": 956.9,
+      "y": 1920.9,
+      "w": 88.6,
+      "h": 92.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R041",
+      "x": 2802.8,
+      "y": 979.5,
+      "w": 94.5,
+      "h": 86,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R043",
+      "x": 177.6,
+      "y": 1069,
+      "w": 76.9,
+      "h": 89.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R045",
+      "x": 739.6,
+      "y": 654.4,
+      "w": 85.5,
+      "h": 73.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R011",
+      "x": 331.5,
+      "y": 481.5,
+      "w": 303,
+      "h": 238.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "magnetite-c40R018",
+      "x": 1271.7,
+      "y": 575.4,
+      "w": 281.1,
+      "h": 249.9,
+      "rot": -0.1745
+    },
+    {
+      "t": "reservoir",
+      "key": "reservoir1",
+      "x": 331,
+      "y": 724,
+      "r": 72
+    },
+    {
+      "t": "nematode",
+      "x": 916,
+      "y": 651
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 126,
+      "y": 547,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 890,
+      "y": 951,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "nematode",
+      "x": 1488,
+      "y": 1198
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 244,
+      "y": 920,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 266,
+      "y": 1359,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 784,
+      "y": 1176,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1067,
+      "y": 439,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 558,
+      "y": 430,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "nematode",
+      "x": 2627,
+      "y": 1079
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1101,
+      "y": 1391,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1685,
+      "y": 1067,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1724,
+      "y": 682,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1532,
+      "y": 1650,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2108,
+      "y": 1719,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2265,
+      "y": 1193,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2745,
+      "y": 1373,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 1167,
+      "y": 835,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2398,
+      "y": 807,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2572,
+      "y": 535,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "nematode",
+      "x": 1917,
+      "y": 518
+    },
+    {
+      "t": "reservoir",
+      "key": "reservoir2",
+      "x": 1243,
+      "y": 1721,
+      "r": 72
+    },
+    {
+      "t": "nematode",
+      "x": 852,
+      "y": 615
+    },
+    {
+      "t": "nematode",
+      "x": 852,
+      "y": 672
+    },
+    {
+      "t": "nematode",
+      "x": 966,
+      "y": 599
+    },
+    {
+      "t": "nematode",
+      "x": 950,
+      "y": 633
+    },
+    {
+      "t": "nematode",
+      "x": 1862,
+      "y": 510
+    },
+    {
+      "t": "nematode",
+      "x": 1868,
+      "y": 562
+    },
+    {
+      "t": "nematode",
+      "x": 1813,
+      "y": 533
+    },
+    {
+      "t": "nematode",
+      "x": 1811,
+      "y": 583
+    },
+    {
+      "t": "nematode",
+      "x": 2646,
+      "y": 1144
+    },
+    {
+      "t": "nematode",
+      "x": 2695,
+      "y": 1101
+    },
+    {
+      "t": "nematode",
+      "x": 1492,
+      "y": 1172
+    },
+    {
+      "t": "nematode",
+      "x": 1465,
+      "y": 1190
+    },
+    {
+      "t": "mountain",
+      "key": "mountain1",
+      "x": 828,
+      "w": 792
+    },
+    {
+      "t": "mountain",
+      "key": "mountain3",
+      "x": 1854,
+      "w": 828
+    },
+    {
+      "t": "city",
+      "key": "skyline4",
+      "x": 324,
+      "w": 216
+    },
+    {
+      "t": "city",
+      "key": "skyline3",
+      "x": 1332,
+      "w": 216
+    },
+    {
+      "t": "city",
+      "key": "skyline5",
+      "x": 2376,
+      "w": 216
+    }
+  ]
+}

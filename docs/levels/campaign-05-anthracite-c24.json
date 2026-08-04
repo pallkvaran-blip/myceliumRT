@@ -1,0 +1,718 @@
+{
+  "format": "mycelium-level",
+  "version": 1,
+  "id": "campaign-05-anthracite-c24",
+  "name": "5 — Anthracite",
+  "campaignLevel": 5,
+  "assetsFrom": "anthracite-c24",
+  "world": {
+    "width": 2952,
+    "height": 1431.4,
+    "surfaceY": 380,
+    "cellSize": 36
+  },
+  "layout": {
+    "startCols": 2,
+    "goalCols": 6,
+    "summerCols": 7,
+    "clearChannels": true
+  },
+  "traced": {
+    "image": "docs/maps/top-anthracite-scatter-c24-1@4x.webp",
+    "threshold": 128,
+    "minArea": 9600
+  },
+  "objects": [
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R001",
+      "x": 1907.9,
+      "y": 1015.7,
+      "w": 476.5,
+      "h": 527.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R002",
+      "x": 1991.7,
+      "y": 1869,
+      "w": 727,
+      "h": 384,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R003",
+      "x": 1426.5,
+      "y": 557.6,
+      "w": 636,
+      "h": 482.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R004",
+      "x": 616.6,
+      "y": 1424.1,
+      "w": 305.9,
+      "h": 508.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R005",
+      "x": 969.9,
+      "y": 1394.9,
+      "w": 388.3,
+      "h": 330.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R006",
+      "x": 2935.7,
+      "y": 550,
+      "w": 386.1,
+      "h": 343.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R007",
+      "x": 382.4,
+      "y": 643,
+      "w": 334,
+      "h": 305.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R008",
+      "x": -106.9,
+      "y": 1078.4,
+      "w": 226.2,
+      "h": 421.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R009",
+      "x": 320.2,
+      "y": 1079.6,
+      "w": 460.6,
+      "h": 280.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R010",
+      "x": 2846.1,
+      "y": 1691.7,
+      "w": 318.2,
+      "h": 307.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R011",
+      "x": 1968,
+      "y": 548.4,
+      "w": 326.3,
+      "h": 261.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R012",
+      "x": 1272.4,
+      "y": 1621.1,
+      "w": 295.1,
+      "h": 330.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R013",
+      "x": 2519.8,
+      "y": 1231.4,
+      "w": 317.2,
+      "h": 251.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R014",
+      "x": 652.2,
+      "y": 889.1,
+      "w": 306.4,
+      "h": 310.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R015",
+      "x": 1590.7,
+      "y": 1474.8,
+      "w": 310.3,
+      "h": 291.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R016",
+      "x": 2244.8,
+      "y": 1422,
+      "w": 274.2,
+      "h": 315.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R017",
+      "x": 2511,
+      "y": 633.4,
+      "w": 283.3,
+      "h": 300,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R019",
+      "x": 411.9,
+      "y": 1790.2,
+      "w": 273.1,
+      "h": 290.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R021",
+      "x": 1004.9,
+      "y": 671.4,
+      "w": 269.3,
+      "h": 219.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R022",
+      "x": 1294,
+      "y": 1290.3,
+      "w": 210.1,
+      "h": 285.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R023",
+      "x": 226.9,
+      "y": 1597.4,
+      "w": 238.1,
+      "h": 231.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R024",
+      "x": 712.3,
+      "y": 457.2,
+      "w": 249.4,
+      "h": 242.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R025",
+      "x": 2912.4,
+      "y": 831.4,
+      "w": 207.8,
+      "h": 240.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R026",
+      "x": 867.5,
+      "y": 1762.1,
+      "w": 250.9,
+      "h": 223.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R027",
+      "x": 3096.5,
+      "y": 730.4,
+      "w": 218.7,
+      "h": 248.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R028",
+      "x": 287.5,
+      "y": 1334.9,
+      "w": 240.7,
+      "h": 228.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R029",
+      "x": 2906.6,
+      "y": 1141.3,
+      "w": 267.1,
+      "h": 167,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R030",
+      "x": 1861.9,
+      "y": 1407.5,
+      "w": 178.8,
+      "h": 196.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R031",
+      "x": 2048.7,
+      "y": 1312.7,
+      "w": 179.2,
+      "h": 199.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R032",
+      "x": 2214.6,
+      "y": 1165.3,
+      "w": 189,
+      "h": 175.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R033",
+      "x": 2329.1,
+      "y": 454.6,
+      "w": 176,
+      "h": 181.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R034",
+      "x": 1415.8,
+      "y": 1080.4,
+      "w": 154.6,
+      "h": 176.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R035",
+      "x": 1591.3,
+      "y": 1227.3,
+      "w": 189,
+      "h": 171.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R037",
+      "x": 354.7,
+      "y": 884.4,
+      "w": 177.7,
+      "h": 147.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R038",
+      "x": 2736.2,
+      "y": 1261.5,
+      "w": 129.7,
+      "h": 167.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R039",
+      "x": 207,
+      "y": 837.4,
+      "w": 160,
+      "h": 142.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R040",
+      "x": 202.3,
+      "y": 443.9,
+      "w": 130.3,
+      "h": 162.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R041",
+      "x": 765.4,
+      "y": 1096.2,
+      "w": 119.1,
+      "h": 109.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R042",
+      "x": 948.7,
+      "y": 483.7,
+      "w": 136.8,
+      "h": 86.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "anthracite-c24R045",
+      "x": 2216,
+      "y": 583.1,
+      "w": 92.1,
+      "h": 90,
+      "rot": 0
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 1082,
+      "y": 1067,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 2418,
+      "y": 1027,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2503,
+      "y": 878,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2578,
+      "y": 1041,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2297,
+      "y": 924,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2554,
+      "y": 947,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1104,
+      "y": 968,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1198,
+      "y": 993,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1355,
+      "y": 822,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 969,
+      "y": 1004,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1064,
+      "y": 822,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1355,
+      "y": 945,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2266,
+      "y": 1010,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2431,
+      "y": 941,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 75,
+      "y": 993,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 191,
+      "y": 1256,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 165,
+      "y": 1783,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 673,
+      "y": 1820,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1453,
+      "y": 1699,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1893,
+      "y": 1694,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2435,
+      "y": 1940,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2477,
+      "y": 1551,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 889,
+      "y": 1620,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1176,
+      "y": 1925,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2509,
+      "y": 1798,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2784,
+      "y": 1428,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 438,
+      "y": 453,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1047,
+      "y": 432,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1747,
+      "y": 567,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2169,
+      "y": 432,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 858,
+      "y": 515,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "ant",
+      "x": 1817
+    },
+    {
+      "t": "ant",
+      "x": 853
+    },
+    {
+      "t": "trichoderma",
+      "x": 944,
+      "y": 805
+    },
+    {
+      "t": "trichoderma",
+      "x": 955,
+      "y": 1175
+    },
+    {
+      "t": "trichoderma",
+      "x": 1462,
+      "y": 868
+    },
+    {
+      "t": "trichoderma",
+      "x": 1894,
+      "y": 713
+    },
+    {
+      "t": "trichoderma",
+      "x": 2186,
+      "y": 922
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 987,
+      "y": 1090,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "mountain",
+      "key": "mountain3",
+      "x": 666,
+      "w": 468
+    },
+    {
+      "t": "mountain",
+      "key": "mountain2",
+      "x": 1350,
+      "w": 468
+    },
+    {
+      "t": "mountain",
+      "key": "mountain5",
+      "x": 2034,
+      "w": 468
+    },
+    {
+      "t": "city",
+      "key": "skyline6",
+      "x": 324,
+      "w": 216
+    },
+    {
+      "t": "city",
+      "key": "skyline2",
+      "x": 1008,
+      "w": 216
+    },
+    {
+      "t": "city",
+      "key": "skyline5",
+      "x": 1692,
+      "w": 216
+    },
+    {
+      "t": "city",
+      "key": "skyline1",
+      "x": 2376,
+      "w": 216
+    }
+  ]
+}
