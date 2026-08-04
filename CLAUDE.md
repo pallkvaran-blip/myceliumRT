@@ -517,7 +517,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1585 assertions across 25 checks**, of which `traced` is 818 (one map's worth each). Plus the
+**1587 assertions across 25 checks**, of which `traced` is 818 (one map's worth each). Plus the
 PROBES and PERF TOOLS, which print and never fail — see Loose ends, the Performance section and
 tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -534,7 +534,7 @@ real-time flakes, 1 `rt` worm flake (all four in Loose ends). Note the arithmeti
 sweep. Per-check, measured: traced 818 · threat 114 · edit 116 · rt 69 · enemy 52 · species 42 ·
 mode 33 · harvest 28 · level 27 · scale 26 · fixes 25 · hs 20 · mould 20 · tut 19 · boot 16 ·
 core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 71** and **campaign 25**, measured on their own runs rather than in a sweep.
+plus **store 71** and **campaign 27**, measured on their own runs rather than in a sweep.
 
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
@@ -1650,7 +1650,15 @@ Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
   - **The dev build SKIPS the level intro**, so a check that just looks for the counter passes on a
     screen that was never built. `campaign-check` turns `__cfg.dev.enabled` off before starting the
     level — `state.config` is a deep clone taken at run start, so the live flag is what decides.
-- `tests/campaign-check.cjs` (25, ~45s, in the runner) boots once and replays levels through
+  - **It is `.li-of`, NOT `.li-count` — that name was already taken** by the "×3" tally under each
+    threat portrait, further down the same stylesheet. The later rule wins, so the campaign
+    counter came out in the tally's white bold serif and read as one more creature count. **Second
+    silent class collision in one session** (`.ss-hint` was the first): the sheet is one enormous
+    unscoped block, so GREP THE NAME BEFORE ADDING A RULE. The text assertion sailed straight
+    through both times — what catches it is asserting the two elements look DIFFERENT
+    (`campaign-check` compares computed font-family/colour against the threat tally), and before
+    that, looking at a rendered frame.
+- `tests/campaign-check.cjs` (27, ~45s, in the runner) boots once and replays levels through
   `__game.campaign.play`. What it actually guards: the ladder ENDS at 10 and not at 9; level 3
   builds **the same map twice** (if a `Math.random()` gets into the generation path the seeds
   silently stop meaning anything and nothing else notices); and **every level's goal is reachable**

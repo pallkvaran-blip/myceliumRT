@@ -1731,8 +1731,13 @@
     /* "3 of 10" — how far through the campaign this level is. Deliberately QUIET and in the
        colony's own mint rather than the taunt's red: it is a position, not a threat, and it sits
        directly above a line whose whole job is to be alarming. Same mono face as .li-sub so the
-       two read as one block; tabular figures so the number doesn't jitter between levels. */
-    .li-count { font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+       two read as one block; tabular figures so the number doesn't jitter between levels.
+       NOT `.li-count` — that name was already taken, further down this sheet, by the "×3" tally
+       under each threat portrait. The later rule wins, so the campaign counter came out in the
+       threat tally's white bold serif and read as one more creature count. Second time this
+       stylesheet has done that in one session (see `.ss-rowhint`); it is one enormous block with
+       no scoping, so CHECK THE NAME IS FREE before adding a rule. */
+    .li-of { font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
       font-weight:700; letter-spacing:0.22em; text-transform:uppercase;
       font-size:clamp(10px,1.25vw,12.5px); font-variant-numeric:tabular-nums;
       color:rgba(127,230,163,0.72); text-shadow:0 0 16px rgba(127,230,163,0.3); }
@@ -21628,7 +21633,7 @@ function showLevelIntro(opts) {
   // names each level is where the player counts toward it; the wordmark itself can't carry the
   // total (it is grown from the word LEVEL THREE, and "LEVEL THREE OF TEN" is a different shape
   // every level and unreadable at the small end).
-  if (of) head.appendChild(el('div', 'li-count', level + ' of ' + of));
+  if (of) head.appendChild(el('div', 'li-of', level + ' of ' + of));
   if (opts && opts.note) head.appendChild(el('div', 'li-sub', String(opts.note)));
   inner.appendChild(head);
 

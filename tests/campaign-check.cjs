@@ -188,10 +188,19 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     window.__game.campaign.play('marasmius', 4);
     for (let i = 0; i < 60 && !document.getElementById('levelIntro'); i++) await new Promise((r) => setTimeout(r, 150));
     const box = document.querySelector('#levelIntro .li-level');
-    const el = document.querySelector('#levelIntro .li-count');
+    const el = document.querySelector('#levelIntro .li-of');
+    // The threat tallies ("×3" under each creature portrait) live on the same screen. The
+    // counter was first written with THEIR class name, which already existed further down the
+    // stylesheet — the later rule won and the campaign position came out in the tally's white
+    // bold serif, reading as one more creature count. The text assertion passed throughout.
+    const tally = document.querySelector('#levelIntro .li-threat .li-count');
+    const cs = el ? getComputedStyle(el) : null, ts = tally ? getComputedStyle(tally) : null;
     const out = { shown: !!document.getElementById('levelIntro'),
                   text: el ? el.textContent.trim() : null,
-                  aria: box ? box.getAttribute('aria-label') : null };
+                  aria: box ? box.getAttribute('aria-label') : null,
+                  tallies: !!tally,
+                  distinct: !!(cs && ts && (cs.fontFamily !== ts.fontFamily || cs.color !== ts.color)),
+                  font: cs ? cs.fontFamily.split(',')[0] : null, color: cs ? cs.color : null };
     window.__cfg.dev.enabled = was;
     document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
     return out;
@@ -200,6 +209,11 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('the intro counts the level out of the campaign length', intro.text === '4 of 10',
      intro.text || '(no counter)');
   ok('...and a screen reader hears the same', intro.aria === 'Level 4 of 10', intro.aria);
+  ok('the intro still shows its threat tallies', intro.tallies === true);
+  // A position is not a threat. This is the assertion that would have caught the class collision
+  // the text assertion sailed straight through.
+  ok('the campaign counter does not look like a threat tally', intro.distinct === true,
+     `${intro.font} ${intro.color}`);
 
   // ---- the selection screen sends you to level 1 ----------------------------
   const start = await page.evaluate(async () => {
