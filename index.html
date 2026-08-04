@@ -950,7 +950,10 @@
        variant, so each side of the row gets its own New/Old pair under a small kind label
        (TURN-BASED on the left, REAL TIME on the right), with SURVIVAL still centred between
        them. Four buttons need more room than two, so this row is wider and its New/Old are
-       set smaller than the single-pair row's. */
+       set smaller than the single-pair row's.
+       NOTHING USES THIS WHILE `TITLE_REALTIME` IS FALSE — real time is off the title screen for
+       this release, so the Survival row renders as a plain single pair. Kept, not deleted: the
+       flag is one line and this is the layout it comes back to. */
     #titleScreen .ts-actions.ts-split { width:min(1180px,96vw); column-gap:clamp(14px,2.6vw,40px); }
     #titleScreen .ts-side { display:flex; flex-direction:column; align-items:center; gap:clamp(10px,1.5vh,18px); }
     #titleScreen .ts-actions.ts-split > .ts-side:first-child { justify-self:end; }
@@ -23055,6 +23058,12 @@ function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEn
 
 // ===================== src/render/title_screen.js =====================
 const __m_render_title_screen = (function () {
+  // Whether the title screen offers the REAL-TIME variant of Survival. OFF for this release
+  // (owner: "not this next release"). The variant itself is fully intact behind it — CONFIG.mode,
+  // setMode, MODE_TUNING, both resume slots and every mode-dependent rule are untouched, and
+  // `#dev` still boots real-time as every check expects. This withholds the door, not the room,
+  // so restoring it is this one line.
+  const TITLE_REALTIME = false;
   const { playGrowBurst } = __m_render_sfx;
   const { loadProgress } = __m_species;
 // =============================================================================
@@ -23084,35 +23093,51 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
   root.innerHTML =
     '<canvas id="tsCanvas"></canvas>' +
     '<div class="ts-menu">' +
-      // Survival is offered as BOTH games: turn-based on the left, real time on the right,
-      // each with its own New (fresh run) and Old (continue that mode's saved run).
+      // SURVIVAL: New (a fresh run) and Old (continue the saved one). It used to offer both
+      // variants side by side, turn-based left and real time right, each with its own pair —
+      // see TITLE_REALTIME below for where that went and how to bring it back.
       '<div class="ts-block ts-top">' +
-        '<div class="ts-actions ts-split">' +
-          '<div class="ts-side">' +
-            '<div class="ts-kind">Turn-based</div>' +
-            '<div class="ts-pair">' +
+        // REAL TIME IS OFF THE TITLE SCREEN (owner: "not this next release"). Gated rather than
+        // deleted, and gated in ONE place: the variant itself is untouched — CONFIG.mode,
+        // setMode, MODE_TUNING, the two resume slots and every mode-dependent rule are exactly
+        // as they were, and `#dev` still boots real-time as every test expects. Only the way IN
+        // from the title is withheld, so putting it back is this constant.
+        //
+        // With one mode there is nothing to choose between, so Survival takes the same single
+        // New/Old pair the Campaign row already uses for the same reason — rather than a
+        // three-column split with an empty column where Real time used to be.
+        (TITLE_REALTIME
+          ? '<div class="ts-actions ts-split">' +
+              '<div class="ts-side">' +
+                '<div class="ts-kind">Turn-based</div>' +
+                '<div class="ts-pair">' +
+                  '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNew" type="button">New</button></span>' +
+                  '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsCont" type="button">Old</button></span>' +
+                '</div>' +
+              '</div>' +
+              // SURVIVAL gets the same two-row shape as the sides — a HIDDEN kind label above it —
+              // so it lines up on the New/Old row rather than floating between the two rows.
+              '<div class="ts-side ts-side-mid">' +
+                '<div class="ts-kind ts-kind-ghost" aria-hidden="true">Turn-based</div>' +
+                '<div class="ts-mode">Survival</div>' +
+              '</div>' +
+              '<div class="ts-side">' +
+                '<div class="ts-kind">Real time</div>' +
+                '<div class="ts-pair">' +
+                  '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNewRt" type="button">New</button></span>' +
+                  '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsContRt" type="button">Old</button></span>' +
+                '</div>' +
+              '</div>' +
+            '</div>'
+          : '<div class="ts-actions">' +
               '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNew" type="button">New</button></span>' +
+              '<div class="ts-modewrap"><div class="ts-mode">Survival</div></div>' +
               '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsCont" type="button">Old</button></span>' +
-            '</div>' +
-          '</div>' +
-          // SURVIVAL gets the same two-row shape as the sides — a HIDDEN kind label above it —
-          // so it lines up on the New/Old row rather than floating between the two rows.
-          '<div class="ts-side ts-side-mid">' +
-            '<div class="ts-kind ts-kind-ghost" aria-hidden="true">Turn-based</div>' +
-            '<div class="ts-mode">Survival</div>' +
-          '</div>' +
-          '<div class="ts-side">' +
-            '<div class="ts-kind">Real time</div>' +
-            '<div class="ts-pair">' +
-              '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNewRt" type="button">New</button></span>' +
-              '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsContRt" type="button">Old</button></span>' +
-            '</div>' +
-          '</div>' +
-        '</div>' +
+            '</div>') +
       '</div>' +
       // CAMPAIGN, the second game: ten levels, one fixed map each, and it ends. TURN-BASED ONLY
-      // (owner), so it keeps the single New/Old pair it was drawn with rather than the split the
-      // Survival block needs — with one mode there is nothing to choose between.
+      // (owner) — with one mode there is nothing to choose between, so it keeps the single
+      // New/Old pair it was drawn with. Survival matches it while TITLE_REALTIME is off.
       //
       // The sub-line reads "Chapter 1" (owner), in the slot that used to say "coming soon". It
       // names the CONTENT, not the rules: the campaign is the first chapter of several, which is
@@ -23730,9 +23755,11 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     setTimeout(() => { try { input.focus(); input.select(); } catch (_) {} }, 60);
   }
 
-  // Three entries, two games. The campaign is turn-based only, so it passes 'turn' with
-  // game 'campaign'; everything downstream keys off the pair, including which resume slot
-  // "Old" reads.
+  // Two entries while TITLE_REALTIME is off, three with it on. The campaign is turn-based only,
+  // so it passes 'turn' with game 'campaign'; everything downstream keys off the pair, including
+  // which resume slot "Old" reads. The real-time row stays in this table on purpose — the null
+  // guard below already skips a pair that isn't rendered, so the wiring needs no second flag and
+  // cannot drift out of step with the markup.
   [['#tsNew', '#tsCont', 'turn', 'survival'],
    ['#tsNewRt', '#tsContRt', 'realtime', 'survival'],
    ['#tsNewCamp', '#tsContCamp', 'turn', 'campaign']].forEach(([nSel, cSel, mode, game]) => {

@@ -486,6 +486,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const locked = root.querySelectorAll('.ts-locked').length;
     const soon = [...root.querySelectorAll('.ts-soon')].map((n) => n.textContent.trim());
     return { modes, hasNew: !!camp, hasOld: !!old, locked, soon,
+             rt: !!(root.querySelector('#tsNewRt') || root.querySelector('#tsContRt')),
              ids: ['tsNew', 'tsCont', 'tsNewRt', 'tsContRt', 'tsNewCamp', 'tsContCamp']
                .filter((id) => !!root.querySelector('#' + id)) };
   });
@@ -494,6 +495,11 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('Campaign has its own New and Old', title.hasNew === true && title.hasOld === true,
      (title.ids || []).join(', '));
   ok('nothing on the title screen is locked any more', title.locked === 0, String(title.locked));
+  // REAL TIME IS OFF THE TITLE SCREEN for this release (owner: "not this next release"). The
+  // variant itself is untouched — `#dev` still boots it and mode-check still drives it — so the
+  // only thing that can be asserted, and the only thing that changed, is that the DOOR is gone.
+  ok('real time is not offered from the title screen', title.rt === false,
+     (title.ids || []).join(', '));
   // "Chapter 1" (owner), in the slot that used to say "coming soon". It names the CONTENT rather
   // than the rules — the same word the in-game editor stamps on maps saved from it.
   ok('...and the row is named Chapter 1', (title.soon || []).join(' ').trim() === 'Chapter 1',

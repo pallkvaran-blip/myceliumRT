@@ -231,10 +231,15 @@ const TRACED = ALL.filter((l) => l && l.traced)
     await page.close();
   }
 
-  // ------------------------------------------------- the picker's dev button ----
-  // The only in-game route to a map with no campaign slot. Fresh page: this one goes
-  // through the title screen, and the runs above left a level up.
-  console.log('\n  ── picker dev buttons ──');
+  // ------------------------------------------------- reaching a map with no slot ----
+  // A map with no campaignLevel is reachable two ways, and this block owns both. It used to own
+  // a third — a column of per-map buttons down the LEFT edge of the species picker — which is
+  // gone (owner): at 72 maps it covered a third of the screen. The assertions that measured its
+  // geometry went with it, and are replaced by one asserting the column stays gone, because the
+  // failure mode of a retired UI is that it quietly comes back.
+  //
+  // Fresh page: this one goes through the title screen, and the runs above left a level up.
+  console.log('\n  ── reaching an unslotted map ──');
   const page2 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   const errs2 = [];
   page2.on('pageerror', (e) => errs2.push(String(e && e.message)));
@@ -242,34 +247,68 @@ const TRACED = ALL.filter((l) => l && l.traced)
   await page2.goto(base + '/index.html', { waitUntil: 'domcontentloaded' });
   await page2.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
   await page2.click('#loadscreen', { timeout: 5000 }).catch(() => {});
-  await page2.waitForSelector('#tsNewRt', { timeout: 20000 }).catch(() => {});
-  await page2.click('#tsNewRt').catch(() => {});
+  // Real time is off the title screen for this release, so Survival's single New is the door.
+  await page2.waitForSelector('#tsNew', { timeout: 20000 }).catch(() => {});
+  await page2.click('#tsNew').catch(() => {});
   // "New" opens the name prompt first — the picker is behind it, not behind the button.
   await page2.waitForSelector('#tsNameStart', { timeout: 20000 }).catch(() => {});
   await page2.fill('#tsNameInput', 'DEV').catch(() => {});
   await page2.click('#tsNameStart').catch(() => {});
   await page2.waitForSelector('#speciesSelect', { timeout: 20000 }).catch(() => {});
 
-  const btns = await page2.$$eval('.ss-dev-l', (els) => els.map((e) => ({
-    text: e.textContent.trim(), left: Math.round(e.getBoundingClientRect().left),
-    top: Math.round(e.getBoundingClientRect().top),
-  }))).catch(() => []);
-  ok('one dev button per authored map', btns.length === ALL.length,
-    `${btns.length} buttons for ${ALL.length} maps: ${btns.map((b) => b.text).join(' / ') || 'none'}`);
-  ok('they sit on the LEFT edge', btns.length > 0 && btns.every((b) => b.left < 60), btns.map((b) => b.left + 'px').join(', '));
-  ok('they stack without overlapping', new Set(btns.map((b) => b.top)).size === btns.length,
-    btns.map((b) => b.top + 'px').join(', '));
-  await page2.screenshot({ path: path.join(ART, 'traced-picker.png') });
+  const btns = await page2.$$('.ss-dev-l').catch(() => []);
+  ok('the picker carries no per-map dev column', btns.length === 0, `${btns.length} button(s)`);
+  await page2.screenshot({ path: path.join(ART, 'traced-picker.png'), timeout: 15000, animations: 'disabled' }).catch(() => {});
 
-  const first = TRACED[0] && btns.findIndex((b) => b.text.includes(TRACED[0].name));
-  if (first >= 0) {
-    await page2.click('#ssDevMap' + first);
-    const started = await page2.waitForFunction((id) => {
+  await page2.close();
+
+  // ROUTE 1 — the in-level "Dev: maps ▾" switcher, which is the one that matters because it can
+  // switch MID-SESSION. Built from allLevels(), so it needs no code when a map lands.
+  //
+  // A FRESH PAGE, not a goto on the one above: `/index.html` → `/index.html#level,<id>` is a
+  // same-document hash change, so Playwright's goto resolves without re-booting and the hash is
+  // never read. (Same trap campaign-shot carries.)
+  if (TRACED[0]) {
+    const page3 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    page3.on('pageerror', (e) => errs2.push(String(e && e.message)));
+    await page3.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+    await page3.goto(base + '/index.html#level,' + TRACED[0].id, { waitUntil: 'domcontentloaded' });
+    await page3.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
+    await page3.click('#loadscreen', { timeout: 5000 }).catch(() => {});
+    const booted = await page3.waitForFunction((id) => {
       const s = window.__game && window.__game.state;
       return !!(s && s.levelDef && s.levelDef.id === id);
     }, TRACED[0].id, { timeout: 30000 }).then(() => true).catch(() => false);
-    ok('clicking one starts that map', started, TRACED[0].id);
-    ok('no page errors on that route', errs2.length === 0, errs2.slice(0, 2).join(' | ') || 'none');
+    ok('#level,<id> boots that map', booted, TRACED[0].id);
+
+    const menu = await page3.evaluate(() => {
+      const b = document.getElementById('devMapBtn');
+      if (b) b.click();
+      const p = document.getElementById('devMapPanel');
+      return { hasBtn: !!b, open: !!(p && p.classList.contains('open')),
+               entries: p ? [...p.querySelectorAll('button')].map((x) => x.textContent.replace(/×$/, '').trim()) : [] };
+    });
+    ok('the in-level map switcher lists every authored map', menu.entries.length === ALL.length,
+      `${menu.entries.length} entries for ${ALL.length} maps`);
+    ok('...and it opens', menu.hasBtn && menu.open);
+
+    // ROUTE 2 — switching from it. A switch is a full RESTART (world box, cell grid, mask and
+    // food are built together), so assert the destination actually came up rather than that a
+    // click landed.
+    const target = TRACED[1] || TRACED[0];
+    const switched = await page3.evaluate((name) => {
+      const p = document.getElementById('devMapPanel');
+      const b = p && [...p.querySelectorAll('button')].find((x) => x.textContent.replace(/×$/, '').trim() === name);
+      if (!b) return false;
+      b.click(); return true;
+    }, target.name);
+    const arrived = switched && await page3.waitForFunction((id) => {
+      const s = window.__game && window.__game.state;
+      return !!(s && s.levelDef && s.levelDef.id === id);
+    }, target.id, { timeout: 30000 }).then(() => true).catch(() => false);
+    ok('picking one from it switches into that map', arrived === true, target.id);
+    ok('no page errors on those routes', errs2.length === 0, errs2.slice(0, 2).join(' | ') || 'none');
+    await page3.close();
   }
 
   await browser.close();

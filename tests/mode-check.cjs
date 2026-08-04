@@ -1,4 +1,9 @@
-/* Both games in one build: the title screen's four buttons, and each mode's core rules. */
+/* Both games in one build: the title screen's entries, and each mode's core rules.
+ *
+ * Real time is no longer offered from the title screen (owner: "not this next release"), so TEST 1
+ * asserts the door is shut and TEST 3 drives the variant through `#dev`, which is now its only way
+ * in. The MODE itself is untouched — MODE_TUNING, setMode and every mode-gated rule are unchanged,
+ * and everything TEST 3 asserts about real time still has to hold. */
 const http = require('http'); const fs = require('fs'); const path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..');   // the repo root — served as-is
@@ -34,29 +39,36 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 
   // ---------------------------------------------------------------- TITLE SCREEN
   console.log('\nTEST 1 — the title screen offers both games');
+  //
+  // REAL TIME IS OFF THE TITLE SCREEN for this release (owner: "not this next release"), so the
+  // Survival row is a single New/Old pair like the Campaign row and there is no three-column
+  // split, no Turn-based / Real time kind labels and no tsNewRt / tsContRt. The VARIANT is
+  // untouched — TEST 3 below still drives it, via #dev, which is now its only door. What is
+  // asserted here is the shape of the two rows and that the withdrawn door stays shut.
   {
     const { page, errs } = await openPage('');
-    await page.waitForSelector('#titleScreen .ts-split', { timeout: 20000 });
-    const ids = await page.$$eval('#titleScreen .ts-split .ts-btn', (bs) => bs.map((b) => b.id));
-    ok('four New/Old buttons on the Survival row', ids.join(',') === 'tsNew,tsCont,tsNewRt,tsContRt', ids.join(','));
-    const kinds = await page.$$eval('#titleScreen .ts-kind:not(.ts-kind-ghost)', (ks) => ks.map((k) => k.textContent));
-    ok('left is turn-based, right is real time', kinds.join(' | ') === 'Turn-based | Real time', kinds.join(' | '));
-    const caps = await page.$$eval('#titleScreen .ts-split .ts-cap', (cs) => cs.map((c) => c.textContent));
-    ok('every button keeps its caption', caps.length === 4
-      && caps.filter((c) => c === 'start a new game').length === 2
-      && caps.filter((c) => c === 'continue last game').length === 2, caps.join(' | '));
+    await page.waitForSelector('#titleScreen .ts-top .ts-actions', { timeout: 20000 });
+    const ids = await page.$$eval('#titleScreen .ts-top .ts-btn', (bs) => bs.map((b) => b.id));
+    ok('the Survival row is one New/Old pair', ids.join(',') === 'tsNew,tsCont', ids.join(','));
+    ok('real time is not offered from the title screen',
+       (await page.$('#tsNewRt')) === null && (await page.$('#tsContRt')) === null);
+    ok('nothing is left labelling a mode that has no button',
+       (await page.$$('#titleScreen .ts-kind')).length === 0);
+    const caps = await page.$$eval('#titleScreen .ts-top .ts-cap', (cs) => cs.map((c) => c.textContent));
+    ok('every button keeps its caption', caps.join(' | ') === 'start a new game | continue last game', caps.join(' | '));
 
-    // Smaller than the old single-pair row (which was clamp(40px,7vw,84px) → 84px at this width).
+    // The two rows are the same control at the same size — that is what makes them read as two
+    // entries in one menu rather than a main option and an afterthought.
     const sizes = await page.evaluate(() => {
-      const btn = document.querySelector('#titleScreen .ts-split .ts-btn');
-      const cap = document.querySelector('#titleScreen .ts-split .ts-cap');
-      const loc = document.querySelector('#titleScreen .ts-bottom .ts-btn');
+      const btn = document.querySelector('#titleScreen .ts-top .ts-btn');
+      const cap = document.querySelector('#titleScreen .ts-top .ts-cap');
+      const camp = document.querySelector('#titleScreen .ts-bottom .ts-btn');
       return { btn: parseFloat(getComputedStyle(btn).fontSize), cap: parseFloat(getComputedStyle(cap).fontSize),
-               locked: parseFloat(getComputedStyle(loc).fontSize) };
+               camp: parseFloat(getComputedStyle(camp).fontSize) };
     });
-    ok('New/Old are smaller than before (was 84px here)', sizes.btn > 26 && sizes.btn < 60, `${sizes.btn}px`);
-    ok('captions shrank to match (was 11px)', sizes.cap < 11, `${sizes.cap}px`);
-    ok('the locked Campaign row matches the new size', Math.abs(sizes.locked - sizes.btn) < 0.6, `${sizes.locked}px`);
+    ok('New/Old stay at the small size (was 84px before the split)', sizes.btn > 26 && sizes.btn < 60, `${sizes.btn}px`);
+    ok('captions match it', sizes.cap < 11, `${sizes.cap}px`);
+    ok('the Campaign row is the same size', Math.abs(sizes.camp - sizes.btn) < 0.6, `${sizes.camp}px`);
 
     // Both rows clear of the title, and nothing runs off the screen.
     const geo = await page.evaluate(() => {
@@ -68,14 +80,6 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok('the Survival row sits above the Campaign row', geo.t.bottom < geo.b.top, `${Math.round(geo.t.bottom)} < ${Math.round(geo.b.top)}`);
     ok('both rows are on screen', geo.t.top > 0 && geo.b.bottom < geo.vh, `top=${Math.round(geo.t.top)} bottom=${Math.round(geo.b.bottom)} vh=${geo.vh}`);
     ok('the Survival row fits the width', geo.t.left >= 0 && geo.t.right <= geo.vw, `${Math.round(geo.t.left)}..${Math.round(geo.t.right)} of ${geo.vw}`);
-
-    // Clicking a New opens the name dialog, and starting it sets THAT mode.
-    await page.click('#tsNewRt');
-    await page.waitForSelector('#tsNameStart', { timeout: 5000 });
-    await page.click('#tsNameStart');
-    await page.waitForFunction(() => document.getElementById('speciesSelect'), null, { timeout: 20000 });
-    const m1 = await page.evaluate(() => ({ mode: window.__cfg.mode, rt: window.__cfg.realtime.enabled }));
-    ok('real time "New" starts the real-time game', m1.mode === 'realtime' && m1.rt === true, JSON.stringify(m1));
     ok('no page errors on the title screen', errs.length === 0, errs.slice(0, 2).join(' | '));
     await page.close();
   }

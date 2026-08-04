@@ -230,11 +230,23 @@ ok('a mould cloud seeds in the deepest row', stamped.cloud, `y ${stamped.cloudY}
 await ctx.close();
 
 // ---- a procedural map has NO core ----------------------------------------
+// GETTING A PROCEDURAL MAP IS THE HARD PART NOW. This used to boot `#dev,turn` and take what
+// it got — but `#dev` opens on level 1, and campaign slots 1-10 are authored maps, which
+// levelDefFor prefers over the generator. So the "procedural" control was quietly measuring
+// campaign-01 and read coreY 2010 against a wanted null. Ask for a level PAST the ladder
+// instead: levelForNumber finds no JSON claiming slot 11, so start() falls through to
+// createState and the map really is generated. (Same trap ant-rock-check hit, one slot up.)
 ctx=await b.newContext({viewport:{width:1400,height:800}});
 await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
 p=await boot(ctx, base+'/index.html#dev,turn');
-const proc=await p.evaluate(()=>{const s=window.__game.state.substrate;
-  return {coreY:s.coreY, growFloorY:s.growFloorY, worldHeight:s.worldHeight};});
+const proc=await p.evaluate(async ()=>{
+  const g=window.__game;
+  g.campaign.play('marasmius', 11);
+  for(let i=0;i<80 && !(g.state && g.state.active && !g.state.levelDef);i++) await new Promise(r=>setTimeout(r,150));
+  const s=g.state.substrate;
+  return {authored:!!g.state.levelDef, coreY:s.coreY, growFloorY:s.growFloorY, worldHeight:s.worldHeight};});
+ok('the control really is a generated map (nothing claims campaign slot 11)', proc.authored===false,
+   JSON.stringify(proc));
 ok('a PROCEDURAL map has no core — its generated food would be stranded below one',
    proc.coreY===null && proc.growFloorY===proc.worldHeight, JSON.stringify(proc));
 await ctx.close();

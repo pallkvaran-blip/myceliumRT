@@ -3,8 +3,13 @@
 [Mycelium](https://pallkvaran-blip.github.io/mycelium2d/) is a 2D roguelike engine-builder
 about growing a fungal colony to the surface. This build ships **both games in one**: the
 original **turn-based** Mycelium, and a **real-time** variant where the clock never waits
-for you. Same world, art, cards and threats — you pick which game you're playing from the
-title screen (New/Old for each, side by side).
+for you. Same world, art, cards and threats.
+
+**The real-time variant is not offered on the title screen in this release.** It is intact
+and unchanged — every rule, both tuning tables and its own continue slot — and `#dev` still
+boots it; only the way in from the title is withheld, by `TITLE_REALTIME` in
+`__m_render_title_screen`. The title screen currently offers **Survival** and **Campaign**,
+turn-based, New/Old each.
 
 The whole game is a single self-contained `index.html` (open it locally or serve the
 folder) plus the runtime art/audio under `assets/`. It renders on a `<canvas>` with a DOM
