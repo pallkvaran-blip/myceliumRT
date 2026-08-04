@@ -17,6 +17,12 @@
     "summerCols": 7,
     "clearChannels": false
   },
+  "threats": {
+    "trych": 0,
+    "nematodes": 4,
+    "ants": 3,
+    "respawn": false
+  },
   "traced": {
     "image": "docs/maps/top-obsidian-scatter-c40-1@4x.webp",
     "threshold": 128,

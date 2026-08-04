@@ -17,6 +17,12 @@
     "summerCols": 7,
     "clearChannels": false
   },
+  "threats": {
+    "trych": 0,
+    "nematodes": 16,
+    "ants": 0,
+    "respawn": false
+  },
   "traced": {
     "image": "docs/maps/top-magnetite-scatter-c40-1@4x.webp",
     "threshold": 128,

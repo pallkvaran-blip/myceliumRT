@@ -17,6 +17,12 @@
     "summerCols": 7,
     "clearChannels": false
   },
+  "threats": {
+    "trych": 6,
+    "nematodes": 9,
+    "ants": 1,
+    "respawn": false
+  },
   "traced": {
     "image": "docs/maps/top-glass-scatter-c40-1@4x.webp",
     "threshold": 128,

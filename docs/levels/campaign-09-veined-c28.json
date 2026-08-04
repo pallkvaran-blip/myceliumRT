@@ -17,6 +17,12 @@
     "summerCols": 7,
     "clearChannels": false
   },
+  "threats": {
+    "trych": 5,
+    "nematodes": 3,
+    "ants": 2,
+    "respawn": false
+  },
   "traced": {
     "image": "docs/maps/veined-scatter-c28-1@4x.webp",
     "threshold": 128,

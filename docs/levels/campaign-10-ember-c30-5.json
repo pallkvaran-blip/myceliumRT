@@ -17,6 +17,12 @@
     "summerCols": 7,
     "clearChannels": false
   },
+  "threats": {
+    "trych": 10,
+    "nematodes": 7,
+    "ants": 0,
+    "respawn": false
+  },
   "traced": {
     "image": "docs/maps/ember-scatter-c30-5@4x.webp",
     "threshold": 128,

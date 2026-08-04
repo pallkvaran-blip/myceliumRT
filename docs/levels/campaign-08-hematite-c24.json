@@ -17,6 +17,12 @@
     "summerCols": 7,
     "clearChannels": false
   },
+  "threats": {
+    "trych": 11,
+    "nematodes": 6,
+    "ants": 2,
+    "respawn": false
+  },
   "traced": {
     "image": "docs/maps/top-hematite-scatter-c24-1@4x.webp",
     "threshold": 128,

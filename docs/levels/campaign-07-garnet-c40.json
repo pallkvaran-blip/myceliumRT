@@ -17,6 +17,12 @@
     "summerCols": 7,
     "clearChannels": false
   },
+  "threats": {
+    "trych": 9,
+    "nematodes": 5,
+    "ants": 1,
+    "respawn": false
+  },
   "traced": {
     "image": "docs/maps/top-garnet-scatter-c40-1@4x.webp",
     "threshold": 128,
