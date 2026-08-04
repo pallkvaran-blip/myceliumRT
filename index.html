@@ -20606,11 +20606,16 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
       '</div>' +
       // CAMPAIGN, the second game: ten levels, one fixed map each, and it ends. TURN-BASED ONLY
       // (owner), so it keeps the single New/Old pair it was drawn with rather than the split the
-      // Survival block needs — the "turn-based" line under the title is what says so.
+      // Survival block needs — with one mode there is nothing to choose between.
+      //
+      // The sub-line reads "Chapter 1" (owner), in the slot that used to say "coming soon". It
+      // names the CONTENT, not the rules: the campaign is the first chapter of several, which is
+      // the same word the in-game editor already stamps on maps saved from it (`chapter:
+      // 'Chapter 1'`), and those are the maps most likely to fill these ten slots.
       '<div class="ts-block ts-bottom">' +
         '<div class="ts-actions">' +
           '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNewCamp" type="button">New</button></span>' +
-          '<div class="ts-modewrap"><div class="ts-mode">Campaign</div><div class="ts-soon">10 levels &middot; turn-based</div></div>' +
+          '<div class="ts-modewrap"><div class="ts-mode">Campaign</div><div class="ts-soon">Chapter 1</div></div>' +
           '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsContCamp" type="button">Old</button></span>' +
         '</div>' +
       '</div>' +

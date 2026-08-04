@@ -415,8 +415,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('Campaign has its own New and Old', title.hasNew === true && title.hasOld === true,
      (title.ids || []).join(', '));
   ok('nothing on the title screen is locked any more', title.locked === 0, String(title.locked));
-  ok('...and it says what the campaign is', /10 levels/.test((title.soon || []).join(' ')) &&
-     /turn-based/i.test((title.soon || []).join(' ')), (title.soon || []).join(' | '));
+  // "Chapter 1" (owner), in the slot that used to say "coming soon". It names the CONTENT rather
+  // than the rules — the same word the in-game editor stamps on maps saved from it.
+  ok('...and the row is named Chapter 1', (title.soon || []).join(' ').trim() === 'Chapter 1',
+     (title.soon || []).join(' | ') || '(nothing there)');
   // Three slots, not two: Survival turn-based, Survival real-time, Campaign.
   const slots = await page.evaluate(() => {
     const g = window.__game, cfg = window.__cfg, was = { m: cfg.mode, g: cfg.game };
@@ -429,6 +431,49 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('the campaign keeps its own continue slot',
      new Set(Object.values(slots)).size === 3, JSON.stringify(slots));
   await page.evaluate(() => document.querySelectorAll('#titleScreen').forEach((n) => n.remove()));
+
+  // ---- the campaign scores nothing ------------------------------------------
+  // Not just "we don't call recordHighScore": a campaign death must leave the board untouched
+  // AND must not raise the Top-10 prompt, which would offer to show a score that was never
+  // filed. Survival on the same boards is the control — without it this passes on a board that
+  // simply never works.
+  const scoring = await page.evaluate(async () => {
+    const g = window.__game, cfg = window.__cfg;
+    const hs = g.scores;
+    // The board is PER MODE, and this page booted real-time (`#dev`) — reading the turn-based
+    // one showed 0 → 0 for Survival too and made the campaign assertion look meaningful when it
+    // was measuring an empty table.
+    const board = () => hs.allTimeBoard(cfg.mode === 'turn' ? 'turn' : 'realtime').length;
+    localStorage.removeItem('mycelium.highscores.v1');
+    const run = async (game) => {
+      document.querySelectorAll('#loadoutSelect, #hsPrompt, .hs-prompt').forEach((n) => n.remove());
+      cfg.game = game;
+      g.campaign.play('marasmius', 3);
+      cfg.game = game;                       // campaign.play forces 'campaign'; put it back for Survival
+      await new Promise((r) => setTimeout(r, 300));
+      const before = board();
+      g.campaign.endRun();
+      for (let i = 0; i < 60 && !document.getElementById('loadoutSelect'); i++) await new Promise((r) => setTimeout(r, 200));
+      document.getElementById('loConfirm').click();          // "Next run" — the door that files a score
+      await new Promise((r) => setTimeout(r, 900));
+      const out = { before, after: board(),
+                    prompt: !!document.querySelector('#hsPrompt, .hs-prompt, [id*="highscorePrompt" i]') };
+      document.querySelectorAll('#speciesSelect, #loadoutSelect').forEach((n) => n.remove());
+      return out;
+    };
+    const camp = await run('campaign');
+    const surv = await run('survival');
+    cfg.game = 'campaign';
+    localStorage.removeItem('mycelium.highscores.v1');
+    return { camp, surv };
+  });
+  ok('a campaign run files no high score',
+     scoring.camp.after === scoring.camp.before, `board ${scoring.camp.before} → ${scoring.camp.after}`);
+  ok('...and never offers the Top-10 prompt', scoring.camp.prompt === false);
+  // The control: the same death in Survival DOES score, so the assertion above is about the
+  // campaign and not about a board that never worked.
+  ok('Survival still scores, so that is a real difference',
+     scoring.surv.after > scoring.surv.before, `board ${scoring.surv.before} → ${scoring.surv.after}`);
 
   // The menu's own label for it — a campaign exit that banks a deck, not a rage-quit.
   const label = await page.evaluate(() => {
