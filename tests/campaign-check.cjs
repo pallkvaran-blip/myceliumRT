@@ -404,10 +404,17 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      e ? `entered [${e.hand.sort().join(',')}] vs [${retried.hand}]` : 'no snapshot');
   ok('...and the same draw deck', !!e && retried.deckLen === e.deck.length,
      e ? `${e.deck.length} vs ${retried.deckLen}` : 'no snapshot');
-  // A death pays half the level's Spores. A retry cancels the death, so it must cancel the pay —
-  // otherwise a three-retry run banks the bonus four times on one level.
-  ok('a retry hands back the Spores the cancelled death paid',
-     retried.spores === withLives.spores, `${withLives.spores} → death ${withLives.sporesAfterDeath} → retry ${retried.spores}`);
+  // A death is WORTH half the level's Spores but is not PAID for one: the player only gets it by
+  // ending the run, so the wallet must not move at the death screen and must not move on a retry
+  // either. This used to be a claw-back — banked on death, handed back by retryLevel — and the
+  // assertion below was that the two cancelled out. Now nothing is taken, so nothing has to be
+  // given back, and the stronger statement is that the balance never changed at all.
+  ok('a death alone pays nothing — the wallet is untouched until the run ends',
+     withLives.sporesAfterDeath === withLives.spores,
+     `${withLives.spores} → at the death screen ${withLives.sporesAfterDeath}`);
+  ok('...and a retry still pays nothing',
+     retried.spores === withLives.spores,
+     `${withLives.spores} → death ${withLives.sporesAfterDeath} → retry ${retried.spores}`);
 
   // The map has to come back identical, or "the same level" is only half true. Fixed seeds are
   // what make that so, and this is where it pays off for a player.
