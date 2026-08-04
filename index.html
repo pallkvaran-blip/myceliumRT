@@ -1681,15 +1681,10 @@
     .lo-btn { font:inherit; font-size:15px; font-weight:700; color:#000; background:#fff;
       border:2px solid #fff; border-radius:10px; padding:11px 30px; cursor:pointer; }
     .lo-btn:hover { background:#e9e9e9; }
-    /* secondary (e.g. "Main menu" on the death screen) — outlined, not solid */
-    .lo-btn2 { color:#fff; background:transparent; border-color:rgba(255,255,255,0.4); }
-    .lo-btn2:hover { background:rgba(255,255,255,0.08); border-color:rgba(255,255,255,0.72); }
-    /* "Retry level" — the colony's own mint, so it reads as the one action that keeps the run
-       alive next to two that end it. Shown DISABLED rather than hidden when there are no retries
-       left: a player who has never bought one should still learn the option exists. */
-    .lo-btn3 { color:#7fe6a3; background:rgba(10,20,14,0.75); border-color:rgba(127,230,163,0.65); }
-    .lo-btn3:hover:not(:disabled) { background:rgba(20,38,26,0.9); border-color:#7fe6a3; color:#c8fff0; }
-    .lo-btn3.off { color:rgba(150,170,158,0.5); background:rgba(12,16,14,0.6); border-color:rgba(150,170,158,0.22); cursor:not-allowed; }
+    /* .lo-btn2 (outlined "Main menu") and .lo-btn3 (mint "Retry level") are GONE with the
+       buttons they styled — this screen has one action now. Retry moved to showDeathScreen and
+       took its mint treatment with it (.ss-lc-btn3); nothing here needed a second weight once
+       there was nothing to weigh it against. */
     /* Death-screen header sitting ATOP the carry carousel (title matches the cause of death). */
     .lo-header { width:100%; max-width:680px; text-align:center; margin:0 auto; }
     .lo-h-title { margin:0 0 6px; font-size:clamp(20px,3.2vw,28px); font-weight:800; color:#fff; letter-spacing:.01em; }
@@ -22882,6 +22877,11 @@ const __m_render_loadout_select = (function () {
 //
 // Namespaced #loadoutSelect / .lo-*; card faces/filters come from ui.js so they
 // stay identical to the in-game carousel.
+//
+// ONE ACTION, `onConfirm`. It carried a secondary and a tertiary for the death screen's
+// "Main menu" and "Retry level"; the retry moved to showDeathScreen and the owner asked for
+// the rest to collapse to a single "Done". Both parameters are gone rather than left unused,
+// so there is nothing to wire up a second exit with by accident.
 // =============================================================================
 
 
@@ -22927,8 +22927,7 @@ function enableDragScroll(el) {
 }
 
 function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEngines, onConfirm,
-  header, upperLabel, lowerLabel, midText: midTextOpt, confirmText, secondaryText, onSecondary,
-  tertiaryText, onTertiary, tertiaryOff, tertiaryTitle, emptyText, layout }) {
+  header, upperLabel, lowerLabel, midText: midTextOpt, confirmText, emptyText, layout }) {
   const root = el('div'); root.id = 'loadoutSelect';
   const MAX_PICK = maxPick || 8;
   const MAX_ENG = maxEngines || 0;
@@ -22963,14 +22962,13 @@ function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEn
   const midBlock = poolTop
     ? '<div class="lo-mid lo-mid-death"><span class="lo-count lo-count-big" id="loCount"></span></div>'
     : '<div class="lo-mid"><span class="lo-mid-txt">' + esc(midTxt) + '</span><span class="lo-count" id="loCount"></span></div>';
-  // A THIRD action, used by the death screen for "Retry level". It is rendered even when it
-  // can't be used (`tertiaryOff`) — the owner's ask: a player with no retries left should still
-  // see that retries exist, and what they are missing, rather than the option vanishing.
+  // ONE ACTION, ALWAYS (owner: "lets just have one button 'Done'"). This screen used to carry
+  // three — Next run / Main menu / Retry level — and the other two had both stopped being this
+  // screen's business: RETRY is one of showDeathScreen's two buttons now, taken before the
+  // player ever gets here (offering it again after they curate a deck the retry throws away is
+  // worse than not offering it), and MAIN MENU was a second exit that differed only in where it
+  // landed. Curating the deck is the whole job of the screen, so it has one way out of it.
   const actionsBlock = '<div class="lo-actions">' +
-    (secondaryText ? '<button class="lo-btn lo-btn2" id="loSecondary" type="button">' + esc(secondaryText) + '</button>' : '') +
-    (tertiaryText ? '<button class="lo-btn lo-btn3' + (tertiaryOff ? ' off' : '') + '" id="loTertiary" type="button"' +
-      (tertiaryOff ? ' disabled' : '') + (tertiaryTitle ? ' title="' + esc(tertiaryTitle) + '"' : '') + '>' +
-      esc(tertiaryText) + '</button>' : '') +
     '<button class="lo-btn" id="loConfirm" type="button">' + esc(confLbl) + '</button>' +
     '</div>';
 
@@ -23063,12 +23061,6 @@ function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEn
   function hide() { root.remove(); }
   const collect = () => Object.keys(selected).filter((n) => selected[n] > 0).map((n) => ({ name: n, count: selected[n] }));
   root.querySelector('#loConfirm').addEventListener('click', () => { const list = collect(); hide(); onConfirm && onConfirm(list); });
-  const secBtn = root.querySelector('#loSecondary');
-  if (secBtn) secBtn.addEventListener('click', () => { const list = collect(); hide(); onSecondary && onSecondary(list); });
-  // The tertiary deliberately does NOT collect the picks: it is "Retry level", and a retry means
-  // the run continues, so there is no deck to bank. Whatever was selected is simply dropped.
-  const terBtn = root.querySelector('#loTertiary');
-  if (terBtn && !tertiaryOff) terBtn.addEventListener('click', () => { hide(); onTertiary && onTertiary(); });
   return { hide, root };
 }
 
@@ -25194,7 +25186,7 @@ function showDeathCarry(r) {
     `<p class="lo-h-instr">Choose ${keep} cards${keepEng > 0 ? ` and ${keepEng} engine${keepEng > 1 ? 's' : ''}` : ''}` +
       ` to keep <span class="lo-h-note">(${store.carryCards} from the Store)</span></p>`;
   // Kick off the Top-10 CHECK now (in the background) so the prompt is ready the instant the
-  // player leaves this screen — it shows AFTER Next run / Main menu, not here.
+  // player leaves this screen — it shows AFTER Done, on the way to the picker, not here.
   //
   // RECORDING happens in `afterDeath`, not here, and the difference is the retry: this screen no
   // longer means the run is over. Recording on resolve would file a score for a run the player
@@ -25208,24 +25200,22 @@ function showDeathCarry(r) {
     ? checkHighScore({ level: currentLevel, species: chosenSpecies.id, speciesName: chosenSpecies.name, mode: CONFIG.mode })
         .catch(() => null)
     : Promise.resolve(null);
-  // RETRY: same level, same map, same cards and reserves you entered it with. Offered whenever
-  // the run has a retry banked AND there is an entry snapshot to go back to — a run that died on
-  // its very first frame, before begin() took one, has nothing to restore. Shown DISABLED
-  // otherwise (owner's ask), so the option is visible to a player who has never bought one.
+  // ONE BUTTON, "DONE", AND IT GOES TO THE SPECIES SELECTION / STORE SCREEN (owner). The two it
+  // replaces were both answering a question this screen no longer asks. RETRY is on
+  // showDeathScreen, taken before the player gets here. MAIN MENU was a second exit differing
+  // only in destination — and the picker is the better one of the two, because it is where the
+  // Spores just banked can be spent and where the deck just curated is put to use. The title
+  // screen is one step further out from there, so nothing is unreachable.
+  //
+  // `backToPicker` also CLEARS the resume slot, which is right: this run is over either way.
   showLoadoutSelect({
     drafted: pool, enginePool, fixed: [], maxPick: keep, maxEngines: keepEng, layout: 'death',
     header,
     upperLabel: 'Your deck for the next run',
     lowerLabel: 'Played, drafted and already owned — click to add',
     emptyText: 'Nothing to keep — you played, drafted and owned no cards this run.',
-    confirmText: 'Next run',
-    secondaryText: 'Main menu',
-    // No retry here: it is one of showDeathScreen's two buttons, taken before this screen is
-    // ever reached. Leaving a copy would offer it twice and, worse, offer it AFTER the player
-    // has curated a deck the retry would throw away.
-    
+    confirmText: 'Done',
     onConfirm: (picked) => { saveDeck(picked); afterDeath(hsPromise, backToPicker); },
-    onSecondary: (picked) => { saveDeck(picked); afterDeath(hsPromise, backToTitle); },
   });
 }
 

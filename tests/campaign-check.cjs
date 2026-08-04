@@ -306,9 +306,20 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const root = document.getElementById('loadoutSelect');
     const title = root ? (root.querySelector('.lo-h-title') || {}).textContent : null;
     const instr = root ? (root.querySelector('.lo-h-instr') || {}).textContent : null;
-    if (root) root.remove();
+    // ONE button, "Done", and it lands on the species selection / store screen (owner). The
+    // DESTINATION is the half worth asserting: the label is a string anyone can change, but a
+    // Done that leaves the player on the title screen — where the Spores they just banked can't
+    // be spent — is the actual regression, and it looks identical from the button.
+    const acts = root ? [...root.querySelectorAll('.lo-actions button')].map((b) => b.textContent.trim()) : [];
+    document.querySelectorAll('#speciesSelect').forEach((n) => n.remove());
+    if (root) root.querySelector('#loConfirm').click();
+    for (let i = 0; i < 60 && !document.getElementById('speciesSelect'); i++) await new Promise((r) => setTimeout(r, 200));
+    const landed = !!document.getElementById('speciesSelect');
+    const stillUp = !!document.getElementById('loadoutSelect');
+    document.querySelectorAll('#speciesSelect, #loadoutSelect').forEach((n) => n.remove());
     if (death) death.remove();
-    return { death: !!death, dTitle, keepLabel: keepBtn ? keepBtn.textContent.trim() : null, reached: !!root, title, instr };
+    return { death: !!death, dTitle, keepLabel: keepBtn ? keepBtn.textContent.trim() : null,
+             reached: !!root, title, instr, acts, landed, stillUp };
   });
   ok('ending a run reaches the death screen first', ended.death === true, ended.dTitle || '(never appeared)');
   ok('...whose first button leads to the cards', /choose which cards to keep/i.test(ended.keepLabel || ''), ended.keepLabel);
@@ -317,6 +328,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // so the instruction under it no longer has to carry it.
   ok('...and it asks what to keep in your deck', /deck/i.test((ended.title || '') + ' ' + (ended.instr || '')),
      ((ended.title || '') + ' / ' + (ended.instr || '')).trim());
+  ok('the keep screen has exactly ONE button', (ended.acts || []).length === 1,
+     (ended.acts || []).join(' | ') || '(none)');
+  ok('...and it says Done', (ended.acts || [])[0] === 'Done', (ended.acts || [])[0]);
+  ok('...which takes you to the species selection / store screen', ended.landed === true,
+     ended.landed ? 'speciesSelect' : 'never got there');
+  ok('...and closes the sheet behind it', ended.stillUp === false);
 
   // ---- retries --------------------------------------------------------------
   // "When a player dies they should be given the option of trying the same level again if they
@@ -538,14 +555,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       await new Promise((r) => setTimeout(r, 300));
       const before = board();
       g.campaign.endRun();
-      // Through BOTH screens: the death screen, then its "End run" button, then the carousel's
-      // "Next run" — which is still the door that files a score. Scoring did not move; the route
-      // to it gained a step.
+      // Through BOTH screens: the death screen, then its "End run" button, then the keep
+      // sheet's one button, "Done" — which is still the door that files a score. Scoring did
+      // not move; the route to it gained a step and the button lost its siblings.
       for (let i = 0; i < 60 && !document.getElementById('ssDeath'); i++) await new Promise((r) => setTimeout(r, 200));
       const keep = document.getElementById('ssDeathKeep');
       if (keep) keep.click();
       for (let i = 0; i < 60 && !document.getElementById('loadoutSelect'); i++) await new Promise((r) => setTimeout(r, 200));
-      document.getElementById('loConfirm').click();          // "Next run" — the door that files a score
+      document.getElementById('loConfirm').click();          // "Done" — the door that files a score
       await new Promise((r) => setTimeout(r, 900));
       const out = { before, after: board(),
                     prompt: !!document.querySelector('#hsPrompt, .hs-prompt, [id*="highscorePrompt" i]') };

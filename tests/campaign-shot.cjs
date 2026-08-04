@@ -113,11 +113,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.mouse.click(720, 500); await sleep(2600);      // dismiss → the map itself
   await shot('level', FULL);
 
-  // ---- 8-9. the death screen, with retries banked and with none left ------
-  const death = async (lives, name) => {
+  // ---- 8-10. the death screen (retries banked / none left), then the keep sheet
+  //
+  // DYING IS TWO SCREENS NOW, and they are separate frames because they are separate screens:
+  // `#ssDeath` says what killed you and offers Retry / End run, and only its End run button
+  // reaches `#loadoutSelect`, the deck sheet. A shot script written for the old single screen
+  // waits for `#loadoutSelect` straight after the death and times out on a black map — which is
+  // exactly what it did. Retry is `#ssDeathRetry`; the keep sheet's one button is `#loConfirm`
+  // ("Done"), the tertiary it used to click having gone with the split.
+  const death = async (lives, name, thenKeep) => {
     await page.evaluate(async (l) => {
       const g = window.__game;
-      document.querySelectorAll('#loadoutSelect, #levelIntro').forEach((n) => n.remove());
+      document.querySelectorAll('#ssDeath, #loadoutSelect, #levelIntro').forEach((n) => n.remove());
       g.store.reset();
       if (l) { g.store.credit(1e6); for (let i = 0; i < l; i++) g.store.buy('lives'); }
       g.campaign.play('marasmius', 3);
@@ -132,26 +139,39 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       }
       g.state.runResult = { won: false, died: true, cause: 'devoured', turns: g.state.turn };
       g.campaign.endRun();
-      for (let i = 0; i < 60 && !document.getElementById('loadoutSelect'); i++) await new Promise((r) => setTimeout(r, 200));
+      // The campaign plays a ~6 s fruiting celebration before the card, so POLL rather than wait.
+      for (let i = 0; i < 90 && !document.getElementById('ssDeath'); i++) await new Promise((r) => setTimeout(r, 200));
       // Spend every retry, so the "none left" frame is the real disabled state rather than a
       // build with the track removed.
       if (!l) {
         for (let n = 0; n < 4 && g.campaign.lives() > 0; n++) {
-          const b = document.getElementById('loTertiary'); if (!b || b.disabled) break;
+          const b = document.getElementById('ssDeathRetry'); if (!b || b.disabled) break;
           b.click();
-          for (let i = 0; i < 60; i++) { if (!document.getElementById('loadoutSelect') && !g.state.runOver) break;
+          for (let i = 0; i < 60; i++) { if (!document.getElementById('ssDeath') && !g.state.runOver) break;
             await new Promise((r) => setTimeout(r, 200)); }
           await new Promise((r) => setTimeout(r, 300));
           g.state.runResult = { won: false, died: true, cause: 'devoured', turns: g.state.turn };
           g.campaign.endRun();
-          for (let i = 0; i < 60 && !document.getElementById('loadoutSelect'); i++) await new Promise((r) => setTimeout(r, 200));
+          for (let i = 0; i < 90 && !document.getElementById('ssDeath'); i++) await new Promise((r) => setTimeout(r, 200));
         }
       }
     }, lives);
     await sleep(900);
     await shot(name, FULL);
+    if (!thenKeep) return;
+    // Through the death screen's "End run" to the deck sheet — the only route to it.
+    await page.evaluate(async () => {
+      const b = document.getElementById('ssDeathKeep'); if (b) b.click();
+      for (let i = 0; i < 60 && !document.getElementById('loadoutSelect'); i++) await new Promise((r) => setTimeout(r, 200));
+    });
+    await sleep(1200);
+    await shot(thenKeep, FULL);
   };
-  await death(2, 'death-retry');
+  // The keep sheet is captured off the RETRIES-BANKED run, not the spent one: the no-retry case
+  // gets there by replaying the level until the retries run out, and that last replay plays no
+  // cards — so its pool is empty and the frame shows an empty carousel, which is the one thing
+  // this sheet must not be photographed doing.
+  await death(2, 'death-retry', 'death-keep');
   await death(0, 'death-noretry');
 
   console.log('\n  done');
