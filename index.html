@@ -21660,6 +21660,20 @@ class UI {
   // the Show/Hide button toggles it. Targeted cards still go into aim mode from
   // here (onPlayCard sets pendingCard, which _paintArmed keeps highlighted).
   onCardTap(index, name) {
+    // TAPPING THE SELECTED CARD AGAIN DESELECTS IT. Only a TARGETED card can be sitting
+    // selected when a tap arrives — everything else resolves on the first tap and is gone from
+    // the hand — so this is the aim being cancelled. Tapping it again used to run onPlayCard a
+    // second time, which re-armed the identical pending card: the highlight stayed on, the hint
+    // stayed up, and the only way out was to aim it or press something else.
+    //
+    // Matched by NAME, like armCard and playArmed, because the index is a card GROUP's first
+    // index and goes stale as the hand mutates.
+    if (this.pendingCard && this.pendingCard.name === name) {
+      this.armed = null;
+      if (this.handlers.onCancelAim) this.handlers.onCancelAim();
+      else this.clearPendingCard();
+      return;
+    }
     // Arm the intended card, then play it. playArmed() re-resolves the live hand
     // index by name at play time, so the stored index can't go stale on us.
     this.armed = { kind: 'hand', index, name };
@@ -26983,6 +26997,11 @@ const handlers = {
   onSkip() { if (isRealtime()) return; if (draftLocked()) return; cancelAiming(); resolveCardOp(skipRound(state)); },
   // Returns true if the card was played or entered aiming; false if blocked
   // (e.g. can't afford) — the caller uses this to decide whether to minimize.
+  // Deselecting the card that is waiting for a target. Routed through main rather than done in
+  // the HUD because the aim is TWO pieces of state: the HUD's pendingCard highlight and main's
+  // own `aim` drag, and clearing only the first leaves a live drag armed against a card that is
+  // no longer selected. cancelAiming resets the hint too.
+  onCancelAim() { cancelAiming(); uiDirty = true; },
   onPlayCard(index) {
     if (draftLocked()) return false;
     const entry = state.cards && state.cards.hand[index];
