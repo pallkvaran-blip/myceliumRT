@@ -1,6 +1,11 @@
-/* The species table, checked statically (no browser): each starter's opening hand and
-   starting Water. These are the numbers the game is balanced around, so they're asserted
-   ABSOLUTELY — a diff against the previous commit would pass trivially once committed. */
+/* The species table, checked statically (no browser): each starter's opening hand, plus the
+   UNIVERSAL opening resources and the store bases that stack on them. These are the numbers the
+   game is balanced around, so they're asserted ABSOLUTELY — a diff against the previous commit
+   would pass trivially once committed.
+
+   Starting Water used to be asserted PER SPECIES, parsed out of a `res: { energy, water, … }` row
+   on each entry. Those rows are gone: what a colony opens with is the player's (CONFIG's base plus
+   the store's three resource tracks), not the mushroom's, so it is checked once, here. */
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,26 +21,50 @@ const parse = (src) => {
     const chunk = blk.slice(i, k + 1 < ids.length ? ids[k + 1][0] : blk.length);
     const hand = {};
     for (const m of chunk.matchAll(/\{ name: '([^']+)', count: (\d+) \}/g)) hand[m[1]] = +m[2];
-    out[id] = { water: +/res: \{ energy: \d+, water: (\d+)/.exec(chunk)[1], hand };
+    // A species row carries NO resources any more — only a hand.
+    out[id] = { hand };
   });
   return out;
 };
 
-// id → [starting Water, { card: copies }]. Only the cards the balance passes have touched are
-// listed; anything else in a hand is deliberately left unpinned.
+// The universal opening and the store bases, straight out of the source.
+const parseStart = (src) => {
+  const base = (id) => {
+    const m = new RegExp("id: '" + id + "'[^}]*?base: (\\d+)").exec(src);
+    return m ? +m[1] : 0;
+  };
+  return {
+    energy: +/^\s*start: (\d+),\s*\/\/ starting Energy/m.exec(src)[1],
+    water: +/^\s*startWater: (\d+),/m.exec(src)[1],
+    phosphorus: +/^\s*startPhosphorus: (\d+),/m.exec(src)[1],
+    carryCards: base('carryCards'),
+    carryEngines: base('carryEngines'),
+    lives: base('lives'),
+  };
+};
+
+// What EVERY colony opens with before the store's resource tracks add anything.
+const EXPECT_START = { energy: 20, water: 20, phosphorus: 0 };
+
+// The store bases — what a player has on a track they have never bought a step of. Basic/Event
+// Memory is 3, which used to be a bare `3 +` at the run loop where the store tile could not see it.
+const EXPECT_BASE = { carryCards: 3, carryEngines: 0, lives: 1 };
+
+// id → { card: copies }. Only the cards the balance passes have touched are listed; anything
+// else in a hand is deliberately left unpinned.
 const EXPECT = {
-  marasmius:     [40, { 'Rhizomorph Lance': 5 }],                       // fairy ring
-  armillaria:    [35, { 'Rhizomorph Lance': 10, 'Turgor Thrust': 5 }],  // honey fungus
-  ganoderma:     [40, { 'Turgor Thrust': 6 }],
-  pleurotus:     [40, { 'Turgor Thrust': 18 }],
-  suillus:       [40, { 'Turgor Thrust': 6 }],
-  schizophyllum: [57, { 'Turgor Thrust': 6 }],
-  hydnellum:     [45, { 'Turgor Thrust': 6, 'Rhizomorph Lance': 6 }],
-  stropharia:    [50, { 'Turgor Thrust': 6 }],
-  cortinarius:   [50, { 'Turgor Thrust': 6 }],
-  serpula:       [50, { 'Turgor Thrust': 14, 'Rhizomorph Lance': 6 }],
-  scleroderma:   [40, { 'Turgor Thrust': 6, 'Rhizomorph Lance': 12 }],
-  psilocybe:     [45, { 'Turgor Thrust': 16, 'Rhizomorph Lance': 10 }],
+  marasmius:     { 'Rhizomorph Lance': 5 },                       // fairy ring
+  armillaria:    { 'Rhizomorph Lance': 10, 'Turgor Thrust': 5 },  // honey fungus
+  ganoderma:     { 'Turgor Thrust': 6 },
+  pleurotus:     { 'Turgor Thrust': 18 },
+  suillus:       { 'Turgor Thrust': 6 },
+  schizophyllum: { 'Turgor Thrust': 6 },
+  hydnellum:     { 'Turgor Thrust': 6, 'Rhizomorph Lance': 6 },
+  stropharia:    { 'Turgor Thrust': 6 },
+  cortinarius:   { 'Turgor Thrust': 6 },
+  serpula:       { 'Turgor Thrust': 14, 'Rhizomorph Lance': 6 },
+  scleroderma:   { 'Turgor Thrust': 6, 'Rhizomorph Lance': 12 },
+  psilocybe:     { 'Turgor Thrust': 16, 'Rhizomorph Lance': 10 },
 };
 
 const now = parse(fs.readFileSync(path.join(REPO, 'index.html'), 'utf8'));
@@ -46,10 +75,25 @@ ok('every species is accounted for',
    Object.keys(now).length === Object.keys(EXPECT).length && Object.keys(EXPECT).every((k) => now[k]),
    `${Object.keys(now).length} in the table, ${Object.keys(EXPECT).length} expected`);
 
-for (const [id, [water, cards]] of Object.entries(EXPECT)) {
+const SRC = fs.readFileSync(path.join(REPO, 'index.html'), 'utf8');
+const START = parseStart(SRC);
+for (const k of Object.keys(EXPECT_START)) {
+  ok(`universal starting ${k}`, START[k] === EXPECT_START[k], `${START[k]} (expected ${EXPECT_START[k]})`);
+}
+for (const k of Object.keys(EXPECT_BASE)) {
+  ok(`store base: ${k}`, START[k] === EXPECT_BASE[k], `${START[k]} (expected ${EXPECT_BASE[k]})`);
+}
+// One source of truth. A reintroduced `res` row would silently win at deal time, exactly the way
+// the old per-species block did, and nothing on screen would say which number was in force.
+ok('no species declares its own starting resources', !/res: \{ energy: \d/.test(SRC),
+   'species rows carry a hand only');
+// The baseline must NOT also be added at the run loop, or every player quietly gets 6.
+ok('the memory baseline is the track base, not a constant at the run loop',
+   /const keep = cleared \+ store\.carryCards;/.test(SRC), 'keep = cleared + store.carryCards');
+
+for (const [id, cards] of Object.entries(EXPECT)) {
   const s = now[id];
   if (!s) { ok(`${id}: present`, false, 'missing from the table'); continue; }
-  ok(`${id}: starting Water`, s.water === water, `${s.water} (expected ${water})`);
   for (const [card, n] of Object.entries(cards)) {
     ok(`${id}: ${card}`, (s.hand[card] || 0) === n, `${s.hand[card] || 0} (expected ${n})`);
   }

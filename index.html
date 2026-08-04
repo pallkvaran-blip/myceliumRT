@@ -1208,18 +1208,8 @@
     .ss-hand { border-top:1px solid rgba(120,160,140,0.16); padding-top:14px; }
     .ss-hand h3 { font-size:11px; letter-spacing:0.22em; text-transform:uppercase; color:var(--ss-mint); margin:0 0 12px; font-weight:700; }
     .ss-sub { font-size:12px; color:var(--ss-ink-faint); margin:0 0 12px; }
-    .ss-resprow { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px; }
-    .ss-respill { display:inline-flex; align-items:center; gap:6px; padding:5px 12px 5px 9px; border-radius:999px;
-      background:linear-gradient(150deg, rgba(18,28,22,0.9), rgba(8,14,11,0.9)); border:1.5px solid rgba(130,230,166,0.4); font-variant-numeric:tabular-nums; }
-    .ss-respill .ss-ri { width:16px; height:16px; flex:0 0 auto; }
-    .ss-rv { font-weight:700; font-size:15px; }
-    .ss-rk { font-size:11px; color:var(--ss-ink-dim); letter-spacing:.02em; }
-    .ss-respill.energy { border-color:rgba(230,180,92,0.45); } .ss-respill.energy .ss-rv { color:var(--ss-gold); }
-    .ss-respill.water { border-color:rgba(127,208,224,0.45); } .ss-respill.water .ss-rv { color:var(--ss-water); }
-    .ss-respill.phos { border-color:rgba(199,155,230,0.45); } .ss-respill.phos .ss-rv { color:#c79be6; }
     /* Why a starting figure is higher than the species' own — shown only when a store
        upgrade is actually contributing. */
-    .ss-resnote { align-self:center; font-size:11px; color:var(--ss-ink-faint); letter-spacing:.02em; }
 
     .ss-deck { display:flex; flex-wrap:wrap; gap:16px 22px; padding:2px 8px 8px 0; }
     .ss-gc { position:relative; width:116px; aspect-ratio:5/7; flex:0 0 auto; border-radius:10px; overflow:hidden; display:flex; flex-direction:column;
@@ -1950,7 +1940,11 @@ const CONFIG = {
 
   // ---- Resources (A3, B3) -------------------------------------------------
   energy: {
-    start: 50,                   // starting Energy (SLIDER) — tight: ~3 draws or 4 skips before you must feed
+    // THE UNIVERSAL OPENING, and the BASE the store's three resource tracks add to. It used to
+    // be per-species (a `res` row on each SPECIES entry, 10-34 energy / 35-57 water / 0-16 P);
+    // what a colony opens with is a property of the PLAYER's upgrades, not of the mushroom, so
+    // the species table no longer states it and the picker no longer prints it.
+    start: 20,                   // starting Energy (SLIDER) — universal base, before store upgrades
     baselineTrickle: 0,          // no free per-turn trickle — energy comes only from colonising food
     passiveIncomeRate: 25,       // nutrient pulled from each colonised cell/turn — a fully-colonised pile (50/cell) empties in 2 steps (SLIDER)
     incomeEfficiency: 0.6,       // Energy gained per unit nutrient consumed
@@ -1998,8 +1992,12 @@ const CONFIG = {
     draftBasicWeight: 0.6,       // in a NORMAL (basic/event) draft, chance each slot is a Basic vs an Event (~60/40)
     skipCostEnergy: 3,          // energy to SKIP a round (advance the world, draw nothing)
     handStartMax: 12,            // cap on the opening premium hand (tutorial uses fewer)
-    startWater: 10,              // starting Water (covers grow AND substrate; ~10 grows before you must harvest)
-    startPhosphorus: 0,          // starting Phosphorus (earn it from rocks via Phosphate Tap; gates digest/defense)
+    startWater: 20,              // starting Water — universal base (covers grow AND substrate)
+    startPhosphorus: 0,          // starting Phosphorus — universal base, and genuinely 0: it is the
+                                 //   store's Phosphorus track (+2 a step) that buys an opening reserve.
+                                 //   Eight species used to open with 6-16 P and spent it on a turn-1
+                                 //   install — Cord Capillary (4E+2W+6P), Aquaporin Channels (20E+6P).
+                                 //   Those openers now wait for rock or for the upgrade.
     softCapWater: 999,           // per-resource stockpile caps — set high so harvesting/income
     softCapPhosphorus: 999,      //   keeps paying off and you can bank resources for big plays
 
@@ -9284,7 +9282,6 @@ const SPECIES = [
     name: 'Fairy Ring Champignon', latin: 'Marasmius oreades', img: 'marasmius-oreades',
     cardPos: 'center 20%',   // grid card: pull the visible band up so the cap top isn't cropped (detail view unchanged)
     blurb: 'A grassland saprotroph that grows outward in an ever-widening <b>fairy ring</b> pattern — the colony pushes evenly in every direction from its heart, decomposing the turf as it goes. It is marcescent: it shrivels in a drought and springs back to life once the rain returns, so it banks water and simply waits the dry spells out. Slow, broad and hard to kill — a forgiving way to learn the colony.',
-    res: { energy: 10, water: 40, phosphorus: 0 },   // +10⚡/+10W over the original 0/30 — easier opening
     hand: [
       { name: 'Foraging Fan', count: 4 },
       { name: 'Hyphal Extension', count: 6 },
@@ -9297,7 +9294,6 @@ const SPECIES = [
     id: 'armillaria', vibe: 'warm', unlock: null,
     name: 'Honey Fungus', latin: 'Armillaria mellea', img: 'armillaria-ostoyae',
     blurb: 'A notorious tree-killer whose genus boasts the <b>largest living organism on Earth</b> — a single Armillaria in Oregon sprawls across nearly ten square kilometres of forest. It travels on <b>rhizomorphs</b>: bootlace-like cords that shoot far ahead through the soil to strike distant roots. A committed long-range predator, not a gentle forager — it banks energy, drives its cords along a chosen line, and lances across open ground toward the goal.',
-    res: { energy: 20, water: 35, phosphorus: 0 },   // opener Rhizomorph Lance costs 1⚡ to play → start with Energy (+10⚡/+10W over the original 10/25)
     hand: [
       { name: 'Apical Drive', count: 10 },
       { name: 'Rhizomorph Lance', count: 10 },
@@ -9308,7 +9304,6 @@ const SPECIES = [
     id: 'ganoderma', vibe: 'cool', unlock: 'Complete level 1', memory: true,
     name: "Artist's Conk", latin: 'Ganoderma applanatum', img: 'ganoderma-applanatum',
     blurb: 'A woody perennial bracket that lives for years on end, laying down a fresh layer of spore-tubes every season — so its whole body becomes a stacked <b>archive of seasons past</b>. Its chalk-white underside bruises dark at the faintest touch and keeps the mark forever, which is why foragers etch drawings into it: a fungus that literally <b>remembers</b>. This colony learns: it lets you <b>hand-pick cards you drafted during your last run</b>. Be warned: your first run may be a little rough.',
-    res: { energy: 10, water: 40, phosphorus: 0 },
     hand: [
       { name: 'Apical Drive', count: 5 },
       { name: 'Turgor Thrust', count: 6 },
@@ -9318,7 +9313,6 @@ const SPECIES = [
     id: 'pleurotus', vibe: 'warm', unlock: 'Complete level 1',
     name: 'Oyster Mushroom', latin: 'Pleurotus ostreatus', img: 'pleurotus-ostreatus',
     blurb: 'Among the fastest and most vigorous wood-rotters alive — oyster mycelium storms through a fallen log and turns dead timber straight into sugar, fruiting in shelving tiers wherever the carbon runs richest. It is a hungry feeder that spreads faster than almost anything else in the litter. This is the colony that keeps the lights on: it opens with a living <b>cord that trickles a steady current of energy</b> through the mat every round.',
-    res: { energy: 10, water: 40, phosphorus: 8 },   // opener Cord Capillary installs for 4⚡+2W+6P
     hand: [
       { name: 'Cord Capillary', count: 1 },
       { name: 'Foraging Fan', count: 3 },
@@ -9329,7 +9323,6 @@ const SPECIES = [
     id: 'suillus', vibe: 'spore', unlock: 'Complete level 3',
     name: 'Slippery Jack', latin: 'Suillus luteus', img: 'suillus-luteus',
     blurb: 'A slick, amber-capped bolete bound in partnership with pine — a <b>mycorrhizal</b> trader that sheathes the tree\'s rootlets and ranges far through poor soil for the nutrient those roots can never reach on their own: <b>phosphate</b>. It pays for the mineral in sugar, funnelling carbon down its cords to fund the dig. Your first dependable phosphate supply, and the key that unlocks digest, defense, and the heavier grows.',
-    res: { energy: 14, water: 40, phosphorus: 8 },   // opener Prospecting Cords installs for 12⚡
     hand: [
       { name: 'Prospecting Cords', count: 1 },
       { name: 'Apical Drive', count: 8 },
@@ -9342,7 +9335,6 @@ const SPECIES = [
     id: 'schizophyllum', vibe: 'aqua', unlock: 'Complete level 10', memory: true, memPick: 15, memEngines: 2, startLevelMin: 3, startLevelMax: 10,
     name: 'Split Gill', latin: 'Schizophyllum commune', img: 'schizophyllum-commune',
     blurb: 'The most widely distributed mushroom on Earth and the most genetically promiscuous — over <b>20,000 mating types</b>, endlessly adaptable. Its <b>split gills</b> fold shut to ride out drought and reopen the moment damp returns. The most seasoned colony you can field: it opens with just five runners, but lets you <b>hand-pick 15 cards and 2 engines you drafted last run</b> and carry them into this one.',
-    res: { energy: 20, water: 57, phosphorus: 16 },
     hand: [
       { name: 'Apical Drive', count: 5 },
       { name: 'Turgor Thrust', count: 6 },
@@ -9352,7 +9344,6 @@ const SPECIES = [
     id: 'hydnellum', vibe: 'aqua', unlock: 'Complete level 3',
     name: 'Bleeding Tooth Fungus', latin: 'Hydnellum peckii', img: 'hydnellum-peckii',
     blurb: 'A damp-forest fungus that runs on water: it drives so much moisture through itself that it weeps bright red droplets from its cap — real <b>guttation</b>. That constant flow lets it grow almost anywhere the ground is wet, fanning out in every direction and pressing on long after drier colonies stall. Open the taps and flood the map.',
-    res: { energy: 10, water: 45, phosphorus: 6 },
     hand: [
       { name: 'Aquaporin Channels', count: 1 },
       { name: 'Apical Drive', count: 6 },
@@ -9366,7 +9357,6 @@ const SPECIES = [
     id: 'stropharia', vibe: 'warm', unlock: 'Complete level 5',
     name: 'Wine Cap', latin: 'Stropharia rugosoannulata', img: 'stropharia-rugosoannulata',
     blurb: 'The <b>"garden giant"</b> — a bulky saprotroph with a wine-red cap that rips through wood chips, straw and forest mulch faster than almost anything, turning dead matter straight into <b>sugar and mineralised nutrients</b>. Its mycelium bristles with tiny spiked cells (acanthocytes) that puncture passing nematodes and bacteria and strip them for extra nitrogen and phosphate. It opens running two engines at once — a <b>cord that trickles energy</b> and a <b>saprobic front that mineralises phosphorus</b> — a self-feeding decomposer from turn one.',
-    res: { energy: 20, water: 50, phosphorus: 7 },   // openers Cord Capillary (4⚡+2W+6P) + Mineralizing Saprobe (14⚡) → install both turn 1
     hand: [
       { name: 'Cord Capillary', count: 1 },
       { name: 'Mineralizing Saprobe', count: 1 },
@@ -9382,7 +9372,6 @@ const SPECIES = [
     id: 'cortinarius', vibe: 'spore', unlock: 'Complete level 7',
     name: 'Violet Webcap', latin: 'Cortinarius violaceus', img: 'cortinarius-violaceus',
     blurb: 'One of the few truly <b>violet</b> mushrooms — dark indigo from cap to stem — and an ectomycorrhizal partner that sheathes tree roots through damp, mossy forest floor. It mines the soil for locked-away nutrients, secreting <b>acid phosphatases that free bound phosphate</b>, and pipes <b>water and minerals</b> back to its host in trade for sugar. It opens with both taps already running: a slow, deep phosphate reserve and a steady draw of water.',
-    res: { energy: 34, water: 50, phosphorus: 10 },   // openers Phosphatase Reserve (12⚡) + Aquaporin Channels (20⚡+6P) → install both turn 1
     hand: [
       { name: 'Phosphatase Reserve', count: 1 },
       { name: 'Aquaporin Channels', count: 1 },
@@ -9397,7 +9386,6 @@ const SPECIES = [
     id: 'serpula', vibe: 'warm', unlock: 'Complete level 7',
     name: 'Dry Rot', latin: 'Serpula lacrymans', img: 'serpula-lacrymans',
     blurb: 'The most feared timber-rotter of all — <b>"true dry rot."</b> A brown-rot fungus that crumbles wood into dry, cracked cubes for energy, it has a rare trick: it <b>translocates water along its own mycelial cords</b>, carrying moisture from damp ground into bone-dry timber so it can rot wood nothing else can reach. Its rusty, folded fruitbodies bead with watery droplets — hence <i>lacrymans</i>, "weeping." It opens piping <b>water through its cords</b> while a <b>capillary trickles energy.</b>',
-    res: { energy: 26, water: 50, phosphorus: 14 },   // openers Aquaporin Channels (20⚡+6P) + Cord Capillary (4⚡+2W+6P) → install both turn 1
     hand: [
       { name: 'Aquaporin Channels', count: 1 },
       { name: 'Cord Capillary', count: 1 },
@@ -9411,7 +9399,6 @@ const SPECIES = [
     id: 'scleroderma', vibe: 'spore', unlock: 'Complete level 5',
     name: 'Earthball', latin: 'Scleroderma citrinum', img: 'scleroderma-citrinum',
     blurb: 'A tough, chemically defended fungus whose name means <b>"hard skin"</b> — it seals itself inside a thick, warty, leathery rind and holds ground instead of racing for it. It walls off and severs any tissue that rot or grazers reach, so infection never spreads. Where other colonies spend everything on speed, the earthball digs in: slow, armoured and stubborn.',
-    res: { energy: 15, water: 40, phosphorus: 12 },
     hand: [
       { name: 'Sclerotial Crust', count: 2 },
       { name: 'Amputate', count: 2 },
@@ -9442,7 +9429,6 @@ const SPECIES = [
     // §9 before attempting it again.
     artAnim: 'gnomes', artAnimLayers: 2,
     blurb: 'Psilocybe cubensis — the "golden teacher" — is a dung-loving mushroom named for Cuba, where it was first described, and now found all over the planet. Steeped in folklore and psychedelia, it bruises deep indigo and won the Reddit community vote in a landslide. This colony defies the rules of the game itself: every 4 turns a card magically appears in your hand, conjured out of thin air. Nobody\'s quite sure where the cards come from. Best not ask — just go with the flow.',
-    res: { energy: 14, water: 45, phosphorus: 10 },   // a little Energy so the opening grows can actually be played
     hand: [
       { name: 'Rhizomorph Lance', count: 10 },
       { name: 'Turgor Thrust', count: 16 },
@@ -9969,8 +9955,8 @@ function purchaseSpecies(sp, progress) {
 const LADDER = (first, steps) => Array.from({ length: steps }, (_, i) => first * (i + 1));
 const STORE_UPGRADES = [
   // The three resource tracks first, in the game's own energy / water / phosphorus order — the
-  // order the HUD, `resPills` and the detail sheet all use, so the store reads in the order of
-  // the numbers it raises. Ten steps each on a flat +50 ladder (owner).
+  // order the HUD uses, so the store reads in the order of the numbers it raises. Ten steps
+  // each on a flat +50 ladder (owner). These add to the universal base in CONFIG.
   { id: 'energy', name: 'Energy', icon: 'energy', accent: 'energy', step: 3, unit: 'energy',
     effect: 'Start each run with <b>+3 energy</b>.',
     costs: LADDER(50, 10) },
@@ -9982,7 +9968,12 @@ const STORE_UPGRADES = [
     costs: LADDER(50, 10) },
   // ...then the three that shape what you carry out of a run. Twenty steps of basic/event on the
   // same +50 ladder; engines are the expensive half of a deck, so six steps at +200 each.
-  { id: 'carryCards', name: 'Basic/Event Memory', icon: 'cards', accent: 'mint', step: 1, unit: 'cards', unit1: 'card',
+  // BASE 3: every player keeps three basic/event cards before buying anything, the same way
+  // everyone starts with one retry. It belongs here rather than as the `3 +` it used to be at the
+  // run loop, for the reason spelled out on Retries below — with the base at the call site the
+  // tile reads "none yet" about an allowance the player already has, and the track looks like it
+  // does nothing until the first purchase.
+  { id: 'carryCards', name: 'Basic/Event Memory', icon: 'cards', accent: 'mint', step: 1, base: 3, unit: 'cards', unit1: 'card',
     effect: 'Add <b>+1 basic or event card</b> to your deck when your runs end.',
     costs: LADDER(50, 20) },
   { id: 'carryEngines', name: 'Engine Memory', icon: 'engine', accent: 'eng', step: 1, unit: 'engines', unit1: 'engine',
@@ -10006,7 +9997,7 @@ function upgradeLevel(id, progress) {
   return Math.max(0, Math.min(upgradeMax(upgradeById(id)), n));
 }
 // The TOTAL bonus this track is currently granting. `base` is what you have before buying
-// anything — only Retries has one (everyone starts with one retry), and it must be in HERE rather
+// anything — Retries (1) and Basic/Event Memory (3) have one — and it must be in HERE rather
 // than at the run loop, or the tile would say "none yet" about something you already have.
 function upgradeValue(id, progress) {
   const u = upgradeById(id);
@@ -10032,6 +10023,21 @@ function buyUpgrade(id) {
   saveProgress(p);
   return { ok: true, spores: p.spores, level: p.upgrades[id] };
 }
+// What a run actually OPENS with: the universal base from CONFIG plus the store's three resource
+// tracks. One function because two places need the identical number and they drifted the moment
+// they were written twice — the run seeds from `effectiveSpecies` and the picker prints from its
+// detail sheet, and a species that opened with a different figure than the tile promised is not a
+// bug anyone reports, just a game that feels wrong.
+function startingResources(progress) {
+  const b = storeBonuses(progress);
+  const cc = CONFIG.cards || {};
+  return {
+    energy: (CONFIG.energy.start || 0) + b.energy,
+    water: (cc.startWater || 0) + b.water,
+    phosphorus: (cc.startPhosphorus || 0) + b.phosphorus,
+  };
+}
+
 // Every track's total in one object, keyed by track id — what the run loop reads, so a new
 // track reaches every consumer the moment it is in STORE_UPGRADES. One localStorage read.
 function storeBonuses(progress) {
@@ -10144,7 +10150,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -21079,16 +21085,6 @@ function chooseFiveFace(sp) {
   '</div>';
 }
 
-function resPills(res) {
-  const order = [['energy', 'energy'], ['water', 'water'], ['phosphorus', 'phos']];
-  let out = '';
-  for (const [key, icon] of order) {
-    const v = res && res[key]; if (!v) continue;
-    out += '<span class="ss-respill ' + icon + '">' + RI[icon] + '<span class="ss-rv">' + v + '</span>' +
-      '<span class="ss-rk">' + key + '</span></span>';
-  }
-  return out;
-}
 
 // --- shared species detail (inspector) — a single body-level overlay ----------
 let _insp = null;
@@ -21104,7 +21100,7 @@ function inspector() {
         '<p class="ss-d-blurb" id="ssIBlurb"></p>' +
         '<div class="ss-d-special" id="ssISpecial" style="display:none"></div>' +
         '<div class="ss-hand"><h3>Starting hand</h3>' +
-          '<div class="ss-resprow" id="ssIRes"></div><div class="ss-deck" id="ssIHand"></div></div>' +
+          '<div class="ss-deck" id="ssIHand"></div></div>' +
         '<div class="ss-hand ss-carry" id="ssICarry" style="display:none"><h3>Carryovers from your last run</h3>' +
           '<div class="ss-deck" id="ssICarryDeck"></div></div>' +
         '<div class="ss-actions" id="ssIActions"></div>' +
@@ -21157,23 +21153,10 @@ function openSpeciesDetail(species) {
     specialEl.innerHTML = '<span class="ss-d-special-tag">Special</span> ' + esc(species.specialText);
     specialEl.style.display = '';
   } else { specialEl.style.display = 'none'; }
-  // Starting resources INCLUDING the store's permanent energy / water / phosphorus upgrades —
-  // what the player will actually open with, since those apply to every species. The note says
-  // where the difference came from, so a boosted figure never reads as the species' own number.
-  // Must stay in step with main's `effectiveSpecies`, which is what the run really seeds from.
-  const sb = storeBonuses();
-  const baseRes = species.res || {};
-  const res = (sb.energy || sb.water || sb.phosphorus)
-    ? { ...baseRes, energy: (baseRes.energy || 0) + sb.energy,
-        water: (baseRes.water || 0) + sb.water, phosphorus: (baseRes.phosphorus || 0) + sb.phosphorus }
-    : baseRes;
-  const boost = [];
-  if (sb.energy) boost.push('+' + sb.energy + ' energy');
-  if (sb.water) boost.push('+' + sb.water + ' water');
-  if (sb.phosphorus) boost.push('+' + sb.phosphorus + ' phosphorus');
-  const boostTxt = boost.length > 1 ? boost.slice(0, -1).join(', ') + ' and ' + boost[boost.length - 1] : boost[0];
-  ins.wrap.querySelector('#ssIRes').innerHTML = resPills(res) +
-    (boost.length ? '<span class="ss-resnote">includes ' + boostTxt + ' from the Store</span>' : '');
+  // NO RESOURCE PILLS. Starting energy / water / phosphorus are universal — the base in CONFIG
+  // plus the store's three tracks — so printing them on a species card would state, next to that
+  // mushroom's portrait, a number that has nothing to do with which mushroom it is. The store
+  // tiles are where those figures belong, and they already show them.
   ins.wrap.querySelector('#ssIHand').innerHTML = species.hand.map(cardFace).join('') + (species.memory ? chooseFiveFace(species) : '');
   // Universal death-carry: cards the player kept from their last dead run, shown for EVERY
   // species (they join whatever colony you pick). Hidden when there's nothing carried.
@@ -23317,7 +23300,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro } = __m_render_level_intro;
-  const { SPECIES, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -23678,13 +23661,10 @@ const isEngineCard = (name) => ENGINE_CARD_NAMES.has(name);
 // the run opens with. Both read `storeBonuses()`; nothing else needs to know.
 function effectiveSpecies(sp) {
   if (!sp) return sp;
-  let out = sp;
-  const b = storeBonuses();
-  if (b.energy || b.water || b.phosphorus) {
-    const r = sp.res || {};
-    out = { ...out, res: { ...r, energy: (r.energy || 0) + b.energy,
-      water: (r.water || 0) + b.water, phosphorus: (r.phosphorus || 0) + b.phosphorus } };
-  }
+  // `res` is no longer the species' own — it is the universal opening plus whatever the store's
+  // three resource tracks add, so it is the same for every colony the player could have picked.
+  // Still attached to the species object because dealStartingHand seeds from there.
+  let out = { ...sp, res: startingResources() };
   if (sp.memory) {
     const lo = loadoutFor(sp.id);                      // [{name,count}] copies chosen last run
     if (lo.length) out = { ...out, hand: [...(out.hand || []), ...lo] };
@@ -23830,7 +23810,7 @@ function showDeathCarry(r) {
   // the whole allowance on them. showLoadoutSelect already meters the two independently (it
   // does this for Split Gill's 15+2), so the split is free here.
   const store = storeBonuses();
-  const keep = 3 + cleared + store.carryCards;
+  const keep = cleared + store.carryCards;   // the baseline 3 is the track's `base` now
   const keepEng = store.carryEngines;
   // THE POOL IS EVERYTHING THE PLAYER TOUCHED: what they PLAYED, what they DRAFTED, and what
   // they already OWNED coming in. Offering only what was cast made the deck impossible to hold
