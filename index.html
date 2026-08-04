@@ -15238,6 +15238,7 @@ function placeAntNests(substrate, config, cols) {
       target: null, path: [], built: 0, phase: 0, dormant: false,
     };
     retarget(substrate, nest);
+    layTrailFully(nest);      // the ants are already working when the level opens
     return nest;
   });
   setTrailFields(substrate, nests);
@@ -15301,9 +15302,14 @@ function stepAnts(state, phase = 'both') {
     for (const nest of nests) {
       if (nest._finePath) continue;
       nest._finePath = true;
-      if ((nest.built || 0) > 0) continue;
+      // No `built > 0` guard any more: the opening trail is laid WHOLE now (layTrailFully), so
+      // `built` is at its maximum from the first frame and that test would skip every nest —
+      // taking the rock-crossing fix with it. Re-planning stays a once-per-nest event via
+      // `_finePath`, and the replacement is laid whole too, so the route changes in one frame
+      // instead of retracting and creeping back out.
       nest.path = []; nest.built = 0; nest.target = null;
       retarget(sub, nest);
+      layTrailFully(nest);
     }
   }
   const a = state.config.ants;
@@ -15392,6 +15398,20 @@ function recalibrateAnts(state) {
 // (the pile that just emptied) and APPENDED — so the ant line snakes pile-to-pile and
 // grows longer and longer over the run. The very first trail (no path yet) starts at the
 // nest. If nothing is reachable from the trail's end, the line stays put and goes dormant.
+// LAY THE WHOLE LINE, NOW. `built` is how far along its path the column has actually got, and
+// stepAnts creeps it out at ants.extendSpeed — 2 cells a tick in REAL TIME, so a freshly built
+// nest spends its first ~8 ticks growing a stub out of the ground and the player walks into a
+// level where the ants have not started yet. (Turn-based never showed it: MODE_TUNING sets
+// extendSpeed to 999 there, which lays the leg whole the moment it is planned.)
+//
+// Only the OPENING trail is filled in like this. The creep is right for every later leg — when a
+// pile empties, retarget appends a route to the next one and watching the column travel it is
+// the point — so this is called where a nest is first established, not from stepAnts' extend.
+function layTrailFully(nest) {
+  const n = (nest && nest.path && nest.path.length) || 0;
+  if (nest) { nest.built = Math.max(0, n - 1); nest.dormant = false; }
+}
+
 function retarget(sub, nest) {
   const hasPath = nest.path && nest.path.length > 0;
   const from = hasPath ? nest.path[nest.path.length - 1] : { col: nest.col, row: 0 };

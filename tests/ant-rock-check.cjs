@@ -35,9 +35,16 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 // Boot hashes that put an ant nest on the map. The procedural dev start is included because the
 // campaign's own maps are procedural and carry nests from LEVEL_THREATS; the authored one is
 // included because a TRACED map is where the coarse and fine masks disagree most.
+// Both cases are TRACED maps with nests, which is where the coarse cell grid and the drawn
+// sprite disagree most and so where a trail crosses visible rock.
+//
+// The second case used to be the procedural dev start, as a control. That stopped being
+// procedural: `#dev` opens at level 1, campaign slot 1 is now an authored map, and levelDefFor
+// serves it — so the "control" was quietly booting campaign-01, which places no ants at all and
+// reported 0 nests. Named after the level now, so it cannot drift like that again.
 const CASES = [
-  { id: 'antroad', hash: 'level,challenge-antroad,turn', note: 'authored, traced rock' },
-  { id: 'procedural', hash: 'dev,notrich,turn', note: 'procedural dev start' },
+  { id: 'antroad', hash: 'level,challenge-antroad,turn', note: 'authored, 1 nest' },
+  { id: 'campaign-02', hash: 'level,campaign-02-obsidian-c40,turn', note: 'campaign map, 3 nests' },
 ];
 const only = process.argv.slice(2).filter((a) => !a.startsWith('-'));
 const RUN = CASES.filter((c) => !only.length || only.some((o) => c.id.includes(o)));
@@ -61,6 +68,19 @@ const RUN = CASES.filter((c) => !only.length || only.some((o) => c.id.includes(o
     // Nothing below means anything until the fine mask exists — that is the whole subject.
     const solid = await page.waitForFunction(() => window.__game.state.substrate._rockSolidified === true, null, { timeout: 60000 }).then(() => true).catch(() => false);
     ok(`${c.id}: the fine rock mask is built`, solid);
+
+    // THE TRAIL IS ALREADY OUT when the level opens. `built` is how far the column has got
+    // along its path, and stepAnts creeps it at ants.extendSpeed — 2 cells/tick in real time —
+    // so this used to read a stub for the first ~8 ticks and the player entered a level where
+    // the ants had not started. Read BEFORE anything is stepped: the assertion is about the
+    // state the level opens in, so a single tick would hide it.
+    const opening = await page.evaluate(() => (window.__game.state.ants || []).map((n) => ({
+      built: n.built, len: (n.path || []).length, target: !!n.target })));
+    for (const [i, n] of opening.entries()) {
+      ok(`${c.id}: nest ${i}'s trail is fully laid the moment the level opens`,
+        n.len > 1 && n.built >= n.len - 1 - 1e-6,
+        `built ${Math.round(n.built)} of ${n.len - 1} path cells${n.target ? '' : ' (no target!)'}`);
+    }
 
     const nests = await page.evaluate(() => (window.__game.state.ants || []).length);
     ok(`${c.id}: has an ant nest to check`, nests > 0, `${nests} nest(s)`);
