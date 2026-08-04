@@ -1279,6 +1279,48 @@
        the phosphorus violet, --ss-mint, --ss-gold) rather than new hues: the
        style guide spends mint on the player and amber on the ants, and a shop
        inventing a sixth colour is how a screen stops matching. */
+    /* "Your deck · N" — beside the wallet, because both are things you carry between runs.
+       Styled off the wallet chip rather than the Select button: it opens a reader, it doesn't
+       commit to anything. */
+    .ss-headtools { display:inline-flex; align-items:center; gap:11px; margin-left:auto; }
+    .ss-deckbtn { flex:0 0 auto; cursor:pointer; font-family:var(--ss-sans); font-size:12px; font-weight:700;
+      letter-spacing:.13em; text-transform:uppercase; color:var(--ss-mint); background:rgba(8,14,11,0.7);
+      border:1px solid rgba(127,230,163,0.45); border-radius:999px; padding:8px 15px;
+      display:inline-flex; align-items:center; gap:8px;
+      transition:background .16s, border-color .16s, color .16s; }
+    .ss-deckbtn:hover { background:rgba(18,30,23,0.92); border-color:var(--ss-mint); color:var(--ss-mint-hi); }
+    .ss-deckn { font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:0;
+      color:#eef7f1; }
+    .ss-deckbtn.empty { color:var(--ss-ink-dim); border-color:rgba(120,160,140,0.3); }
+    .ss-deckbtn.empty .ss-deckn { color:var(--ss-ink-dim); }
+
+    /* The deck sheet. Same overlay as the species detail (scrim, blur, Escape, click-out) but
+       one column, because a deck is a list and nothing else. */
+    .ss-decksheet { position:relative; width:min(920px,100%); max-height:calc(100vh - clamp(24px,6vw,72px));
+      display:flex; flex-direction:column; background:linear-gradient(160deg, rgba(15,22,20,0.96), rgba(7,11,10,0.98));
+      border:1.5px solid var(--ss-white-rim); border-radius:18px; overflow:hidden;
+      box-shadow:0 0 26px -2px rgba(226,238,232,0.35), 0 40px 90px -30px rgba(0,0,0,0.95);
+      transform:translateY(12px) scale(0.985); opacity:0; transition:transform .28s cubic-bezier(.2,.7,.3,1), opacity .28s; }
+    .ss-detailwrap.open .ss-decksheet { transform:none; opacity:1; }
+    .ss-deckhead { padding:clamp(18px,2.6vw,26px) clamp(20px,3vw,30px) 0; flex:0 0 auto; }
+    .ss-deckhead h2 { font-family:var(--ss-serif); font-size:clamp(22px,3.2vw,30px); font-weight:600;
+      line-height:1.06; color:#eef7f1; margin:0 0 6px; }
+    .ss-decksub { font-size:13.5px; line-height:1.55; color:var(--ss-ink-dim); margin:0; max-width:64ch; }
+    .ss-decksub b { color:var(--ss-ink); font-weight:600; }
+    .ss-deckbody { padding:16px clamp(20px,3vw,30px) clamp(20px,3vw,28px); overflow-y:auto; min-height:0;
+      scrollbar-width:thin; scrollbar-color:rgba(150,185,168,0.5) transparent; }
+    .ss-deckbody::-webkit-scrollbar { width:10px; }
+    .ss-deckbody::-webkit-scrollbar-thumb { background:rgba(150,185,168,0.5); border-radius:999px;
+      border:3px solid transparent; background-clip:padding-box; }
+    /* One sub-heading per card category, so a deck reads as its shape rather than as a pile. */
+    .ss-deckgrp { font-size:11px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase;
+      color:var(--ss-mint); margin:0 0 11px; display:flex; align-items:baseline; gap:10px; }
+    .ss-deckgrp:not(:first-child) { margin-top:20px; }
+    .ss-deckgrp .ss-rule { flex:1; }
+    .ss-deckgrp .n { color:var(--ss-ink-faint); font-weight:600; letter-spacing:0.06em; }
+    .ss-deckempty { font-size:14px; line-height:1.65; color:var(--ss-ink-dim); margin:6px 0 0; max-width:60ch; }
+    .ss-deckempty b { color:var(--ss-ink); font-weight:600; }
+
     /* A tile and the one button that commits to it. The grid's children are SLOTS, not cards,
        so the button sits under the art at the tile's own width and the row's tops still line up
        however tall a name wraps. */
@@ -8585,25 +8627,36 @@ function saveLastDraftEngines(speciesId, list) {
   return p.lastDraftEngines[speciesId];
 }
 
-// --- death-carry (universal consolation cards) ------------------------------
-// When a run ends in death the player picks a few cards they PLAYED to carry into
-// their NEXT run — whatever species they choose. One shared list [{name,count}]
-// (not per species); merged into the next fresh run's starting hand and cleared
-// when that run seeds. See main.js showDeathCarry / withDeathCarry.
-function loadDeathCarry(progress) {
+// --- THE DECK (cards carried between runs) ----------------------------------
+// The campaign's persistent deck: at the end of every run the player curates what to KEEP,
+// from everything they PLAYED, everything they DRAFTED, and everything they already OWNED
+// (the deck they came in with). One shared list [{name,count}] — not per species, because it
+// joins whichever colony is picked next — merged into the next fresh run's starting hand and
+// cleared when that run seeds. See main.js showDeathCarry / withDeathCarry, and the "Your
+// deck" viewer on the selection screen.
+//
+// THE PERSISTED FIELD IS STILL `deathCarry`, deliberately: it started life as a consolation
+// prize for dying and grew into the deck, and renaming the key would strand every existing
+// save for the sake of a word. The FUNCTIONS carry the new name so call sites read true.
+function loadDeck(progress) {
   const p = progress || loadProgress();
   return Array.isArray(p.deathCarry) ? p.deathCarry.filter((e) => e && e.name && e.count > 0) : [];
 }
-function saveDeathCarry(list) {
+function saveDeck(list) {
   const p = loadProgress();
   p.deathCarry = (Array.isArray(list) ? list : []).filter((e) => e && e.name && e.count > 0);
   saveProgress(p);
   return p.deathCarry;
 }
-function clearDeathCarry() {
+function clearDeck() {
   const p = loadProgress();
   p.deathCarry = [];
   saveProgress(p);
+}
+// Total COPIES in the deck (not distinct names) — what the button on the selection screen
+// counts, and the only number that answers "how big is my deck?".
+function deckSize(progress) {
+  return loadDeck(progress).reduce((a, e) => a + (e.count || 0), 0);
 }
 
 // --- Resume-in-progress-run (title "Old" → continue last game) --------------
@@ -8832,7 +8885,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeathCarry, saveDeathCarry, clearDeathCarry, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -19574,7 +19627,7 @@ function growMyceliumTitle(container, opts = {}) {
 
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
-  const { SPECIES, isPlayable, isStarter, sporesBalance, loadProgress, devUnlockAll, defaultStartLevel, loadDeathCarry,
+  const { SPECIES, isPlayable, isStarter, sporesBalance, loadProgress, devUnlockAll, defaultStartLevel, loadDeck, deckSize,
     STORE_UPGRADES, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
@@ -19773,7 +19826,7 @@ function openSpeciesDetail(species) {
   ins.wrap.querySelector('#ssIHand').innerHTML = species.hand.map(cardFace).join('') + (species.memory ? chooseFiveFace(species) : '');
   // Universal death-carry: cards the player kept from their last dead run, shown for EVERY
   // species (they join whatever colony you pick). Hidden when there's nothing carried.
-  const carry = loadDeathCarry();
+  const carry = loadDeck();
   const carryWrap = ins.wrap.querySelector('#ssICarry');
   if (carry.length) {
     ins.wrap.querySelector('#ssICarryDeck').innerHTML = carry.map(cardFace).join('');
@@ -19794,6 +19847,86 @@ function openSpeciesDetail(species) {
   actions.innerHTML = '';
   actions.style.display = 'none';
   ins.wrap.classList.add('open');
+}
+
+// --- "Your deck" -------------------------------------------------------------
+// The cards carried out of the last run, which join whichever colony is picked next. A READER,
+// like the species sheet — nothing here can be spent or changed; the deck is decided at the END
+// of a run, on the keep screen, and this is where you check what you settled on.
+//
+// It reuses `inspector()`'s overlay (scrim, blur, click-out, Escape) rather than declaring a
+// second one, so there is exactly one modal on this screen and the two can never both be open.
+let _deckSheet = null;
+function deckSheet() {
+  if (_deckSheet) return _deckSheet;
+  const wrap = el('div', 'ss-detailwrap'); wrap.id = 'ssDeckWrap'; wrap.style.zIndex = '1006';
+  wrap.innerHTML =
+    '<div class="ss-decksheet" role="dialog" aria-label="Your deck">' +
+      '<button class="ss-close" id="ssDeckClose" aria-label="Close">✕</button>' +
+      '<div class="ss-deckhead"><h2>Your deck</h2><p class="ss-decksub" id="ssDeckSub"></p></div>' +
+      '<div class="ss-deckbody" id="ssDeckBody"></div>' +
+    '</div>';
+  document.body.appendChild(wrap);
+  const close = () => wrap.classList.remove('open');
+  wrap.querySelector('#ssDeckClose').addEventListener('click', close);
+  wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && wrap.classList.contains('open')) close(); });
+  _deckSheet = { wrap, close };
+  return _deckSheet;
+}
+
+// Grouped by the card's `type` — the badge printed on its own face — in play order (basic →
+// event → engine → anything else), because that is the shape a player judges a deck by: how much
+// of it grows, how much of it is engine. Names are alphabetical inside a group, so the list is
+// stable between openings rather than reordering with whatever was played last.
+//
+// NOT by `displayCategory`, whose name lies: it is the DRAFT POOL a card comes from, and it
+// disagrees with `type` on real cards (Rhizomorph Lance is type:event / displayCategory:basic).
+// Grouping by it put an EVENT-badged card under a BASIC heading — two labels contradicting each
+// other three centimetres apart, which is the kind of thing only a rendered frame shows.
+const DECK_GROUPS = [
+  { key: 'basic', label: 'Basic' }, { key: 'event', label: 'Event' },
+  { key: 'engine', label: 'Engine' }, { key: 'action', label: 'Action' },
+];
+function showDeckView() {
+  const sheet = deckSheet();
+  const deck = loadDeck();
+  const total = deck.reduce((a, e) => a + (e.count || 0), 0);
+  const sub = sheet.wrap.querySelector('#ssDeckSub');
+  const body = sheet.wrap.querySelector('#ssDeckBody');
+  if (!deck.length) {
+    sub.innerHTML = 'Nothing carried over yet.';
+    body.innerHTML =
+      '<p class="ss-deckempty">At the end of a run you choose what to <b>keep</b> — from everything you ' +
+      'played, everything you drafted, and whatever you were already carrying. What you keep lands here ' +
+      'and joins <b>whichever colony you pick next</b>.</p>';
+  } else {
+    sub.innerHTML = '<b>' + total + '</b> card' + (total === 1 ? '' : 's') +
+      ' kept from your last run. They join whichever colony you pick, on top of its own opening hand.';
+    const seen = new Set();
+    let html = '';
+    const groupOf = (n) => { const c = CARD_BY_NAME[n]; return (c && c.type) || ''; };
+    const section = (label, list) => {
+      if (!list.length) return '';
+      const n = list.reduce((a, e) => a + e.count, 0);
+      return '<div class="ss-deckgrp">' + esc(label) + '<span class="ss-rule"></span>' +
+        '<span class="n">' + n + '</span></div>' +
+        '<div class="ss-deck">' + list.map(cardFace).join('') + '</div>';
+    };
+    for (const g of DECK_GROUPS) {
+      const list = deck.filter((e) => groupOf(e.name) === g.key).sort((a, b) => a.name.localeCompare(b.name));
+      list.forEach((e) => seen.add(e.name));
+      html += section(g.label, list);
+    }
+    // Anything whose category isn't in the list above still has to appear — a deck viewer that
+    // silently drops a card is worse than one that shows it under a vague heading.
+    const rest = deck.filter((e) => !seen.has(e.name)).sort((a, b) => a.name.localeCompare(b.name));
+    html += section('Other', rest);
+    body.innerHTML = html;
+  }
+  body.scrollTop = 0;
+  sheet.wrap.classList.add('open');
+  return sheet;
 }
 
 // --- a species card tile ------------------------------------------------------
@@ -19940,7 +20073,13 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
       devBtns + mapCol +
       '<header class="ss-head">' +
         '<div class="ss-headrow"><h1>Select your species</h1>' +
-          '<span class="ss-spores ss-wallet" id="ssWallet" title="Spores — earned by finishing levels, spent here"></span></div>' +
+          // Deck + wallet travel together: both are things you carry between runs, and both are
+          // read here rather than changed.
+          '<span class="ss-headtools">' +
+            '<button class="ss-deckbtn" id="ssDeckBtn" type="button" title="The cards you kept from your last run">' +
+              'Your deck<span class="ss-deckn" id="ssDeckN"></span></button>' +
+            '<span class="ss-spores ss-wallet" id="ssWallet" title="Spores — earned by finishing levels, spent here"></span>' +
+          '</span></div>' +
         '<p class="ss-lede">Press a colony to read it. <b>Select</b> to begin a run with it, or spend ' +
           '<b>Spores</b> below on a new colony or a permanent upgrade — upgrades apply to ' +
           '<b>every later run, whatever species you pick</b>.</p>' +
@@ -19969,6 +20108,8 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   function hide() { title.destroy(); root.remove(); }
 
   const wallet = root.querySelector('#ssWallet');
+  const deckBtn = root.querySelector('#ssDeckBtn');
+  const deckN = root.querySelector('#ssDeckN');
   const availGrid = root.querySelector('#ssAvail');
   const saleGrid = root.querySelector('#ssForSale');
   const saleSec = root.querySelector('#ssForSaleSec');
@@ -19980,6 +20121,11 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   function render() {
     const bal = sporesBalance(progress);
     wallet.innerHTML = SPORE_ICON + '<span class="ss-sp-n">' + bal + '</span>';
+    // The count is COPIES, not distinct names — "how big is my deck?" has one answer. Rendered
+    // here rather than once at build time so it follows a wipe or a dev reset.
+    const size = deckSize(progress);
+    deckN.textContent = size;
+    deckBtn.classList.toggle('empty', size === 0);
     // YOUR COLONIES: the opening three, then anything bought — in roster order, so a purchase
     // lands where the species sits in SPECIES rather than at the end in purchase order.
     availGrid.innerHTML = '';
@@ -20003,6 +20149,7 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   function refresh() { progress = loadProgress(); render(); }
 
   render();
+  deckBtn.addEventListener('click', () => showDeckView());
   if (devOn) {
     root.querySelector('#ssDev').addEventListener('click', () => { hide(); onDev && onDev(); });
     root.querySelector('#ssDevUnlock').addEventListener('click', () => { devUnlockAll(); refresh(); });
@@ -20079,7 +20226,7 @@ function showGameWon({ spores, balance, onNewRun }) {
   return { hide, root };
 }
 
-  return { showSpeciesSelect, showLevelComplete, showSpeciesUnlocked, showGameWon };
+  return { showSpeciesSelect, showLevelComplete, showSpeciesUnlocked, showGameWon, showDeckView };
 })();
 
 // ===================== src/render/loadout_select.js =====================
@@ -21785,12 +21932,12 @@ const __m_main = (function () {
   const { NetworkRenderer, drawFruitBodies } = __m_render_network;
   const { Lighting } = __m_render_lighting;
   const { UI, deathText, cardSlug, SPORE_ICON } = __m_render_ui;   // deathText: one table, both death screens
-  const { showSpeciesSelect, showLevelComplete, showGameWon, showSpeciesUnlocked } = __m_render_species_select;
+  const { showSpeciesSelect, showLevelComplete, showGameWon, showSpeciesUnlocked, showDeckView } = __m_render_species_select;
   const { showLoadoutSelect } = __m_render_loadout_select;
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro } = __m_render_level_intro;
-  const { SPECIES, MAX_LEVEL, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeathCarry, saveDeathCarry, clearDeathCarry, loadResume, saveResume, clearResume, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, MAX_LEVEL, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -22084,11 +22231,17 @@ function cardsCampaign() {
   return state && state.config.cards && state.config.cards.enabled && state.mode !== 'puzzle';
 }
 
-// Is this card an ENGINE? Derived from CARD_DATA the same way the drafter's `dcatOf` does it
-// (displayCategory first, then type), because the cards module keeps that test private and a
-// second hard-coded list of engine names is a list that goes stale. Built once — CARD_DATA is
-// embedded JSON and never changes at runtime.
-const ENGINE_CARD_NAMES = new Set(CARD_DATA.filter((c) => (c.displayCategory || c.type) === 'engine').map((c) => c.name));
+// Is this card an ENGINE? By `type`, which is the badge printed on the card face — NOT by
+// `displayCategory`.
+//
+// THOSE TWO FIELDS DISAGREE, PER CARD, AND THE NAME LIES: `displayCategory` is the DRAFT POOL a
+// card is offered from, not how it is displayed. Cord Capillary is `type: engine,
+// displayCategory: event` — an engine card that drafts out of the event pool — and Rhizomorph
+// Lance is the mirror, `type: event, displayCategory: basic`. The cards module's `dcatOf`
+// (displayCategory first) is right for DRAFTING and wrong for anything the player reads, because
+// the face shows `type`. The store sells "+1 engine card", the player counts the ENGINE badges,
+// so this counts those. Built once — CARD_DATA is embedded JSON and never changes at runtime.
+const ENGINE_CARD_NAMES = new Set(CARD_DATA.filter((c) => c.type === 'engine').map((c) => c.name));
 const isEngineCard = (name) => ENGINE_CARD_NAMES.has(name);
 
 // A "memory" species (species.js `memory:true`, e.g. Split Gill) opens with its FIXED
@@ -22121,11 +22274,19 @@ function effectiveSpecies(sp) {
 // any memory loadout, then CONSUME it (one-shot). Only a FRESH run seeds through here; a
 // level-transition reuses the live deck (applyCarry), so the carry never double-applies.
 function withDeathCarry(sp) {
-  const carry = loadDeathCarry();
+  const carry = loadDeck();
+  runDeck = carry;   // ...and REMEMBERED, so the end-of-run screen can offer it back — see below
   if (!carry.length) return sp;
-  clearDeathCarry();
+  clearDeck();
   return { ...(sp || {}), hand: [...((sp && sp.hand) || []), ...carry] };
 }
+
+// What the player OWNED when this run seeded — the deck they brought in. `withDeathCarry`
+// consumes the stored copy (a one-shot, so it can't double-apply across a level transition),
+// so without holding it here an owned card the player never happened to CAST this run would
+// silently fall out of the deck at the end of it. Module-scoped rather than on `state` because
+// it has to survive every level transition inside one run, which rebuilds state.
+let runDeck = [];
 
 // At RUN END with a memory species, REMEMBER this run's NON-ENGINE drafts
 // (state.cards.runDrafted) so the START-of-run loadout picker can offer them next time
@@ -22238,18 +22399,33 @@ function showDeathCarry(r) {
   const store = storeBonuses();
   const keep = 3 + cleared + store.carryCards;
   const keepEng = store.carryEngines;
-  const rp = (state && state.cards && state.cards.runPlayed) || {};
-  const played = Object.keys(rp).filter((n) => rp[n] > 0).map((n) => ({ name: n, count: rp[n] }));
-  // `runPlayed` is one flat tally of everything cast, so the split is made HERE, against the
-  // card data's own display category (the same rule as the drafter's `dcatOf`).
+  // THE POOL IS EVERYTHING THE PLAYER TOUCHED: what they PLAYED, what they DRAFTED, and what
+  // they already OWNED coming in. Offering only what was cast made the deck impossible to hold
+  // on to — an owned card you never happened to draw was gone at the end of the run, so the
+  // deck reset itself every time instead of being a thing you build.
+  //
+  // Copies per name: `owned + drafted` is what was actually ACQUIRED, and `played` is drawn from
+  // it — except that a card can be cast more times than it was acquired (anything that returns
+  // to hand), so the count is the larger of the two. It never inflates past what the player
+  // could plausibly hold and never drops a card they saw.
+  const C = (state && state.cards) || {};
+  const tally = {};
+  const add = (src, take) => { for (const n in (src || {})) if (src[n] > 0) tally[n] = take(tally[n] || 0, src[n]); };
+  const sum = (a, b) => a + b, max = (a, b) => Math.max(a, b);
+  for (const e of runDeck) if (e && e.name && e.count > 0) tally[e.name] = (tally[e.name] || 0) + e.count;   // owned
+  add(C.runDrafted, sum); add(C.runDraftedEngines, sum);                                                     // + drafted
+  add(C.runPlayed, max);                                                                                     // ...or played, whichever is more
+  const all = Object.keys(tally).map((n) => ({ name: n, count: tally[n] }));
+  // The split is made HERE, against the card data's own display category (the same rule as the
+  // drafter's `dcatOf`), because the tally above is one flat list.
   //
   // WITH NO ENGINE TRACK BOUGHT, ENGINES STAY IN THE MAIN POOL — which is where they have
   // always been, spending an ordinary slot. A store must only ever ADD: pulling them out at
   // zero upgrades would quietly take away something every existing save can do today, and
   // "I bought nothing and lost a card" is the one thing a shop can't do. Buying the track
   // moves them to their own metered slots, which is strictly more.
-  const pool = keepEng > 0 ? played.filter((e) => !isEngineCard(e.name)) : played;
-  const enginePool = keepEng > 0 ? played.filter((e) => isEngineCard(e.name)) : [];
+  const pool = keepEng > 0 ? all.filter((e) => !isEngineCard(e.name)) : all;
+  const enginePool = keepEng > 0 ? all.filter((e) => isEngineCard(e.name)) : [];
   const { title, sub } = deathText(r && r.cause);
   const sporeLine = (r && r.runSpores != null)
     ? `<p class="lo-h-spores">${SPORE_ICON}<b>${r.runSpores}</b> earned this run — use them to buy new species</p>` : '';
@@ -22258,7 +22434,7 @@ function showDeathCarry(r) {
     `<p class="lo-h-body">${sub}</p>` +
     sporeLine +
     `<p class="lo-h-instr">Choose ${keep} cards${keepEng > 0 ? ` and ${keepEng} engine${keepEng > 1 ? 's' : ''}` : ''}` +
-      ` you played to bring with you into your next run <span class="lo-h-note">(3 + levels cleared` +
+      ` to keep in your deck for the next run <span class="lo-h-note">(3 + levels cleared` +
       `${store.carryCards ? ` + ${store.carryCards} from the Store` : ''})</span></p>`;
   // Kick off the Top-10 check now (in the background) + record it, so the prompt is ready the
   // instant the player leaves this screen — it shows AFTER Next run / Main menu, not here.
@@ -22270,13 +22446,13 @@ function showDeathCarry(r) {
   showLoadoutSelect({
     drafted: pool, enginePool, fixed: [], maxPick: keep, maxEngines: keepEng, layout: 'death',
     header,
-    upperLabel: 'Cards for your next run',
-    lowerLabel: 'Cards you played this run — click to add',
-    emptyText: 'You didn’t play any cards this run.',
+    upperLabel: 'Your deck for the next run',
+    lowerLabel: 'Played, drafted and already owned — click to add',
+    emptyText: 'Nothing to keep — you played, drafted and owned no cards this run.',
     confirmText: 'Next run',
     secondaryText: 'Main menu',
-    onConfirm: (picked) => { saveDeathCarry(picked); afterDeath(hsPromise, backToPicker); },
-    onSecondary: (picked) => { saveDeathCarry(picked); afterDeath(hsPromise, backToTitle); },
+    onConfirm: (picked) => { saveDeck(picked); afterDeath(hsPromise, backToPicker); },
+    onSecondary: (picked) => { saveDeck(picked); afterDeath(hsPromise, backToTitle); },
   });
 }
 
@@ -22588,6 +22764,12 @@ function showMainMenu() {
         currentLevel = Math.max(1, rs.level | 0);
         runStartLevel = Math.max(1, Math.min(currentLevel, (rs.runStartLevel | 0) || currentLevel));
         carryOver = null; resumeSnapshot = rs;
+        // A resume rebuilds the deck from the snapshot rather than seeding through
+        // `withDeathCarry`, so nothing sets `runDeck` on this path and a previous run's value
+        // would be left standing — the end-of-run screen would then offer cards from a run two
+        // ago. Empty is the honest answer: whatever the player owned is already INSIDE the
+        // snapshot's deck, and reaches the pool through what they play or draft from here.
+        runDeck = [];
         runSpores = 0; for (let l = runStartLevel; l < currentLevel; l++) runSpores += sporesForLevel(l);
         startRun();   // → begin() rebuilds the saved deck via rebuildCardsFromSnapshot
       } else {
@@ -23727,6 +23909,18 @@ function begin(newState) {
       // "can the screen offer this at all?" — what both reveal announcements filter on now that
       // the tier rows are retired, so a check can assert the dead-end is closed.
       obtainable: (sp) => isObtainable(sp),
+    },
+    // THE DECK carried between runs: the model, the viewer, and `runDeck` — what the player owned
+    // when THIS run seeded, which is the part of the end-of-run pool that exists nowhere else
+    // (`withDeathCarry` consumes the stored copy at seed time).
+    deck: {
+      get: () => loadDeck(), set: (list) => saveDeck(list), clear: () => clearDeck(), size: () => deckSize(),
+      view: () => showDeckView(),
+      owned: () => runDeck.slice(),
+      // Seeding a run the way begin() does — loads the deck into the species' hand, REMEMBERS it
+      // in `runDeck` and consumes the stored copy. The only way a probe can set up "I owned this
+      // coming in but never drew it", which is the case the whole `runDeck` variable exists for.
+      seed: (sp) => withDeathCarry(sp),
     },
     // WHOSE TURN IS IT, and the real UI entry points. `play`/`draw`/`skip` below go straight to
     // the engine (that is what every existing check drives, and what the self-play bot needs), so

@@ -517,7 +517,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1543 assertions across 24 checks**, of which `traced` is 818 (one map's worth each). Plus the
+**1560 assertions across 24 checks**, of which `traced` is 818 (one map's worth each). Plus the
 PROBES and PERF TOOLS, which print and never fail — see Loose ends, the Performance section and
 tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -534,7 +534,7 @@ real-time flakes, 1 `rt` worm flake (all four in Loose ends). Note the arithmeti
 sweep. Per-check, measured: traced 818 · threat 114 · edit 116 · rt 69 · enemy 52 · species 42 ·
 mode 33 · harvest 28 · level 27 · scale 26 · fixes 25 · hs 20 · mould 20 · tut 19 · boot 16 ·
 core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 54**, measured on its own run rather than in a sweep.
+plus **store 71**, measured on its own run rather than in a sweep.
 
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
@@ -1507,6 +1507,44 @@ tier rows** — retired on the owner's call, along with `mysteryCard`, `startTag
   foot of the console. Both those rules are gone; the name isn't coming back. Only a rendered
   frame showed it.
 
+### The deck (cards carried between runs)
+
+**The campaign's persistence.** At the end of every run — death or a deliberate stop, both land on
+the same screen — the player curates what to KEEP, and that set joins whichever colony they pick
+next. A **"Your deck · N"** button sits beside the wallet on the selection screen and opens a
+read-only sheet of it.
+
+- **THE KEEP POOL IS PLAYED ∪ DRAFTED ∪ OWNED.** It used to be what you CAST, which made the deck
+  impossible to hold on to: an owned card you never happened to draw was gone at the end of the
+  run, so the deck reset itself every time instead of being a thing you build.
+  - **`runDeck` is the module-scoped memory of what the run OPENED with**, set in
+    `withDeathCarry`. That function CONSUMES the stored deck at seed time (a one-shot, so it can't
+    double-apply across a level transition), so without holding a copy the owned-but-never-drawn
+    case has no record anywhere. It is module-scoped because it must survive every level
+    transition inside one run, which rebuilds `state`. The RESUME path rebuilds from a snapshot
+    instead of seeding, so it sets `runDeck = []` explicitly or a run two ago leaks into the pool.
+  - Copies per name: `owned + drafted`, or `played`, **whichever is larger** — acquisition is the
+    real number, but a card that returns to hand can be cast more often than it was acquired.
+- **The persisted field is still `deathCarry`** — it started as a consolation prize for dying and
+  grew into the deck; renaming the key would strand every save for the sake of a word. The
+  FUNCTIONS carry the new name (`loadDeck` / `saveDeck` / `clearDeck` / `deckSize`).
+- **`deckSize` counts COPIES, not distinct names.** "How big is my deck" has one answer.
+- **`type` AND `displayCategory` DISAGREE PER CARD, AND THE NAME LIES.** `displayCategory` is the
+  DRAFT POOL a card is offered from; `type` is the badge printed on its face. Cord Capillary is
+  `type: engine, displayCategory: event` (an engine that drafts from the event pool); Rhizomorph
+  Lance is the mirror, `type: event, displayCategory: basic`. The cards module's `dcatOf`
+  (displayCategory first) is right for DRAFTING and wrong for anything the player reads. Both of
+  these bit in one session:
+  - the deck sheet grouped by `displayCategory` and filed an **EVENT-badged card under a BASIC
+    heading** — two labels contradicting each other three centimetres apart, visible only in a
+    rendered frame;
+  - `isEngineCard` (the death-carry engine meter) used `dcatOf`, so **Cord Capillary never counted
+    as an engine** and the engine allowance metered an empty pool — a check asserting the meter
+    EXISTS passed on it. Both use `type` now, and `store-check` asserts an engine lands in the
+    engine pool by name.
+- The sheet reuses `inspector()`'s overlay (scrim, blur, click-out, Escape), so there is exactly
+  one modal on the screen and the deck and a species sheet can never both be open.
+
 ### The six upgrade tracks
 
 **A track is a LIST OF PRICES, not a price × a count.** `costs.length` IS the cap, so adding a
@@ -1570,7 +1608,7 @@ a real detail sheet.
   `balance`/`credit`/`reset`/`speciesById`/`playable`, and `effectiveSpecies`/`deathCarry` so a
   check reads the EFFECT rather than the setting — every track here is capped by something
   downstream.
-- `tests/store-check.cjs` (54, ~35s, in the runner) covers the money, the effects, the negative
+- `tests/store-check.cjs` (71, ~40s, in the runner) covers the money, the effects, the negative
   control at zero upgrades, and the screen's shape — 3 owned and 4 for sale, the Select button's
   geometry BELOW its card, no "?" tiles, no tier rows, a detail sheet with exactly one button, and
   that unlocking a colony MOVES it up a section. It also fails on any 4xx or page error.
@@ -1808,7 +1846,7 @@ death was firing; the screen was lying about it.
   DATA, not engine: the maps want re-tracing at a different count or dropping from the
   shortlist, and `rust` only ever converted at c90 (see Generated maps). Every sweep reports
   them; nothing else in `traced`'s 818 fails.
-- Three checks are unreliable and all three are harness-side, not game-side. Re-run before
+- Four checks are unreliable and all four are harness-side, not game-side. Re-run before
   believing any of them.
   - **`tut`'s real-time assertions fail on some runs** — the starter pile hasn't finished
     digesting when the assertion fires, so it reads "0 offer(s), 50 nutrient left" or a bare
@@ -1827,3 +1865,9 @@ death was firing; the screen was lying about it.
   - **`rt` loses one worm assertion** ("once the tissue has appeared the worm can find and eat
     it — eaten=false"), on its long-lived page. Reproduced on the pre-fix build too, so it is
     the harness, not the arrival gate.
+  - **`turn-play`'s "a long turn-based session plays out" dies on some map rolls** — it plays 20
+    real actions and the seed occasionally hands it a run that ends inside them
+    (`over: true, alive: false, turn: 21`). Seen once in a sweep and **5/5 on three runs straight
+    after, same build**. If it wants fixing the lever is spawning it with no threats
+    (`noTrich` / a sandbox map) rather than tuning the action count — the assertion is about the
+    ACTION LOOP surviving 20 plays, not about surviving the map.

@@ -230,7 +230,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     S.buy('carryCards'); S.buy('carryCards');
     seed(); S.deathCarry({ cause: 'devoured', runSpores: 0 }); out.cards = read(); shut();
     S.buy('carryEngines');
-    seed(); S.deathCarry({ cause: 'devoured', runSpores: 0 }); out.eng = read(); shut();
+    seed(); S.deathCarry({ cause: 'devoured', runSpores: 0 }); out.eng = read();
+    // With an engine allowance the pool row shows both categories; the engine has to be there.
+    const row = document.querySelector('#loadoutSelect .lo-list');
+    out.engPool = row ? [...row.querySelectorAll('[data-name]')].map((n) => n.getAttribute('data-name')) : [];
+    out.engHasEngine = out.engPool.includes('Cord Capillary');
+    shut();
     out.bonus = S.bonuses();
     return out;
   }).catch((e) => ({ err: String(e && e.message) }));
@@ -251,6 +256,11 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok('bought engine memory adds a SEPARATE engine meter',
        /engines?/i.test(carry.eng.count || '') && (carry.eng.count || '').includes('/' + carry.bonus.carryEngines),
        `${carry.eng.count} (bonus +${carry.bonus.carryEngines})`);
+    // ...and the engine actually goes IN it. Cord Capillary is `type: engine` but
+    // `displayCategory: event`, so splitting on the draft field left the engine meter permanently
+    // empty and the assertion above passed on an empty pool.
+    ok('an engine card is metered as an engine', carry.engHasEngine === true,
+       `engine pool: ${(carry.engPool || []).join(', ') || 'empty'}`);
   }
 
   // ---- the screen ----------------------------------------------------------
@@ -334,6 +344,130 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      JSON.stringify(hints));
   ok('the hints do not land on top of one another',
      new Set(hints.map((h) => h.top)).size === hints.length, JSON.stringify(hints.map((h) => h.top)));
+
+  // ---- the deck: the button, the count, and the sheet ----------------------
+  // The deck IS the campaign's persistence, so the viewer has to be honest about it: the count is
+  // COPIES not names, the sheet lists every card, and an empty deck teaches the mechanic instead
+  // of showing a blank box.
+  const deckEmpty = await page.evaluate(async () => {
+    window.__game.deck.clear();
+    document.querySelectorAll('#speciesSelect').forEach((n) => n.remove());
+    window.__game.showPicker();
+    await new Promise((r) => setTimeout(r, 400));
+    const btn = document.getElementById('ssDeckBtn');
+    btn.click();
+    await new Promise((r) => setTimeout(r, 350));
+    const wrap = document.getElementById('ssDeckWrap');
+    return { n: document.getElementById('ssDeckN').textContent, dim: btn.classList.contains('empty'),
+             open: !!(wrap && wrap.classList.contains('open')),
+             body: (wrap.querySelector('#ssDeckBody') || {}).textContent || '',
+             faces: wrap.querySelectorAll('#ssDeckBody .ss-gc').length };
+  });
+  ok('an empty deck reads 0 and the button dims', deckEmpty.n === '0' && deckEmpty.dim === true,
+     `"${deckEmpty.n}", dim=${deckEmpty.dim}`);
+  ok('the empty deck explains where cards come from',
+     deckEmpty.open === true && deckEmpty.faces === 0 && /keep/i.test(deckEmpty.body) && /played/i.test(deckEmpty.body),
+     deckEmpty.body.slice(0, 90));
+
+  const deckFull = await page.evaluate(async () => {
+    const g = window.__game;
+    document.querySelector('#ssDeckClose').click();
+    // One of each category, and a card with several copies, so the grouping and the copies
+    // count are both exercised.
+    g.deck.set([{ name: 'Turgor Thrust', count: 4 }, { name: 'Cord Capillary', count: 1 },
+                { name: 'Rhizomorph Lance', count: 2 }]);
+    document.querySelectorAll('#speciesSelect').forEach((n) => n.remove());
+    g.showPicker();
+    await new Promise((r) => setTimeout(r, 400));
+    document.getElementById('ssDeckBtn').click();
+    await new Promise((r) => setTimeout(r, 350));
+    const wrap = document.getElementById('ssDeckWrap');
+    const names = [...wrap.querySelectorAll('#ssDeckBody .ss-gc-name')].map((n) => n.textContent);
+    return { n: document.getElementById('ssDeckN').textContent, size: g.deck.size(),
+             dim: document.getElementById('ssDeckBtn').classList.contains('empty'),
+             names, groups: [...wrap.querySelectorAll('.ss-deckgrp')].map((n) => n.textContent.replace(/\s+/g, ' ').trim()),
+             sub: (wrap.querySelector('#ssDeckSub') || {}).textContent || '',
+             counts: [...wrap.querySelectorAll('#ssDeckBody .ss-gc-count')].map((n) => n.textContent) };
+  });
+  // 4 + 1 + 2 = 7 COPIES across 3 names. A viewer that counts names says 3, which is the bug
+  // this pins: "how big is my deck" has one answer and it is copies.
+  ok('the button counts COPIES, not distinct cards', deckFull.n === '7' && deckFull.size === 7,
+     `button "${deckFull.n}", model ${deckFull.size}, from ${deckFull.names.length} names`);
+  ok('a non-empty deck undims the button', deckFull.dim === false);
+  ok('every card in the deck is shown', deckFull.names.length === 3, deckFull.names.join(', '));
+  // Alphabetical inside a group, so the order is Rhizomorph Lance (2), Turgor Thrust (4), then
+  // the Engine group's Cord Capillary (1). Pinned because a stable order is the point of sorting.
+  ok('copies are shown per card, in a stable order', deckFull.counts.join(',') === '×4,×2,×1',
+     deckFull.counts.join(',') + ' (want ×4,×2,×1: Turgor Thrust, then Event, then Engine)');
+  // Grouped by the card's own `type` badge, in play order — a deck is judged by its shape, not
+  // as a pile. Rhizomorph Lance is the card that pins this: `type: event` but
+  // `displayCategory: basic`, so grouping by the wrong field files an EVENT-badged card under a
+  // BASIC heading and the sheet contradicts itself.
+  ok('the deck is grouped by the card\'s own type badge',
+     deckFull.groups.length === 3 && /^Basic/.test(deckFull.groups[0])
+       && /^Event/.test(deckFull.groups[1]) && /^Engine/.test(deckFull.groups[2]),
+     deckFull.groups.join(' / '));
+  ok('the sheet states the total', /7 cards/.test(deckFull.sub), deckFull.sub.slice(0, 70));
+
+  await page.evaluate(() => { document.querySelector('#ssDeckClose').click(); window.__game.deck.clear(); });
+
+  // ---- the end-of-run pool: played, drafted AND already owned ---------------
+  // The pool used to be what you CAST, which made the deck impossible to hold on to — an owned
+  // card you never drew was gone at the end of the run. All three sources must reach the screen.
+  const keepPool = await page.evaluate(async () => {
+    const g = window.__game;
+    g.deck.clear();
+    const st = g.state;
+    st.cards.runPlayed = { 'Turgor Thrust': 1 };
+    st.cards.runDrafted = { 'Foraging Fan': 2 };
+    st.cards.runDraftedEngines = { 'Cord Capillary': 1 };
+    // What the run seeded with. `withDeathCarry` consumed the stored copy, so this is the only
+    // record of it — the assertion is that showDeathCarry reads it back.
+    const owned = g.deck.owned();
+    g.store.deathCarry({ cause: 'devoured', runSpores: 0 });
+    await new Promise((r) => setTimeout(r, 250));
+    // Death layout = pool on TOP, selection below (showLoadoutSelect's `poolTop`), so the pool
+    // is the FIRST .lo-list. Taking the last one silently reads the empty selection row.
+    const lower = document.querySelector('#loadoutSelect .lo-list');
+    const names = lower ? [...lower.querySelectorAll('[data-name]')].map((n) => n.getAttribute('data-name')) : [];
+    const label = (document.querySelectorAll('#loadoutSelect .lo-label')[0] || {}).textContent || '';
+    const instr = (document.querySelector('#loadoutSelect .lo-h-instr') || {}).textContent || '';
+    document.getElementById('loadoutSelect').remove();
+    return { names, label, instr, ownedAtSeed: owned.length };
+  });
+  ok('cards you PLAYED are offered to keep', keepPool.names.includes('Turgor Thrust'), keepPool.names.join(', '));
+  ok('cards you DRAFTED are offered to keep', keepPool.names.includes('Foraging Fan'), keepPool.names.join(', '));
+  ok('engines you drafted are offered too', keepPool.names.includes('Cord Capillary'), keepPool.names.join(', '));
+  ok('the screen says the pool is played, drafted and owned',
+     /played/i.test(keepPool.label) && /drafted/i.test(keepPool.label) && /owned/i.test(keepPool.label), keepPool.label);
+  ok('it asks you to keep cards for your DECK, not just carry them',
+     /deck/i.test(keepPool.instr), keepPool.instr);
+
+  // The case the whole `runDeck` variable exists for: a card you OWNED coming in but never drew,
+  // never played and never drafted. Seeding consumes the stored deck, so without remembering it
+  // that card is gone at the end of the run and the deck resets itself every time.
+  const ownedKept = await page.evaluate(async () => {
+    const g = window.__game, st = g.state;
+    g.deck.set([{ name: 'Acorn Cache', count: 3 }]);
+    g.deck.seed(g.store.speciesById('marasmius'));   // ← loads, remembers, and CLEARS storage
+    const storedAfterSeed = g.deck.size();
+    st.cards.runPlayed = { 'Turgor Thrust': 1 };     // Acorn Cache never cast, never drafted
+    st.cards.runDrafted = {}; st.cards.runDraftedEngines = {};
+    g.store.deathCarry({ cause: 'devoured', runSpores: 0 });
+    await new Promise((r) => setTimeout(r, 250));
+    const lower = document.querySelector('#loadoutSelect .lo-list');
+    const faces = lower ? [...lower.querySelectorAll('[data-name]')] : [];
+    const acorn = faces.find((n) => n.getAttribute('data-name') === 'Acorn Cache');
+    const out = { storedAfterSeed, offered: !!acorn, names: faces.map((n) => n.getAttribute('data-name')),
+                  remembered: g.deck.owned().length };
+    document.getElementById('loadoutSelect').remove();
+    g.deck.clear();
+    return out;
+  });
+  ok('seeding a run consumes the stored deck', ownedKept.storedAfterSeed === 0, String(ownedKept.storedAfterSeed));
+  ok('but the run REMEMBERS what it opened with', ownedKept.remembered === 1, String(ownedKept.remembered));
+  ok('a card you owned and never drew is still offered to keep',
+     ownedKept.offered === true, ownedKept.names.join(', '));
 
   // ---- the detail sheet: no buttons but the X ------------------------------
   const sheet = await page.evaluate(async () => {
