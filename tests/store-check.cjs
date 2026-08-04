@@ -57,7 +57,8 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // ---- the tracks themselves ------------------------------------------------
   const shape = await page.evaluate(() => {
     const S = window.__game.store;
-    return S.upgrades.map((u) => ({ id: u.id, steps: u.costs.length, step: u.step,
+    return S.upgrades.map((u) => ({ id: u.id, steps: u.costs.length, step: u.step, base: u.base || 0,
+      costs: u.costs.slice(), name: u.name, effect: u.effect,
       rising: u.costs.every((c, i) => i === 0 || c > u.costs[i - 1]) }));
   });
   // Order matters as well as membership: the three resource tracks come first, in the game's own
@@ -70,12 +71,48 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('the resource steps are the ones the owner asked for',
      stepOf('energy') === 3 && stepOf('water') === 5 && stepOf('phosphorus') === 2,
      `energy +${stepOf('energy')}, water +${stepOf('water')}, phosphorus +${stepOf('phosphorus')}`);
+  // The owner set every ladder by hand. Pinned ABSOLUTELY, not as a shape: these are the prices
+  // the store is being played at, and a diff against the previous commit would pass trivially.
+  const track = (id) => shape.find((t) => t.id === id) || {};
+  const ladder = (id) => (track(id).costs || []).join(',');
+  const RES = '50,100,150,200,250,300,350,400,450,500';
+  ok('the three resource tracks are ten steps of +50',
+     ladder('energy') === RES && ladder('water') === RES && ladder('phosphorus') === RES,
+     ladder('energy'));
+  ok('Basic/Event Memory runs the same ladder to twenty',
+     track('carryCards').steps === 20 && ladder('carryCards').startsWith('50,100,150')
+       && ladder('carryCards').endsWith('950,1000'), `${track('carryCards').steps} steps, ${ladder('carryCards')}`);
+  ok('Engine Memory is six steps of +200',
+     ladder('carryEngines') === '200,400,600,800,1000,1200', ladder('carryEngines'));
+  ok('Retries are four steps at 100/250/400/600',
+     ladder('lives') === '100,250,400,600', ladder('lives'));
   ok('every track has at least one step and a per-step value',
      shape.every((s) => s.steps > 0 && s.step > 0), JSON.stringify(shape.map((s) => s.id + ':' + s.steps + 'x' + s.step)));
   // Not a taste judgement: a flat price ladder means the last step of a track costs what the
   // first did, and there is then no reason to ever buy anything else first.
   ok('each track\'s prices rise step by step', shape.every((s) => s.rising),
      shape.filter((s) => !s.rising).map((s) => s.id).join(',') || 'all rising');
+
+  // The tile copy is the owner's, word for word — it is what a player reads to decide.
+  const names = shape.map((t) => t.name).join(' | ');
+  ok('the tracks are named the way the owner named them',
+     names === 'Energy | Water | Phosphorus | Basic/Event Memory | Engine Memory | Retries', names);
+  const sub = (id) => (shape.find((t) => t.id === id) || {}).effect || '';
+  ok('each resource track says what a run starts with',
+     /^Start each run with <b>\+3 energy<\/b>\.$/.test(sub('energy'))
+       && /^Start each run with <b>\+5 water<\/b>\.$/.test(sub('water'))
+       && /^Start each run with <b>\+2 phosphorus<\/b>\.$/.test(sub('phosphorus')),
+     sub('energy') + ' / ' + sub('water') + ' / ' + sub('phosphorus'));
+  ok('the memory tracks say what they add and when',
+     /\+1 basic or event card<\/b> to your deck when your runs end/.test(sub('carryCards'))
+       && /\+1 engine card<\/b> to your deck when your runs end/.test(sub('carryEngines')),
+     sub('carryCards') + ' / ' + sub('carryEngines'));
+  ok('Retries explains what a retry is for',
+     /attempt completing the same level again/.test(sub('lives')), sub('lives'));
+  // Everyone starts with one retry, bought or not — the only track with a base.
+  ok('you start with one retry and nothing else has a base',
+     track('lives').base === 1 && shape.filter((t) => t.base).length === 1,
+     shape.map((t) => t.id + ':' + t.base).join(' '));
 
   const four = await page.evaluate(() => window.__game.store.species().map((s) => s.id + '@' + window.__game.store.speciesCost(s)));
   ok('four colonies are for sale', four.length === 4, four.join(', '));
@@ -107,12 +144,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const steps = S.upgrades.find((u) => u.id === 'lives').costs.length;
     let bought = 0;
     for (let i = 0; i < steps + 3; i++) if (S.buy('lives').ok) bought++;     // over-buy on purpose
-    return { steps, bought, level: S.level('lives'), next: S.nextCost('lives'), value: S.value('lives') };
+    return { steps, bought, level: S.level('lives'), next: S.nextCost('lives'), value: S.value('lives'),
+             base: S.upgrades.find((u) => u.id === 'lives').base || 0 };
   });
   ok('a track stops at its last step however often it is bought',
      maxed.bought === maxed.steps && maxed.level === maxed.steps && maxed.next === null,
      `bought ${maxed.bought} of ${maxed.steps}, level ${maxed.level}, next ${maxed.next}`);
-  ok('a maxed track reports its full bonus', maxed.value === maxed.steps, `+${maxed.value} retries`);
+  // Retries carry a BASE of 1 on top of what is bought — everyone starts with one.
+  ok('a maxed track reports its full bonus, base included',
+     maxed.value === maxed.steps + maxed.base, `+${maxed.value} retries (${maxed.steps} bought + ${maxed.base} base)`);
 
   // A hand-edited (or retuned-away) level must not report a bonus with no price behind it.
   const clamp = await page.evaluate(() => {
@@ -208,8 +248,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
                    && eff.res.energy === base.res.energy,
              bonuses: S.bonuses() };
   });
+  // Every track reads 0 with nothing bought EXCEPT retries, which everyone starts with one of.
   ok('with nothing bought a species opens exactly as it always did',
-     zero.same === true && Object.values(zero.bonuses).every((v) => v === 0), JSON.stringify(zero.bonuses));
+     zero.same === true && ['energy', 'water', 'phosphorus', 'carryCards', 'carryEngines']
+       .every((k) => zero.bonuses[k] === 0) && zero.bonuses.lives === 1, JSON.stringify(zero.bonuses));
 
   // ---- the death-carry caps ------------------------------------------------
   const carry = await page.evaluate(() => {
@@ -300,6 +342,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       pips: root.querySelectorAll('#ssUpg .ss-upg-pip').length,
       buyable: [...root.querySelectorAll('.ss-upg-btn')].filter((b) => !b.disabled).length,
       storeScreen: !!document.getElementById('ssStore'),
+      hints: root.querySelectorAll('.ss-rowhint, .ss-hint').length,
     };
   });
   ok('the species screen opens', !ui.missing);
@@ -310,40 +353,45 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // available for purchase (viewable from the start)".
   ok('three colonies to start with', ui.owned === 3, `${ui.owned}: ${ui.ownNames.join(', ')}`);
   ok('four more for sale, visible from the start', ui.forSale === 4, String(ui.forSale));
-  ok('every owned colony has a Select button', ui.ownBtns.length === 3 && ui.ownBtns.every((t) => t === 'Select'),
-     ui.ownBtns.join(' | '));
+  ok('every available species has a Start Run button',
+     ui.ownBtns.length === 3 && ui.ownBtns.every((t) => t === 'Start Run'), ui.ownBtns.join(' | '));
   ok('every for-sale colony has an Unlock button with a price',
      ui.saleBtns.length === 4 && ui.saleBtns.every((t) => /^Unlock\s*\d+$/.test(t)), ui.saleBtns.join(' | '));
   // "below each is a Select button" — geometry, not just presence.
   ok('the button sits BELOW its card, not inside it', ui.buttonsUnderCards === true);
   ok('no "?" tiles remain', ui.mystery === 0, String(ui.mystery));
   ok('no "Complete level N" tier rows remain', ui.tierRows === 0, ui.headers.join(' / '));
-  ok('three sections: owned, for sale, upgrades',
-     ui.headers.join('|') === 'Your colonies|New colonies|Colony upgrades', ui.headers.join(' / '));
+  ok('the three sections are named the way the owner named them',
+     ui.headers.join('|') === 'Available species|Buy new species|Upgrades', ui.headers.join(' / '));
   ok('six upgrade tiles', ui.tracks === 6, String(ui.tracks));
+  ok('the sections carry no sub-headings any more', ui.hints === 0, String(ui.hints));
   ok('every tile draws one pip per step it has',
      ui.pips === shape.reduce((a, s) => a + s.steps, 0), `${ui.pips} pips vs ${shape.reduce((a, s) => a + s.steps, 0)} steps`);
   ok('affordable steps are clickable', ui.buyable > 0, `${ui.buyable} buyable at 12000 Spores`);
 
-  // A section hint must sit in ITS OWN row label. `.ss-hint` used to be declared twice in the
-  // stylesheet, and the later rule (the "?" tile's unlock line) won with position:absolute +
-  // bottom:9px — so using that class in a header silently stacked every hint on top of the
-  // others at the foot of the console. Both those rules are gone now; the geometry stays
-  // asserted, because no element count would have caught it.
-  const hints = await page.evaluate(() => {
-    const root = document.getElementById('speciesSelect');
-    return [...root.querySelectorAll('.ss-rowlabel')].map((row) => {
-      const h = row.querySelector('.ss-rowhint, .ss-hint');
-      if (!h) return null;
-      const rb = row.getBoundingClientRect(), hb = h.getBoundingClientRect();
-      return { text: h.textContent.trim().slice(0, 22), inside: hb.top >= rb.top - 2 && hb.bottom <= rb.bottom + 2,
-               top: Math.round(hb.top) };
-    }).filter(Boolean);
+  // The dev wallet top-up. It exists so the store can be TRIED — "unlock all" hands you every
+  // species and leaves the shop with nothing to sell, so it is no substitute.
+  const devSpores = await page.evaluate(async () => {
+    const S = window.__game.store;
+    S.reset();
+    document.querySelectorAll('#speciesSelect').forEach((n) => n.remove());
+    window.__game.showPicker();
+    await new Promise((r) => setTimeout(r, 400));
+    const btn = document.getElementById('ssDevSpores');
+    const before = S.balance();
+    if (btn) btn.click();
+    await new Promise((r) => setTimeout(r, 200));
+    const wallet = (document.getElementById('ssWallet') || {}).textContent || '';
+    // ...and it must not have unlocked anything: the store still has four colonies to sell.
+    const forSale = document.querySelectorAll('#ssForSale .ss-slot').length;
+    return { present: !!btn, label: btn ? btn.textContent.trim() : null, before, after: S.balance(), wallet, forSale };
   });
-  ok('each section hint sits inside its own header row', hints.length === 3 && hints.every((h) => h.inside),
-     JSON.stringify(hints));
-  ok('the hints do not land on top of one another',
-     new Set(hints.map((h) => h.top)).size === hints.length, JSON.stringify(hints.map((h) => h.top)));
+  ok('there is a dev button for Spores', devSpores.present === true, devSpores.label);
+  ok('it credits 10,000', devSpores.after === devSpores.before + 10000,
+     `${devSpores.before} → ${devSpores.after}`);
+  ok('...and the wallet on screen follows', /10000/.test(devSpores.wallet), devSpores.wallet);
+  ok('...without unlocking anything, so there is still a store to test',
+     devSpores.forSale === 4, `${devSpores.forSale} still for sale`);
 
   // ---- the deck: the button, the count, and the sheet ----------------------
   // The deck IS the campaign's persistence, so the viewer has to be honest about it: the count is
@@ -359,15 +407,21 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     await new Promise((r) => setTimeout(r, 350));
     const wrap = document.getElementById('ssDeckWrap');
     return { n: document.getElementById('ssDeckN').textContent, dim: btn.classList.contains('empty'),
-             open: !!(wrap && wrap.classList.contains('open')),
+             btn: btn.textContent, open: !!(wrap && wrap.classList.contains('open')),
+             title: (wrap.querySelector('.ss-deckhead h2') || {}).textContent || '',
+             sub: ((wrap.querySelector('#ssDeckSub') || {}).textContent || '').trim(),
              body: (wrap.querySelector('#ssDeckBody') || {}).textContent || '',
              faces: wrap.querySelectorAll('#ssDeckBody .ss-gc').length };
   });
   ok('an empty deck reads 0 and the button dims', deckEmpty.n === '0' && deckEmpty.dim === true,
      `"${deckEmpty.n}", dim=${deckEmpty.dim}`);
-  ok('the empty deck explains where cards come from',
-     deckEmpty.open === true && deckEmpty.faces === 0 && /keep/i.test(deckEmpty.body) && /played/i.test(deckEmpty.body),
-     deckEmpty.body.slice(0, 90));
+  ok('the button is labelled Deck', /^Deck\s*0$/.test((deckEmpty.btn || '').replace(/\s+/g, ' ').trim()),
+     deckEmpty.btn);
+  ok('the sheet is titled Your Deck', deckEmpty.title === 'Your Deck', deckEmpty.title);
+  ok('an empty deck says so, and says where cards come from',
+     deckEmpty.open === true && deckEmpty.faces === 0 && deckEmpty.sub === 'No cards.'
+       && /add a certain number of cards to your deck at the end of each run/i.test(deckEmpty.body),
+     `"${deckEmpty.sub}" / ${deckEmpty.body.slice(0, 70)}`);
 
   const deckFull = await page.evaluate(async () => {
     const g = window.__game;
@@ -507,14 +561,17 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const bal0 = S.balance();
     document.querySelector('#speciesSelect .ss-upg-btn[data-upg="water"]').click();
     await new Promise((r) => setTimeout(r, 150));
-    return { before, after: S.level('water'), spent: bal0 - S.balance(),
+    return { before, bal0, after: S.level('water'), spent: bal0 - S.balance(),
              pipsOn: document.querySelectorAll('#speciesSelect .ss-upg.water .ss-upg-pip.on').length,
              wallet: document.querySelector('#ssWallet').textContent };
   });
   ok('clicking Buy buys one step and re-renders the tile',
      clicked.after === clicked.before + 1 && clicked.pipsOn === clicked.after, JSON.stringify(clicked));
+  // Against the balance READ AT THE TIME, not a number written up the file — an earlier probe
+  // that credits or resets the wallet would otherwise break this from a distance.
   ok('the wallet on screen follows the purchase',
-     clicked.wallet.includes(String(12000 - clicked.spent)), `${clicked.wallet} after spending ${clicked.spent}`);
+     clicked.wallet.includes(String(clicked.bal0 - clicked.spent)),
+     `${clicked.bal0} - ${clicked.spent} → ${clicked.wallet}`);
 
   // Unlocking a colony MOVES it: out of New colonies and up into Your colonies, where its button
   // is now a Select. That is the whole shape of the merged screen in one assertion.

@@ -318,12 +318,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     return before;
   };
 
+  // Buying 2 on top of the base 1 → three retries in the run.
   const withLives = await dieAndShow(3, 2);
-  ok('the run stocks the retries bought in the store', withLives.lives === 2, String(withLives.lives));
+  ok('the run stocks the base retry plus what the store sold', withLives.lives === 3, String(withLives.lives));
   ok('the level records the state it was entered in', !!withLives.entry && withLives.entry.level === 3,
      withLives.entry ? `level ${withLives.entry.level}, ${withLives.entry.hand.length} in hand` : 'no snapshot');
   ok('the death screen offers a retry', withLives.shown === true && withLives.disabled === false, withLives.label);
-  ok('...and says how many are left', /2 left/.test(withLives.label || ''), withLives.label);
+  ok('...and says how many are left', /3 left/.test(withLives.label || ''), withLives.label);
 
   const retried = await page.evaluate(async () => {
     const g = window.__game;
@@ -385,11 +386,37 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      sameMap.retried === sameMap.fresh,
      `level ${sameMap.level} (seed ${sameMap.seed}): retried ${sameMap.retried} vs fresh ${sameMap.fresh}`);
 
-  // Out of retries: still shown, still explained, not usable.
-  const none = await dieAndShow(2, 0);
-  ok('with no retries the option is still on screen', none.shown === true, none.label);
-  ok('...but not usable', none.disabled === true, `disabled=${none.disabled}`);
-  ok('...and says so', /none left/i.test(none.label || ''), none.label);
+  // RUNNING OUT. Everyone starts with one retry now, so zero is only reachable by SPENDING it —
+  // which makes this the more useful test anyway: buy nothing, die, retry, die again.
+  const spent = await page.evaluate(async () => {
+    const g = window.__game;
+    document.querySelectorAll('#loadoutSelect, #levelIntro').forEach((n) => n.remove());
+    g.store.reset();                       // no purchases: the base retry and nothing else
+    g.campaign.play('marasmius', 2);
+    await new Promise((r) => setTimeout(r, 350));
+    const stocked = g.campaign.lives();
+    const toDeath = async () => {
+      g.campaign.endRun();
+      for (let i = 0; i < 60 && !document.getElementById('loadoutSelect'); i++) await new Promise((r) => setTimeout(r, 200));
+      const b = document.getElementById('loTertiary');
+      return { label: b ? b.textContent.trim() : null, disabled: b ? b.disabled : null, shown: !!b };
+    };
+    const first = await toDeath();
+    document.getElementById('loTertiary').click();          // spend the only one
+    for (let i = 0; i < 60; i++) { if (!document.getElementById('loadoutSelect') && !g.state.runOver) break;
+      await new Promise((r) => setTimeout(r, 200)); }
+    await new Promise((r) => setTimeout(r, 300));
+    const after = g.campaign.lives();
+    const second = await toDeath();
+    document.querySelectorAll('#loadoutSelect').forEach((n) => n.remove());
+    return { stocked, first, after, second };
+  });
+  ok('a run with no purchases still gets the one retry everyone starts with',
+     spent.stocked === 1 && /1 left/.test(spent.first.label || ''), `${spent.stocked} — "${spent.first.label}"`);
+  ok('spending it leaves none', spent.after === 0, String(spent.after));
+  ok('with none left the option is still on screen', spent.second.shown === true, spent.second.label);
+  ok('...but not usable', spent.second.disabled === true, `disabled=${spent.second.disabled}`);
+  ok('...and says so', /none left/i.test(spent.second.label || ''), spent.second.label);
   await page.evaluate(() => { document.querySelectorAll('#loadoutSelect').forEach((n) => n.remove()); window.__game.store.reset(); });
 
   // ---- the title screen ------------------------------------------------------

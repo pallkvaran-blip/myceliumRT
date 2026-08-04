@@ -517,7 +517,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1612 assertions across 25 checks**, of which `traced` is 818 (one map's worth each). Plus the
+**1628 assertions across 25 checks**, of which `traced` is 818 (one map's worth each). Plus the
 PROBES and PERF TOOLS, which print and never fail — see Loose ends, the Performance section and
 tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -534,7 +534,7 @@ real-time flakes, 1 `rt` worm flake (all four in Loose ends). Note the arithmeti
 sweep. Per-check, measured: traced 818 · threat 114 · edit 116 · rt 69 · enemy 52 · species 42 ·
 mode 33 · harvest 28 · level 27 · scale 26 · fixes 25 · hs 20 · mould 20 · tut 19 · boot 16 ·
 core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 71** and **campaign 52**, measured on their own runs rather than in a sweep.
+plus **store 85** and **campaign 54**, measured on their own runs rather than in a sweep.
 
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
@@ -660,12 +660,13 @@ Harness traps that have cost real time:
   `reach` 1.4, within one crawl 3.0) — on two map rolls in eight every angle was solid, off-map or
   already in reach, and it bailed with "no out-of-reach spot within one crawl". It tries the twelve
   densest nodes now, so the search is a property of the colony rather than of one node.
-  - **It STILL rolls a bad map occasionally, and the surviving symptom is different**: not the
-    bail, but `AND it ate a full bite on the same step — ate 2, want 4`, i.e. the spot it found
-    has fewer than `strandsPerBite` strands physically within `reach` of where the worm lands.
-    Seen once in a sweep and 114/114 on the two runs straight after, same build. Re-run before
-    believing it; if it needs fixing, the lever is scoring candidate spots by how many strands
-    end up in reach rather than by node density.
+  - **It STILL rolls a bad map occasionally, in three different ways now**: `ate 2, want 4` (the
+    spot found has fewer than `strandsPerBite` strands within `reach` of where the worm lands),
+    the original `no out-of-reach spot within one crawl`, and the MOULD probe's `no clear spot to
+    measure a creep from`. Roughly one run in three across a session; 114/114 on the runs either
+    side, same build. Re-run before believing any of them. The lever for all three is the same and
+    fixed seeds now make it cheap: **boot the probe on a campaign level** instead of a fresh roll,
+    so the geometry is the same every time.
 - **A FIXED SLEEP OR A FIXED COUNT IS A BET ABOUT THE MACHINE.** Two more failed only inside a
   full `run.mjs` sweep and passed standalone, which reads as a regression and is not one:
   `core-check` sampled pixels after `sleep(700)` and got 58 against a gate of 60 because the
@@ -1458,9 +1459,17 @@ speaking the picker's vocabulary). `showSpeciesSelect` renders three sections:
 
 | section | what | the button under each tile |
 |---|---|---|
-| **Your colonies** | `STARTER_SPECIES_IDS` (3) + anything bought | **Select** — starts the run |
-| **New colonies** | `STORE_SPECIES_IDS` (4), minus what's bought | **Unlock ⟨price⟩** |
-| **Colony upgrades** | the six permanent tracks | Buy the next step |
+| **Available species** | `STARTER_SPECIES_IDS` (3) + anything bought | **Start Run** |
+| **Buy new species** | `STORE_SPECIES_IDS` (4), minus what's bought | **Unlock ⟨price⟩** |
+| **Upgrades** | the six permanent tracks | Buy the next step |
+
+The section headers carry **no sub-headings** (owner) — `.ss-rowhint` survives in the stylesheet
+but nothing uses it. The header button reads **"Deck N"**, and the sheet behind it is titled
+**"Your Deck"**; empty, it says "No cards." over one line about where cards come from.
+
+**`Dev: +10,000 spores`** is the third dev button (`#ssDevSpores`, gated with the others). It
+credits the wallet WITHOUT unlocking anything, which is the point — "unlock all" hands you every
+species and leaves the store with nothing to sell, so it cannot be used to try buying.
 
 **The campaign's whole roster is 3 + 4, and all seven are visible from the start** (owner,
 verbatim: *"the campaign mode only has a total of 3 species at start and then 4 more available
@@ -1574,26 +1583,37 @@ read-only sheet of it.
 ### The six upgrade tracks
 
 **A track is a LIST OF PRICES, not a price × a count.** `costs.length` IS the cap, so adding a
-step is appending a number, and the rising curve is the only thing stopping one cheap track being
-the obvious first buy forever. Read a total through **`upgradeValue`**, never as `level × step`
-at the call site.
+step is appending a number. `LADDER(first, steps)` builds the flat arithmetic ones — writing 20
+numbers by hand is 20 chances to fat-finger one. Read a total through **`upgradeValue`**, never as
+`level × step` at the call site: it adds the track's **`base`** too.
 
-| track | per step | steps | first→last |
-|---|---|---|---|
-| `energy` Carbon Reserves | +3 starting energy | 5 | 450 → 3400 |
-| `water` Water Reserves | +5 starting water | 5 | 400 → 3200 |
-| `phosphorus` Phosphate Store | +2 starting phosphorus | 5 | 500 → 3800 |
-| `carryCards` Spore Memory | +1 basic/event carried out of a dead run | 4 | 600 → 3000 |
-| `carryEngines` Cord Memory | +1 engine carried | 3 | 900 → 3000 |
-| `lives` Sclerotia | +1 retry per run | 3 | 1500 → 5000 |
+| track | per step | steps | prices | base |
+|---|---|---|---|---|
+| `energy` Energy | +3 starting energy | 10 | 50 → 500 (+50) | — |
+| `water` Water | +5 starting water | 10 | 50 → 500 (+50) | — |
+| `phosphorus` Phosphorus | +2 starting phosphorus | 10 | 50 → 500 (+50) | — |
+| `carryCards` Basic/Event Memory | +1 basic/event kept | 20 | 50 → 1000 (+50) | — |
+| `carryEngines` Engine Memory | +1 engine kept | 6 | 200 → 1200 (+200) | — |
+| `lives` Retries | +1 retry | 4 | 100 · 250 · 400 · 600 | **1** |
 
-The three resource tracks come **first, in the game's own energy / water / phosphorus order** —
-the order the HUD, `resPills` and the detail sheet all use, so the store reads in the order of the
-numbers it raises. **The steps are owner-set** (+3 / +5 / +2); the PRICES are still placeholders
-and were not rescaled when water went 10 → 5 and phosphorus 4 → 2, so per-Spore value on those two
-halved. Accents come from the palette the shell already declares — energy takes `--ss-gold`
-because that IS the game's energy colour, so `carryEngines` moved to mint beside `carryCards`
-(they are siblings; the icons tell them apart).
+**Every number here is the owner's**, set by hand — the names, the sub-lines, the step sizes and
+the ladders. Two readings worth recording because the brief gave a rule rather than a list:
+Basic/Event is "the same ladder, except it goes to 20", so it continues +50 to 1000; Engine "goes
+to 6" with five prices given, so the sixth follows its own +200 pattern at 1200.
+
+- **`lives` is the only track with a `base`.** Everyone starts with one retry, bought or not, and
+  it belongs in `upgradeValue` rather than at the run loop — otherwise the tile says "none yet"
+  about something you already have. It also means **zero retries is only reachable by SPENDING
+  one**, which is what `campaign-check` now exercises.
+- The three resource tracks come **first, in the game's own energy / water / phosphorus order** —
+  the order the HUD, `resPills` and the detail sheet all use.
+- **Accents and icons come from the game, not from a palette.** Energy takes `--ss-gold` because
+  that IS the game's energy colour; Engine Memory takes **`#e2766c`, the engine cache's red**,
+  matching `.draftmorph.engine`. The two memory glyphs ARE the in-game draft icon — three card
+  frames fanned out of the pile, stroked as outlines, the engine one carrying a small cog — and
+  **Retries is the game's own favicon**, lifted verbatim from the `<link rel="icon">` data URI at
+  the top of the file into `FAVICON_MARK` so the two can never drift. All three draw in
+  `currentColor`, and `.ss-upg-top .ss-ri { color: var(--u-acc) }` feeds each tile's accent in.
 
 **ALL FOUR COLONIES AND EVERY PRICE ARE PLACEHOLDERS** — the shape is the owner's ask, the economy
 has been played against nothing. The colonies are four existing roster entries standing in
@@ -1629,7 +1649,7 @@ a real detail sheet.
   `balance`/`credit`/`reset`/`speciesById`/`playable`, and `effectiveSpecies`/`deathCarry` so a
   check reads the EFFECT rather than the setting — every track here is capped by something
   downstream.
-- `tests/store-check.cjs` (71, ~40s, in the runner) covers the money, the effects, the negative
+- `tests/store-check.cjs` (85, ~40s, in the runner) covers the money, the effects, the negative
   control at zero upgrades, and the screen's shape — 3 owned and 4 for sale, the Select button's
   geometry BELOW its card, no "?" tiles, no tier rows, a detail sheet with exactly one button, and
   that unlocking a colony MOVES it up a section. It also fails on any 4xx or page error.
@@ -1722,7 +1742,7 @@ Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
     through both times — what catches it is asserting the two elements look DIFFERENT
     (`campaign-check` compares computed font-family/colour against the threat tally), and before
     that, looking at a rendered frame.
-- `tests/campaign-check.cjs` (52, ~55s, in the runner) boots once and replays levels through
+- `tests/campaign-check.cjs` (54, ~55s, in the runner) boots once and replays levels through
   `__game.campaign.play`. What it actually guards: the ladder ENDS at 10 and not at 9; level 3
   builds **the same map twice** (if a `Math.random()` gets into the generation path the seeds
   silently stop meaning anything and nothing else notices); and **every level's goal is reachable**
