@@ -2,7 +2,7 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-02-obsidian-c40",
-  "name": "2 — Obsidian",
+  "name": "2 \u2014 Obsidian",
   "campaignLevel": 2,
   "assetsFrom": "obsidian-c40",
   "world": {
@@ -15,7 +15,7 @@
     "startCols": 2,
     "goalCols": 6,
     "summerCols": 7,
-    "clearChannels": true
+    "clearChannels": false
   },
   "traced": {
     "image": "docs/maps/top-obsidian-scatter-c40-1@4x.webp",

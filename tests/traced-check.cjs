@@ -148,6 +148,7 @@ const TRACED = ALL.filter((l) => l && l.traced)
       // channels are cols [0, startCols+1) and the last goalCols+1 — buildLevel's own
       // clearChannel bounds, not the layout numbers, which are one cell narrower.
       const lay = (window.__game.state.levelDef || {}).layout || {};
+      const digsChannels = lay.clearChannels !== false;
       const entryX = (sub.startCols + 1) * cs;
       const goalEdge = sub.worldWidth - ((lay.goalCols != null ? lay.goalCols : 6) + 1) * cs;
       // EPS because a sprite flush with a channel reconstructs as x - w/2 = 107.99999999999999
@@ -157,6 +158,7 @@ const TRACED = ALL.filter((l) => l && l.traced)
       const overlap = sub.levelSprites.filter((s) =>
         (s.x - s.w / 2) < entryX - EPS || (s.x + s.w / 2) > goalEdge + EPS).length;
       const gapL = Math.min(...sub.levelSprites.map((s) => s.x - s.w / 2)) - entryX;
+      // (digsChannels travels out with the rest — see the assertion.)
       const gapR = goalEdge - Math.max(...sub.levelSprites.map((s) => s.x + s.w / 2));
 
       // Density is measured over the DECLARED box, not the played one. An authored map's
@@ -172,6 +174,7 @@ const TRACED = ALL.filter((l) => l && l.traced)
         for (let fc = 0; fc < FC; fc++) if (mask[fr * FC + fc]) solidN++;
 
       return {
+        digsChannels,
         floods: !!f, size: f ? f.n : 0, total: FC * FR,
         reachesGoal: f ? [60, 300, 700].some((dy) => f.reaches(goalX, surfaceY + dy)) : false,
         piles: piles.length, unreachable, overlap,
@@ -184,7 +187,20 @@ const TRACED = ALL.filter((l) => l && l.traced)
     ok(`${ID}: open space runs colony → goal channel`, res.reachesGoal,
       `reachable region is ${Math.round(100 * res.size / res.total)}% of the underground`);
     ok(`${ID}: every food cell is reachable`, res.unreachable === 0, `${res.unreachable} of ${res.piles} sealed off`);
-    ok(`${ID}: no sprite overlaps a pathClear channel`, res.overlap === 0, `${res.overlap} overlapping`);
+    // ONLY WHERE THERE IS A pathClear CHANNEL TO OVERLAP. buildLevel digs the entry and goal
+    // channels and flags them pathClear, which solidifyRock honours as "never solid" — so a
+    // sprite drawn across one is rock you can see and walk through, the worst kind of defect
+    // here because it looks like a wall. A level that sets `clearChannels: false` digs neither,
+    // nothing is flagged pathClear, and the same sprite's alpha is stamped solid like any other:
+    // the rock at the map edge is then simply rock. Asserting the overlap there would report a
+    // hazard the level has deliberately removed — which is exactly what it did for the ten
+    // campaign maps, whose edge rock is placed and meant to collide.
+    if (res.digsChannels) {
+      ok(`${ID}: no sprite overlaps a pathClear channel`, res.overlap === 0, `${res.overlap} overlapping`);
+    } else {
+      ok(`${ID}: edge rock is solid (channels not dug, so nothing is walk-through)`, true,
+        `${res.overlap} sprite(s) reach the map edge, all collidable`);
+    }
     ok(`${ID}: reaches both channels (no free lane down either side)`,
       res.gapL < res.cs && res.gapR < res.cs, `${res.gapL}px / ${res.gapR}px (< ${res.cs} = one cell)`);
     ok(`${ID}: rock covers a playable share`, res.rockPct > 15 && res.rockPct < 60, `${res.rockPct}% solid`);

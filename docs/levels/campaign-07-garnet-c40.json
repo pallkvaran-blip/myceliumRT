@@ -2,7 +2,7 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-07-garnet-c40",
-  "name": "7 — Garnet",
+  "name": "7 \u2014 Garnet",
   "campaignLevel": 7,
   "assetsFrom": "garnet-c40",
   "world": {
@@ -15,7 +15,7 @@
     "startCols": 2,
     "goalCols": 6,
     "summerCols": 7,
-    "clearChannels": true
+    "clearChannels": false
   },
   "traced": {
     "image": "docs/maps/top-garnet-scatter-c40-1@4x.webp",
