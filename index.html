@@ -1961,6 +1961,10 @@ const CONFIG = {
   // 'turn' = the original turn-based Mycelium; 'realtime' = the RT variant. Chosen on the
   // title screen (setMode below, which also swaps in that mode's balance tuning).
   mode: 'realtime',
+  // 'survival' | 'campaign' — the second axis (see setGame). Survival is the default because it
+  // is what every boot hash and every existing save means; the title screen's Campaign row is
+  // the only thing that flips it.
+  game: 'survival',
 
   // ---- Real-time clock (RT variant) ---------------------------------------
   // In REAL-TIME mode the whole world advances on a wall clock instead of once per
@@ -2684,6 +2688,23 @@ function setMode(mode) {
   return m;
 }
 
+// --- WHICH GAME: survival or campaign ---------------------------------------
+// A SECOND axis, orthogonal to turn/real-time, and the title screen offers both:
+//   'survival' — the original ladder. 100 levels, threats compounding into the unwinnable past
+//                ~L35, a fresh procedural map every level. A high-score ladder.
+//   'campaign' — ten levels, one FIXED MAP each, and it ends. TURN-BASED ONLY (owner).
+//
+// They share everything meta: one Spores wallet, one store, one deck, one species roster. The
+// only differences are the ladder's LENGTH, whether a level's map is fixed, and whether the run
+// records a high score. Set BEFORE a run begins, exactly like setMode — `state.config` is a deep
+// clone taken at run start, and the resume slot is keyed off both axes.
+function setGame(game) {
+  const g = game === 'campaign' ? 'campaign' : 'survival';
+  CONFIG.game = g;
+  return g;
+}
+const isCampaignGame = (cfg) => ((cfg || CONFIG).game === 'campaign');
+
 // --- ROUNDS → SECONDS in player-facing text ---------------------------------
 // Every card description (and a few log messages) is authored in ROUNDS — the turn-based
 // unit — e.g. "Gain +1 Water every 6 rounds". In REAL TIME a round is instead a fixed slice
@@ -2726,7 +2747,7 @@ function setByPath(obj, path, value) {
   target[last] = value;
 }
 
-  return { CONFIG, SLIDERS, MODE_TUNING, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode };
+  return { CONFIG, SLIDERS, MODE_TUNING, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode, setGame, isCampaignGame };
 })();
 
 // ===================== src/cards-data.js =====================
@@ -8744,17 +8765,23 @@ function deckSize(progress) {
 // turn-based key is the original one, so an existing save still resumes after this update.
 const RESUME_KEY = 'mycelium.resume.v1';
 const RESUME_KEY_RT = 'mycelium.resume.rt.v1';
-function resumeKey(mode) {
+// ...and the CAMPAIGN is a third slot. It is turn-based only, so there is one of it — but it
+// must not share the turn-based key, or starting a campaign would clobber the half-finished
+// Survival run the title screen is still offering to continue (and vice versa). The two
+// original keys keep their names so existing saves still resume.
+const RESUME_KEY_CAMPAIGN = 'mycelium.resume.campaign.v1';
+function resumeKey(mode, game) {
+  if ((game || CONFIG.game) === 'campaign') return RESUME_KEY_CAMPAIGN;
   return (mode || CONFIG.mode) === 'turn' ? RESUME_KEY : RESUME_KEY_RT;
 }
-function loadResume(mode) {
-  try { const s = localStorage.getItem(resumeKey(mode)); return s ? JSON.parse(s) : null; } catch (_) { return null; }
+function loadResume(mode, game) {
+  try { const s = localStorage.getItem(resumeKey(mode, game)); return s ? JSON.parse(s) : null; } catch (_) { return null; }
 }
-function saveResume(snap, mode) {
-  try { localStorage.setItem(resumeKey(mode), JSON.stringify(snap)); } catch (_) { /* ignore quota/serialize errors */ }
+function saveResume(snap, mode, game) {
+  try { localStorage.setItem(resumeKey(mode, game), JSON.stringify(snap)); } catch (_) { /* ignore quota/serialize errors */ }
 }
-function clearResume(mode) {
-  try { localStorage.removeItem(resumeKey(mode)); } catch (_) {}
+function clearResume(mode, game) {
+  try { localStorage.removeItem(resumeKey(mode, game)); } catch (_) {}
 }
 // Buy a revealed species with Spores. Returns { ok, spores } — ok=false if it can't
 // be bought (not revealed, already owned, or too few Spores).
@@ -20577,11 +20604,14 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
           '</div>' +
         '</div>' +
       '</div>' +
+      // CAMPAIGN, the second game: ten levels, one fixed map each, and it ends. TURN-BASED ONLY
+      // (owner), so it keeps the single New/Old pair it was drawn with rather than the split the
+      // Survival block needs — the "turn-based" line under the title is what says so.
       '<div class="ts-block ts-bottom">' +
         '<div class="ts-actions">' +
-          '<span class="ts-btn ts-sm ts-locked">New</span>' +
-          '<div class="ts-modewrap"><div class="ts-mode ts-locked">Campaign</div><div class="ts-soon">coming soon</div></div>' +
-          '<span class="ts-btn ts-sm ts-locked">Old</span>' +
+          '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNewCamp" type="button">New</button></span>' +
+          '<div class="ts-modewrap"><div class="ts-mode">Campaign</div><div class="ts-soon">10 levels &middot; turn-based</div></div>' +
+          '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsContCamp" type="button">Old</button></span>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -21156,7 +21186,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
   // Start → onNew(name); Cancel/backdrop/Esc → dismiss.
   // `btn` is the New the player pressed (turn-based or real time — it's the word that grows
   // on the way in), and `mode` is the game that button starts.
-  function newGameDialog(btn, mode) {
+  function newGameDialog(btn, mode, game) {
     if (consuming || finished) return;
     const erase = hasProgress();
     const back = el('div', 'ts-confirm');
@@ -21179,7 +21209,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
       if (consuming || finished) return;
       const nm = input.value;
       close();
-      consume(btn, () => onNew && onNew(nm, mode));
+      consume(btn, () => onNew && onNew(nm, mode, game));
     }
     back.querySelector('#tsNameStart').addEventListener('click', start);
     back.querySelector('#tsNameCancel').addEventListener('click', close);
@@ -21189,12 +21219,16 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     setTimeout(() => { try { input.focus(); input.select(); } catch (_) {} }, 60);
   }
 
-  // Two games, four buttons: New/Old for the turn-based original and for the real-time
-  // variant. The mode travels with the callback (main.js sets it before building the run).
-  [['#tsNew', '#tsCont', 'turn'], ['#tsNewRt', '#tsContRt', 'realtime']].forEach(([nSel, cSel, mode]) => {
+  // Three entries, two games. The campaign is turn-based only, so it passes 'turn' with
+  // game 'campaign'; everything downstream keys off the pair, including which resume slot
+  // "Old" reads.
+  [['#tsNew', '#tsCont', 'turn', 'survival'],
+   ['#tsNewRt', '#tsContRt', 'realtime', 'survival'],
+   ['#tsNewCamp', '#tsContCamp', 'turn', 'campaign']].forEach(([nSel, cSel, mode, game]) => {
     const nb = root.querySelector(nSel), cb = root.querySelector(cSel);
-    nb.addEventListener('click', () => { newGameDialog(nb, mode); });
-    cb.addEventListener('click', () => consume(cb, () => onContinue && onContinue(mode)));
+    if (!nb || !cb) return;
+    nb.addEventListener('click', () => { newGameDialog(nb, mode, game); });
+    cb.addEventListener('click', () => consume(cb, () => onContinue && onContinue(mode, game)));
   });
 
   let rt = 0;
@@ -22014,7 +22048,7 @@ function showCredits({ onClose } = {}) {
 
 // ===================== src/main.js =====================
 const __m_main = (function () {
-  const { CONFIG, MODE_TUNING, isRealtime, setMode, timeify, roundsToTime } = __m_config;
+  const { CONFIG, MODE_TUNING, isRealtime, setMode, setGame, isCampaignGame, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
   const { levelForNumber, allLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
@@ -22033,7 +22067,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro } = __m_render_level_intro;
-  const { SPECIES, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -22280,13 +22314,13 @@ function start(seed) {
   begin(def ? createLevelState(cfg, seed, def) : createState(cfg, seed));
 }
 // A CAMPAIGN level is a fixed map: its seed comes from the ladder, so level 3 is the same shape
-// every time — including after a death, which is the point of a campaign you can learn. Anything
-// off the ladder (the dev quick-start, an authored-map playtest, a level past the end) keeps the
-// old clock seed and rolls a fresh world.
+// every time — including after a death, which is the point of a campaign you can learn.
 //
-// `chosenSpecies` is the "is this a real run?" test the rest of main.js already uses; a playtest
-// brings its own geometry, so a seed would decide nothing there anyway.
-function campaignRun() { return !!chosenSpecies && !playtestLevel; }
+// SURVIVAL is the other game and keeps everything it had: 100 levels, a fresh procedural map
+// every time, high scores. So this gates on the GAME as well as on "is this a real run?" —
+// `chosenSpecies` is the test the rest of main.js already uses, and a playtest brings its own
+// geometry, so a seed would decide nothing there anyway.
+function campaignRun() { return !!chosenSpecies && !playtestLevel && isCampaignGame(); }
 
 // Called at the start of a fresh RUN (not a level): stock the retries bought in the store and
 // drop the previous run's entry snapshot. Deliberately not folded into `startRun`, which runs
@@ -22591,7 +22625,12 @@ function showDeathCarry(r) {
   // RECORDING happens in `afterDeath`, not here, and the difference is the retry: this screen no
   // longer means the run is over. Recording on resolve would file a score for a run the player
   // then continued — and file it again at the real end, from a level they had already beaten.
-  const hsPromise = (cardsCampaign() && chosenSpecies)
+  // SURVIVAL scores; the campaign does not. The board ranks how DEEP you got, which is the
+  // whole point of a 100-level ladder that turns unwinnable — over ten levels it would rank
+  // everyone who finished at 10 and pollute the ladder with runs that were never trying to go
+  // deep. A campaign board wants a different measure (did you finish, with what) and its own
+  // table; the two-mode split in the leaderboard SQL is already an open migration.
+  const hsPromise = (cardsCampaign() && chosenSpecies && !isCampaignGame())
     ? checkHighScore({ level: currentLevel, species: chosenSpecies.id, speciesName: chosenSpecies.name, mode: CONFIG.mode })
         .catch(() => null)
     : Promise.resolve(null);
@@ -22922,12 +22961,16 @@ function showMainMenu() {
     // one world step per action) or 'realtime'. Applying it FIRST matters — it swaps in that
     // mode's balance tuning, and every mode-dependent rule reads it from CONFIG onward.
     // The tutorial runs ONCE — the first time NEW is pressed (arm it here if unseen).
-    onNew: (name, mode) => { setMode(mode); savePlayerName(name); resetProgress(); clearResume(); tutorialPending = true; showPicker(); },
+    // A new game wipes ALL unlock progress (the wallet, the deck, the store) — it always has,
+    // and it is shared between the two games, so it is wiped whichever one you start. Only the
+    // resume slot being cleared is per-game: the OTHER game's half-finished run is not this
+    // game's business, and clearResume reads CONFIG.game, so setGame has to come first.
+    onNew: (name, mode, game) => { setMode(mode); setGame(game); savePlayerName(name); resetProgress(); clearResume(); tutorialPending = true; showPicker(); },
     // "Old" = continue last game: if a mid-run level was saved (tab closed mid-run),
     // re-enter that level (fresh map, saved deck); otherwise fall back to the picker.
     // Each mode has its OWN continue slot, so "Old" resumes that mode's run.
-    onContinue: (mode) => {
-      setMode(mode);
+    onContinue: (mode, game) => {
+      setMode(mode); setGame(game);
       const rs = loadResume();
       const sp = (rs && rs.v === 1 && rs.cards) ? SPECIES.find((s) => s.id === rs.speciesId) : null;
       if (rs && sp) {
@@ -24059,6 +24102,8 @@ function begin(newState) {
     // bonuses the run loop actually reads), so an assertion about what a purchase did never has
     // to scrape a tile.
     showPicker: () => showPicker(),
+    showTitle: () => backToTitle(),
+    resumeKey: () => resumeKey(),
     store: {
       upgrades: STORE_UPGRADES,
       level: upgradeLevel, value: upgradeValue, nextCost: upgradeNextCost, buy: buyUpgrade,
@@ -24092,6 +24137,7 @@ function begin(newState) {
       play: (id, level) => {
         const sp = SPECIES.find((x) => x.id === id);
         if (!sp) return false;
+        setGame('campaign');   // the title screen's Campaign row does this; without it the run is Survival
         playtestLevel = null; chosenSpecies = sp;
         currentLevel = Math.max(1, (level | 0) || CAMPAIGN_START_LEVEL); runStartLevel = currentLevel;
         carryOver = null; runSpores = 0;

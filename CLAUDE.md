@@ -517,7 +517,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1602 assertions across 25 checks**, of which `traced` is 818 (one map's worth each). Plus the
+**1609 assertions across 25 checks**, of which `traced` is 818 (one map's worth each). Plus the
 PROBES and PERF TOOLS, which print and never fail — see Loose ends, the Performance section and
 tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -534,7 +534,7 @@ real-time flakes, 1 `rt` worm flake (all four in Loose ends). Note the arithmeti
 sweep. Per-check, measured: traced 818 · threat 114 · edit 116 · rt 69 · enemy 52 · species 42 ·
 mode 33 · harvest 28 · level 27 · scale 26 · fixes 25 · hs 20 · mould 20 · tut 19 · boot 16 ·
 core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 71** and **campaign 42**, measured on their own runs rather than in a sweep.
+plus **store 71** and **campaign 49**, measured on their own runs rather than in a sweep.
 
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
@@ -1634,7 +1634,41 @@ a real detail sheet.
   geometry BELOW its card, no "?" tiles, no tier rows, a detail sheet with exactly one button, and
   that unlocking a colony MOVES it up a section. It also fails on any 4xx or page error.
 
-## The campaign (implemented)
+## Two games on the title screen: Survival and Campaign
+
+**`CONFIG.game` is a SECOND axis, orthogonal to turn/real-time**, applied by `setGame()` and set
+before a run begins (like `setMode` — `state.config` is a deep clone taken at run start):
+
+| | Survival | Campaign |
+|---|---|---|
+| entry | Turn-based New/Old **+** Real time New/Old | one New/Old, **turn-based only** (owner) |
+| levels | 100 (`MAX_LEVEL`), unwinnable past ~35 | **10** (`CAMPAIGN_LEVELS`), and it ends |
+| maps | a fresh procedural roll every level | one **fixed seed** per level |
+| high scores | yes | **no** — see below |
+| resume slot | `mycelium.resume.v1` / `.rt.v1` | `mycelium.resume.campaign.v1` |
+
+They share EVERYTHING meta: one Spores wallet, one store, one deck, one species roster, one
+selection screen. Only the ladder's length, whether the map is fixed, and whether the run scores
+differ. **`campaignRun()` is the gate** (`chosenSpecies && !playtestLevel && isCampaignGame()`),
+so flipping the flag flips the behaviour and nothing else has to know.
+
+- **The title screen's Campaign row was a locked "coming soon" placeholder** the owner had drawn.
+  It is a real entry now — `#tsNewCamp` / `#tsContCamp`, the same treatment as the Survival pairs,
+  with "10 levels · turn-based" where "coming soon" was. `newGameDialog` and `onContinue` carry
+  `(mode, game)`.
+- **The campaign needs its own resume slot** or starting one clobbers the half-finished Survival
+  turn-based run the title screen is still offering to continue. The two original keys keep their
+  names so existing saves still resume.
+- **A new game still wipes ALL unlock progress** (wallet, deck, store) — it always has, and that
+  is shared, so it goes whichever game you start. Only the resume clearing is per-game, and
+  `clearResume` reads `CONFIG.game`, so **`setGame` must be called before it**.
+- **THE CAMPAIGN RECORDS NO HIGH SCORE.** The board ranks how DEEP you got, which is the whole
+  point of a ladder that turns unwinnable; over ten levels it would rank everyone who finished at
+  10 and pollute it with runs that were never trying to go deep. A campaign board wants a
+  different measure and its own table — the leaderboard's two-mode split is already an open
+  migration, so this is a third column for whoever writes it.
+
+## The campaign itself
 
 **Ten levels, and each one is a specific map.** `CAMPAIGN_LEVELS = 10` in the species module.
 Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
@@ -1679,7 +1713,7 @@ Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
     through both times — what catches it is asserting the two elements look DIFFERENT
     (`campaign-check` compares computed font-family/colour against the threat tally), and before
     that, looking at a rendered frame.
-- `tests/campaign-check.cjs` (42, ~45s, in the runner) boots once and replays levels through
+- `tests/campaign-check.cjs` (49, ~45s, in the runner) boots once and replays levels through
   `__game.campaign.play`. What it actually guards: the ladder ENDS at 10 and not at 9; level 3
   builds **the same map twice** (if a `Math.random()` gets into the generation path the seeds
   silently stop meaning anything and nothing else notices); and **every level's goal is reachable**
@@ -1921,8 +1955,8 @@ death was firing; the screen was lying about it.
   DATA, not engine: the maps want re-tracing at a different count or dropping from the
   shortlist, and `rust` only ever converted at c90 (see Generated maps). Every sweep reports
   them; nothing else in `traced`'s 818 fails.
-- Three checks are unreliable and all three are harness-side, not game-side. Re-run before
-  believing any of them. (`turn-play` was a fourth and is fixed — see below.)
+- Four checks are unreliable and all four are harness-side, not game-side. Re-run before
+  believing any of them. (`turn-play` was a fifth and is fixed — see below.)
   - **`tut`'s real-time assertions fail on some runs** — the starter pile hasn't finished
     digesting when the assertion fires, so it reads "0 offer(s), 50 nutrient left" or a bare
     `null`. Three of its 19 failed on the last sweep, five on an earlier one.
@@ -1937,6 +1971,12 @@ death was firing; the screen was lying about it.
     never dumped. A `passed + failed === 0` guard in `run.mjs` would turn every future
     zero-coverage bail into a visible break, and no check legitimately asserts nothing. Not done
     — it would change what a sweep reports, so it wants the owner's nod first.
+  - **`hover`'s "the bar FILLS as the round clock advances" reads BACKWARDS on some runs**
+    (`fill 26.7% → 20.8%`). Headless throttles rAF toward 1-2 Hz and doesn't advance CSS
+    transitions on its own, which is the trap CLAUDE.md's testing section already describes —
+    this is that trap landing on a real assertion. 6/6 on three consecutive runs after each
+    sighting; seen in two sweeps. If it wants fixing, assert the fill's ORDER via a
+    MutationObserver rather than sampling it twice.
   - **`rt` loses one worm assertion** ("once the tissue has appeared the worm can find and eat
     it — eaten=false"), on its long-lived page. Reproduced on the pre-fix build too, so it is
     the harness, not the arrival gate.

@@ -92,6 +92,30 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     };
   });
 
+  // ---- two games, one build -------------------------------------------------
+  // Survival and Campaign are separate: the campaign is ten levels with fixed maps and no high
+  // score, Survival is the 100-level ladder it always was. Everything below hangs off that flag,
+  // so if it stops travelling from the title screen the campaign silently becomes Survival.
+  const games = await page.evaluate(async () => {
+    const g = window.__game, cfg = window.__cfg;
+    const was = cfg.game;
+    const read = () => ({ game: cfg.game, isRun: g.campaign.isRun(),
+                          seed: g.campaign.seed(3), resumeKey: g.resumeKey ? g.resumeKey() : null });
+    g.campaign.play('marasmius', 3);
+    await new Promise((r) => setTimeout(r, 250));
+    const camp = read();
+    // Survival: the same species run, the other game.
+    cfg.game = 'survival';
+    const surv = { game: cfg.game, isRun: g.campaign.isRun() };
+    cfg.game = was;
+    return { camp, surv };
+  });
+  ok('a campaign run knows it is one', games.camp.game === 'campaign' && games.camp.isRun === true,
+     JSON.stringify(games.camp));
+  // The flag is the ONLY thing separating them, so flipping it must flip the behaviour.
+  ok('the same run under Survival is not a campaign run', games.surv.isRun === false,
+     JSON.stringify(games.surv));
+
   // ---- the shape ------------------------------------------------------------
   const shape = await page.evaluate(() => {
     const c = window.__game.campaign;
@@ -367,6 +391,44 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('...but not usable', none.disabled === true, `disabled=${none.disabled}`);
   ok('...and says so', /none left/i.test(none.label || ''), none.label);
   await page.evaluate(() => { document.querySelectorAll('#loadoutSelect').forEach((n) => n.remove()); window.__game.store.reset(); });
+
+  // ---- the title screen ------------------------------------------------------
+  // The Campaign row used to be locked and say "coming soon". It is a real entry now: its own
+  // New/Old, turn-based only, and its own resume slot so starting a campaign can't clobber a
+  // half-finished Survival run (and vice versa).
+  const title = await page.evaluate(async () => {
+    document.querySelectorAll('#titleScreen, #speciesSelect, #loadoutSelect').forEach((n) => n.remove());
+    window.__game.showTitle();
+    for (let i = 0; i < 40 && !document.getElementById('titleScreen'); i++) await new Promise((r) => setTimeout(r, 150));
+    const root = document.getElementById('titleScreen');
+    if (!root) return { missing: true };
+    const modes = [...root.querySelectorAll('.ts-mode')].map((n) => n.textContent.trim());
+    const camp = root.querySelector('#tsNewCamp'), old = root.querySelector('#tsContCamp');
+    const locked = root.querySelectorAll('.ts-locked').length;
+    const soon = [...root.querySelectorAll('.ts-soon')].map((n) => n.textContent.trim());
+    return { modes, hasNew: !!camp, hasOld: !!old, locked, soon,
+             ids: ['tsNew', 'tsCont', 'tsNewRt', 'tsContRt', 'tsNewCamp', 'tsContCamp']
+               .filter((id) => !!root.querySelector('#' + id)) };
+  });
+  ok('the title screen offers both games', !title.missing && title.modes.join('/') === 'Survival/Campaign',
+     (title.modes || []).join(' / '));
+  ok('Campaign has its own New and Old', title.hasNew === true && title.hasOld === true,
+     (title.ids || []).join(', '));
+  ok('nothing on the title screen is locked any more', title.locked === 0, String(title.locked));
+  ok('...and it says what the campaign is', /10 levels/.test((title.soon || []).join(' ')) &&
+     /turn-based/i.test((title.soon || []).join(' ')), (title.soon || []).join(' | '));
+  // Three slots, not two: Survival turn-based, Survival real-time, Campaign.
+  const slots = await page.evaluate(() => {
+    const g = window.__game, cfg = window.__cfg, was = { m: cfg.mode, g: cfg.game };
+    const key = (m, gm) => { cfg.mode = m; cfg.game = gm; return g.resumeKey(); };
+    const out = { survTurn: key('turn', 'survival'), survRt: key('realtime', 'survival'),
+                  camp: key('turn', 'campaign') };
+    cfg.mode = was.m; cfg.game = was.g;
+    return out;
+  });
+  ok('the campaign keeps its own continue slot',
+     new Set(Object.values(slots)).size === 3, JSON.stringify(slots));
+  await page.evaluate(() => document.querySelectorAll('#titleScreen').forEach((n) => n.remove()));
 
   // The menu's own label for it — a campaign exit that banks a deck, not a rage-quit.
   const label = await page.evaluate(() => {
