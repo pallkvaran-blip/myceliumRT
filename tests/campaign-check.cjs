@@ -246,16 +246,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     window.__game.showPicker();
     await new Promise((r) => setTimeout(r, 500));
     const root = document.getElementById('speciesSelect');
-    const lede = (root.querySelector('.ss-lede') || {}).textContent || '';
-    // Read the level each Select button would start on, without actually starting three runs.
     const before = window.__game.campaign.level();
     root.querySelector('#ssAvail .ss-slot:last-child .ss-selbtn').click();
     await new Promise((r) => setTimeout(r, 400));
     got = window.__game.campaign.level();
-    return { lede, before, got };
+    return { before, got };
   });
-  ok('Select starts the run on level 1', start.got === 1, `level ${start.got}`);
-  ok('the screen says how long the campaign is', /10 levels/.test(start.lede), start.lede.slice(0, 80));
+  ok('Start Run starts the run on level 1', start.got === 1, `level ${start.got}`);
 
   // ---- ending a run deliberately ------------------------------------------
   // "Players decide what cards to keep when they decide to end each run" — the exit is a normal

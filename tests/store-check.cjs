@@ -324,6 +324,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     return {
       title: !!root.querySelector('.ss-title canvas'),
       wallet: (root.querySelector('#ssWallet') || {}).textContent,
+      lede: root.querySelectorAll('.ss-lede').length,
       // The owner's spec, in numbers.
       owned: own.length, forSale: sale.length,
       ownNames: own.map((sl) => sl.querySelector('.ss-sp-name').textContent),
@@ -365,6 +366,8 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      ui.headers.join('|') === 'Available species|Buy new species|Upgrades', ui.headers.join(' / '));
   ok('six upgrade tiles', ui.tracks === 6, String(ui.tracks));
   ok('the sections carry no sub-headings any more', ui.hints === 0, String(ui.hints));
+  // ...and neither does the screen itself: the header is the title and the two chips, nothing else.
+  ok('there is no blurb under the title', ui.lede === 0, String(ui.lede));
   ok('every tile draws one pip per step it has',
      ui.pips === shape.reduce((a, s) => a + s.steps, 0), `${ui.pips} pips vs ${shape.reduce((a, s) => a + s.steps, 0)} steps`);
   ok('affordable steps are clickable', ui.buyable > 0, `${ui.buyable} buyable at 12000 Spores`);

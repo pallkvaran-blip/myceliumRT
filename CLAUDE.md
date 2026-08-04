@@ -517,7 +517,7 @@ Mode-gated behaviour, roughly in order of subtlety:
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1628 assertions across 25 checks**, of which `traced` is 818 (one map's worth each). Plus the
+**1626 assertions across 26 checks**, of which `traced` is 818 (one map's worth each). Plus the
 PROBES and PERF TOOLS, which print and never fail — see Loose ends, the Performance section and
 tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -527,14 +527,28 @@ node tests/run.mjs --fast    # skip rt/tut/lure (~25 min — `traced` alone is ~
 node tests/run.mjs hs lure   # by name
 ```
 
-**The last measured sweep: 1470 passed, 10 failed**, and every one of the 10 is a known
-standing failure rather than a regression — 6 `traced` map-data assertions on four maps, 3 `tut`
-real-time flakes, 1 `rt` worm flake (all four in Loose ends). Note the arithmetic doesn't reach
+**The last measured FULL sweep: 1470 passed, 10 failed** — every one a known standing failure
+rather than a regression (6 `traced` map-data assertions on four maps, 3 `tut` real-time flakes,
+1 `rt` worm flake; all in Loose ends). The campaign work since then has been verified on a
+16-check subset instead, most recently **579 passed, 0 failed** across species · pill · review ·
+ingame · hover · boot · hs · store · campaign · level · turn-play · fixes · edit · threat · core ·
+mode. That subset is the useful one for anything touching the store, the deck, the campaign or
+the title screen; it runs in about six minutes. Note the arithmetic doesn't reach
 1489: `aim` contributed **0 of its 9** because it bails to a zero-coverage pass inside a full
 sweep. Per-check, measured: traced 818 · threat 114 · edit 116 · rt 69 · enemy 52 · species 42 ·
 mode 33 · harvest 28 · level 27 · scale 26 · fixes 25 · hs 20 · mould 20 · tut 19 · boot 16 ·
 core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 85** and **campaign 54**, measured on their own runs rather than in a sweep.
+plus **store 86** and **campaign 53**, measured on their own runs rather than in a sweep.
+
+**`node tests/campaign-shot.cjs`** is not a check — it writes nine frames to `tests/.artifacts/`
+covering every campaign screen (title, the selection screen top and bottom, the deck sheet, a
+species detail, the level intro, a level, and the death screen with retries banked and with none
+left). It exists because the bugs this feature had were invisible in a diff and obvious in a frame:
+two silent CSS class collisions and a click handler that got the event instead of the species. It
+dresses a save worth looking at first — most of these screens say nothing at zero — and it carries
+the traps in comments (the dev build skips the level intro; the wordmarks grow and headless
+throttles rAF; `/index.html` → `/index.html#dev` is a same-document hash change so `goto` does not
+re-boot and the dev hooks never arrive).
 
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
@@ -1463,9 +1477,13 @@ speaking the picker's vocabulary). `showSpeciesSelect` renders three sections:
 | **Buy new species** | `STORE_SPECIES_IDS` (4), minus what's bought | **Unlock ⟨price⟩** |
 | **Upgrades** | the six permanent tracks | Buy the next step |
 
-The section headers carry **no sub-headings** (owner) — `.ss-rowhint` survives in the stylesheet
-but nothing uses it. The header button reads **"Deck N"**, and the sheet behind it is titled
-**"Your Deck"**; empty, it says "No cards." over one line about where cards come from.
+**The screen carries no explanatory prose at all** (owner): no blurb under "Select your species"
+(`.ss-lede` is gone, rule and all) and no sub-heading on any section (`.ss-rowhint` survives in the
+stylesheet with nothing using it). The header is the title plus two chips. The button reads
+**"Deck N"** and the sheet behind it is titled **"Your Deck"**; empty, it says "No cards." over one
+line about where cards come from.
+  - Nothing on this screen says the campaign is ten levels any more. The **title screen's "Chapter
+    1"** and the **level intro's "4 of 10"** are what carry that now.
 
 **`Dev: +10,000 spores`** is the third dev button (`#ssDevSpores`, gated with the others). It
 credits the wallet WITHOUT unlocking anything, which is the point — "unlock all" hands you every
@@ -1479,7 +1497,7 @@ tier rows** — retired on the owner's call, along with `mysteryCard`, `startTag
 
 - **The tier MACHINERY still exists** in the species module (`LOCKED_TIERS`, `tierSpecies`,
   `newlyRevealedByClear`, `unlockCost`, `TIER_COST`) and a level clear still walks it. A colony
-  bought before the change is still owned and still appears under **Your colonies** — it just has
+  bought before the change is still owned and still appears under **Available species** — it just has
   no row of its own. Moving one of the other eight into the campaign is one entry in
   `STORE_SPECIES_IDS`.
 - **REVEALING A SPECIES NO LONGER MEANS THE SCREEN CAN OFFER IT, so both announcements filter on
@@ -1649,7 +1667,7 @@ a real detail sheet.
   `balance`/`credit`/`reset`/`speciesById`/`playable`, and `effectiveSpecies`/`deathCarry` so a
   check reads the EFFECT rather than the setting — every track here is capped by something
   downstream.
-- `tests/store-check.cjs` (85, ~40s, in the runner) covers the money, the effects, the negative
+- `tests/store-check.cjs` (86, ~40s, in the runner) covers the money, the effects, the negative
   control at zero upgrades, and the screen's shape — 3 owned and 4 for sale, the Select button's
   geometry BELOW its card, no "?" tiles, no tier rows, a detail sheet with exactly one button, and
   that unlocking a colony MOVES it up a section. It also fails on any 4xx or page error.
@@ -1742,7 +1760,7 @@ Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
     through both times — what catches it is asserting the two elements look DIFFERENT
     (`campaign-check` compares computed font-family/colour against the threat tally), and before
     that, looking at a rendered frame.
-- `tests/campaign-check.cjs` (54, ~55s, in the runner) boots once and replays levels through
+- `tests/campaign-check.cjs` (53, ~65s, in the runner) boots once and replays levels through
   `__game.campaign.play`. What it actually guards: the ladder ENDS at 10 and not at 9; level 3
   builds **the same map twice** (if a `Math.random()` gets into the generation path the seeds
   silently stop meaning anything and nothing else notices); and **every level's goal is reachable**

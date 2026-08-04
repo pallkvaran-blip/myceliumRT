@@ -1070,8 +1070,6 @@
     .ss-head { padding:clamp(18px,3vw,30px) clamp(20px,4vw,44px) 18px; }
     .ss-head h1 { font-family:var(--ss-serif); font-weight:600; font-size:clamp(28px,5vw,44px); line-height:1.02;
       margin:12px 0 6px; color:#eaf6ee; text-wrap:balance; text-shadow:0 0 26px rgba(127,230,163,0.28); }
-    .ss-lede { font-size:14px; color:var(--ss-ink-dim); max-width:62ch; line-height:1.5; margin:0; }
-    .ss-lede b { color:var(--ss-ink); font-weight:600; }
 
     .ss-body { padding:6px clamp(20px,4vw,44px) clamp(28px,4vw,44px); }
     .ss-section { margin-top:clamp(22px,3vw,34px); }
@@ -20229,9 +20227,6 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
               'Deck<span class="ss-deckn" id="ssDeckN"></span></button>' +
             '<span class="ss-spores ss-wallet" id="ssWallet" title="Spores — earned by finishing levels, spent here"></span>' +
           '</span></div>' +
-        '<p class="ss-lede">Press a species to read it, <b>Start Run</b> to begin — ' + CAMPAIGN_LEVELS +
-          ' levels to the surface. Between runs, spend <b>Spores</b> below on a new species or an ' +
-          'upgrade; upgrades apply to <b>every later run, whatever species you pick</b>.</p>' +
       '</header>' +
       '<div class="ss-body">' +
         '<section class="ss-section">' +
