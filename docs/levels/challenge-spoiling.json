@@ -1,0 +1,654 @@
+{
+  "format": "mycelium-level",
+  "version": 1,
+  "id": "challenge-spoiling",
+  "name": "Spoiling Ground",
+  "campaignLevel": null,
+  "assetsFrom": "obsidian-c15",
+  "derivedFrom": "obsidian-c15",
+  "challenge": "Three engine piles, three clouds already eating them. You cannot have all three.",
+  "world": {
+    "width": 2952,
+    "height": 1467.1,
+    "surfaceY": 380,
+    "cellSize": 36
+  },
+  "layout": {
+    "startCols": 2,
+    "goalCols": 6,
+    "summerCols": 7,
+    "clearChannels": true
+  },
+  "threats": {
+    "trych": 3,
+    "nematodes": 0,
+    "ants": 0,
+    "respawn": false
+  },
+  "objects": [
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R001",
+      "x": 858.4000000000001,
+      "y": 712.35,
+      "w": 610,
+      "h": 505.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R002",
+      "x": 757.8,
+      "y": 1138.35,
+      "w": 483.8,
+      "h": 364.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R003",
+      "x": 1334.6,
+      "y": 782,
+      "w": 374.8,
+      "h": 439.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R004",
+      "x": 1188.05,
+      "y": 1091.3,
+      "w": 349.5,
+      "h": 417,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R005",
+      "x": 2338.8999999999996,
+      "y": 524.5,
+      "w": 407.4,
+      "h": 289,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R006",
+      "x": 431.5,
+      "y": 504.6,
+      "w": 462.6,
+      "h": 249.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R007",
+      "x": 399,
+      "y": 806.65,
+      "w": 303.4,
+      "h": 323.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R008",
+      "x": 1539,
+      "y": 1267.9,
+      "w": 308,
+      "h": 281.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R009",
+      "x": 1206.2,
+      "y": 479.05,
+      "w": 426.4,
+      "h": 198.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R010",
+      "x": 2052.9,
+      "y": 905.45,
+      "w": 238.8,
+      "h": 331.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R011",
+      "x": 484.45,
+      "y": 1333.4499999999998,
+      "w": 287.1,
+      "h": 267.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R012",
+      "x": 1720.3000000000002,
+      "y": 1019.5999999999999,
+      "w": 306.2,
+      "h": 213,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R013",
+      "x": 2439.55,
+      "y": 1048.35,
+      "w": 245.1,
+      "h": 303.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R014",
+      "x": 1653.4,
+      "y": 479.7,
+      "w": 330.6,
+      "h": 199.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R015",
+      "x": 1694.75,
+      "y": 724.0999999999999,
+      "w": 259.5,
+      "h": 289.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R016",
+      "x": 2605.7,
+      "y": 613.55,
+      "w": 188.6,
+      "h": 306.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R017",
+      "x": 2420.55,
+      "y": 1363.1,
+      "w": 284.9,
+      "h": 208,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R018",
+      "x": 264.65000000000003,
+      "y": 1029.15,
+      "w": 279.9,
+      "h": 266.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R019",
+      "x": 195.5,
+      "y": 672.35,
+      "w": 175,
+      "h": 282.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R020",
+      "x": 1982.6,
+      "y": 1354.6999999999998,
+      "w": 242.8,
+      "h": 224.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R021",
+      "x": 217.45,
+      "y": 1347.9499999999998,
+      "w": 218.9,
+      "h": 238.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R022",
+      "x": 854.8,
+      "y": 1396.8,
+      "w": 250,
+      "h": 140.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R023",
+      "x": 2027.1,
+      "y": 586.9,
+      "w": 151,
+      "h": 230.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R024",
+      "x": 1253.85,
+      "y": 1375.75,
+      "w": 198.1,
+      "h": 182.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R025",
+      "x": 2593.95,
+      "y": 862.3,
+      "w": 208.5,
+      "h": 197.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R026",
+      "x": 2387.3,
+      "y": 760.0999999999999,
+      "w": 202.2,
+      "h": 180.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R027",
+      "x": 2645.05,
+      "y": 1277.4,
+      "w": 109.9,
+      "h": 263.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R028",
+      "x": 2162.3,
+      "y": 1171.35,
+      "w": 143.8,
+      "h": 152.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R029",
+      "x": 1876.1,
+      "y": 561.55,
+      "w": 120.2,
+      "h": 169.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R030",
+      "x": 834.45,
+      "y": 417.55,
+      "w": 250.9,
+      "h": 75.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R031",
+      "x": 147.8,
+      "y": 1119.1,
+      "w": 79.6,
+      "h": 190.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R032",
+      "x": 1497.8,
+      "y": 597.95,
+      "w": 118,
+      "h": 112.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R033",
+      "x": 2655.25,
+      "y": 1043.6,
+      "w": 89.5,
+      "h": 94.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R034",
+      "x": 2283.05,
+      "y": 1263.85,
+      "w": 110.3,
+      "h": 96.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R035",
+      "x": 2246.7,
+      "y": 906.8,
+      "w": 86.4,
+      "h": 109.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R036",
+      "x": 1789.7,
+      "y": 1237.1,
+      "w": 90.4,
+      "h": 93.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R037",
+      "x": 2603.25,
+      "y": 404.4,
+      "w": 142.9,
+      "h": 48.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R038",
+      "x": 1828.65,
+      "y": 1331.9,
+      "w": 78.7,
+      "h": 92.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R039",
+      "x": 1915.2,
+      "y": 1222.1999999999998,
+      "w": 86.4,
+      "h": 63.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R040",
+      "x": 1959.95,
+      "y": 397.85,
+      "w": 175.9,
+      "h": 35.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R041",
+      "x": 1920.2,
+      "y": 1106.25,
+      "w": 74.6,
+      "h": 91.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R042",
+      "x": 1045.85,
+      "y": 1425.7,
+      "w": 71.5,
+      "h": 76.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R043",
+      "x": 2152.4,
+      "y": 638.65,
+      "w": 73.2,
+      "h": 68.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "obsidian-c15R044",
+      "x": 2237.8500000000004,
+      "y": 1081.6,
+      "w": 66.9,
+      "h": 74.6,
+      "rot": 0
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 162,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 306,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 450,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 594,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 738,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 888,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1038,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1188,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1338,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1488,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1638,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1782,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1926,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2070,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2214,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2358,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2466,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2574,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2682,
+      "y": 1514,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 703,
+      "y": 1431,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 738,
+      "y": 1334,
+      "r": 1
+    },
+    {
+      "t": "trichoderma",
+      "x": 930,
+      "y": 1321
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1667,
+      "y": 1401,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1716,
+      "y": 1274,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 1674,
+      "y": 1154,
+      "r": 1
+    },
+    {
+      "t": "trichoderma",
+      "x": 1341,
+      "y": 1016
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2266,
+      "y": 1406,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2353,
+      "y": 1225,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 2351,
+      "y": 1189,
+      "r": 1
+    },
+    {
+      "t": "trichoderma",
+      "x": 2286,
+      "y": 948
+    }
+  ]
+}
