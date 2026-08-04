@@ -80,6 +80,31 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok('the Survival row sits above the Campaign row', geo.t.bottom < geo.b.top, `${Math.round(geo.t.bottom)} < ${Math.round(geo.b.top)}`);
     ok('both rows are on screen', geo.t.top > 0 && geo.b.bottom < geo.vh, `top=${Math.round(geo.t.top)} bottom=${Math.round(geo.b.bottom)} vh=${geo.vh}`);
     ok('the Survival row fits the width', geo.t.left >= 0 && geo.t.right <= geo.vw, `${Math.round(geo.t.left)}..${Math.round(geo.t.right)} of ${geo.vw}`);
+
+    // HIGH SCORES top-centre, CREDITS bottom-centre (owner). They used to sit side by side at
+    // the foot. Asserted as GEOMETRY, not as "the element exists": both are the same .ts-foot-btn
+    // in the same kind of centred bar, so only where they land tells them apart — and the header
+    // has to clear the Survival row, which starts ~180px down.
+    const links = await page.evaluate(() => {
+      const box = (s) => { const n = document.querySelector(s); if (!n) return null;
+        const r = n.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, mid: (r.left + r.right) / 2 }; };
+      return { hs: box('#tsHighScores'), cr: box('#tsCredits'),
+               rowTop: document.querySelector('#titleScreen .ts-top').getBoundingClientRect().top,
+               vw: innerWidth, vh: innerHeight };
+    });
+    ok('High Scores sits at the TOP', !!links.hs && links.hs.top < links.vh * 0.15,
+       links.hs ? `top ${Math.round(links.hs.top)} of ${links.vh}` : 'missing');
+    ok('...centred', !!links.hs && Math.abs(links.hs.mid - links.vw / 2) < 2,
+       links.hs ? `mid ${Math.round(links.hs.mid)} vs ${links.vw / 2}` : 'missing');
+    ok('...and clear of the New/Old rows', !!links.hs && links.hs.bottom < links.rowTop,
+       links.hs ? `${Math.round(links.hs.bottom)} < ${Math.round(links.rowTop)}` : 'missing');
+    ok('Credits stays at the BOTTOM', !!links.cr && links.cr.bottom > links.vh * 0.9,
+       links.cr ? `bottom ${Math.round(links.cr.bottom)} of ${links.vh}` : 'missing');
+    ok('...centred too', !!links.cr && Math.abs(links.cr.mid - links.vw / 2) < 2,
+       links.cr ? `mid ${Math.round(links.cr.mid)} vs ${links.vw / 2}` : 'missing');
+    ok('they are no longer a pair (the dash between them is gone)',
+       (await page.$$('#titleScreen .ts-foot-sep')).length === 0);
+
     ok('no page errors on the title screen', errs.length === 0, errs.slice(0, 2).join(' | '));
     await page.close();
   }

@@ -65,7 +65,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      isolated.qTurn === false && isolated.qRt === true,
      `turn board ${isolated.fullTurn}, rt board ${isolated.emptyRt}, qualifies(3): turn=${isolated.qTurn} rt=${isolated.qRt}`);
 
-  // ---- the overlay: one table, a tab per game ------------------------------
+  // ---- the overlay: one table, and the board still splits by game ----------
+  //
+  // THE GAME TABS ARE GONE from the overlay while `OFFER_REALTIME` is off (owner): with real
+  // time withheld there is one ladder, so a tab row is a control that cannot be used and a
+  // "Real time" tab names a game with no way in. What must NOT have changed is the DATA — the
+  // boards are still stored and read per mode, and `showHighScores({mode})` still opens on the
+  // one it is asked for. So every assertion below that used to click a tab now re-OPENS the
+  // overlay on the other mode: same question, asked through the surviving door.
   await page.evaluate(() => {
     const hs = window.__game.scores;
     localStorage.removeItem('mycelium.highscores.v1');
@@ -75,47 +82,41 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   await page.evaluate(() => window.__game.showHighScores({ mode: 'realtime' }));
   await sleep(700);
   const ui = await page.evaluate(() => {
-    const modeTabs = [...document.querySelectorAll('#hsOverlay .hs-modes .hs-tab')].map((b) => b.textContent);
     const periodTabs = [...document.querySelectorAll('#hsOverlay .hs-periods .hs-plink')].map((b) => b.textContent);
-    const on = document.querySelector('#hsOverlay .hs-modes .hs-tab.hs-on');
     const nt = document.querySelector('#hsOverlay .hs-note');
-    return { modeTabs, periodTabs, onMode: on && on.textContent,
+    return { modeRows: document.querySelectorAll('#hsOverlay .hs-modes').length,
+             modeTabs: document.querySelectorAll('#hsOverlay .hs-modes .hs-tab').length,
+             rtTab: !!document.getElementById('hsTabRt'),
+             periodTabs,
              periodPills: document.querySelectorAll('#hsOverlay .hs-periods .hs-tab').length,
              note: nt ? nt.textContent : null, noteShown: nt ? getComputedStyle(nt).display : null,
              tables: document.querySelectorAll('#hsOverlay .hs-table').length,
              rows: [...document.querySelectorAll('#hsOverlay .hs-row .hs-name')].map((n) => n.textContent) };
   });
-  ok('there is a tab per game', ui.modeTabs.join(' | ') === 'Turn-based | Real time', ui.modeTabs.join(' | '));
+  ok('there is no game tab row — one game is offered, so there is nothing to switch between',
+     ui.modeRows === 0 && ui.modeTabs === 0, `${ui.modeRows} row(s), ${ui.modeTabs} tab(s)`);
+  ok('...and nothing names a game with no way in', ui.rtTab === false);
   ok('Monthly / All-Time are plain clickable text, not pills', ui.periodTabs.join(' | ') === 'Monthly | All-Time' && ui.periodPills === 0,
      `${ui.periodTabs.join(' | ')}; ${ui.periodPills} pill(s)`);
   ok('the "Global" line does not take up space', ui.note === '' && ui.noteShown === 'none', `note="${ui.note}" display=${ui.noteShown}`);
-  ok('it opens on the mode it was asked for', ui.onMode === 'Real time', `on=${ui.onMode}`);
   ok('ONE table, not two', ui.tables === 1, `${ui.tables} table(s)`);
-  ok('...showing that mode’s scores', ui.rows.join(',') === 'Racer', ui.rows.join(','));
+  // The ROWS are how "which ladder is showing" is read now. This is the assertion that keeps
+  // the two boards genuinely separate with the tabs gone — the RT entry is still there, still
+  // its own ladder, and still reachable by asking for it.
+  ok('it opens on the mode it was asked for', ui.rows.join(',') === 'Racer', ui.rows.join(','));
 
   // With no mode asked for, it opens on TURN-BASED.
   await page.evaluate(() => { const o = document.getElementById('hsOverlay'); if (o) o.remove(); });
   await page.evaluate(() => window.__game.showHighScores({}));
   await sleep(600);
   const dflt = await page.evaluate(() => ({
-    onMode: (document.querySelector('#hsOverlay .hs-modes .hs-tab.hs-on') || {}).textContent,
-    rows: [...document.querySelectorAll('#hsOverlay .hs-row .hs-name')].map((n) => n.textContent),
-  }));
-  ok('the default view is turn-based', dflt.onMode === 'Turn-based' && dflt.rows.join(',') === 'Turnip',
-     `on=${dflt.onMode} rows=[${dflt.rows}]`);
-
-  // Switch to the turn-based tab: same table, other ladder.
-  await page.click('#hsTabTurn'); await sleep(400);
-  const afterTurn = await page.evaluate(() => ({
     rows: [...document.querySelectorAll('#hsOverlay .hs-row .hs-name')].map((n) => n.textContent),
     tables: document.querySelectorAll('#hsOverlay .hs-table').length,
     headers: [...document.querySelectorAll('#hsOverlay .hs-table th')].map((h) => h.textContent),
-    onMode: (document.querySelector('#hsOverlay .hs-modes .hs-tab.hs-on') || {}).textContent,
   }));
-  ok('the game tab swaps the ladder', afterTurn.rows.join(',') === 'Turnip', afterTurn.rows.join(','));
-  ok('...in the same single table', afterTurn.tables === 1 && afterTurn.onMode === 'Turn-based',
-     `${afterTurn.tables} table(s), on=${afterTurn.onMode}`);
-  ok('the columns are unchanged', afterTurn.headers.join('|') === '|Name|Lvl|Species', afterTurn.headers.join('|'));
+  ok('the default view is turn-based', dflt.rows.join(',') === 'Turnip', `rows=[${dflt.rows}]`);
+  ok('...in the same single table', dflt.tables === 1, `${dflt.tables} table(s)`);
+  ok('the columns are unchanged', dflt.headers.join('|') === '|Name|Lvl|Species', dflt.headers.join('|'));
 
   // The period tabs still work within the selected game.
   await page.click('#hsTabAll'); await sleep(300);

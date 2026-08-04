@@ -48,14 +48,19 @@
     @keyframes ldPulse { 0%,100% { opacity: .45; } 50% { opacity: 1; } }
 
     /* High scores — plain black & white (leaderboard + name-entry). */
-    /* Bottom-centre footer: "HIGH SCORES – CREDITS", both centred together. */
+    /* HIGH SCORES sits top-centre, CREDITS bottom-centre (owner) — the two ends of the screen
+       rather than a pair at the foot, so the board is the first thing offered and the credits
+       stay where credits go. One button style for both; only the anchor differs. The header
+       clears the New/Old rows: those start ~180px down at an 860px viewport, and this is 14. */
+    #titleScreen .ts-header { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 6;
+      display: flex; align-items: center; gap: 10px; }
     #titleScreen .ts-footer { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 6;
       display: flex; align-items: center; gap: 10px; }
+    #titleScreen .ts-header .ts-foot-btn { padding: 6px 8px; }
     #titleScreen .ts-foot-btn { font: 500 10px/1 ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: .12em;
       text-transform: uppercase; color: #fff; background: none; border: 0; padding: 5px; cursor: pointer; opacity: .68;
       -webkit-tap-highlight-color: transparent; }
     #titleScreen .ts-foot-btn:hover { opacity: 1; text-decoration: underline; }
-    #titleScreen .ts-foot-sep { color: #fff; opacity: .4; font: 500 10px/1 ui-sans-serif, system-ui, sans-serif; }
     /* Credits popup — reuses the B&W .hs-card shell; left-aligned credit rows with linked names. */
     .cr-card { text-align: left; }
     .cr-title { text-align: center; margin: 0 0 4px; }
@@ -87,7 +92,9 @@
     .hs-tabs { display: flex; gap: 8px; justify-content: center; margin: 14px 0 16px; flex-wrap: wrap; }
     /* Two switches over the SAME table. Which GAME (turn-based / real time) is the real split,
        so it keeps the pill tabs; which WINDOW (monthly / all-time) is a minor axis, so it's
-       plain clickable text under them rather than a second row of buttons competing for weight. */
+       plain clickable text under them rather than a second row of buttons competing for weight.
+       NOTHING RENDERS .hs-modes WHILE `OFFER_REALTIME` IS FALSE — one game offered means one
+       ladder, and a tab row you can't change is noise. Kept for the same reason .ts-split is. */
     .hs-tabs.hs-modes { margin: 12px 0 6px; }
     .hs-periods { display: flex; align-items: center; justify-content: center; gap: 0; margin: 0 0 14px; }
     .hs-tab { font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
@@ -951,7 +958,7 @@
        (TURN-BASED on the left, REAL TIME on the right), with SURVIVAL still centred between
        them. Four buttons need more room than two, so this row is wider and its New/Old are
        set smaller than the single-pair row's.
-       NOTHING USES THIS WHILE `TITLE_REALTIME` IS FALSE — real time is off the title screen for
+       NOTHING USES THIS WHILE `OFFER_REALTIME` IS FALSE — real time is off the title screen for
        this release, so the Survival row renders as a plain single pair. Kept, not deleted: the
        flag is one line and this is the layout it comes back to. */
     #titleScreen .ts-actions.ts-split { width:min(1180px,96vw); column-gap:clamp(14px,2.6vw,40px); }
@@ -2685,6 +2692,18 @@ const MODE_TUNING = {
     'ants.extendSpeed': 2,                 // cells/tick the ant line creeps out
   },
 };
+// DOES THIS BUILD OFFER THE REAL-TIME VARIANT AT ALL? False for this release (owner: "not this
+// next release, will take that up later, possibly"). It is a BUILD flag, not a tuning knob, so
+// it sits beside CONFIG rather than inside it — CONFIG is deep-cloned per run and overridable
+// per level, and "which games exist" is neither.
+//
+// It withholds the DOORS, not the room: everything below (CONFIG.mode, MODE_TUNING, setMode,
+// isRealtime) and every mode-gated rule in the engine is exactly as it was, both resume slots
+// still exist, and `#dev` still boots real time — which is how mode-check still asserts the
+// whole variant. Two screens read it, and they have to agree or the game contradicts itself:
+// the title screen's Survival row (one New/Old pair instead of the turn/real-time split) and
+// the high-score board's game tabs (one ladder, so no tab row). Turning it on restores both.
+const OFFER_REALTIME = false;
 // Is the REAL-TIME variant running? Pass a state.config from engine code; defaults to CONFIG.
 function isRealtime(cfg) {
   const c = cfg || CONFIG;
@@ -2757,7 +2776,7 @@ function setByPath(obj, path, value) {
   target[last] = value;
 }
 
-  return { CONFIG, SLIDERS, MODE_TUNING, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode, setGame, isCampaignGame };
+  return { CONFIG, SLIDERS, MODE_TUNING, OFFER_REALTIME, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode, setGame, isCampaignGame };
 })();
 
 // ===================== src/cards-data.js =====================
@@ -23058,12 +23077,9 @@ function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEn
 
 // ===================== src/render/title_screen.js =====================
 const __m_render_title_screen = (function () {
-  // Whether the title screen offers the REAL-TIME variant of Survival. OFF for this release
-  // (owner: "not this next release"). The variant itself is fully intact behind it — CONFIG.mode,
-  // setMode, MODE_TUNING, both resume slots and every mode-dependent rule are untouched, and
-  // `#dev` still boots real-time as every check expects. This withholds the door, not the room,
-  // so restoring it is this one line.
-  const TITLE_REALTIME = false;
+  // Whether this build offers the real-time variant at all — see __m_config, where it lives so
+  // that this screen and the high-score board cannot disagree about it.
+  const { OFFER_REALTIME } = __m_config;
   const { playGrowBurst } = __m_render_sfx;
   const { loadProgress } = __m_species;
 // =============================================================================
@@ -23095,7 +23111,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     '<div class="ts-menu">' +
       // SURVIVAL: New (a fresh run) and Old (continue the saved one). It used to offer both
       // variants side by side, turn-based left and real time right, each with its own pair —
-      // see TITLE_REALTIME below for where that went and how to bring it back.
+      // see OFFER_REALTIME (in __m_config) for where that went and how to bring it back.
       '<div class="ts-block ts-top">' +
         // REAL TIME IS OFF THE TITLE SCREEN (owner: "not this next release"). Gated rather than
         // deleted, and gated in ONE place: the variant itself is untouched — CONFIG.mode,
@@ -23106,7 +23122,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
         // With one mode there is nothing to choose between, so Survival takes the same single
         // New/Old pair the Campaign row already uses for the same reason — rather than a
         // three-column split with an empty column where Real time used to be.
-        (TITLE_REALTIME
+        (OFFER_REALTIME
           ? '<div class="ts-actions ts-split">' +
               '<div class="ts-side">' +
                 '<div class="ts-kind">Turn-based</div>' +
@@ -23137,7 +23153,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
       '</div>' +
       // CAMPAIGN, the second game: ten levels, one fixed map each, and it ends. TURN-BASED ONLY
       // (owner) — with one mode there is nothing to choose between, so it keeps the single
-      // New/Old pair it was drawn with. Survival matches it while TITLE_REALTIME is off.
+      // New/Old pair it was drawn with. Survival matches it while OFFER_REALTIME is off.
       //
       // The sub-line reads "Chapter 1" (owner), in the slot that used to say "coming soon". It
       // names the CONTENT, not the rules: the campaign is the first chapter of several, which is
@@ -23166,20 +23182,21 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     root.appendChild(devBtn);
   }
 
-  // Bottom-centre footer: "HIGH SCORES – CREDITS" — both plain B&W text links, centred together.
-  if (onHighScores || onCredits) {
+  // HIGH SCORES top-centre, CREDITS bottom-centre (owner) — they used to sit side by side at
+  // the foot, separated by a dash. Same plain B&W text link in both places; only the anchor
+  // differs, so there is one style to keep. The separator went with the pairing.
+  if (onHighScores) {
+    const head = el('div', 'ts-header');
+    const hsBtn = el('button', 'ts-foot-btn', 'High Scores'); hsBtn.id = 'tsHighScores'; hsBtn.type = 'button';
+    hsBtn.addEventListener('click', () => { if (consuming || finished) return; onHighScores(); });
+    head.appendChild(hsBtn);
+    root.appendChild(head);
+  }
+  if (onCredits) {
     const foot = el('div', 'ts-footer');
-    if (onHighScores) {
-      const hsBtn = el('button', 'ts-foot-btn', 'High Scores'); hsBtn.id = 'tsHighScores'; hsBtn.type = 'button';
-      hsBtn.addEventListener('click', () => { if (consuming || finished) return; onHighScores(); });
-      foot.appendChild(hsBtn);
-    }
-    if (onHighScores && onCredits) foot.appendChild(el('span', 'ts-foot-sep', '–'));
-    if (onCredits) {
-      const crBtn = el('button', 'ts-foot-btn', 'Credits'); crBtn.id = 'tsCredits'; crBtn.type = 'button';
-      crBtn.addEventListener('click', () => { if (consuming || finished) return; onCredits(); });
-      foot.appendChild(crBtn);
-    }
+    const crBtn = el('button', 'ts-foot-btn', 'Credits'); crBtn.id = 'tsCredits'; crBtn.type = 'button';
+    crBtn.addEventListener('click', () => { if (consuming || finished) return; onCredits(); });
+    foot.appendChild(crBtn);
     root.appendChild(foot);
   }
 
@@ -23755,7 +23772,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     setTimeout(() => { try { input.focus(); input.select(); } catch (_) {} }, 60);
   }
 
-  // Two entries while TITLE_REALTIME is off, three with it on. The campaign is turn-based only,
+  // Two entries while OFFER_REALTIME is off, three with it on. The campaign is turn-based only,
   // so it passes 'turn' with game 'campaign'; everything downstream keys off the pair, including
   // which resume slot "Old" reads. The real-time row stays in this table on purpose — the null
   // guard below already skips a pair that isn't rendered, so the wiring needs no second flag and
@@ -24360,7 +24377,7 @@ function showLoading() {
 
 // ===================== src/render/highscores.js =====================
 const __m_render_highscores = (function () {
-  const { isRealtime } = __m_config;
+  const { isRealtime, OFFER_REALTIME } = __m_config;
   const { monthlyBoard, allTimeBoard, recordScore, beatsBoard, normMode } = __m_highscores;
   const { scoresEnabled, fetchGlobalBoards, submitGlobalScore } = __m_net_scores;
   const { growMyceliumTitle } = __m_render_mycelium_title;
@@ -24369,9 +24386,12 @@ const __m_render_highscores = (function () {
 //
 //   showHighScores({onClose, mode})
 //                               — the leaderboard. ONE table (rank · name · level · species)
-//                                 under two rows of tabs: which GAME (Turn-based / Real time
-//                                 — they're separate ladders) and which WINDOW (Monthly /
-//                                 All-Time), top 10 each. Opens on the mode being played.
+//                                 under which WINDOW to show (Monthly / All-Time), top 10
+//                                 each. There is a second row of tabs above it for which GAME
+//                                 — turn-based and real time are separate ladders — but only
+//                                 while OFFER_REALTIME is on: a tab row with one tab is a
+//                                 control that cannot be used, and a "Real time" tab for a
+//                                 game with no way in is worse. Opens on the mode being played.
 //                                 Shows the GLOBAL board when a backend is configured
 //                                 (net_scores.js), else the local per-device board; falls
 //                                 back to local if offline.
@@ -24418,11 +24438,18 @@ function showHighScores({ onClose, mode } = {}) {
       '<button class="hs-close" id="hsClose" type="button" aria-label="Close">✕</button>' +
       '<div class="hs-title-myc" id="hsTitleMyc" role="img" aria-label="High Scores"></div>' +
       '<div class="hs-note" id="hsNote"></div>' +
-      // Turn-based and real time are separate ladders, so the game is the first split…
-      '<div class="hs-tabs hs-modes">' +
-        '<button class="hs-tab" id="hsTabTurn" type="button">' + MODE_LABEL.turn + '</button>' +
-        '<button class="hs-tab" id="hsTabRt" type="button">' + MODE_LABEL.realtime + '</button>' +
-      '</div>' +
+      // Turn-based and real time are separate ladders, so the game is the first split — but
+      // only when the build offers both. With real time withheld there is one ladder, and a
+      // tab row you cannot change is noise; worse, a "Real time" tab would name a game the
+      // player has no way to reach. The BOARDS stay split either way (`md` below, and every
+      // stored entry's `mode`), so nothing is lost or merged and the row comes straight back
+      // with the flag.
+      (OFFER_REALTIME
+        ? '<div class="hs-tabs hs-modes">' +
+            '<button class="hs-tab" id="hsTabTurn" type="button">' + MODE_LABEL.turn + '</button>' +
+            '<button class="hs-tab" id="hsTabRt" type="button">' + MODE_LABEL.realtime + '</button>' +
+          '</div>'
+        : '') +
       // …and the window the second — plain clickable text, a lighter touch than a second
       // row of pills for what is only a filter on the same board.
       '<div class="hs-periods">' +
@@ -24443,11 +24470,13 @@ function showHighScores({ onClose, mode } = {}) {
   const globalByMode = {};        // mode -> fetched boards (or null once known offline)
   const pending = {};             // mode -> true while its fetch is in flight
 
+  // The game tabs are absent unless OFFER_REALTIME, so every touch of them is guarded rather
+  // than the calls being conditional — `md` still switches, it just has nothing to paint.
   function paintTabs() {
     tabM.classList.toggle('hs-on', tab === 'month');
     tabA.classList.toggle('hs-on', tab === 'all');
-    tabT.classList.toggle('hs-on', md === 'turn');
-    tabR.classList.toggle('hs-on', md === 'realtime');
+    if (tabT) tabT.classList.toggle('hs-on', md === 'turn');
+    if (tabR) tabR.classList.toggle('hs-on', md === 'realtime');
   }
   function render() {
     paintTabs();
@@ -24476,8 +24505,8 @@ function showHighScores({ onClose, mode } = {}) {
   }
   tabM.onclick = () => { tab = 'month'; render(); };
   tabA.onclick = () => { tab = 'all'; render(); };
-  tabT.onclick = () => { md = 'turn'; load(); };
-  tabR.onclick = () => { md = 'realtime'; load(); };
+  if (tabT) tabT.onclick = () => { md = 'turn'; load(); };
+  if (tabR) tabR.onclick = () => { md = 'realtime'; load(); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   function close() { document.removeEventListener('keydown', onKey); try { myc.destroy(); } catch (_) {} root.remove(); onClose && onClose(); }
   root.querySelector('#hsClose').onclick = close;

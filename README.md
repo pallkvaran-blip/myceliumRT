@@ -5,11 +5,13 @@ about growing a fungal colony to the surface. This build ships **both games in o
 original **turn-based** Mycelium, and a **real-time** variant where the clock never waits
 for you. Same world, art, cards and threats.
 
-**The real-time variant is not offered on the title screen in this release.** It is intact
-and unchanged — every rule, both tuning tables and its own continue slot — and `#dev` still
-boots it; only the way in from the title is withheld, by `TITLE_REALTIME` in
-`__m_render_title_screen`. The title screen currently offers **Survival** and **Campaign**,
-turn-based, New/Old each.
+**The real-time variant is not offered in this release.** It is intact and unchanged — every
+rule, both tuning tables and its own continue slot — and `#dev` still boots it; only the ways
+IN are withheld, by **`OFFER_REALTIME`** in `__m_config` (beside `setMode`, because it is a
+build flag rather than a tuning knob). Two screens read it and must agree: the title screen's
+Survival row, and the leaderboard's game tabs. So the title currently offers **Survival** and
+**Campaign**, turn-based, New/Old each, with **High Scores** top-centre and **Credits** at the
+foot. Turning the flag on restores both.
 
 The whole game is a single self-contained `index.html` (open it locally or serve the
 folder) plus the runtime art/audio under `assets/`. It renders on a `<canvas>` with a DOM
@@ -69,10 +71,15 @@ turn-based game you were halfway through. Unlock progress (species, spores) is s
 ## High scores
 
 Turn-based and real time are separate ladders, so the leaderboard splits by game: **one
-table** (rank · name · level · species) under two rows of tabs — which game, then Monthly /
-All-Time. It opens on the mode you're playing, and a run only ever has to beat its own mode's
-board. Locally that's just a `mode` field on each stored entry (entries written before this
-build read as turn-based, which is what they were).
+table** (rank · name · level · species) with Monthly / All-Time above it. It opens on the mode
+you're playing, and a run only ever has to beat its own mode's board. Locally that's just a
+`mode` field on each stored entry (entries written before this build read as turn-based, which
+is what they were).
+
+There is a second row of tabs for **which game**, but only while `OFFER_REALTIME` is on. With
+real time withheld there is one ladder, so a tab row would be a control you can't use and a
+"Real time" tab would name a game with no way into it. The boards stay split either way —
+nothing is merged, and the row comes back with the flag.
 
 The global board (Supabase, `net_scores.js`) needs one migration for the split:
 

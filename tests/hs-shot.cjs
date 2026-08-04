@@ -23,7 +23,12 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
   await page.evaluate(()=>window.__game.showHighScores({mode:'realtime'}));
   await sleep(5000);
   await page.screenshot({path: path.join(__dirname, '.artifacts', 'hs-rt.png')});
-  await page.click('#hsTabTurn'); await sleep(600);
+  // RE-OPEN on the other ladder rather than clicking a tab: the game tabs are gone while
+  // OFFER_REALTIME is off (one game offered, nothing to switch between), and `mode` is the
+  // door that survives. The BOARDS are still split, which is what these two frames show.
+  await page.evaluate(()=>{ const o=document.getElementById('hsOverlay'); if(o) o.remove();
+                            window.__game.showHighScores({mode:'turn'}); });
+  await sleep(3000);
   await page.screenshot({path: path.join(__dirname, '.artifacts', 'hs-turn.png')});
   await browser.close();srv.close();console.log('shot');
 })();
