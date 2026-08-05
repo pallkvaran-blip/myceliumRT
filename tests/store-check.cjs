@@ -294,8 +294,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // ---- the death-carry caps ------------------------------------------------
   const carry = await page.evaluate(() => {
     const g = window.__game, S = g.store;
+    // THE COUNTER MOVED INTO THE TITLE on the death layout (owner: "move the 0/3 to the title line
+    // so it says Choose cards to add to your next deck (0/3)"), which closed the gap between the two
+    // carousel frames. It is `#loTitleCount` there and `.lo-count` on the memory layout; read either,
+    // or these three assertions go to `null` and read as the whole carry feature being broken.
     const read = () => {
-      const el = document.querySelector('#loadoutSelect .lo-count');
+      const el = document.querySelector('#loadoutSelect .lo-count')
+              || document.querySelector('#loadoutSelect #loTitleCount');
       const instr = document.querySelector('#loadoutSelect .lo-h-instr');
       return { count: el ? el.textContent : null, instr: instr ? instr.textContent : null };
     };
@@ -323,9 +328,11 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok('the death carousel opens for the carry assertions', false, carry.err);
   } else {
     // At zero upgrades the cap is the baseline 3 (the track's `base`) and there is NO engine
-    // meter — the negative control for the whole feature.
+    // meter — the negative control for the whole feature. Parenthesised in the title ("(0/3)") and
+    // bare in the mid block ("0 / 3"), so the digits and the cap are what is asserted, not the
+    // punctuation around them.
     ok('with nothing bought the carry cap is unchanged and has no engine meter',
-       /^\s*\d+\s*\/\s*3\s*$/.test((carry.none.count || '').replace(/ /g, ' ')) && !/engine/i.test(carry.none.count || ''),
+       /^\s*\(?\s*\d+\s*\/\s*3\s*\)?\s*$/.test((carry.none.count || '').replace(/ /g, ' ')) && !/engine/i.test(carry.none.count || ''),
        JSON.stringify(carry.none));
     // NO `3 +` here any more: the baseline is the carryCards track's own `base`, so
     // `bonuses.carryCards` already includes it and adding 3 again expects a cap twice the size.
