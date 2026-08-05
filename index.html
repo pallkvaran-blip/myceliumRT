@@ -3935,7 +3935,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "worm",
   "produces": "",
-  "effect": "Once per 8 rounds: tap a point — every nematode within a radius is digested.",
+  "effect": "Once per 8 rounds: tap a point — every nematode within a radius is killed.",
   "family": "defense",
   "tutorial": false,
   "startCopies": 0
@@ -11062,11 +11062,10 @@ const SPECIES = [
     specialText: 'Berserk \u2014 once per level, tap a point: every strand within the radius is cut away. Amputate yourself before the rot spreads.',
     blurb: 'The most recognisable mushroom on Earth, and a <b>mycorrhizal partner</b> to birch and pine \u2014 it trades sugar for water and minerals at the root tip, which is why it follows those trees wherever they are planted. Its name is literal: crushed into milk it was set out as <b>flypaper</b>, the ibotenic acid drawing insects in and killing them. Norse legend has berserkers eating it before battle to feel no pain \u2014 much repeated, never proven, and exactly the right idea for a colony that answers infection by <b>cutting off its own limb</b>.',
     hand: [
-      { name: 'Apical Drive', count: 6 },
-      { name: 'Hyphal Extension', count: 5 },
-      { name: 'Turgor Thrust', count: 4 },
-      { name: 'Foraging Fan', count: 3 },
-      { name: 'Rhizomorph Lance', count: 2 },
+      { name: 'Apical Drive', count: 8 },
+      { name: 'Turgor Thrust', count: 8 },
+      { name: 'Foraging Fan', count: 4 },
+      { name: 'Rhizomorph Lance', count: 8 },
     ],
   },
   {
@@ -11078,11 +11077,11 @@ const SPECIES = [
     specialText: 'Toxic Burst \u2014 once per level, tap a point: every nematode within the radius is digested (+1 Phosphorus each, up to 7).',
     blurb: 'A tiny bonnet barely a centimetre across, its deep blue cap dusted with a white <b>pruina</b> \u2014 a frost of fine crystals that gives the genus its name. Bonnets look like gentle leaf-litter recyclers and are not only that: several have been caught <b>hunting</b>, killing and digesting the nematodes that share the wood they rot, one of the few ways a fungus feeds on an animal. This colony makes a meal of the worms that would otherwise make a meal of it.',
     hand: [
-      { name: 'Hyphal Extension', count: 6 },
-      { name: 'Apical Drive', count: 5 },
-      { name: 'Vesicle Surge', count: 4 },
-      { name: 'Guerrilla Runners', count: 3 },
-      { name: 'Turgor Thrust', count: 2 },
+      { name: 'Foraging Fan', count: 4 },
+      { name: 'Apical Drive', count: 8 },
+      { name: 'Vesicle Surge', count: 6 },
+      { name: 'Guerrilla Runners', count: 6 },
+      { name: 'Rhizomorph Lance', count: 8 },
     ],
   },
   {
@@ -18250,7 +18249,11 @@ EFFECTS['Toxocyst Burst'] = targeted((s, c, ctx) => {
 });
 
 // 2b. Toxocyst Array — installed ACTION (engine): clear a radius of worms every 8 rounds (no reward).
-EFFECTS['Toxocyst Array'] = action({ effect: 'digest every worm in a radius', every: 8, target: true }, (s, ctx) => {
+// KILLED, NOT DIGESTED (owner) — and the distinction is real rather than cosmetic: the Array pays
+// NOTHING, while Toxocyst Burst banks +1 P per worm. "Digested" implies a meal, so it belongs to the
+// card that feeds you and not to this one. Both the card face (CARD_DATA) and the Actions-menu line
+// say kill; the runtime message already said "cleared".
+EFFECTS['Toxocyst Array'] = action({ effect: 'kill every worm in a radius', every: 8, target: true }, (s, ctx) => {
   const n = killWormsInRadius(s, ctx.x, ctx.y, s.config.cards.toxocystRadius);
   return n ? { ok: true, message: `Toxocysts cleared ${n} nematode${n > 1 ? 's' : ''}.` } : { ok: false, message: 'No nematodes in range.' };
 });
