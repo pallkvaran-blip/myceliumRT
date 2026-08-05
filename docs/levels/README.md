@@ -9,8 +9,8 @@ uniform**: food `r` is a diamond radius in *cells*, reservoir `r` is *world unit
 
 | file | level | what it is |
 |---|---|---|
-| `campaign-NN-*.json` | **1-10** | the campaign — owner's underground, generated overground |
-| `2-obsidian.json` | none (`#level,2-obsidian`) | **Chapter 1** — the owner's own map, handed over from their browser. First committed level carrying a `chapter` |
+| `campaign-NN-*.json` | **1, 3-10** | the campaign — owner's underground, generated overground. `campaign-02-obsidian-c40` gave slot 2 up to `2-obsidian` and now claims none |
+| `2-obsidian.json` | **2** | **Chapter 1** — the owner's own map, handed over from their browser. First committed level carrying a `chapter`, and it holds campaign slot 2 (see below) |
 | `three-ways.json` | none (`#level,three-ways`) | "Three Ways Up" — three sealed routes, one threat each. **Its sky is hand-designed** (the routes are themed to pass under a city and a mountain range), so `surface-rock-check` deliberately exempts it |
 | `maze-one.json` | none (`#level,maze-one`) | "Maze One" — **traced**: 77 sprites from `docs/maps/maze-1@4x.webp`, dense with tight channels |
 | `scatter-one.json` | none (`#level,scatter-one`) | "Scatter One" — **traced**: 25 sprites from `docs/maps/scatter-1@4x.webp`, open with big separated masses |
@@ -106,6 +106,15 @@ pointer; the simplest route is to re-trace under the new id, or copy the folder.
 id. Set it to a number and that campaign level's generated map is replaced, in **both** modes
 (there is no per-mode authored map — `layout`/`objects` are geometry, and geometry is shared).
 `gen-levels.mjs` refuses two maps claiming the same slot.
+
+**COMMITTING A MAP DOES NOT PUT IT IN THE CAMPAIGN.** Two separate steps, and the second is the one
+that gets forgotten: the file has to exist *and* claim a slot, and if some other map already holds
+that slot it has to give it up in the same edit. `2-obsidian` was committed with
+`campaignLevel: null`, so the campaign went on serving `campaign-02-obsidian-c40` at level 2 and the
+owner reported the map as "not updated". Note `levelForNumber` reads the generated `LEVELS` array,
+**not `allLevels()`** — so a localStorage save cannot shadow a committed slot, but it DOES shadow the
+committed map for `#level,<id>` and the dev map list. A saved draft of a map that is now committed
+should be forgotten (the `×`, or `__game.forgetSaved('<id>')`) or you keep playing the draft.
 
 ## Things that bite
 

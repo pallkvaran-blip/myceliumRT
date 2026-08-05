@@ -12754,6 +12754,10 @@ class Network {
     this.nodes = [];           // array of node objects
     this.byId = new Map();     // id -> node
     this.nextNodeId = 0;
+    // ONLY TISSUE THIS GROW MADE MAY REACH OUT AND CLAIM A PILE — the watermark that says which
+    // that is. Stamped by _beginGrowthClaim() at the top of every growth primitive, read by
+    // colonizeReachablePiles. See that function for the defect it exists for.
+    this._claimFromId = null;
 
     this.traits = {};   // (genetic traits removed for now — Melanize is gone)
     this._rt = isRealtime(config);   // real-time run? (see grownIn — read per node per tick)
@@ -12840,6 +12844,7 @@ class Network {
   // Returns the number of new nodes created (for feedback / logging).
   grow(substrate, rng) {
     const g = this.config.growth;
+    this._beginGrowthClaim();
     let created = 0;
     for (let step = 0; step < g.stepsPerGrow; step++) {
       created += this._growStep(substrate, rng);
@@ -13120,6 +13125,7 @@ class Network {
   // opt-in test currently used only by Rhizomorph Lance.
   growDirected(substrate, rng, dx, dy, steps, straight = false, startTip = null, noDodge = false, companion = false) {
     const g = this.config.growth;
+    this._beginGrowthClaim();
     const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
     const tips = this.tips();
     if (!tips.length) return 0;
@@ -13200,6 +13206,7 @@ class Network {
   // fanSpacing/fanBudget.
   growFanDirected(substrate, rng, dx, dy, steps, startTip = null) {
     const g = this.config.growth;
+    this._beginGrowthClaim();
     const cf = this.config.cards;   // fan tunables live here (alongside fanSteps)
     if (this.nodes.length >= g.maxNodes) return 0;
     const norm = Math.hypot(dx, dy) || 1; dx /= norm; dy /= norm;
@@ -13286,6 +13293,7 @@ class Network {
   // instead of exploding exponentially over the depth.
   growRadial(substrate, rng) {
     const g = this.config.growth;
+    this._beginGrowthClaim();
     const cells = Math.max(1, g.foragingFanCells || 3);          // probe depth per ray
     const spacing = Math.max(4, g.minTipSpacing * 0.55);         // relaxed so a packed frontier can still push out
     const key = (c, r) => c + ',' + r;
@@ -13673,6 +13681,7 @@ class Network {
   // side the player aimed at.
   punchThrough(substrate, rng, x, y, aimX = x, aimY = y) {
     const g = this.config.growth;
+    this._beginGrowthClaim();
     const isRock = (cell) => cell && cell.rock && !cell.water;
     const cs = substrate.cellSize;
     let start = null;
@@ -13932,6 +13941,13 @@ class Network {
     };
   }
 
+  // Mark where THIS grow's tissue starts. Every growth primitive calls this before it creates a
+  // node; colonizeReachablePiles then only lets tissue at or above the mark reach out for a pile.
+  // Ids come off nextNodeId in order, so "grown by this grow" is one number rather than a field on
+  // every strand — the same trick as `_turnStartId`, but scoped to the GROW instead of the world
+  // step, which is the difference that makes it work in real time (see colonizeReachablePiles).
+  _beginGrowthClaim() { this._claimFromId = this.nextNodeId; }
+
   // --- Colonisation: fully claim every substrate pile within reach ------------
   // Called after every grow. For each CONNECTED substrate pile (a blob of food
   // cells) with any cell within sensing/reach range of a living strand — you grew
@@ -13997,11 +14013,45 @@ class Network {
       }
     }
 
-    // Bucket living strands by cell for a bounded nearest-node search.
+    // ONLY TISSUE THIS GROW MADE MAY REACH OUT FOR A PILE (owner). The reach itself is unchanged —
+    // it is still the full `sensingRadius`, so growing NEAR a pile still takes it, which is the
+    // forgiveness the owner asked to keep. What changed is WHOSE reach counts.
+    //
+    // The defect: this pass sweeps EVERY pile on the map and, for each, takes the nearest living
+    // strand ANYWHERE within reach. So a pile beside some old limb was claimed on an action spent
+    // growing somewhere else entirely — and because the claim sprays a mat through every cell of
+    // the pile it just took, that mat is then the nearest strand to the NEXT pile, and the colony
+    // walks a chain of piles on its own, one per action, away from wherever the player is working.
+    // Reported as "other parts of the network will also grow... it will grow into one pile one
+    // turn, then another pile next turn. Even if I am currently focused on a totally different
+    // part of the network."
+    //
+    // Measured (tests/cascade-check.cjs, six piles laid stepping away from the colony, each just
+    // inside one reach of the previous, growing the OTHER way the whole time): the colony claimed
+    // all six in six actions, the last of them 811 units — 32 growth segments — from anything the
+    // player had grown. Every link was 105-145u from SOME tissue and up to 811u from real growth:
+    // that tissue was the previous claim's mat. With the watermark, the chain stops at the one pile
+    // the player was genuinely near.
+    //
+    // TWO clauses, and both are needed:
+    //  • `id >= _claimFromId` — grown by this grow. A GROW watermark, not `_turnStartId`'s world-step
+    //    one, because in real time a grow's reveal spans several ticks and tickWorld re-runs this
+    //    pass on each of them (the `_colonizePending` arrival window); a per-step mark would go
+    //    stale mid-flight and the pile at the end of a long grow would never be claimed.
+    //  • `!n.colon` — mat and bridge-runner hyphae are not something the player grew, they are this
+    //    pass's own product. They carry fresh ids, so without this they re-qualify as "grown this
+    //    grow" and in real time the cascade simply walks the chain within one arrival window
+    //    instead of across actions.
+    //
+    // A NULL WATERMARK MEANS "EVERYTHING", deliberately: a growth primitive added later that forgets
+    // _beginGrowthClaim() then behaves as this did before, rather than silently claiming nothing —
+    // a cascade is a bug, but a colony that cannot eat is an unwinnable map.
+    const claimFrom = this._claimFromId;
     const buckets = new Map();
     let liveCount = 0;
     for (const n of this.nodes) {
       if (n.infected || !grownIn(n)) continue;
+      if (claimFrom != null && (n.id < claimFrom || n.colon)) continue;
       liveCount++;
       const b = key(substrate.colAtX(n.x), substrate.rowAtY(n.y));
       let arr = buckets.get(b); if (!arr) buckets.set(b, (arr = [])); arr.push(n);

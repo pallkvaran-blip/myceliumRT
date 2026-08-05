@@ -509,17 +509,72 @@ Mode-gated behaviour, roughly in order of subtlety:
   is in flight** (`net._colonizePending`, until `net._arriveUntil`). It must NOT run freely —
   doing so had the colony reach out and take piles the player never grew toward, most visibly
   the instant the tutorial ended.
+  - **AND ONLY TISSUE THAT GROW MADE MAY REACH OUT — `net._claimFromId`.** See the pile-claim
+    section below; the two rules are separate and the second one is the one that is easy to break
+    from the real-time side.
 - `roundTicks` = 1 in turn-based, `roundSeconds*1000/stepMs` in RT. Cadence meters draw **dots**
   in turn-based (progress lives in the markup — fine, the HUD only refreshes when you act) and a
   **time bar** in RT (progress must stay OUT of the markup; see churn below).
 - `_worldTime` must keep advancing in turn-based, or `simPaused()` freezes the ant march forever.
 
+## Claiming a food pile: only tissue THIS grow made may reach out
+
+**`colonizeReachablePiles` sweeps EVERY pile on the map after every grow**, and for each unclaimed
+one takes the nearest living strand *anywhere* within `growth.sensingRadius` (202.5 = **7.9
+segments**), bridges a runner in and sprays a mat through every cell. The reach is the forgiveness
+the owner asked to keep — *"it's good that the system is forgiving when growing new growth close to
+food piles"* — and it is unchanged. What is gated is **whose** reach counts.
+
+**THE MAT IS THE NEXT LINK, AND THAT IS WHAT MADE IT A CASCADE.** A claim's own hyphae are tissue,
+so they become the nearest strand to the *next* pile, and the colony walks a chain of piles by
+itself, one per action, wherever the player is actually working. Owner: *"it will grow into one pile
+one turn, then another pile next turn. Even if I am currently focused on a totally different part of
+the network."*
+
+Measured (`tests/cascade-check.cjs`: six piles laid stepping away from the colony, each just inside
+one reach of the previous, growing the other way throughout):
+
+| | turn-based | real time |
+|---|---|---|
+| before | all six in **six actions**, the last **811u ≈ 32 segments** from anything the player grew | all six in **ONE action**, the last **954u** — the whole chain fits inside one arrival window |
+| after | stops at the one pile the player was genuinely near | same |
+
+**`net._claimFromId` is the gate — a node-id watermark, and it is scoped to the GROW, not the world
+step.** `_beginGrowthClaim()` stamps it at the top of all five growth primitives (`grow`,
+`growDirected`, `growFanDirected`, `growRadial`, `punchThrough`); `colonizeReachablePiles` skips any
+strand below it. Two things about it that are not interchangeable:
+
+- **NOT `_turnStartId`.** That one moves at the END of every `tickWorld`, i.e. every 500 ms in real
+  time — but a grow's reveal lasts 1–3 s and `tickWorld` re-runs the claim on every tick of the
+  arrival window. A world-step mark goes stale mid-flight, and the pile at the end of a long grow
+  would never be claimed at all. In turn-based the two coincide, so turn-based cannot show this.
+- **Mat and bridge-runner hyphae are excluded as well (`!n.colon`)** — they carry fresh ids, so they
+  re-qualify as "grown this grow" and the real-time cascade simply walks the chain inside one
+  arrival window instead of across actions. Excluding them was measured as necessary, not assumed:
+  the mat clause alone (without the watermark) only *halved* it, and the watermark alone leaks in RT.
+  `nearestNode` — which picks the mat's PARENT — deliberately still sees every node, or the mat
+  could not attach.
+- **A NULL watermark means "everything", on purpose.** A growth primitive added later that forgets
+  `_beginGrowthClaim()` behaves as this did before rather than claiming nothing: a cascade is a bug,
+  a colony that cannot eat is an unwinnable map.
+
+Consequence to expect, and it is deliberate: a pile whose claim was RELEASED (a worm ate the tissue
+holding it, `cleanCover`) needs a fresh grow to take it again. Old tissue sitting beside it will not
+reach out on its own any more.
+
+**Assert the RULE, not the outcome.** The first version of the check asserted "nothing past link #1
+is ever claimed", which is a bet about where the lance's path wobbles — a side strand or a rock dodge
+can legitimately carry growth down toward the next link, and that claim is the forgiveness working.
+It reads `dFresh` per claim now: every claimed pile must have had *that action's own* non-mat growth
+within one `sensingRadius`. And it keeps the opposite assertion beside it, because **"claims nothing"
+passes the cascade half** just as "claims everything" passes the forgiveness half.
+
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**1626 assertions across 26 checks**, of which `traced` is 818 (one map's worth each). Plus the
-PROBES and PERF TOOLS, which print and never fail — see Loose ends, the Performance section and
-tests/README.md. **Run them; don't verify by re-reading your own diff.**
+**33 checks registered in `run.mjs`**, roughly 1900 assertions, of which `traced` is 818 (one map's
+worth each). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
+Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
 node tests/run.mjs           # everything, one summary (~27 min)
@@ -529,16 +584,21 @@ node tests/run.mjs hs lure   # by name
 
 **The last measured FULL sweep: 1470 passed, 10 failed** — every one a known standing failure
 rather than a regression (6 `traced` map-data assertions on four maps, 3 `tut` real-time flakes,
-1 `rt` worm flake; all in Loose ends). The campaign work since then has been verified on a
-16-check subset instead, most recently **579 passed, 0 failed** across species · pill · review ·
-ingame · hover · boot · hs · store · campaign · level · turn-play · fixes · edit · threat · core ·
-mode. That subset is the useful one for anything touching the store, the deck, the campaign or
-the title screen; it runs in about six minutes. Note the arithmetic doesn't reach
-1489: `aim` contributed **0 of its 9** because it bails to a zero-coverage pass inside a full
-sweep. Per-check, measured: traced 818 · threat 114 · edit 116 · rt 69 · enemy 52 · species 42 ·
-mode 33 · harvest 28 · level 27 · scale 26 · fixes 25 · hs 20 · mould 20 · tut 19 · boot 16 ·
-core 15 · review 13 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 86** and **campaign 53**, measured on their own runs rather than in a sweep.
+1 `rt` worm flake; all in Loose ends). Everything since has been verified on SUBSETS scaled to the
+change, which is the recommended gear — the most recent runs, each 0 failed:
+
+| subset | result |
+|---|---|
+| species · pill · review · ingame · hover · boot · hs · store · campaign · water · surface · edit · core · mode | **448 passed** (the screens/store/campaign set, ~6 min) |
+| threat · harvest · mould · core · mode | **217 passed** (the engine set) |
+| campaign · surface · level · ctreats · ants · challenge · sky | **252 passed** (the maps/threat-placement set) |
+
+Per-check, measured: traced 818 · edit 118 · threat 114 · rt 69 · campaign 66 · enemy 52 ·
+challenge 50 · sky 45 · mode 39 · species 38 · ctreats 31 · harvest 28 · level 27 · scale 26 ·
+ants 22 · fixes 27 · mould 20 · hs 19 · tut 19 · boot 16 · core 16 · cascade 16 · review 13 ·
+water 11 · surface 11 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
+plus **store 87**, measured on its own run. Note `aim` contributes **0 of its 9** inside a full
+sweep, because it bails to a zero-coverage pass there, so a sweep's arithmetic never adds up.
 
 **`node tests/campaign-shot.cjs`** is not a check — it writes nine frames to `tests/.artifacts/`
 covering every campaign screen (title, the selection screen top and bottom, the deck sheet, a
@@ -876,6 +936,36 @@ Already in place before any of that, and worth not re-deriving: `RENDER_DPR_CAP`
 - **Rock has two masks.** `cell.rock` is coarse; `substrate.solidAtWorld(x,y)` matches the drawn
   sprite, which overhangs its cells. Anything that must look right against the art (growth, ant
   trails) tests `solidAtWorld` — destination *and* midpoint.
+- **THE ANT ROAD IS PLANNED BEFORE THE MASK IT HAS TO RESPECT EXISTS, and that has now been fixed
+  in three separate places.** `placeAntNests` → `retarget` → `buildTrail` runs at BUILD time;
+  `solidifyRock` publishes the fine mask during RENDER, and `solidAtWorld` falls back to the coarse
+  `cell.rock` until it does. So a nest's FIRST trail is always plotted against the coarse grid
+  however carefully `buildTrail` tests each step — and on a traced map, where the two masks disagree
+  most, the ants come out walking over the boulders. Reported by the owner twice.
+  - **`replanAntTrailsForFineMask(state)` is the answer, and it is called from `advanceSim`, not
+    just `stepAnts`.** `stepAnts` only runs on a WORLD STEP, and in turn-based a world step is a
+    player ACTION — so the wrong route was on screen from the moment the map appeared until the
+    first move. The frame loop calls it behind the one-shot `nest._finePath` flag, so it lands on
+    the first frame after the mask exists. **No `built > 0` guard**: the opening trail is laid whole
+    (`layTrailFully`), so `built` is at its maximum from frame one and that test would skip every
+    nest.
+  - **IT MUST RE-STAMP `cell.antTrail`, NOT JUST RE-ROUTE.** Inside `stepAnts` the function ended in
+    `setTrailFields` so re-planning implied re-stamping; from the frame loop it does not, and
+    `setTrailFields` is the ONLY thing that ever clears the flag. The drawn line moved off the rock
+    and the stamp stayed on the coarse route — 0 sampled points against **18 of 57 stamped cells**
+    inside a boulder. Not cosmetic: the stamp is the **nematodes' secondary attractor**.
+  - **`setTrailFields` judges rock by `solidAtWorld` too.** It used to test `!cell.rock`, which
+    disagrees in BOTH directions — stamping a cell the fine mask calls solid, and refusing one that
+    is coarse-rock but clear at its centre, dropping a marker out from under a line you can see.
+    Trail cell counts go UP when this is fixed (57 → 67 on 2-obsidian) as those come back.
+  - **`__game.auditAnts()`** is the in-page measurement (per nest: sampled points on drawn rock, plus
+    stamped cells and a `clean` verdict). It refuses rather than reporting a clean map it never
+    measured if `_rockSolidified` is false. It exists because the owner's Chapter 1 maps live in
+    their browser's localStorage and cannot be reproduced from the repo.
+  - **`ant-rock-check` measured only AFTER 40 world steps for a long time**, which is past the window
+    the bug lives in, so it passed on a build with the stamp broken. It asserts the OPENING state now.
+  - The other route into visible rock is a **food pile holing the rock** (`markCoverGrid` skips food
+    and water cells) — `__game.auditRocks()`, separate mechanism, separate fix.
 - **Title screen `g.minY`** is the consume animation's "the strand reached the letter" test. Any
   growth that isn't the consume strand must pass `track: false` to `addNode`, or pressing
   New/Old fires its bloom instantly.

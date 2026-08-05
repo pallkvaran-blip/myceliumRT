@@ -43,6 +43,7 @@ const CHECKS = [
   ['scale',     'scale-check.cjs',   85,  false],
   ['threat',    'threat-check.cjs',  90,  false],
   ['harvest',   'harvest-check.cjs', 40,  false],
+  ['cascade',   'cascade-check.cjs', 120, false],
   ['mould',     'mould-check.cjs',   40,  false],
   ['core',      'core-check.cjs',    75,  false],
   ['mode',      'mode-check.cjs',    100, false],
