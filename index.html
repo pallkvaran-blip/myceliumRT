@@ -14046,7 +14046,15 @@ class Network {
     // A NULL WATERMARK MEANS "EVERYTHING", deliberately: a growth primitive added later that forgets
     // _beginGrowthClaim() then behaves as this did before, rather than silently claiming nothing —
     // a cascade is a bug, but a colony that cannot eat is an unwinnable map.
-    const claimFrom = this._claimFromId;
+    // A WATERMARK IN THE FUTURE IS NONSENSE, AND MEANS "EVERYTHING" — same reading as null. Ids only
+    // ever climb in play, so this cannot fire in the game; what it rescues is a hand-built colony.
+    // Eighteen probes across tests/ rewind `nextNodeId` to 0 and then add strands directly, which
+    // stamps ids BELOW a watermark some earlier grow left behind — so tissue the probe just built
+    // read as ancient and `threat-check`'s "clean mycelium can then grow into that same pile and
+    // claim it" went to `0 of 4 cells claimed`. That is the harness, not the rule, and the rule is
+    // asserted properly in cascade-check; without this guard every future hand-built pile probe
+    // inherits the same trap, with a failure that looks like a harvesting bug.
+    const claimFrom = (this._claimFromId != null && this._claimFromId <= this.nextNodeId) ? this._claimFromId : null;
     const buckets = new Map();
     let liveCount = 0;
     for (const n of this.nodes) {

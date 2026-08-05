@@ -206,7 +206,6 @@ ok('the ATTACK phase moves the worm not at all', !crawl.err && crawl.movedInAtta
 const cloud = await p.evaluate(() => {
   const G = window.__game, s = G.state, sub = s.substrate, net = s.active, cs = sub.cellSize;
   s.nematodes.length = 0; s.clouds.length = 0;
-  const totalFood = () => { let t = 0; for (const cell of sub.cells) t += cell.nutrient; return t; };
   // Further than one step from the colony but inside its sight, with the first step provably
   // clear — the cloud's sight radius is the worm's, so the same finder serves. Parked any
   // closer and the creep clamps to the gap; parked in a pocket and it slides instead.
@@ -215,22 +214,41 @@ const cloud = await p.evaluate(() => {
   // Lay food across the whole corridor the cloud will creep along, so "the attack phase
   // devours food" is measuring the phase and not whether this map happened to put a pile
   // where the finder landed. Without it the assertion passes or fails on the seed.
-  const c0 = sub.colAtX(spot.x), r0 = sub.rowAtY(spot.y);
-  for (let col = c0 - 5; col <= c0 + 5; col++) for (let row = r0 - 5; row <= r0 + 5; row++) {
+  //
+  // WIDE ENOUGH TO HOLD A FULL CREEP: moveSpeed is 5 cells in turn-based, so a ±5 block let the
+  // cloud creep clean out of its own dinner and then eat nothing.
+  const c0 = sub.colAtX(spot.x), r0 = sub.rowAtY(spot.y), PAD = 9;
+  const block = [];
+  for (let col = c0 - PAD; col <= c0 + PAD; col++) for (let row = r0 - PAD; row <= r0 + PAD; row++) {
     if (!sub.inBounds(col, row)) continue;
     const cell = sub.cells[sub.index(col, row)];
     if (cell.rock) continue;
     cell.nutrient = 60; cell.maxNutrient = 60;
+    block.push(cell);
   }
+  // COUNT THE CLOUD'S OWN NEIGHBOURHOOD, NOT THE WHOLE MAP. This used to sum every cell on the
+  // substrate — and the COLONY eats too: in turn-based `resolveIncome` drains a claimed pile a
+  // little on every tick, anywhere on the map, and that drop was being read as the cloud's meal.
+  // It passed for years because the colony always had claimed piles; the moment pile claims got
+  // gated to tissue the player grew (net._claimFromId) the borrowed drain vanished and this read
+  // `0.0 nutrient gone` with the cloud behaving perfectly.
+  const blockFood = () => { let t = 0; for (const cell of block) t += cell.nutrient; return t; };
   s.clouds.push({ cx: spot.x, cy: spot.y, r: 1.0, strength: 1, heading: 0,
                   dying: false, vanishNext: false, sees: false, _budget: 0 });
-  const c = s.clouds[0], x0 = c.cx, y0 = c.cy, f0 = totalFood();
+  const c = s.clouds[0], x0 = c.cx, y0 = c.cy, f0 = blockFood();
   G.tickWorld(s, 'move');
-  const movedCells = Math.hypot(c.cx - x0, c.cy - y0) / cs, f1 = totalFood(), x1 = c.cx, y1 = c.cy;
+  const movedCells = Math.hypot(c.cx - x0, c.cy - y0) / cs, f1 = blockFood(), x1 = c.cx, y1 = c.cy;
+  // A CELL IS EATEN WHOLE, OUT OF AN ACCUMULATING BUDGET, and `leavesPerRound` is 0.85 — so ONE
+  // attack tick buys 0.85 of a cell and swallows nothing at all. Measured: budget 0 -> 0.85, zero
+  // nutrient gone, which is the rate working exactly as CLAUDE.md describes it. Two ticks is the
+  // fewest that can show the phase eating; the move phase either side is asserted separately.
   G.tickWorld(s, 'attack');
-  return { movedCells, want: s.config.trichoderma.moveSpeed,
-           ateInMove: f0 - f1, ateInAttack: f1 - totalFood(),
-           movedInAttack: Math.hypot(c.cx - x1, c.cy - y1) / cs };
+  const movedInAttack = Math.hypot(c.cx - x1, c.cy - y1) / cs;
+  G.tickWorld(s, 'attack');
+  return { movedCells, want: s.config.trichoderma.moveSpeed, block: block.length,
+           leaves: s.config.trichoderma.leavesPerRound,
+           ateInMove: f0 - f1, ateInAttack: f1 - blockFood(),
+           budget: c._budget, movedInAttack };
 });
 ok('the MOVE phase creeps the cloud moveSpeed cells',
    !cloud.err && Math.abs(cloud.movedCells - cloud.want) < 0.05,
@@ -238,7 +256,7 @@ ok('the MOVE phase creeps the cloud moveSpeed cells',
 ok('the MOVE phase devours no food at all', !cloud.err && cloud.ateInMove === 0,
    cloud.err || `${cloud.ateInMove} nutrient gone`);
 ok('the ATTACK phase devours food', !cloud.err && cloud.ateInAttack > 0,
-   cloud.err || `${cloud.ateInAttack.toFixed(1)} nutrient gone`);
+   cloud.err || `${cloud.ateInAttack.toFixed(1)} nutrient gone from the cloud's own ${cloud.block} cells over two attack ticks (leavesPerRound ${cloud.leaves}/tick, whole cells only)`);
 ok('the ATTACK phase creeps the cloud not at all', !cloud.err && cloud.movedInAttack < 1e-6,
    cloud.err || `crept a further ${cloud.movedInAttack.toFixed(4)} cells`);
 
@@ -420,7 +438,17 @@ const burst = await p.evaluate(() => {
           cell.hazard = 0; cell.colonized = 0; cell.nutrient = 50; cell.maxNutrient = 50;
         }
       }
-      G.performAction(s, 'grow', {});
+      // FOOD IN RANGE IS NOT THE SAME AS A TIP THAT CAN BE PLACED. `grow` reports "no food within
+      // sensing range" whenever it created NOTHING, and a packed or rock-boxed frontier creates
+      // nothing however much food is beside it — measured here as `canGrowToFood` true, tips 9,
+      // real strands grown 0. It used to succeed anyway because the pile claim at the end of
+      // `grow` padded the created-count with its mat (0 real strands, 116 mat); gating claims to
+      // tissue the player grew (net._claimFromId) took that padding away and the refusal became
+      // visible. The refusal is right — nothing happened — but this probe is about STEP ACCOUNTING
+      // on the basic-action path, so fall back to another basic action rather than measuring
+      // whether this map's frontier happens to be boxed in.
+      const res = G.performAction(s, 'grow', {});
+      if (!res || res.ok !== true) G.performAction(s, 'addSubstrate', {});
     } else {
       let idx = s.cards.hand.findIndex((h) => h.name === 'Rhizomorph Lance');
       if (idx < 0) { s.cards.hand.push({ id: s.cards.seq++, name: 'Rhizomorph Lance' }); idx = s.cards.hand.length - 1; }

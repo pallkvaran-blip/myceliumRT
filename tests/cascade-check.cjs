@@ -46,7 +46,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 
 // One of the more open authored maps, so the chain finds six clear spots. Its own food is cleared
 // either way, so nothing about its design is being relied on beyond having soil to lay piles in.
-const LEVEL = 'campaign-05-anthracite-c24';
+// Overridable, because "is my map affected?" is a real question and the alternative is a second
+// copy of this harness drifting away from it:  node tests/cascade-check.cjs 2-obsidian
+const LEVEL = process.argv.slice(2).filter((a) => !a.startsWith('-'))[0] || 'campaign-05-anthracite-c24';
 const ACTS = 8;
 
 async function boot(browser, base, hash) {
@@ -210,9 +212,16 @@ async function boot(browser, base, hash) {
         ? rogue.map((d) => `#${d.k} at ${d.dFresh}u ≈ ${(d.dFresh / 25.5).toFixed(0)} segments (reach ${r.R})`).join('; ')
         : `${claims.length} claim(s), furthest ${Math.max(0, ...claims.map((d) => d.dFresh))}u of ${r.R}`);
     // And the outcome, reported and asserted loosely: eight actions aimed away must not walk the
-    // whole chain however the path wobbles.
-    ok(`${mode}: eight actions aimed away do not walk the whole chain`, last.claimed.length < r.links.length,
-      `claimed ${last.claimed.map((k) => '#' + k).join(' ') || 'nothing'} of ${r.links.length} links`);
+    // whole chain however the path wobbles. Only meaningful with a chain long enough to march down —
+    // on a rockier map two links can both sit inside one legitimate reach, so this would fail beside
+    // the coverage assertion above and read as a second, separate defect. The coverage FAIL is the
+    // one that means something there.
+    if (r.links.length >= 4) {
+      ok(`${mode}: eight actions aimed away do not walk the whole chain`, last.claimed.length < r.links.length,
+        `claimed ${last.claimed.map((k) => '#' + k).join(' ') || 'nothing'} of ${r.links.length} links`);
+    } else {
+      console.log(`        (skipping the march assertion — only ${r.links.length} links fit this map's rock)`);
+    }
     ok(`${mode}: no page errors`, errs.length === 0, errs.slice(0, 2).join(' | ') || 'none');
 
     await page.close();
