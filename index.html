@@ -26496,7 +26496,42 @@ function updateDevMapBtn() {
   const devOn = !!(state && state.config && state.config.dev && state.config.dev.enabled);
   let btn = document.getElementById('devMapBtn');
   let panel = document.getElementById('devMapPanel');
-  const maps = devOn ? allLevels().filter((l) => l && l.id) : [];
+  // THE CAMPAIGN COMES FIRST, IN SLOT ORDER, AND NOTHING ELSE IS IN THAT GROUP (owner). Grouping is
+  // otherwise `chapter || first word of the name`, which scattered the ten campaign maps across the
+  // list: the owner's own three carry `chapter: 'Chapter 1'` and led the list, while slots 1 and 5-10
+  // fell under headings taken from their names' first word — a separate group per level number. The
+  // list a dev actually works down is the campaign, so it is built explicitly rather than emerging
+  // from a label. Every other map keeps its heading and stays reachable, just below.
+  const allMaps = devOn ? allLevels().filter((l) => l && l.id) : [];
+  // Which of these are browser drafts rather than committed files. Read once per call: it decides
+  // both the sort below and which rows get a × (see the note further down for why `chapter` is not
+  // the test).
+  const savedIds = new Set(devOn ? loadSavedLevels().map((l) => l.id) : []);
+  // The heading a map falls under, needed BEFORE the sort so each theme appears exactly once.
+  //
+  // The fallback is the first word of the name that CONTAINS A LETTER, not simply the first word.
+  // Every campaign map is named "<slot> — <Theme>", so the three that were replaced and lost their
+  // slots (campaign-02/03/04) fell out of the campaign group into headings of their own reading "2",
+  // "3" and "4" — one map each, named identically to the live map that took the slot.
+  const groupOf = (l) => {
+    if (l.campaignLevel != null) return 'Campaign \u00b7 ' + campaignMaps.length + ' levels';
+    if (l.chapter) return l.chapter;
+    const words = String(l.name || l.id).split(/[\s\u2014\u2013-]+/).filter(Boolean);
+    return words.find((w) => /[A-Za-z]/.test(w)) || words[0] || l.id;
+  };
+  const campaignMaps = allMaps.filter((l) => l.campaignLevel != null)
+    .sort((a, b) => a.campaignLevel - b.campaignLevel);
+  // SORTED BY HEADING, so a theme gets ONE heading. A heading is emitted whenever the group changes
+  // from the previous row, and allLevels() is ordered by file id rather than by theme — so obsidian's
+  // seven maps arrived in two runs and got two "Obsidian" headings, as did Veined, Rust, Crystal,
+  // Ember and Glacier. Browser drafts stay at the top (just under the campaign) because they are the
+  // ones being worked on; `numeric` collation puts Rust 30/40/90/110 in that order rather than
+  // 110/30/40/90.
+  const restMaps = allMaps.filter((l) => l.campaignLevel == null).sort((a, b) =>
+    (savedIds.has(a.id) ? 0 : 1) - (savedIds.has(b.id) ? 0 : 1)
+    || groupOf(a).localeCompare(groupOf(b))
+    || String(a.name || a.id).localeCompare(String(b.name || b.id), undefined, { numeric: true }));
+  const maps = campaignMaps.concat(restMaps);
   if (!devOn || !maps.length) {
     if (btn) btn.style.display = 'none';
     if (panel) { panel.style.display = 'none'; panel.classList.remove('open'); }
@@ -26523,19 +26558,18 @@ function updateDevMapBtn() {
     // NAMES are in the signature, not just ids — the editor can rename the map you are on,
     // and the id does not change when it does, so an id-only signature would leave the old
     // label in the list until something else happened to invalidate it.
-    const sig = maps.map((l) => l.id + ':' + (l.name || '')).join('|') + '#' + (playtestLevel && playtestLevel.id);
+    // The signature carries the ORDER as well as the names, so re-slotting a map (a campaignLevel
+    // edit) rebuilds the panel instead of leaving the old sequence on screen.
+    const sig = maps.map((l) => l.id + ':' + (l.name || '') + ':' + (l.campaignLevel != null ? l.campaignLevel : '')).join('|')
+      + '#' + (playtestLevel && playtestLevel.id);
     if (panel._sig !== sig) {
       panel._sig = sig;
       let lastGroup = null;
       panel.replaceChildren();
-      // Which of these are browser drafts rather than committed files — read once per rebuild,
-      // not once per row.
-      const savedIds = new Set(loadSavedLevels().map((l) => l.id));
       for (const l of maps) {
-        // A saved map names its own group ("Chapter 1"); a generated one falls back to the
-        // first word of its name, which is its theme. allLevels() puts saved maps first, so
-        // the chapters sit at the top of the list without a second sort.
-        const group = l.chapter || String(l.name || l.id).split(/[\s-]/)[0];
+        // A campaign map is in the campaign group whatever else it says — including the owner's own
+        // Chapter 1 maps, which would otherwise start a second heading of their own.
+        const group = groupOf(l);
         if (group !== lastGroup) {
           lastGroup = group;
           const h = document.createElement('div');

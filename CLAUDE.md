@@ -1374,7 +1374,39 @@ never came across with the fork, and a page cannot see the sprites. Everything b
 gated on `CONFIG.dev.enabled`, so a release cut has none of it.
 
 Three dev controls stack top-right: **Dev: win level**, **Dev: maps ▾** (jump to any authored
-map mid-run, grouped by theme) and **Dev: edit rocks**. `]` / `[` step through the maps
+map mid-run — **the campaign first, in slot order, then every other map under its theme**) and
+**Dev: edit rocks**.
+
+**THE CAMPAIGN GROUP IS BUILT EXPLICITLY, NOT INFERRED FROM A LABEL** (owner: "reorganize so all the
+current campaign maps are in order in the first category and all the other maps are removed from that
+list"). Grouping is otherwise `chapter || the first word of the name`, and that scattered the ten:
+the owner's own three carry `chapter: 'Chapter 1'` and led the list, while slots 1 and 5-10 took
+headings from their names' first word — a separate group per level number. `groupOf(l)` returns the
+campaign heading for any map with a `campaignLevel`, whatever else it says, and the panel sorts
+campaign-by-slot first. Nothing is removed from the panel; the other 65 maps keep their headings below.
+
+Two things that only showed up in a rendered frame, both worth keeping fixed:
+
+- **The fallback heading reads the first word CONTAINING A LETTER.** Every campaign map is named
+  "<slot> — <Theme>", so the three that lost their slots when the owner's maps took them
+  (`campaign-02/03/04`) fell out of the campaign group into headings of their own reading **"2", "3"
+  and "4"** — one map each, named identically to the live map that replaced it. They file under their
+  theme now.
+- **The rest are SORTED BY HEADING, so a theme gets one heading.** A heading is emitted whenever the
+  group changes from the previous row, and `allLevels()` is ordered by file id rather than by theme —
+  so obsidian's seven maps arrived in two runs and produced two "Obsidian" headings, as did Veined,
+  Rust, Crystal, Ember and Glacier. 35 headings became 26 with the same 75 maps. Browser drafts sort
+  to the top (just under the campaign) because they are the ones being worked on, and `numeric`
+  collation puts Rust 30/40/90/110 in that order rather than 110/30/40/90.
+- The panel's rebuild **signature carries `campaignLevel`** as well as id and name, so re-slotting a
+  map rebuilds the list instead of leaving the old sequence on screen.
+
+**THREE PAIRS OF MAPS NOW SHARE A NAME**, and it is confusing rather than broken: `2-obsidian` and
+`campaign-02-obsidian-c40` are both called "2 — Obsidian", and likewise for 3/Veined and 4/Rust. The
+live one is in the campaign group and the retired one under its theme, so they are distinguishable by
+position but not by label. The fix is the owner's call — rename or delete the retired three — and
+deleting is safe here for once, because each has an `assetsFrom` and therefore no `assets/<id>/` of
+its own (still run `prune-manifest.py`). `]` / `[` step through the maps
 without the mouse. Switching is a full restart, deliberately: a level's world box, cell grid,
 collision mask and food are built together by `createLevelState` and there is no supported
 way to replace them under a live run.
