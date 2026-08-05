@@ -10679,7 +10679,8 @@ const SPECIES = [
     id: 'schizophyllum', vibe: 'aqua', unlock: 'Complete level 10', memory: true, memPick: 15, memEngines: 2, startLevelMin: 3, startLevelMax: 10,
     name: 'Split Gill', latin: 'Schizophyllum commune', img: 'schizophyllum-commune',
     cardPos: 'center 30%',   // grid tile framing (owner-tuned)
-    blurb: 'The most widely distributed mushroom on Earth and the most genetically promiscuous — over <b>20,000 mating types</b>, endlessly adaptable. Its <b>split gills</b> fold shut to ride out drought and reopen the moment damp returns. The most seasoned colony you can field: it opens with a bare dozen runners, but carries <b>any 15 basic/event cards plus 2 engine cards from your last run</b> on top of whatever the store\'s carry tracks already give you. Warning: Your first run will be challenging.',
+    blurb: 'The most widely distributed mushroom on Earth and the most genetically promiscuous — over <b>20,000 mating types</b>, endlessly adaptable. Its <b>split gills</b> fold shut to ride out drought and reopen the moment damp returns. Warning: Your first run will be challenging.',
+    specialText: 'Adapt: Carry an additional 15 basic/event cards and 2 engine cards from your last run. NOTE: Split Gill carries are separate from other species (shared).',
     hand: [
       { name: 'Apical Drive', count: 6 },
       { name: 'Turgor Thrust', count: 6 },
@@ -11102,7 +11103,8 @@ function loadProgress() {
   if (!p.loadouts) p.loadouts = {};   // per-species carried loadout (memory species): { id: [{name,count}] }
   if (!p.lastDrafts) p.lastDrafts = {};   // per-species pool of the LAST run's non-engine drafts, offered at the next run's start-of-run picker
   if (!p.lastDraftEngines) p.lastDraftEngines = {};   // parallel pool of the LAST run's ENGINE drafts (Artist's Conk curates up to 2)
-  if (!Array.isArray(p.deathCarry)) p.deathCarry = [];   // universal death-carry: cards chosen at death to bring into the NEXT run (any species), consumed when it seeds
+  if (!Array.isArray(p.deathCarry)) p.deathCarry = [];   // the SHARED deck: cards chosen at the end of a run to bring into the next one, consumed when it seeds
+  if (!p.deckBySpecies || typeof p.deckBySpecies !== 'object') p.deckBySpecies = {};   // per-colony decks — a MEMORY colony keeps its own rather than sharing (owner)
   if (!p.upgrades) p.upgrades = {};   // campaign store: steps bought per upgrade track, { water: 3, lives: 1, ... } (additive — an older v2 save just reads as nothing bought)
   if (migrateProgress(p)) saveProgress(p);   // one-time roster-swap migrations; persist if anything changed
   return p;
@@ -11248,25 +11250,55 @@ function saveLastDraftEngines(speciesId, list) {
 // THE PERSISTED FIELD IS STILL `deathCarry`, deliberately: it started life as a consolation
 // prize for dying and grew into the deck, and renaming the key would strand every existing
 // save for the sake of a word. The FUNCTIONS carry the new name so call sites read true.
-function loadDeck(progress) {
+//
+// TWO BUCKETS, NOT ONE (owner: "Split Gill carries are separate from other species (shared)"). Eleven
+// colonies share one deck; a MEMORY colony keeps its own, under its id. That is what makes Split
+// Gill's +15/+2 its own thing rather than a bigger allowance on everyone else's pile — without the
+// split, playing Split Gill once fattens the deck every other colony then opens with.
+//
+// The SHARED bucket is still `p.deathCarry`, untouched, so every existing save keeps its deck; the
+// per-colony ones live beside it in `p.deckBySpecies` and read as empty on an older save.
+const SHARED_DECK = '';
+function deckBucketFor(sp) {
+  return (sp && sp.memory && sp.id) ? sp.id : SHARED_DECK;
+}
+function deckStore(p, bucket) {
+  if (!bucket) return Array.isArray(p.deathCarry) ? p.deathCarry : [];
+  const by = p.deckBySpecies;
+  return (by && Array.isArray(by[bucket])) ? by[bucket] : [];
+}
+function loadDeck(progress, bucket) {
   const p = progress || loadProgress();
-  return Array.isArray(p.deathCarry) ? p.deathCarry.filter((e) => e && e.name && e.count > 0) : [];
+  return deckStore(p, bucket || SHARED_DECK).filter((e) => e && e.name && e.count > 0);
 }
-function saveDeck(list) {
+function saveDeck(list, bucket) {
   const p = loadProgress();
-  p.deathCarry = (Array.isArray(list) ? list : []).filter((e) => e && e.name && e.count > 0);
+  const clean = (Array.isArray(list) ? list : []).filter((e) => e && e.name && e.count > 0);
+  if (bucket) { if (!p.deckBySpecies) p.deckBySpecies = {}; p.deckBySpecies[bucket] = clean; }
+  else p.deathCarry = clean;
   saveProgress(p);
-  return p.deathCarry;
+  return clean;
 }
-function clearDeck() {
+function clearDeck(bucket) {
   const p = loadProgress();
-  p.deathCarry = [];
+  if (bucket) { if (p.deckBySpecies) p.deckBySpecies[bucket] = []; }
+  else p.deathCarry = [];
   saveProgress(p);
 }
 // Total COPIES in the deck (not distinct names) — what the button on the selection screen
 // counts, and the only number that answers "how big is my deck?".
-function deckSize(progress) {
-  return loadDeck(progress).reduce((a, e) => a + (e.count || 0), 0);
+function deckSize(progress, bucket) {
+  return loadDeck(progress, bucket).reduce((a, e) => a + (e.count || 0), 0);
+}
+// Every bucket worth showing, for the deck viewer: the shared one first, then any colony holding
+// cards of its own. `[bucket, species]`; a null species means the shared deck.
+function deckBuckets(progress) {
+  const p = progress || loadProgress();
+  const out = [[SHARED_DECK, null]];
+  for (const sp of SPECIES) {
+    if (sp && sp.memory && deckStore(p, sp.id).length) out.push([sp.id, sp]);
+  }
+  return out;
 }
 
 // --- Resume-in-progress-run (title "Old" → continue last game) --------------
@@ -11562,7 +11594,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -22652,7 +22684,7 @@ function growMyceliumTitle(container, opts = {}) {
 
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
-  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, loadDeck, deckSize,
+  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, loadDeck, deckBucketFor, deckBuckets, deckSize,
     STORE_UPGRADES, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
@@ -22879,9 +22911,10 @@ function openSpeciesDetail(species) {
   // mushroom's portrait, a number that has nothing to do with which mushroom it is. The store
   // tiles are where those figures belong, and they already show them.
   ins.wrap.querySelector('#ssIHand').innerHTML = species.hand.map(cardFace).join('') + (species.memory ? chooseFiveFace(species) : '');
-  // Universal death-carry: cards the player kept from their last dead run, shown for EVERY
-  // species (they join whatever colony you pick). Hidden when there's nothing carried.
-  const carry = loadDeck();
+  // The deck THIS colony would open with — which is not the same deck for every colony any more:
+  // a memory colony keeps its own (deckBucketFor), so Split Gill's sheet must not show the shared
+  // pile it will never touch, nor hide the one it will.
+  const carry = loadDeck(null, deckBucketFor(species));
   const carryWrap = ins.wrap.querySelector('#ssICarry');
   if (carry.length) {
     ins.wrap.querySelector('#ssICarryDeck').innerHTML = carry.map(cardFace).join('');
@@ -22945,18 +22978,27 @@ const DECK_GROUPS = [
 ];
 function showDeckView() {
   const sheet = deckSheet();
+  // EVERY NON-EMPTY BUCKET, not just the shared one. A memory colony keeps its own deck (owner), and
+  // a viewer that showed only the shared pile would report "No cards." to a player holding fifteen
+  // of them under Split Gill.
+  const buckets = deckBuckets().filter(([b]) => b === '' || loadDeck(null, b).length);
   const deck = loadDeck();
   const total = deck.reduce((a, e) => a + (e.count || 0), 0);
+  const owned = buckets.slice(1);   // [bucket, species] for each colony keeping its own
   const sub = sheet.wrap.querySelector('#ssDeckSub');
   const body = sheet.wrap.querySelector('#ssDeckBody');
-  if (!deck.length) {
+  if (!deck.length && !owned.length) {
     sub.innerHTML = 'No cards.';
     body.innerHTML =
       '<p class="ss-deckempty">You get to add a certain number of cards to your deck at the end of ' +
       'each run.</p>';
   } else {
-    sub.innerHTML = '<b>' + total + '</b> card' + (total === 1 ? '' : 's') +
-      ' kept from your last run. They join whichever species you pick, on top of its own opening hand.';
+    const ownTot = owned.map(([b, sp]) => [sp, deckSize(null, b)]).filter(([, n]) => n > 0);
+    sub.innerHTML = '<b>' + total + '</b> shared card' + (total === 1 ? '' : 's') +
+      ', which join whichever colony you pick on top of its own opening hand.'
+      + (ownTot.length
+        ? ' ' + ownTot.map(([sp, n]) => '<b>' + n + '</b> more kept by ' + esc(sp.name) + ', which carries separately.').join(' ')
+        : '');
     const seen = new Set();
     let html = '';
     const groupOf = (n) => { const c = CARD_BY_NAME[n]; return (c && c.type) || ''; };
@@ -25145,7 +25187,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -25515,10 +25557,14 @@ function effectiveSpecies(sp) {
 // any memory loadout, then CONSUME it (one-shot). Only a FRESH run seeds through here; a
 // level-transition reuses the live deck (applyCarry), so the carry never double-applies.
 function withDeathCarry(sp) {
-  const carry = loadDeck();
+  // A MEMORY COLONY DRAWS FROM ITS OWN DECK, everyone else from the shared one (owner). Reading the
+  // wrong bucket here is the whole bug this split exists to prevent: playing Split Gill once would
+  // otherwise fatten the deck that every other colony opens with.
+  const bucket = deckBucketFor(sp);
+  const carry = loadDeck(null, bucket);
   runDeck = carry;   // ...and REMEMBERED, so the end-of-run screen can offer it back — see below
   if (!carry.length) return sp;
-  clearDeck();
+  clearDeck(bucket);
   return { ...(sp || {}), hand: [...((sp && sp.hand) || []), ...carry] };
 }
 
@@ -25739,7 +25785,8 @@ function showDeathCarry(r) {
     lowerLabel: 'Cards from this run: click to add',
     emptyText: 'Nothing to keep — you played, drafted and owned no cards this run.',
     confirmText: 'Done',
-    onConfirm: (picked) => { saveDeck(picked); afterDeath(hsPromise, backToPicker); },
+    // ...into the bucket of the colony just PLAYED, which is the same one its allowance came from.
+    onConfirm: (picked) => { saveDeck(picked, deckBucketFor(memSp)); afterDeath(hsPromise, backToPicker); },
   });
 }
 
@@ -27425,7 +27472,10 @@ function begin(newState) {
     // when THIS run seeded, which is the part of the end-of-run pool that exists nowhere else
     // (`withDeathCarry` consumes the stored copy at seed time).
     deck: {
-      get: () => loadDeck(), set: (list) => saveDeck(list), clear: () => clearDeck(), size: () => deckSize(),
+      // `bucket` is the per-colony split: omit it for the SHARED deck, pass a memory colony's id
+      // for its own. `bucketFor(sp)` is the same resolver the run loop uses.
+      get: (b) => loadDeck(null, b), set: (list, b) => saveDeck(list, b), clear: (b) => clearDeck(b),
+      size: (b) => deckSize(null, b), bucketFor: (sp) => deckBucketFor(sp), buckets: () => deckBuckets().map(([b, sp]) => ({ bucket: b, id: sp && sp.id })),
       view: () => showDeckView(),
       owned: () => runDeck.slice(),
       // Seeding a run the way begin() does — loads the deck into the species' hand, REMEMBERS it

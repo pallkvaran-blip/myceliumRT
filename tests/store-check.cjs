@@ -288,6 +288,33 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      `${reach.rockOnly ? ' — it is in the store, so that reward moment is live again' : ''}`);
   ok('a tier colony already owned stays obtainable', reach.ownedTier === true, JSON.stringify(reach));
 
+  // ---- TWO DECKS: a memory colony carries separately from everyone else --------
+  // Owner: "Split Gill carries are separate from other species (shared)." The bug this prevents is
+  // quiet and one-directional — without the split, playing Split Gill once with its +15/+2 allowance
+  // fattens the deck that all eleven other colonies then open with. So it is not enough that Split
+  // Gill has a deck: the SHARED one has to be untouched by it, and vice versa.
+  const decks = await page.evaluate(() => {
+    const S = window.__game.store, D = window.__game.deck;
+    S.reset();
+    const gill = S.speciesById('schizophyllum'), oyster = S.speciesById('pleurotus');
+    const out = { gillBucket: D.bucketFor(gill), oysterBucket: D.bucketFor(oyster) };
+    D.set([{ name: 'Turgor Thrust', count: 4 }]);                       // the shared deck
+    D.set([{ name: 'Apical Drive', count: 9 }], D.bucketFor(gill));     // ...and Split Gill's own
+    out.shared = D.get().map((e) => e.name + 'x' + e.count).join(',');
+    out.gill = D.get(D.bucketFor(gill)).map((e) => e.name + 'x' + e.count).join(',');
+    out.sharedSize = D.size();
+    out.gillSize = D.size(D.bucketFor(gill));
+    // ...and what each colony actually SEEDS with, which is the thing that matters.
+    out.oysterHand = (S.effectiveSpecies ? [] : []);
+    return out;
+  });
+  ok('a memory colony has a deck bucket of its own', decks.gillBucket === 'schizophyllum', decks.gillBucket);
+  ok('...and every other colony shares one', decks.oysterBucket === '', JSON.stringify(decks.oysterBucket));
+  ok('the shared deck is not touched by the colony that carries separately',
+     decks.shared === 'Turgor Thrustx4' && decks.sharedSize === 4, `${decks.shared} (${decks.sharedSize})`);
+  ok('...and the separate deck is not touched by the shared one',
+     decks.gill === 'Apical Drivex9' && decks.gillSize === 9, `${decks.gill} (${decks.gillSize})`);
+
   // ---- the EFFECTS, read where the run loop reads them ----------------------
   const res = await page.evaluate(() => {
     const S = window.__game.store;
@@ -559,7 +586,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      deckFull.groups.length === 3 && /^Basic/.test(deckFull.groups[0])
        && /^Event/.test(deckFull.groups[1]) && /^Engine/.test(deckFull.groups[2]),
      deckFull.groups.join(' / '));
-  ok('the sheet states the total', /7 cards/.test(deckFull.sub), deckFull.sub.slice(0, 70));
+  // "7 shared cards" — the word is there because a memory colony carries SEPARATELY now, so the
+  // sheet has to say which pile this total is.
+  ok('the sheet states the total', /7 shared cards/.test(deckFull.sub), deckFull.sub.slice(0, 80));
 
   await page.evaluate(() => { document.querySelector('#ssDeckClose').click(); window.__game.deck.clear(); });
 
