@@ -82,6 +82,29 @@ const RUN = CASES.filter((c) => !only.length || only.some((o) => c.id.includes(o
         `built ${Math.round(n.built)} of ${n.len - 1} path cells${n.target ? '' : ' (no target!)'}`);
     }
 
+    // AND IT IS CLEAN BEFORE THE PLAYER TOUCHES ANYTHING. Everything below this block steps the
+    // world 40 times first, which is the state AFTER stepAnts has re-planned — so it measured past
+    // the window the bug lived in. In turn-based a world step is a player ACTION, so "the trail the
+    // level opens with" is what you sit and look at, and it was the coarse-grid route. The re-plan
+    // is driven from the FRAME LOOP now (advanceSim), so wait for its one-shot flag rather than
+    // stepping anything.
+    const replanned = await page.waitForFunction(
+      () => (window.__game.state.ants || []).every((n) => n._finePath), null, { timeout: 20000 })
+      .then(() => true).catch(() => false);
+    ok(`${c.id}: the opening trail is re-planned against the fine mask, with no action taken`,
+      replanned, replanned ? 'every nest carries _finePath' : 'timed out waiting for the re-plan');
+    const atOpen = await page.evaluate(() => window.__game.auditAnts());
+    const openOnRock = (atOpen.nests || []).reduce((a, n) => a + n.onRock, 0);
+    ok(`${c.id}: the trail the level OPENS with crosses no drawn rock`, openOnRock === 0,
+      `${openOnRock} sampled points inside a boulder`);
+    // The STAMP is the half that outlasted the first fix: the re-plan re-routed the drawn line and
+    // left cell.antTrail on the old route, because setTrailFields is the only thing that clears it
+    // and it sat below the re-plan inside stepAnts. 18 of 57 on 2-obsidian, with the line at 0.
+    ok(`${c.id}: and so does the STAMPED trail at level open`, atOpen.trailOnRock === 0,
+      `${atOpen.trailOnRock} of ${atOpen.trailCells} stamped trail cells`);
+    ok(`${c.id}: __game.auditAnts() calls the opening trail clean`, atOpen.clean === true,
+      atOpen.err || `clean=${atOpen.clean}`);
+
     const nests = await page.evaluate(() => (window.__game.state.ants || []).length);
     ok(`${c.id}: has an ant nest to check`, nests > 0, `${nests} nest(s)`);
     if (!nests) { await page.close(); continue; }

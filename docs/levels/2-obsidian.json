@@ -3,7 +3,7 @@
   "version": 1,
   "id": "2-obsidian",
   "name": "2 — Obsidian",
-  "campaignLevel": null,
+  "campaignLevel": 2,
   "assetsFrom": "obsidian-c40",
   "world": {
     "width": 2952,

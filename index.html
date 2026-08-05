@@ -4189,7 +4189,7 @@ const LEVELS = [
     "version": 1,
     "id": "2-obsidian",
     "name": "2 — Obsidian",
-    "campaignLevel": null,
+    "campaignLevel": 2,
     "assetsFrom": "obsidian-c40",
     "world": {
       "width": 2952,
@@ -5135,7 +5135,7 @@ const LEVELS = [
     "version": 1,
     "id": "campaign-02-obsidian-c40",
     "name": "2 — Obsidian",
-    "campaignLevel": 2,
+    "campaignLevel": null,
     "assetsFrom": "obsidian-c40",
     "world": {
       "width": 2952,
@@ -15488,6 +15488,51 @@ function placeAntNests(substrate, config, cols) {
 // the target pile, or retargeting / walking home when it's empty. Turn-based runs them a
 // couple of seconds apart (the trail extends, then the column feeds); 'both' is the original
 // single pass, and the order within it is unchanged.
+// Re-plan any trail still planned against the COARSE grid, now that the fine mask exists.
+// Extracted from stepAnts so THE FRAME LOOP CAN CALL IT TOO, which is the whole point:
+//
+// stepAnts only runs on a WORLD STEP, and in turn-based a world step is a player ACTION. So a
+// level opened with its opening trail laid whole (layTrailFully) showed that coarse-grid trail —
+// ants visibly walking over boulders — from the moment the map appeared until the player's FIRST
+// MOVE. Measured on the owner's own map via the new `__game.auditAnts()`: before the mask, two of
+// three nests crossed drawn rock at 24 and 62 sampled points and 18 of 57 stamped trail cells sat
+// inside a boulder; after the re-plan, zero of each — but only once the re-plan re-stamped as well
+// as re-routed, which is the second half of the same bug (see the function). The re-plan was always
+// correct — it was simply waiting for an event the player has to cause.
+//
+// Now `advanceSim` calls it every frame behind the one-shot `_finePath` flag, so it lands on the
+// first frame after solidifyRock publishes the mask and the wrong route is never something you
+// can sit and look at.
+//
+// No `built > 0` guard: the opening trail is laid WHOLE, so `built` is at its maximum from the
+// first frame and that test would skip every nest — taking the rock-crossing fix with it. The
+// replacement is laid whole too, so the route changes in one frame instead of retracting and
+// creeping back out.
+//
+// IT HAS TO RE-STAMP `cell.antTrail` ITSELF. While this lived inside stepAnts the whole function
+// ended in `setTrailFields`, so re-planning implied re-stamping; called from the frame loop it does
+// not, and `setTrailFields` is the ONLY thing that ever clears the flag. The result was a DRAWN
+// line that had moved off the rock while the STAMP behind it was still the coarse route — measured
+// on 2-obsidian as 0 sampled points on rock but 18 of 57 stamped cells inside a boulder. That is
+// not cosmetic either: the stamp is the nematodes' secondary attractor, so the worms went on
+// steering at a road nobody was walking.
+function replanAntTrailsForFineMask(state) {
+  const sub = state && state.substrate;
+  const nests = state && state.ants;
+  if (!sub || !sub._fineSolid || !nests || !nests.length) return 0;
+  let n = 0;
+  for (const nest of nests) {
+    if (nest._finePath) continue;
+    nest._finePath = true;
+    nest.path = []; nest.built = 0; nest.target = null;
+    retarget(sub, nest);
+    layTrailFully(nest);
+    n++;
+  }
+  if (n) setTrailFields(sub, nests);
+  return n;
+}
+
 function stepAnts(state, phase = 'both') {
   const doMove = phase !== 'attack';
   const doHarvest = phase !== 'move';
@@ -15535,20 +15580,7 @@ function stepAnts(state, phase = 'both') {
   // out from under it would be a worse artefact than the one being fixed; a later retarget picks
   // those up. In practice the first tick always lands here, since placeAntNests plans with
   // built = 0 and this runs before anything advances it.
-  if (sub._fineSolid) {
-    for (const nest of nests) {
-      if (nest._finePath) continue;
-      nest._finePath = true;
-      // No `built > 0` guard any more: the opening trail is laid WHOLE now (layTrailFully), so
-      // `built` is at its maximum from the first frame and that test would skip every nest —
-      // taking the rock-crossing fix with it. Re-planning stays a once-per-nest event via
-      // `_finePath`, and the replacement is laid whole too, so the route changes in one frame
-      // instead of retracting and creeping back out.
-      nest.path = []; nest.built = 0; nest.target = null;
-      retarget(sub, nest);
-      layTrailFully(nest);
-    }
-  }
+  replanAntTrailsForFineMask(state);
   const a = state.config.ants;
   const extend = a.extendSpeed != null ? a.extendSpeed : 2;
   for (const nest of nests) {
@@ -15692,11 +15724,22 @@ function buildTrail(sub, nestCol, nestRow) {
       if (parent[ni] !== -2 || sub.cells[ni].rock) continue;
       // Rock SPRITES cover more ground than the cells they're flagged on (that's why growth
       // collides against the fine `solidAtWorld` mask, which matches the visible art). Test
-      // the step against it too — the destination AND the midpoint — or the trail threads
-      // cells that are visually inside a boulder and the ants appear to crawl over it.
+      // the step against it too, or the trail threads cells that are visually inside a boulder
+      // and the ants appear to crawl over it.
+      //
+      // SAMPLED BY DISTANCE AT THE MASK'S OWN RESOLUTION, not at three fixed points — through the
+      // SAME `segmentClear` the threats' line of sight uses, so the ants and the creatures agree
+      // about what a rock is and cannot drift apart. It used to
+      // test the destination and the midpoint — three samples 18 units apart across a 36-unit
+      // step, against a mask whose cell is 9 — so a rock band thinner than 18 units could sit
+      // between two samples and be missed, and the drawn line went straight through it. Measured
+      // across the twelve maps that carry ants: 27 of 53,593 legal steps (0.05%), worst on
+      // challenge-antroad at 0.13%. Small, but it is the visible kind of wrong, and every other
+      // traversal test in this file already samples by distance (`_segmentClear`, `moveWorm`,
+      // `_growStep`) for exactly this reason.
       const to = sub.cellCenter(nc, nr);
       if (sub.solidAtWorld(to.x, to.y)) continue;
-      if (sub.solidAtWorld((here.x + to.x) / 2, (here.y + to.y) / 2)) continue;
+      if (!sub.segmentClear(here.x, here.y, to.x, to.y)) continue;   // marches at _losStep() = the fine size
       parent[ni] = cur;
       q.push(ni);
     }
@@ -15710,6 +15753,13 @@ function buildTrail(sub, nestCol, nestRow) {
 
 // Mark the trail cells (for the trail's visuals + nematode following). These no longer
 // block or eat the colony — mycelium and ant trails don't affect each other.
+//
+// THE ROCK TEST IS THE DRAWN ROCK, not `cell.rock`. `buildTrail` routes against `solidAtWorld` and
+// the renderer draws the line between cell centres, so the coarse flag disagreed with the route in
+// both directions: it stamped a cell the fine mask calls solid (a trail marker visibly inside a
+// boulder), and it REFUSED a cell that is coarse-rock but clear at its centre — dropping a marker
+// out from under a line the eye can see, and with it the nematodes' attractor. `solidAtWorld` falls
+// back to `cell.rock` before the mask exists, so a procedural map is unaffected.
 function setTrailFields(sub, nests) {
   for (const c of sub.cells) c.antTrail = false;
   for (const nest of nests) {
@@ -15721,12 +15771,14 @@ function setTrailFields(sub, nests) {
     for (let k = 0; k < upto; k++) {
       const p = nest.path[k];
       const cell = sub.cellAt(p.col, p.row);
-      if (cell && !cell.rock) cell.antTrail = true;
+      if (!cell) continue;
+      const ctr = sub.cellCenter(p.col, p.row);
+      if (!sub.solidAtWorld(ctr.x, ctr.y)) cell.antTrail = true;
     }
   }
 }
 
-  return { seedAnts, placeAntNests, stepAnts, attackNest, recalibrateAnts };
+  return { seedAnts, placeAntNests, stepAnts, attackNest, recalibrateAnts, replanAntTrailsForFineMask };
 })();
 
 // ===================== src/engine/puzzle.js =====================
@@ -24891,6 +24943,9 @@ const __m_main = (function () {
   const { levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
+  // The opening ant trail is planned before the fine rock mask exists; this redoes it the frame
+  // the mask appears, rather than waiting for a world step (= a player ACTION in turn-based).
+  const { replanAntTrailsForFineMask } = __m_engine_ants;
   const { infectDescendants, reachedThroughRot, stampCloudField } = __m_engine_threats;   // infectDescendants/reachedThroughRot are exposed on __game for threat-check; stampCloudField re-projects the clouds when a spent one finishes fading
   const { tickWorld, queueEnemyTurn, enemyTurnMove, enemyTurnAttack, flushEnemyTurn } = __m_engine_turn;
   const { initCards, drawCard, skipRound, playCard, cardNeedsTarget, cardUsesDragAim, dragAimReach, cardBlockedReason, chooseOffer, activateAction, cardAbilityInfo, rebuildCardsFromSnapshot } = __m_engine_cards;
@@ -27155,6 +27210,44 @@ function begin(newState) {
     // stamping itself — which is the only way to ask "does the mask match the picture?" without
     // trusting the thing under test.
     rockArt: (key) => { const img = asset(key); return img ? _alphaMask(img) : null; },
+    // AUDIT THE ANTS ON WHATEVER MAP IS LOADED. Same reason as auditRocks below: a map saved from
+    // the editor lives in one browser's localStorage, so a report of "ants are crawling over
+    // rocks" on one of those cannot be reproduced from the repo — the owner has to be able to ask
+    // their own copy. Returns a count and the first few offending world points, per nest, judged
+    // against the DRAWN rock (`solidAtWorld`) at the mask's own resolution.
+    //
+    // Nothing below means anything until the fine mask exists (`solidifyRock` runs during RENDER),
+    // so it says so rather than reporting a clean map it never measured.
+    auditAnts: () => {
+      const sub = state && state.substrate;
+      if (!sub) return { err: 'no level loaded' };
+      if (!sub._rockSolidified) return { err: 'the rock mask has not been built yet — let a frame draw, then re-run' };
+      const out = { level: (state.levelDef || {}).id || 'procedural', nests: [], trailCells: 0, trailOnRock: 0 };
+      for (const nest of (state.ants || [])) {
+        const p = nest.path || [];
+        const built = Math.min(p.length - 1, Math.floor(nest.built != null ? nest.built : p.length));
+        let onRock = 0; const where = [];
+        // The drawn LINE, not just the cells: sample each segment between cell centres at the
+        // fine size, which is what the eye follows.
+        for (let k = 0; k < built && k + 1 < p.length; k++) {
+          const a2 = sub.cellCenter(p[k].col, p[k].row), b2 = sub.cellCenter(p[k + 1].col, p[k + 1].row);
+          const n = Math.max(1, Math.ceil(Math.hypot(b2.x - a2.x, b2.y - a2.y) / sub._losStep()));
+          for (let i = 0; i <= n; i++) {
+            const x = a2.x + (b2.x - a2.x) * (i / n), y = a2.y + (b2.y - a2.y) * (i / n);
+            if (sub.solidAtWorld(x, y)) { onRock++; if (where.length < 6) where.push({ x: Math.round(x), y: Math.round(y) }); }
+          }
+        }
+        out.nests.push({ path: p.length, built: Math.round(built), onRock, where, replanned: !!nest._finePath });
+      }
+      sub.forEachCell((cell, c, r) => {
+        if (!cell.antTrail) return;
+        out.trailCells++;
+        const ctr = sub.cellCenter(c, r);
+        if (sub.solidAtWorld(ctr.x, ctr.y)) out.trailOnRock++;
+      });
+      out.clean = out.trailOnRock === 0 && out.nests.every((n) => n.onRock === 0);
+      return out;
+    },
     // Audit the CURRENT map for objects that hole a rock. On __game because the Chapter 1 maps
     // live in one browser's localStorage — this is the only way to run the check against them.
     auditRocks: () => {
@@ -28289,6 +28382,13 @@ function fadeSpentClouds(dt, paused) {
 
 function advanceSim(time) {
   const rt = CONFIG.realtime || {};
+  // THE OPENING ANT TRAIL, CORRECTED THE FRAME THE ROCK MASK LANDS. solidifyRock publishes the
+  // fine mask during RENDER, and the trail was planned at BUILD time against the coarse grid — so
+  // until this ran the player was looking at ants walking over boulders. It used to be fixed
+  // inside stepAnts, which only runs on a WORLD STEP: in turn-based that is a player action, so
+  // the wrong route was on screen from the moment the level appeared until the first move.
+  // One-shot per nest (`_finePath`), so this costs a null check on every other frame.
+  if (state && state.ants && state.ants.length) replanAntTrailsForFineMask(state);
   if (_lastSimTime < 0) _lastSimTime = time;
   const dt = time - _lastSimTime;
   _lastSimTime = time;
