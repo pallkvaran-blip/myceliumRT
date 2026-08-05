@@ -230,6 +230,47 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      JSON.stringify(ten));
   await page.evaluate(() => document.querySelectorAll('#ssLevelComplete, #ssGameWon').forEach((n) => n.remove()));
 
+  // ---- the opening, once per RUN ---------------------------------------------
+  // Three paragraphs and a question before the first level card. Armed in startRun(), which is the
+  // one place EVERY route into a run passes through — arming it at the picker instead left it
+  // unarmed for the campaign hook, and a probe driving that hook saw no opening at all while the
+  // game showed one.
+  const openIntro = await page.evaluate(async () => {
+    document.querySelectorAll('#levelIntro, #ssLevelComplete, #ssGameWon').forEach((n) => n.remove());
+    const was = window.__cfg.dev.enabled;
+    window.__cfg.dev.enabled = false;
+    window.__game.campaign.play('marasmius', 1);
+    for (let i = 0; i < 90 && !document.querySelector('#levelIntro.li-story'); i++) await new Promise((r) => setTimeout(r, 150));
+    const st = document.querySelector('#levelIntro.li-story');
+    const out = { shown: !!st,
+                  paras: [...document.querySelectorAll('.li-story-p')].map((n) => n.textContent.trim()),
+                  ask: (document.querySelector('.li-story-ask') || {}).textContent,
+                  btn: (document.querySelector('.li-story-btn') || {}).textContent };
+    // Dismissing it must reveal the LEVEL card behind it — one sequence, not a cutscene that
+    // replaces the screen carrying the threats and the counter.
+    if (st) { document.querySelector('.li-story-btn').click(); }
+    for (let i = 0; i < 90 && document.querySelector('.li-story'); i++) await new Promise((r) => setTimeout(r, 100));
+    for (let i = 0; i < 60 && !document.querySelector('#levelIntro .li-of'); i++) await new Promise((r) => setTimeout(r, 100));
+    out.thenLevel = (document.querySelector('#levelIntro .li-of') || {}).textContent;
+    // ...and it does NOT come back on the next level of the same run.
+    document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
+    window.__game.campaign.play('marasmius', 2);   // a fresh run, level 2 — not the start level
+    for (let i = 0; i < 40 && !document.getElementById('levelIntro'); i++) await new Promise((r) => setTimeout(r, 150));
+    out.midRun = !!document.querySelector('#levelIntro.li-story');
+    window.__cfg.dev.enabled = was;
+    document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
+    return out;
+  });
+  ok('a campaign run opens with the story', openIntro.shown === true);
+  ok('...all three paragraphs of it', openIntro.paras.length === 3,
+     `${openIntro.paras.length} paragraph(s)`);
+  ok('...ending on the question', /Will you persist\?/.test(openIntro.ask || ''), openIntro.ask || '(none)');
+  ok('...and the button answers it', (openIntro.btn || '').trim() === 'Persist', openIntro.btn);
+  ok('dismissing it reveals the level card behind', openIntro.thenLevel === '1 of 10',
+     openIntro.thenLevel || '(no level card)');
+  // Once per RUN and only at the start level: a run that begins deeper is already past the opening.
+  ok('it does not reappear on a level that is not the start', openIntro.midRun === false);
+
   // ---- the level intro counts toward the end --------------------------------
   // A finite campaign has to say it is finite; the wordmark can't carry the total.
   // The dev build SKIPS the intro (`state.config.dev.enabled`), and `state.config` is a deep clone
@@ -250,12 +291,23 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     // bold serif, reading as one more creature count. The text assertion passed throughout.
     const tally = document.querySelector('#levelIntro .li-threat .li-count');
     const cs = el ? getComputedStyle(el) : null, ts = tally ? getComputedStyle(tally) : null;
+    // The story line shares the taunt's SLOT (.li-sub) and must not share its voice: that slot is a
+    // red mono shout built to alarm, and "The calm before the storm." in it reads as a klaxon.
+    const sub = document.querySelector('#levelIntro .li-sub');
+    const ss = sub ? getComputedStyle(sub) : null;
     const out = { shown: !!document.getElementById('levelIntro'),
                   text: el ? el.textContent.trim() : null,
                   aria: box ? box.getAttribute('aria-label') : null,
                   tallies: !!tally,
                   distinct: !!(cs && ts && (cs.fontFamily !== ts.fontFamily || cs.color !== ts.color)),
-                  font: cs ? cs.fontFamily.split(',')[0] : null, color: cs ? cs.color : null };
+                  font: cs ? cs.fontFamily.split(',')[0] : null, color: cs ? cs.color : null,
+                  story: sub ? sub.textContent.trim() : null,
+                  storyTagged: !!(sub && sub.classList.contains('li-story-line')),
+                  storyColor: ss ? ss.color : null, storyFont: ss ? ss.fontFamily.split(',')[0] : null,
+                  // Redness as NUMBERS, not as a string shape: the taunt is #c0281f, so what makes
+                  // it a klaxon is r far above g and b. (A regex over "rgb(207, 224, 214)" flagged
+                  // the pale grey as red, which is the assertion failing on the thing it wanted.)
+                  storyRGB: ss ? (ss.color.match(/\d+/g) || []).slice(0, 3).map(Number) : null };
     window.__cfg.dev.enabled = was;
     document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
     return out;
@@ -269,6 +321,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // the text assertion sailed straight through.
   ok('the campaign counter does not look like a threat tally', intro.distinct === true,
      `${intro.font} ${intro.color}`);
+  // ---- the story ------------------------------------------------------------
+  // Level 4's line, on level 4's card. Asserted by CONTENT, because the slot it uses also carries
+  // the survival ladder's escalation taunt and "a line is present" would pass on either.
+  ok('the level card carries that level\'s story line',
+     /breathing a long time/.test(intro.story || ''), intro.story || '(none)');
+  const rgb = intro.storyRGB || [0, 0, 0];
+  const klaxon = rgb[0] - rgb[1] > 60 && rgb[0] - rgb[2] > 60;   // the taunt is #c0281f
+  ok('...styled as prose, not as the red escalation taunt',
+     intro.storyTagged === true && !klaxon, `${intro.storyFont} ${intro.storyColor}`);
 
   // ---- the selection screen sends you to level 1 ----------------------------
   const start = await page.evaluate(async () => {

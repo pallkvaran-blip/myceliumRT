@@ -1851,6 +1851,13 @@
       font-size:clamp(11.5px,1.85vw,17px); line-height:1.4; text-wrap:balance;
       color:#c0281f; max-width:min(700px,92vw);
       text-shadow:0 0 20px rgba(190,30,22,0.45); }
+    /* A STORY LINE IS NOT A TAUNT. `.li-sub`'s red mono shout is the escalation taunt's voice — it
+       exists to alarm, and the campaign's story lines went in that slot and inherited it, which made
+       "The calm before the storm." look like a klaxon. Same position, different register: the
+       opening's serif, quiet, no glow. */
+    .li-sub.li-story-line { font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
+      font-weight:400; font-size:clamp(14px,2.1vw,20px); line-height:1.5; letter-spacing:0;
+      color:#cfe0d6; text-shadow:none; max-width:min(640px,90vw); }
     @media (max-width:720px) { .li-sub { font-size:clamp(11px,2.9vw,14px); } }
     /* "3 of 10" — how far through the campaign this level is. Deliberately QUIET and in the
        colony's own mint rather than the taunt's red: it is a position, not a threat, and it sits
@@ -1861,6 +1868,24 @@
        threat tally's white bold serif and read as one more creature count. Second time this
        stylesheet has done that in one session (see `.ss-rowhint`); it is one enormous block with
        no scoping, so CHECK THE NAME IS FREE before adding a rule. */
+    /* ---- the opening (campaign) --------------------------------------------
+       Sits in the level intro's own overlay (#levelIntro), so the fade in/out and the dismiss are
+       already handled. Serif and generously leaded: this is the one screen in the game that asks to
+       be READ rather than scanned, and the rest of the HUD is a condensed sans. */
+    .li-story .li-inner { max-width:none; }
+    .li-story-body { max-width:min(56ch, 88vw); margin:0 auto; text-align:left; }
+    .li-story-p { font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
+      font-size:clamp(16px,2.3vw,22px); line-height:1.65; color:#e8f2ec; margin:0 0 1.15em; }
+    /* The question gets the mint the game uses for the player's own colour, and centres — it is
+       addressed to the player rather than to the world the paragraphs describe. */
+    .li-story-ask { font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
+      font-size:clamp(18px,2.6vw,25px); line-height:1.5; color:#7ef0c0; text-align:center;
+      margin:1.6em 0 0; }
+    .li-story-btn { display:block; margin:clamp(18px,4vh,34px) auto 0; cursor:pointer;
+      font:inherit; font-size:clamp(14px,1.8vw,17px); font-weight:700; letter-spacing:.06em;
+      text-transform:uppercase; color:#06231a; background:#7ef0c0; border:0;
+      border-radius:11px; padding:11px 34px; }
+    .li-story-btn:hover { background:#9df7d3; }
     .li-of { font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
       font-weight:700; letter-spacing:0.22em; text-transform:uppercase;
       font-size:clamp(10px,1.25vw,12.5px); font-variant-numeric:tabular-nums;
@@ -10929,6 +10954,40 @@ function threatBonusForLevel(level) {
 // from 15 to 100. Each entry carries its own trailing punctuation; the "+N per level" tail is
 // appended from the LIVE rate (escalationNote below) so the number can never drift from the
 // curve. Levels 7–30 are the owner's wording; 35+ continue the voice.
+// =============================================================================
+// THE CAMPAIGN'S STORY — the opening, and one line per level.
+//
+// The owner's words. Kept HERE, keyed by campaign LEVEL rather than by map id, because the story
+// narrates the journey and not the geology: level 9 is "the calm before the storm" because of where
+// it sits, and re-slotting a map should not move that line off the ninth level. The geology and the
+// slot happen to agree today (the ten maps are named for the rock they are cut from) and the lines
+// lean on both.
+//
+// Written to be read ONCE each, so they are fragments rather than paragraphs — the level card
+// already carries a grown wordmark, a "3 of 10" counter and the threat portraits, and a paragraph
+// there stops being a title card.
+const CAMPAIGN_OPENING = [
+  'The world got warm and the ground went dry. There is nothing left where you are.',
+  'East, the land is green and the rain still comes. Ten rocks stand between.',
+  'But you will not get through. You will die in the dark and fruit, and the spores will fall, and what grows from them will be stronger.',
+];
+const CAMPAIGN_OPENING_ASK = 'Will you persist?';
+const CAMPAIGN_STORY = {
+  1:  'Black iron, and nothing down here to steer by. Worms.',
+  2:  'Glass broke sharp. The ants keep their own time, faster than yours.',
+  3:  'Path of least resistance.',
+  4:  'This rock has been breathing a long time and it shows. Call it out, or go in after it.',
+  5:  'A whole forest pressed into the seam.',
+  6:  'Four rooms.',
+  7:  'Garnet is what they cut steel with. The walls turn you until you are out of corners.',
+  8:  'Break it black and it still bleeds red.',
+  9:  'The calm before the storm.',
+  10: 'Nowhere left to stand: Run.',
+};
+function storyForLevel(level) {
+  return CAMPAIGN_STORY[Math.max(1, level | 0)] || null;
+}
+
 const ESCALATION_TAUNTS = {
   7:  'Time to turn up the heat:',
   10: "You're doing well. Time to die.",
@@ -11569,7 +11628,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, storyForLevel, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -24772,7 +24831,11 @@ function showLevelIntro(opts) {
   // total (it is grown from the word LEVEL THREE, and "LEVEL THREE OF TEN" is a different shape
   // every level and unreadable at the small end).
   if (of) head.appendChild(el('div', 'li-of', level + ' of ' + of));
-  if (opts && opts.note) head.appendChild(el('div', 'li-sub', String(opts.note)));
+  if (opts && opts.note) {
+    const sub = el('div', 'li-sub', String(opts.note));
+    if (opts.storyNote) sub.classList.add('li-story-line');   // prose, not the red taunt
+    head.appendChild(sub);
+  }
   inner.appendChild(head);
 
   const row = el('div', 'li-threats');
@@ -24846,7 +24909,60 @@ function showLevelIntro(opts) {
   return { destroy, get active() { return alive; } };
 }
 
-  return { showLevelIntro };
+// =============================================================================
+// THE OPENING (campaign) — the three paragraphs before level 1, and the question.
+//
+//   showStoryIntro({ lines, ask, onDone }) → { destroy(), active }
+//
+// Deliberately the LEVEL INTRO'S SHELL and not a screen of its own: same black overlay, same
+// content fade-in, same click / Enter / Escape to leave, same 1.7 s fallback if `transitionend`
+// never fires (a headless page throttles rAF and can swallow it). Reusing it means the opening and
+// the level card that follows it are the same object visually, which is what makes them read as one
+// sequence rather than as a cutscene and then a game.
+//
+// It carries no wordmark: the wordmark is grown mycelium and takes a beat to draw, and the opening
+// wants to be readable the instant it appears.
+function showStoryIntro(opts) {
+  const lines = (opts && opts.lines) || [];
+  const ask = opts && opts.ask;
+  const onDone = opts && opts.onDone;
+
+  const root = el('div'); root.id = 'levelIntro'; root.classList.add('li-story');
+  const inner = el('div', 'li-inner');
+  const body = el('div', 'li-story-body');
+  for (const line of lines) body.appendChild(el('p', 'li-story-p', String(line)));
+  if (ask) body.appendChild(el('p', 'li-story-ask', String(ask)));
+  inner.appendChild(body);
+  // The button answers the question above it, which is why it is not "Continue".
+  const btn = el('button', 'li-story-btn', 'Persist'); btn.type = 'button';
+  inner.appendChild(btn);
+  root.appendChild(inner);
+  document.body.appendChild(root);
+
+  let alive = true;
+  const unbind = () => document.removeEventListener('keydown', onKey);
+  function finishOut() {
+    if (!alive) return;
+    alive = false;
+    unbind();
+    root.remove();
+    if (onDone) { try { onDone(); } catch (_) {} }
+  }
+  function dismiss() {
+    if (!alive) return;
+    root.classList.add('li-out');
+    root.addEventListener('transitionend', (e) => { if (e.target === root && e.propertyName === 'opacity') finishOut(); });
+    setTimeout(finishOut, 1700);
+  }
+  function destroy() { if (!alive && !root.isConnected) return; alive = false; unbind(); root.remove(); }
+  const onKey = (e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') dismiss(); };
+  root.addEventListener('click', dismiss);
+  document.addEventListener('keydown', onKey);
+  requestAnimationFrame(() => { if (alive) root.classList.add('li-in'); });
+  return { destroy, get active() { return alive; } };
+}
+
+  return { showLevelIntro, showStoryIntro };
 })();
 
 // ===================== src/render/loading.js =====================
@@ -25161,8 +25277,8 @@ const __m_main = (function () {
   const { showLoadoutSelect } = __m_render_loadout_select;
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
-  const { showLevelIntro } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { showLevelIntro, showStoryIntro } = __m_render_level_intro;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, storyForLevel, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -25231,6 +25347,13 @@ let uiDirty = true;
 let assetsReady = false;              // canvas art loaded — until then the map stays hidden
 let _revealPending = false;           // reveal (fade in) after the next fully-drawn frame
 let pendingLevelIntro = null;         // {level, threats, onContinue} — black "Level N" screen shown before the map fades in (campaign)
+// The opening, shown ONCE PER RUN before the first level card — not once per save. Each run is a new
+// lineage and the opening is about exactly that ("you will die in the dark and fruit"), so a player
+// who dies on level 4 and starts again is starting the story again too. Set when a campaign run
+// begins, cleared as it is shown.
+let pendingStoryIntro = false;
+let storyIntro = null;
+let _storyRun = null;   // the runStartLevel the opening was last armed for — see startRun
 let levelIntro = null;                // active level-intro overlay controller
 let draftIntro = null;                // sequenced food-pile → card-draft animation (see updateDraftIntro)
 
@@ -25265,14 +25388,30 @@ function revealMap() {
     canvas.style.transition = 'none';
     canvas.style.opacity = '1';
     if (levelIntro) { try { levelIntro.destroy(); } catch (_) {} levelIntro = null; }
-    levelIntro = showLevelIntro({
-      level: info.level,
-      of: info.of,
-      threats: info.threats,
-      note: info.note,                // escalation taunt, on the levels where the rate steps up
-      onDismiss: info.onDismiss,      // re-expand the hand while the screen is still black
-      onDone: () => { levelIntro = null; if (info.onContinue) info.onContinue(); },
-    });
+    // THE OPENING GOES IN FRONT OF THE LEVEL CARD, not instead of it: the level card is where the
+    // threats and the "1 of 10" live. Both sit on the same black, so dismissing the first reveals
+    // the second and the map only appears after them — one sequence, not two screens.
+    const showLevel = () => {
+      levelIntro = showLevelIntro({
+        level: info.level,
+        of: info.of,
+        threats: info.threats,
+        note: info.note,
+        storyNote: info.storyNote,
+        onDismiss: info.onDismiss,
+        onDone: () => { levelIntro = null; if (info.onContinue) info.onContinue(); },
+      });
+    };
+    if (pendingStoryIntro) {
+      pendingStoryIntro = false;
+      if (storyIntro) { try { storyIntro.destroy(); } catch (_) {} }
+      storyIntro = showStoryIntro({
+        lines: CAMPAIGN_OPENING, ask: CAMPAIGN_OPENING_ASK,
+        onDone: () => { storyIntro = null; showLevel(); },
+      });
+      return;
+    }
+    showLevel();
     return;
   }
   canvas.style.transition = 'none';
@@ -25449,6 +25588,19 @@ function retryLevel() {
   return true;
 }
 function startRun() {
+  // ARM THE OPENING HERE, because this is the one place EVERY route into a run passes through —
+  // the picker's Select, the campaign hook, the boot hashes. Arming it at the picker instead left
+  // it unarmed for the other entries, which is how a check driving `campaign.play` saw no opening
+  // at all while the game showed one.
+  //
+  // Once per RUN, not once per level and not once per save: the story is about a lineage that dies
+  // and fruits, so a player who starts again is starting it again. `_storyRun` is the level the
+  // run began on — a transition to level 2 does not re-arm, because runStartLevel does not move
+  // inside a run, and a retry does not either.
+  if (campaignRun() && currentLevel === CAMPAIGN_START_LEVEL && _storyRun !== runStartLevel) {
+    _storyRun = runStartLevel;
+    pendingStoryIntro = true;
+  }
   const fixed = campaignRun() ? campaignSeed(currentLevel) : null;
   start(fixed != null ? fixed : ((Date.now() & 0x7fffffff) || 1));
 }
@@ -27645,7 +27797,13 @@ function begin(newState) {
       // reads "LEVEL THREE" and the counter under it reads "3 of 10". Omitted off the ladder
       // (dev quick-start, playtest), where there is no total to be part of.
       level: currentLevel, of: campaignRun() ? CAMPAIGN_LEVELS : null,
-      threats: levelThreatList(), note: escalationNote(currentLevel),
+      threats: levelThreatList(),
+      // THE STORY LINE REPLACES THE ESCALATION TAUNT INSIDE THE CAMPAIGN, and only inside it. The
+      // taunts ("You're doing well. Time to die.") are the survival ladder's voice — a running joke
+      // about how far past sane you are — and they land badly next to a story told straight. Off the
+      // ladder there is no story to tell, so the taunt keeps its slot there.
+      note: (campaignRun() && storyForLevel(currentLevel)) || escalationNote(currentLevel),
+      storyNote: !!(campaignRun() && storyForLevel(currentLevel)),
       onDismiss: () => { if (ui && ui.setHandOpen) ui.setHandOpen(true); },
       onContinue: () => { if (deferred) deferred(); },
     };
