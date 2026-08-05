@@ -1580,6 +1580,70 @@ placed threats, and `placeRockface()` skips any level with a `levelDef`. The own
 three by hand. So a fresh trace is UNPLAYABLE by design, and `traced-check`'s food-reachability
 assertion passes on 0 of 0 — correct, and saying nothing until food is placed.
 
+## Species specials the player FIRES (once per level)
+
+Two colonies exist to fight a threat, both 500 Spores, both in the store, both opening on 20 grow
+copies (owner's spec):
+
+| colony | id | special | what it does |
+|---|---|---|---|
+| **Fly Agaric** (*Amanita muscaria*) | `amanita` | `berserk` | amputate yourself in a radius — the Amputate card, free, once per level |
+| **Blue Bonnet** (*Pruinomycena subcyanocephala*) | `pruinomycena` | `toxic` | digest every nematode in a radius, **max 7 P** (the Toxocyst Burst card's cap is 10) |
+
+**`specialAction(kind)` builds them, and they ride the ORDINARY installed-action framework.** `target`
+already drives the two-call arm-then-tap flow, `apply` already returns `{ok,message}`, the Actions menu
+already renders and gates them. Each reuses the primitive its card twin uses — `amputateAt`,
+`killWormsInRadius` — so a special can never drift from the card whose wording it borrows; only the
+lower cap lives in the special.
+
+- **They are NOT cards.** Nothing can draft, discard or tempo-upgrade them, which is what "special"
+  should mean. It also means `play()` cannot reach one and `reinstallByName` cannot rebuild one.
+- **`per` IS PER ROUND — that was the whole problem.** `produceCardEngines` zeroes `used` on every
+  round boundary, so a special written `per: 1` comes back every round and is worth roughly ten times
+  what it says. Hence **`perLevel` / `usedLevel`**, cleared only by `applyCarry` on the step onto a new
+  map, and skipped by the per-round reset. Three consequences, all of them load-bearing:
+  - the Actions menu prints **"1 / 1 this level"**, because "1 / 1 left" next to a per-round cap reads
+    as one and the player waits a round for a use that is never coming back;
+  - **the resume path rebuilds it from `special` and carries `specialUsed`.** The normal path restores
+    actions by CARD NAME, and there is no `EFFECTS` entry to look up — so without this a tab-close
+    handed out a second free use;
+  - `data-card` is left OFF the row: the card-face hover has no card to show.
+- **`node tests/special-check.cjs` (23, runner name `special`) asserts BOTH halves of "once per
+  level", because neither is enough alone**: a second use on the same level is refused AND forty more
+  actions do not hand it back (a per-round counter passes the first, fails the second), and the use is
+  **renewed on the next level** (a never-resetting counter passes both and fails that).
+  - `activateAction` was not on `__game`; **`__game.activate(i, ctx)`** is the hook, called twice like
+    the UI does (no ctx arms, `{x,y}` resolves).
+  - **`winLevel()` only PUTS THE LEVEL-COMPLETE SCREEN UP.** The advance is deferred to its `Proceed`
+    button, with the "species unlocked" card sometimes in front, so a probe that merely waits reads
+    `level 1 -> 1` and never measures the renewal at all.
+
+**NO `unlock` MEANS NO TIER GATE — IT DOES NOT MEAN FREE, and both halves of that had to be taught.**
+These two are store-only, so they carry `unlock: null` (no tier, so `tierSpecies` skips them and no
+level clear reveals them). That tripped two separate giveaways, and the SCREEN is where it showed:
+- `isPlayable` returned true for any unlock-less species, so both were startable for nothing;
+- the picker's `owned` list counted `!s.unlock` as owned on its own.
+Each was harmless for as long as the only unlock-less colonies were the two starters — which
+`isStarter` already covered — so neither clause had ever done anything or ever failed. Now: owned is
+"opens the roster, or has been bought", and `isPlayable` requires a purchase for a colony the store
+sells. Both fixes are scoped to the unlock-less case so the four colonies carrying legacy tier text
+keep the exact reading they had. **Caught in a rendered frame, not by a check** — 5 tiles under
+Available where there should have been 3.
+
+- **`tests/species-check.mjs`'s `EXPECT` table pins every colony's balance-touched card counts, and
+  its roster-count assertion is deliberately a tripwire**: adding a species fails it until the species
+  is pinned. That is the intended maintenance step, not a stale check.
+- Art: the owner's two links, centre-cropped to the roster's **560x720** (`assets/species/<img>.jpg`,
+  no manifest entry — species art is loaded straight off the `img` field). New filenames, so no
+  `__ASSET_VER` bump. Both photographers go in `PHOTO_CREDITS`.
+- **The real-world pairing is looser than the game's.** *Amanita muscaria*'s documented defensive
+  credential is INSECTICIDAL (the name is literal — crushed into milk as flypaper, ibotenic acid), so
+  its honest in-game enemy would be the ANTS; the berserker story is much repeated and never
+  established, which is why the blurb says so rather than asserting it. The nematode claim for the
+  bonnet is real at the GROUP level (several *Mycena* relatives hunt and digest nematodes) but not for
+  this newly-described species specifically, so the blurb keeps it at that level. Worth knowing before
+  anyone "corrects" either one.
+
 ## The roster tool: colonies, starting hands, prices and the opening three
 
 **`docs/species-tool.html`, and it is GENERATED — `node scripts/gen-species-tool.mjs`.** One row per

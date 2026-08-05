@@ -11841,8 +11841,17 @@ function revealSpecies(id) {
 }
 // PLAYABLE: revealed AND bought with Spores (ungated species are always playable).
 function isPlayable(sp, progress) {
-  if (!sp || !sp.unlock) return true;
-  if (isStarter(sp)) return true;   // ...and needs no purchase either
+  if (!sp) return false;
+  if (isStarter(sp)) return true;   // an opening-roster colony needs no purchase
+  // NO `unlock` MEANS NO TIER GATE — IT DOES NOT MEAN FREE. The store is a second, independent gate,
+  // and a colony sold there is playable once it is PAID for whatever its tier text says. This used to
+  // return true for any unlock-less species, which was harmless while the only ones were the two
+  // starters and became a giveaway the moment Fly Agaric and Blue Bonnet arrived: both were listed in
+  // Your colonies, free and startable, while also sitting in the store with a price on them.
+  // Deliberately scoped to the unlock-less case, so the four colonies that carry legacy tier text
+  // keep the exact reading they had (revealed AND purchased — and purchaseStoreSpecies records the
+  // reveal, so for them the two are the same thing).
+  if (!sp.unlock) return STORE_SPECIES_IDS.indexOf(sp.id) >= 0 ? isPurchased(sp, progress) : true;
   return isRevealed(sp, progress) && isPurchased(sp, progress);
 }
 // The species newly REVEALED by clearing `level`, given progress BEFORE this clear.

@@ -65,6 +65,9 @@ const EXPECT = {
   serpula:       { 'Turgor Thrust': 14, 'Rhizomorph Lance': 6 },
   scleroderma:   { 'Turgor Thrust': 6, 'Rhizomorph Lance': 12 },
   psilocybe:     { 'Turgor Thrust': 16, 'Rhizomorph Lance': 10 },
+  // The two store colonies whose specials fight a threat. Both open on 20 grow copies (owner).
+  amanita:       { 'Turgor Thrust': 4, 'Rhizomorph Lance': 2 },   // fly agaric — Berserk
+  pruinomycena:  { 'Turgor Thrust': 2 },                          // blue bonnet — Toxic Burst
 };
 
 const now = parse(fs.readFileSync(path.join(REPO, 'index.html'), 'utf8'));
