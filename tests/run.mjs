@@ -21,6 +21,7 @@ const CHECKS = [
   ['pill',      'pill-check.cjs',    10,  false],
   ['review',    'review-check.cjs',  15,  false],
   ['sptool',    'species-tool-check.cjs', 25, false],
+  ['mapmenu',   'mapmenu-check.cjs', 40, false],
   ['special',   'special-check.cjs', 60, false],
   ['ingame',    'ingame-text.cjs',   25,  false],
   ['card',      'card-deselect-check.cjs', 20, false],

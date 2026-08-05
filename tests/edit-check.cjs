@@ -834,7 +834,12 @@ ok('#level,<id> finds it', await p.evaluate(()=>{
   return !!b;
 }));
 const grp = await p.evaluate(()=>[...document.querySelectorAll('#devMapPanel .dm-g')].map(n=>n.textContent));
-ok('the map list grows a Chapter 1 heading', grp[0]==='Chapter 1', grp.slice(0,3).join(' / '));
+// NOT grp[0] any more: the CAMPAIGN owns the first group now (owner), and a saved draft sits under
+// its chapter heading below it. What matters is that saving one grows a Chapter 1 heading at all,
+// and that it comes before the theme headings — it is the map being worked on.
+const iCh = grp.indexOf('Chapter 1');
+ok('the map list grows a Chapter 1 heading', iCh >= 0, grp.slice(0, 3).join(' / '));
+ok('...below the campaign, and above the themes', iCh === 1, grp.slice(0, 3).join(' / '));
 ok('saved maps sort ahead of the generated ones',
    await p.evaluate(()=>window.__game.levels()[0].id==='chapter-one-test'));
 // A second save under the same name OVERWRITES rather than piling up copy-of-copy ids.

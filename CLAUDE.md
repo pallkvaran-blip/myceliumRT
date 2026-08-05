@@ -1401,15 +1401,20 @@ Two things that only showed up in a rendered frame, both worth keeping fixed:
 - The panel's rebuild **signature carries `campaignLevel`** as well as id and name, so re-slotting a
   map rebuilds the list instead of leaving the old sequence on screen.
 
-**THREE PAIRS OF MAPS NOW SHARE A NAME**, and it is confusing rather than broken: `2-obsidian` and
-`campaign-02-obsidian-c40` are both called "2 — Obsidian", and likewise for 3/Veined and 4/Rust. The
-live one is in the campaign group and the retired one under its theme, so they are distinguishable by
-position but not by label. The fix is the owner's call — rename or delete the retired three — and
-deleting is safe here for once, because each has an `assetsFrom` and therefore no `assets/<id>/` of
-its own (still run `prune-manifest.py`). `]` / `[` step through the maps
-without the mouse. Switching is a full restart, deliberately: a level's world box, cell grid,
-collision mask and food are built together by `createLevelState` and there is no supported
-way to replace them under a live run.
+**A SAVED DRAFT THAT SHADOWS A COMMITTED MAP INHERITS ITS CAMPAIGN SLOT**, and until it did, the
+panel lied about the campaign. `allLevels()` merges localStorage over `LEVELS` and a saved id
+REPLACES the committed entry rather than sitting behind it — while Save as… always writes
+`campaignLevel: null`. So a draft of a campaign map took that slot's claimant out of the list, and
+the owner, holding drafts of three of them, read **"Campaign · 7 levels"**. 10 − 3.
+- **Play was never affected**, which is why it survived: `levelForNumber` scans `LEVELS`, the
+  committed array, so the campaign always served the committed file. Everything reading `allLevels()`
+  was the misinformed part.
+- Reproduced and fixed with a negative control in `tests/mapmenu-check.cjs` (16), which boots twice —
+  clean, and with three drafts written exactly as Save as… writes them. With the fix removed it reads
+  `Campaign · 7 levels` with slots 2, 3 and 4 missing.
+- The consequence to remember: a draft still SHADOWS its committed map for `#level,<id>` and in the
+  panel, so the row you click boots your draft while the campaign plays the committed file. Forget the
+  draft (the `×`) once its JSON is committed.
 
 The editor edits `sub.levelSprites` — the same list `drawLevelRocks` draws and `solidifyRock`
 collides from — so what you move is what blocks. Collision is rebuilt on every drag by

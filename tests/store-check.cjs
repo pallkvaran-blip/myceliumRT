@@ -108,7 +108,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // The tile copy is the owner's, word for word — it is what a player reads to decide.
   const names = shape.map((t) => t.name).join(' | ');
   ok('the tracks are named the way the owner named them',
-     names === 'Energy | Water | Phosphorus | Basic/Event Memory | Engine Memory | Retries', names);
+     names === 'Energy | Water | Phosphorus | Basic/Event Carry | Engine Carry | Retries', names);
   // ALL SIX SUB-LINES ARE THE OWNER'S, word for word, and every one of them now opens with
   // "Increase" — they describe what BUYING A STEP does rather than what a run starts with, which
   // is the question a player standing in front of a Buy button is asking. Pinned in full rather

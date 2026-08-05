@@ -91,10 +91,14 @@ for (const k of Object.keys(EXPECT_BASE)) {
 ok('no species declares its own starting resources', !/res: \{ energy: \d/.test(SRC),
    'species rows carry a hand only');
 // The baseline must NOT also be added at the run loop, or every player quietly gets 6 — and
-// `cleared` must not be added either: levels cleared no longer widen the allowance (owner), so
-// the store track is the whole answer.
-ok('the keep allowance is the store track alone',
-   /const keep = store\.carryCards;/.test(SRC), 'keep = store.carryCards');
+// `cleared` must not be added either: levels cleared no longer widen the allowance (owner).
+// It is now the store track PLUS the colony you played: a memory colony (Split Gill) is simply a
+// bigger allowance on this one screen, which replaced its own parallel start-of-run picker.
+ok('the keep allowance is the store track plus the colony\'s own carry',
+   /const keep = store\.carryCards \+ \(\(memSp && memSp\.memPick\) \|\| 0\);/.test(SRC)
+   && /const keepEng = store\.carryEngines \+ \(\(memSp && memSp\.memEngines\) \|\| 0\);/.test(SRC)
+   && !/const keep = [^;]*cleared/.test(SRC),
+   'keep = store.carryCards + the played colony\'s memPick');
 
 for (const [id, cards] of Object.entries(EXPECT)) {
   const s = now[id];

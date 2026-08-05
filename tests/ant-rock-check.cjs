@@ -42,12 +42,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 // procedural: `#dev` opens at level 1, campaign slot 1 is now an authored map, and levelDefFor
 // serves it — so the "control" was quietly booting campaign-01, which places no ants at all and
 // reported 0 nests. Named after the level now, so it cannot drift like that again.
+//
+// It moved again when `campaign-02-obsidian-c40` was DELETED: the owner replaced it with their own
+// `2-obsidian` for slot 2, and the two shared a name, which is why the retired one went.
 const CASES = [
   { id: 'antroad', hash: 'level,challenge-antroad,turn', note: 'authored, 1 nest' },
-  { id: 'campaign-02', hash: 'level,campaign-02-obsidian-c40,turn', note: 'campaign map, 3 nests' },
+  { id: '2-obsidian', hash: 'level,2-obsidian,turn', note: "campaign level 2, the owner's map, 3 nests" },
 ];
 // The map the pile-timing block uses. Authored, so its geometry repeats run to run.
-const PILE_LEVEL = 'campaign-02-obsidian-c40';
+const PILE_LEVEL = '2-obsidian';
 const only = process.argv.slice(2).filter((a) => !a.startsWith('-'));
 const RUN = CASES.filter((c) => !only.length || only.some((o) => c.id.includes(o)));
 
