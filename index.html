@@ -10970,9 +10970,10 @@ const SPECIES = [
     name: 'Oyster Mushroom', latin: 'Pleurotus ostreatus', img: 'pleurotus-ostreatus',
     blurb: 'Among the fastest and most vigorous wood-rotters alive — oyster mycelium storms through a fallen log and turns dead timber straight into sugar, fruiting in shelving tiers wherever the carbon runs richest. It is a hungry feeder that spreads faster than almost anything else in the litter. This is the colony that keeps the lights on: it opens with a living <b>cord that trickles a steady current of energy</b> through the mat every round.',
     hand: [
-      { name: 'Cord Capillary', count: 1 },
-      { name: 'Foraging Fan', count: 3 },
-      { name: 'Turgor Thrust', count: 18 },
+      { name: 'Foraging Fan', count: 4 },
+      { name: 'Turgor Thrust', count: 7 },
+      { name: 'Guerrilla Runners', count: 7 },
+      { name: 'Rhizomorph Lance', count: 7 },
     ],
   },
   {
@@ -10992,7 +10993,7 @@ const SPECIES = [
     name: 'Split Gill', latin: 'Schizophyllum commune', img: 'schizophyllum-commune',
     blurb: 'The most widely distributed mushroom on Earth and the most genetically promiscuous — over <b>20,000 mating types</b>, endlessly adaptable. Its <b>split gills</b> fold shut to ride out drought and reopen the moment damp returns. The most seasoned colony you can field: it opens with just five runners, but lets you <b>hand-pick 15 cards and 2 engines you drafted last run</b> and carry them into this one.',
     hand: [
-      { name: 'Apical Drive', count: 5 },
+      { name: 'Apical Drive', count: 6 },
       { name: 'Turgor Thrust', count: 6 },
     ],
   },
@@ -11001,12 +11002,11 @@ const SPECIES = [
     name: 'Bleeding Tooth Fungus', latin: 'Hydnellum peckii', img: 'hydnellum-peckii',
     blurb: 'A damp-forest fungus that runs on water: it drives so much moisture through itself that it weeps bright red droplets from its cap — real <b>guttation</b>. That constant flow lets it grow almost anywhere the ground is wet, fanning out in every direction and pressing on long after drier colonies stall. Open the taps and flood the map.',
     hand: [
-      { name: 'Aquaporin Channels', count: 1 },
-      { name: 'Apical Drive', count: 6 },
-      { name: 'Hyphal Extension', count: 6 },
-      { name: 'Foraging Fan', count: 3 },
-      { name: 'Rhizomorph Lance', count: 6 },
-      { name: 'Turgor Thrust', count: 6 },
+      { name: 'Perennial Decoy', count: 1 },
+      { name: 'Dew Traps', count: 1 },
+      { name: 'Rhizomorph Lance', count: 7 },
+      { name: 'Turgor Thrust', count: 7 },
+      { name: 'Vesicle Surge', count: 7 },
     ],
   },
   {
@@ -11035,7 +11035,7 @@ const SPECIES = [
       { name: 'Fruiting Vigil', count: 3 },
       { name: 'Guerrilla Runners', count: 6 },
       { name: 'Vesicle Surge', count: 4 },
-      { name: 'Turgor Thrust', count: 6 },
+      { name: 'Toxocyst Burst', count: 6 },
     ],
   },
   {
@@ -11121,7 +11121,7 @@ const SPECIES = [
     blurb: 'Psilocybe cubensis — the "golden teacher" — is a dung-loving mushroom named for Cuba, where it was first described, and now found all over the planet. Steeped in folklore and psychedelia, it bruises deep indigo and won the Reddit community vote in a landslide. This colony defies the rules of the game itself: every 4 turns a card magically appears in your hand, conjured out of thin air. Nobody\'s quite sure where the cards come from. Best not ask — just go with the flow.',
     hand: [
       { name: 'Rhizomorph Lance', count: 10 },
-      { name: 'Turgor Thrust', count: 16 },
+      { name: 'Turgor Thrust', count: 10 },
       { name: 'Capillary Runners', count: 1 },
     ],
   },
@@ -11758,7 +11758,7 @@ function storeBonuses(progress) {
 // promoting a species by clearing its `unlock` would silently resize the tier it left. A list is
 // one line to change and changes nothing else. `isStarter` short-circuits both reveal and
 // playability, so a starter needs no purchase and no clears whatever its `unlock` says.
-const STARTER_SPECIES_IDS = ['marasmius', 'armillaria', 'pleurotus'];
+const STARTER_SPECIES_IDS = ['pleurotus'];
 const isStarter = (sp) => !!sp && STARTER_SPECIES_IDS.indexOf(sp.id) >= 0;
 function starterSpecies() {
   return STARTER_SPECIES_IDS.map((id) => SPECIES.find((s) => s.id === id)).filter(Boolean);
@@ -11769,8 +11769,8 @@ function starterSpecies() {
 // — swapping in the real four is this list plus their SPECIES entries, and nothing else.
 // Their prices are the store's own, NOT TIER_COST: a store species is bought without ever
 // clearing the tier that reveals it, so the tier ladder's price has no bearing here.
-const STORE_SPECIES_IDS = ['amanita', 'pruinomycena', 'hydnellum', 'stropharia', 'cortinarius', 'serpula'];
-const STORE_SPECIES_COST = { amanita: 500, pruinomycena: 500, hydnellum: 3000, stropharia: 4500, cortinarius: 6000, serpula: 8000 };
+const STORE_SPECIES_IDS = ['schizophyllum', 'hydnellum', 'amanita', 'pruinomycena', 'psilocybe'];
+const STORE_SPECIES_COST = { schizophyllum: 350, hydnellum: 350, amanita: 350, pruinomycena: 350, psilocybe: 350 };
 function storeSpecies() {
   return STORE_SPECIES_IDS.map((id) => SPECIES.find((s) => s.id === id)).filter(Boolean);
 }
@@ -11784,9 +11784,12 @@ function storeSpecies() {
 // filter on this rather than on `isRevealed`.
 function isObtainable(sp, progress) {
   if (!sp) return false;
-  if (isStarter(sp) || !sp.unlock) return true;
+  if (isStarter(sp)) return true;
   if (STORE_SPECIES_IDS.indexOf(sp.id) >= 0) return true;
-  return isPlayable(sp, progress);
+  // `|| !sp.unlock` used to ride along on the first line, which claimed an unlock-less colony was
+  // always gettable. It is not: a colony that opens no roster and appears in no store cannot be had
+  // at all, and this predicate exists precisely to stop such a colony being ANNOUNCED as a reward.
+  return isPlayable(sp, progress);   // ...or it is already owned
 }
 function storeSpeciesCost(sp) {
   if (!sp) return 0;
@@ -11851,7 +11854,14 @@ function isPlayable(sp, progress) {
   // Deliberately scoped to the unlock-less case, so the four colonies that carry legacy tier text
   // keep the exact reading they had (revealed AND purchased — and purchaseStoreSpecies records the
   // reveal, so for them the two are the same thing).
-  if (!sp.unlock) return STORE_SPECIES_IDS.indexOf(sp.id) >= 0 ? isPurchased(sp, progress) : true;
+  // `!unlock` says "no TIER to clear", and that is all it says — a colony still has to be paid for.
+  // THIRD PASS AT THIS ASSUMPTION, so it is worth being blunt: the clause started as "unlock-less
+  // means free", which was true only by accident (the two unlock-less colonies were both starters).
+  // Fly Agaric and Blue Bonnet then arrived unlock-less and for sale, and were free. Scoping the fix
+  // to store colonies fixed that and left the mirror image: the owner cut the opening roster to
+  // Oyster alone, and Fairy Ring and Honey Fungus stayed FREE — no longer starters, never sold, still
+  // playable for nothing. Free now means exactly one thing, `isStarter`.
+  if (!sp.unlock) return isPurchased(sp, progress);
   return isRevealed(sp, progress) && isPurchased(sp, progress);
 }
 // The species newly REVEALED by clearing `level`, given progress BEFORE this clear.
@@ -23487,9 +23497,11 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
     // only filters on isPlayable. Harmless until then — the only unlock-less colonies were the two
     // starters, which isStarter already covered — so the clause never did anything and never failed.
     // A colony the store is selling is owned only once it is paid for, whatever its `unlock` says.
-    const forSaleIds = storeSpecies().map((x) => x.id);
-    const owned = SPECIES.filter((s) => isStarter(s) || isPlayable(s, progress)
-      || (!s.unlock && forSaleIds.indexOf(s.id) < 0));
+    // OWNED = it opens the roster, or it has been bought. `isPlayable` now says exactly that, so the
+    // "unlock-less colonies are free" clause that used to sit here is gone rather than narrowed — it
+    // was the same wrong assumption in a second place, and it kept the two ex-starters on this list
+    // after the owner cut the opening roster to Oyster alone.
+    const owned = SPECIES.filter((s) => isStarter(s) || isPlayable(s, progress));
     for (const s of owned) availGrid.appendChild(speciesSlot(s, { balance: bal, onRead: read, onSelect: select }));
     // NEW COLONIES: the for-sale list minus whatever has been bought (it moved up a section).
     // The heading goes with it when the list empties, rather than leaving a bare rule.

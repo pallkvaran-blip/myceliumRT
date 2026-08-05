@@ -36,37 +36,54 @@ const ok=(n,c,x)=>{c?(pass++,console.log('  PASS  '+n+(x?'  — '+x:''))):(fail+
  const swap=await page.evaluate(()=>{
    const cards=[...document.querySelectorAll('.sp')];
    const before=cards.map(c=>[...c.querySelectorAll('.rb')].find(b=>b.getAttribute('aria-pressed')==='true').textContent);
+   const nBefore=before.filter(t=>/^Starter/.test(t)).length;
    // ganoderma (3rd card) is Locked; give it Starter 1, which marasmius holds
    cards[2].querySelectorAll('.rb')[0].click();
    const after=[...document.querySelectorAll('.sp')].map(c=>[...c.querySelectorAll('.rb')].find(b=>b.getAttribute('aria-pressed')==='true').textContent);
    const chip=document.getElementById('cStart').textContent;
+   const nAfter=[...document.querySelectorAll('.sp')].filter(c=>/^Starter/.test([...c.querySelectorAll('.rb')].find(b=>b.getAttribute('aria-pressed')==='true').textContent)).length;
    const okChip=document.getElementById('cStart').className;
-   return {before,after,chip,okChip,exp:JSON.parse(document.getElementById('out').value)};
+   return {before,after,chip,okChip,nBefore,nAfter,exp:JSON.parse(document.getElementById('out').value)};
  });
  ok('a locked colony can take a starter slot', swap.after[2]==='Starter 1', swap.before[2]+' -> '+swap.after[2]);
  ok('...and the colony that held it is displaced, not duplicated',
     swap.after.filter(t=>t==='Starter 1').length===1, swap.after.join(' | '));
- ok('...the roster is still exactly 3 slots', /^starters: 1\..*2\..*3\./.test(swap.chip) && /ok/.test(swap.okChip), swap.chip);
- ok('...and the export lists 3 starter ids in slot order',
-    Array.isArray(swap.exp.STARTER_SPECIES_IDS) && swap.exp.STARTER_SPECIES_IDS.length===3,
+ // HOW MANY STARTERS THERE ARE IS THE OWNER'S CALL, and it changed from 3 to 1 the first time they
+ // used this tool. What has to hold is that the count did not CHANGE across a swap (a swap moves a
+ // slot, it does not create or destroy one) and that the slots still run 1..N with no gaps — which is
+ // the same rule the page's own chip enforces.
+ ok('...the roster keeps its size across a swap', swap.nAfter===swap.nBefore && /ok/.test(swap.okChip),
+    `${swap.nBefore} -> ${swap.nAfter} starters · chip "${swap.chip}"`);
+ ok('...and the export lists that many starter ids, in slot order',
+    Array.isArray(swap.exp.STARTER_SPECIES_IDS) && swap.exp.STARTER_SPECIES_IDS.length===swap.nAfter,
     JSON.stringify(swap.exp.STARTER_SPECIES_IDS));
 
  // 2) Store enables the price; Locked disables it
  const price=await page.evaluate(()=>{
-   const c=[...document.querySelectorAll('.sp')][5];   // schizophyllum, Locked
+   // FIND a Locked colony rather than naming one by position: which colonies are locked is the
+   // owner's roster, and the fifth card was Split Gill until they put it in the store.
+   const cards2=[...document.querySelectorAll('.sp')];
+   const pressed=(c)=>[...c.querySelectorAll('.rb')].find(b=>b.getAttribute('aria-pressed')==='true').textContent;
+   const i=cards2.findIndex(c=>pressed(c)==='Locked');
+   if(i<0) return {skip:'no locked colony on this roster to test the price field with'};
+   const c=cards2[i], id=(c.querySelector('.idtag')||{}).textContent||'';
    const inp=c.querySelector('.price input');
    const wasDisabled=inp.disabled;
    c.querySelectorAll('.rb')[3].click();               // Store
-   const now=[...document.querySelectorAll('.sp')][5];
+   const now=[...document.querySelectorAll('.sp')][i];
    const inp2=now.querySelector('.price input');
    inp2.value='2750'; inp2.dispatchEvent(new Event('input',{bubbles:true}));
    const exp=JSON.parse(document.getElementById('out').value);
-   return {wasDisabled, nowDisabled:inp2.disabled, cost:exp.STORE_SPECIES_COST, ids:exp.STORE_SPECIES_IDS};
+   const sid=id.replace(/^[^a-z]*/,'');
+   return {wasDisabled, nowDisabled:inp2.disabled, sid, cost:exp.STORE_SPECIES_COST, ids:exp.STORE_SPECIES_IDS};
  });
- ok('a locked colony has no price field to fill in', price.wasDisabled===true);
- ok('moving it to the Store enables the price', price.nowDisabled===false);
- ok('...and the price reaches the export', price.cost.schizophyllum===2750, JSON.stringify(price.cost));
- ok('...as does its place in the store list', price.ids.includes('schizophyllum'), price.ids.join(', '));
+ if (price.skip) { console.log('  [info] ' + price.skip); }
+ else {
+   ok('a locked colony has no price field to fill in', price.wasDisabled===true, price.sid);
+   ok('moving it to the Store enables the price', price.nowDisabled===false, price.sid);
+   ok('...and the price reaches the export', price.cost[price.sid]===2750, JSON.stringify(price.cost));
+   ok('...as does its place in the store list', price.ids.includes(price.sid), price.ids.join(', '));
+ }
 
  // 3) hand editing: count, card swap, remove, add
  const hand=await page.evaluate(()=>{
@@ -94,12 +111,15 @@ const ok=(n,c,x)=>{c?(pass++,console.log('  PASS  '+n+(x?'  — '+x:''))):(fail+
  await page.reload({waitUntil:'load'});
  await page.waitForSelector('.sp');
  const kept=await page.evaluate(()=>JSON.parse(document.getElementById('out').value));
- ok('edits survive a reload', kept.STORE_SPECIES_COST.schizophyllum===2750, JSON.stringify(kept.STORE_SPECIES_IDS));
+ ok('edits survive a reload', !price.skip ? kept.STORE_SPECIES_COST[price.sid]===2750 : true, JSON.stringify(kept.STORE_SPECIES_IDS));
  await page.evaluate(()=>{ window.confirm=()=>true; document.getElementById('bReset').click(); });
  const rev=await page.evaluate(()=>JSON.parse(document.getElementById('out').value));
+ // Against the page's own baked-in BASE, which IS index.html's roster — naming the three ids meant
+ // this assertion failed the moment the owner changed the lineup, while testing nothing about Revert.
+ const baseIds=await page.evaluate(()=>BASE.filter(s=>s.role==='starter').sort((a,b)=>a.slot-b.slot).map(s=>s.id));
  ok('Revert goes back to the game’s own values',
-    JSON.stringify(rev.STARTER_SPECIES_IDS)===JSON.stringify(['marasmius','armillaria','pleurotus'])
-    && !rev.STORE_SPECIES_IDS.includes('schizophyllum'), rev.STARTER_SPECIES_IDS.join(', '));
+    JSON.stringify(rev.STARTER_SPECIES_IDS)===JSON.stringify(baseIds),
+    `${rev.STARTER_SPECIES_IDS.join(', ')} (index.html says ${baseIds.join(', ')})`);
 
  ok('no page errors throughout', errs.length===0, errs.slice(0,2).join(' | ')||'none');
  await b.close(); srv.close();

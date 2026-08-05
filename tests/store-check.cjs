@@ -274,8 +274,18 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      reach.tierOnlyId || 'every colony is a starter or for sale — nothing to assert');
   ok('a starter and a for-sale colony are obtainable',
      reach.starter === true && reach.forSale === true, JSON.stringify(reach));
-  ok('a colony with no row and no price is NOT announced as a reward',
-     reach.tierOnly === false && reach.rockOnly === false, JSON.stringify(reach));
+  // THE RULE, not a list of ids: nothing the screen cannot offer may be announced as a reward. This
+  // used to name psilocybe as the unobtainable case (`rockOnly === false`) — and the owner has since
+  // PUT MAGIC MUSHROOM IN THE STORE at 350, so it is obtainable now and that reading is simply wrong.
+  // Which is a real behaviour change worth knowing about rather than asserting away: the troll rock's
+  // `showSpeciesUnlocked` filters on isObtainable, so buying psilocybe back into the store REOPENS a
+  // reward moment that had been a dead end. Asserted as the invariant instead — a colony that is
+  // neither a starter, nor for sale, nor owned is not obtainable — with psilocybe's own status merely
+  // reported, so the next roster change reads as information and not as a failure.
+  ok('a colony with no row and no price is NOT announced as a reward', reach.tierOnly === false,
+     `${reach.tierOnlyId} obtainable=${reach.tierOnly}` +
+     ` · psilocybe (the troll rock's reveal) obtainable=${reach.rockOnly}` +
+     `${reach.rockOnly ? ' — it is in the store, so that reward moment is live again' : ''}`);
   ok('a tier colony already owned stays obtainable', reach.ownedTier === true, JSON.stringify(reach));
 
   // ---- the EFFECTS, read where the run loop reads them ----------------------

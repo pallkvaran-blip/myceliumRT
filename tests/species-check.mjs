@@ -56,15 +56,15 @@ const EXPECT = {
   marasmius:     { 'Rhizomorph Lance': 5 },                       // fairy ring
   armillaria:    { 'Rhizomorph Lance': 10, 'Turgor Thrust': 5 },  // honey fungus
   ganoderma:     { 'Turgor Thrust': 6 },
-  pleurotus:     { 'Turgor Thrust': 18 },
+  pleurotus:     { 'Turgor Thrust': 7, 'Guerrilla Runners': 7, 'Rhizomorph Lance': 7 },   // THE only starter
   suillus:       { 'Turgor Thrust': 6 },
   schizophyllum: { 'Turgor Thrust': 6 },
-  hydnellum:     { 'Turgor Thrust': 6, 'Rhizomorph Lance': 6 },
+  hydnellum:     { 'Turgor Thrust': 7, 'Rhizomorph Lance': 7, 'Vesicle Surge': 7 },
   stropharia:    { 'Turgor Thrust': 6 },
-  cortinarius:   { 'Turgor Thrust': 6 },
+  cortinarius:   { 'Toxocyst Burst': 6 },   // its Turgor Thrusts became anti-worm events (owner)
   serpula:       { 'Turgor Thrust': 14, 'Rhizomorph Lance': 6 },
   scleroderma:   { 'Turgor Thrust': 6, 'Rhizomorph Lance': 12 },
-  psilocybe:     { 'Turgor Thrust': 16, 'Rhizomorph Lance': 10 },
+  psilocybe:     { 'Turgor Thrust': 10, 'Rhizomorph Lance': 10 },
   // The two store colonies whose specials fight a threat. Both open on 20 grow copies (owner).
   amanita:       { 'Turgor Thrust': 4, 'Rhizomorph Lance': 2 },   // fly agaric — Berserk
   pruinomycena:  { 'Turgor Thrust': 2 },                          // blue bonnet — Toxic Burst

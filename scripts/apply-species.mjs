@@ -53,8 +53,13 @@ const store = spec.STORE_SPECIES_IDS || [];
 const costs = spec.STORE_SPECIES_COST || {};
 const hands = spec.hands || {};
 
-if (!Array.isArray(starters) || starters.length !== 3)
-  errs.push(`STARTER_SPECIES_IDS must hold exactly 3 ids (got ${Array.isArray(starters) ? starters.length : typeof starters})`);
+// HOW MANY COLONIES OPEN THE ROSTER IS A DESIGN DECISION, NOT A RULE. This asserted exactly 3 —
+// today's number when the tool was written — and the owner's first real edit made it 1 ("the player
+// starts only with oyster"), which this then refused as malformed. What actually has to hold is that
+// there IS an opening roster: with none, a fresh save has nothing to play and no way to earn Spores
+// to buy anything, which is a dead game rather than a hard one.
+if (!Array.isArray(starters) || starters.length < 1)
+  errs.push(`STARTER_SPECIES_IDS needs at least one colony — a fresh save with none has nothing to play and no way to earn Spores (got ${Array.isArray(starters) ? starters.length : typeof starters})`);
 if (new Set(starters).size !== starters.length) errs.push('STARTER_SPECIES_IDS repeats an id');
 for (const id of starters) if (!ids.has(id)) errs.push(`starter "${id}" is not a species in index.html`);
 if (!Array.isArray(store)) errs.push('STORE_SPECIES_IDS must be a list');

@@ -1709,7 +1709,33 @@ line about where cards come from.
 credits the wallet WITHOUT unlocking anything, which is the point — "unlock all" hands you every
 species and leaves the store with nothing to sell, so it cannot be used to try buying.
 
-**The campaign's whole roster is 3 + 4, and all seven are visible from the start** (owner,
+**THE ROSTER IS 1 + 5 NOW: Oyster Mushroom alone to start, everything else 350 Spores** (owner: *"the
+plan is to have the player start only with oyster. Then all the other species will cost 350"*). The
+store sells Split Gill, Bleeding Tooth Fungus, Fly Agaric, Blue Bonnet and **Magic Mushroom**; the
+remaining eight are in the roster and unobtainable, by the owner's explicit choice when asked.
+
+- **Putting psilocybe in the store REOPENED a reward moment that had been dead.** The troll rock's
+  `showSpeciesUnlocked` filters on `isObtainable`, so for as long as Magic Mushroom was unreachable the
+  popup could not fire. It can now. `store-check` reports its status on that assertion rather than
+  pinning it.
+- **"FREE" MEANS `isStarter`, AND NOTHING ELSE — this took three passes.** The rule used to be that a
+  colony with no `unlock` was free, which was true only by accident (both unlock-less colonies were
+  starters). Then Fly Agaric and Blue Bonnet arrived unlock-less and for sale, and were free. Scoping
+  the fix to store colonies fixed that and left the mirror image: cutting the opening roster to Oyster
+  left Fairy Ring and Honey Fungus FREE — no longer starters, never sold, still playable for nothing.
+  `isPlayable`, `isObtainable` and the picker's `owned` list all say the same thing now, and `!unlock`
+  means "no tier to clear" and no more than that. Every pass was caught in a RENDERED FRAME, by
+  counting tiles under Available; no check saw any of them, because they all read the constants.
+- **How many colonies open the roster is a design decision, not a rule.** Both the tool and
+  `apply-species.mjs` asserted exactly 3 and refused the owner's first real edit as malformed. What
+  actually has to hold is that there is at LEAST one: with none, a fresh save has nothing to play and
+  no way to earn Spores, which is a dead game rather than a hard one.
+- **`species-check.mjs`'s `EXPECT` pins each colony's balance-touched card counts**, so a hand edit
+  lands there too — five hands changed in this pass (Oyster, Split Gill, Bleeding Tooth, Violet Webcap,
+  Magic Mushroom) and Violet Webcap's Turgor Thrusts became **Toxocyst Bursts**, which is a pin against
+  a card type rather than a count.
+
+The older 3 + 4 arrangement, whose reasoning still applies to the shape of the screen (owner,
 verbatim: *"the campaign mode only has a total of 3 species at start and then 4 more available
 for purchase (viewable from the start)"*). So there are **no "?" tiles and no "Complete level N"
 tier rows** — retired on the owner's call, along with `mysteryCard`, `startTag`,

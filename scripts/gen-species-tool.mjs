@@ -477,12 +477,19 @@ function status() {
   const starters = M.filter((s) => s.role === 'starter').sort((a, b) => a.slot - b.slot);
   const store = M.filter((s) => s.role === 'store');
   const slots = starters.map((s) => s.slot);
-  const okStart = starters.length === 3 && new Set(slots).size === 3 && slots.join(',') === '1,2,3';
+  // ANY NUMBER OF STARTERS, 1 to 3 — the rule is that the slots run 1..N with no gaps and no
+  // duplicates, not that there are three of them. "Exactly 3" was the shipped number when this was
+  // written, and the owner's first real edit was to cut it to one; a tool that paints the intended
+  // roster red is a tool arguing with its user.
+  const okStart = starters.length >= 1 && new Set(slots).size === starters.length
+    && slots.slice().sort().join(',') === starters.map((_, i) => i + 1).join(',');
   const c1 = document.getElementById('cStart');
   c1.className = 'chip ' + (okStart ? 'ok' : 'bad');
   c1.textContent = okStart
     ? 'starters: ' + starters.map((s) => s.slot + '. ' + s.name).join('  \u00B7  ')
-    : 'starters: ' + starters.length + ' of 3' + (slots.length ? ' (slots ' + slots.join(',') + ')' : '');
+    : (starters.length
+        ? 'starters: slots must run 1..' + starters.length + ' with no gaps (got ' + slots.join(',') + ')'
+        : 'starters: none — a fresh save would have nothing to play');
 
   const bad = M.some((s) => s.hand.some((h) => !byName.has(h.name) || !(h.count > 0)));
   const c2 = document.getElementById('cStore');
