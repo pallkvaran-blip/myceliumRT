@@ -25326,7 +25326,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -27498,6 +27498,11 @@ function begin(newState) {
       level: upgradeLevel, value: upgradeValue, nextCost: upgradeNextCost, buy: buyUpgrade,
       bonuses: storeBonuses,
       species: storeSpecies, speciesCost: storeSpeciesCost, buySpecies: purchaseStoreSpecies,
+      // THE OPENING ROSTER, so a check can assert the screen against the LISTS rather than against
+      // the numbers 3 and 4. Those numbers are today's design, not an invariant — the roster is
+      // edited from docs/species-tool.html, and six assertions that hard-coded them turned every
+      // deliberate lineup change into six red lines with nothing wrong.
+      starters: starterSpecies,
       // The two places a bonus LANDS, so a check can read the effect rather than the setting —
       // every track here is capped by something downstream, and a probe that reads
       // `upgrades.water` back out of localStorage proves only that a number was written.
@@ -27522,6 +27527,10 @@ function begin(newState) {
       credit: (n) => addSpores(n),
       reset: () => resetProgress(),
       speciesById: (id) => SPECIES.find((s) => s.id === id) || null,
+      // THE WHOLE ROSTER, so a check can pick "a colony that is neither free nor for sale" from the
+      // lists instead of naming one. Naming one is what made three roster assertions measure the
+      // opposite of their own titles the moment a colony moved (see store-check's dead-end block).
+      all: () => SPECIES.map((s) => ({ id: s.id, name: s.name })),
       playable: (sp) => isPlayable(sp),
       // "can the screen offer this at all?" — what both reveal announcements filter on now that
       // the tier rows are retired, so a check can assert the dead-end is closed.

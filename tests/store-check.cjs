@@ -146,9 +146,23 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
        && bases.energy === 0 && bases.water === 0 && bases.phosphorus === 0 && bases.carryEngines === 0,
      Object.entries(bases).map(([k, v]) => k + ':' + v).join(' '));
 
+  // THE ROSTER SIZE IS A DESIGN DECISION, NOT AN INVARIANT — 3 starters and 4 for sale is today's
+  // shape, and it is edited from docs/species-tool.html. Six assertions here hard-coded 3 and 4, so
+  // the first deliberate lineup change would have produced six red lines with nothing wrong. What is
+  // asserted now is the RULE (the screen shows exactly the starter list as owned and exactly the
+  // store list as for sale, each colony priced, no overlap) with a coverage floor so "shows nothing"
+  // cannot pass. The counts are printed on every line, so a change is visible rather than silent.
+  const roster = await page.evaluate(() => ({
+    starters: window.__game.store.starters().map((s) => s.id),
+    store: window.__game.store.species().map((s) => s.id),
+  }));
+  const N_START = roster.starters.length, N_SALE = roster.store.length;
+  ok('there is an opening roster at all', N_START >= 1, `${N_START}: ${roster.starters.join(', ')}`);
   const four = await page.evaluate(() => window.__game.store.species().map((s) => s.id + '@' + window.__game.store.speciesCost(s)));
-  ok('four colonies are for sale', four.length === 4, four.join(', '));
+  ok('the store has colonies for sale', four.length === N_SALE && N_SALE >= 1, four.join(', '));
   ok('every for-sale colony carries a price', four.every((s) => +s.split('@')[1] > 0), four.join(', '));
+  ok('no colony is both free and for sale', roster.store.every((id) => roster.starters.indexOf(id) < 0),
+     `starters ${roster.starters.join('/')} vs store ${roster.store.join('/')}`);
 
   // ---- buying: the wallet ---------------------------------------------------
   const money = await page.evaluate(() => {
@@ -225,19 +239,39 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // a level clear still walks the old ladder, and the troll rock still reveals Magic Mushroom.
   // Both announcements filter on `isObtainable`, so a reward is never promised with nowhere to
   // collect it. This is the assertion that the dead end stays closed.
+  // PICKED FROM THE LISTS, NOT NAMED. This used to hard-code marasmius / cortinarius / suillus, so
+  // moving any one of the three in the species tool made the assertion measure the opposite of what
+  // it says (a "tier only" colony that is now a starter is obtainable, correctly, and read as the
+  // dead end having opened). It asks the game which colonies are in which category instead.
   const reach = await page.evaluate(() => {
     const S = window.__game.store;
     S.reset();
     const by = (id) => S.speciesById(id);
-    const before = { starter: S.obtainable(by('marasmius')), forSale: S.obtainable(by('cortinarius')),
-                     tierOnly: S.obtainable(by('suillus')), rockOnly: S.obtainable(by('psilocybe')) };
+    const starterIds = S.starters().map((s) => s.id);
+    const saleIds = S.species().map((s) => s.id);
+    const all = S.all ? S.all() : null;
+    // A colony that is neither free nor for sale — the dead end this assertion is about. On a roster
+    // where every colony is obtainable there is nothing to measure, which is reported rather than
+    // passed silently.
+    const tierOnlyId = (all || []).map((s) => s.id)
+      .find((id) => starterIds.indexOf(id) < 0 && saleIds.indexOf(id) < 0) || null;
+    const before = {
+      starterId: starterIds[0], forSaleId: saleIds[0], tierOnlyId,
+      starter: S.obtainable(by(starterIds[0])),
+      forSale: S.obtainable(by(saleIds[0])),
+      tierOnly: tierOnlyId ? S.obtainable(by(tierOnlyId)) : null,
+      rockOnly: S.obtainable(by('psilocybe')),
+    };
     // A tier species the player ALREADY OWNS stays reachable — it just has no row of its own.
+    if (!tierOnlyId) return { ...before, ownedTier: null };
     const p = JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}');
     p.purchased = p.purchased || {}; p.revealedSpecies = p.revealedSpecies || {};
-    p.purchased.suillus = true; p.revealedSpecies.suillus = true;
+    p.purchased[tierOnlyId] = true; p.revealedSpecies[tierOnlyId] = true;
     localStorage.setItem('mycelium.progress.v2', JSON.stringify(p));
-    return { ...before, ownedTier: S.obtainable(by('suillus')) };
+    return { ...before, ownedTier: S.obtainable(by(tierOnlyId)) };
   });
+  ok('there is an unobtainable colony to measure the dead end on', reach.tierOnlyId != null,
+     reach.tierOnlyId || 'every colony is a starter or for sale — nothing to assert');
   ok('a starter and a for-sale colony are obtainable',
      reach.starter === true && reach.forSale === true, JSON.stringify(reach));
   ok('a colony with no row and no price is NOT announced as a reward',
@@ -399,14 +433,16 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('there is no separate store screen any more', ui.storeScreen === false);
   ok('it still grows its mycelium wordmark', ui.title === true);
   ok('the wallet shows the balance', /12000/.test(ui.wallet || ''), ui.wallet);
-  // The owner's spec: "the campaign mode only has a total of 3 species at start and then 4 more
-  // available for purchase (viewable from the start)".
-  ok('three colonies to start with', ui.owned === 3, `${ui.owned}: ${ui.ownNames.join(', ')}`);
-  ok('four more for sale, visible from the start', ui.forSale === 4, String(ui.forSale));
+  // The owner's spec: "the campaign mode only has a total of 3 species at start and then N more
+  // available for purchase (viewable from the start)". Asserted against the LISTS (see N_START /
+  // N_SALE above) rather than against the numbers, so editing the lineup from the species tool does
+  // not turn four green lines red for no reason.
+  ok('the screen owns exactly the opening roster', ui.owned === N_START, `${ui.owned} of ${N_START}: ${ui.ownNames.join(', ')}`);
+  ok('...and offers exactly the store list, visible from the start', ui.forSale === N_SALE, `${ui.forSale} of ${N_SALE}`);
   ok('every available species has a Start Run button',
-     ui.ownBtns.length === 3 && ui.ownBtns.every((t) => t === 'Start Run'), ui.ownBtns.join(' | '));
+     ui.ownBtns.length === N_START && ui.ownBtns.every((t) => t === 'Start Run'), ui.ownBtns.join(' | '));
   ok('every for-sale colony has an Unlock button with a price',
-     ui.saleBtns.length === 4 && ui.saleBtns.every((t) => /^Unlock\s*\d+$/.test(t)), ui.saleBtns.join(' | '));
+     ui.saleBtns.length === N_SALE && ui.saleBtns.every((t) => /^Unlock\s*\d+$/.test(t)), ui.saleBtns.join(' | '));
   // "below each is a Select button" — geometry, not just presence.
   ok('the button sits BELOW its card, not inside it', ui.buttonsUnderCards === true);
   ok('no "?" tiles remain', ui.mystery === 0, String(ui.mystery));
@@ -443,7 +479,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      `${devSpores.before} → ${devSpores.after}`);
   ok('...and the wallet on screen follows', /10000/.test(devSpores.wallet), devSpores.wallet);
   ok('...without unlocking anything, so there is still a store to test',
-     devSpores.forSale === 4, `${devSpores.forSale} still for sale`);
+     devSpores.forSale === N_SALE, `${devSpores.forSale} of ${N_SALE} still for sale`);
 
   // ---- the deck: the button, the count, and the sheet ----------------------
   // The deck IS the campaign's persistence, so the viewer has to be honest about it: the count is
@@ -652,9 +688,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     return { nameBefore, owned: own.length, has: own.includes(nameBefore), forSale: names('#ssForSale').length,
              btn: (root.querySelector('#ssAvail .ss-slot:nth-child(4) .ss-selbtn') || {}).textContent };
   });
+  // One MOVES: owned goes up by one and for-sale down by one, whatever the roster's size.
   ok('unlocking a colony moves it into Your colonies with a Select button',
-     moved.has === true && moved.owned === 4 && moved.forSale === 3,
-     `${moved.nameBefore}: owned ${moved.owned}, for sale ${moved.forSale}`);
+     moved.has === true && moved.owned === N_START + 1 && moved.forSale === N_SALE - 1,
+     `${moved.nameBefore}: owned ${moved.owned} (want ${N_START + 1}), for sale ${moved.forSale} (want ${N_SALE - 1})`);
 
   await page.screenshot({ path: path.join(__dirname, '.artifacts', 'store.png'),
     animations: 'disabled', timeout: 8000 }).catch(() => {});

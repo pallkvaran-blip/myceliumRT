@@ -34,6 +34,7 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `species-check.mjs` | Every starter's opening hand + starting Water (static — no browser) |
 | `pill-check.cjs` | Card-review tool: severity pills/stripes match the summary counts |
 | `review-check.cjs` | Card-review tool: renders, decisions persist, filters and export work |
+| `species-tool-check.cjs` | The roster tool (`docs/species-tool.html`): every edit a mouse can make reaches the export, three starter slots stay three (taking an occupied one SWAPS, so `starterSpecies()` can never return the same colony twice), a price belongs only to a for-sale colony, edits survive a reload and Revert really goes back to `index.html`'s values. Runs against the GENERATED page, so re-run `scripts/gen-species-tool.mjs` first — a stale page passes while showing last week's roster |
 | `ingame-text.cjs` | Card text reads in seconds in real time |
 | `hover-check.cjs` | Hovering a card isn't destroyed by the 2 Hz HUD refresh |
 | `boot-check.cjs` | Every boot hash comes up clean, in the right mode |

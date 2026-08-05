@@ -1580,6 +1580,47 @@ placed threats, and `placeRockface()` skips any level with a `levelDef`. The own
 three by hand. So a fresh trace is UNPLAYABLE by design, and `traced-check`'s food-reachability
 assertion passes on 0 of 0 — correct, and saying nothing until food is placed.
 
+## The roster tool: colonies, starting hands, prices and the opening three
+
+**`docs/species-tool.html`, and it is GENERATED — `node scripts/gen-species-tool.mjs`.** One row per
+colony: art, name, the starting hand as editable card+count rows, a Spore price, and the role
+(`Starter 1/2/3`, `Store`, `Locked`). It reads SPECIES, CARD_DATA, `STARTER_SPECIES_IDS`,
+`STORE_SPECIES_IDS`, `STORE_SPECIES_COST` and `TIER_COST` straight out of `index.html`, so re-running
+the generator is how it stops being stale. Don't hand-edit the page.
+
+**THE LOOP IS TWO SCRIPTS, and the second one is the point.** `scripts/apply-species.mjs <file.json>`
+takes the tool's export and writes it back into `index.html` — the hands, and the three constants.
+Export-and-hand-edit is what left `docs/card-review.html`'s decisions unapplied for months; a 30k-line
+file is too far from a JSON blob for that to be a workflow.
+
+- **It refuses rather than half-writing**, and that is worth keeping: every check runs before a byte
+  is written (unknown card names, duplicate rows, a count of 0, a colony both free and for sale, a
+  for-sale colony with no price, exactly 3 starters), and then the RESULT is re-parsed and compared
+  against the intent. SPECIES is a JS literal, so a bad edit is a page that will not boot.
+- `--dry` prints what would change and writes nothing.
+- It touches **only** `hand`, `STARTER_SPECIES_IDS`, `STORE_SPECIES_IDS`, `STORE_SPECIES_COST`. Blurbs,
+  art, `memory`, `unlock` and the tier machinery stay in `index.html`.
+
+**THE ROSTER SIZE IS A DESIGN DECISION, NOT AN INVARIANT, AND THE CHECKS HAD TO LEARN THAT.** 3
+starters + 4 for sale was hard-coded in **six** `store-check` assertions plus three that named
+`marasmius` / `cortinarius` / `suillus` outright — so the first deliberate lineup change would have
+produced nine red lines with nothing wrong, and the named ones would have measured the *opposite* of
+their own titles (a "tier only" colony that is now a starter is obtainable, correctly, and read as the
+dead end having opened). They derive from the lists now, via two new debug hooks —
+**`__game.store.starters()`** and **`__game.store.all()`** — with a coverage floor so "shows nothing"
+still fails. Verified by applying an edited roster (3 starters, 5 for sale) and getting 90/90.
+
+- The page is ASCII-safe apart from the game's own card text (which carries the energy glyph), and it
+  ships a `<meta charset="utf-8">` even though the Artifact wrapper supplies the `<head>`: a static
+  server that omits the charset rendered the middots as `Â·`. The sniffer reads the first 1024 bytes
+  wherever the tag sits.
+- **`.tag.sp` was a class collision with the `.sp` species panel** — a two-class tag picked up the
+  panel's background, border and margin, and `document.querySelectorAll('.sp')` counted 13 panels for
+  12 colonies. Renamed `.tag.spec`. Third one of these in the project after `.ss-hint` and
+  `.li-count`; grep the name before adding a rule, even in a small sheet.
+- `tests/species-tool-check.cjs` (15, in the runner as `sptool`) drives the page the way a mouse
+  would and reads the export back.
+
 ## The store, which IS the species-selection screen
 
 **Built**, for the new campaign mode. **ONE SCREEN** (owner's ask — an earlier version had a
