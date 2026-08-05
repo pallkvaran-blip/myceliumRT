@@ -100,7 +100,7 @@ The CONFIG comments carry the *why* — this is the lookup, not the explanation.
 | seeded per map | 3 clouds | 3 worms | 2 nests |
 | senses at | 500 units, rock blocks LoS | 500 units, rock blocks LoS | n/a — trail is pathed to a pile at build time |
 | moves | **5.0 / 2.5** cells | **8.0 / 1.0** cells, arcing at 1.2 rad/tick | line creeps 2 cells/tick |
-| eats food at | 0.85 cells/step **both modes** → a 5-cell pile in **6 steps** | doesn't eat food | **40 / 6.5** nutrient |
+| eats food at | 0.85 cells/step **both modes** → a 5-cell pile in **6 steps** | doesn't eat food | **75 / 12.2** nutrient — a BUDGET spent across the pile → a standard 450 pile in **6 turns** |
 | eats YOU at | infection, not consumption — see below | **4 strands per bite**, no cooldown, within **1.4** cells | never — `stepAnts` only drains `cell.nutrient` |
 | moves AND eats on one step | yes | yes (closes first, bites from where it lands) | n/a |
 | multiplies | `respawnChance` 0.12/action, radius hard-capped 1.3 | **`breedChance` 0.8 per feeding tick**, cap 150 | no |
@@ -111,8 +111,33 @@ The CONFIG comments carry the *why* — this is the lookup, not the explanation.
 drains `cell.nutrient` and re-stamps its trail, and that is the whole of it. The comment on the
 `devoured` catch says "worms or ants ate the last strand", which is defensive rather than
 descriptive; don't read it as a second bite mechanic. Their turn:RT split is also the widest in
-the game — **40 per action against 6.5 per tick** — so a nest is a slow bleed in real time and a
+the game — **75 per action against 12.2 per tick** — so a nest is a slow bleed in real time and a
 serious clock in turn-based.
+
+**`harvestRate` IS A BUDGET SPENT ACROSS THE PILE, and until it was, the number did almost
+nothing.** A nest used to drain ONE target cell per step and then spend a whole step retargeting to
+the next cell of the same pile, and another travelling the new leg — so a standard authored pile
+(9 cells × 50 = **450** nutrient, measured as both the minimum AND the median pile on three maps)
+took about two steps per cell *whatever the rate*: **26 turns at 40/action and a flat 17 turns at
+every rate from 50 to 120**. The owner asked for "6 turns to finish a food pile" and no value could
+reach it. Now the budget is spent until it runs out — drain the target, and when it clears, retarget
+and keep eating with what is left, laying the new leg in the same step — which makes the config's own
+words ("nutrient per action") true and the clearing time `total / rate`, as anyone reading it would
+assume. Same shape as the worm, which closes and bites on one step for the same reason.
+
+- **75 is 450/6**, the owner's number; the 6-turn window measured [75, 85], and 75 is the bottom of
+  it so a slightly *smaller* pile still lands on 6 rather than 5.
+- **The map-wide consequence is large and was measured, not estimated**: on `2-obsidian` (3 nests,
+  5250 nutrient) the ants strip **every pile on the map in 24 turns**, against roughly 66 before.
+  Three nests at 75 is 225 nutrient a turn. If that turns out to be too much, the lever the owner
+  most likely wants is the **nest count**, not the rate — the rate is now pinned to the 6-turn ask.
+- `tests/ant-rock-check.cjs` asserts the outcome (6 turns) AND that every turn carries the full
+  `harvestRate` off the map, because the outcome alone would pass again on a build where the rate had
+  quietly stopped meaning anything. It also asserts the turn:RT RATIO, so a retune in one table fails.
+- **A nest with nothing left to eat stamps no trail**, which is why that check's post-40-step
+  "0 of 0 stamped cells" now has to explain itself: at this rate three nests can legitimately clear a
+  map inside the probe's own window, and a vacuous 0 is otherwise indistinguishable from a build that
+  stopped stamping.
 
 The mould does not *remove* tissue, it **converts** it: a breach infects a disc of radius
 `firstTouchRadius` (1.5 cells, floored at the cloud's own 0.8–1.3), each seed claims
@@ -1656,6 +1681,19 @@ per RUN by `stockRun()` and spent by `retryLevel()`.
 the same screen — the player curates what to KEEP, and that set joins whichever colony they pick
 next. A **"Your deck · N"** button sits beside the wallet on the selection screen and opens a
 read-only sheet of it.
+
+**IT MUST FIT WITHOUT SCROLLING, AND NOT BY SHRINKING THE CARDS.** Two card rows is the whole height
+budget, and at 1280×720 the content came to 806px against 720. The first fix capped
+`#loadoutSelect .cardbtn` width — and `.cardbtn` is `container-type: inline-size` with every internal
+in `cqw`, so a narrower card shrinks its TEXT with it. The owner rejected it: *"the text is now too
+small to read"*. The cards here are the in-game carousel's own size and must stay that way. What pays
+for the height instead is the **pick counter, which lives in the TITLE** — *"move the 0/3 to the
+title line so it says Choose cards to add to your next deck (0/3)"* — removing the block that used to
+sit BETWEEN the two carousel frames and the gap it held open. Measured after: **0 overflow at
+1280×720, 1366×640, 1500×900 and 390×844**, cards at full size.
+- `showLoadoutSelect` fills whichever it finds, `#loCount` (the memory layout's mid block) or
+  `#loTitleCount` (the span the death layout's header supplies), so `MAX_PICK` and the engine
+  allowance are still read in one place and the two never disagree.
 
 - **THE KEEP POOL IS PLAYED ∪ DRAFTED ∪ OWNED.** It used to be what you CAST, which made the deck
   impossible to hold on to: an owned card you never happened to draw was gone at the end of the

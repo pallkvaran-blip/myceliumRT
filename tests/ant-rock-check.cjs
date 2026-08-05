@@ -46,8 +46,24 @@ const CASES = [
   { id: 'antroad', hash: 'level,challenge-antroad,turn', note: 'authored, 1 nest' },
   { id: 'campaign-02', hash: 'level,campaign-02-obsidian-c40,turn', note: 'campaign map, 3 nests' },
 ];
+// The map the pile-timing block uses. Authored, so its geometry repeats run to run.
+const PILE_LEVEL = 'campaign-02-obsidian-c40';
 const only = process.argv.slice(2).filter((a) => !a.startsWith('-'));
 const RUN = CASES.filter((c) => !only.length || only.some((o) => c.id.includes(o)));
+
+// Boot a level and wait for it to be playable. The per-case loop below inlines the same steps for
+// historical reasons; the blocks at the end use this.
+async function boot(browser, base, hash) {
+  const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  const errs = [];
+  page.on('pageerror', (e) => errs.push(String(e && e.message)));
+  await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+  await page.goto(base + '/index.html#' + hash, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
+  await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
+  await page.waitForFunction(() => window.__game && window.__game.state && window.__game.state.active, null, { timeout: 40000 });
+  return { page, errs };
+}
 
 (async () => {
   fs.mkdirSync(ART, { recursive: true });
@@ -136,7 +152,8 @@ const RUN = CASES.filter((c) => !only.length || only.some((o) => c.id.includes(o
         const ctr = sub.cellCenter(col, row);
         if (sub.solidAtWorld(ctr.x, ctr.y)) trailOnRock++;
       });
-      return { nests: out, trailCells, trailOnRock };
+      const allHome = (s.ants || []).every((n) => n.dormant === true || (n.path || []).length < 2);
+      return { nests: out, trailCells, trailOnRock, allHome };
     });
 
     for (const [i, n] of res.nests.entries()) {
@@ -145,12 +162,126 @@ const RUN = CASES.filter((c) => !only.length || only.some((o) => c.id.includes(o
     const totalOnRock = res.nests.reduce((a, n) => a + n.onRock, 0);
     ok(`${c.id}: no built trail cell sits on drawn rock`, totalOnRock === 0,
       `${totalOnRock} of ${res.nests.reduce((a, n) => a + n.built + 1, 0)} built cells are inside a boulder`);
+    // 0 OF 0 IS NOT A PASS BY ITSELF. Forty world steps at the shipped harvestRate is enough for
+    // three nests to strip a map's food and go home, and a nest with nothing to eat stamps nothing —
+    // which is indistinguishable here from a build that stopped stamping. So the count has to be
+    // explained: either there are trail cells, or every nest is legitimately dormant with no path.
     ok(`${c.id}: no STAMPED trail cell sits on drawn rock`, res.trailOnRock === 0,
       `${res.trailOnRock} of ${res.trailCells} stamped trail cells`);
+    ok(`${c.id}: ...and that count is explained`, res.trailCells > 0 || res.allHome === true,
+      res.trailCells > 0 ? `${res.trailCells} cells stamped` : `no cells, and every nest is home/dormant: ${res.allHome}`);
     ok(`${c.id}: no page errors`, errs.length === 0, errs.slice(0, 2).join(' | ') || 'none');
 
     await page.screenshot({ path: path.join(ART, `ants-${c.id}.png`), timeout: 15000, animations: 'disabled' }).catch(() => {});
     await page.close();
+  }
+
+  // ===========================================================================================
+  // HOW LONG A NEST TAKES TO FINISH A FOOD PILE
+  //
+  // Owner: "reduce the time it takes ants to finish a food pile down to 6 turns. I believe it
+  // currently sits at 10." The number they were reaching for was `ants.harvestRate` — and on its
+  // own it could not do it. A nest drained ONE target cell per step and then spent a whole step
+  // retargeting to the next cell of the same pile, and another travelling the new leg, so a
+  // standard authored pile (9 cells × 50 = 450 nutrient) took about two steps per cell WHATEVER
+  // the rate: measured 26 turns at 40/action and a flat 17 turns at every rate from 50 to 120.
+  // `harvestRate` is a budget spent across the pile now, which is what the config always claimed
+  // it was ("nutrient per action"), and 75 is 450/6.
+  //
+  // Asserted as the OUTCOME the owner asked for *and* as the per-step budget, because the outcome
+  // alone would pass again on a build where the rate had quietly stopped meaning anything.
+  // ===========================================================================================
+  {
+    console.log(`\n  ── a nest finishing a pile ──`);
+    let page, errs;
+    try { ({ page, errs } = await boot(browser, base, 'level,' + PILE_LEVEL + ',turn')); }
+    catch (e) { ok('pile timing: the level boots', false, String(e && e.message).slice(0, 90)); }
+    if (page) {
+      ok('pile timing: the level boots', true, PILE_LEVEL);
+      const r = await page.evaluate(async () => {
+        const G = window.__game, s = G.state, sub = s.substrate;
+        for (let i = 0; i < 200 && !sub._rockSolidified; i++) { try { G.renderFrame(); } catch (_) {} await new Promise((res) => setTimeout(res, 25)); }
+        // Only the ants may touch this food. The colony drains a CLAIMED cell every step via
+        // resolveIncome, anywhere on the map, and a cloud eats leaves — either would be counted as
+        // the nest's dinner. (Measured the wrong way round first: a probe that left them in read
+        // 4 turns where a clean one read 6.)
+        s.nematodes = []; s.clouds = [];
+        if (s.config.nematodes) s.config.nematodes.respawnChance = 0;
+        if (s.config.trichoderma) s.config.trichoderma.respawnChance = 0;
+        const nest = (s.ants || [])[0];
+        if (!nest) return { err: 'this map has no ant nest' };
+        s.ants = [nest];                                  // ONE nest, so the per-step figure is one nest's
+        sub.forEachCell((c) => { c.nutrient = 0; c.maxNutrient = 0; c.colonized = 0; });
+        // A STANDARD authored pile, built to spec rather than found: 9 cells × 50. Measured as both
+        // the minimum AND the median pile on three different maps, so it is *the* pile.
+        let spot = null;
+        for (let tries = 0; tries < 4000 && !spot; tries++) {
+          const col = 3 + ((tries * 7) % (sub.cols - 8)), row = 3 + ((tries * 5) % (sub.rows - 8));
+          let clear = true;
+          for (let c = col; c < col + 3; c++) for (let rr = row; rr < row + 3; rr++) {
+            const cell = sub.cellAt(c, rr);
+            if (!cell || cell.rock || cell.water || cell.hazard) clear = false;
+          }
+          if (clear) spot = { col, row };
+        }
+        if (!spot) return { err: 'no 3x3 of clear ground to lay a pile in' };
+        const idx = [];
+        for (let c = spot.col; c < spot.col + 3; c++) for (let rr = spot.row; rr < spot.row + 3; rr++) {
+          const i = sub.index(c, rr); sub.cells[i].nutrient = 50; sub.cells[i].maxNutrient = 50; idx.push(i);
+        }
+        nest.path = [{ col: spot.col, row: spot.row }]; nest.built = 0;
+        nest.target = { col: spot.col, row: spot.row }; nest.dormant = false; nest._finePath = true;
+        const mapTot = () => { let t = 0; for (const c of sub.cells) t += c.nutrient; return t; };
+        const pileTot = () => idx.reduce((a, k) => a + sub.cells[k].nutrient, 0);
+        const start = pileTot(); const perStep = [];
+        let steps = 0;
+        while (pileTot() > 0 && steps < 60) {
+          s.runOver = false; s.winPending = false; s.won = false; s.active.alive = true;
+          const b0 = mapTot(); G.tickWorld(s); steps++;
+          perStep.push(Math.round(b0 - mapTot()));
+        }
+        return { err: null, rate: s.config.ants.harvestRate, start: Math.round(start), steps, perStep,
+                 live: !s.runOver };
+      });
+      if (r.err) { ok('pile timing: the probe built a pile to eat', false, r.err); }
+      else {
+        ok('pile timing: the probe built a pile to eat', r.start === 450, `${r.start} nutrient in 9 cells`);
+        ok('pile timing: the run stayed live, so the step count means something', r.live === true);
+        // THE OWNER'S NUMBER.
+        ok('a nest finishes a standard food pile in 6 turns', r.steps === 6,
+          `${r.steps} turns to clear ${r.start} nutrient at ${r.rate}/action`);
+        // AND THE RATE IS ACTUALLY SPENT. Every step but the last must carry the full budget off the
+        // map; a build that went back to one-cell-per-step reads 50s here and 9 turns above.
+        const full = r.perStep.slice(0, -1);
+        ok('...and every turn carries the whole harvestRate off the map', full.length > 0 && full.every((v) => Math.abs(v - r.rate) < 0.51),
+          `removed per turn [${r.perStep.join(', ')}], rate ${r.rate}`);
+        ok('...so the clearing time is total / rate, as the config says', r.steps === Math.ceil(r.start / r.rate),
+          `${r.start}/${r.rate} = ${(r.start / r.rate).toFixed(2)} → ${Math.ceil(r.start / r.rate)} turns`);
+      }
+      ok('pile timing: no page errors', errs.length === 0, errs.slice(0, 2).join(' | ') || 'none');
+      await page.close();
+    }
+  }
+
+  // BOTH MODE_TUNING TABLES, OR ONE OF THE TWO GAMES GOT HARDER ON ITS OWN. A rate lives in the
+  // CONFIG literal and in both tables, and a retune has to move them by the same factor — the
+  // ratio here is the thing to assert, not either number, so a future retune in one place fails.
+  {
+    const read = async (hash) => {
+      const { page } = await boot(browser, base, hash);
+      const v = await page.evaluate(() => ({
+        rate: window.__game.state.config.ants.harvestRate,
+        rt: !!(window.__game.state.config.realtime && window.__game.state.config.realtime.enabled),
+      }));
+      await page.close();
+      return v;
+    };
+    const t = await read('level,' + PILE_LEVEL + ',turn');
+    const rt = await read('level,' + PILE_LEVEL);
+    ok('ants.harvestRate: turn-based is the owner\'s 6-turn value', t.rt === false && Math.abs(t.rate - 75) < 1e-6,
+      `${t.rate}/action (realtime=${t.rt})`);
+    ok('ants.harvestRate: real time carries the SAME retune factor', rt.rt === true && Math.abs(rt.rate / t.rate - 12.2 / 75) < 1e-3,
+      `${rt.rate}/tick against ${t.rate}/action — ratio ${(rt.rate / t.rate).toFixed(4)}, wanted ${(12.2 / 75).toFixed(4)}`);
   }
 
   await browser.close();

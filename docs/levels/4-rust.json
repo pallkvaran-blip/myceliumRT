@@ -1,9 +1,9 @@
 {
   "format": "mycelium-level",
   "version": 1,
-  "id": "campaign-04-rust-c90",
+  "id": "4-rust",
   "name": "4 — Rust",
-  "campaignLevel": null,
+  "campaignLevel": 4,
   "assetsFrom": "rust-c90",
   "world": {
     "width": 2952,
@@ -611,6 +611,27 @@
       "key": "skyline6",
       "x": 2070,
       "w": 396
+    },
+    {
+      "t": "trichoderma",
+      "x": 1551,
+      "y": 485
+    },
+    {
+      "t": "nematode",
+      "x": 2563,
+      "y": 1603
+    },
+    {
+      "t": "nematode",
+      "x": 2495,
+      "y": 1606
+    },
+    {
+      "t": "nematode",
+      "x": 2529,
+      "y": 1551
     }
-  ]
+  ],
+  "chapter": "Chapter 1"
 }

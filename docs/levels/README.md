@@ -9,8 +9,10 @@ uniform**: food `r` is a diamond radius in *cells*, reservoir `r` is *world unit
 
 | file | level | what it is |
 |---|---|---|
-| `campaign-NN-*.json` | **1, 3-10** | the campaign — owner's underground, generated overground. `campaign-02-obsidian-c40` gave slot 2 up to `2-obsidian` and now claims none |
+| `campaign-NN-*.json` | **1, 5-10** | the campaign — owner's underground, generated overground. `campaign-02/03/04` gave slots 2, 3 and 4 up to the owner's own `2-obsidian`, `3-veined` and `4-rust`, and now claim none |
 | `2-obsidian.json` | **2** | **Chapter 1** — the owner's own map, handed over from their browser. First committed level carrying a `chapter`, and it holds campaign slot 2 (see below) |
+| `3-veined.json` | **3** | **Chapter 1** — the owner's own map. Sprites from `assets/veined-c40/` via `assetsFrom` |
+| `4-rust.json` | **4** | **Chapter 1** — the owner's own map. Sprites from `assets/rust-c90/` via `assetsFrom` |
 | `three-ways.json` | none (`#level,three-ways`) | "Three Ways Up" — three sealed routes, one threat each. **Its sky is hand-designed** (the routes are themed to pass under a city and a mountain range), so `surface-rock-check` deliberately exempts it |
 | `maze-one.json` | none (`#level,maze-one`) | "Maze One" — **traced**: 77 sprites from `docs/maps/maze-1@4x.webp`, dense with tight channels |
 | `scatter-one.json` | none (`#level,scatter-one`) | "Scatter One" — **traced**: 25 sprites from `docs/maps/scatter-1@4x.webp`, open with big separated masses |
@@ -92,6 +94,13 @@ That stopped being true the moment a chaptered map was **committed** here — th
 on a file, asked for confirmation and did nothing, because `deleteSavedLevel` had no storage entry
 to remove. The button now reads localStorage directly, so a committed map keeps its group heading
 and loses its `×`. **`2-obsidian.json` is the first committed map with a chapter**, and it is why.
+
+**The Chapter 1 maps arrive as a saved-map JSON, and their id carries the collision suffix.** Save
+as… refuses a generated id, so once `2-obsidian.json` was committed the owner's next save of the same
+map came back as **`2-obsidian-2`**. Committing it means renaming the id back to `2-obsidian` (the
+`-2` would be a second, shadowing level) and re-claiming its `campaignLevel`, since Save as… always
+writes `null`. Their browser copy then shadows the committed file for `#level,<id>` and in the dev map
+list until it is forgotten — the `×`, or `__game.forgetSaved('<id>')`.
 
 **A saved map is not durable.** It is one browser profile, and clearing site data loses it.
 Save also copies the JSON to the clipboard: write that to `docs/levels/<id>.json`, re-run

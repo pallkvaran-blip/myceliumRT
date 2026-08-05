@@ -1,9 +1,9 @@
 {
   "format": "mycelium-level",
   "version": 1,
-  "id": "campaign-03-veined-c40",
+  "id": "3-veined",
   "name": "3 — Veined",
-  "campaignLevel": null,
+  "campaignLevel": 3,
   "assetsFrom": "veined-c40",
   "world": {
     "width": 2952,
@@ -586,11 +586,6 @@
     },
     {
       "t": "nematode",
-      "x": 520,
-      "y": 597
-    },
-    {
-      "t": "nematode",
       "x": 1770,
       "y": 522
     },
@@ -670,6 +665,47 @@
       "key": "skyline2",
       "x": 1764,
       "w": 360
+    },
+    {
+      "t": "nematode",
+      "x": 2666,
+      "y": 1772
+    },
+    {
+      "t": "nematode",
+      "x": 2780,
+      "y": 1769
+    },
+    {
+      "t": "nematode",
+      "x": 2784,
+      "y": 1692
+    },
+    {
+      "t": "nematode",
+      "x": 2884,
+      "y": 1373
+    },
+    {
+      "t": "nematode",
+      "x": 2826,
+      "y": 1493
+    },
+    {
+      "t": "nematode",
+      "x": 1625,
+      "y": 539
+    },
+    {
+      "t": "nematode",
+      "x": 1805,
+      "y": 765
+    },
+    {
+      "t": "nematode",
+      "x": 1942,
+      "y": 639
     }
-  ]
+  ],
+  "chapter": "Chapter 1"
 }
