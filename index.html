@@ -1108,10 +1108,16 @@
     .ss-sp-name { font-family:var(--ss-serif); font-size:15.5px; font-weight:600; line-height:1.06; color:#eef7f1; text-shadow:0 1px 6px rgba(0,0,0,0.75); }
     .ss-sp-latin { font-family:var(--ss-serif); font-style:italic; font-size:10.5px; color:var(--ss-mint); opacity:0.92; text-shadow:0 1px 5px rgba(0,0,0,0.85); }
     .ss-card.warm .ss-sp-latin { color:var(--ss-gold); }
+    /* THE CARD'S BLUE. Every species renders as `aqua` now (SPECIES_VIBE), and these two rules
+       are what the card was missing: `.ss-sp-latin` and `.ss-choose` defaulted to the colony's
+       MINT with only `.warm` overriding, so a card and its own detail sheet named two different
+       colours on eight of the twelve species. Same blue as `.ss-detail.aqua .ss-d-latin`. */
+    .ss-card.aqua .ss-sp-latin { color:#9fdcea; }
     .ss-choose { position:absolute; top:8px; right:9px; z-index:3; font-size:9.5px; font-weight:700; letter-spacing:0.1em;
       text-transform:uppercase; color:var(--ss-mint); background:rgba(5,9,8,0.7); border:1px solid rgba(127,230,163,0.4);
       border-radius:999px; padding:3px 8px; backdrop-filter:blur(3px); opacity:0; transform:translateY(-3px); transition:opacity .2s, transform .2s; }
     .ss-card.warm .ss-choose { color:var(--ss-gold); border-color:rgba(230,180,92,0.45); }
+    .ss-card.aqua .ss-choose { color:#9fdcea; border-color:rgba(127,208,224,0.45); }
     .ss-card:hover .ss-choose, .ss-card:focus-visible .ss-choose { opacity:1; transform:none; }
 
     .ss-card.ss-locked { border-color:rgba(120,160,140,0.22);
@@ -1192,13 +1198,30 @@
        plate, so they track it at every box size. Reduced motion swaps in the still .png. */
     .ss-d-art .ss-gnome { position:absolute; inset:0; width:100%; height:100%; object-fit:cover;
       pointer-events:none; }
-    .ss-d-body { padding:clamp(18px,2.6vw,28px); overflow-y:auto; min-height:0; display:flex; flex-direction:column; gap:14px;
-      scrollbar-width:thin; scrollbar-color:rgba(150,185,168,0.5) transparent; }
+    /* NO `scrollbar-width` / `scrollbar-color` HERE, AND THAT IS THE FIX FOR THE CLIPPED BAR.
+       Since Chromium 121 the standard scrollbar properties WIN over `::-webkit-scrollbar-*`: set
+       either of them on an element and every webkit pseudo-element rule for it is ignored. This
+       panel's whole reason for having those rules is the TRACK MARGIN, which keeps the bar's
+       rounded ends away from `.ss-detail`'s 18px corner radius (the panel is `overflow:hidden`,
+       so a full-height bar gets its top and bottom bitten off by the curve) and clear of the ✕.
+       With the two standard declarations present those margins were dead code and the browser
+       drew its own edge-to-edge bar — which is exactly the reported "top and bottom getting cut
+       off". Dropping them hands styling back to the webkit rules in Chromium and Safari; Firefox
+       falls back to its default bar, which is wider and untinted but not clipped.
+       NOT VERIFIABLE IN THIS CONTAINER: headless Chromium here draws OVERLAY scrollbars with
+       zero layout width (measured: `offsetWidth - clientWidth` is 0 even with an explicit 40px
+       webkit width), so no scrollbar paints in a screenshot. This one wants a human's eye. */
+    .ss-d-body { padding:clamp(18px,2.6vw,28px); overflow-y:auto; min-height:0; display:flex; flex-direction:column; gap:14px; }
     /* Thin, rounded scrollbar whose THUMB is inset from the panel's rounded corners
        (transparent border) and kept clear of the top-right ✕ (track top margin), so it
        no longer clips at the corners or collides with the close button. */
     .ss-d-body::-webkit-scrollbar { width:10px; }
-    .ss-d-body::-webkit-scrollbar-track { background:transparent; margin:54px 0 18px 0; }
+    /* THE TRACK MUST CLEAR THE PANEL'S ROUNDED CORNERS AT BOTH ENDS. `.ss-detail` is
+       `overflow:hidden` with an 18px radius, so a track running the full height has its top and
+       bottom bitten off by the curve — which is the "top and bottom getting cut off" (the bottom
+       margin was exactly 18px, i.e. right on the radius, and the top was sized for the old 34px
+       ✕). Comfortably past the radius at both ends now, and 44 clears the smaller cross. */
+    .ss-d-body::-webkit-scrollbar-track { background:transparent; margin:44px 0 26px 0; }
     .ss-d-body::-webkit-scrollbar-thumb { background:rgba(150,185,168,0.5); border-radius:999px;
       border:3px solid transparent; background-clip:padding-box; }
     .ss-d-body::-webkit-scrollbar-thumb:hover { background:rgba(185,215,200,0.7); background-clip:padding-box; }
@@ -1264,9 +1287,15 @@
     .ss-btn.primary { flex:1.6; background:#fff; color:#000; border:1px solid #fff; }
     .ss-btn.primary:hover { background:#e6e6e6; border-color:#e6e6e6; }
 
-    .ss-close { position:absolute; top:12px; right:12px; z-index:3; width:34px; height:34px; border-radius:999px; cursor:pointer;
-      background:rgba(6,10,14,0.7); border:1px solid rgba(160,190,175,0.35); color:var(--ss-ink); font-size:18px; line-height:1;
-      display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); }
+    /* SMALLER, AND THE ✕ ACTUALLY CENTRED (owner). It was a 34px circle around an 18px `✕`
+       GLYPH, and a glyph cannot be centred reliably: flex centres its LINE BOX, while the ink
+       sits wherever the font's ascent/descent puts it — which is why it looked low. The cross is
+       an inline SVG now (`currentColor`, so hover still tints it), drawn on a symmetric 24-unit
+       viewBox, so "centred" is geometry rather than a font's opinion. 34 → 26px. */
+    .ss-close { position:absolute; top:12px; right:12px; z-index:3; width:26px; height:26px; border-radius:999px; cursor:pointer;
+      background:rgba(6,10,14,0.7); border:1px solid rgba(160,190,175,0.35); color:var(--ss-ink);
+      padding:0; line-height:0; display:grid; place-items:center; backdrop-filter:blur(4px); }
+    .ss-close svg { width:11px; height:11px; display:block; }
     .ss-close:hover { background:rgba(20,28,26,0.9); border-color:var(--ss-mint); color:var(--ss-mint-hi); }
 
     /* ---- the campaign store -------------------------------------------------
@@ -1282,16 +1311,22 @@
        Styled off the wallet chip rather than the Select button: it opens a reader, it doesn't
        commit to anything. */
     .ss-headtools { display:inline-flex; align-items:center; gap:11px; margin-left:auto; }
+    /* WHITE, NOT MINT — text, border and count (owner). The mint is the COLONY's colour: it is
+       what the mycelium is drawn in and what every in-game "this is yours" cue uses. The deck
+       button sits beside the Spores wallet as a neutral readout of what you are carrying, so
+       borrowing the organism's colour for it made it read as part of the living thing. */
     .ss-deckbtn { flex:0 0 auto; cursor:pointer; font-family:var(--ss-sans); font-size:12px; font-weight:700;
-      letter-spacing:.13em; text-transform:uppercase; color:var(--ss-mint); background:rgba(8,14,11,0.7);
-      border:1px solid rgba(127,230,163,0.45); border-radius:999px; padding:8px 15px;
+      letter-spacing:.13em; text-transform:uppercase; color:#fff; background:rgba(8,14,11,0.7);
+      border:1px solid rgba(255,255,255,0.45); border-radius:999px; padding:8px 15px;
       display:inline-flex; align-items:center; gap:8px;
       transition:background .16s, border-color .16s, color .16s; }
-    .ss-deckbtn:hover { background:rgba(18,30,23,0.92); border-color:var(--ss-mint); color:var(--ss-mint-hi); }
+    .ss-deckbtn:hover { background:rgba(30,30,30,0.92); border-color:#fff; color:#fff; }
     .ss-deckn { font-size:14px; font-weight:800; font-variant-numeric:tabular-nums; letter-spacing:0;
-      color:#eef7f1; }
-    .ss-deckbtn.empty { color:var(--ss-ink-dim); border-color:rgba(120,160,140,0.3); }
-    .ss-deckbtn.empty .ss-deckn { color:var(--ss-ink-dim); }
+      color:#fff; }
+    /* Empty stays DIMMER WHITE rather than switching hue — "nothing carried yet" is a state of
+       the same control, not a different one. */
+    .ss-deckbtn.empty { color:rgba(255,255,255,0.52); border-color:rgba(255,255,255,0.24); }
+    .ss-deckbtn.empty .ss-deckn { color:rgba(255,255,255,0.52); }
 
     /* The deck sheet. Same overlay as the species detail (scrim, blur, Escape, click-out) but
        one column, because a deck is a list and nothing else. */
@@ -1709,17 +1744,26 @@
     #loadoutSelect { position:fixed; inset:0; z-index:1400; display:flex; align-items:center; justify-content:center;
       background:radial-gradient(1200px 620px at 50% -6%, rgba(126,240,192,0.07), transparent 60%),
         linear-gradient(180deg, rgba(8,17,13,0.90), rgba(5,11,8,0.94)); color:#e6f4ec;
-      font-family:"Segoe UI",Roboto,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif; padding:16px; overflow:auto; }
+      font-family:"Segoe UI",Roboto,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif; padding:10px; overflow:auto; }
     #loadoutSelect *, #loadoutSelect *::before, #loadoutSelect *::after { box-sizing:border-box; }
     body.lo-open #ui { display:none; }
-    .lo-panel { width:100%; max-width:1120px; display:flex; flex-direction:column; align-items:center; gap:10px; margin:auto; }
-    .lo-caro { width:100%; display:flex; flex-direction:column; gap:6px; }
+    /* IT MUST FIT WITHOUT SCROLLING (owner: "there is too much spacing so now I need to scroll to
+       see the whole thing after I have selected some cards"). TWO card rows is the whole budget,
+       and measured at 1280x720 the content came to 806px against a 720 viewport — 86 over.
+       The cards were NOT the problem: the chrome around them was (panel gaps, list padding, the
+       gap under the counter, the page padding). Those are trimmed below, and the card cap gains
+       the rest — `.cardbtn` is `container-type: inline-size` with every internal in `cqw`, so
+       capping the WIDTH shrinks the whole face proportionally and needs no second number.
+       The in-game carousel budgets 28.5vh for ONE row; this screen has two. */
+    .lo-panel { width:100%; max-width:1120px; display:flex; flex-direction:column; align-items:center; gap:5px; margin:auto; }
+    .lo-caro { width:100%; display:flex; flex-direction:column; gap:4px; }
+    #loadoutSelect .cardbtn { width:min(160px, calc(22vh - 30px)); }
     .lo-label { font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:#7ef0c0; font-weight:700; margin:0 2px; }
     /* filter chips — same look as the in-game .handfilter row */
     .lo-filter { display:flex; gap:6px; flex-wrap:nowrap; overflow-x:auto; padding:1px 2px; }
     .lo-filter::-webkit-scrollbar { display:none; }
     /* carousel scroll list — mirrors .handlist (horizontal, hidden scrollbar) */
-    .lo-list { display:flex; gap:8px; overflow-x:auto; overflow-y:hidden; padding:6px 2px 10px; min-height:150px;
+    .lo-list { display:flex; gap:8px; overflow-x:auto; overflow-y:hidden; padding:4px 2px 6px; min-height:0;
       align-items:flex-start; cursor:grab; user-select:none; -webkit-user-select:none; touch-action:pan-x;
       border:1px solid rgba(126,240,192,0.14); border-radius:13px; background:linear-gradient(180deg,rgba(10,18,14,0.5),rgba(6,11,9,0.66)); }
     .lo-list:active { cursor:grabbing; }
@@ -1735,7 +1779,7 @@
     .lo-mid-txt { font-size:clamp(14px,2.4vw,18px); font-weight:700; color:#eaf4ee; letter-spacing:.01em; }
     .lo-count { font-size:12px; font-weight:800; color:#8fb3a4; letter-spacing:.08em; }
     .lo-count.lo-full { color:#7ef0c0; }
-    .lo-actions { margin-top:8px; display:flex; gap:12px; justify-content:center; align-items:center; flex-wrap:wrap; }
+    .lo-actions { margin-top:4px; display:flex; gap:12px; justify-content:center; align-items:center; flex-wrap:wrap; }
     /* simple black & white button (no gradient, no icon) */
     .lo-btn { font:inherit; font-size:15px; font-weight:700; color:#000; background:#fff;
       border:2px solid #fff; border-radius:10px; padding:11px 30px; cursor:pointer; }
@@ -1746,7 +1790,7 @@
        there was nothing to weigh it against. */
     /* Death-screen header sitting ATOP the carry carousel (title matches the cause of death). */
     .lo-header { width:100%; max-width:680px; text-align:center; margin:0 auto; }
-    .lo-h-title { margin:0 0 6px; font-size:clamp(20px,3.2vw,28px); font-weight:800; color:#fff; letter-spacing:.01em; }
+    .lo-h-title { margin:0; font-size:clamp(19px,2.9vw,26px); font-weight:800; color:#fff; letter-spacing:.01em; }
     .lo-h-body { margin:0 auto 2px; max-width:600px; font-size:clamp(13px,1.9vw,15px); line-height:1.5; color:#c9d8d0; }
     .lo-h-spores { display:flex; align-items:center; justify-content:center; gap:7px; font-size:14px; color:#f2f2f2; margin:12px 0 0; font-weight:600; }
     .lo-h-spores b { color:#fff; font-weight:700; }
@@ -1756,7 +1800,7 @@
     /* bigger count for the death carry ("0 / 3"), dropped down to sit centered in the gap
        between the two carousel frames (the picks carousel's label sits below it). */
     .lo-count-big { font-size:clamp(18px,3vw,24px); }
-    .lo-mid-death { margin:20px 0 4px; }
+    .lo-mid-death { margin:4px 0 2px; }
 
     /* ---- Level intro -------------------------------------------------------
        A full-screen BLACK "Level N" + threat-roster screen shown before each
@@ -22515,6 +22559,28 @@ function cardFace(entry) {
 
 // A placeholder "Choose Five" card shown on a MEMORY species' starting-hand display:
 // a "?" art window standing in for the 5 cards the player curates each run.
+// EVERY SPECIES WEARS ONE COLOUR THEME, and it is Bleeding Tooth Fungus's blue (owner: "various
+// species now have color themes (subtitle color, glow, etc.). Let's make them all the same colour
+// theme - let's use the blue from bleeding tooth fungus for all").
+//
+// The `vibe` field on each SPECIES row is deliberately LEFT ALONE rather than rewritten to 'aqua'
+// twelve times: it is the colony's authored identity (marasmius is 'cool', armillaria 'warm'), and
+// the ask is about how the two screens PRESENT them. One constant here means putting the
+// per-species themes back is deleting this line, not re-deriving twelve values from a git history.
+//
+// 'aqua' is hydnellum's own class, so the detail sheet's blue border, glow and latin come for free.
+// The CARD needed two rules adding (.ss-card.aqua) — before this, aqua/cool/spore cards all showed
+// the MINT latin and only 'warm' overrode it, so the card and its detail sheet disagreed about the
+// species' colour on eight of the twelve.
+const SPECIES_VIBE = 'aqua';
+
+// The close cross, as GEOMETRY. Two strokes across a symmetric viewBox with round caps, in
+// `currentColor` so the button's hover tint still reaches it. A `✕` glyph was centred by the
+// font's metrics rather than by the box, which is why it sat low in its circle.
+const CLOSE_X = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none"'
+  + ' stroke="currentColor" stroke-width="2.6" stroke-linecap="round">'
+  + '<path d="M5 5 L19 19 M19 5 L5 19"/></svg>';
+
 function chooseFiveFace(sp) {
   const pick = (sp && sp.memPick) || 8;
   const eng = (sp && sp.memEngines) || 0;
@@ -22537,7 +22603,7 @@ function inspector() {
   const wrap = el('div', 'ss-detailwrap'); wrap.id = 'ssInspector'; wrap.style.zIndex = '1006';
   wrap.innerHTML =
     '<div class="ss-detail" id="ssIDetail">' +
-      '<button class="ss-close" id="ssIClose" aria-label="Close">✕</button>' +
+      '<button class="ss-close" id="ssIClose" aria-label="Close">' + CLOSE_X + '</button>' +
       '<div class="ss-d-art"><img id="ssIArt" alt=""></div>' +
       '<div class="ss-d-body">' +
         '<div><div class="ss-d-name" id="ssIName"></div><div class="ss-d-latin" id="ssILatin"></div></div>' +
@@ -22564,7 +22630,7 @@ function inspector() {
 // in) and the opening hand. Closed by its X, the backdrop or Escape — see `inspector()`.
 function openSpeciesDetail(species) {
   const ins = inspector();
-  ins.detail.className = 'ss-detail ' + species.vibe;
+  ins.detail.className = 'ss-detail ' + SPECIES_VIBE;
   const art = ins.wrap.querySelector('#ssIArt');
   art.alt = 'Portrait of ' + species.name;
   // Animated portrait (species.artAnim, e.g. Magic Mushroom's gnomes): swap in the static
@@ -22640,7 +22706,7 @@ function deckSheet() {
   const wrap = el('div', 'ss-detailwrap'); wrap.id = 'ssDeckWrap'; wrap.style.zIndex = '1006';
   wrap.innerHTML =
     '<div class="ss-decksheet" role="dialog" aria-label="Your deck">' +
-      '<button class="ss-close" id="ssDeckClose" aria-label="Close">✕</button>' +
+      '<button class="ss-close" id="ssDeckClose" aria-label="Close">' + CLOSE_X + '</button>' +
       '<div class="ss-deckhead"><h2>Your Deck</h2><p class="ss-decksub" id="ssDeckSub"></p></div>' +
       '<div class="ss-deckbody" id="ssDeckBody"></div>' +
     '</div>';
@@ -22713,7 +22779,7 @@ function showDeckView() {
 // split is the owner's: "you press the species to see the details", and the details
 // themselves carry no buttons but the X.
 function speciesCard(s, { locked, cost, onClick }) {
-  const card = el('button', 'ss-card ' + s.vibe + (locked ? ' ss-locked' : ''));
+  const card = el('button', 'ss-card ' + SPECIES_VIBE + (locked ? ' ss-locked' : ''));
   card.type = 'button';
   card.setAttribute('aria-label', 'Read about ' + s.name);
   const badge = cost != null
@@ -25397,9 +25463,12 @@ function showDeathCarry(r) {
   // "Choose N cards to keep" saying the same thing in the abstract, and the "(N from the Store)"
   // note explained an allowance nobody had asked about. What is left is the sentence that tells
   // the player what to do.
-  const header =
-    `<h1 class="lo-h-title">Choose ${keep} card${keep === 1 ? '' : 's'}` +
-      `${keepEng > 0 ? ` and ${keepEng} engine${keepEng > 1 ? 's' : ''}` : ''} to add to your next deck</h1>`;
+  //
+  // NO COUNT IN THE TITLE (owner). The counter between the two carousels already says "3 / 9",
+  // live, and it is the thing that changes as you pick — a number in the heading is the same
+  // fact stated once, statically, and it made the line grow with the allowance ("Choose 9 cards
+  // and 2 engines to add to your next deck" wraps to two lines on a phone).
+  const header = `<h1 class="lo-h-title">Choose cards to add to your next deck</h1>`;
   // Kick off the Top-10 CHECK now (in the background) so the prompt is ready the instant the
   // player leaves this screen — it shows AFTER Done, on the way to the picker, not here.
   //
@@ -25491,6 +25560,13 @@ function presentRunOver() {
       // so nothing about scoring moves — the carousel is simply reached through a button.
       const { title, sub } = deathText(r.cause);
       const canRetry = runLives > 0 && !!levelEntry;
+      // THE HAND GOES DOWN WITH THE NEWS (owner). The death screen is drawn over the map, and
+      // `.ss-win` pads its bottom to clear the collapsed strip — but an OPEN carousel is a third
+      // of the screen of cards under a message saying the run is over, and the first thing the
+      // player does next is pick from a different set of cards on the keep screen. Minimising it
+      // is also what makes the two screens read as one moment rather than as an overlay dropped
+      // on a live board.
+      if (ui && ui.setHandOpen) ui.setHandOpen(false);
       showDeathScreen({
         title, sub, spores: r.runSpores,
         // The COUNT is the sub-line under the button now, not part of its face.
