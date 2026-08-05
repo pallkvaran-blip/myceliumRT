@@ -11006,13 +11006,13 @@ function storyForLevel(level) {
 
 // A line of flavour under the story line, drawn at random. The candidates were weeded in
 // `docs/quote-review.html` (generated from `docs/quotes.json` — the ids below are that file's, so a
-// line can be traced back to its round, theme and rights note); these nine are the owner's "yes".
+// line can be traced back to its round, theme and rights note); these 18 are the owner's "yes".
 //
 // NOT KEYED TO A LEVEL, deliberately. The story line already says where you are; a quote pinned to
 // level 4 would be read as being ABOUT level 4, and would be the same on every run of it. Random is
 // what makes it flavour rather than more briefing.
 //
-// SEVERAL OF THESE ARE STILL IN COPYRIGHT (Camus, Butler, Plath, Rilke, Herbert, and Barks' Rumi).
+// MOST OF THESE ARE STILL IN COPYRIGHT (14 of 18; one more is an attribution I could not trace).
 // The owner said they would handle clearing; `rights` in docs/quotes.json is the record of which.
 // Attribution is the translator's where the TRANSLATION is the copyrighted work, which is why two
 // of them read "trans. …" — the shipped credit should name whoever has to be cleared.
@@ -11026,6 +11026,15 @@ const LEVEL_QUOTES = [
   { id: 82, text: 'Let everything happen to you: beauty and terror. Just keep going. No feeling is final.', by: 'Rilke, trans. Barrows & Macy' },
   { id: 83, text: 'Wanderer, there is no road — the road is made by walking.', by: 'Antonio Machado, Campos de Castilla' },
   { id: 89, text: 'Without change, something sleeps inside us, and seldom awakens.', by: 'Frank Herbert, Dune' },
+  { id: 97, text: 'Leave the door open for the unknown, the door into the dark. That\'s where the most important things come from.', by: 'Rebecca Solnit, A Field Guide to Getting Lost' },
+  { id: 98, text: 'Never to get lost is not to live; not to know how to get lost brings you to destruction.', by: 'Rebecca Solnit, A Field Guide to Getting Lost' },
+  { id: 105, text: 'Someone I loved once gave me a box full of darkness. It took me years to understand that this, too, was a gift.', by: 'Mary Oliver, The Uses of Sorrow' },
+  { id: 107, text: 'It may be that when we no longer know what to do, we have come to our real work.', by: 'Wendell Berry, The Real Work' },
+  { id: 114, text: 'A tree can be only as strong as the forest that surrounds it.', by: 'Peter Wohlleben, The Hidden Life of Trees' },
+  { id: 117, text: 'The road has its own reasons, and no two travellers will have the same understanding of those reasons.', by: 'Cormac McCarthy, The Crossing' },
+  { id: 128, text: 'On the last day of the world I would want to plant a tree.', by: 'W. S. Merwin, Place' },
+  { id: 130, text: 'Those who contemplate the beauty of the earth find reserves of strength that will endure as long as life lasts.', by: 'Rachel Carson, The Sense of Wonder' },
+  { id: 134, text: 'Some of us think holding on makes us strong, but sometimes it is letting go.', by: 'attributed to Hermann Hesse' },
 ];
 // A BAG, not a flat draw. With nine quotes over ten levels a flat draw repeats itself about
 // two runs in three, and a repeat one card after the last one reads as a bug rather than as

@@ -366,16 +366,19 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // an arbitrary offset; "ten laps, ten each" measured the offset and came back 9/10/11.
   // Discriminating all the same: over 450 draws a flat 1-in-9 has a standard deviation near 6.7, so
   // its spread lands around 20.
+  // Fifty laps of whatever the pool currently holds — derived, because weeding the list again is
+  // the expected way it changes and a pinned count would fail on a longer list rather than on a bug.
+  const poolSize = (intro.pool || []).length;
   const bag = await page.evaluate((n) => {
     const g = window.__game;
     return Array.from({ length: n }, () => g.randomLevelQuote().id);
-  }, 450);
+  }, poolSize * 50);
   const counts = {};
   for (const id of bag) counts[id] = (counts[id] || 0) + 1;
   const tally = Object.values(counts);
-  ok('the draw is a bag — over 450 draws the nine come up evenly, not at random',
-     tally.length === 9 && Math.max(...tally) - Math.min(...tally) <= 2,
-     `${tally.length} distinct, spread ${Math.max(...tally) - Math.min(...tally)}, counts ${[...new Set(tally)].sort((a, b) => a - b).join('/')}`);
+  ok(`the draw is a bag — over ${poolSize * 50} draws the ${poolSize} come up evenly, not at random`,
+     poolSize > 0 && tally.length === poolSize && Math.max(...tally) - Math.min(...tally) <= 2,
+     `${tally.length} distinct of ${poolSize}, spread ${Math.max(...tally) - Math.min(...tally)}, counts ${[...new Set(tally)].sort((a, b) => a - b).join('/')}`);
   // ...and off the campaign there is no quote at all, for the same reason there is no story: the
   // survival ladder's voice is the taunt, and Rilke under "How are you still alive?" is two jokes.
   const laddered = await page.evaluate(async () => {

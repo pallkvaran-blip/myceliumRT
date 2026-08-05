@@ -1157,6 +1157,7 @@
     {
       "id": 97,
       "round": 3,
+      "verdict": "yes",
       "text": "Leave the door open for the unknown, the door into the dark. That's where the most important things come from.",
       "author": "Rebecca Solnit",
       "work": "A Field Guide to Getting Lost",
@@ -1167,6 +1168,7 @@
     {
       "id": 98,
       "round": 3,
+      "verdict": "yes",
       "text": "Never to get lost is not to live; not to know how to get lost brings you to destruction.",
       "author": "Rebecca Solnit",
       "work": "A Field Guide to Getting Lost",
@@ -1177,6 +1179,7 @@
     {
       "id": 99,
       "round": 3,
+      "verdict": "no",
       "text": "Perhaps everything terrible is in its deepest being something helpless that wants help from us.",
       "author": "Rilke, trans. Norton",
       "work": "Letters to a Young Poet",
@@ -1187,6 +1190,7 @@
     {
       "id": 100,
       "round": 3,
+      "verdict": "maybe",
       "text": "Don't grieve. Anything you lose comes round in another form.",
       "author": "Rumi, trans. Barks",
       "year": 1995,
@@ -1196,6 +1200,7 @@
     {
       "id": 101,
       "round": 3,
+      "verdict": "no",
       "text": "You must ask for what you really want. Don't go back to sleep.",
       "author": "Rumi, trans. Barks",
       "year": 1995,
@@ -1205,6 +1210,7 @@
     {
       "id": 102,
       "round": 3,
+      "verdict": "no",
       "text": "You will love again the stranger who was your self.",
       "author": "Derek Walcott",
       "work": "Love After Love",
@@ -1215,6 +1221,7 @@
     {
       "id": 103,
       "round": 3,
+      "verdict": "maybe",
       "text": "Believe that a further shore is reachable from here.",
       "author": "Seamus Heaney",
       "work": "The Cure at Troy",
@@ -1225,6 +1232,7 @@
     {
       "id": 104,
       "round": 3,
+      "verdict": "no",
       "text": "You do not need to leave your room. Remain sitting at your table and listen. Do not even listen, simply wait.",
       "author": "Kafka",
       "work": "Zurau Aphorisms",
@@ -1235,6 +1243,7 @@
     {
       "id": 105,
       "round": 3,
+      "verdict": "yes",
       "text": "Someone I loved once gave me a box full of darkness. It took me years to understand that this, too, was a gift.",
       "author": "Mary Oliver",
       "work": "The Uses of Sorrow",
@@ -1245,6 +1254,7 @@
     {
       "id": 106,
       "round": 3,
+      "verdict": "no",
       "text": "Knowing that you love the earth changes you, activates you to defend and protect and celebrate.",
       "author": "Robin Wall Kimmerer",
       "work": "Braiding Sweetgrass",
@@ -1255,6 +1265,7 @@
     {
       "id": 107,
       "round": 3,
+      "verdict": "yes",
       "text": "It may be that when we no longer know what to do, we have come to our real work.",
       "author": "Wendell Berry",
       "work": "The Real Work",
@@ -1265,6 +1276,7 @@
     {
       "id": 108,
       "round": 3,
+      "verdict": "no",
       "text": "You must have chaos within you to give birth to a dancing star.",
       "author": "Nietzsche",
       "work": "Thus Spoke Zarathustra",
@@ -1275,6 +1287,7 @@
     {
       "id": 109,
       "round": 3,
+      "verdict": "no",
       "text": "Into the underland we have long placed that which we fear and wish to lose, and that which we love and wish to save.",
       "author": "Robert Macfarlane",
       "work": "Underland",
@@ -1285,6 +1298,7 @@
     {
       "id": 110,
       "round": 3,
+      "verdict": "maybe",
       "text": "We know so little of the worlds beneath our feet.",
       "author": "Robert Macfarlane",
       "work": "Underland",
@@ -1295,6 +1309,7 @@
     {
       "id": 111,
       "round": 3,
+      "verdict": "maybe",
       "text": "The land gets inside us; and we must decide one way or another what this means, what we will do about it.",
       "author": "Barry Lopez",
       "work": "Arctic Dreams",
@@ -1305,6 +1320,7 @@
     {
       "id": 112,
       "round": 3,
+      "verdict": "no",
       "text": "One of the penalties of an ecological education is that one lives alone in a world of wounds.",
       "author": "Aldo Leopold",
       "work": "A Sand County Almanac",
@@ -1315,6 +1331,7 @@
     {
       "id": 113,
       "round": 3,
+      "verdict": "no",
       "text": "The impeded stream is the one that sings.",
       "author": "Wendell Berry",
       "work": "The Real Work",
@@ -1325,6 +1342,7 @@
     {
       "id": 114,
       "round": 3,
+      "verdict": "yes",
       "text": "A tree can be only as strong as the forest that surrounds it.",
       "author": "Peter Wohlleben",
       "work": "The Hidden Life of Trees",
@@ -1335,6 +1353,7 @@
     {
       "id": 115,
       "round": 3,
+      "verdict": "no",
       "text": "It is a journey into Being; as I penetrate more deeply into the mountain's life, I penetrate also into my own.",
       "author": "Nan Shepherd",
       "work": "The Living Mountain",
@@ -1345,6 +1364,7 @@
     {
       "id": 116,
       "round": 3,
+      "verdict": "no",
       "text": "One does not meet oneself until one catches the reflection from an eye other than human.",
       "author": "Loren Eiseley",
       "work": "The Immense Journey",
@@ -1355,6 +1375,7 @@
     {
       "id": 117,
       "round": 3,
+      "verdict": "yes",
       "text": "The road has its own reasons, and no two travellers will have the same understanding of those reasons.",
       "author": "Cormac McCarthy",
       "work": "The Crossing",
@@ -1365,6 +1386,7 @@
     {
       "id": 118,
       "round": 3,
+      "verdict": "maybe",
       "text": "In order to rise from its own ashes, a phoenix first must burn.",
       "author": "Octavia Butler",
       "work": "Parable of the Talents",
@@ -1375,6 +1397,7 @@
     {
       "id": 119,
       "round": 3,
+      "verdict": "no",
       "text": "Seek and learn to recognise who and what, in the midst of the inferno, are not inferno, then give them space.",
       "author": "Italo Calvino",
       "work": "Invisible Cities",
@@ -1386,6 +1409,7 @@
     {
       "id": 120,
       "round": 3,
+      "verdict": "no",
       "text": "The city does not tell its past, but contains it like the lines of a hand.",
       "author": "Italo Calvino",
       "work": "Invisible Cities",
@@ -1396,6 +1420,7 @@
     {
       "id": 121,
       "round": 3,
+      "verdict": "no",
       "text": "The world is wilder in all directions, more dangerous and bitter, more extravagant and bright.",
       "author": "Annie Dillard",
       "work": "Pilgrim at Tinker Creek",
@@ -1406,6 +1431,7 @@
     {
       "id": 122,
       "round": 3,
+      "verdict": "no",
       "text": "I came to explore the wreck. The words are purposes. The words are maps.",
       "author": "Adrienne Rich",
       "work": "Diving into the Wreck",
@@ -1416,6 +1442,7 @@
     {
       "id": 123,
       "round": 3,
+      "verdict": "no",
       "text": "The thing I came for: the wreck, and not the story of the wreck.",
       "author": "Adrienne Rich",
       "work": "Diving into the Wreck",
@@ -1426,6 +1453,7 @@
     {
       "id": 124,
       "round": 3,
+      "verdict": "maybe",
       "text": "Any life, no matter how long and complex it may be, is made up of a single moment.",
       "author": "Borges",
       "work": "A Biography of Tadeo Isidoro Cruz",
@@ -1436,6 +1464,7 @@
     {
       "id": 125,
       "round": 3,
+      "verdict": "maybe",
       "text": "There are a thousand thousand reasons to live this life, every one of them sufficient.",
       "author": "Marilynne Robinson",
       "work": "Gilead",
@@ -1446,6 +1475,7 @@
     {
       "id": 126,
       "round": 3,
+      "verdict": "maybe",
       "text": "If you surrendered to the air, you could ride it.",
       "author": "Toni Morrison",
       "work": "Song of Solomon",
@@ -1456,6 +1486,7 @@
     {
       "id": 127,
       "round": 3,
+      "verdict": "maybe",
       "text": "Not everything that is faced can be changed, but nothing can be changed until it is faced.",
       "author": "James Baldwin",
       "work": "As Much Truth As One Can Bear",
@@ -1466,6 +1497,7 @@
     {
       "id": 128,
       "round": 3,
+      "verdict": "yes",
       "text": "On the last day of the world I would want to plant a tree.",
       "author": "W. S. Merwin",
       "work": "Place",
@@ -1476,6 +1508,7 @@
     {
       "id": 129,
       "round": 3,
+      "verdict": "no",
       "text": "We must take the feeling of being at home into exile.",
       "author": "Simone Weil",
       "work": "Gravity and Grace",
@@ -1486,6 +1519,7 @@
     {
       "id": 130,
       "round": 3,
+      "verdict": "yes",
       "text": "Those who contemplate the beauty of the earth find reserves of strength that will endure as long as life lasts.",
       "author": "Rachel Carson",
       "work": "The Sense of Wonder",
@@ -1496,6 +1530,7 @@
     {
       "id": 131,
       "round": 3,
+      "verdict": "no",
       "text": "Contemplate the marvel that is existence, and rejoice that you are able to do so.",
       "author": "Ted Chiang",
       "work": "Exhalation",
@@ -1506,6 +1541,7 @@
     {
       "id": 132,
       "round": 3,
+      "verdict": "no",
       "text": "Everything is held together with stories. That is all that is holding us together — stories, and compassion.",
       "author": "Barry Lopez",
       "work": "Crow and Weasel",
@@ -1516,6 +1552,7 @@
     {
       "id": 133,
       "round": 3,
+      "verdict": "no",
       "text": "Time forks perpetually toward innumerable futures.",
       "author": "Borges",
       "work": "The Garden of Forking Paths",
@@ -1526,11 +1563,327 @@
     {
       "id": 134,
       "round": 3,
+      "verdict": "yes",
       "text": "Some of us think holding on makes us strong, but sometimes it is letting go.",
       "author": "attributed to Hermann Hesse",
       "theme": "growth",
       "rights": "check",
       "note": "widely attributed to Hesse and not traced to any of his books"
+    },
+    {
+      "id": 135,
+      "round": 4,
+      "text": "The most difficult thing is the decision to act; the rest is merely tenacity.",
+      "author": "Amelia Earhart",
+      "year": 1932,
+      "theme": "endurance",
+      "rights": "pd"
+    },
+    {
+      "id": 136,
+      "round": 4,
+      "text": "What is to give light must endure burning, and what endures burning is not always destroyed.",
+      "author": "after Viktor Frankl",
+      "theme": "endurance",
+      "rights": "check",
+      "note": "the first clause is Frankl's; the second is mine, to give it the turn"
+    },
+    {
+      "id": 137,
+      "round": 4,
+      "text": "You can be a good ancestor or a bad one, but you cannot avoid being one.",
+      "author": "Roman Krznaric",
+      "work": "The Good Ancestor",
+      "year": 2020,
+      "theme": "growth",
+      "rights": "c"
+    },
+    {
+      "id": 138,
+      "round": 4,
+      "text": "The opposite of a correct statement is a false statement. But the opposite of a profound truth may well be another profound truth.",
+      "author": "Niels Bohr",
+      "year": 1949,
+      "theme": "growth",
+      "rights": "c"
+    },
+    {
+      "id": 139,
+      "round": 4,
+      "text": "We do not learn from experience; we learn from reflecting on experience.",
+      "author": "attributed to John Dewey",
+      "theme": "growth",
+      "rights": "check",
+      "note": "widely attributed, close to but not verbatim from How We Think"
+    },
+    {
+      "id": 140,
+      "round": 4,
+      "text": "The cure for anything is salt water: sweat, tears, or the sea.",
+      "author": "attributed to Isak Dinesen",
+      "theme": "endurance",
+      "rights": "check",
+      "note": "attributed to Dinesen and not traced to her books"
+    },
+    {
+      "id": 141,
+      "round": 4,
+      "text": "It is not the strongest that survive, nor the most intelligent, but the ones most responsive to change.",
+      "author": "after Darwin",
+      "work": "paraphrased by Leon Megginson",
+      "year": 1963,
+      "theme": "growth",
+      "rights": "check",
+      "note": "NOT Darwin's words — Megginson's paraphrase, and usually misattributed"
+    },
+    {
+      "id": 142,
+      "round": 4,
+      "text": "A ship in harbour is safe, but that is not what ships are built for.",
+      "author": "John A. Shedd",
+      "work": "Salt from My Attic",
+      "year": 1928,
+      "theme": "journey",
+      "rights": "pd"
+    },
+    {
+      "id": 143,
+      "round": 4,
+      "text": "Not all that is faced can be borne, but nothing is borne that is not first faced.",
+      "author": "after James Baldwin",
+      "theme": "endurance",
+      "rights": "check",
+      "note": "a turn built on Baldwin's line; his original is the one you left as a maybe"
+    },
+    {
+      "id": 144,
+      "round": 4,
+      "text": "You do not rise to the level of your hopes; you fall to the level of your preparation.",
+      "author": "Archilochus, modern rendering",
+      "theme": "endurance",
+      "rights": "check",
+      "note": "a modern gym proverb usually hung on Archilochus"
+    },
+    {
+      "id": 145,
+      "round": 4,
+      "text": "The forest would be very quiet if no birds sang except those that sang best.",
+      "author": "Henry van Dyke",
+      "year": 1904,
+      "theme": "growth",
+      "rights": "pd"
+    },
+    {
+      "id": 146,
+      "round": 4,
+      "text": "What you fear to do most is usually what you most need to do — and knowing that changes nothing.",
+      "author": "mine",
+      "theme": "dark",
+      "rights": "mine",
+      "note": "I wrote this; the first half is a common maxim, the turn is the point"
+    },
+    {
+      "id": 147,
+      "round": 4,
+      "text": "Every road is only as long as the willingness to keep walking it.",
+      "author": "mine",
+      "theme": "journey",
+      "rights": "mine",
+      "note": "I wrote this"
+    },
+    {
+      "id": 148,
+      "round": 4,
+      "text": "There is no such thing as bad weather, only unsuitable clothing.",
+      "author": "Alfred Wainwright",
+      "work": "A Coast to Coast Walk",
+      "year": 1973,
+      "theme": "endurance",
+      "rights": "c"
+    },
+    {
+      "id": 149,
+      "round": 4,
+      "text": "The world is full of magic things, patiently waiting for our senses to grow sharper.",
+      "author": "attributed to W. B. Yeats",
+      "theme": "growth",
+      "rights": "check",
+      "note": "universally attributed to Yeats and not found in his work"
+    },
+    {
+      "id": 150,
+      "round": 4,
+      "text": "The hardest thing about the second time is knowing exactly how long it takes.",
+      "author": "mine",
+      "theme": "endurance",
+      "rights": "mine",
+      "note": "I wrote this — written for a game you replay"
+    },
+    {
+      "id": 151,
+      "round": 4,
+      "text": "Twenty years from now you will be more disappointed by the things you didn't do than by the ones you did.",
+      "author": "attributed to Mark Twain",
+      "theme": "journey",
+      "rights": "check",
+      "note": "almost certainly not Twain — the earliest sourcing is H. Jackson Brown's mother"
+    },
+    {
+      "id": 152,
+      "round": 4,
+      "text": "Nature uses only the longest threads to weave her patterns, so each small piece of her fabric reveals the organisation of the entire tapestry.",
+      "author": "Richard Feynman",
+      "work": "The Character of Physical Law",
+      "year": 1965,
+      "theme": "growth",
+      "rights": "c"
+    },
+    {
+      "id": 153,
+      "round": 4,
+      "text": "There are years that ask questions and years that answer.",
+      "author": "Zora Neale Hurston",
+      "work": "Their Eyes Were Watching God",
+      "year": 1937,
+      "theme": "journey",
+      "rights": "c"
+    },
+    {
+      "id": 154,
+      "round": 4,
+      "text": "Everything that is done in the world is done by hope; no husbandman would sow one grain of corn if he hoped not it would grow.",
+      "author": "Martin Luther",
+      "year": 1566,
+      "theme": "growth",
+      "rights": "pd"
+    },
+    {
+      "id": 155,
+      "round": 4,
+      "text": "The mountains are calling and I must go, and I will work on while I can.",
+      "author": "John Muir",
+      "year": 1873,
+      "theme": "climb",
+      "rights": "pd"
+    },
+    {
+      "id": 156,
+      "round": 4,
+      "text": "It is not down on any map, and the maps are not the country.",
+      "author": "after Melville and Korzybski",
+      "theme": "journey",
+      "rights": "mine",
+      "note": "two familiar lines welded — your Melville maybe, given the turn it lacked"
+    },
+    {
+      "id": 157,
+      "round": 4,
+      "text": "Hope is not the conviction that something will turn out well, but the certainty that something makes sense regardless of how it turns out.",
+      "author": "Vaclav Havel",
+      "work": "Disturbing the Peace",
+      "year": 1986,
+      "theme": "endurance",
+      "rights": "c"
+    },
+    {
+      "id": 158,
+      "round": 4,
+      "text": "Hold on to the centre; the rest is weather.",
+      "author": "mine",
+      "theme": "endurance",
+      "rights": "mine",
+      "note": "I wrote this — under 50 characters, included only as a control on the length rule"
+    },
+    {
+      "id": 159,
+      "round": 4,
+      "text": "Nothing in nature lives for itself: rivers do not drink their own water, and trees do not eat their own fruit.",
+      "author": "folk saying",
+      "theme": "growth",
+      "rights": "check",
+      "note": "circulates as an Indian proverb with no traceable source"
+    },
+    {
+      "id": 160,
+      "round": 4,
+      "text": "We are all in the gutter, but some of us are looking at the stars.",
+      "author": "Oscar Wilde",
+      "work": "Lady Windermere's Fan",
+      "year": 1892,
+      "theme": "climb",
+      "rights": "pd"
+    },
+    {
+      "id": 161,
+      "round": 4,
+      "text": "The best time to plant a tree was twenty years ago; the second best time is now.",
+      "author": "proverb",
+      "theme": "growth",
+      "rights": "check",
+      "note": "usually called a Chinese proverb; no Chinese source has ever been found"
+    },
+    {
+      "id": 162,
+      "round": 4,
+      "text": "If you want to go fast, go alone; if you want to go far, go together.",
+      "author": "proverb",
+      "theme": "journey",
+      "rights": "check",
+      "note": "called an African proverb; no specific source"
+    },
+    {
+      "id": 163,
+      "round": 4,
+      "text": "Life can only be understood backwards, but it must be lived forwards.",
+      "author": "Kierkegaard",
+      "work": "Journals",
+      "year": 1843,
+      "theme": "journey",
+      "rights": "pd"
+    },
+    {
+      "id": 164,
+      "round": 4,
+      "text": "The tragedy of life is not that it ends so soon, but that we wait so long to begin it.",
+      "author": "attributed to W. M. Lewis",
+      "theme": "death",
+      "rights": "check",
+      "note": "attribution uncertain"
+    },
+    {
+      "id": 165,
+      "round": 4,
+      "text": "A society grows great when old men plant trees in whose shade they shall never sit.",
+      "author": "Greek proverb",
+      "theme": "growth",
+      "rights": "pd"
+    },
+    {
+      "id": 166,
+      "round": 4,
+      "text": "What we call the beginning is often the end, and to make an end is to make a beginning.",
+      "author": "T. S. Eliot",
+      "work": "Little Gidding",
+      "year": 1943,
+      "theme": "death",
+      "rights": "c"
+    },
+    {
+      "id": 167,
+      "round": 4,
+      "text": "The reward for work well done is the opportunity to do more.",
+      "author": "Jonas Salk",
+      "year": 1955,
+      "theme": "endurance",
+      "rights": "c"
+    },
+    {
+      "id": 168,
+      "round": 4,
+      "text": "You never step in the same river twice, because it is not the same river and you are not the same person.",
+      "author": "after Heraclitus",
+      "theme": "journey",
+      "rights": "pd"
     }
   ]
 }
