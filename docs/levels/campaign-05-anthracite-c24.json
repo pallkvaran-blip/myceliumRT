@@ -432,22 +432,6 @@
     {
       "t": "food",
       "kind": "cache",
-      "x": 2554,
-      "y": 947,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 1104,
-      "y": 968,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
       "x": 1198,
       "y": 993,
       "r": 1,
@@ -512,32 +496,8 @@
     {
       "t": "food",
       "kind": "cache",
-      "x": 191,
-      "y": 1256,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 165,
-      "y": 1783,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
       "x": 673,
       "y": 1820,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 1453,
-      "y": 1699,
       "r": 1,
       "energy": 4
     },
@@ -719,6 +679,38 @@
       "key": "skyline6",
       "x": 2376,
       "w": 216
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1095,
+      "y": 967,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2560,
+      "y": 941,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 197,
+      "y": 1268,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1458,
+      "y": 1695,
+      "r": 1,
+      "energy": 2
     }
   ]
 }

@@ -102,6 +102,22 @@ map came back as **`2-obsidian-2`**. Committing it means renaming the id back to
 writes `null`. Their browser copy then shadows the committed file for `#level,<id>` and in the dev map
 list until it is forgotten — the `×`, or `__game.forgetSaved('<id>')`.
 
+**THE NULL SLOT HAS NOW ARRIVED TWICE, so treat it as the default rather than the exception.** Every
+JSON that comes back from Save as… says `campaignLevel: null` whatever slot the map was playing in, and
+a null slot is silent: the map is still reachable by id, so it looks committed and correct while the
+campaign quietly goes on serving the map it replaced. The owner reported it the first time as "level
+two has not been updated". **Check the slot table after any hand-off** — the ten slots and the number
+in each map's `name` should agree:
+
+| slot | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| id | `campaign-01-magnetite-c40` | `2-obsidian` | `3-veined` | `4-rust` | `campaign-05-anthracite-c24` | `campaign-06-glass-c40` | `campaign-07-garnet-c40` | `campaign-08-hematite-c24` | `campaign-09-veined-c28` | `campaign-10-ember-c30-5` |
+
+A map edited with **Copy JSON** instead keeps its slot, which is why the level-5 and level-8 hand-offs
+needed nothing but their objects replacing. The two routes out of the editor do not behave the same.
+The ids are also inconsistent by route — `N-theme` from Save as…, `campaign-NN-theme-cNN` from the
+tracer — which is cosmetic (nothing reads the pattern) but worth normalising if the owner wants it.
+
 **A saved map is not durable.** It is one browser profile, and clearing site data loses it.
 Save also copies the JSON to the clipboard: write that to `docs/levels/<id>.json`, re-run
 `gen-levels.mjs`, and it becomes a real level like any other — at which point delete the saved

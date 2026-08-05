@@ -430,14 +430,6 @@
     {
       "t": "food",
       "kind": "cache",
-      "x": 314,
-      "y": 909,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
       "x": 114,
       "y": 1285,
       "r": 1,
@@ -573,14 +565,6 @@
     {
       "t": "food",
       "kind": "cache",
-      "x": 2435,
-      "y": 1147,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
       "x": 2668,
       "y": 1039,
       "r": 1,
@@ -631,6 +615,22 @@
       "t": "nematode",
       "x": 2529,
       "y": 1551
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 306,
+      "y": 908,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2412,
+      "y": 1156,
+      "r": 1,
+      "energy": 2
     }
   ],
   "chapter": "Chapter 1"
