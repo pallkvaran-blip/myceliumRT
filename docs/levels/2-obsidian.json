@@ -95,8 +95,8 @@
     {
       "t": "boulder",
       "key": "obsidian-c40R008",
-      "x": 1324.9,
-      "y": 475.6,
+      "x": 1324,
+      "y": 462.4,
       "w": 429.6,
       "h": 191.3,
       "rot": 0
@@ -379,14 +379,6 @@
       "energy": 4
     },
     {
-      "t": "food",
-      "kind": "cache",
-      "x": 77,
-      "y": 1599,
-      "r": 1,
-      "energy": 4
-    },
-    {
       "t": "ant",
       "x": 304
     },
@@ -409,30 +401,6 @@
     {
       "t": "food",
       "kind": "cache",
-      "x": 367,
-      "y": 1085,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 2485,
-      "y": 1506,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 2435,
-      "y": 1219,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
       "x": 2751,
       "y": 991,
       "r": 1,
@@ -443,14 +411,6 @@
       "kind": "cache",
       "x": 2625,
       "y": 1875,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 1926,
-      "y": 1934,
       "r": 1,
       "energy": 4
     },
@@ -531,16 +491,56 @@
       "energy": 2
     },
     {
-      "t": "mountain",
-      "key": "mountain3",
-      "x": 720,
-      "w": 648
+      "t": "reservoir",
+      "key": "reservoir3",
+      "x": 863,
+      "y": 755,
+      "r": 72
+    },
+    {
+      "t": "nematode",
+      "x": 258,
+      "y": 879
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1130,
+      "y": 1542,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 740,
+      "y": 1500,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 846,
+      "y": 1105,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "nematode",
+      "x": 1573,
+      "y": 890
+    },
+    {
+      "t": "nematode",
+      "x": 1945,
+      "y": 444
     },
     {
       "t": "mountain",
-      "key": "mountain5",
-      "x": 1908,
-      "w": 720
+      "key": "mountain3",
+      "x": 1332,
+      "w": 1872
     },
     {
       "t": "city",
@@ -551,92 +551,8 @@
     {
       "t": "city",
       "key": "skyline1",
-      "x": 1278,
-      "w": 396
-    },
-    {
-      "t": "city",
-      "key": "skyline2",
       "x": 2376,
       "w": 216
-    },
-    {
-      "t": "reservoir",
-      "key": "reservoir3",
-      "x": 769,
-      "y": 765,
-      "r": 72
-    },
-    {
-      "t": "nematode",
-      "x": 195,
-      "y": 1642
-    },
-    {
-      "t": "nematode",
-      "x": 95,
-      "y": 1697
-    },
-    {
-      "t": "nematode",
-      "x": 1553,
-      "y": 1868
-    },
-    {
-      "t": "nematode",
-      "x": 1608,
-      "y": 1825
-    },
-    {
-      "t": "nematode",
-      "x": 2551,
-      "y": 1958
-    },
-    {
-      "t": "nematode",
-      "x": 2632,
-      "y": 1941
-    },
-    {
-      "t": "nematode",
-      "x": 2832,
-      "y": 1436
-    },
-    {
-      "t": "nematode",
-      "x": 1965,
-      "y": 447
-    },
-    {
-      "t": "nematode",
-      "x": 1913,
-      "y": 469
-    },
-    {
-      "t": "nematode",
-      "x": 2300,
-      "y": 424
-    },
-    {
-      "t": "nematode",
-      "x": 2249,
-      "y": 489
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 1098,
-      "y": 1495,
-      "r": 1,
-      "energy": 2
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 780,
-      "y": 1092,
-      "r": 1,
-      "energy": 2
     }
   ],
   "chapter": "Chapter 1"

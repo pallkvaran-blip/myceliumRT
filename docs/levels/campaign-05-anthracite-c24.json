@@ -416,14 +416,6 @@
     {
       "t": "food",
       "kind": "cache",
-      "x": 2578,
-      "y": 1041,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
       "x": 2297,
       "y": 924,
       "r": 1,
@@ -434,14 +426,6 @@
       "kind": "cache",
       "x": 1198,
       "y": 993,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 1355,
-      "y": 822,
       "r": 1,
       "energy": 4
     },
@@ -504,24 +488,8 @@
     {
       "t": "food",
       "kind": "cache",
-      "x": 1893,
-      "y": 1694,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
       "x": 2435,
       "y": 1940,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 2477,
-      "y": 1551,
       "r": 1,
       "energy": 4
     },

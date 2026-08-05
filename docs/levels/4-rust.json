@@ -430,6 +430,14 @@
     {
       "t": "food",
       "kind": "cache",
+      "x": 314,
+      "y": 909,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
       "x": 114,
       "y": 1285,
       "r": 1,
@@ -571,14 +579,6 @@
       "energy": 4
     },
     {
-      "t": "food",
-      "kind": "cache",
-      "x": 1358,
-      "y": 608,
-      "r": 1,
-      "energy": 4
-    },
-    {
       "t": "mountain",
       "key": "mountain2",
       "x": 1332,
@@ -617,20 +617,19 @@
       "y": 1551
     },
     {
-      "t": "food",
-      "kind": "duff",
-      "x": 306,
-      "y": 908,
-      "r": 1,
-      "energy": 2
+      "t": "nematode",
+      "x": 2460,
+      "y": 1666
     },
     {
-      "t": "food",
-      "kind": "duff",
-      "x": 2412,
-      "y": 1156,
-      "r": 1,
-      "energy": 2
+      "t": "nematode",
+      "x": 2528,
+      "y": 1662
+    },
+    {
+      "t": "nematode",
+      "x": 2502,
+      "y": 1715
     }
   ],
   "chapter": "Chapter 1"

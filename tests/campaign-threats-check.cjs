@@ -38,9 +38,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 // reads clean here is not merely lucky.
 const STEPS = 300;
 
+// BY THE SLOT IT CLAIMS, NOT BY ITS FILENAME. This matched `campaign-NN-*.json`, which was every
+// campaign map right up until the owner's own maps took slots 2, 3 and 4 — `2-obsidian.json` and
+// friends do not match the pattern, so this check quietly fell to seven levels and those three had
+// never been threat-checked at all. A filename is a convention; `campaignLevel` is the fact.
 const LEVELS = fs.readdirSync(path.join(ROOT, 'docs', 'levels'))
-  .filter((f) => /^campaign-\d\d-.*\.json$/.test(f)).sort()
-  .map((f) => JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'levels', f), 'utf8')));
+  .filter((f) => f.endsWith('.json'))
+  .map((f) => JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'levels', f), 'utf8')))
+  .filter((d) => d && d.campaignLevel != null)
+  .sort((a, b) => a.campaignLevel - b.campaignLevel);
 
 (async () => {
   const srv = await new Promise((res) => { const s = http.createServer((rq, rs) => { let p = decodeURIComponent(rq.url.split('?')[0].split('#')[0]); if (p === '/') p = '/index.html'; const fp = path.join(ROOT, p); if (!fp.startsWith(ROOT) || !fs.existsSync(fp) || fs.statSync(fp).isDirectory()) { rs.writeHead(404); rs.end('nf'); return; } rs.writeHead(200, { 'Content-Type': T[path.extname(fp)] || 'application/octet-stream' }); fs.createReadStream(fp).pipe(rs); }); s.listen(0, () => res(s)); });

@@ -477,22 +477,6 @@
     {
       "t": "food",
       "kind": "cache",
-      "x": 558,
-      "y": 662,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 510,
-      "y": 1199,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
       "x": 616,
       "y": 1609,
       "r": 1,
