@@ -20,6 +20,7 @@ const CHECKS = [
   ['species',   'species-check.mjs', 1,   false],
   ['pill',      'pill-check.cjs',    10,  false],
   ['review',    'review-check.cjs',  15,  false],
+  ['quotes',    'quote-review-check.cjs', 15, false],
   ['sptool',    'species-tool-check.cjs', 25, false],
   ['mapmenu',   'mapmenu-check.cjs', 40, false],
   ['special',   'special-check.cjs', 60, false],
