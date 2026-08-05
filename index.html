@@ -11052,6 +11052,40 @@ const SPECIES = [
     ],
   },
   {
+    // THE TRICHODERMA COLONY. Its special is the Amputate card as a free once-per-level ability,
+    // which is the game's actual answer to rot: you cannot kill a cloud, you cut the limb off.
+    // `unlock: null` and a place in STORE_SPECIES_IDS — it is bought, never cleared for, so it joins
+    // no tier (tierSpecies filters on `unlock`) and no level clear reveals it.
+    id: 'amanita', vibe: 'warm', unlock: null,
+    name: 'Fly Agaric', latin: 'Amanita muscaria', img: 'amanita-muscaria',
+    special: 'berserk',
+    specialText: 'Berserk \u2014 once per level, tap a point: every strand within the radius is cut away. Amputate yourself before the rot spreads.',
+    blurb: 'The most recognisable mushroom on Earth, and a <b>mycorrhizal partner</b> to birch and pine \u2014 it trades sugar for water and minerals at the root tip, which is why it follows those trees wherever they are planted. Its name is literal: crushed into milk it was set out as <b>flypaper</b>, the ibotenic acid drawing insects in and killing them. Norse legend has berserkers eating it before battle to feel no pain \u2014 much repeated, never proven, and exactly the right idea for a colony that answers infection by <b>cutting off its own limb</b>.',
+    hand: [
+      { name: 'Apical Drive', count: 6 },
+      { name: 'Hyphal Extension', count: 5 },
+      { name: 'Turgor Thrust', count: 4 },
+      { name: 'Foraging Fan', count: 3 },
+      { name: 'Rhizomorph Lance', count: 2 },
+    ],
+  },
+  {
+    // THE NEMATODE COLONY. Toxocyst Burst with a lower cap (7 P against the card's 10), once per
+    // level. Same `unlock: null` + store arrangement as Fly Agaric above.
+    id: 'pruinomycena', vibe: 'cool', unlock: null,
+    name: 'Blue Bonnet', latin: 'Pruinomycena subcyanocephala', img: 'pruinomycena-subcyanocephala',
+    special: 'toxic',
+    specialText: 'Toxic Burst \u2014 once per level, tap a point: every nematode within the radius is digested (+1 Phosphorus each, up to 7).',
+    blurb: 'A tiny bonnet barely a centimetre across, its deep blue cap dusted with a white <b>pruina</b> \u2014 a frost of fine crystals that gives the genus its name. Bonnets look like gentle leaf-litter recyclers and are not only that: several have been caught <b>hunting</b>, killing and digesting the nematodes that share the wood they rot, one of the few ways a fungus feeds on an animal. This colony makes a meal of the worms that would otherwise make a meal of it.',
+    hand: [
+      { name: 'Hyphal Extension', count: 6 },
+      { name: 'Apical Drive', count: 5 },
+      { name: 'Vesicle Surge', count: 4 },
+      { name: 'Guerrilla Runners', count: 3 },
+      { name: 'Turgor Thrust', count: 2 },
+    ],
+  },
+  {
     id: 'scleroderma', vibe: 'spore', unlock: 'Complete level 5',
     name: 'Earthball', latin: 'Scleroderma citrinum', img: 'scleroderma-citrinum',
     blurb: 'A tough, chemically defended fungus whose name means <b>"hard skin"</b> — it seals itself inside a thick, warty, leathery rind and holds ground instead of racing for it. It walls off and severs any tissue that rot or grazers reach, so infection never spreads. Where other colonies spend everything on speed, the earthball digs in: slow, armoured and stubborn.',
@@ -11735,8 +11769,8 @@ function starterSpecies() {
 // — swapping in the real four is this list plus their SPECIES entries, and nothing else.
 // Their prices are the store's own, NOT TIER_COST: a store species is bought without ever
 // clearing the tier that reveals it, so the tier ladder's price has no bearing here.
-const STORE_SPECIES_IDS = ['hydnellum', 'stropharia', 'cortinarius', 'serpula'];
-const STORE_SPECIES_COST = { hydnellum: 3000, stropharia: 4500, cortinarius: 6000, serpula: 8000 };
+const STORE_SPECIES_IDS = ['amanita', 'pruinomycena', 'hydnellum', 'stropharia', 'cortinarius', 'serpula'];
+const STORE_SPECIES_COST = { amanita: 500, pruinomycena: 500, hydnellum: 3000, stropharia: 4500, cortinarius: 6000, serpula: 8000 };
 function storeSpecies() {
   return STORE_SPECIES_IDS.map((id) => SPECIES.find((s) => s.id === id)).filter(Boolean);
 }
@@ -16955,9 +16989,49 @@ function initCards(state, mode = 'tutorial', species = null) {
     state.cards.special = species.special;
     state.cards.magicEvery = species.magicEvery || 4;
     state.cards.magicCountdown = state.cards.magicEvery;   // world-ticks until the next conjure
+    // ...and the ACTIVATED specials go into the Actions menu, once per level.
+    const sp = specialAction(species.special);
+    if (sp) state.cards.actions.push(sp);
   }
   state.log('Card layer online: you start with a small hand — draw more basics, finish a map food pile to draft a new card, and reach the goal.', 'good');
   return state.cards;
+}
+
+// A SPECIES SPECIAL THAT THE PLAYER FIRES, as an entry in the Actions menu.
+//
+// Two of these exist (Fly Agaric's Berserk, Blue Bonnet's Toxic Burst) and both are "once per level,
+// tap a point". They go through the ordinary action framework rather than getting a mechanism of
+// their own: `target` already drives the two-call arm-then-tap flow, `apply` already returns
+// {ok,message}, the Actions menu already renders and gates them, and `perLevel` (added for these) is
+// the only thing that framework was missing. They are NOT cards and NOT installed by playing one, so
+// nothing can draft, discard or tempo-upgrade them — which is what "special" is supposed to mean.
+//
+// Each reuses the primitive its card twin uses, so a special can never drift from the card whose
+// wording it borrows: Berserk is `amputateAt` (the Amputate card), Toxic Burst is
+// `killWormsInRadius` (Toxocyst Burst). Its own cap is lower than the card's — 7 P against 10 — and
+// that number lives here, not in the shared primitive.
+function specialAction(kind) {
+  if (kind === 'berserk') {
+    return {
+      name: 'Berserk', special: true, perLevel: 1, usedLevel: 0, used: 0, cd: 0, target: 'point',
+      effect: 'amputate yourself in a radius',
+      apply: (s, ctx) => amputateAt(s, ctx, s.config.cards.amputateRadius),
+    };
+  }
+  if (kind === 'toxic') {
+    return {
+      name: 'Toxic Burst', special: true, perLevel: 1, usedLevel: 0, used: 0, cd: 0, target: 'point',
+      effect: 'digest every nematode in a radius',
+      apply: (s, ctx) => {
+        const n = killWormsInRadius(s, ctx.x, ctx.y, s.config.cards.toxocystRadius);
+        if (!n) return { ok: false, message: 'No nematodes in range.' };
+        const gain = Math.min(n, 7);   // every worm in range dies; the Phosphorus caps at 7 (the card's is 10)
+        gainPhos(s.active, gain, s.config.cards.softCapPhosphorus);
+        return { ok: true, message: `Digested ${n} nematode${n > 1 ? 's' : ''}: +${gain} Phosphorus.` };
+      },
+    };
+  }
+  return null;
 }
 
 // Re-create an installed engine/action's LIVE object (with its apply fn) from just its
@@ -16989,6 +17063,17 @@ function rebuildCardsFromSnapshot(state, snap) {
   };
   // Restore a species special power (Magic Mushroom's conjure clock) across a tab-close resume.
   if (c.special) { state.cards.special = c.special; state.cards.magicEvery = c.magicEvery || 4; state.cards.magicCountdown = (c.magicCountdown != null ? c.magicCountdown : state.cards.magicEvery); }
+  // AND THE ACTIVATED SPECIALS, which the loop above cannot bring back: it rebuilds actions by CARD
+  // NAME through reinstallByName, and Berserk / Toxic Burst are not cards — there is no EFFECTS entry
+  // to look up. Rebuilt from `special` instead, carrying whether it had already been spent this level
+  // (`specialUsed`), or a tab-close would hand the player a second free use.
+  {
+    const sp = specialAction(c.special);
+    if (sp && !(state.cards.actions || []).some((a) => a.name === sp.name)) {
+      sp.usedLevel = c.specialUsed || 0;
+      state.cards.actions.push(sp);
+    }
+  }
   for (const name of (c.engines || [])) { const r = reinstallByName(state, name); if (r && r.kind === 'engine') state.cards.engines.push(r.obj); }
   for (const name of (c.actions || [])) { const r = reinstallByName(state, name); if (r && r.kind === 'action') state.cards.actions.push(r.obj); }
   const res = (snap && snap.res) || {}, net = state.active;
@@ -17304,7 +17389,7 @@ function produceCardEngines(state) {
   // one dot of cooldown = cards.roundSeconds. (These used to tick every world tick, which made
   // a "once every 6 rounds" ability recover in 3 s instead of a minute.)
   if (engineDue) for (const a of (C.actions || [])) {
-    a.used = 0;
+    a.used = 0;            // ...but NOT a.usedLevel — see actionUsable
     if (a.cd > 0) a.cd -= 1;
   }
 
@@ -17338,6 +17423,11 @@ function actionUsable(state, a) {
   const net = state.active; if (!net || !net.alive) return false;
   if ((a.cd || 0) > 0) return false;
   if (a.per && (a.used || 0) >= a.per) return false;
+  // ONCE PER LEVEL is a different clock from `per`, which is per ROUND — produceCardEngines zeroes
+  // `used` on every round boundary, so a species special written with `per: 1` would come back every
+  // round and be worth about ten times what it says. `usedLevel` is reset only by applyCarry, on the
+  // step onto a new map.
+  if (a.perLevel && (a.usedLevel || 0) >= a.perLevel) return false;
   if (a.cost && (net[a.res] || 0) < a.cost) return false;
   return true;
 }
@@ -17348,6 +17438,7 @@ function activateAction(state, i, ctx) {
   if (!actionUsable(state, a)) {
     let msg = 'That action isn’t ready.';
     if ((a.cd || 0) > 0) msg = `On cooldown — ${roundsToTime(a.cd)} left.`;
+    else if (a.perLevel && (a.usedLevel || 0) >= a.perLevel) msg = `${a.name} is spent for this level.`;
     else if (a.per && (a.used || 0) >= a.per) msg = 'No uses left this round.';
     else if (a.cost && (net[a.res] || 0) < a.cost) msg = `Need ${a.cost - Math.floor(net[a.res] || 0)} more ${RES_LABEL[a.res] || a.res}.`;
     return { ok: false, message: msg };
@@ -17363,6 +17454,7 @@ function activateAction(state, i, ctx) {
   if (!res || !res.ok) return { ok: false, message: (res && res.message) || 'Nothing happened.', losHint: !!(res && res.losHint) };
   if (a.cost) net[a.res] -= a.cost;      // pay the price
   if (a.per) a.used = (a.used || 0) + 1;  // spend a use
+  if (a.perLevel) a.usedLevel = (a.usedLevel || 0) + 1;   // ...and a per-LEVEL use, which no round resets
   if (a.every) a.cd = a.every;            // start the cooldown
   state.log(`Action: ${a.name}. ${res.message || ''}`, 'action');
   return { ok: true, message: res.message };
@@ -22530,12 +22622,17 @@ function actionRowHTML(a, i, state) {
   const meta = [];
   if (a.cost) meta.push(`<span class="acost ${ACT_DOT[a.res]}">${a.cost}${ACT_GLYPH[a.res]}</span>`);
   if (a.per) meta.push(`<span class="aleft">${(a.per - (a.used || 0))} / ${a.per} left</span>`);
+  // A per-LEVEL ability has to say so, or "1 / 1 left" reads as the per-round cap next to it and the
+  // player waits a round for a use that is never coming back.
+  if (a.perLevel) meta.push(`<span class="aleft">${Math.max(0, a.perLevel - (a.usedLevel || 0))} / ${a.perLevel} this level</span>`);
   // Round time as a CHARGE bar (same widget as the left ledger): full = ready to use, so
   // an installed/off-cooldown action reads full. `cd` counts down from `every` (just used)
   // to 0 (ready), so `every − cd` is how much of the cooldown has already recharged.
   if (a.every) meta.push(cadenceLightsHTML(a.every, a.every - (a.cd || 0), a.cost ? ACT_DOT[a.res] : 't', (a.cd || 0) > 0 ? `ready in ${roundsToTime(a.cd)}` : 'ready', 'act|' + a.name + '|' + i));
   const dot = a.cost ? ACT_DOT[a.res] : (a.every ? 't' : 'e');
-  return `<div class="actrow${usable ? '' : ' off'}" data-card="${escapeHtml(a.name)}">`
+  // `data-card` drives the card-face hover preview, and a SPECIAL has no card to show — leave the
+  // attribute off rather than pointing it at a name CARD_DATA has never heard of.
+  return `<div class="actrow${usable ? '' : ' off'}"${a.special ? '' : ` data-card="${escapeHtml(a.name)}"`}>`
     + `<span class="edot ${dot}"></span>`
     + `<div class="acttxt"><div class="actnm">${escapeHtml(a.name)}</div>`
     + `<div class="acteff">${escapeHtml(timeify(a.effect) || '')}</div>`
@@ -23375,7 +23472,15 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
     // YOUR COLONIES: the opening three, then anything bought — in roster order, so a purchase
     // lands where the species sits in SPECIES rather than at the end in purchase order.
     availGrid.innerHTML = '';
-    const owned = SPECIES.filter((s) => isStarter(s) || (s.unlock && isPlayable(s, progress)) || !s.unlock);
+    // OWNED = it opens the roster, or it has been bought. `|| !s.unlock` used to be the third clause
+    // on its own, and it was a trap waiting for the first STORE colony with no tier text: such a
+    // colony would be listed FREE up here and FOR SALE below at the same time, since the sale list
+    // only filters on isPlayable. Harmless until then — the only unlock-less colonies were the two
+    // starters, which isStarter already covered — so the clause never did anything and never failed.
+    // A colony the store is selling is owned only once it is paid for, whatever its `unlock` says.
+    const forSaleIds = storeSpecies().map((x) => x.id);
+    const owned = SPECIES.filter((s) => isStarter(s) || isPlayable(s, progress)
+      || (!s.unlock && forSaleIds.indexOf(s.id) < 0));
     for (const s of owned) availGrid.appendChild(speciesSlot(s, { balance: bal, onRead: read, onSelect: select }));
     // NEW COLONIES: the for-sale list minus whatever has been bought (it moved up a section).
     // The heading goes with it when the list empties, rather than leaving a bare rule.
@@ -25262,6 +25367,8 @@ const PHOTO_CREDITS = [
   { label: 'Violet Webcap &middot; <i>Cortinarius violaceus</i>', name: 'Alan Rockefeller', url: 'https://www.inaturalist.org/people/alan_rockefeller' },
   { label: 'Dry Rot &middot; <i>Serpula lacrymans</i>', name: "L'Agence Du Bois", url: 'https://lagencedubois.fr/' },
   { label: 'Artist\'s Conk &middot; <i>Ganoderma applanatum</i>', name: 'Derek', url: 'https://www.inaturalist.org/people/calloftheloon' },
+  { label: 'Fly Agaric &middot; <i>Amanita muscaria</i>', name: '\u041a\u0438\u0440\u0438\u043b\u043b \u0417\u0435\u043d\u0438\u043d', url: 'https://www.inaturalist.org/people/vedamir' },
+  { label: 'Blue Bonnet &middot; <i>Pruinomycena subcyanocephala</i>', name: 'Cho Fungi', url: 'https://www.inaturalist.org/people/chofungi' },
 ];
 const MUSIC_CREDITS = [
   { label: 'Soundtrack', name: 'Sascha Ende', url: 'https://ende.app/en' },
@@ -25742,6 +25849,9 @@ function applyCarry(st, carry) {
   st.cards.pendingOffers = [];   // no stale pile offers on the fresh map
   st.cards.round = 1;
   if (st.cards.special === 'magic') st.cards.magicCountdown = st.cards.magicEvery || 4;   // fresh conjure clock each level
+  // "Once per LEVEL" means exactly this line. A round boundary clears `used`; only stepping onto a
+  // new map clears `usedLevel`, and applyCarry is the one place that happens.
+  for (const a of (st.cards.actions || [])) if (a.perLevel) a.usedLevel = 0;
   // The Aquifer Tap water trickle is a SYNTHETIC engine kept in sync with live water
   // contact (cards.js updateWaterSourceEngine). It must NOT carry between levels — a
   // fresh map's colony isn't touching any water, so drop it; you re-earn the trickle by
@@ -25781,6 +25891,10 @@ function saveResumeSnapshot() {
       runDrafted: { ...(C.runDrafted || {}) }, runDraftedEngines: { ...(C.runDraftedEngines || {}) }, runPlayed: { ...(C.runPlayed || {}) },
       // Species special power (Magic Mushroom conjure clock) so a tab-close resume keeps it.
       special: C.special || null, magicEvery: C.magicEvery || 0, magicCountdown: C.magicCountdown != null ? C.magicCountdown : null,
+      // Whether the ACTIVATED special has been fired on this level. `actions` above is a list of
+      // NAMES, which is enough for a card-installed ability (its state is all in EFFECTS) and not
+      // enough for this one — the whole point of it is the used/not-used bit.
+      specialUsed: ((C.actions || []).find((a) => a.special) || {}).usedLevel || 0,
     },
   };
   levelEntry = snap;
@@ -27440,6 +27554,11 @@ function begin(newState) {
   // even with the dev-tools panel off; remove for a public release.
   window.__game = {
     get state() { return state; }, camera, performAction, tickWorld,
+    // Fire an installed ability by its index in `state.cards.actions`. The only route a check has
+    // to a SPECIES SPECIAL (Fly Agaric's Berserk, Blue Bonnet's Toxic Burst): those are actions, not
+    // cards, so `play()` cannot reach them, and the real route is a Use button plus a map tap. Two
+    // calls, like the UI makes: no ctx arms it, {x,y} resolves it.
+    activate: (i, ctx) => activateAction(state, i, ctx),
     // The phased enemy turn (turn-based). `enemyTurn` is the live machine — null between
     // turns, else {phase:'wait'|'hold'}; `settleEnemyTurn` resolves whatever is owed right
     // now, which is how a test written as a synchronous loop of actions gets a settled world
