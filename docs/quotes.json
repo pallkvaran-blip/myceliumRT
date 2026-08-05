@@ -1153,6 +1153,384 @@
       "theme": "dark",
       "rights": "c",
       "note": ""
+    },
+    {
+      "id": 97,
+      "round": 3,
+      "text": "Leave the door open for the unknown, the door into the dark. That's where the most important things come from.",
+      "author": "Rebecca Solnit",
+      "work": "A Field Guide to Getting Lost",
+      "year": 2005,
+      "theme": "dark",
+      "rights": "c"
+    },
+    {
+      "id": 98,
+      "round": 3,
+      "text": "Never to get lost is not to live; not to know how to get lost brings you to destruction.",
+      "author": "Rebecca Solnit",
+      "work": "A Field Guide to Getting Lost",
+      "year": 2005,
+      "theme": "journey",
+      "rights": "c"
+    },
+    {
+      "id": 99,
+      "round": 3,
+      "text": "Perhaps everything terrible is in its deepest being something helpless that wants help from us.",
+      "author": "Rilke, trans. Norton",
+      "work": "Letters to a Young Poet",
+      "year": 1934,
+      "theme": "growth",
+      "rights": "c"
+    },
+    {
+      "id": 100,
+      "round": 3,
+      "text": "Don't grieve. Anything you lose comes round in another form.",
+      "author": "Rumi, trans. Barks",
+      "year": 1995,
+      "theme": "death",
+      "rights": "c"
+    },
+    {
+      "id": 101,
+      "round": 3,
+      "text": "You must ask for what you really want. Don't go back to sleep.",
+      "author": "Rumi, trans. Barks",
+      "year": 1995,
+      "theme": "endurance",
+      "rights": "c"
+    },
+    {
+      "id": 102,
+      "round": 3,
+      "text": "You will love again the stranger who was your self.",
+      "author": "Derek Walcott",
+      "work": "Love After Love",
+      "year": 1976,
+      "theme": "growth",
+      "rights": "c"
+    },
+    {
+      "id": 103,
+      "round": 3,
+      "text": "Believe that a further shore is reachable from here.",
+      "author": "Seamus Heaney",
+      "work": "The Cure at Troy",
+      "year": 1990,
+      "theme": "climb",
+      "rights": "c"
+    },
+    {
+      "id": 104,
+      "round": 3,
+      "text": "You do not need to leave your room. Remain sitting at your table and listen. Do not even listen, simply wait.",
+      "author": "Kafka",
+      "work": "Zurau Aphorisms",
+      "year": 1918,
+      "theme": "endurance",
+      "rights": "pd"
+    },
+    {
+      "id": 105,
+      "round": 3,
+      "text": "Someone I loved once gave me a box full of darkness. It took me years to understand that this, too, was a gift.",
+      "author": "Mary Oliver",
+      "work": "The Uses of Sorrow",
+      "year": 2006,
+      "theme": "dark",
+      "rights": "c"
+    },
+    {
+      "id": 106,
+      "round": 3,
+      "text": "Knowing that you love the earth changes you, activates you to defend and protect and celebrate.",
+      "author": "Robin Wall Kimmerer",
+      "work": "Braiding Sweetgrass",
+      "year": 2013,
+      "theme": "growth",
+      "rights": "c"
+    },
+    {
+      "id": 107,
+      "round": 3,
+      "text": "It may be that when we no longer know what to do, we have come to our real work.",
+      "author": "Wendell Berry",
+      "work": "The Real Work",
+      "year": 1983,
+      "theme": "journey",
+      "rights": "c"
+    },
+    {
+      "id": 108,
+      "round": 3,
+      "text": "You must have chaos within you to give birth to a dancing star.",
+      "author": "Nietzsche",
+      "work": "Thus Spoke Zarathustra",
+      "year": 1883,
+      "theme": "growth",
+      "rights": "pd"
+    },
+    {
+      "id": 109,
+      "round": 3,
+      "text": "Into the underland we have long placed that which we fear and wish to lose, and that which we love and wish to save.",
+      "author": "Robert Macfarlane",
+      "work": "Underland",
+      "year": 2019,
+      "theme": "ground",
+      "rights": "c"
+    },
+    {
+      "id": 110,
+      "round": 3,
+      "text": "We know so little of the worlds beneath our feet.",
+      "author": "Robert Macfarlane",
+      "work": "Underland",
+      "year": 2019,
+      "theme": "ground",
+      "rights": "c"
+    },
+    {
+      "id": 111,
+      "round": 3,
+      "text": "The land gets inside us; and we must decide one way or another what this means, what we will do about it.",
+      "author": "Barry Lopez",
+      "work": "Arctic Dreams",
+      "year": 1986,
+      "theme": "ground",
+      "rights": "c"
+    },
+    {
+      "id": 112,
+      "round": 3,
+      "text": "One of the penalties of an ecological education is that one lives alone in a world of wounds.",
+      "author": "Aldo Leopold",
+      "work": "A Sand County Almanac",
+      "year": 1949,
+      "theme": "ground",
+      "rights": "c"
+    },
+    {
+      "id": 113,
+      "round": 3,
+      "text": "The impeded stream is the one that sings.",
+      "author": "Wendell Berry",
+      "work": "The Real Work",
+      "year": 1983,
+      "theme": "ground",
+      "rights": "c"
+    },
+    {
+      "id": 114,
+      "round": 3,
+      "text": "A tree can be only as strong as the forest that surrounds it.",
+      "author": "Peter Wohlleben",
+      "work": "The Hidden Life of Trees",
+      "year": 2015,
+      "theme": "ground",
+      "rights": "c"
+    },
+    {
+      "id": 115,
+      "round": 3,
+      "text": "It is a journey into Being; as I penetrate more deeply into the mountain's life, I penetrate also into my own.",
+      "author": "Nan Shepherd",
+      "work": "The Living Mountain",
+      "year": 1977,
+      "theme": "ground",
+      "rights": "c"
+    },
+    {
+      "id": 116,
+      "round": 3,
+      "text": "One does not meet oneself until one catches the reflection from an eye other than human.",
+      "author": "Loren Eiseley",
+      "work": "The Immense Journey",
+      "year": 1957,
+      "theme": "ground",
+      "rights": "c"
+    },
+    {
+      "id": 117,
+      "round": 3,
+      "text": "The road has its own reasons, and no two travellers will have the same understanding of those reasons.",
+      "author": "Cormac McCarthy",
+      "work": "The Crossing",
+      "year": 1994,
+      "theme": "journey",
+      "rights": "c"
+    },
+    {
+      "id": 118,
+      "round": 3,
+      "text": "In order to rise from its own ashes, a phoenix first must burn.",
+      "author": "Octavia Butler",
+      "work": "Parable of the Talents",
+      "year": 1998,
+      "theme": "death",
+      "rights": "c"
+    },
+    {
+      "id": 119,
+      "round": 3,
+      "text": "Seek and learn to recognise who and what, in the midst of the inferno, are not inferno, then give them space.",
+      "author": "Italo Calvino",
+      "work": "Invisible Cities",
+      "year": 1972,
+      "theme": "endurance",
+      "rights": "c",
+      "note": "condensed from a longer passage — check the wording you want"
+    },
+    {
+      "id": 120,
+      "round": 3,
+      "text": "The city does not tell its past, but contains it like the lines of a hand.",
+      "author": "Italo Calvino",
+      "work": "Invisible Cities",
+      "year": 1972,
+      "theme": "ground",
+      "rights": "c"
+    },
+    {
+      "id": 121,
+      "round": 3,
+      "text": "The world is wilder in all directions, more dangerous and bitter, more extravagant and bright.",
+      "author": "Annie Dillard",
+      "work": "Pilgrim at Tinker Creek",
+      "year": 1974,
+      "theme": "growth",
+      "rights": "c"
+    },
+    {
+      "id": 122,
+      "round": 3,
+      "text": "I came to explore the wreck. The words are purposes. The words are maps.",
+      "author": "Adrienne Rich",
+      "work": "Diving into the Wreck",
+      "year": 1973,
+      "theme": "journey",
+      "rights": "c"
+    },
+    {
+      "id": 123,
+      "round": 3,
+      "text": "The thing I came for: the wreck, and not the story of the wreck.",
+      "author": "Adrienne Rich",
+      "work": "Diving into the Wreck",
+      "year": 1973,
+      "theme": "journey",
+      "rights": "c"
+    },
+    {
+      "id": 124,
+      "round": 3,
+      "text": "Any life, no matter how long and complex it may be, is made up of a single moment.",
+      "author": "Borges",
+      "work": "A Biography of Tadeo Isidoro Cruz",
+      "year": 1944,
+      "theme": "death",
+      "rights": "c"
+    },
+    {
+      "id": 125,
+      "round": 3,
+      "text": "There are a thousand thousand reasons to live this life, every one of them sufficient.",
+      "author": "Marilynne Robinson",
+      "work": "Gilead",
+      "year": 2004,
+      "theme": "endurance",
+      "rights": "c"
+    },
+    {
+      "id": 126,
+      "round": 3,
+      "text": "If you surrendered to the air, you could ride it.",
+      "author": "Toni Morrison",
+      "work": "Song of Solomon",
+      "year": 1977,
+      "theme": "climb",
+      "rights": "c"
+    },
+    {
+      "id": 127,
+      "round": 3,
+      "text": "Not everything that is faced can be changed, but nothing can be changed until it is faced.",
+      "author": "James Baldwin",
+      "work": "As Much Truth As One Can Bear",
+      "year": 1962,
+      "theme": "endurance",
+      "rights": "c"
+    },
+    {
+      "id": 128,
+      "round": 3,
+      "text": "On the last day of the world I would want to plant a tree.",
+      "author": "W. S. Merwin",
+      "work": "Place",
+      "year": 1988,
+      "theme": "growth",
+      "rights": "c"
+    },
+    {
+      "id": 129,
+      "round": 3,
+      "text": "We must take the feeling of being at home into exile.",
+      "author": "Simone Weil",
+      "work": "Gravity and Grace",
+      "year": 1947,
+      "theme": "journey",
+      "rights": "c"
+    },
+    {
+      "id": 130,
+      "round": 3,
+      "text": "Those who contemplate the beauty of the earth find reserves of strength that will endure as long as life lasts.",
+      "author": "Rachel Carson",
+      "work": "The Sense of Wonder",
+      "year": 1965,
+      "theme": "endurance",
+      "rights": "c"
+    },
+    {
+      "id": 131,
+      "round": 3,
+      "text": "Contemplate the marvel that is existence, and rejoice that you are able to do so.",
+      "author": "Ted Chiang",
+      "work": "Exhalation",
+      "year": 2008,
+      "theme": "growth",
+      "rights": "c"
+    },
+    {
+      "id": 132,
+      "round": 3,
+      "text": "Everything is held together with stories. That is all that is holding us together — stories, and compassion.",
+      "author": "Barry Lopez",
+      "work": "Crow and Weasel",
+      "year": 1990,
+      "theme": "endurance",
+      "rights": "c"
+    },
+    {
+      "id": 133,
+      "round": 3,
+      "text": "Time forks perpetually toward innumerable futures.",
+      "author": "Borges",
+      "work": "The Garden of Forking Paths",
+      "year": 1941,
+      "theme": "journey",
+      "rights": "c"
+    },
+    {
+      "id": 134,
+      "round": 3,
+      "text": "Some of us think holding on makes us strong, but sometimes it is letting go.",
+      "author": "attributed to Hermann Hesse",
+      "theme": "growth",
+      "rights": "check",
+      "note": "widely attributed to Hesse and not traced to any of his books"
     }
   ]
 }

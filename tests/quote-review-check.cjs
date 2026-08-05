@@ -53,8 +53,11 @@ const ROOT = path.resolve(__dirname, '..');
 
   const n = await page.locator('.q').count();
   ok('every quote in the data renders', n === QS.length, `${n} cards of ${QS.length}`);
+  // Derived from the data, not pinned to two — adding a round is the expected way this file grows.
+  const wantRounds = [...new Set(QS.map((q) => q.round))].sort((a, b) => a - b).map((r) => 'Round ' + r);
   const rounds = await page.locator('.rnd h2').allTextContents();
-  ok('both rounds get their own heading', rounds.join('|') === 'Round 1|Round 2', rounds.join('|'));
+  ok('every round gets its own heading', rounds.join('|') === wantRounds.join('|'),
+     rounds.join('|') + ' / want ' + wantRounds.join('|'));
   // The owner asked for "both rounds", and round 2 continued the numbering rather than restarting,
   // so a line offered twice has to say so or they say yes to both copies of it.
   const wantDupes = (() => {

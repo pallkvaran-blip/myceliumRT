@@ -26,12 +26,13 @@ const QUOTES = data.quotes || [];
 
 const THEMES = {
   death: 'death, decay, renewal', climb: 'the climb out', journey: 'journeys',
-  growth: 'growth', mycology: 'mushrooms', dark: 'dark, patient, underground',
-  endurance: 'endurance',
+  growth: 'growth', ground: 'the ground, and what is under it', mycology: 'mushrooms',
+  dark: 'dark, patient, underground', endurance: 'endurance',
 };
 const ROUNDS = {
   1: ['Round 1', 'the first pass, written to stay clear of copyright'],
   2: ['Round 2', 'the unfiltered pass — numbering continues, so these are all new'],
+  3: ['Round 3', 'written to your yeses: longer lines, addressed to you, deep cuts rather than the famous one, and the ground rather than the fungus'],
 };
 
 // The second round continued the numbering rather than starting over, so a few lines were offered
@@ -143,7 +144,7 @@ const page = `<meta charset="utf-8">
 
 <div class="wrap">
   <h1>Quotes for the level cards</h1>
-  <p class="sub">Both rounds, ${QUOTES.length} in all. Yes, no, maybe, or a comment on each. Click a card
+  <p class="sub">${new Set(QUOTES.map((q) => q.round)).size} rounds, ${QUOTES.length} in all. Yes, no, maybe, or a comment on each. Click a card
   to select it, then <kbd>Y</kbd> <kbd>N</kbd> <kbd>M</kbd> to judge and move to the next — or just use
   the buttons. Everything is kept in this browser as you go; press <b>Export</b> when you are done.
   The rights tags are a note about what would need clearing, not a filter.${
@@ -158,6 +159,7 @@ const page = `<meta charset="utf-8">
     <button class="btn" id="fAll" type="button" aria-pressed="true">All</button>
     <button class="btn" id="fR1" type="button" aria-pressed="false">Round 1</button>
     <button class="btn" id="fR2" type="button" aria-pressed="false">Round 2</button>
+    <button class="btn" id="fR3" type="button" aria-pressed="false">Round 3</button>
     <button class="btn" id="fMaybe" type="button" aria-pressed="false">Maybes</button>
     <button class="btn" id="fLeft" type="button" aria-pressed="false">Unjudged</button>
     <button class="btn" id="bReset" type="button">Clear all</button>
@@ -226,6 +228,7 @@ function visible() {
     if (filter === 'left') return !verdictOf(q.id);
     if (filter === 'r1') return q.round === 1;
     if (filter === 'r2') return q.round === 2;
+    if (filter === 'r3') return q.round === 3;
     if (filter === 'maybe') return verdictOf(q.id) === 'maybe';
     return true;
   });
@@ -338,7 +341,7 @@ document.getElementById('bReset').onclick = () => {
   if (!confirm('Throw away every verdict and comment, including the ones already recorded?')) return;
   V = {}; save(); cur = null; render();
 };
-const FILTERS = [['fAll', 'all'], ['fR1', 'r1'], ['fR2', 'r2'], ['fMaybe', 'maybe'], ['fLeft', 'left']];
+const FILTERS = [['fAll', 'all'], ['fR1', 'r1'], ['fR2', 'r2'], ['fR3', 'r3'], ['fMaybe', 'maybe'], ['fLeft', 'left']];
 for (const [id, f] of FILTERS) {
   document.getElementById(id).onclick = () => {
     filter = f;
@@ -380,7 +383,11 @@ writeFileSync(OUT, page);
 const by = (k) => QUOTES.reduce((a, q) => (a[q[k]] = (a[q[k]] || 0) + 1, a), {});
 console.log(`wrote docs/quote-review.html — ${QUOTES.length} quotes, ${(page.length / 1024).toFixed(0)} KB`);
 console.log('  rounds:', JSON.stringify(by('round')));
-if (QUOTES.some((q) => q.verdict)) console.log('  verdicts:', JSON.stringify(by('verdict')));
+if (QUOTES.some((q) => q.verdict)) {
+  const v = by('verdict');
+  if (v.undefined != null) { v.unjudged = v.undefined; delete v.undefined; }   // a new round has none yet
+  console.log('  verdicts:', JSON.stringify(v));
+}
 console.log('  rights:', JSON.stringify(by('rights')));
 console.log('  themes:', JSON.stringify(by('theme')));
 const dupes = QUOTES.filter((q) => q.dupeOf);
