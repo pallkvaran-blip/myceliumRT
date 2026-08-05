@@ -132,7 +132,7 @@ const RUN = CASES.filter((c) => !only.length || only.some((o) => c.id.includes(o
 
   await browser.close();
   srv.close();
-  console.log(`\n  ${pass} passed, ${fail} failed`);
+  console.log(`\n==== ${pass} passed, ${fail} failed ====`);   // the runner parses THIS form
   console.log('  frames: tests/.artifacts/ants-*.png');
   process.exit(fail ? 1 : 0);
 })();

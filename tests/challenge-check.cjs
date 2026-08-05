@@ -329,18 +329,33 @@ const PROBE = () => {
       // stopped — one of the three read `trailing: false` on a layout where all three sit on the
       // finished road. The flags themselves are written during the move phase, so they say
       // nothing at all at boot.
-      await page.evaluate(() => window.__C.step(8));
+      // A FIXED STEP COUNT IS A BET ABOUT THE MACHINE, and this one lost inside a full sweep:
+      // 8 steps, 50/50 standalone on three consecutive runs, and one worm reading
+      // `trailing: false` under sweep load. Step until the thing the assertion needs actually
+      // exists — every worm on the trail — bounded, so a real break still trips it instead of
+      // spinning. (Same fix core-check and scale-check took, for the same reason.)
+      const settle = await page.evaluate(async () => {
+        for (let i = 0; i < 60; i++) {
+          window.__C.step(1);
+          const w = window.__C.worms();
+          if (w.length && w.every((x) => x.trailing)) return { steps: i + 1, all: true };
+        }
+        return { steps: 60, all: false };
+      });
       const trail = await page.evaluate(() => window.__C.trailCells());
       ok('antroad: the nest has laid a trail for the worms to shadow', trail > 0, `${trail} trail cells`);
 
       // THE assertion. A worm falls back to an ant trail only when NO strand is in sight, and
       // the feed block bails before biting on that path — so `trailing` with `sees` false and
       // `feeding` false is a worm the ants have defused. This is the mechanic the campaign
-      // does not currently use anywhere.
+      // does not currently use anywhere. Reported WITH the settle count, so a run that only
+      // just made it is visible rather than looking identical to one that made it at once.
       const w1 = await page.evaluate(() => window.__C.worms());
       const defused = w1.filter((w) => w.trailing && !w.sees && !w.feeding);
       ok('antroad: every worm is shadowing the trail, not hunting — sees=false, trailing=true',
-        defused.length === w1.length, w1.map((w) => `sees=${w.sees} trail=${w.trailing} feed=${w.feeding}`).join(' | '));
+        defused.length === w1.length,
+        `settled after ${settle.steps} step(s)${settle.all ? '' : ' — NEVER settled'} · ` +
+        w1.map((w) => `sees=${w.sees} trail=${w.trailing} feed=${w.feeding}`).join(' | '));
 
       // The price of the shield: the ants are eating the prize the player came for.
       const drain = await page.evaluate(() => {
@@ -372,7 +387,7 @@ const PROBE = () => {
 
   await browser.close();
   srv.close();
-  console.log(`\n  ${pass} passed, ${fail} failed`);
+  console.log(`\n==== ${pass} passed, ${fail} failed ====`);   // the runner parses THIS form
   console.log(`  frames: tests/.artifacts/challenge-*.png`);
   process.exit(fail ? 1 : 0);
 })();

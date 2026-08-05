@@ -136,6 +136,6 @@ const LEVEL = 'campaign-01-magnetite-c40';
   await p.screenshot({ path: path.join(ART, 'surface-edit.png'), timeout: 15000, animations: 'disabled' }).catch(() => {});
   await browser.close();
   srv.close();
-  console.log(`\n  ${pass} passed, ${fail} failed`);
+  console.log(`\n==== ${pass} passed, ${fail} failed ====`);   // the runner parses THIS form
   process.exit(fail ? 1 : 0);
 })();

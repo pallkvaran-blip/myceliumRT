@@ -2,7 +2,7 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-06-glass-c40",
-  "name": "6 \u2014 Glass",
+  "name": "6 — Glass",
   "campaignLevel": 6,
   "assetsFrom": "glass-c40",
   "world": {
@@ -663,44 +663,26 @@
     {
       "t": "mountain",
       "key": "mountain3",
-      "x": 666,
-      "w": 468
+      "x": 828,
+      "w": 432
     },
     {
       "t": "mountain",
-      "key": "mountain4",
-      "x": 1350,
-      "w": 468
-    },
-    {
-      "t": "mountain",
-      "key": "mountain2",
-      "x": 2034,
-      "w": 468
+      "key": "mountain1",
+      "x": 1890,
+      "w": 1188
     },
     {
       "t": "city",
       "key": "skyline4",
-      "x": 324,
-      "w": 216
+      "x": 414,
+      "w": 396
     },
     {
       "t": "city",
       "key": "skyline5",
-      "x": 1008,
-      "w": 216
-    },
-    {
-      "t": "city",
-      "key": "skyline6",
-      "x": 1692,
-      "w": 216
-    },
-    {
-      "t": "city",
-      "key": "skyline1",
-      "x": 2376,
-      "w": 216
+      "x": 1170,
+      "w": 252
     }
   ]
 }

@@ -35,6 +35,26 @@
 //   • NO LAKES (owner). generateSubstrate carves lakeCountMin..Max basins; skipped entirely.
 //     Two of these levels place their own water, and that is the designer's, not this script's.
 //
+// ...AND ONE RULE THAT IS NOT SURVIVAL'S, because survival cannot have the problem:
+//
+//   • NO BUILDING OVER ROCK THE SOIL LINE CUTS (owner: "let's not place buildings over
+//     underground rocks that are being clipped by the ground line. it looks weird - better to
+//     have mountains on those spots"). An authored map's rock is a SPRITE, dragged by hand, and
+//     drawLevelRocks clips it at surfaceY — so a boulder placed high ends as a flat horizontal
+//     cut along the horizon. A skyline standing on that cut reads as a building balanced on a
+//     sawn-off rock; a MOUNTAIN reads as the same rock continuing up into the sky, which is what
+//     it looks like it is doing. Survival never hits this because its rock lives in CELLS, which
+//     stop at the soil line by construction and can never be cut by it.
+//
+//     So every column whose rock is cut becomes mountain, and cities take only what is left.
+//
+// MEASURED FROM THE SPRITE ALPHA IN THE RUNNING GAME, not from the objects here — which is why
+// this script now needs a browser. A boulder's BOUNDING BOX is mostly transparent, so the box
+// test (`y - h/2 < surfaceY`) is not close: on campaign-01 it claims 56 of 82 columns where the
+// drawn rock cuts 50, and on campaign-04 it claims none where 0 are cut but 12 columns still
+// reach the line from below. The alpha is the picture, so the alpha is what decides. Sampled
+// with drawLevelRocks' own geometry (centre, size, rotation) via `__game.rockArt`.
+//
 // ONE DEPARTURE, and it is forced. Procedurally a mountain's BARRIER is 3 cells while its
 // SPRITE is drawn 10-40 cells wide (MOUNTAIN_W_MIN/MAX) — two independent numbers. An authored
 // mountain has only one: buildLevel derives the span from the object's own width
@@ -45,9 +65,16 @@
 //
 // Deterministic per slot, so re-running reproduces the same sky rather than reshuffling it.
 // =============================================================================
-import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { createReadStream, statSync } from 'node:fs';
+import { dirname, resolve, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+
+// Playwright lives on NODE_PATH here and ESM will not resolve it from there.
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright');
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -68,6 +95,9 @@ const PEAK_KEYS = ['mountain1', 'mountain2', 'mountain3', 'mountain4', 'mountain
 // fit side by side and still leave runs wide enough for a skyline.
 const PEAK_W_MIN = 12, PEAK_W_MAX = 26;
 const GAP_MIN = CITY_MIN_RUN + 1;        // every gap must be able to hold a city
+// Alpha above which a sprite pixel counts as drawn rock. solidifyRock uses the same idea for
+// collision; here it only decides what the eye sees, so the exact value is not delicate.
+const ROCK_ALPHA = 40;
 
 // Deterministic per slot: same level, same sky, every run.
 function rng(seed) {
@@ -87,7 +117,79 @@ const spanObject = (t, key, c0, c1, cs) => ({
   w: (c1 - c0 + 1) * cs,
 });
 
-function buildSurface(level, slot) {
+// [3,4,5,9,10] -> [[3,5],[9,10]]
+function toRuns(cols) {
+  const runs = [];
+  for (const c of [...cols].sort((a, b) => a - b)) {
+    const last = runs[runs.length - 1];
+    if (last && c === last[1] + 1) last[1] = c; else runs.push([c, c]);
+  }
+  return runs;
+}
+
+// ---------------------------------------------------------------------------
+// WHICH COLUMNS DOES THE SOIL LINE CUT? Boots each level and walks every sprite's own alpha.
+// ---------------------------------------------------------------------------
+async function measureCutColumns(ids) {
+  const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png',
+    '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.wav': 'audio/wav' };
+  const srv = await new Promise((res) => {
+    const s = createServer((rq, rs) => {
+      let p = decodeURIComponent(rq.url.split('?')[0].split('#')[0]);
+      if (p === '/') p = '/index.html';
+      const fp = join(ROOT, p);
+      if (!fp.startsWith(ROOT) || !existsSync(fp) || statSync(fp).isDirectory()) { rs.writeHead(404); rs.end('nf'); return; }
+      rs.writeHead(200, { 'Content-Type': TYPES[extname(fp)] || 'application/octet-stream' });
+      createReadStream(fp).pipe(rs);
+    });
+    s.listen(0, () => res(s));
+  });
+  const base = 'http://localhost:' + srv.address().port;
+  const browser = await chromium.launch({ headless: true, executablePath: '/opt/pw-browsers/chromium' });
+  const out = {};
+  for (const id of ids) {
+    const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+    await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+    await page.goto(base + '/index.html#level,' + id, { waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
+    await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
+    await page.waitForFunction(() => window.__game && window.__game.state && window.__game.state.active,
+      null, { timeout: 30000 }).catch(() => {});
+    const r = await page.evaluate(async (A) => {
+      const g = window.__game, sub = g.state.substrate;
+      // The sprites decode over the first frames and loadLevelAssets is deliberately not
+      // awaited, so drive frames until the mask reports ready — measuring before that reads an
+      // empty map and would quietly place no mountains at all.
+      for (let i = 0; i < 200 && !sub._rockSolidified; i++) {
+        try { g.renderFrame(); } catch (_) {}
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      const cs = sub.cellSize, cols = sub.cols, sy = sub.surfaceY, cut = new Set();
+      for (const s of sub.levelSprites) {
+        if ((s.y - s.h / 2) >= sy) continue;                 // wholly below the line: nothing cut
+        const m = g.rockArt(s.key); if (!m) continue;
+        const cos = Math.cos(-(s.rot || 0)), sin = Math.sin(-(s.rot || 0));
+        for (let py = 0; py < m.mh; py++) for (let px = 0; px < m.mw; px++) {
+          if (m.data[(py * m.mw + px) * 4 + 3] < A) continue;
+          const lx = (px + 0.5) / m.mw * s.w - s.w / 2, ly = (py + 0.5) / m.mh * s.h - s.h / 2;
+          const wx = s.x + lx * cos + ly * sin, wy = s.y - lx * sin + ly * cos;
+          if (wy >= sy) continue;                            // below the line: drawn, not cut
+          const c = Math.floor(wx / cs);
+          if (c >= 0 && c < cols) cut.add(c);
+        }
+      }
+      return { ok: !!sub._rockSolidified, cols, cut: [...cut].sort((a, b) => a - b) };
+    }, ROCK_ALPHA);
+    if (!r.ok) throw new Error(`${id}: the rock mask never solidified — refusing to author a sky off an unmeasured map`);
+    out[id] = r.cut;
+    await page.close();
+  }
+  await browser.close();
+  srv.close();
+  return out;
+}
+
+function buildSurface(level, slot, cutCols) {
   const cs = level.world.cellSize || 36;
   const cols = Math.round(level.world.width / cs);
   const lay = level.layout || {};
@@ -103,37 +205,60 @@ function buildSurface(level, slot) {
   const band = bandHi - bandLo + 1;
   const r = rng(slot * 7919 + 13);
 
-  // ---- mountains ----------------------------------------------------------
-  // Survival's count, survival's fraction positions. Widths are then trimmed until the peaks
-  // and the gaps between them both fit the band, rather than placed and left overlapping.
-  let count = pickInt(r, 1, 3);
-  let widths = [];
-  for (let i = 0; i < count; i++) widths.push(Math.round(pick(r, PEAK_W_MIN, PEAK_W_MAX)));
-  const gapsNeeded = (n) => (n + 1) * GAP_MIN;
-  while (count > 0 && widths.reduce((a, b) => a + b, 0) + gapsNeeded(count) > band) {
-    const total = widths.reduce((a, b) => a + b, 0);
-    if (total > count * PEAK_W_MIN) {
-      const i = widths.indexOf(Math.max(...widths));
-      widths[i] -= 1;                                  // shave the widest first
-    } else { count -= 1; widths.pop(); }               // one peak fewer rather than a cramped one
+  // ---- mountains the ROCK demands ------------------------------------------
+  // Every cut column has to end up under a mountain, so those runs are placed FIRST and the
+  // procedural peaks fill in around them. Three shaping passes, each of which the frames make
+  // obvious if you skip it:
+  //   • CLAMP to the band. Cut columns outside it (under the home hill, or in the goal
+  //     approach) already carry no city — those zones draw their own art — so they need no
+  //     mountain and cannot have one.
+  //   • MERGE runs closer than GAP_MIN. A gap too narrow for a city is bare ground either way,
+  //     and two peaks three columns apart read as one ridge with a notch bitten out of it.
+  //   • WIDEN to PEAK_W_MIN. A 3-column mountain sprite is a sliver — the same reason
+  //     PEAK_W_MIN exists for the procedural ones.
+  // PEAK_W_MAX is deliberately NOT applied here: a mandatory peak has to be as wide as the rock
+  // it covers, and survival draws mountains up to 40 cells anyway.
+  const inBand = (cutCols || []).filter((c) => c >= bandLo && c <= bandHi);
+  let forced = toRuns(inBand);
+  for (let i = 0; i < forced.length - 1; ) {
+    if (forced[i + 1][0] - forced[i][1] - 1 < GAP_MIN) { forced[i][1] = forced[i + 1][1]; forced.splice(i + 1, 1); }
+    else i++;
+  }
+  forced = forced.map(([c0, c1]) => {
+    const w = c1 - c0 + 1;
+    if (w >= PEAK_W_MIN) return [c0, c1];
+    const grow = PEAK_W_MIN - w, l = Math.floor(grow / 2);
+    let a = Math.max(bandLo, c0 - l), b = Math.min(bandHi, a + PEAK_W_MIN - 1);
+    a = Math.max(bandLo, b - PEAK_W_MIN + 1);
+    return [a, b];
+  });
+  // Widening can overlap a neighbour; merge again rather than emitting two peaks on one span.
+  for (let i = 0; i < forced.length - 1; ) {
+    if (forced[i + 1][0] - forced[i][1] - 1 < GAP_MIN) { forced[i][1] = Math.max(forced[i][1], forced[i + 1][1]); forced.splice(i + 1, 1); }
+    else i++;
   }
 
-  const mountains = [];
-  if (count > 0) {
-    // Survival centres peak i at (i+1)/(count+1) of the inner band, ±2 columns of jitter. Kept,
-    // then clamped so neighbours cannot overlap and the end gaps stay city-sized.
-    let cursor = bandLo + GAP_MIN;
-    for (let i = 0; i < count; i++) {
-      const frac = (i + 1) / (count + 1);
-      const want = Math.round(bandLo + frac * band + pick(r, -2, 2) - widths[i] / 2);
-      const remainingAfter = widths.slice(i + 1).reduce((a, b) => a + b, 0) + gapsNeeded(count - i - 1);
-      const c0 = Math.max(cursor, Math.min(want, bandHi - remainingAfter - widths[i] + 1));
-      const c1 = c0 + widths[i] - 1;
-      if (c1 > bandHi) break;
-      mountains.push({ c0, c1 });
-      cursor = c1 + 1 + GAP_MIN;
+  // ---- mountains survival would have rolled ---------------------------------
+  // Survival's count and fraction positions, but only for the peaks the rock has not already
+  // supplied — a map whose rock cuts nothing (campaign-04) still wants a sky that looks like
+  // survival's, and a map that is cut end to end does not want three more peaks on top.
+  let count = pickInt(r, 1, 3);
+  const extra = [];
+  if (forced.length < count) {
+    // The runs left over between the forced peaks, each of which could take one.
+    const gaps = [];
+    let at = bandLo;
+    for (const f of forced) { if (f[0] - at >= PEAK_W_MIN + 2 * GAP_MIN) gaps.push([at, f[0] - 1]); at = f[1] + 1; }
+    if (bandHi - at + 1 >= PEAK_W_MIN + 2 * GAP_MIN) gaps.push([at, bandHi]);
+    for (const [g0, g1] of gaps) {
+      if (forced.length + extra.length >= count) break;
+      const room = g1 - g0 + 1 - 2 * GAP_MIN;
+      const w = Math.max(PEAK_W_MIN, Math.min(PEAK_W_MAX, Math.min(room, Math.round(pick(r, PEAK_W_MIN, PEAK_W_MAX)))));
+      const c0 = g0 + GAP_MIN + Math.floor((room - w) / 2);
+      extra.push([c0, c0 + w - 1]);
     }
   }
+  const mountains = [...forced, ...extra].sort((a, b) => a[0] - b[0]).map(([c0, c1]) => ({ c0, c1 }));
   // A distinct peak per mountain, shuffled per level so the ten do not all open on mountain1.
   const peakOrder = PEAK_KEYS.map((k) => ({ k, o: r() })).sort((a, b) => a.o - b.o).map((o) => o.k);
 
@@ -150,28 +275,39 @@ function buildSurface(level, slot) {
 
   const cityOrder = CITY_KEYS.map((k) => ({ k, o: r() })).sort((a, b) => a.o - b.o).map((o) => o.k);
   const cities = [];
+  const cutSet = new Set(cutCols || []);
   runs.forEach((run, i) => {
     if (i >= cityOrder.length) return;                 // at most one of each skyline, as in survival
     const runCells = run.c1 - run.c0 + 1;
     const w = Math.min(runCells, Math.round(pick(r, CITY_W_MIN, CITY_W_MAX)));
     const c0 = run.c0 + Math.floor((runCells - w) / 2); // centred in its run
-    cities.push({ c0, c1: c0 + w - 1, key: cityOrder[i] });
+    const c1 = c0 + w - 1;
+    // BELT AND BRACES on the owner's rule. Every cut column inside the band is under a mountain
+    // by now, so this can only fire on a bug in the merge/widen passes above — but a building on
+    // a sawn-off rock is exactly the thing being fixed, and dropping one skyline costs nothing
+    // next to shipping the artefact again.
+    for (let c = c0; c <= c1; c++) if (cutSet.has(c)) return;
+    cities.push({ c0, c1, key: cityOrder[i] });
   });
 
   const objects = [
     ...mountains.map((m, i) => spanObject('mountain', peakOrder[i % peakOrder.length], m.c0, m.c1, cs)),
     ...cities.map((c) => spanObject('city', c.key, c.c0, c.c1, cs)),
   ];
-  return { objects, mountains, cities, band: [bandLo, bandHi], cols };
+  return { objects, mountains, cities, band: [bandLo, bandHi], cols, forced: forced.length, extra: extra.length };
 }
 
 const files = readdirSync(LEVELS).filter((f) => /^campaign-\d\d-.*\.json$/.test(f)).sort();
+const chosen = files.map((f) => ({ f, level: JSON.parse(readFileSync(resolve(LEVELS, f), 'utf8')) }))
+  .filter(({ level }) => !ONLY.length || ONLY.includes(level.campaignLevel));
+
+console.log(`measuring the soil-line cut on ${chosen.length} level(s) — booting each map…\n`);
+const cutByLevel = await measureCutColumns(chosen.map(({ level }) => level.id));
+
 let touched = 0;
-for (const f of files) {
+for (const { f, level } of chosen) {
   const p = resolve(LEVELS, f);
-  const level = JSON.parse(readFileSync(p, 'utf8'));
   const slot = level.campaignLevel;
-  if (ONLY.length && !ONLY.includes(slot)) continue;
 
   // Idempotent: drop any surface objects from a previous run before regenerating, so this can
   // be re-run after a retune without stacking a second skyline on the first.
@@ -179,7 +315,8 @@ for (const f of files) {
   const kept = level.objects.filter((o) => !SURFACE.has(o.t));
   const dropped = level.objects.length - kept.length;
 
-  const { objects, mountains, cities, band } = buildSurface(level, slot);
+  const cut = cutByLevel[level.id] || [];
+  const { objects, mountains, cities, band, forced, extra } = buildSurface(level, slot, cut);
   // Surface objects last: they change no cell that food or water cares about (a mountain only
   // flags `surface[c].barrier`, a city changes nothing at all), so order is free — but keeping
   // the underground block first leaves the designer's own list where they wrote it.
@@ -188,8 +325,9 @@ for (const f of files) {
   const mtnTxt = mountains.map((m) => `${m.c0}-${m.c1}`).join(' ') || 'none';
   const cityTxt = cities.map((c) => `${c.key}@${c.c0}-${c.c1}`).join(' ') || 'none';
   console.log(`${level.id}  (slot ${slot})`);
-  console.log(`   band cols ${band[0]}-${band[1]}   mountains: ${mtnTxt}   cities: ${cityTxt}` +
-    (dropped ? `   [replaced ${dropped} previous surface object(s)]` : ''));
+  console.log(`   soil line cuts ${cut.length} col(s): ${JSON.stringify(toRuns(cut))}`);
+  console.log(`   band cols ${band[0]}-${band[1]}   mountains: ${mtnTxt}  (${forced} forced by rock, ${extra} rolled)`);
+  console.log(`   cities: ${cityTxt}` + (dropped ? `   [replaced ${dropped} previous surface object(s)]` : ''));
   if (!DRY) { writeFileSync(p, JSON.stringify(level, null, 2) + '\n'); touched++; }
 }
 console.log(DRY ? '\n--dry: nothing written.' : `\n${touched} level(s) rewritten. Next: node scripts/gen-levels.mjs`);

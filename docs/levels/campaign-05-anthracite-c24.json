@@ -2,7 +2,7 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-05-anthracite-c24",
-  "name": "5 \u2014 Anthracite",
+  "name": "5 — Anthracite",
   "campaignLevel": 5,
   "assetsFrom": "anthracite-c24",
   "world": {
@@ -680,27 +680,27 @@
     },
     {
       "t": "mountain",
-      "key": "mountain3",
-      "x": 666,
-      "w": 468
-    },
-    {
-      "t": "mountain",
-      "key": "mountain2",
-      "x": 1350,
-      "w": 468
+      "key": "mountain1",
+      "x": 684,
+      "w": 432
     },
     {
       "t": "mountain",
       "key": "mountain5",
-      "x": 2034,
-      "w": 468
+      "x": 1332,
+      "w": 432
+    },
+    {
+      "t": "mountain",
+      "key": "mountain3",
+      "x": 2016,
+      "w": 504
     },
     {
       "t": "city",
-      "key": "skyline6",
-      "x": 324,
-      "w": 216
+      "key": "skyline3",
+      "x": 342,
+      "w": 252
     },
     {
       "t": "city",
@@ -711,12 +711,12 @@
     {
       "t": "city",
       "key": "skyline5",
-      "x": 1692,
+      "x": 1656,
       "w": 216
     },
     {
       "t": "city",
-      "key": "skyline1",
+      "key": "skyline6",
       "x": 2376,
       "w": 216
     }

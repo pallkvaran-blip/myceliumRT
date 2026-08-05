@@ -2,7 +2,7 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-04-rust-c90",
-  "name": "4 \u2014 Rust",
+  "name": "4 — Rust",
   "campaignLevel": 4,
   "assetsFrom": "rust-c90",
   "world": {
@@ -596,19 +596,19 @@
     },
     {
       "t": "mountain",
-      "key": "mountain5",
+      "key": "mountain2",
       "x": 1332,
       "w": 720
     },
     {
       "t": "city",
-      "key": "skyline5",
+      "key": "skyline1",
       "x": 594,
-      "w": 396
+      "w": 324
     },
     {
       "t": "city",
-      "key": "skyline2",
+      "key": "skyline6",
       "x": 2070,
       "w": 396
     }

@@ -5,11 +5,17 @@ situation through the invisible `window.__game` hooks, and assert what the game 
 `PASS`/`FAIL` per assertion and a `==== N passed, M failed ====` line, and exits non-zero on any
 failure. There's no test framework — they're plain Node scripts.
 
+**Print that summary line in exactly that form, and add the check to `run.mjs`'s table.** Both
+are easy to skip and each one silently costs you the check: `run.mjs` parses for
+`==== N passed, M failed ====` and reports anything else as BROKEN, and a check absent from the
+table never runs at all. Six had accumulated outside the table — written with the work that
+motivated them, committed, and then only ever run by hand once.
+
 ## Running them
 
 ```bash
-node tests/run.mjs              # everything (~12 min)
-node tests/run.mjs --fast       # skip rt/tut/lure (~6 min)
+node tests/run.mjs              # everything (~35 min — `traced` is most of it)
+node tests/run.mjs --fast       # skip rt/tut/lure (still ~30 min)
 node tests/run.mjs hs lure      # just the ones whose name matches
 node tests/hs-check.cjs         # one directly
 ```
@@ -48,6 +54,15 @@ or not — for anything visual, look at the picture before trusting the assertio
 | `mould-check.cjs` | The mould's three owner-requested rules: contact is a DISC (`firstTouchRadius`, floored at the cloud's own reach) so no clean strand is left inside the green, with the old nearest-strand breach reproduced by hand as the control and every seed marked so the creep starts along the whole contact face; a rotten strand survives exactly `rotLifeTurns` (2) steps and leaves a fading ghost the renderer drains; a spent cloud goes on the SAME turn, on the wall clock, with no further world step, taking its trich field with it. `tests/mould-shot.cjs` is the visual companion (a tool — it slows both fades to 4 s so a screenshot can catch them) |
 | `tut-check.cjs` | Tutorial: orange pile → draft → "time stops" wording → red-only prompt |
 | `rt-test.cjs` | The real-time core: clock, drafts pausing, arrival gating, cadence bars, aim |
+| `store-check.cjs` | The species-selection screen IS the store: 3 owned + 4 for sale, the six upgrade tracks, what each one actually changes downstream, and the zero-upgrade reading as the negative control |
+| `campaign-check.cjs` | The campaign: ten levels and it ENDS at 10, one fixed map per slot (level 3 built twice and compared cell for cell), every goal reachable, retries, the two-screen death, and the title screen's two games |
+| `water-check.cjs` | The Aquifer Tap pays **+1 Water per tapped source PER TURN** — measured as Water in the bank per action, not read off the constant, because three separate readers branch on `every > 1`. Two distinct sources double it; one source tapped twice does not |
+| `surface-rock-check.cjs` | **No building stands on rock the soil line CUTS** (and every cut column in the band carries a mountain, so "delete the cities" doesn't pass). Sampled off each sprite's ALPHA — a boulder's bounding box is mostly transparent, so the box test is not close |
+| `surface-edit-check.cjs` | The rock editor moves and resizes SURFACE decor (mountain/city/prop), not just underground rock |
+| `campaign-threats-check.cjs` | A campaign level's threats are exactly the ones its JSON places — no respawn ceiling quietly seeding extras |
+| `ant-rock-check.cjs` | Ant trails never cross DRAWN rock, and the line is already laid the moment a level opens |
+| `challenge-check.cjs` | The three prototype challenge maps play the way they were designed to |
+| `card-deselect-check.cjs` | Tapping the selected card again deselects it — and a third tap re-selects, so it toggles rather than sticking |
 
 **HUD-survival assertions live only in `hover-check`** — that a hovered card and a cadence bar
 survive refreshes, that the bar's fill climbs, that it glides on a CSS transition. `rt-test`

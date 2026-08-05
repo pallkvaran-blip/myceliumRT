@@ -207,21 +207,30 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   }
 
   // ---- 3) SURVIVAL sits on the New/Old line --------------------------------
+  // THIS WAITED ON `.ts-split`, WHICH NO LONGER EXISTS. Real time came off the title screen
+  // (OFFER_REALTIME), so the Survival row is a single New/Old pair like Campaign's rather than a
+  // three-column split with a kind label over each side — and this check had not been run since,
+  // so it sat timing out on a selector for markup that had been deleted. The QUESTION survives
+  // the layout change: SURVIVAL must sit ON the New/Old line, not floating above or below it.
+  // Asked of `.ts-top` now, which is the row whatever shape it is in.
   console.log('\n3 — SURVIVAL is centred on the New/Old row');
   {
     const { page, errs } = await open('', { width: 1440, height: 900 });
-    await page.waitForSelector('#titleScreen .ts-split', { timeout: 20000 });
+    await page.waitForSelector('#titleScreen .ts-top .ts-actions', { timeout: 20000 });
     const geo = await page.evaluate(() => {
       const mid = (el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
-      const surv = document.querySelector('#titleScreen .ts-mode');
-      const btns = [...document.querySelectorAll('#titleScreen .ts-split .ts-btn')];
-      const kinds = [...document.querySelectorAll('#titleScreen .ts-kind:not(.ts-kind-ghost)')];
+      const surv = document.querySelector('#titleScreen .ts-top .ts-mode');
+      const btns = [...document.querySelectorAll('#titleScreen .ts-top .ts-btn')];
+      const caps = [...document.querySelectorAll('#titleScreen .ts-top .ts-cap')];
       return { surv: mid(surv), btn: btns.reduce((a, b) => a + mid(b), 0) / btns.length,
-               kind: kinds.reduce((a, k) => a + mid(k), 0) / kinds.length, n: btns.length };
+               cap: caps.reduce((a, k) => a + mid(k), 0) / caps.length, n: btns.length,
+               label: surv ? surv.textContent.trim() : null };
     });
+    ok('the Survival row is one New/Old pair', geo.n === 2, `${geo.n} button(s)`);
+    ok('...labelled SURVIVAL', geo.label === 'Survival', geo.label);
     ok('SURVIVAL is on the same line as New/Old', Math.abs(geo.surv - geo.btn) <= 3,
-       `SURVIVAL centre ${Math.round(geo.surv)} vs New/Old ${Math.round(geo.btn)} (kind labels at ${Math.round(geo.kind)})`);
-    ok('and clearly below the kind labels', geo.surv - geo.kind > 20, `${Math.round(geo.surv - geo.kind)}px below`);
+       `SURVIVAL centre ${Math.round(geo.surv)} vs New/Old ${Math.round(geo.btn)}`);
+    ok('and clearly below the captions', geo.surv - geo.cap > 10, `${Math.round(geo.surv - geo.cap)}px below`);
     ok('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
     await page.close();
   }

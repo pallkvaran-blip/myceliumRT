@@ -105,6 +105,6 @@ const LEVELS = fs.readdirSync(path.join(ROOT, 'docs', 'levels'))
 
   await browser.close();
   srv.close();
-  console.log(`\n  ${pass} passed, ${fail} failed`);
+  console.log(`\n==== ${pass} passed, ${fail} failed ====`);   // the runner parses THIS form
   process.exit(fail ? 1 : 0);
 })();

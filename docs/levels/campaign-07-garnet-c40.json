@@ -2,7 +2,7 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-07-garnet-c40",
-  "name": "7 \u2014 Garnet",
+  "name": "7 — Garnet",
   "campaignLevel": 7,
   "assetsFrom": "garnet-c40",
   "world": {
@@ -611,33 +611,21 @@
     },
     {
       "t": "mountain",
-      "key": "mountain3",
-      "x": 1026,
-      "w": 540
+      "key": "mountain1",
+      "x": 666,
+      "w": 900
     },
     {
       "t": "mountain",
-      "key": "mountain1",
-      "x": 1890,
-      "w": 756
-    },
-    {
-      "t": "city",
-      "key": "skyline5",
-      "x": 486,
-      "w": 324
-    },
-    {
-      "t": "city",
-      "key": "skyline3",
-      "x": 1404,
-      "w": 216
+      "key": "mountain4",
+      "x": 2160,
+      "w": 432
     },
     {
       "t": "city",
       "key": "skyline6",
-      "x": 2376,
-      "w": 216
+      "x": 1530,
+      "w": 252
     }
   ]
 }

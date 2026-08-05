@@ -2,7 +2,7 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-09-veined-c28",
-  "name": "9 \u2014 Veined",
+  "name": "9 — Veined",
   "campaignLevel": 9,
   "assetsFrom": "side-veined-c28",
   "world": {
@@ -456,33 +456,21 @@
     },
     {
       "t": "mountain",
-      "key": "mountain3",
-      "x": 1008,
-      "w": 432
+      "key": "mountain1",
+      "x": 666,
+      "w": 900
     },
     {
       "t": "mountain",
-      "key": "mountain2",
-      "x": 1710,
-      "w": 540
-    },
-    {
-      "t": "city",
-      "key": "skyline4",
-      "x": 504,
-      "w": 360
+      "key": "mountain4",
+      "x": 1908,
+      "w": 1152
     },
     {
       "t": "city",
       "key": "skyline5",
-      "x": 1332,
+      "x": 1224,
       "w": 216
-    },
-    {
-      "t": "city",
-      "key": "skyline1",
-      "x": 2232,
-      "w": 288
     }
   ]
 }

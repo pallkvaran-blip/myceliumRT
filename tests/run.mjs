@@ -13,18 +13,28 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 // name, file, rough seconds, slow? — ordered cheapest-first so a break shows up early.
+//
+// A CHECK NOT IN THIS TABLE NEVER RUNS. Six had accumulated outside it — written with the work
+// that motivated them, committed, and then only ever run by hand once. They are in now.
 const CHECKS = [
   ['species',   'species-check.mjs', 1,   false],
   ['pill',      'pill-check.cjs',    10,  false],
   ['review',    'review-check.cjs',  15,  false],
   ['ingame',    'ingame-text.cjs',   25,  false],
+  ['card',      'card-deselect-check.cjs', 20, false],
   ['hover',     'hover-check.cjs',   30,  false],
   ['boot',      'boot-check.cjs',    60,  false],
   ['hs',        'hs-check.cjs',      35,  false],
   ['store',     'store-check.cjs',   35,  false],
   ['campaign',  'campaign-check.cjs', 45, false],
+  ['water',     'water-check.cjs',   30,  false],
+  ['surface',   'surface-edit-check.cjs', 30, false],
   ['level',     'level-check.cjs',   50,  false],
   ['traced',    'traced-check.cjs',  60,  false],
+  ['ctreats',   'campaign-threats-check.cjs', 60, false],
+  ['ants',      'ant-rock-check.cjs', 60, false],
+  ['challenge', 'challenge-check.cjs', 90, false],
+  ['sky',       'surface-rock-check.cjs', 120, false],
   ['turn-play', 'turn-play.cjs',     40,  false],
   ['enemy',     'enemy-turn-check.cjs', 60, false],
   ['aim',       'aim-check.cjs',     45,  false],

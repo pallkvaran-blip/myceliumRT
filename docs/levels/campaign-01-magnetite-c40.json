@@ -2,7 +2,7 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-01-magnetite-c40",
-  "name": "1 \u2014 Magnetite",
+  "name": "1 — Magnetite",
   "campaignLevel": 1,
   "assetsFrom": "magnetite-c40",
   "world": {
@@ -601,33 +601,21 @@
     },
     {
       "t": "mountain",
-      "key": "mountain1",
-      "x": 828,
-      "w": 792
+      "key": "mountain5",
+      "x": 882,
+      "w": 1332
     },
     {
       "t": "mountain",
       "key": "mountain3",
-      "x": 1854,
-      "w": 828
+      "x": 2160,
+      "w": 648
     },
     {
       "t": "city",
-      "key": "skyline4",
-      "x": 324,
-      "w": 216
-    },
-    {
-      "t": "city",
-      "key": "skyline3",
-      "x": 1332,
-      "w": 216
-    },
-    {
-      "t": "city",
-      "key": "skyline5",
-      "x": 2376,
-      "w": 216
+      "key": "skyline2",
+      "x": 1692,
+      "w": 288
     }
   ]
 }

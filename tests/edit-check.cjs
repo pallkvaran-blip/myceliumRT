@@ -418,9 +418,16 @@ await p.evaluate(()=>{document.querySelector('#eeAll').click();document.querySel
 // export
 const json = await p.evaluate(()=>{ window.__levelJSON=null; document.querySelector('#eeCopy').click(); return new Promise(r=>setTimeout(()=>r(window.__levelJSON),300)); });
 ok('export produces level JSON', !!json && json.includes('"format"'), json?('len '+json.length):'null');
-// ---- carousel starts minimised, level intro skipped ----------------------
-ok('the card carousel starts minimised in dev',
-   await p.evaluate(()=>{ const h=document.querySelector('.handbar'); return !!h && !h.classList.contains('open'); }));
+// ---- carousel starts MAXIMISED, level intro skipped ----------------------
+// IT USED TO ASSERT THE OPPOSITE, and the owner reversed the requirement ("card carousel should
+// begin maximized"). `begin()` closes the hand for every non-puzzle run on the assumption that
+// the level intro will re-open it — and the dev build SKIPS that intro, so a dev run always came
+// up with a collapsed HUD. The skip path calls `onDismiss()` now, whose only job is that re-open.
+// So the two assertions here are one mechanism: the intro is gone AND the hand is open, which is
+// only true if the skip did the intro's job on its way past.
+ok('the card carousel starts MAXIMISED in dev',
+   await p.evaluate(()=>{ const h=document.querySelector('.handbar'); return !!h && h.classList.contains('open'); }),
+   await p.evaluate(()=>{ const h=document.querySelector('.handbar'); return h ? h.className : '(no .handbar)'; }));
 ok('the level intro does not appear in dev', !(await p.$('#levelIntro')));
 
 // ---- placement -----------------------------------------------------------

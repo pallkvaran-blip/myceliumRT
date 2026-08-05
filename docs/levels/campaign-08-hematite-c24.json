@@ -2,7 +2,7 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-08-hematite-c24",
-  "name": "8 \u2014 Hematite",
+  "name": "8 — Hematite",
   "campaignLevel": 8,
   "assetsFrom": "hematite-c24",
   "world": {
@@ -853,33 +853,21 @@
     },
     {
       "t": "mountain",
-      "key": "mountain2",
-      "x": 936,
-      "w": 504
+      "key": "mountain1",
+      "x": 648,
+      "w": 792
     },
     {
       "t": "mountain",
       "key": "mountain4",
-      "x": 1728,
-      "w": 648
-    },
-    {
-      "t": "city",
-      "key": "skyline2",
-      "x": 432,
-      "w": 360
-    },
-    {
-      "t": "city",
-      "key": "skyline5",
-      "x": 1296,
-      "w": 216
+      "x": 1944,
+      "w": 1080
     },
     {
       "t": "city",
       "key": "skyline6",
-      "x": 2268,
-      "w": 432
+      "x": 1206,
+      "w": 324
     }
   ]
 }

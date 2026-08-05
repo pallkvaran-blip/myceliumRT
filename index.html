@@ -2018,7 +2018,7 @@ const CONFIG = {
                                  //   this drives them all: engine income (`every N`), the dig cadence, ability
                                  //   cooldowns, per-round use caps and the Magic Mushroom conjure clock. At 10 s
                                  //   a dot, a card that used to fire "every 6 rounds" now fires once a minute,
-                                 //   and a water body (every 3) pays every 30 s. Converted to world ticks via
+                                 //   and a water body (every 1 — one Water per turn) pays every 10 s. Converted to world ticks via
                                  //   realtime.stepMs, so changing the tick rate keeps these timings intact.
     // resource harvest amounts (used by harvest-card effects)
     harvestWaterLake: 9,         // Hyphal Osmosis at a lake edge
@@ -4916,11 +4916,9 @@ const LEVELS = [
       {"t":"nematode","x":2695,"y":1101},
       {"t":"nematode","x":1492,"y":1172},
       {"t":"nematode","x":1465,"y":1190},
-      {"t":"mountain","key":"mountain1","x":828,"w":792},
-      {"t":"mountain","key":"mountain3","x":1854,"w":828},
-      {"t":"city","key":"skyline4","x":324,"w":216},
-      {"t":"city","key":"skyline3","x":1332,"w":216},
-      {"t":"city","key":"skyline5","x":2376,"w":216}
+      {"t":"mountain","key":"mountain5","x":882,"w":1332},
+      {"t":"mountain","key":"mountain3","x":2160,"w":648},
+      {"t":"city","key":"skyline2","x":1692,"w":288}
     ]
   },
   {
@@ -5015,9 +5013,11 @@ const LEVELS = [
       {"t":"food","kind":"duff","x":2219,"y":604,"r":1,"energy":2},
       {"t":"food","kind":"duff","x":1946,"y":695,"r":1,"energy":2},
       {"t":"food","kind":"duff","x":1513,"y":641,"r":1,"energy":2},
-      {"t":"mountain","key":"mountain1","x":1404,"w":864},
-      {"t":"city","key":"skyline1","x":594,"w":324},
-      {"t":"city","key":"skyline2","x":2160,"w":360}
+      {"t":"mountain","key":"mountain3","x":720,"w":648},
+      {"t":"mountain","key":"mountain5","x":1908,"w":720},
+      {"t":"city","key":"skyline3","x":306,"w":180},
+      {"t":"city","key":"skyline1","x":1278,"w":396},
+      {"t":"city","key":"skyline2","x":2376,"w":216}
     ]
   },
   {
@@ -5133,9 +5133,11 @@ const LEVELS = [
       {"t":"nematode","x":52,"y":1846},
       {"t":"nematode","x":85,"y":1914},
       {"t":"food","kind":"cache","x":1651,"y":1422,"r":1,"energy":4},
-      {"t":"mountain","key":"mountain5","x":1368,"w":792},
-      {"t":"city","key":"skyline4","x":576,"w":360},
-      {"t":"city","key":"skyline3","x":2106,"w":396}
+      {"t":"mountain","key":"mountain5","x":540,"w":648},
+      {"t":"mountain","key":"mountain2","x":1368,"w":432},
+      {"t":"mountain","key":"mountain3","x":2160,"w":432},
+      {"t":"city","key":"skyline6","x":1008,"w":288},
+      {"t":"city","key":"skyline2","x":1764,"w":360}
     ]
   },
   {
@@ -5247,9 +5249,9 @@ const LEVELS = [
       {"t":"food","kind":"cache","x":2435,"y":1147,"r":1,"energy":4},
       {"t":"food","kind":"cache","x":2668,"y":1039,"r":1,"energy":4},
       {"t":"food","kind":"cache","x":1358,"y":608,"r":1,"energy":4},
-      {"t":"mountain","key":"mountain5","x":1332,"w":720},
-      {"t":"city","key":"skyline5","x":594,"w":396},
-      {"t":"city","key":"skyline2","x":2070,"w":396}
+      {"t":"mountain","key":"mountain2","x":1332,"w":720},
+      {"t":"city","key":"skyline1","x":594,"w":324},
+      {"t":"city","key":"skyline6","x":2070,"w":396}
     ]
   },
   {
@@ -5362,13 +5364,13 @@ const LEVELS = [
       {"t":"trichoderma","x":1894,"y":713},
       {"t":"trichoderma","x":2186,"y":922},
       {"t":"food","kind":"duff","x":987,"y":1090,"r":1,"energy":2},
-      {"t":"mountain","key":"mountain3","x":666,"w":468},
-      {"t":"mountain","key":"mountain2","x":1350,"w":468},
-      {"t":"mountain","key":"mountain5","x":2034,"w":468},
-      {"t":"city","key":"skyline6","x":324,"w":216},
+      {"t":"mountain","key":"mountain1","x":684,"w":432},
+      {"t":"mountain","key":"mountain5","x":1332,"w":432},
+      {"t":"mountain","key":"mountain3","x":2016,"w":504},
+      {"t":"city","key":"skyline3","x":342,"w":252},
       {"t":"city","key":"skyline2","x":1008,"w":216},
-      {"t":"city","key":"skyline5","x":1692,"w":216},
-      {"t":"city","key":"skyline1","x":2376,"w":216}
+      {"t":"city","key":"skyline5","x":1656,"w":216},
+      {"t":"city","key":"skyline6","x":2376,"w":216}
     ]
   },
   {
@@ -5489,13 +5491,10 @@ const LEVELS = [
       {"t":"ant","x":1129},
       {"t":"nematode","x":2695,"y":1840},
       {"t":"trichoderma","x":1665,"y":1885},
-      {"t":"mountain","key":"mountain3","x":666,"w":468},
-      {"t":"mountain","key":"mountain4","x":1350,"w":468},
-      {"t":"mountain","key":"mountain2","x":2034,"w":468},
-      {"t":"city","key":"skyline4","x":324,"w":216},
-      {"t":"city","key":"skyline5","x":1008,"w":216},
-      {"t":"city","key":"skyline6","x":1692,"w":216},
-      {"t":"city","key":"skyline1","x":2376,"w":216}
+      {"t":"mountain","key":"mountain3","x":828,"w":432},
+      {"t":"mountain","key":"mountain1","x":1890,"w":1188},
+      {"t":"city","key":"skyline4","x":414,"w":396},
+      {"t":"city","key":"skyline5","x":1170,"w":252}
     ]
   },
   {
@@ -5610,11 +5609,9 @@ const LEVELS = [
       {"t":"ant","x":1574},
       {"t":"trichoderma","x":1351,"y":944},
       {"t":"trichoderma","x":2818,"y":1410},
-      {"t":"mountain","key":"mountain3","x":1026,"w":540},
-      {"t":"mountain","key":"mountain1","x":1890,"w":756},
-      {"t":"city","key":"skyline5","x":486,"w":324},
-      {"t":"city","key":"skyline3","x":1404,"w":216},
-      {"t":"city","key":"skyline6","x":2376,"w":216}
+      {"t":"mountain","key":"mountain1","x":666,"w":900},
+      {"t":"mountain","key":"mountain4","x":2160,"w":432},
+      {"t":"city","key":"skyline6","x":1530,"w":252}
     ]
   },
   {
@@ -5758,11 +5755,9 @@ const LEVELS = [
       {"t":"food","kind":"duff","x":2629,"y":704,"r":1,"energy":2},
       {"t":"ant","x":1953},
       {"t":"ant","x":235},
-      {"t":"mountain","key":"mountain2","x":936,"w":504},
-      {"t":"mountain","key":"mountain4","x":1728,"w":648},
-      {"t":"city","key":"skyline2","x":432,"w":360},
-      {"t":"city","key":"skyline5","x":1296,"w":216},
-      {"t":"city","key":"skyline6","x":2268,"w":432}
+      {"t":"mountain","key":"mountain1","x":648,"w":792},
+      {"t":"mountain","key":"mountain4","x":1944,"w":1080},
+      {"t":"city","key":"skyline6","x":1206,"w":324}
     ]
   },
   {
@@ -5857,11 +5852,9 @@ const LEVELS = [
       {"t":"nematode","x":1561,"y":1028},
       {"t":"ant","x":2465},
       {"t":"ant","x":589},
-      {"t":"mountain","key":"mountain3","x":1008,"w":432},
-      {"t":"mountain","key":"mountain2","x":1710,"w":540},
-      {"t":"city","key":"skyline4","x":504,"w":360},
-      {"t":"city","key":"skyline5","x":1332,"w":216},
-      {"t":"city","key":"skyline1","x":2232,"w":288}
+      {"t":"mountain","key":"mountain1","x":666,"w":900},
+      {"t":"mountain","key":"mountain4","x":1908,"w":1152},
+      {"t":"city","key":"skyline5","x":1224,"w":216}
     ]
   },
   {
@@ -5972,9 +5965,9 @@ const LEVELS = [
       {"t":"food","kind":"duff","x":1505,"y":1406,"r":1,"energy":2},
       {"t":"food","kind":"duff","x":681,"y":1429,"r":1,"energy":2},
       {"t":"food","kind":"duff","x":34,"y":1945,"r":1,"energy":2},
-      {"t":"mountain","key":"mountain2","x":1296,"w":864},
-      {"t":"city","key":"skyline4","x":522,"w":324},
-      {"t":"city","key":"skyline3","x":2088,"w":360}
+      {"t":"mountain","key":"mountain2","x":1044,"w":432},
+      {"t":"city","key":"skyline2","x":504,"w":432},
+      {"t":"city","key":"skyline6","x":1872,"w":432}
     ]
   },
   {
@@ -16990,14 +16983,23 @@ const nodeTouchesWater = (state) => waterSourcesNear(state).size > 0;    // lake
 
 // --- water-source income ----------------------------------------------------
 // Almost-touching open lake water OR an underground reservoir TAPS it: the source joins a
-// persistent, once-per-source faucet (the Aquifer Tap) that keeps charging over
-// WATER_SOURCE_EVERY rounds and paying +1 Water PER tapped source, OVER AND OVER, for the rest
-// of the map. But each source is only ever tapped ONCE per colony — extra strands on it, or
-// growing back into it later, never add another tap (`state._tappedWater`, keyed by source id:
-// 'lake' or reservoir id; resets per map since `state` is per-level). Implemented as a synthetic
-// engine in C.engines so the income pill + ledger display it automatically.
+// persistent, once-per-source faucet (the Aquifer Tap) that pays **+1 Water PER TAPPED SOURCE
+// PER TURN** (owner), OVER AND OVER, for the rest of the map. But each source is only ever
+// tapped ONCE per colony — extra strands on it, or growing back into it later, never add
+// another tap (`state._tappedWater`, keyed by source id: 'lake' or reservoir id; resets per map
+// since `state` is per-level). Implemented as a synthetic engine in C.engines so the income
+// pill + ledger display it automatically.
+//
+// `every: 1` IS THE RATE, and it was 3 — a third of a Water per source per turn, which is why
+// tapping a second lake used to be worth so little. The payout per fire (`water: count`) is
+// unchanged; only how often it fires moved.
+//
+// NOTE the cadence unit: `every` counts ROUNDS, and a round is one action in turn-based but
+// `cards.roundSeconds` (10 s) in real time. So "per turn" is literally per action in the game
+// that ships and per 10 s in the other one — which is the same relationship every other timed
+// card here already has, not a special case for this one.
 const WATER_SOURCE_NAME = 'Aquifer Tap';
-const WATER_SOURCE_EVERY = 3;
+const WATER_SOURCE_EVERY = 1;
 const waterSourcesTouched = (state) => waterSourcesNear(state).size;
 function updateWaterSourceEngine(state) {
   const C = state.cards; if (!C || !C.engines) return;

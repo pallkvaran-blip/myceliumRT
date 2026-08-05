@@ -33,6 +33,23 @@ to the goal, and no trees (survival scatters those on `soil && !goal`, which no 
 No lakes, by instruction. Re-running it replaces the surface objects rather than stacking a second
 set on the first, so it is safe to re-run after a retune.
 
+**One rule is NOT survival's, because survival cannot have the problem: no building stands on rock
+the soil line CUTS** (owner). An authored map's rock is a sprite dragged by hand, and
+`drawLevelRocks` clips it at `surfaceY` — so a boulder placed high ends in a flat horizontal cut
+along the horizon, and a skyline on that cut reads as a building balanced on a sawn-off rock. A
+mountain reads as the same rock carrying on up into the sky. Survival's rock lives in CELLS, which
+stop at the soil line by construction and are never cut by it.
+
+That makes the script **need a browser**: the cut is a property of the sprite's ALPHA, and a
+boulder's bounding box is mostly transparent — the box test claims 56 of 82 columns on
+`campaign-01` where the drawn rock cuts 50, and none at all on `campaign-04` where 12 columns
+still reach the line. It boots each map and samples `__game.rockArt` with the draw's own geometry.
+
+**So MOVING A ROCK can put a building back on a cut without touching a single city.** Re-run the
+script after any rock edit; `node tests/surface-rock-check.cjs` is what tells you that you needed
+to (it asserts both halves — no city on a cut column, and every cut column in the band under a
+mountain, so "delete the cities" does not pass).
+
 The traced maps are not hand-placed: `scripts/trace-map.py` cuts one sprite per rock out of
 the upscaled image, and re-running it overwrites both the JSON *and* `assets/<id>/`. Each one
 records what it came from under `traced` in its JSON — which is also how `tests/traced-check.cjs`

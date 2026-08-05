@@ -2,7 +2,7 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-10-ember-c30-5",
-  "name": "10 \u2014 Ember",
+  "name": "10 — Ember",
   "campaignLevel": 10,
   "assetsFrom": "side-ember-c30-5",
   "world": {
@@ -579,20 +579,20 @@
     {
       "t": "mountain",
       "key": "mountain2",
-      "x": 1296,
-      "w": 864
+      "x": 1044,
+      "w": 432
     },
     {
       "t": "city",
-      "key": "skyline4",
-      "x": 522,
-      "w": 324
+      "key": "skyline2",
+      "x": 504,
+      "w": 432
     },
     {
       "t": "city",
-      "key": "skyline3",
-      "x": 2088,
-      "w": 360
+      "key": "skyline6",
+      "x": 1872,
+      "w": 432
     }
   ]
 }

@@ -2,7 +2,7 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-02-obsidian-c40",
-  "name": "2 \u2014 Obsidian",
+  "name": "2 — Obsidian",
   "campaignLevel": 2,
   "assetsFrom": "obsidian-c40",
   "world": {
@@ -532,21 +532,33 @@
     },
     {
       "t": "mountain",
-      "key": "mountain1",
-      "x": 1404,
-      "w": 864
+      "key": "mountain3",
+      "x": 720,
+      "w": 648
+    },
+    {
+      "t": "mountain",
+      "key": "mountain5",
+      "x": 1908,
+      "w": 720
+    },
+    {
+      "t": "city",
+      "key": "skyline3",
+      "x": 306,
+      "w": 180
     },
     {
       "t": "city",
       "key": "skyline1",
-      "x": 594,
-      "w": 324
+      "x": 1278,
+      "w": 396
     },
     {
       "t": "city",
       "key": "skyline2",
-      "x": 2160,
-      "w": 360
+      "x": 2376,
+      "w": 216
     }
   ]
 }
