@@ -206,6 +206,10 @@ ok('the ATTACK phase moves the worm not at all', !crawl.err && crawl.movedInAtta
 const cloud = await p.evaluate(() => {
   const G = window.__game, s = G.state, sub = s.substrate, net = s.active, cs = sub.cellSize;
   s.nematodes.length = 0; s.clouds.length = 0;
+  // ONE cloud, and only the one placed below. tickWorld RESPAWNS, and every cloud on the map eats
+  // out of the same block — which is why this read 125 nutrient on one run and 1750 on the next.
+  if (s.config.trichoderma) s.config.trichoderma.respawnChance = 0;
+  if (s.config.nematodes) s.config.nematodes.respawnChance = 0;
   // Further than one step from the colony but inside its sight, with the first step provably
   // clear — the cloud's sight radius is the worm's, so the same finder serves. Parked any
   // closer and the creep clamps to the gap; parked in a pocket and it slides instead.
@@ -245,16 +249,25 @@ const cloud = await p.evaluate(() => {
   G.tickWorld(s, 'attack');
   const movedInAttack = Math.hypot(c.cx - x1, c.cy - y1) / cs;
   G.tickWorld(s, 'attack');
-  return { movedCells, want: s.config.trichoderma.moveSpeed, block: block.length,
-           leaves: s.config.trichoderma.leavesPerRound,
-           ateInMove: f0 - f1, ateInAttack: f1 - blockFood(),
-           budget: c._budget, movedInAttack };
+  const out = { movedCells, want: s.config.trichoderma.moveSpeed, block: block.length,
+                leaves: s.config.trichoderma.leavesPerRound,
+                ateInMove: f0 - f1, ateInAttack: f1 - blockFood(),
+                budget: c._budget, movedInAttack, live: !s.runOver };
+  // PUT THE WORLD BACK. Every probe below shares this page, and four world steps with a live cloud
+  // on the map is enough to end the run — after which `tickWorld` returns at its first line and the
+  // next probe measures nothing at all, as an off-by-one nobody can place. The rot probe read
+  // `1 → 1 infected` on a perfectly good build for exactly this reason.
+  s.clouds.length = 0; s.nematodes.length = 0;
+  s.runOver = false; s.winPending = false; s.won = false; net.alive = true;
+  return out;
 });
 ok('the MOVE phase creeps the cloud moveSpeed cells',
    !cloud.err && Math.abs(cloud.movedCells - cloud.want) < 0.05,
    cloud.err || `crept ${cloud.movedCells.toFixed(3)} cells, table says ${cloud.want}`);
 ok('the MOVE phase devours no food at all', !cloud.err && cloud.ateInMove === 0,
    cloud.err || `${cloud.ateInMove} nutrient gone`);
+ok('the cloud probe left the run live for the probes below', !cloud.err && cloud.live === true,
+   cloud.err || `runOver=${!cloud.live}`);
 ok('the ATTACK phase devours food', !cloud.err && cloud.ateInAttack > 0,
    cloud.err || `${cloud.ateInAttack.toFixed(1)} nutrient gone from the cloud's own ${cloud.block} cells over two attack ticks (leavesPerRound ${cloud.leaves}/tick, whole cells only)`);
 ok('the ATTACK phase creeps the cloud not at all', !cloud.err && cloud.movedInAttack < 1e-6,
@@ -266,18 +279,28 @@ ok('the ATTACK phase creeps the cloud not at all', !cloud.err && cloud.movedInAt
 const rot = await p.evaluate(() => {
   const G = window.__game, s = G.state, net = s.active;
   s.nematodes.length = 0; s.clouds.length = 0;
+  if (s.config.nematodes) s.config.nematodes.respawnChance = 0;
+  if (s.config.trichoderma) s.config.trichoderma.respawnChance = 0;
+  // A rot that has nowhere to spread reads as a rot that did not spread. Seed the strand with the
+  // most children rather than nodes[0], so "one ring" has somewhere to go on any colony shape.
   for (const n of net.nodes) { n.infected = false; n.rotAge = 0; }
-  net.nodes[0].infected = true; net.nodes[0].rotAge = 0;
+  let seed = net.nodes[0];
+  for (const n of net.nodes) if ((n.children || []).length > (seed.children || []).length) seed = n;
+  seed.infected = true; seed.rotAge = 0;
   net._spreadAccum = 0;
+  // And the run has to be LIVE, or tickWorld returns at its first line and both readings are the
+  // starting count — which looks like "the attack phase doesn't race the rot".
+  s.runOver = false; s.winPending = false; s.won = false; net.alive = true;
   const count = () => net.nodes.filter((n) => n.infected).length;
   const c0 = count();
   G.tickWorld(s, 'move');
   const c1 = count();
   G.tickWorld(s, 'attack');
-  return { c0, c1, c2: count() };
+  return { c0, c1, c2: count(), kids: (seed.children || []).length, live: !s.runOver };
 });
 ok('the MOVE phase advances the rot not one ring', rot.c1 === rot.c0, `${rot.c0} → ${rot.c1} infected`);
-ok('the ATTACK phase races the rot', rot.c2 > rot.c1, `${rot.c1} → ${rot.c2} infected`);
+ok('the ATTACK phase races the rot', rot.c2 > rot.c1 && rot.live,
+   `${rot.c1} → ${rot.c2} infected (seed had ${rot.kids} children, run live=${rot.live})`);
 
 await p.close();
 }
@@ -551,7 +574,15 @@ const feed = () => {
 const held = await p.evaluate(`(${feed.toString()})();` + `(() => {
   const G = window.__game, s = G.state, net = s.active;
   net.energy = 99999; net.water = 5; net.phosphorus = 99;
-  const setup = G.performAction(s, 'grow', {});   // the setup action: queues the enemy turn
+  // The setup action, whose only job is to QUEUE the enemy turn for the gate to hold. A plain grow
+  // is not reliable for that: it reports failure whenever it created nothing, and a packed or
+  // rock-boxed frontier creates nothing however much food feed() just laid beside it. It used to
+  // succeed anyway because the pile claim at the end of grow padded the created-count with its mat,
+  // and that padding went when claims were gated to tissue the player grew. A refusal queues
+  // NOTHING, so the gate would have nothing to hold and every assertion below would read backwards.
+  // (No backticks in here: this whole probe body is a TEMPLATE LITERAL, so one ends the string.)
+  let setup = G.performAction(s, 'grow', {});
+  if (!setup || setup.ok !== true) setup = G.performAction(s, 'addSubstrate', {});
   const et0 = G.enemyTurn, turn0 = s.turn, e0 = net.energy, w0 = net.water, n0 = net.nodes.length;
   const why = G.blockedReason();
   const H = G.handlers;
