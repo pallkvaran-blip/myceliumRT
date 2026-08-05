@@ -1792,7 +1792,11 @@
        took its mint treatment with it (.ss-lc-btn3); nothing here needed a second weight once
        there was nothing to weigh it against. */
     /* Death-screen header sitting ATOP the carry carousel (title matches the cause of death). */
-    .lo-header { width:100%; max-width:680px; text-align:center; margin:0 auto; }
+    /* NO 680px CAP. That width was there for the prose, and the prose caps ITSELF — .lo-h-body at
+       600 and .lo-h-instr at 620 — so the only thing 680 ever constrained was the TITLE, which now
+       carries the pick counter ("... your next deck (0/18 · 0/2 engines)") and wrapped onto a second
+       line because of it. The header takes the panel's width; the paragraphs stay in their column. */
+    .lo-header { width:100%; text-align:center; margin:0 auto; }
     .lo-h-title { margin:0; font-size:clamp(19px,2.9vw,26px); font-weight:800; color:#fff; letter-spacing:.01em; }
     /* The pick counter, in the title. Quieter than the words it follows so the title still reads as
        a title, and it turns mint at the cap — the same signal .lo-count.lo-full used to give. */
