@@ -1859,6 +1859,22 @@
       font-weight:400; font-size:clamp(14px,2.1vw,20px); line-height:1.5; letter-spacing:0;
       color:#cfe0d6; text-shadow:none; max-width:min(640px,90vw); }
     @media (max-width:720px) { .li-sub { font-size:clamp(11px,2.9vw,14px); } }
+    /* The flavour quote, under the story line. Same serif so the two belong to one voice, but a
+       size DOWN and dimmer, because the story line is what this level is and the quote is only
+       decoration — at the same weight they read as one four-line paragraph and the story stopped
+       being the thing you notice. Italic does the same separating job as a rule would without
+       adding furniture to a card that already carries a wordmark, a counter and the portraits.
+       Names checked free before adding: `.li-quote*` is used nowhere else in this sheet, which is
+       not a formality here — `.li-count` and `.ss-hint` were both silently taken. */
+    .li-quote { margin-top:clamp(9px,1.5vh,15px); max-width:min(600px,88vw); }
+    .li-quote-t { font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
+      font-style:italic; font-weight:400; font-size:clamp(12px,1.65vw,15.5px); line-height:1.5;
+      letter-spacing:0; text-wrap:balance; color:rgba(207,224,214,0.62); text-shadow:none; }
+    /* Its own line, not a trailing dash: the longer quotes wrap to two lines by themselves and an
+       attribution running off the end of the last one read as the quote being cut short. */
+    .li-quote-by { margin-top:0.35em; font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
+      font-style:normal; font-size:clamp(10.5px,1.3vw,12.5px); line-height:1.4;
+      letter-spacing:0.02em; color:rgba(207,224,214,0.4); }
     /* "3 of 10" — how far through the campaign this level is. Deliberately QUIET and in the
        colony's own mint rather than the taunt's red: it is a position, not a threat, and it sits
        directly above a line whose whole job is to be alarming. Same mono face as .li-sub so the
@@ -10988,6 +11004,46 @@ function storyForLevel(level) {
   return CAMPAIGN_STORY[Math.max(1, level | 0)] || null;
 }
 
+// A line of flavour under the story line, drawn at random. The candidates were weeded in
+// `docs/quote-review.html` (generated from `docs/quotes.json` — the ids below are that file's, so a
+// line can be traced back to its round, theme and rights note); these nine are the owner's "yes".
+//
+// NOT KEYED TO A LEVEL, deliberately. The story line already says where you are; a quote pinned to
+// level 4 would be read as being ABOUT level 4, and would be the same on every run of it. Random is
+// what makes it flavour rather than more briefing.
+//
+// SEVERAL OF THESE ARE STILL IN COPYRIGHT (Camus, Butler, Plath, Rilke, Herbert, and Barks' Rumi).
+// The owner said they would handle clearing; `rights` in docs/quotes.json is the record of which.
+// Attribution is the translator's where the TRANSLATION is the copyrighted work, which is why two
+// of them read "trans. …" — the shipped credit should name whoever has to be cleared.
+const LEVEL_QUOTES = [
+  { id: 11, text: 'Cowards die many times before their deaths; the valiant never taste of death but once.', by: 'Shakespeare, Julius Caesar' },
+  { id: 29, text: 'From so simple a beginning endless forms most beautiful and most wonderful have been, and are being, evolved.', by: 'Darwin, On the Origin of Species' },
+  { id: 42, text: 'The wound is the place where the Light enters you.', by: 'Rumi, trans. Barks' },
+  { id: 59, text: 'In the midst of winter, I found there was, within me, an invincible summer.', by: 'Camus, Return to Tipasa' },
+  { id: 62, text: 'All that you touch you change. All that you change changes you.', by: 'Octavia Butler, Parable of the Sower' },
+  { id: 67, text: 'Overnight, very whitely, discreetly, very quietly, our toes, our noses take hold on the loam.', by: 'Sylvia Plath, Mushrooms' },
+  { id: 82, text: 'Let everything happen to you: beauty and terror. Just keep going. No feeling is final.', by: 'Rilke, trans. Barrows & Macy' },
+  { id: 83, text: 'Wanderer, there is no road — the road is made by walking.', by: 'Antonio Machado, Campos de Castilla' },
+  { id: 89, text: 'Without change, something sleeps inside us, and seldom awakens.', by: 'Frank Herbert, Dune' },
+];
+// A BAG, not a flat draw. With nine quotes over ten levels a flat draw repeats itself about
+// two runs in three, and a repeat one card after the last one reads as a bug rather than as
+// chance. The bag is refilled when it empties, so a ten-level campaign shows nine distinct
+// lines and one repeat at the end. Module-scoped: a run rebuilds `state` at every level.
+let _quoteBag = [];
+function randomLevelQuote() {
+  if (!LEVEL_QUOTES.length) return null;
+  if (!_quoteBag.length) {
+    _quoteBag = LEVEL_QUOTES.slice();
+    for (let i = _quoteBag.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      const t = _quoteBag[i]; _quoteBag[i] = _quoteBag[j]; _quoteBag[j] = t;
+    }
+  }
+  return _quoteBag.pop();
+}
+
 const ESCALATION_TAUNTS = {
   7:  'Time to turn up the heat:',
   10: "You're doing well. Time to die.",
@@ -11628,7 +11684,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, storyForLevel, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, storyForLevel, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -24836,6 +24892,17 @@ function showLevelIntro(opts) {
     if (opts.storyNote) sub.classList.add('li-story-line');   // prose, not the red taunt
     head.appendChild(sub);
   }
+  // A quote under the story line, when one was drawn. Quieter and a size down from the story it
+  // sits under — the story is what this level IS, the quote is only flavour, and the two reading as
+  // one block was the failure to avoid. Attribution smaller still, and on its own line: several of
+  // these run to two lines themselves, and a dash trailing off the end of the last one looked like
+  // the quote had been cut short.
+  if (opts && opts.quote && opts.quote.text) {
+    const q = el('div', 'li-quote');
+    q.appendChild(el('div', 'li-quote-t', '“' + opts.quote.text + '”'));
+    if (opts.quote.by) q.appendChild(el('div', 'li-quote-by', '— ' + opts.quote.by));
+    head.appendChild(q);
+  }
   inner.appendChild(head);
 
   const row = el('div', 'li-threats');
@@ -25278,7 +25345,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, storyForLevel, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, storyForLevel, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -25398,6 +25465,7 @@ function revealMap() {
         threats: info.threats,
         note: info.note,
         storyNote: info.storyNote,
+        quote: info.quote,
         onDismiss: info.onDismiss,
         onDone: () => { levelIntro = null; if (info.onContinue) info.onContinue(); },
       });
@@ -27474,6 +27542,12 @@ function begin(newState) {
     // cards, so `play()` cannot reach them, and the real route is a Use button plus a map tap. Two
     // calls, like the UI makes: no ctx arms it, {x,y} resolves it.
     activate: (i, ctx) => activateAction(state, i, ctx),
+    // The level card, and the flavour quotes it draws from. The real route to this screen is
+    // clearing a level inside a campaign run, and the dev build SKIPS it — so a check that wants to
+    // look at the card has no other way in. `levelQuotes` is the pool so a check (or a screenshot)
+    // can PIN one instead of taking whatever the bag hands out.
+    showLevelIntro: (opts) => showLevelIntro(opts),
+    levelQuotes: LEVEL_QUOTES, randomLevelQuote,
     // The phased enemy turn (turn-based). `enemyTurn` is the live machine — null between
     // turns, else {phase:'wait'|'hold'}; `settleEnemyTurn` resolves whatever is owed right
     // now, which is how a test written as a synchronous loop of actions gets a settled world
@@ -27804,6 +27878,11 @@ function begin(newState) {
       // ladder there is no story to tell, so the taunt keeps its slot there.
       note: (campaignRun() && storyForLevel(currentLevel)) || escalationNote(currentLevel),
       storyNote: !!(campaignRun() && storyForLevel(currentLevel)),
+      // Flavour under the story line, and CAMPAIGN-ONLY for the same reason the story is: the
+      // survival ladder's voice is the taunt, and a line of Rilke under "How are you still alive?"
+      // is two jokes at once. Drawn here rather than in the renderer so the card is a pure
+      // function of its opts — a check can pin the quote by passing one in.
+      quote: campaignRun() ? randomLevelQuote() : null,
       onDismiss: () => { if (ui && ui.setHandOpen) ui.setHandOpen(true); },
       onContinue: () => { if (deferred) deferred(); },
     };

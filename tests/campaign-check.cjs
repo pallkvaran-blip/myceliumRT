@@ -307,7 +307,18 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
                   // Redness as NUMBERS, not as a string shape: the taunt is #c0281f, so what makes
                   // it a klaxon is r far above g and b. (A regex over "rgb(207, 224, 214)" flagged
                   // the pale grey as red, which is the assertion failing on the thing it wanted.)
-                  storyRGB: ss ? (ss.color.match(/\d+/g) || []).slice(0, 3).map(Number) : null };
+                  storyRGB: ss ? (ss.color.match(/\d+/g) || []).slice(0, 3).map(Number) : null,
+                  // The flavour quote under the story line. Read its SIZE and OPACITY as numbers:
+                  // the failure to catch is the two reading as one paragraph, which "a quote is
+                  // present" passes on.
+                  quote: (document.querySelector('#levelIntro .li-quote-t') || {}).textContent || null,
+                  quoteBy: (document.querySelector('#levelIntro .li-quote-by') || {}).textContent || null,
+                  quoteSize: (() => { const q = document.querySelector('#levelIntro .li-quote-t');
+                    return q ? parseFloat(getComputedStyle(q).fontSize) : null; })(),
+                  storySize: ss ? parseFloat(ss.fontSize) : null,
+                  quoteItalic: (() => { const q = document.querySelector('#levelIntro .li-quote-t');
+                    return q ? getComputedStyle(q).fontStyle : null; })(),
+                  pool: (window.__game.levelQuotes || []).map((q) => q.text) };
     window.__cfg.dev.enabled = was;
     document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
     return out;
@@ -330,6 +341,56 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   const klaxon = rgb[0] - rgb[1] > 60 && rgb[0] - rgb[2] > 60;   // the taunt is #c0281f
   ok('...styled as prose, not as the red escalation taunt',
      intro.storyTagged === true && !klaxon, `${intro.storyFont} ${intro.storyColor}`);
+
+  // ---- the flavour quote ----------------------------------------------------
+  // A line drawn at random from the owner's accepted set, under the story line. Asserted against
+  // the POOL rather than against a name, so weeding the list again doesn't fail this.
+  const qText = (intro.quote || '').replace(/^“|”$/g, '');
+  ok('the level card carries a flavour quote', !!intro.quote, intro.quote || '(none)');
+  ok('...and it came from the accepted pool',
+     (intro.pool || []).includes(qText), qText.slice(0, 50));
+  ok('...attributed on its own line', /^—\s+\S/.test(intro.quoteBy || ''), intro.quoteBy || '(none)');
+  // The one that matters. The story line is what this level IS; the quote is decoration, and at the
+  // same size and weight the two read as one four-line paragraph with the story buried in it.
+  ok('...quieter and smaller than the story line it sits under',
+     intro.quoteSize > 0 && intro.storySize > 0 && intro.quoteSize < intro.storySize
+       && intro.quoteItalic === 'italic',
+     `quote ${intro.quoteSize}px ${intro.quoteItalic}, story ${intro.storySize}px`);
+
+  // The bag, not a flat draw: nine quotes over ten levels repeat about two runs in three under a
+  // flat draw, and a repeat one card later reads as a bug.
+  // Asserted as EVENNESS over many draws, and the tolerance is 2 rather than 0 for a reason worth
+  // writing down: the probe starts MID-BAG (the card just drawn took one), so the run is a partial
+  // bag, then whole laps, then another partial — the head partial lifts its ids by one and the tail
+  // partial lifts a different, random subset by one again. Spread 2 is what a bag guarantees from
+  // an arbitrary offset; "ten laps, ten each" measured the offset and came back 9/10/11.
+  // Discriminating all the same: over 450 draws a flat 1-in-9 has a standard deviation near 6.7, so
+  // its spread lands around 20.
+  const bag = await page.evaluate((n) => {
+    const g = window.__game;
+    return Array.from({ length: n }, () => g.randomLevelQuote().id);
+  }, 450);
+  const counts = {};
+  for (const id of bag) counts[id] = (counts[id] || 0) + 1;
+  const tally = Object.values(counts);
+  ok('the draw is a bag — over 450 draws the nine come up evenly, not at random',
+     tally.length === 9 && Math.max(...tally) - Math.min(...tally) <= 2,
+     `${tally.length} distinct, spread ${Math.max(...tally) - Math.min(...tally)}, counts ${[...new Set(tally)].sort((a, b) => a - b).join('/')}`);
+  // ...and off the campaign there is no quote at all, for the same reason there is no story: the
+  // survival ladder's voice is the taunt, and Rilke under "How are you still alive?" is two jokes.
+  const laddered = await page.evaluate(async () => {
+    document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
+    window.__game.showLevelIntro({ level: 10, of: null, threats: [],
+                                   note: "You're doing well. Time to die.", storyNote: false, quote: null });
+    await new Promise((r) => setTimeout(r, 200));
+    const out = { sub: (document.querySelector('#levelIntro .li-sub') || {}).textContent || null,
+                  quote: !!document.querySelector('#levelIntro .li-quote') };
+    document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
+    return out;
+  });
+  ok('off the campaign the card keeps the taunt and takes no quote',
+     laddered.quote === false && /Time to die/.test(laddered.sub || ''),
+     `quote=${laddered.quote} sub=${laddered.sub}`);
 
   // ---- the selection screen sends you to level 1 ----------------------------
   const start = await page.evaluate(async () => {

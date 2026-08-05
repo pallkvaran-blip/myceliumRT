@@ -25,6 +25,17 @@ const ROOT = path.resolve(__dirname, '..');
   const base = 'http://localhost:' + srv.address().port;
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+  // START FROM AN EXPLICIT BLANK. The page seeds itself from any verdict recorded in
+  // docs/quotes.json, so once a pass has been applied there the tallies below no longer start at
+  // zero — and this check would then measure the recorded verdicts rather than the buttons. An
+  // empty object is the "wiped" state (the page writes {} rather than removing the key, precisely
+  // so a wipe doesn't re-seed itself); the seeding path gets its own assertion at the end.
+  // ONLY IF ABSENT: addInitScript re-runs on every navigation, so an unconditional write wipes the
+  // verdicts before the reload assertion can read them back and reports "nothing persists" on a
+  // page that persists fine.
+  await page.addInitScript(() => {
+    try { if (localStorage.getItem('mycelium.quoteReview.v1') == null) localStorage.setItem('mycelium.quoteReview.v1', '{}'); } catch (_) {}
+  });
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e && e.message)));
   page.on('console', (m) => { if (m.type() === 'error') errs.push('console:' + m.text()); });
@@ -114,6 +125,25 @@ const ROOT = path.resolve(__dirname, '..');
   ok('verdicts survive a reload', chips2.join(' ') === 'yes 1 maybe 1 no 2', chips2.join(' '));
   ok('and so does the comment',
      (await page.locator('.q').first().locator('.qc').inputValue()) === 'yes but shorten it');
+
+  // --- seeding from the data -----------------------------------------------------------------
+  // A verdict recorded in docs/quotes.json opens the page where the last pass finished, so a second
+  // cut doesn't start from blank. Fresh browser (no stored copy) — a stored one must still win, and
+  // the assertions above are the proof of that half.
+  const recorded = QS.filter((q) => q.verdict);
+  if (recorded.length) {
+    const p2 = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+    await p2.goto(base + '/docs/quote-review.html', { waitUntil: 'load' });
+    await p2.waitForSelector('.q');
+    const seeded = await p2.evaluate(() => ['cY', 'cM', 'cN'].map((i) => document.getElementById(i).textContent).join(' '));
+    const want = ['yes', 'maybe', 'no'].map((v) => `${v} ${recorded.filter((q) => q.verdict === v).length}`).join(' ');
+    ok('a fresh browser opens on the verdicts already recorded in the data', seeded === want, seeded + ' / want ' + want);
+    await p2.click('#fMaybe');
+    ok('...and Maybes filters to exactly those',
+       (await p2.locator('.q').count()) === recorded.filter((q) => q.verdict === 'maybe').length,
+       await p2.locator('.q').count() + ' shown');
+    await p2.close();
+  }
 
   ok('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
   await page.screenshot({ path: path.join(__dirname, '.artifacts', 'quote-review.png'), animations: 'disabled', timeout: 15000 }).catch(() => {});

@@ -146,7 +146,8 @@ const page = `<meta charset="utf-8">
   <p class="sub">Both rounds, ${QUOTES.length} in all. Yes, no, maybe, or a comment on each. Click a card
   to select it, then <kbd>Y</kbd> <kbd>N</kbd> <kbd>M</kbd> to judge and move to the next — or just use
   the buttons. Everything is kept in this browser as you go; press <b>Export</b> when you are done.
-  The rights tags are a note about what would need clearing, not a filter.</p>
+  The rights tags are a note about what would need clearing, not a filter.${
+  QUOTES.some((q) => q.verdict) ? ' Your last pass is already loaded — <b>Maybes</b> is the natural second cut.' : ''}</p>
 
   <div class="bar">
     <span class="chip y" id="cY">yes 0</span>
@@ -157,6 +158,7 @@ const page = `<meta charset="utf-8">
     <button class="btn" id="fAll" type="button" aria-pressed="true">All</button>
     <button class="btn" id="fR1" type="button" aria-pressed="false">Round 1</button>
     <button class="btn" id="fR2" type="button" aria-pressed="false">Round 2</button>
+    <button class="btn" id="fMaybe" type="button" aria-pressed="false">Maybes</button>
     <button class="btn" id="fLeft" type="button" aria-pressed="false">Unjudged</button>
     <button class="btn" id="bReset" type="button">Clear all</button>
     <button class="btn pri" id="bExport" type="button">Export</button>
@@ -184,9 +186,15 @@ let V = load();                 // { id: { verdict, comment } }
 let filter = 'all';
 let cur = null;                 // id of the selected card, for the keyboard
 
+// A verdict already recorded in docs/quotes.json seeds the page, so a second pass opens where the
+// last one finished instead of blank. The stored copy WINS when there is one — this browser is
+// mid-pass. Clear all writes an empty object rather than removing the key, or a wipe would seed
+// itself straight back from the data on the next reload.
 function load() {
   try { const raw = JSON.parse(localStorage.getItem(KEY) || 'null'); if (raw && typeof raw === 'object') return raw; } catch (_) {}
-  return {};
+  const seed = {};
+  for (const q of QUOTES) if (q.verdict) seed[q.id] = { verdict: q.verdict };
+  return seed;
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(V)); } catch (_) {} }
 const el = (t, c, txt) => { const n = document.createElement(t); if (c) n.className = c; if (txt != null) n.textContent = txt; return n; };
@@ -218,6 +226,7 @@ function visible() {
     if (filter === 'left') return !verdictOf(q.id);
     if (filter === 'r1') return q.round === 1;
     if (filter === 'r2') return q.round === 2;
+    if (filter === 'maybe') return verdictOf(q.id) === 'maybe';
     return true;
   });
 }
@@ -326,10 +335,10 @@ document.getElementById('bCopy').onclick = async () => {
   b.textContent = 'Copied'; setTimeout(() => { b.textContent = was; }, 1200);
 };
 document.getElementById('bReset').onclick = () => {
-  if (!confirm('Throw away every verdict and comment?')) return;
-  localStorage.removeItem(KEY); V = {}; cur = null; render();
+  if (!confirm('Throw away every verdict and comment, including the ones already recorded?')) return;
+  V = {}; save(); cur = null; render();
 };
-const FILTERS = [['fAll', 'all'], ['fR1', 'r1'], ['fR2', 'r2'], ['fLeft', 'left']];
+const FILTERS = [['fAll', 'all'], ['fR1', 'r1'], ['fR2', 'r2'], ['fMaybe', 'maybe'], ['fLeft', 'left']];
 for (const [id, f] of FILTERS) {
   document.getElementById(id).onclick = () => {
     filter = f;
@@ -371,6 +380,7 @@ writeFileSync(OUT, page);
 const by = (k) => QUOTES.reduce((a, q) => (a[q[k]] = (a[q[k]] || 0) + 1, a), {});
 console.log(`wrote docs/quote-review.html — ${QUOTES.length} quotes, ${(page.length / 1024).toFixed(0)} KB`);
 console.log('  rounds:', JSON.stringify(by('round')));
+if (QUOTES.some((q) => q.verdict)) console.log('  verdicts:', JSON.stringify(by('verdict')));
 console.log('  rights:', JSON.stringify(by('rights')));
 console.log('  themes:', JSON.stringify(by('theme')));
 const dupes = QUOTES.filter((q) => q.dupeOf);

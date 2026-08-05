@@ -5,6 +5,7 @@
     {
       "id": 1,
       "round": 1,
+      "verdict": "no",
       "text": "Except a corn of wheat fall into the ground and die, it abideth alone: but if it die, it bringeth forth much fruit.",
       "author": "John 12:24",
       "work": "KJV",
@@ -16,6 +17,7 @@
     {
       "id": 2,
       "round": 1,
+      "verdict": "maybe",
       "text": "The smallest sprout shows there is really no death.",
       "author": "Walt Whitman",
       "work": "Song of Myself",
@@ -27,6 +29,7 @@
     {
       "id": 3,
       "round": 1,
+      "verdict": "no",
       "text": "And to die is different from what any one supposed, and luckier.",
       "author": "Walt Whitman",
       "work": "Song of Myself",
@@ -38,6 +41,7 @@
     {
       "id": 4,
       "round": 1,
+      "verdict": "no",
       "text": "Behold this compost! behold it well!",
       "author": "Walt Whitman",
       "work": "This Compost",
@@ -49,6 +53,7 @@
     {
       "id": 5,
       "round": 1,
+      "verdict": "no",
       "text": "It gives such divine materials to men, and accepts such leavings from them at last.",
       "author": "Walt Whitman",
       "work": "This Compost",
@@ -60,6 +65,7 @@
     {
       "id": 6,
       "round": 1,
+      "verdict": "no",
       "text": "All go unto one place; all are of the dust, and all turn to dust again.",
       "author": "Ecclesiastes 3:20",
       "work": "KJV",
@@ -71,6 +77,7 @@
     {
       "id": 7,
       "round": 1,
+      "verdict": "no",
       "text": "Everything is fruit to me which thy seasons bring, O Nature.",
       "author": "Marcus Aurelius",
       "work": "Meditations, trans. Long",
@@ -82,6 +89,7 @@
     {
       "id": 8,
       "round": 1,
+      "verdict": "no",
       "text": "Cattle die, kindred die, every man is mortal — but the good name never dies.",
       "author": "Havamal",
       "work": "Old Norse, trans. Bellows",
@@ -93,6 +101,7 @@
     {
       "id": 9,
       "round": 1,
+      "verdict": "maybe",
       "text": "Decay is the beginning of all birth.",
       "author": "attributed to Paracelsus",
       "work": "",
@@ -104,6 +113,7 @@
     {
       "id": 10,
       "round": 1,
+      "verdict": "no",
       "text": "Nothing is ever created from nothing.",
       "author": "Lucretius",
       "work": "De Rerum Natura",
@@ -115,6 +125,7 @@
     {
       "id": 11,
       "round": 1,
+      "verdict": "yes",
       "text": "Cowards die many times before their deaths; the valiant never taste of death but once.",
       "author": "Shakespeare",
       "work": "Julius Caesar",
@@ -126,6 +137,7 @@
     {
       "id": 12,
       "round": 1,
+      "verdict": "no",
       "text": "What does not kill me makes me stronger.",
       "author": "Nietzsche",
       "work": "Twilight of the Idols",
@@ -137,6 +149,7 @@
     {
       "id": 13,
       "round": 1,
+      "verdict": "maybe",
       "text": "The descent to Avernus is easy... but to recall thy steps and pass out to the upper air, this is the task, this the toil.",
       "author": "Virgil",
       "work": "Aeneid VI",
@@ -148,6 +161,7 @@
     {
       "id": 14,
       "round": 1,
+      "verdict": "no",
       "text": "Long is the way and hard, that out of Hell leads up to light.",
       "author": "Milton",
       "work": "Paradise Lost",
@@ -159,6 +173,7 @@
     {
       "id": 15,
       "round": 1,
+      "verdict": "no",
       "text": "What though the field be lost? All is not lost.",
       "author": "Milton",
       "work": "Paradise Lost",
@@ -170,6 +185,7 @@
     {
       "id": 16,
       "round": 1,
+      "verdict": "no",
       "text": "Abandon all hope, ye who enter here.",
       "author": "Dante",
       "work": "Inferno",
@@ -181,6 +197,7 @@
     {
       "id": 17,
       "round": 1,
+      "verdict": "no",
       "text": "There is more day to dawn. The sun is but a morning star.",
       "author": "Thoreau",
       "work": "Walden",
@@ -192,6 +209,7 @@
     {
       "id": 18,
       "round": 1,
+      "verdict": "no",
       "text": "He who has a why to live can bear almost any how.",
       "author": "Nietzsche",
       "work": "Twilight of the Idols",
@@ -203,6 +221,7 @@
     {
       "id": 19,
       "round": 1,
+      "verdict": "no",
       "text": "A journey of a thousand miles begins beneath one's feet.",
       "author": "Lao Tzu",
       "work": "Tao Te Ching, trans. Legge",
@@ -214,6 +233,7 @@
     {
       "id": 20,
       "round": 1,
+      "verdict": "maybe",
       "text": "It is not down in any map; true places never are.",
       "author": "Melville",
       "work": "Moby-Dick",
@@ -225,6 +245,7 @@
     {
       "id": 21,
       "round": 1,
+      "verdict": "no",
       "text": "Afoot and light-hearted I take to the open road.",
       "author": "Walt Whitman",
       "work": "Song of the Open Road",
@@ -236,6 +257,7 @@
     {
       "id": 22,
       "round": 1,
+      "verdict": "maybe",
       "text": "To strive, to seek, to find, and not to yield.",
       "author": "Tennyson",
       "work": "Ulysses",
@@ -247,6 +269,7 @@
     {
       "id": 23,
       "round": 1,
+      "verdict": "maybe",
       "text": "Tho' much is taken, much abides.",
       "author": "Tennyson",
       "work": "Ulysses",
@@ -258,6 +281,7 @@
     {
       "id": 24,
       "round": 1,
+      "verdict": "no",
       "text": "Where a man can live, there he can also live well.",
       "author": "Marcus Aurelius",
       "work": "Meditations, trans. Long",
@@ -269,6 +293,7 @@
     {
       "id": 25,
       "round": 1,
+      "verdict": "no",
       "text": "Fall seven times, stand up eight.",
       "author": "Japanese proverb",
       "work": "",
@@ -280,6 +305,7 @@
     {
       "id": 26,
       "round": 1,
+      "verdict": "no",
       "text": "Toil conquers all things.",
       "author": "Virgil",
       "work": "Georgics",
@@ -291,6 +317,7 @@
     {
       "id": 27,
       "round": 1,
+      "verdict": "no",
       "text": "The tree that fills a man's embrace grew from a tiny shoot.",
       "author": "Lao Tzu",
       "work": "Tao Te Ching, trans. Legge",
@@ -302,6 +329,7 @@
     {
       "id": 28,
       "round": 1,
+      "verdict": "maybe",
       "text": "Dripping water hollows out stone, not by force but by persistence.",
       "author": "Ovid",
       "work": "Ex Ponto",
@@ -313,6 +341,7 @@
     {
       "id": 29,
       "round": 1,
+      "verdict": "yes",
       "text": "From so simple a beginning endless forms most beautiful and most wonderful have been, and are being, evolved.",
       "author": "Darwin",
       "work": "On the Origin of Species",
@@ -324,6 +353,7 @@
     {
       "id": 30,
       "round": 1,
+      "verdict": "maybe",
       "text": "It may be doubted whether there are many other animals which have played so important a part in the history of the world as have these lowly organised creatures.",
       "author": "Darwin",
       "work": "The Formation of Vegetable Mould through the Action of Worms",
@@ -335,6 +365,7 @@
     {
       "id": 31,
       "round": 1,
+      "verdict": "no",
       "text": "To see a World in a Grain of Sand.",
       "author": "Blake",
       "work": "Auguries of Innocence",
@@ -346,6 +377,7 @@
     {
       "id": 32,
       "round": 1,
+      "verdict": "no",
       "text": "Little by little does the trick.",
       "author": "Aesop",
       "work": "",
@@ -357,6 +389,7 @@
     {
       "id": 33,
       "round": 1,
+      "verdict": "no",
       "text": "The earth laughs in flowers.",
       "author": "Emerson",
       "work": "Hamatreya",
@@ -368,6 +401,7 @@
     {
       "id": 34,
       "round": 1,
+      "verdict": "maybe",
       "text": "Adopt the pace of nature: her secret is patience.",
       "author": "attributed to Emerson",
       "work": "",
@@ -379,6 +413,7 @@
     {
       "id": 35,
       "round": 1,
+      "verdict": "no",
       "text": "The Mushroom is the Elf of Plants — at Evening, it is not — at Morning, in a Truffled Hut it stop upon a Spot.",
       "author": "Emily Dickinson",
       "work": "poem 1298",
@@ -390,6 +425,7 @@
     {
       "id": 36,
       "round": 1,
+      "verdict": "no",
       "text": "Had Nature an Apostate — that Mushroom — it is Him!",
       "author": "Emily Dickinson",
       "work": "poem 1298",
@@ -401,6 +437,7 @@
     {
       "id": 37,
       "round": 1,
+      "verdict": "no",
       "text": "'Tis Vegetation's Juggler.",
       "author": "Emily Dickinson",
       "work": "poem 1298",
@@ -412,6 +449,7 @@
     {
       "id": 38,
       "round": 1,
+      "verdict": "no",
       "text": "And agarics and fungi, with mildew and mould started like mist from the wet ground cold.",
       "author": "Shelley",
       "work": "The Sensitive Plant",
@@ -423,6 +461,7 @@
     {
       "id": 39,
       "round": 1,
+      "verdict": "maybe",
       "text": "Few mushrooms are good to be eaten, and most of them do suffocate and strangle the eater.",
       "author": "John Gerard",
       "work": "Herball",
@@ -434,6 +473,7 @@
     {
       "id": 40,
       "round": 1,
+      "verdict": "no",
       "text": "The fungus is the flower of decay.",
       "author": "no source",
       "work": "",
@@ -445,6 +485,7 @@
     {
       "id": 41,
       "round": 1,
+      "verdict": "no",
       "text": "In the deep, dark places, the roots go on.",
       "author": "no source",
       "work": "",
@@ -456,6 +497,7 @@
     {
       "id": 42,
       "round": 1,
+      "verdict": "yes",
       "text": "The wound is the place where the Light enters you.",
       "author": "Rumi, trans. Barks",
       "work": "",
@@ -467,6 +509,7 @@
     {
       "id": 43,
       "round": 1,
+      "verdict": "no",
       "text": "Water is the driving force of all nature.",
       "author": "attributed to Leonardo da Vinci",
       "work": "",
@@ -478,6 +521,7 @@
     {
       "id": 44,
       "round": 1,
+      "verdict": "no",
       "text": "Nature does nothing in vain.",
       "author": "Aristotle",
       "work": "Politics",
@@ -489,6 +533,7 @@
     {
       "id": 45,
       "round": 1,
+      "verdict": "maybe",
       "text": "The best fertiliser is the farmer's shadow.",
       "author": "proverb",
       "work": "",
@@ -500,6 +545,7 @@
     {
       "id": 46,
       "round": 1,
+      "verdict": "no",
       "text": "Hunger is the best sauce.",
       "author": "Cicero / proverb",
       "work": "",
@@ -511,6 +557,7 @@
     {
       "id": 47,
       "round": 1,
+      "verdict": "no",
       "text": "Necessity is the mother of invention.",
       "author": "proverb",
       "work": "",
@@ -522,6 +569,7 @@
     {
       "id": 48,
       "round": 1,
+      "verdict": "maybe",
       "text": "I will show you fear in a handful of dust.",
       "author": "T. S. Eliot",
       "work": "The Waste Land",
@@ -533,6 +581,7 @@
     {
       "id": 49,
       "round": 1,
+      "verdict": "maybe",
       "text": "This is the way the world ends — not with a bang but a whimper.",
       "author": "T. S. Eliot",
       "work": "The Hollow Men",
@@ -544,6 +593,7 @@
     {
       "id": 50,
       "round": 1,
+      "verdict": "no",
       "text": "Do not go gentle into that good night.",
       "author": "Dylan Thomas",
       "work": "",
@@ -555,6 +605,7 @@
     {
       "id": 51,
       "round": 1,
+      "verdict": "no",
       "text": "Hope is a good breakfast, but it is a bad supper.",
       "author": "Francis Bacon",
       "work": "",
@@ -566,6 +617,7 @@
     {
       "id": 52,
       "round": 1,
+      "verdict": "no",
       "text": "Fortune favours the bold.",
       "author": "Virgil",
       "work": "Aeneid",
@@ -577,6 +629,7 @@
     {
       "id": 53,
       "round": 1,
+      "verdict": "no",
       "text": "He is able who thinks he is able.",
       "author": "attributed to the Buddha",
       "work": "",
@@ -588,6 +641,7 @@
     {
       "id": 54,
       "round": 1,
+      "verdict": "no",
       "text": "The wolf that is fed wins.",
       "author": "folk proverb",
       "work": "",
@@ -599,6 +653,7 @@
     {
       "id": 55,
       "round": 1,
+      "verdict": "no",
       "text": "A sword day, a red day, ere the sun rises!",
       "author": "Tolkien",
       "work": "The Return of the King",
@@ -610,6 +665,7 @@
     {
       "id": 56,
       "round": 2,
+      "verdict": "maybe",
       "text": "Ever tried. Ever failed. No matter. Try again. Fail again. Fail better.",
       "author": "Beckett",
       "work": "Worstward Ho",
@@ -621,6 +677,7 @@
     {
       "id": 57,
       "round": 2,
+      "verdict": "maybe",
       "text": "You must go on. I can't go on. I'll go on.",
       "author": "Beckett",
       "work": "The Unnamable",
@@ -632,6 +689,7 @@
     {
       "id": 58,
       "round": 2,
+      "verdict": "no",
       "text": "One must imagine Sisyphus happy.",
       "author": "Camus",
       "work": "The Myth of Sisyphus",
@@ -643,6 +701,7 @@
     {
       "id": 59,
       "round": 2,
+      "verdict": "yes",
       "text": "In the midst of winter, I found there was, within me, an invincible summer.",
       "author": "Camus",
       "work": "Return to Tipasa",
@@ -654,6 +713,7 @@
     {
       "id": 60,
       "round": 2,
+      "verdict": "no",
       "text": "I must not fear. Fear is the mind-killer.",
       "author": "Frank Herbert",
       "work": "Dune",
@@ -665,6 +725,7 @@
     {
       "id": 61,
       "round": 2,
+      "verdict": "no",
       "text": "You have to carry the fire.",
       "author": "Cormac McCarthy",
       "work": "The Road",
@@ -676,6 +737,7 @@
     {
       "id": 62,
       "round": 2,
+      "verdict": "yes",
       "text": "All that you touch you change. All that you change changes you.",
       "author": "Octavia Butler",
       "work": "Parable of the Sower",
@@ -687,6 +749,7 @@
     {
       "id": 63,
       "round": 2,
+      "verdict": "maybe",
       "text": "There is infinite hope — but not for us.",
       "author": "Kafka",
       "work": "reported by Max Brod",
@@ -698,6 +761,7 @@
     {
       "id": 64,
       "round": 2,
+      "verdict": "no",
       "text": "Do not go gentle into that good night.",
       "author": "Dylan Thomas",
       "work": "",
@@ -709,6 +773,7 @@
     {
       "id": 65,
       "round": 2,
+      "verdict": "no",
       "text": "Rage, rage against the dying of the light.",
       "author": "Dylan Thomas",
       "work": "",
@@ -720,6 +785,7 @@
     {
       "id": 66,
       "round": 2,
+      "verdict": "no",
       "text": "The mushroom of a morning knows not the alternation of day and night.",
       "author": "Zhuangzi",
       "work": "trans. Legge",
@@ -731,6 +797,7 @@
     {
       "id": 67,
       "round": 2,
+      "verdict": "yes",
       "text": "Overnight, very whitely, discreetly, very quietly, our toes, our noses take hold on the loam.",
       "author": "Sylvia Plath",
       "work": "Mushrooms",
@@ -742,6 +809,7 @@
     {
       "id": 68,
       "round": 2,
+      "verdict": "no",
       "text": "We are shelves, we are tables, we are meek, we are edible.",
       "author": "Sylvia Plath",
       "work": "Mushrooms",
@@ -753,6 +821,7 @@
     {
       "id": 69,
       "round": 2,
+      "verdict": "no",
       "text": "Our foot's in the door.",
       "author": "Sylvia Plath",
       "work": "Mushrooms",
@@ -764,6 +833,7 @@
     {
       "id": 70,
       "round": 2,
+      "verdict": "no",
       "text": "We are meek, we shall inherit.",
       "author": "Sylvia Plath",
       "work": "Mushrooms",
@@ -775,6 +845,7 @@
     {
       "id": 71,
       "round": 2,
+      "verdict": "no",
       "text": "Mycelium is the neurological network of nature.",
       "author": "Paul Stamets",
       "work": "Mycelium Running",
@@ -786,6 +857,7 @@
     {
       "id": 72,
       "round": 2,
+      "verdict": "no",
       "text": "Fungi make worlds. They also unmake them.",
       "author": "Merlin Sheldrake",
       "work": "Entangled Life",
@@ -797,6 +869,7 @@
     {
       "id": 73,
       "round": 2,
+      "verdict": "no",
       "text": "I have come to the conclusion that much can be learned about music by devoting oneself to the mushroom.",
       "author": "John Cage",
       "work": "",
@@ -808,6 +881,7 @@
     {
       "id": 74,
       "round": 2,
+      "verdict": "no",
       "text": "Precarity is the condition of our time.",
       "author": "Anna Tsing",
       "work": "The Mushroom at the End of the World",
@@ -819,6 +893,7 @@
     {
       "id": 75,
       "round": 2,
+      "verdict": "no",
       "text": "Like mushrooms after rain.",
       "author": "Slavic proverb",
       "work": "",
@@ -830,6 +905,7 @@
     {
       "id": 76,
       "round": 2,
+      "verdict": "no",
       "text": "The force that through the green fuse drives the flower drives my green age.",
       "author": "Dylan Thomas",
       "work": "",
@@ -841,6 +917,7 @@
     {
       "id": 77,
       "round": 2,
+      "verdict": "no",
       "text": "Nothing gold can stay.",
       "author": "Robert Frost",
       "work": "",
@@ -852,6 +929,7 @@
     {
       "id": 78,
       "round": 2,
+      "verdict": "no",
       "text": "The best way out is always through.",
       "author": "Robert Frost",
       "work": "A Servant to Servants",
@@ -863,6 +941,7 @@
     {
       "id": 79,
       "round": 2,
+      "verdict": "no",
       "text": "Your pain is the breaking of the shell that encloses your understanding.",
       "author": "Kahlil Gibran",
       "work": "The Prophet",
@@ -874,6 +953,7 @@
     {
       "id": 80,
       "round": 2,
+      "verdict": "maybe",
       "text": "In nature nothing exists alone.",
       "author": "Rachel Carson",
       "work": "Silent Spring",
@@ -885,6 +965,7 @@
     {
       "id": 81,
       "round": 2,
+      "verdict": "no",
       "text": "The clearest way into the Universe is through a forest wilderness.",
       "author": "John Muir",
       "work": "",
@@ -896,6 +977,7 @@
     {
       "id": 82,
       "round": 2,
+      "verdict": "yes",
       "text": "Let everything happen to you: beauty and terror. Just keep going. No feeling is final.",
       "author": "Rilke, trans. Barrows & Macy",
       "work": "Book of Hours",
@@ -907,6 +989,7 @@
     {
       "id": 83,
       "round": 2,
+      "verdict": "yes",
       "text": "Wanderer, there is no road — the road is made by walking.",
       "author": "Antonio Machado",
       "work": "Campos de Castilla",
@@ -918,6 +1001,7 @@
     {
       "id": 84,
       "round": 2,
+      "verdict": "no",
       "text": "It is good to have an end to journey towards; but it is the journey that matters, in the end.",
       "author": "Ursula K. Le Guin",
       "work": "The Left Hand of Darkness",
@@ -929,6 +1013,7 @@
     {
       "id": 85,
       "round": 2,
+      "verdict": "no",
       "text": "True journey is return.",
       "author": "Ursula K. Le Guin",
       "work": "The Dispossessed",
@@ -940,6 +1025,7 @@
     {
       "id": 86,
       "round": 2,
+      "verdict": "no",
       "text": "Not all those who wander are lost.",
       "author": "Tolkien",
       "work": "The Fellowship of the Ring",
@@ -951,6 +1037,7 @@
     {
       "id": 87,
       "round": 2,
+      "verdict": "maybe",
       "text": "It's a dangerous business, going out your door.",
       "author": "Tolkien",
       "work": "The Fellowship of the Ring",
@@ -962,6 +1049,7 @@
     {
       "id": 88,
       "round": 2,
+      "verdict": "maybe",
       "text": "We shall not cease from exploration, and the end of all our exploring will be to arrive where we started and know the place for the first time.",
       "author": "T. S. Eliot",
       "work": "Four Quartets",
@@ -973,6 +1061,7 @@
     {
       "id": 89,
       "round": 2,
+      "verdict": "yes",
       "text": "Without change, something sleeps inside us, and seldom awakens.",
       "author": "Frank Herbert",
       "work": "Dune",
@@ -984,6 +1073,7 @@
     {
       "id": 90,
       "round": 2,
+      "verdict": "no",
       "text": "Between my finger and my thumb the squat pen rests. I'll dig with it.",
       "author": "Seamus Heaney",
       "work": "Digging",
@@ -995,6 +1085,7 @@
     {
       "id": 91,
       "round": 2,
+      "verdict": "no",
       "text": "The mind cannot carry away all that it has to give.",
       "author": "Nan Shepherd",
       "work": "The Living Mountain",
@@ -1006,6 +1097,7 @@
     {
       "id": 92,
       "round": 2,
+      "verdict": "maybe",
       "text": "If there is magic on this planet, it is contained in water.",
       "author": "Loren Eiseley",
       "work": "The Immense Journey",
@@ -1017,6 +1109,7 @@
     {
       "id": 93,
       "round": 2,
+      "verdict": "no",
       "text": "Even monkeys fall from trees.",
       "author": "Japanese proverb",
       "work": "",
@@ -1028,6 +1121,7 @@
     {
       "id": 94,
       "round": 2,
+      "verdict": "no",
       "text": "The nail that sticks up gets hammered down.",
       "author": "Japanese proverb",
       "work": "",
@@ -1039,6 +1133,7 @@
     {
       "id": 95,
       "round": 2,
+      "verdict": "no",
       "text": "A cage went in search of a bird.",
       "author": "Kafka",
       "work": "Zurau Aphorisms",
@@ -1050,6 +1145,7 @@
     {
       "id": 96,
       "round": 2,
+      "verdict": "no",
       "text": "What is to give light must endure burning.",
       "author": "Viktor Frankl, after Nietzsche",
       "work": "",
