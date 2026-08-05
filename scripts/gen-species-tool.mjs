@@ -62,12 +62,19 @@ try {
 // numbers. 128px wide WebP is ~2-4 KB and is all a row needs.
 function thumbs() {
   if (NO_ART) return {};
-  const ids = SPECIES.map((s) => s.img);
+  // CARRY `cardPos` INTO THE THUMBNAIL. It is the game's grid-tile framing (an object-position on a
+  // 560x720 portrait shown as a band), and the owner tunes it per colony — so a tool that centre-crops
+  // regardless shows a framing the game does not use, which is exactly the thing you would open the
+  // tool to check. Y fraction only; every value in the table is `center N%`.
+  const ids = SPECIES.map((s) => {
+    const m = /(\d+(?:\.\d+)?)%/.exec(String(s.cardPos || ''));
+    return [s.img, m ? Number(m[1]) / 100 : 0.5];
+  });
   const py = `
 import base64, io, json, sys
 from PIL import Image
 out = {}
-for name in json.loads(sys.argv[1]):
+for name, frac in json.loads(sys.argv[1]):
     p = 'assets/species/%s.jpg' % name
     try:
         im = Image.open(p).convert('RGB')
@@ -75,7 +82,9 @@ for name in json.loads(sys.argv[1]):
         continue
     w, h = im.size
     side = min(w, h)
-    im = im.crop(((w - side) // 2, (h - side) // 2, (w + side) // 2, (h + side) // 2))
+    top = int(round((h - side) * frac))          # frac 0 = top of the portrait, 0.5 = centred
+    top = max(0, min(h - side, top))
+    im = im.crop(((w - side) // 2, top, (w + side) // 2, top + side))
     im = im.resize((128, 128), Image.LANCZOS)
     buf = io.BytesIO(); im.save(buf, 'WEBP', quality=82)
     out[name] = 'data:image/webp;base64,' + base64.b64encode(buf.getvalue()).decode()

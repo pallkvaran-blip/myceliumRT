@@ -10968,6 +10968,7 @@ const SPECIES = [
   {
     id: 'pleurotus', vibe: 'warm', unlock: 'Complete level 1',
     name: 'Oyster Mushroom', latin: 'Pleurotus ostreatus', img: 'pleurotus-ostreatus',
+    cardPos: 'center 35%',   // grid tile framing: up 15% from centre (owner)
     blurb: 'Among the fastest and most vigorous wood-rotters alive — oyster mycelium storms through a fallen log and turns dead timber straight into sugar, fruiting in shelving tiers wherever the carbon runs richest. It is a hungry feeder that spreads faster than almost anything else in the litter. It is among the most widely cultivated mushrooms on Earth for the same reason it is the one to learn on: it fruits on <b>almost anything</b> — straw, coffee grounds, cardboard — shrugs off conditions that stall a fussier fungus, and grows fast enough to crowd out its own competition. Sturdy, forgiving, and hard to get wrong.',
     hand: [
       { name: 'Foraging Fan', count: 4 },
@@ -10991,6 +10992,7 @@ const SPECIES = [
   {
     id: 'schizophyllum', vibe: 'aqua', unlock: 'Complete level 10', memory: true, memPick: 15, memEngines: 2, startLevelMin: 3, startLevelMax: 10,
     name: 'Split Gill', latin: 'Schizophyllum commune', img: 'schizophyllum-commune',
+    cardPos: 'center 40%',   // grid tile framing: up 10% from centre (owner)
     blurb: 'The most widely distributed mushroom on Earth and the most genetically promiscuous — over <b>20,000 mating types</b>, endlessly adaptable. Its <b>split gills</b> fold shut to ride out drought and reopen the moment damp returns. The most seasoned colony you can field: it opens with just five runners, but lets you <b>hand-pick 15 cards and 2 engines you drafted last run</b> and carry them into this one.',
     hand: [
       { name: 'Apical Drive', count: 6 },
@@ -11000,6 +11002,7 @@ const SPECIES = [
   {
     id: 'hydnellum', vibe: 'aqua', unlock: 'Complete level 3',
     name: 'Bleeding Tooth Fungus', latin: 'Hydnellum peckii', img: 'hydnellum-peckii',
+    cardPos: 'center 30%',   // grid tile framing: up 20% from centre (owner)
     blurb: 'A damp-forest fungus that runs on water: it drives so much moisture through itself that it weeps bright red droplets from its cap — real <b>guttation</b>. That constant flow lets it grow almost anywhere the ground is wet, fanning out in every direction and pressing on long after drier colonies stall. Open the taps and flood the map.',
     hand: [
       { name: 'Perennial Decoy', count: 1 },
@@ -11058,6 +11061,7 @@ const SPECIES = [
     // no tier (tierSpecies filters on `unlock`) and no level clear reveals it.
     id: 'amanita', vibe: 'warm', unlock: null,
     name: 'Fly Agaric', latin: 'Amanita muscaria', img: 'amanita-muscaria',
+    cardPos: 'center 0%',   // grid tile framing: up 50% from centre (owner)
     special: 'berserk',
     specialText: 'Berserk: Once per level, tap a point — amputate all mycelium, infected or not, within a small radius',
     blurb: 'The most quintessential mushroom. A <b>mycorrhizal partner</b> to birch and pine, it trades sugar for water and minerals at the root tip - which is why it follows those trees wherever they are planted. Its name is literal: crushed into milk it was set out as <b>flypaper</b>, the ibotenic acid drawing insects in and killing them. Norse legend has berserkers eating it before battle to feel no pain. Use at your own risk.',
@@ -11073,6 +11077,7 @@ const SPECIES = [
     // level. Same `unlock: null` + store arrangement as Fly Agaric above.
     id: 'pruinomycena', vibe: 'cool', unlock: null,
     name: 'Blue Bonnet', latin: 'Pruinomycena subcyanocephala', img: 'pruinomycena-subcyanocephala',
+    cardPos: 'center 40%',   // grid tile framing: up 10% from centre (owner)
     special: 'toxic',
     specialText: 'Toxic Burst — once per level, tap a point: every nematode within the radius is digested (+1 Phosphorus each, up to 7).',
     blurb: 'The smallest mushroom species on earth - barely a centimetre across. Its deep blue cap is dusted with a white <b>pruina</b> — a frost of fine crystals that gives the genus its name. While most Bonnets are gentle leaf-litter recyclers, some have been caught killing and digesting nematodes that share the wood they rot - one of the few ways a fungus feeds on an animal.',
