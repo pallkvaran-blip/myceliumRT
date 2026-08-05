@@ -69,7 +69,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // The owner set these three by hand; they are the whole point of the last pass.
   const stepOf = (id) => (shape.find((s) => s.id === id) || {}).step;
   ok('the resource steps are the ones the owner asked for',
-     stepOf('energy') === 3 && stepOf('water') === 5 && stepOf('phosphorus') === 2,
+     stepOf('energy') === 3 && stepOf('water') === 5 && stepOf('phosphorus') === 3,
      `energy +${stepOf('energy')}, water +${stepOf('water')}, phosphorus +${stepOf('phosphorus')}`);
   // The owner set every ladder by hand. Pinned ABSOLUTELY, not as a shape: these are the prices
   // the store is being played at, and a diff against the previous commit would pass trivially.
@@ -109,18 +109,31 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   const names = shape.map((t) => t.name).join(' | ');
   ok('the tracks are named the way the owner named them',
      names === 'Energy | Water | Phosphorus | Basic/Event Memory | Engine Memory | Retries', names);
+  // ALL SIX SUB-LINES ARE THE OWNER'S, word for word, and every one of them now opens with
+  // "Increase" — they describe what BUYING A STEP does rather than what a run starts with, which
+  // is the question a player standing in front of a Buy button is asking. Pinned in full rather
+  // than by keyword: this is the copy, so a rewording should have to be a deliberate edit here.
   const sub = (id) => (shape.find((t) => t.id === id) || {}).effect || '';
-  ok('each resource track says what a run starts with',
-     /^Start each run with <b>\+3 energy<\/b>\.$/.test(sub('energy'))
-       && /^Start each run with <b>\+5 water<\/b>\.$/.test(sub('water'))
-       && /^Start each run with <b>\+2 phosphorus<\/b>\.$/.test(sub('phosphorus')),
+  ok('each resource track says what buying a step increases',
+     sub('energy') === 'Increase starting energy by <b>3</b>.'
+       && sub('water') === 'Increase starting water by <b>5</b>.'
+       && sub('phosphorus') === 'Increase starting phosphorus by <b>3</b>.',
      sub('energy') + ' / ' + sub('water') + ' / ' + sub('phosphorus'));
-  ok('the memory tracks say what they add and when',
-     /\+1 basic or event card<\/b> to your deck when your runs end/.test(sub('carryCards'))
-       && /\+1 engine card<\/b> to your deck when your runs end/.test(sub('carryEngines')),
+  ok('the memory tracks say what they carry between runs',
+     sub('carryCards') === 'Increase the number of basic or event cards you carry over between runs by <b>1</b>.'
+       && sub('carryEngines') === 'Increase the number of engine cards you carry over between runs by <b>1</b>.',
      sub('carryCards') + ' / ' + sub('carryEngines'));
-  ok('Retries explains what a retry is for',
-     /attempt completing the same level again/.test(sub('lives')), sub('lives'));
+  ok('Retries says what it increases',
+     sub('lives') === 'Increase the number of times you can retry a level by <b>1</b>.', sub('lives'));
+  // THE NUMBER IN THE SENTENCE IS THE TRACK'S OWN `step`, not a literal that happens to agree.
+  // Phosphorus went 2 → 3 in the same breath as the rewording, and a sub-line saying "by 2" over
+  // a track that grants 3 is the one failure this copy can have that reads as fine.
+  const stepInSub = (id) => { const m = /<b>(\d+)<\/b>/.exec(sub(id)); return m ? +m[1] : null; };
+  ok('...and every sentence quotes its own step',
+     ['energy', 'water', 'phosphorus', 'carryCards', 'carryEngines', 'lives']
+       .every((id) => stepInSub(id) === stepOf(id)),
+     ['energy', 'water', 'phosphorus', 'carryCards', 'carryEngines', 'lives']
+       .map((id) => `${id}: says ${stepInSub(id)}, grants ${stepOf(id)}`).join(' · '));
   const bases = {};
   for (const t of shape) bases[t.id] = t.base || 0;
   // TWO tracks have a base — what you have before buying a step. Retries is 1 (everyone gets

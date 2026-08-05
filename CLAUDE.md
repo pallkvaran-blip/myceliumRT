@@ -1607,17 +1607,30 @@ numbers by hand is 20 chances to fat-finger one. Read a total through **`upgrade
 
 | track | per step | steps | prices | base |
 |---|---|---|---|---|
-| `energy` Energy | +3 starting energy | 10 | 50 → 500 (+50) | — |
-| `water` Water | +5 starting water | 10 | 50 → 500 (+50) | — |
-| `phosphorus` Phosphorus | +2 starting phosphorus | 10 | 50 → 500 (+50) | — |
-| `carryCards` Basic/Event Memory | +1 basic/event kept | 20 | 50 → 1000 (+50) | — |
-| `carryEngines` Engine Memory | +1 engine kept | 6 | 200 → 1200 (+200) | — |
+| `energy` Energy | +3 starting energy | 10 | **25**, then 50 → 450 (+50) | — |
+| `water` Water | +5 starting water | 10 | **25**, then 50 → 450 (+50) | — |
+| `phosphorus` Phosphorus | **+3** starting phosphorus | 10 | **25**, then 50 → 450 (+50) | — |
+| `carryCards` Basic/Event Memory | +1 basic/event kept | 20 | **25**, then 50 → 950 (+50) | **3** |
+| `carryEngines` Engine Memory | +1 engine kept | 6 | **100**, then 200 → 1000 (+200) | — |
 | `lives` Retries | +1 retry | 4 | 100 · 250 · 400 · 600 | **1** |
 
 **Every number here is the owner's**, set by hand — the names, the sub-lines, the step sizes and
-the ladders. Two readings worth recording because the brief gave a rule rather than a list:
-Basic/Event is "the same ladder, except it goes to 20", so it continues +50 to 1000; Engine "goes
-to 6" with five prices given, so the sixth follows its own +200 pattern at 1200.
+the ladders. Three readings worth recording because the brief gave a rule rather than a list:
+Basic/Event is "the same ladder, except it goes to 20"; Engine "goes to 6" with five prices given,
+so the sixth follows its own +200 pattern.
+
+**AND THE CHEAP FIRST RUNG IS A SHIFT, NOT A DOUBLING** (`OPENER(first, steps)`). "Reduce the
+first … to 25 (so it now goes 25, 50, 100, …)" and "to 100 (so it now goes 100, 200, 400,…)" both
+also fit a doubling ladder — and that reading puts the 20th Basic/Event step at **13 million**
+Spores against a 5,500 full-clear payout, so it is not the one. The step COUNT is unchanged and
+only the bottom moved, which takes the top of each track down a rung: 450 not 500, 950 not 1000,
+1000 not 1200.
+
+**THE SUB-LINES ALL SAY "INCREASE …" NOW** — they describe what buying a step DOES, not what a run
+starts with, which is the question a player at a Buy button is asking. `store-check` pins all six
+word for word AND asserts the number in each sentence is the track's own `step`: phosphorus went
+2 → 3 in the same breath as the rewording, and a sub-line saying "by 2" over a track that grants 3
+is the one failure this copy can have that still reads as fine.
 
 - **`lives` is the only track with a `base`.** Everyone starts with one retry, bought or not, and
   it belongs in `upgradeValue` rather than at the run loop — otherwise the tile says "none yet"

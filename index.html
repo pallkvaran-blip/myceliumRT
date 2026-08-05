@@ -11321,13 +11321,13 @@ const STORE_UPGRADES = [
   // order the HUD uses, so the store reads in the order of the numbers it raises. Ten steps
   // each: 25, then the +50 ladder (owner). These add to the universal base in CONFIG.
   { id: 'energy', name: 'Energy', icon: 'energy', accent: 'energy', step: 3, unit: 'energy',
-    effect: 'Start each run with <b>+3 energy</b>.',
+    effect: 'Increase starting energy by <b>3</b>.',
     costs: OPENER(25, 10) },
   { id: 'water', name: 'Water', icon: 'water', accent: 'water', step: 5, unit: 'water',
-    effect: 'Start each run with <b>+5 water</b>.',
+    effect: 'Increase starting water by <b>5</b>.',
     costs: OPENER(25, 10) },
-  { id: 'phosphorus', name: 'Phosphorus', icon: 'phos', accent: 'phos', step: 2, unit: 'phosphorus',
-    effect: 'Start each run with <b>+2 phosphorus</b>.',
+  { id: 'phosphorus', name: 'Phosphorus', icon: 'phos', accent: 'phos', step: 3, unit: 'phosphorus',
+    effect: 'Increase starting phosphorus by <b>3</b>.',
     costs: OPENER(25, 10) },
   // ...then the three that shape what you carry out of a run. Twenty steps of basic/event on the
   // same 25-then-+50 ladder; engines are the expensive half of a deck, so six steps of 100 then
@@ -11338,14 +11338,14 @@ const STORE_UPGRADES = [
   // tile reads "none yet" about an allowance the player already has, and the track looks like it
   // does nothing until the first purchase.
   { id: 'carryCards', name: 'Basic/Event Memory', icon: 'cards', accent: 'mint', step: 1, base: 3, unit: 'cards', unit1: 'card',
-    effect: 'Add <b>+1 basic or event card</b> to your deck when your runs end.',
+    effect: 'Increase the number of basic or event cards you carry over between runs by <b>1</b>.',
     costs: OPENER(25, 20) },
   { id: 'carryEngines', name: 'Engine Memory', icon: 'engine', accent: 'eng', step: 1, unit: 'engines', unit1: 'engine',
-    effect: 'Add <b>+1 engine card</b> to your deck when your runs end.',
+    effect: 'Increase the number of engine cards you carry over between runs by <b>1</b>.',
     costs: OPENER(100, 6) },
   // Retries are the only track with a BASE: everyone starts with one, bought or not.
   { id: 'lives', name: 'Retries', icon: 'life', accent: 'life', step: 1, base: 1, unit: 'retries', unit1: 'retry',
-    effect: 'Get <b>+1 retry</b>, allowing you to attempt completing the same level again.',
+    effect: 'Increase the number of times you can retry a level by <b>1</b>.',
     costs: [100, 250, 400, 600] },
 ];
 const STORE_UPGRADE_BY_ID = {};
