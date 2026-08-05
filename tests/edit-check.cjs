@@ -846,11 +846,46 @@ ok('re-saving the same name overwrites', dup===1, `${dup} stored`);
 const coll = await p.evaluate(()=>window.__game.saveAs('slate-c24'));
 ok('a name colliding with a generated map is given its own id',
    coll && coll.id!=='slate-c24' && coll.id.startsWith('slate-c24-'), coll?coll.id:'null');
+// BY ID, NOT BY "has a chapter". That test held only while every chaptered map was a browser
+// draft — a COMMITTED map with `chapter: 'Chapter 1'` (the owner's own maps, once one is handed
+// over) makes it permanently true and the assertion permanently false, with nothing wrong.
 ok('forgetting a saved map removes it', await p.evaluate((extra)=>{
   window.__game.forgetSaved('chapter-one-test');
   if (extra) window.__game.forgetSaved(extra);
-  return !window.__game.levels().some(l=>l.chapter);
+  const ids = window.__game.levels().map(l=>l.id);
+  const stored = JSON.parse(localStorage.getItem('mycelium.savedLevels.v1')||'[]');
+  return !ids.includes('chapter-one-test') && (!extra || !ids.includes(extra)) && stored.length===0;
 }, coll && coll.id));
+// ...and the × is offered on drafts ONLY. A committed map wearing a chapter used to get one,
+// and clicking it asked for confirmation and then did nothing — forgetSaved has no storage entry
+// to remove. Asserted with both kinds on screen at once, which is the only state that tells them
+// apart.
+const xs = await p.evaluate(async ()=>{
+  // The ID COMES BACK FROM saveAs — do not re-derive the slug here. `slugId` also appends `-2`
+  // when a name would shadow a committed map, so a guessed id silently misses and the row lookup
+  // returns null, which reads as "the × is missing" rather than "I looked in the wrong place".
+  const made = window.__game.saveAs('X Test Draft');
+  const draftId = made && made.id;
+  // THE PANEL IS NOT REBUILT BY A SAVE. `updateDevMapBtn()` runs from begin() (a run start) and
+  // from a rename, and `__game.saveAs` is deliberately the button's path MINUS the switch that
+  // would restart — so clearing `_sig` alone leaves the old markup on screen and the row lookup
+  // below finds nothing, which reads as "the × is missing". Renaming the CURRENT level is the
+  // cheap rebuild: it is one of the two callers, and this page is a scratch copy already.
+  const pn=document.getElementById('devMapPanel'); if(pn) pn._sig=null;
+  const nameEl=document.getElementById('eeName');
+  if(nameEl){ nameEl.value='Rebuild Poke'; nameEl.dispatchEvent(new Event('change')); }
+  for(let i=0;i<40;i++){
+    const rows=[...document.querySelectorAll('#devMapPanel button')];
+    if(rows.some(x=>x.title==='#level,'+draftId)) break;
+    await new Promise(r=>setTimeout(r,100));
+  }
+  const rows=[...document.querySelectorAll('#devMapPanel button')];
+  const has=(id)=>{ const r=rows.find(x=>x.title==='#level,'+id); return r? !!r.querySelector('.dm-x') : null; };
+  return { draftId, draft: has(draftId), committed: has('2-obsidian'), rows: rows.length };
+});
+ok('the × is on a browser draft', xs.draft === true, JSON.stringify(xs));
+ok('...and NOT on a committed map that carries a chapter', xs.committed === false, JSON.stringify(xs));
+await p.evaluate((id)=>window.__game.forgetSaved(id), xs.draftId);
 
 // ---- Apply / Save leave NOTHING armed ------------------------------------
 // Owner: "when I press apply & rebuild, please deselect everything. E.g. if the last thing I did

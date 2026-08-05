@@ -4,8 +4,15 @@
 //
 //   node scripts/author-campaign-surface.mjs            # rewrite every campaign-*.json
 //   node scripts/author-campaign-surface.mjs --dry      # report, write nothing
-//   node scripts/author-campaign-surface.mjs 03 07      # only those slots
+//   node scripts/author-campaign-surface.mjs 03 07      # only those campaign slots
+//   node scripts/author-campaign-surface.mjs 2-obsidian # ...or any level by id substring
 //   then: node scripts/gen-levels.mjs
+//
+// IT TAKES IDS AS WELL AS SLOTS because the owner's own Chapter 1 maps are not campaign-NN
+// files — they are saved out of the in-game editor with their own ids ("2-obsidian") and
+// `campaignLevel: null`, and they need this rule as much as the placeholders do. An id argument
+// widens the sweep to every docs/levels/*.json; with no arguments it still touches only the
+// campaign ten, so the default is unchanged and a traced map's bare horizon stays bare.
 //
 // A traced map ships with rock and nothing above the soil line. buildLevel flags every
 // non-goal surface column 'concrete', and the two renderers that would otherwise decorate it
@@ -81,7 +88,8 @@ const ROOT = resolve(HERE, '..');
 const LEVELS = resolve(ROOT, 'docs/levels');
 const argv = process.argv.slice(2);
 const DRY = argv.includes('--dry');
-const ONLY = argv.filter((a) => /^\d+$/.test(a)).map(Number);
+const ONLY = argv.filter((a) => /^\d+$/.test(a)).map(Number);          // campaign slots
+const IDS = argv.filter((a) => !a.startsWith('-') && !/^\d+$/.test(a)); // id substrings
 
 // Straight from index.html — kept as named constants so a retune there is a visible mismatch
 // here rather than a silent drift.
@@ -297,9 +305,15 @@ function buildSurface(level, slot, cutCols) {
   return { objects, mountains, cities, band: [bandLo, bandHi], cols, forced: forced.length, extra: extra.length };
 }
 
-const files = readdirSync(LEVELS).filter((f) => /^campaign-\d\d-.*\.json$/.test(f)).sort();
+// Naming an id opens the sweep to every level file; otherwise it is the campaign ten.
+const files = readdirSync(LEVELS)
+  .filter((f) => f.endsWith('.json') && (IDS.length || /^campaign-\d\d-/.test(f)))
+  .sort();
 const chosen = files.map((f) => ({ f, level: JSON.parse(readFileSync(resolve(LEVELS, f), 'utf8')) }))
-  .filter(({ level }) => !ONLY.length || ONLY.includes(level.campaignLevel));
+  .filter(({ level }) => (!ONLY.length && !IDS.length)
+    || ONLY.includes(level.campaignLevel)
+    || IDS.some((id) => String(level.id).includes(id)));
+if (!chosen.length) { console.error('no level matched ' + JSON.stringify(argv.filter((a) => !a.startsWith('-')))); process.exit(1); }
 
 console.log(`measuring the soil-line cut on ${chosen.length} level(s) — booting each map…\n`);
 const cutByLevel = await measureCutColumns(chosen.map(({ level }) => level.id));
@@ -307,7 +321,11 @@ const cutByLevel = await measureCutColumns(chosen.map(({ level }) => level.id));
 let touched = 0;
 for (const { f, level } of chosen) {
   const p = resolve(LEVELS, f);
-  const slot = level.campaignLevel;
+  // The rng SEED, so a map's sky is the same every run. A campaign map uses its slot; a map
+  // with no slot (the owner's own Chapter 1 saves) hashes its id instead, which is just as
+  // stable and is unique per map — `null | 0` would seed every one of them identically.
+  const slot = level.campaignLevel != null ? level.campaignLevel
+    : ([...String(level.id)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 9973) + 1;
 
   // Idempotent: drop any surface objects from a previous run before regenerating, so this can
   // be re-run after a retune without stacking a second skyline on the first.

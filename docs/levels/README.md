@@ -10,7 +10,8 @@ uniform**: food `r` is a diamond radius in *cells*, reservoir `r` is *world unit
 | file | level | what it is |
 |---|---|---|
 | `campaign-NN-*.json` | **1-10** | the campaign — owner's underground, generated overground |
-| `three-ways.json` | none (`#level,three-ways`) | "Three Ways Up" — three sealed routes, one threat each |
+| `2-obsidian.json` | none (`#level,2-obsidian`) | **Chapter 1** — the owner's own map, handed over from their browser. First committed level carrying a `chapter` |
+| `three-ways.json` | none (`#level,three-ways`) | "Three Ways Up" — three sealed routes, one threat each. **Its sky is hand-designed** (the routes are themed to pass under a city and a mountain range), so `surface-rock-check` deliberately exempts it |
 | `maze-one.json` | none (`#level,maze-one`) | "Maze One" — **traced**: 77 sprites from `docs/maps/maze-1@4x.webp`, dense with tight channels |
 | `scatter-one.json` | none (`#level,scatter-one`) | "Scatter One" — **traced**: 25 sprites from `docs/maps/scatter-1@4x.webp`, open with big separated masses |
 | `scatter-two.json` | none (`#level,scatter-two`) | "Scatter Two" — **traced**: 38 sprites from `docs/maps/silhouette-2@4x.webp` (the `scatter` prompt under its old name) |
@@ -83,8 +84,14 @@ Two fields only saved maps carry:
 
 | field | what it does |
 |---|---|
-| `chapter` | the group heading in the dev map list; its presence is also "this is a saved map" |
+| `chapter` | the group heading in the dev map list |
 | `assetsFrom` | the id whose `assets/<id>/` folder holds the sprites, since a saved map has no folder of its own |
+
+`chapter` used to double as "this is a saved map", and the `×` (forget) button was drawn from it.
+That stopped being true the moment a chaptered map was **committed** here — the `×` then appeared
+on a file, asked for confirmation and did nothing, because `deleteSavedLevel` had no storage entry
+to remove. The button now reads localStorage directly, so a committed map keeps its group heading
+and loses its `×`. **`2-obsidian.json` is the first committed map with a chapter**, and it is why.
 
 **A saved map is not durable.** It is one browser profile, and clearing site data loses it.
 Save also copies the JSON to the clipboard: write that to `docs/levels/<id>.json`, re-run

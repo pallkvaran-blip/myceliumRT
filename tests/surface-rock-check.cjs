@@ -41,8 +41,23 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 const ROCK_ALPHA = 40;   // same cut-off the authoring script uses; this only decides what the eye sees
 const LEVELDIR = path.join(ROOT, 'docs', 'levels');
 const only = process.argv.slice(2).filter((a) => !a.startsWith('-'));
-const LV = fs.readdirSync(LEVELDIR).filter((f) => /^campaign-\d\d-.*\.json$/.test(f)).sort()
+// EVERY MAP WHOSE SKY THE AUTHORING SCRIPT OWNS — not just the campaign ten. A level with no
+// surface objects has never been through the script and has nothing to get wrong (a traced map's
+// bare horizon is correct), so the test is "does it have a city or a mountain". That picks up the
+// owner's own Chapter 1 saves the moment one is committed, with no list to keep in step.
+//
+// THREE-WAYS IS THE ONE EXCLUSION, and it is not a pass. It genuinely breaks the rule — 9 of its
+// 30 city columns sit on cut rock — but its sky is HAND-DESIGNED and load-bearing: the map's three
+// routes are themed to go under a city, under a mountain range and past a lake, written out by
+// name in scripts/author-three-ways.mjs. Regenerating its surface would fix the artefact by
+// deleting the level's concept, and re-running its own generator would put the artefact back. So
+// it is named here, out loud, rather than quietly passing — if it is ever wanted, the fix is to
+// teach author-three-ways.mjs the rule, not to point this script at it.
+const HAND_AUTHORED_SKY = new Set(['three-ways']);
+const LV = fs.readdirSync(LEVELDIR).filter((f) => f.endsWith('.json')).sort()
   .map((f) => JSON.parse(fs.readFileSync(path.join(LEVELDIR, f), 'utf8')))
+  .filter((l) => (l.objects || []).some((o) => o && (o.t === 'city' || o.t === 'mountain')))
+  .filter((l) => !HAND_AUTHORED_SKY.has(l.id))
   .filter((l) => !only.length || only.some((o) => l.id.includes(o)));
 
 const toRuns = (cols) => {

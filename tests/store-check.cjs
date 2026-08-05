@@ -75,15 +75,27 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // the store is being played at, and a diff against the previous commit would pass trivially.
   const track = (id) => shape.find((t) => t.id === id) || {};
   const ladder = (id) => (track(id).costs || []).join(',');
-  const RES = '50,100,150,200,250,300,350,400,450,500';
-  ok('the three resource tracks are ten steps of +50',
+  // A CHEAPER FIRST RUNG, then the old +50 ladder shifted down one (owner: "reduce the cost of
+  // the first resource purchases and basic/event memory to 25 (so it now goes 25, 50, 100, …)").
+  // The step COUNT is unchanged and only the bottom moved, so the top of each track comes down a
+  // rung — 450 rather than 500, 950 rather than 1000, 1000 rather than 1200. Pinned in full,
+  // because "25 then double" fits those same three numbers and would put the 20th basic/event
+  // step at 13 million Spores; the shape has to be readable from the assertion, not inferred.
+  const RES = '25,50,100,150,200,250,300,350,400,450';
+  ok('the three resource tracks open at 25, then run the +50 ladder',
      ladder('energy') === RES && ladder('water') === RES && ladder('phosphorus') === RES,
      ladder('energy'));
   ok('Basic/Event Memory runs the same ladder to twenty',
-     track('carryCards').steps === 20 && ladder('carryCards').startsWith('50,100,150')
-       && ladder('carryCards').endsWith('950,1000'), `${track('carryCards').steps} steps, ${ladder('carryCards')}`);
-  ok('Engine Memory is six steps of +200',
-     ladder('carryEngines') === '200,400,600,800,1000,1200', ladder('carryEngines'));
+     track('carryCards').steps === 20 && ladder('carryCards').startsWith('25,50,100')
+       && ladder('carryCards').endsWith('900,950'), `${track('carryCards').steps} steps, ${ladder('carryCards')}`);
+  ok('Engine Memory opens at 100, then six steps of +200',
+     ladder('carryEngines') === '100,200,400,600,800,1000', ladder('carryEngines'));
+  // The first rung of every track a run can open with is now ONE level's clear rather than two.
+  // That is the change the owner asked for, stated as the thing it does rather than as a number.
+  ok('the first purchase on every carry/resource track is 25 or 100',
+     [track('energy'), track('water'), track('phosphorus'), track('carryCards')].every((t) => t.costs[0] === 25)
+       && track('carryEngines').costs[0] === 100,
+     `resources/cards ${track('energy').costs[0]}, engines ${track('carryEngines').costs[0]}`);
   ok('Retries are four steps at 100/250/400/600',
      ladder('lives') === '100,250,400,600', ladder('lives'));
   ok('every track has at least one step and a per-step value',
@@ -308,8 +320,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
        (carry.cards.count || '').includes('/ ' + carry.bonus.carryCards) ||
        (carry.cards.count || '').includes('/' + carry.bonus.carryCards),
        `${carry.cards.count} (cap = base 3 + bought = ${carry.bonus.carryCards})`);
-    ok('the instruction says where the extra slots came from',
-       /from the Store/i.test(carry.cards.instr || ''), carry.cards.instr);
+    // The "(N from the Store)" note is GONE (owner) — it explained an allowance nobody had
+    // asked about, next to a heading that already says how many to pick. What still has to be
+    // true is the thing it was evidence for, and that is the CAP asserted just above: buying the
+    // track widens the meter. Nothing about the wording is load-bearing, so nothing replaces it.
     ok('bought engine memory adds a SEPARATE engine meter',
        /engines?/i.test(carry.eng.count || '') && (carry.eng.count || '').includes('/' + carry.bonus.carryEngines),
        `${carry.eng.count} (bonus +${carry.bonus.carryEngines})`);
@@ -378,7 +392,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('no "?" tiles remain', ui.mystery === 0, String(ui.mystery));
   ok('no "Complete level N" tier rows remain', ui.tierRows === 0, ui.headers.join(' / '));
   ok('the three sections are named the way the owner named them',
-     ui.headers.join('|') === 'Available species|Buy new species|Upgrades', ui.headers.join(' / '));
+     ui.headers.join('|') === 'Available|Purchase|Upgrades', ui.headers.join(' / '));
   ok('six upgrade tiles', ui.tracks === 6, String(ui.tracks));
   ok('the sections carry no sub-headings any more', ui.hints === 0, String(ui.hints));
   // ...and neither does the screen itself: the header is the title and the two chips, nothing else.
@@ -513,13 +527,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('cards you PLAYED are offered to keep', keepPool.names.includes('Turgor Thrust'), keepPool.names.join(', '));
   ok('cards you DRAFTED are offered to keep', keepPool.names.includes('Foraging Fan'), keepPool.names.join(', '));
   ok('engines you drafted are offered too', keepPool.names.includes('Cord Capillary'), keepPool.names.join(', '));
-  ok('the screen says the pool is played, drafted and owned',
-     /played/i.test(keepPool.label) && /drafted/i.test(keepPool.label) && /owned/i.test(keepPool.label), keepPool.label);
-  // Against the HEADER, not one line of it. The death title and sub-line moved out to
-  // showDeathScreen, and "deck" now sits in this screen's own title ("Your deck for the next
-  // run") rather than in the instruction under it — the screen still says it, in one place
-  // instead of buried mid-sentence.
-  ok('it asks you to keep cards for your DECK, not just carry them',
+  // The label over the pool is "Cards from this run: click to add" now (owner) — the old one
+  // spelled out the three sources ("Played, drafted and already owned"), which is accurate and
+  // is not what a label is for. The three sources are still asserted where it matters: by the
+  // three assertions directly above, which check each one is actually IN the pool.
+  ok('the pool label says these are this run\'s cards, and that clicking adds them',
+     /this run/i.test(keepPool.label) && /add/i.test(keepPool.label), keepPool.label);
+  // Against the HEADER. There is ONE heading now (owner) — the instruction is the title, and
+  // "Your deck for the next run" above it said the same thing in the abstract.
+  ok('it asks you to add cards to your DECK, not just carry them',
      /deck/i.test(keepPool.htitle + ' ' + keepPool.instr), (keepPool.htitle + ' / ' + keepPool.instr).trim());
 
   // The case the whole `runDeck` variable exists for: a card you OWNED coming in but never drew,

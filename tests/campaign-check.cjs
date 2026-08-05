@@ -318,11 +318,17 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const stillUp = !!document.getElementById('loadoutSelect');
     document.querySelectorAll('#speciesSelect, #loadoutSelect').forEach((n) => n.remove());
     if (death) death.remove();
+    const keepNote = keepBtn && keepBtn.parentElement ? keepBtn.parentElement.querySelector('.ss-dth-note') : null;
     return { death: !!death, dTitle, keepLabel: keepBtn ? keepBtn.textContent.trim() : null,
+             keepNote: keepNote ? keepNote.textContent.trim() : null,
              reached: !!root, title, instr, acts, landed, stillUp };
   });
   ok('ending a run reaches the death screen first', ended.death === true, ended.dTitle || '(never appeared)');
-  ok('...whose first button leads to the cards', /choose which cards to keep/i.test(ended.keepLabel || ''), ended.keepLabel);
+  // "End Run" now, with "Select cards" as its sub-line (owner) — the button is the verb and the
+  // line under it is the consequence. Asserted on the pair, so the route it leads to is still
+  // named somewhere on screen rather than the check settling for a two-word button.
+  ok('...whose first button ends the run', /^end run$/i.test(ended.keepLabel || ''), ended.keepLabel);
+  ok('...and its sub-line says where it leads', /select cards/i.test(ended.keepNote || ''), ended.keepNote);
   ok('ending a run reaches the keep screen', ended.reached === true, ended.title || '(never appeared)');
   // The word "deck" is in the screen's TITLE now — the death text moved out to showDeathScreen,
   // so the instruction under it no longer has to carry it.
@@ -374,7 +380,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       // BEFORE any deck is curated, which is the point: a retry throws that choice away.
       for (let i = 0; i < 60 && !document.getElementById('ssDeath'); i++) await new Promise((r) => setTimeout(r, 200));
       const btn = document.getElementById('ssDeathRetry');
+      // THE COUNT IS THE SUB-LINE NOW, not the button face (owner: the buttons say just "End Run"
+      // and "Retry", with small subtitles underneath). So "how many are left" is read off
+      // `.ss-dth-note`, and the button is only asked whether it is usable.
+      const note = btn && btn.parentElement ? btn.parentElement.querySelector('.ss-dth-note') : null;
       return { ...snap, shown: !!btn, label: btn ? btn.textContent.trim() : null,
+               note: note ? note.textContent.trim() : null,
                disabled: btn ? btn.disabled : null, sporesAfterDeath: g.store.balance() };
     }, { level, lives });
     return before;
@@ -386,7 +397,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('the level records the state it was entered in', !!withLives.entry && withLives.entry.level === 3,
      withLives.entry ? `level ${withLives.entry.level}, ${withLives.entry.hand.length} in hand` : 'no snapshot');
   ok('the death screen offers a retry', withLives.shown === true && withLives.disabled === false, withLives.label);
-  ok('...and says how many are left', /3 left/.test(withLives.label || ''), withLives.label);
+  ok('...and says how many are left', /3 remaining/i.test(withLives.note || ''), withLives.note);
 
   const retried = await page.evaluate(async () => {
     const g = window.__game;
@@ -468,7 +479,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       g.campaign.endRun();
       for (let i = 0; i < 60 && !document.getElementById('ssDeath'); i++) await new Promise((r) => setTimeout(r, 200));
       const b = document.getElementById('ssDeathRetry');
-      return { label: b ? b.textContent.trim() : null, disabled: b ? b.disabled : null, shown: !!b };
+      const n = b && b.parentElement ? b.parentElement.querySelector('.ss-dth-note') : null;
+      return { label: b ? b.textContent.trim() : null, note: n ? n.textContent.trim() : null,
+               disabled: b ? b.disabled : null, shown: !!b };
     };
     const first = await toDeath();
     document.getElementById('ssDeathRetry').click();        // spend the only one
@@ -481,11 +494,40 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     return { stocked, first, after, second };
   });
   ok('a run with no purchases still gets the one retry everyone starts with',
-     spent.stocked === 1 && /1 left/.test(spent.first.label || ''), `${spent.stocked} — "${spent.first.label}"`);
+     spent.stocked === 1 && /1 remaining/i.test(spent.first.note || ''),
+     `${spent.stocked} — "${spent.first.label}" / "${spent.first.note}"`);
   ok('spending it leaves none', spent.after === 0, String(spent.after));
   ok('with none left the option is still on screen', spent.second.shown === true, spent.second.label);
   ok('...but not usable', spent.second.disabled === true, `disabled=${spent.second.disabled}`);
-  ok('...and says so', /none left/i.test(spent.second.label || ''), spent.second.label);
+  ok('...and says so', /none left/i.test(spent.second.note || ''), spent.second.note);
+  // AND IT IS READABLE WHILE SAYING IT. The disabled retry was `opacity:.42` over a dark map,
+  // which took the text down with the control — the owner could not read it. Asserted as
+  // CONTRAST against the screen behind it, because "it is styled differently" was already true
+  // and was the bug. A faded-out control passes an existence check and fails a person.
+  const lum = (c) => { const m = String(c).match(/[\d.]+/g) || [0,0,0];
+    return (0.2126*+m[0] + 0.7152*+m[1] + 0.0722*+m[2]) / 255; };
+  // Its own screen, via the dev hook: the probe above removed the real one, and this asks about
+  // STYLE rather than about that run.
+  const off = await page.evaluate(async () => {
+    document.querySelectorAll('#ssDeath').forEach((n) => n.remove());
+    window.__game.store.deathScreen({ retryOff: true, retryNote: 'none left' });
+    await new Promise((r) => setTimeout(r, 120));
+    const b = document.getElementById('ssDeathRetry');
+    if (!b) return null;
+    const cs = getComputedStyle(b);
+    const out = { color: cs.color, opacity: +cs.opacity,
+                  note: getComputedStyle(b.parentElement.querySelector('.ss-dth-note')).color,
+                  bg: cs.backgroundColor, border: cs.borderStyle };
+    document.querySelectorAll('#ssDeath').forEach((n) => n.remove());
+    return out;
+  });
+  ok('the unusable retry is not faded out — it can still be read', !!off && off.opacity >= 0.95,
+     off ? `opacity ${off.opacity}, colour ${off.color}` : '(no button)');
+  ok('...its text clears a readable brightness over the dark map', !!off && lum(off.color) > 0.45,
+     off ? `${off.color} → luminance ${lum(off.color).toFixed(2)} (want > 0.45)` : '(no button)');
+  ok('...and so does its sub-line', !!off && lum(off.note) > 0.45,
+     off ? `${off.note} → luminance ${lum(off.note).toFixed(2)}` : '(no button)');
+  ok('...with the border saying it is unusable instead', !!off && off.border === 'dashed', off && off.border);
   await page.evaluate(() => { document.querySelectorAll('#loadoutSelect').forEach((n) => n.remove()); window.__game.store.reset(); });
 
   // ---- the title screen ------------------------------------------------------
@@ -583,12 +625,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('Survival still scores, so that is a real difference',
      scoring.surv.after > scoring.surv.before, `board ${scoring.surv.before} → ${scoring.surv.after}`);
 
-  // The menu's own label for it — a campaign exit that banks a deck, not a rage-quit.
+  // The menu's own label. It read "End run & keep cards" and is just "End run" now (owner) —
+  // the keep step is the death screen's first button, so naming it here as well described a
+  // route rather than the action. What still has to hold is that the ROUTE is unchanged: this
+  // is the deliberate exit, and it lands on the same screen a death does.
   const label = await page.evaluate(() => {
     const b = document.getElementById('set-forcefruit');
     return b ? b.textContent.trim() : null;
   });
-  ok('the menu names it for what you get', /keep cards/i.test(label || ''), label || '(button missing)');
+  ok('the menu offers the deliberate exit', label === 'End run', label || '(button missing)');
 
   await page.screenshot({ path: path.join(__dirname, '.artifacts', 'campaign.png'),
     animations: 'disabled', timeout: 8000 }).catch(() => {});

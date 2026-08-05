@@ -1410,8 +1410,54 @@
       text-shadow:0 1px 4px rgba(0,0,0,0.85), 0 0 22px rgba(127,230,163,0.22); }
     .ss-win-sub b { color:#eaf7ff; font-weight:700; }
     .ss-win-sub .spore-ic { width:1.02em; height:1.02em; vertical-align:-0.14em; margin-left:3px; }
+    /* The spores earned, ON THEIR OWN LINE under "You fruited and spored" (owner) — the reward
+       gets its own beat instead of trailing off the end of the sentence. Bigger than the line
+       above it, because it is the number the player is here for. */
+    .ss-win-earned { margin:clamp(6px,1.4vh,14px) 0 0; font-family:var(--ss-serif); font-weight:700;
+      font-size:clamp(22px,3.4vw,34px); color:#eaf7ff; line-height:1;
+      text-shadow:0 1px 4px rgba(0,0,0,0.85), 0 0 26px rgba(127,230,163,0.28); }
+    .ss-win-earned .spore-ic { width:0.95em; height:0.95em; vertical-align:-0.11em; margin-left:6px; }
+    /* .ss-win-unlock styled the "New species available for purchase!" line, retired with it
+       (owner) — kept because showSpeciesUnlocked's sibling markup shares this family and the
+       line comes back the moment a tier species moves into STORE_SPECIES_IDS. */
     .ss-win-unlock { margin-top:clamp(3px,0.9vh,9px); font-size:11px; letter-spacing:.24em; text-transform:uppercase;
       color:var(--ss-mint); font-weight:600; text-shadow:0 1px 4px rgba(0,0,0,0.85); }
+    /* ---- the DEATH screen, which is the win screen wearing a different colour ----------
+       Same `.ss-win` overlay (so the map shows through both), but a written title rather than a
+       grown wordmark: the line names what killed you and is a sentence, where SUCCESS is one
+       word. Warm red against the win's mint, so which of the two you are looking at is legible
+       before you have read anything. */
+    .ss-dth-title { margin:0; font-family:var(--ss-serif); font-weight:700; line-height:1.12;
+      font-size:clamp(26px,4.4vw,44px); color:#ffd9d1; max-width:min(760px,92vw);
+      text-shadow:0 2px 8px rgba(0,0,0,0.9), 0 0 30px rgba(255,120,96,0.22); }
+    .ss-dth { background:radial-gradient(46% 40% at 50% 40%, rgba(255,120,96,0.10), transparent 66%),
+                         radial-gradient(52% 50% at 50% 40%, rgba(8,4,3,0.62), rgba(8,4,3,0.22) 60%, transparent 82%); }
+    .ss-dth-spores { margin:clamp(4px,1.2vh,12px) 0 0; font-family:var(--ss-serif);
+      font-size:clamp(14px,2vw,19px); color:var(--ss-ink); }
+    .ss-dth-spores b { color:#eaf7ff; font-weight:700; font-size:1.18em; }
+    .ss-dth-spores .spore-ic { width:1.05em; height:1.05em; vertical-align:-0.16em; margin-left:3px; }
+    /* THE VERB ON THE BUTTON, THE CONSEQUENCE UNDER IT (owner). Sub-lines are what let the retry
+       count off the button face. */
+    .ss-dth-actions { margin-top:clamp(10px,2.4vh,26px); display:flex; justify-content:center;
+      align-items:flex-start; gap:clamp(18px,4vw,52px); flex-wrap:wrap; }
+    .ss-dth-act { display:flex; flex-direction:column; align-items:center; gap:7px; }
+    .ss-dth-btn { cursor:pointer; font-family:var(--ss-sans); font-weight:600; letter-spacing:.05em;
+      font-size:clamp(14px,1.9vw,17px); color:#fff; background:#000; border:1px solid rgba(255,255,255,0.3);
+      border-radius:10px; padding:12px 40px; min-width:min(46vw,180px);
+      box-shadow:0 6px 22px -6px rgba(0,0,0,0.9); transition:background .18s, border-color .18s; }
+    .ss-dth-btn:hover:not(:disabled) { background:#0d0d0d; border-color:rgba(255,255,255,0.55); }
+    .ss-dth-btn.primary { background:#fff; color:#000; border-color:#fff; }
+    .ss-dth-btn.primary:hover { background:#e6e6e6; border-color:#e6e6e6; }
+    /* NO RETRIES LEFT: READABLE, NOT FADED. It was `opacity:.42` over a dark map, which took the
+       text with it — the owner could not read it. Unusable is said with a dashed border and a
+       flat muted ink that still clears contrast on this background, rather than by dissolving
+       the whole control. */
+    .ss-dth-btn.off, .ss-dth-btn:disabled { cursor:not-allowed; opacity:1;
+      color:#9fb3a8; background:rgba(10,14,12,0.72); border:1px dashed rgba(159,179,168,0.55);
+      box-shadow:none; }
+    .ss-dth-note { font-family:var(--ss-sans); font-size:clamp(10px,1.15vw,12px); letter-spacing:.14em;
+      text-transform:uppercase; color:var(--ss-ink-dim); text-shadow:0 1px 3px rgba(0,0,0,0.9); }
+    .ss-dth-note.off { color:#9fb3a8; }
     .ss-win-cards { display:flex; flex-wrap:wrap; justify-content:center; gap:14px; }
     .ss-win-cards .ss-card { flex:0 0 auto; width:min(60vw,168px); }
     /* Reveal popup: a little breathing room between the message and the species card. */
@@ -1427,6 +1473,10 @@
       .ss-win { gap:2px; padding:6px clamp(16px,4vw,40px) clamp(76px,14vh,110px); }
       .ss-win-title { width:min(560px,78vw); height:clamp(44px,15vh,84px); }
       .ss-win-sub { font-size:clamp(14px,3.6vh,19px); }
+      .ss-win-earned { margin-top:4px; font-size:clamp(18px,4.6vh,26px); }
+      .ss-dth-title { font-size:clamp(19px,4.4vh,27px); }
+      .ss-dth-actions { margin-top:8px; gap:14px; }
+      .ss-dth-btn { padding:9px 24px; font-size:14px; min-width:min(40vw,132px); }
       .ss-win-unlock { margin-top:2px; font-size:10px; letter-spacing:.2em; }
       .ss-win-cards .ss-card { width:min(28vw,116px); }
       .ss-win-btn { margin-top:6px; padding:8px 28px; font-size:14px; }
@@ -1648,11 +1698,20 @@
        filters): UPPER = next run's hand (fixed opener locked + selected), LOWER =
        cards drafted this run. Click to move copies up/down. Namespaced
        #loadoutSelect / .lo-*. See render/loadout_select.js. */
+    /* IT SITS OVER THE MAP, DARKENED (owner) — it was an opaque near-black wall, which cut the
+       run off mid-sentence: the death screen before it and the win screen both keep the world
+       visible behind them, and this is the third beat of the same moment. Translucent layers
+       only, so the canvas shows through; the gradient stays for the mint bloom at the top.
+       NOT `backdrop-filter: blur()` — this panel scrolls and is full of card art, and blurring
+       a live canvas behind a scrolling overlay costs a composite of the whole viewport per
+       frame on exactly the phones the render budget already exists for. A flat darkening does
+       the readability job for nothing. */
     #loadoutSelect { position:fixed; inset:0; z-index:1400; display:flex; align-items:center; justify-content:center;
       background:radial-gradient(1200px 620px at 50% -6%, rgba(126,240,192,0.07), transparent 60%),
-        linear-gradient(180deg,#08110d,#050b08); color:#e6f4ec;
+        linear-gradient(180deg, rgba(8,17,13,0.90), rgba(5,11,8,0.94)); color:#e6f4ec;
       font-family:"Segoe UI",Roboto,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif; padding:16px; overflow:auto; }
     #loadoutSelect *, #loadoutSelect *::before, #loadoutSelect *::after { box-sizing:border-box; }
+    body.lo-open #ui { display:none; }
     .lo-panel { width:100%; max-width:1120px; display:flex; flex-direction:column; align-items:center; gap:10px; margin:auto; }
     .lo-caro { width:100%; display:flex; flex-direction:column; gap:6px; }
     .lo-label { font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:#7ef0c0; font-weight:700; margin:0 2px; }
@@ -4081,6 +4140,112 @@ const __m_levels_data = (function () {
 // so the `#level` playtest hook below reads either localStorage or a level id.
 
 const LEVELS = [
+  {
+    "format": "mycelium-level",
+    "version": 1,
+    "id": "2-obsidian",
+    "name": "2 — Obsidian",
+    "campaignLevel": null,
+    "assetsFrom": "obsidian-c40",
+    "world": {
+      "width": 2952,
+      "height": 1467.1,
+      "surfaceY": 380,
+      "cellSize": 36
+    },
+    "layout": {
+      "startCols": 2,
+      "goalCols": 6,
+      "summerCols": 7,
+      "clearChannels": false
+    },
+    "threats": {
+      "trych": 0,
+      "nematodes": 4,
+      "ants": 3,
+      "respawn": false
+    },
+    "traced": {
+      "image": "docs/maps/top-obsidian-scatter-c40-1@4x.webp",
+      "threshold": 128,
+      "minArea": 9600
+    },
+    "chapter": "Chapter 1",
+    "objects": [
+      {"t":"boulder","key":"obsidian-c40R002","x":1787.5,"y":1193.1,"w":763.4,"h":620,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R003","x":1316.5,"y":954.8,"w":638.1,"h":573,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R001","x":347.6,"y":1231,"w":734.4,"h":1087.1,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R004","x":2341.4,"y":819.8,"w":610.8,"h":580,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R005","x":1655,"y":456.4,"w":468.9,"h":326.9,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R006","x":2199.8,"y":1857.6,"w":404.7,"h":307.5,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R007","x":2856.4,"y":498.2,"w":302.1,"h":245.5,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R008","x":1324,"y":462.4,"w":429.6,"h":191.3,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R009","x":2076.2,"y":408.8,"w":381.7,"h":245.1,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R010","x":69.6,"y":1889.2,"w":224.7,"h":293.5,"rot":-6.2832},
+      {"t":"boulder","key":"obsidian-c40R011","x":2898.7,"y":1889.5,"w":165.5,"h":259.1,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R012","x":1649.5,"y":1934.8,"w":268.1,"h":180.9,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R013","x":2917.5,"y":972.3,"w":146.1,"h":280.8,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R014","x":543.8,"y":432.7,"w":314.3,"h":142.4,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R015","x":1395.1,"y":1687.3,"w":197.6,"h":227.9,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R016","x":612.2,"y":1985.7,"w":206.7,"h":103.6,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R017","x":1193.5,"y":1978.4,"w":215.7,"h":90.5,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R018","x":188,"y":1237.7,"w":147.3,"h":170.2,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R019","x":267.1,"y":1184.3,"w":149.7,"h":135.2,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R020","x":959.4,"y":405.2,"w":173.7,"h":87.3,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R021","x":2598.6,"y":1281.8,"w":106.7,"h":117.6,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R022","x":1390.9,"y":1425.8,"w":105.4,"h":106.3,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R023","x":824,"y":521.2,"w":94,"h":96.7,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R024","x":2757.7,"y":760.9,"w":101.8,"h":97.2,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R025","x":243.2,"y":833.3,"w":104.5,"h":105.4,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R027","x":1122.8,"y":1285,"w":97.7,"h":108.1,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R028","x":911.6,"y":1320.6,"w":91.4,"h":99.5,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R029","x":2889.2,"y":1343.2,"w":90,"h":104.4,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R030","x":917.3,"y":1724.1,"w":95.4,"h":99,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R031","x":999.5,"y":620.1,"w":101.3,"h":82.3,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R033","x":2556.7,"y":1660.4,"w":79.5,"h":85,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R034","x":2319.5,"y":1339.2,"w":86.4,"h":79.2,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R035","x":2821.3,"y":675,"w":74.6,"h":83.2,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R036","x":1823.3,"y":1637.6,"w":73.2,"h":86.3,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R037","x":1851.6,"y":830.4,"w":81.4,"h":70.6,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R038","x":2682.6,"y":1507.9,"w":80.5,"h":76.4,"rot":0},
+      {"t":"boulder","key":"obsidian-c40R023","x":114,"y":720.2,"w":94,"h":96.7,"rot":0},
+      {"t":"food","kind":"cache-engine","x":63,"y":1414,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":121,"y":1505,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":77,"y":1599,"r":1,"energy":4},
+      {"t":"ant","x":304},
+      {"t":"ant","x":763},
+      {"t":"food","kind":"cache","x":289,"y":957,"r":1,"energy":4},
+      {"t":"ant","x":1078},
+      {"t":"food","kind":"cache","x":367,"y":1085,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":2485,"y":1506,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":2435,"y":1219,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":2751,"y":991,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":2625,"y":1875,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":1926,"y":1934,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":1434,"y":1946,"r":1,"energy":4},
+      {"t":"food","kind":"duff","x":1722,"y":1752,"r":1,"energy":2},
+      {"t":"food","kind":"duff","x":2761,"y":1203,"r":1,"energy":2},
+      {"t":"food","kind":"duff","x":2654,"y":627,"r":1,"energy":2},
+      {"t":"nematode","x":174,"y":1748},
+      {"t":"nematode","x":1551,"y":1797},
+      {"t":"nematode","x":2480,"y":1971},
+      {"t":"nematode","x":2778,"y":1376},
+      {"t":"food","kind":"duff","x":2219,"y":604,"r":1,"energy":2},
+      {"t":"food","kind":"duff","x":1946,"y":695,"r":1,"energy":2},
+      {"t":"food","kind":"duff","x":1513,"y":641,"r":1,"energy":2},
+      {"t":"reservoir","key":"reservoir3","x":863,"y":755,"r":72},
+      {"t":"nematode","x":258,"y":879},
+      {"t":"food","kind":"cache","x":1130,"y":1542,"r":1,"energy":4},
+      {"t":"food","kind":"duff","x":740,"y":1500,"r":1,"energy":2},
+      {"t":"food","kind":"cache","x":846,"y":1105,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":929,"y":1882,"r":1,"energy":4},
+      {"t":"nematode","x":1573,"y":890},
+      {"t":"nematode","x":1945,"y":444},
+      {"t":"mountain","key":"mountain4","x":1332,"w":1872},
+      {"t":"city","key":"skyline4","x":306,"w":180},
+      {"t":"city","key":"skyline5","x":2376,"w":216}
+    ]
+  },
   {
     "format": "mycelium-level",
     "version": 1,
@@ -11139,21 +11304,34 @@ function purchaseSpecies(sp, progress) {
 // A flat arithmetic price ladder: step k costs k × `first`. Three of the six tracks use one, and
 // writing 20 numbers out by hand is 20 chances to fat-finger one.
 const LADDER = (first, steps) => Array.from({ length: steps }, (_, i) => first * (i + 1));
+// ...with a CHEAPER FIRST RUNG in front of it (owner: "reduce the cost of the first resource
+// purchases and basic/event memory to 25 (so it now goes 25, 50, 100, …)" and the engine track
+// "to 100 (so it now goes 100, 200, 400,…)"). Both quoted sequences are the old ladder with a
+// half-price rung prepended and everything shifted down one — 25 then 50, 100, …; 100 then 200,
+// 400, … — NOT a doubling ladder, which those three numbers also fit and which would put the
+// 20th basic/event step at 13 million Spores against a 5,500 full-clear payout.
+//
+// So the step COUNT is unchanged and the top of each track comes down a rung: resources end at
+// 450 rather than 500, basic/event at 950 rather than 1000, engines at 1000 rather than 1200.
+// The change is entirely at the bottom, which is where it was asked for — the first purchase on
+// any track is now a single level's clear rather than two.
+const OPENER = (first, steps) => [first, ...LADDER(first * 2, steps - 1)];
 const STORE_UPGRADES = [
   // The three resource tracks first, in the game's own energy / water / phosphorus order — the
   // order the HUD uses, so the store reads in the order of the numbers it raises. Ten steps
-  // each on a flat +50 ladder (owner). These add to the universal base in CONFIG.
+  // each: 25, then the +50 ladder (owner). These add to the universal base in CONFIG.
   { id: 'energy', name: 'Energy', icon: 'energy', accent: 'energy', step: 3, unit: 'energy',
     effect: 'Start each run with <b>+3 energy</b>.',
-    costs: LADDER(50, 10) },
+    costs: OPENER(25, 10) },
   { id: 'water', name: 'Water', icon: 'water', accent: 'water', step: 5, unit: 'water',
     effect: 'Start each run with <b>+5 water</b>.',
-    costs: LADDER(50, 10) },
+    costs: OPENER(25, 10) },
   { id: 'phosphorus', name: 'Phosphorus', icon: 'phos', accent: 'phos', step: 2, unit: 'phosphorus',
     effect: 'Start each run with <b>+2 phosphorus</b>.',
-    costs: LADDER(50, 10) },
+    costs: OPENER(25, 10) },
   // ...then the three that shape what you carry out of a run. Twenty steps of basic/event on the
-  // same +50 ladder; engines are the expensive half of a deck, so six steps at +200 each.
+  // same 25-then-+50 ladder; engines are the expensive half of a deck, so six steps of 100 then
+  // +200.
   // BASE 3: every player keeps three basic/event cards before buying anything, the same way
   // everyone starts with one retry. It belongs here rather than as the `3 +` it used to be at the
   // run loop, for the reason spelled out on Retries below — with the base at the call site the
@@ -11161,10 +11339,10 @@ const STORE_UPGRADES = [
   // does nothing until the first purchase.
   { id: 'carryCards', name: 'Basic/Event Memory', icon: 'cards', accent: 'mint', step: 1, base: 3, unit: 'cards', unit1: 'card',
     effect: 'Add <b>+1 basic or event card</b> to your deck when your runs end.',
-    costs: LADDER(50, 20) },
+    costs: OPENER(25, 20) },
   { id: 'carryEngines', name: 'Engine Memory', icon: 'engine', accent: 'eng', step: 1, unit: 'engines', unit1: 'engine',
     effect: 'Add <b>+1 engine card</b> to your deck when your runs end.',
-    costs: LADDER(200, 6) },
+    costs: OPENER(100, 6) },
   // Retries are the only track with a BASE: everyone starts with one, bought or not.
   { id: 'lives', name: 'Retries', icon: 'life', accent: 'life', step: 1, base: 1, unit: 'retries', unit1: 'retry',
     effect: 'Get <b>+1 retry</b>, allowing you to attempt completing the same level again.',
@@ -20451,7 +20629,7 @@ class UI {
       // The campaign's deliberate exit, not a rage-quit: ending a run is how you BANK a deck, so
       // the label says what you get rather than what you give up. Still `setitem-danger` — it
       // does end the run — but "abandon" was the ladder's word for it.
-      +   `<button class="setitem setitem-danger" id="set-forcefruit" type="button" role="menuitem">End run &amp; keep cards</button>`
+      +   `<button class="setitem setitem-danger" id="set-forcefruit" type="button" role="menuitem">End run</button>`
       + `</div>`
       + `<div class="logdrop hidden" id="logdrop"><div class="loglist" id="loglist"></div></div>`;
     root.appendChild(hud);
@@ -22616,17 +22794,25 @@ function upgradeTile(u, progress, onBuy) {
   node.innerHTML =
     '<div class="ss-upg-top">' + (RI[u.icon] || '') +
       '<span class="ss-upg-nm">' + esc(u.name) + '</span>' +
-      // `unit1` only where the plural isn't just the word + s ("retry"/"retries"). The three
-      // resource tracks step by 3, 5 and 2, so their value is never 1 and they need no singular.
       // THE THREE RESOURCE TRACKS SHOW WHAT A RUN ACTUALLY OPENS WITH, not what this track has
       // added to it. They read "none yet" until the first purchase, which is true of the track
       // and false of the game — a run starts with 20 energy and 20 water whatever the store
       // says — so the one number the player wants here was the one number missing. Absolute, so
       // no leading "+": startingResources() is CONFIG's base plus every resource track, which is
       // the figure the run seeds from.
-      '<span class="ss-upg-now">' + (RESOURCE_TRACK.test(u.id)
-        ? (startingResources(progress)[u.id] | 0) + ' ' + esc(u.unit)
-        : (have ? '+' + have + ' ' + esc(have === 1 ? (u.unit1 || u.unit) : u.unit) : 'none yet')) + '</span>' +
+      //
+      // JUST THE NUMBER (owner: "remove the 'Energy' from e.g. '20 energy' ... redundant") — the
+      // unit is the tile's own name, three centimetres to the left. It survives in `unit`/`unit1`
+      // for the ARIA label, which has no name beside it to lean on: a screen reader announcing a
+      // bare "20" here would be reading out a number with no noun. `unit1` covers the one plural
+      // that is not word + s ("retry"/"retries"); the resource tracks step by 3, 5 and 2, so
+      // their value is never 1 and they never need it.
+      '<span class="ss-upg-now" aria-label="' + esc(RESOURCE_TRACK.test(u.id)
+        ? (startingResources(progress)[u.id] | 0) + ' ' + u.unit
+        : (have ? '+' + have + ' ' + (have === 1 ? (u.unit1 || u.unit) : u.unit) : 'none bought yet')) + '">' +
+      (RESOURCE_TRACK.test(u.id)
+        ? String(startingResources(progress)[u.id] | 0)
+        : (have ? '+' + have : 'none yet')) + '</span>' +
     '</div>' +
     '<p class="ss-upg-eff">' + u.effect + '</p>' +
     '<div class="ss-upg-pips" aria-hidden="true">' + pips + '</div>' +
@@ -22667,10 +22853,10 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   const mapCol = '';
   root.innerHTML =
     '<div class="ss-title" aria-label="Mycelium"></div>' +
-    '<div class="ss-console" role="dialog" aria-label="Select your species">' +
+    '<div class="ss-console" role="dialog" aria-label="Select species">' +
       devBtns + mapCol +
       '<header class="ss-head">' +
-        '<div class="ss-headrow"><h1>Select your species</h1>' +
+        '<div class="ss-headrow"><h1>Select species</h1>' +
           // Deck + wallet travel together: both are things you carry between runs, and both are
           // read here rather than changed.
           '<span class="ss-headtools">' +
@@ -22681,11 +22867,11 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
       '</header>' +
       '<div class="ss-body">' +
         '<section class="ss-section">' +
-          '<div class="ss-rowlabel"><span class="ss-lk">Available species</span><span class="ss-rule"></span></div>' +
+          '<div class="ss-rowlabel"><span class="ss-lk">Available</span><span class="ss-rule"></span></div>' +
           '<div class="ss-grid" id="ssAvail"></div>' +
         '</section>' +
         '<section class="ss-section" id="ssForSaleSec">' +
-          '<div class="ss-rowlabel"><span class="ss-lk">Buy new species</span><span class="ss-rule"></span></div>' +
+          '<div class="ss-rowlabel"><span class="ss-lk">Purchase</span><span class="ss-rule"></span></div>' +
           '<div class="ss-grid" id="ssForSale"></div>' +
         '</section>' +
         '<section class="ss-section">' +
@@ -22759,27 +22945,26 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
 // ===================== between-level: level complete =========================
 const WIN_WORDS = ['Success', 'You made it'];
 
+// WINNING A LEVEL NO LONGER ANNOUNCES A SPECIES (owner). The campaign's roster is 3 + 4, all
+// seven visible from the start, and clearing a level reveals nothing you could not already see
+// — so "New species available for purchase!" was pointing at a shelf that had not changed.
+// `unlocked` is still in the signature and main still computes it: the REVEAL is recorded either
+// way, so moving one of the tier species into STORE_SPECIES_IDS brings the whole moment back
+// rather than needing it rebuilt.
 function showLevelComplete({ level, maxLevel, unlocked, earned, balance, onNext }) {
   const root = el('div', 'ss-win'); root.id = 'ssLevelComplete';
-  const hasUnlock = unlocked && unlocked.length;
   const word = WIN_WORDS[(Math.random() * WIN_WORDS.length) | 0];
   // No container — the win headline is grown in mycelium (with lighting behind), then a
-  // plain line + the spores earned + either the new-species card(s) or just Proceed.
+  // plain line, then the spores earned ON THEIR OWN LINE (owner), then Proceed. The spores
+  // are the reward, so they get their own beat rather than trailing off the end of a sentence.
   root.innerHTML =
     '<div class="ss-win-title" role="img" aria-label="' + esc(word) + '"></div>' +
-    '<p class="ss-win-sub">You fruited and spored' + (earned ? ' <b>+' + earned + '</b>' + SPORE_ICON : '') + '</p>' +
-    (hasUnlock
-      ? '<div class="ss-win-unlock">New species available for purchase!</div>' +
-        '<div class="ss-win-cards" id="ssWinCards"></div>'
-      : '') +
+    '<p class="ss-win-sub">You fruited and spored</p>' +
+    (earned ? '<p class="ss-win-earned"><b>+' + earned + '</b>' + SPORE_ICON + '</p>' : '') +
     '<button class="ss-win-btn" id="ssWinProceed" type="button">Proceed</button>';
   document.body.appendChild(root);
   const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: word.toUpperCase(), stepRate: 3.2 });
   function hide() { title.destroy(); root.remove(); }
-  if (hasUnlock) {
-    const cards = root.querySelector('#ssWinCards');
-    for (const s of unlocked) cards.appendChild(speciesCard(s, { locked: false, onClick: () => openSpeciesDetail(s) }));
-  }
   root.querySelector('#ssWinProceed').addEventListener('click', () => { hide(); onNext && onNext(); });
   return { hide, root };
 }
@@ -22814,20 +22999,37 @@ function showSpeciesUnlocked({ species, onContinue }) {
 // Shaped like the run-complete screen (same ss-lc card over the map) because they are the same
 // beat: the run has ended, here is what happened, here is what you can do about it. The two
 // actions are the only two that exist — go on to keep cards, or take the level again.
-function showDeathScreen({ title, sub, spores, retryLabel, retryOff, retryTitle, onKeep, onRetry }) {
-  const root = el('div', 'ss-detailwrap open'); root.id = 'ssDeath';
+// IT IS THE SUCCESS SCREEN'S SHAPE NOW (owner: "remove the 'run over' pill; remove the popup
+// box - make this look like the success screen"). It was an `ss-lc` card inside a scrim — a
+// dialog box announcing the news — where winning a level puts its words straight over the map
+// with nothing framing them. Losing is the same beat and gets the same treatment: `.ss-win`,
+// the same overlay showLevelComplete uses, so the two screens are one family and the map stays
+// visible through both.
+//
+// The BADGE went with the box. "Run over" over a heading that already says what killed you was
+// a label for the label.
+//
+// TWO WORDS AND TWO SUB-LINES (owner: buttons say just "End Run" and "Retry", with small
+// subtitles underneath). The button is the verb; the line under it is the consequence — how
+// many cards you are about to pick, how many retries are left. That split is what let the retry
+// count come off the button face, which is what made "Retry level · none left" a mouthful.
+function showDeathScreen({ title, sub, spores, retryNote, retryOff, retryTitle, onKeep, onRetry }) {
+  const root = el('div', 'ss-win ss-dth'); root.id = 'ssDeath';
   root.innerHTML =
-    '<div class="ss-lc">' +
-      '<div class="ss-lc-badge ss-lc-badge-died">Run over</div>' +
-      '<h2 class="ss-lc-title">' + esc(title || 'Your run has ended') + '</h2>' +
-      (sub ? '<p class="ss-lc-sub">' + esc(sub) + '</p>' : '') +
-      // "So far", because it is not theirs yet: ending the run is what banks it, and the retry
-      // beside this line is the choice not to.
-      (spores ? '<div class="ss-win-spores ss-lc-spores">You have collected <b>' + spores + '</b>' + SPORE_ICON + ' spores so far</div>' : '') +
-      '<div class="ss-lc-actions ss-lc-actions2">' +
-        '<button class="ss-btn primary" id="ssDeathKeep">End run: Choose which cards to keep</button>' +
-        '<button class="ss-btn" id="ssDeathRetry"' + (retryOff ? ' disabled' : '') +
-          (retryTitle ? ' title="' + esc(retryTitle) + '"' : '') + '>' + esc(retryLabel) + '</button>' +
+    '<h2 class="ss-dth-title">' + esc(title || 'Your run has ended') + '</h2>' +
+    (sub ? '<p class="ss-win-sub">' + esc(sub) + '</p>' : '') +
+    // "So far", because it is not theirs yet: ending the run is what banks it, and the retry
+    // beside this line is the choice not to.
+    (spores ? '<p class="ss-dth-spores">You have collected <b>' + spores + '</b>' + SPORE_ICON + ' spores so far</p>' : '') +
+    '<div class="ss-dth-actions">' +
+      '<div class="ss-dth-act">' +
+        '<button class="ss-dth-btn primary" id="ssDeathKeep" type="button">End Run</button>' +
+        '<span class="ss-dth-note">Select cards</span>' +
+      '</div>' +
+      '<div class="ss-dth-act">' +
+        '<button class="ss-dth-btn' + (retryOff ? ' off' : '') + '" id="ssDeathRetry" type="button"' +
+          (retryOff ? ' disabled' : '') + (retryTitle ? ' title="' + esc(retryTitle) + '"' : '') + '>Retry</button>' +
+        '<span class="ss-dth-note' + (retryOff ? ' off' : '') + '">' + esc(retryNote || '') + '</span>' +
       '</div>' +
     '</div>';
   document.body.appendChild(root);
@@ -22981,6 +23183,14 @@ function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEn
       actionsBlock +
     '</div>';
   document.body.appendChild(root);
+  // THE HUD GOES WHILE THIS IS UP. The panel sits over the map darkened rather than over a black
+  // wall (owner), and the moment it went translucent the in-game HUD started showing THROUGH it —
+  // a ghosted card carousel behind a card carousel, which reads as a rendering fault rather than
+  // a choice. The canvas is what the owner asked to see; the DOM HUD is not part of it, and the
+  // run is over by the time this screen exists so there is nothing on it to use.
+  // A class rather than `body:has(#loadoutSelect)`, so it cannot depend on :has support, and
+  // cleared in hide() so it cannot outlive the screen.
+  document.body.classList.add('lo-open');
 
   const upper = root.querySelector('#loUpper');
   const lower = root.querySelector('#loLower');
@@ -23060,7 +23270,7 @@ function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEn
   }
   render();
 
-  function hide() { root.remove(); }
+  function hide() { document.body.classList.remove('lo-open'); root.remove(); }
   const collect = () => Object.keys(selected).filter((n) => selected[n] > 0).map((n) => ({ name: n, count: selected[n] }));
   root.querySelector('#loConfirm').addEventListener('click', () => { const list = collect(); hide(); onConfirm && onConfirm(list); });
   return { hide, root };
@@ -24612,7 +24822,7 @@ const __m_main = (function () {
   const { CONFIG, MODE_TUNING, isRealtime, setMode, setGame, isCampaignGame, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
-  const { levelForNumber, allLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
+  const { levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
   const { infectDescendants, reachedThroughRot, stampCloudField } = __m_engine_threats;   // infectDescendants/reachedThroughRot are exposed on __game for threat-check; stampCloudField re-projects the clouds when a spent one finishes fading
@@ -25183,10 +25393,13 @@ function showDeathCarry(r) {
   // The note names the ONE thing that sets the allowance. It used to add "levels cleared", which
   // is no longer true (owner: only the store widens it), and before that repeated the baseline 3
   // that `store.carryCards` already contains.
+  // ONE HEADING, AND IT IS THE INSTRUCTION (owner). "Your deck for the next run" sat above
+  // "Choose N cards to keep" saying the same thing in the abstract, and the "(N from the Store)"
+  // note explained an allowance nobody had asked about. What is left is the sentence that tells
+  // the player what to do.
   const header =
-    `<h1 class="lo-h-title">Your deck for the next run</h1>` +
-    `<p class="lo-h-instr">Choose ${keep} cards${keepEng > 0 ? ` and ${keepEng} engine${keepEng > 1 ? 's' : ''}` : ''}` +
-      ` to keep <span class="lo-h-note">(${store.carryCards} from the Store)</span></p>`;
+    `<h1 class="lo-h-title">Choose ${keep} card${keep === 1 ? '' : 's'}` +
+      `${keepEng > 0 ? ` and ${keepEng} engine${keepEng > 1 ? 's' : ''}` : ''} to add to your next deck</h1>`;
   // Kick off the Top-10 CHECK now (in the background) so the prompt is ready the instant the
   // player leaves this screen — it shows AFTER Done, on the way to the picker, not here.
   //
@@ -25213,8 +25426,8 @@ function showDeathCarry(r) {
   showLoadoutSelect({
     drafted: pool, enginePool, fixed: [], maxPick: keep, maxEngines: keepEng, layout: 'death',
     header,
-    upperLabel: 'Your deck for the next run',
-    lowerLabel: 'Played, drafted and already owned — click to add',
+    upperLabel: 'Your deck',
+    lowerLabel: 'Cards from this run: click to add',
     emptyText: 'Nothing to keep — you played, drafted and owned no cards this run.',
     confirmText: 'Done',
     onConfirm: (picked) => { saveDeck(picked); afterDeath(hsPromise, backToPicker); },
@@ -25280,7 +25493,8 @@ function presentRunOver() {
       const canRetry = runLives > 0 && !!levelEntry;
       showDeathScreen({
         title, sub, spores: r.runSpores,
-        retryLabel: runLives > 0 ? 'Retry level · ' + runLives + ' left' : 'Retry level · none left',
+        // The COUNT is the sub-line under the button now, not part of its face.
+        retryNote: runLives > 0 ? runLives + ' remaining' : 'none left',
         retryOff: !canRetry,
         retryTitle: canRetry
           ? 'Play level ' + currentLevel + ' again with the cards and reserves you started it with'
@@ -25676,6 +25890,9 @@ function updateDevMapBtn() {
       panel._sig = sig;
       let lastGroup = null;
       panel.replaceChildren();
+      // Which of these are browser drafts rather than committed files — read once per rebuild,
+      // not once per row.
+      const savedIds = new Set(loadSavedLevels().map((l) => l.id));
       for (const l of maps) {
         // A saved map names its own group ("Chapter 1"); a generated one falls back to the
         // first word of its name, which is its theme. allLevels() puts saved maps first, so
@@ -25695,7 +25912,13 @@ function updateDevMapBtn() {
         // A saved map can be thrown away from here. Without this a mis-named save is stuck
         // in the list for the life of the browser profile, since nothing else can reach
         // localStorage from the game.
-        if (l.chapter) {
+        //
+        // THE TEST IS "IS IT REALLY IN localStorage", not "does it have a chapter". Those were
+        // the same thing only while every chaptered map was a browser draft — the moment one is
+        // COMMITTED to docs/levels (the owner's own Chapter 1 maps, once they hand one over) the
+        // chapter test puts a × on a file, and clicking it calls deleteSavedLevel on an id that
+        // was never in storage: a button that asks for confirmation and then does nothing.
+        if (savedIds.has(l.id)) {
           const x = document.createElement('span');
           x.className = 'dm-x'; x.textContent = '×'; x.title = 'Forget this saved map';
           x.onclick = (e) => {
@@ -26790,7 +27013,7 @@ function begin(newState) {
       // reason: a real death needs a chosen species and a lost run, and a check wants the screen.
       deathScreen: (o) => showDeathScreen(Object.assign({
         title: 'Your run has ended', sub: '', spores: 0,
-        retryLabel: 'Retry level · none left', retryOff: true,
+        retryNote: 'none left', retryOff: true,
         onKeep: () => {}, onRetry: () => {},
       }, o || {})),
       // The wallet and the roster. A probe needs to fund itself and name a species, and doing
