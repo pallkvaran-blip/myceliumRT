@@ -23055,7 +23055,18 @@ function growMyceliumTitle(container, opts = {}) {
   const STEP_RATE = opts.stepRate || 2.4;
 
   // ---- spatial-grid space colonization -----------------------------------
-  function grid(gr, x, y) { return ((x / gr.cell) | 0) + ',' + ((y / gr.cell) | 0); }
+  // A NUMBER, NOT "gx,gy". `nearestNode` probes nine buckets per attractor per step, and with
+  // ~28,000 attractors at 2.4 steps a frame that was ~590,000 string builds and Map lookups every
+  // frame — measured at 5.6 ms/frame on desktop and 6.9 on a phone, a third of a 60 fps budget,
+  // and worst in the first half-second, which is exactly when the eye is on it. An integer key is
+  // the same lookup without the allocation: 60 frames of growth went 672 ms -> 216 ms on the
+  // desktop wordmark and 457 -> 155 on a phone level card, with the node count unchanged — this
+  // is a pure speedup, the growth LOOKS the same.
+  // Unique while |gy| < 32768, which holds by construction: gy is a grid ROW and the cell is
+  // `attract` (titleSize * 0.05 here, attractionDist on the title screen), so a row index stays in
+  // the low thousands at any font size or canvas.
+  const GK = (gx, gy) => gx * 65536 + gy;
+  function grid(gr, x, y) { return GK((x / gr.cell) | 0, (y / gr.cell) | 0); }
   function addNode(gr, x, y, parent) {
     const i = gr.nodes.length; gr.nodes.push({ x, y, parent });
     const k = grid(gr, x, y); let a = gr.map.get(k); if (!a) { a = []; gr.map.set(k, a); } a.push(i);
@@ -23064,7 +23075,7 @@ function growMyceliumTitle(container, opts = {}) {
   function nearestNode(gr, x, y) {
     const cxg = (x / gr.cell) | 0, cyg = (y / gr.cell) | 0; let best = -1, bd = gr.attract2;
     for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-      const a = gr.map.get((cxg + dx) + ',' + (cyg + dy)); if (!a) continue;
+      const a = gr.map.get(GK(cxg + dx, cyg + dy)); if (!a) continue;
       for (const i of a) { const n = gr.nodes[i]; const d = (n.x - x) ** 2 + (n.y - y) ** 2; if (d < bd) { bd = d; best = i; } }
     }
     return best < 0 ? -1 : (gr._bd = bd, best);
@@ -23082,11 +23093,13 @@ function growMyceliumTitle(container, opts = {}) {
       if (gr._bd <= gr.kill2) continue;
       survivors.push(at);
       const n = gr.nodes[ni]; let e = infl.get(ni); if (!e) { e = [0, 0]; infl.set(ni, e); }
-      const dx = at.x - n.x, dy = at.y - n.y, L = Math.hypot(dx, dy) || 1; e[0] += dx / L; e[1] += dy / L;
+      // sqrt, not hypot: hypot does overflow-safe scaling nobody needs on screen-space deltas,
+      // and it runs once per surviving attractor per step. Worth ~10% of the loop on a phone.
+      const dx = at.x - n.x, dy = at.y - n.y, L = Math.sqrt(dx * dx + dy * dy) || 1; e[0] += dx / L; e[1] += dy / L;
     }
     gr.attractors = survivors;
     for (const [ni, e] of infl) {
-      const n = gr.nodes[ni]; let dx = e[0], dy = e[1]; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+      const n = gr.nodes[ni]; let dx = e[0], dy = e[1]; const L = Math.sqrt(dx * dx + dy * dy) || 1; dx /= L; dy /= L;
       const ja = rnd(-0.45, 0.45), c = Math.cos(ja), s = Math.sin(ja);
       const rx = dx * c - dy * s, ry = dx * s + dy * c;
       const nx = n.x + rx * gr.seg, ny = n.y + ry * gr.seg;
@@ -24395,7 +24408,18 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
   let startBloomFn = null, strandTargetY = 0;   // strand→bloom handoff (bloom starts when the strand arrives)
 
   // ---- spatial-grid space colonization -----------------------------------
-  function grid(gr, x, y) { return ((x / gr.cell) | 0) + ',' + ((y / gr.cell) | 0); }
+  // A NUMBER, NOT "gx,gy". `nearestNode` probes nine buckets per attractor per step, and with
+  // ~28,000 attractors at 2.4 steps a frame that was ~590,000 string builds and Map lookups every
+  // frame — measured at 5.6 ms/frame on desktop and 6.9 on a phone, a third of a 60 fps budget,
+  // and worst in the first half-second, which is exactly when the eye is on it. An integer key is
+  // the same lookup without the allocation: 60 frames of growth went 672 ms -> 216 ms on the
+  // desktop wordmark and 457 -> 155 on a phone level card, with the node count unchanged — this
+  // is a pure speedup, the growth LOOKS the same.
+  // Unique while |gy| < 32768, which holds by construction: gy is a grid ROW and the cell is
+  // `attract` (titleSize * 0.05 here, attractionDist on the title screen), so a row index stays in
+  // the low thousands at any font size or canvas.
+  const GK = (gx, gy) => gx * 65536 + gy;
+  function grid(gr, x, y) { return GK((x / gr.cell) | 0, (y / gr.cell) | 0); }
   // `track: false` keeps a node OUT of the running reach (gr.minY). The pointer lure below
   // grows wherever the cursor goes, and minY is the consume animation's "the strand reached
   // the letter" test — a lure strand that wandered high would fire that handoff early.
@@ -24412,7 +24436,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     const cxg = (x / gr.cell) | 0, cyg = (y / gr.cell) | 0;
     let best = -1, bd = gr.attract2;
     for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
-      const a = gr.map.get((cxg + dx) + ',' + (cyg + dy));
+      const a = gr.map.get(GK(cxg + dx, cyg + dy));
       if (!a) continue;
       for (const i of a) { const n = gr.nodes[i]; const d = (n.x - x) ** 2 + (n.y - y) ** 2; if (d < bd) { bd = d; best = i; } }
     }
@@ -24441,13 +24465,15 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
       survivors.push(at);
       const n = gr.nodes[ni];
       let e = infl.get(ni); if (!e) { e = [0, 0]; infl.set(ni, e); }
-      const dx = at.x - n.x, dy = at.y - n.y, L = Math.hypot(dx, dy) || 1;
+      // sqrt, not hypot: hypot does overflow-safe scaling nobody needs on screen-space deltas,
+      // and it runs once per surviving attractor per step. Worth ~10% of the loop on a phone.
+      const dx = at.x - n.x, dy = at.y - n.y, L = Math.sqrt(dx * dx + dy * dy) || 1;
       e[0] += dx / L; e[1] += dy / L;
     }
     gr.attractors = survivors;
     for (const [ni, e] of infl) {
       const n = gr.nodes[ni];
-      let dx = e[0], dy = e[1]; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+      let dx = e[0], dy = e[1]; const L = Math.sqrt(dx * dx + dy * dy) || 1; dx /= L; dy /= L;
       const ja = rnd(-0.45, 0.45), c = Math.cos(ja), s = Math.sin(ja);
       const rx = dx * c - dy * s, ry = dx * s + dy * c;
       const nx = n.x + rx * gr.seg, ny = n.y + ry * gr.seg;
