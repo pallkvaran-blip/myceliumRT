@@ -1922,6 +1922,7 @@
     {
       "id": 169,
       "round": 5,
+      "verdict": "no",
       "text": "The roots below the earth claim no rewards for making the branches fruitful.",
       "author": "Tagore",
       "work": "Stray Birds",
@@ -1932,6 +1933,7 @@
     {
       "id": 170,
       "round": 5,
+      "verdict": "yes",
       "text": "No tree, it is said, can grow to heaven unless its roots reach down to hell.",
       "author": "C. G. Jung",
       "work": "Aion",
@@ -1942,6 +1944,7 @@
     {
       "id": 171,
       "round": 5,
+      "verdict": "yes",
       "text": "Those who profess to favour freedom and yet deprecate agitation are men who want crops without ploughing up the ground.",
       "author": "Frederick Douglass",
       "year": 1857,
@@ -1951,6 +1954,7 @@
     {
       "id": 172,
       "round": 5,
+      "verdict": "no",
       "text": "The forest is the mother of the river, and nobody thanks a mother for the water.",
       "author": "folk saying",
       "theme": "ground",
@@ -1960,6 +1964,7 @@
     {
       "id": 173,
       "round": 5,
+      "verdict": "maybe",
       "text": "You cannot make the harvest come faster by pulling on the stalks.",
       "author": "farming proverb",
       "theme": "growth",
@@ -1969,6 +1974,7 @@
     {
       "id": 174,
       "round": 5,
+      "verdict": "no",
       "text": "The seed never sees the flower, and the flower never remembers the seed.",
       "author": "anonymous",
       "theme": "growth",
@@ -1978,6 +1984,7 @@
     {
       "id": 175,
       "round": 5,
+      "verdict": "no",
       "text": "A society grows great when old men plant trees whose shade they know they shall never sit in.",
       "author": "Greek proverb",
       "theme": "growth",
@@ -1987,6 +1994,7 @@
     {
       "id": 176,
       "round": 5,
+      "verdict": "no",
       "text": "It is the little things that make the difference; my little thing is planting trees.",
       "author": "Wangari Maathai",
       "year": 2004,
@@ -1996,6 +2004,7 @@
     {
       "id": 177,
       "round": 5,
+      "verdict": "maybe",
       "text": "The tree that fills a man's embrace grew from a tiny shoot; the tower of nine storeys rose from a heap of earth.",
       "author": "Lao Tzu, trans. Legge",
       "work": "Tao Te Ching",
@@ -2007,6 +2016,7 @@
     {
       "id": 178,
       "round": 5,
+      "verdict": "yes",
       "text": "A river cuts through rock not because of its power but because of its persistence.",
       "author": "attributed to Jim Watkins",
       "theme": "endurance",
@@ -2016,6 +2026,7 @@
     {
       "id": 179,
       "round": 5,
+      "verdict": "no",
       "text": "Water is soft and yielding, but water will wear away rock, which is rigid and cannot yield.",
       "author": "after Lao Tzu",
       "theme": "endurance",
@@ -2025,6 +2036,7 @@
     {
       "id": 180,
       "round": 5,
+      "verdict": "yes",
       "text": "The river is everywhere at once, at the source and at the mouth, and the present only exists for it.",
       "author": "Hermann Hesse",
       "work": "Siddhartha",
@@ -2035,6 +2047,7 @@
     {
       "id": 181,
       "round": 5,
+      "verdict": "no",
       "text": "Rivers know this: there is no hurry, we shall get there some day.",
       "author": "A. A. Milne",
       "work": "The House at Pooh Corner",
@@ -2045,6 +2058,7 @@
     {
       "id": 182,
       "round": 5,
+      "verdict": "yes",
       "text": "A rock pile ceases to be a rock pile the moment a single man contemplates it, bearing within him the image of a cathedral.",
       "author": "Saint-Exupery",
       "work": "Flight to Arras",
@@ -2055,6 +2069,7 @@
     {
       "id": 183,
       "round": 5,
+      "verdict": "yes",
       "text": "The impediment to action advances action. What stands in the way becomes the way.",
       "author": "Marcus Aurelius",
       "work": "Meditations",
@@ -2065,6 +2080,7 @@
     {
       "id": 184,
       "round": 5,
+      "verdict": "no",
       "text": "It is not because things are difficult that we do not dare; it is because we do not dare that things are difficult.",
       "author": "Seneca",
       "work": "Letters to Lucilius",
@@ -2075,6 +2091,7 @@
     {
       "id": 185,
       "round": 5,
+      "verdict": "yes",
       "text": "Great things are not done by impulse, but by a series of small things brought together.",
       "author": "Van Gogh",
       "year": 1882,
@@ -2084,6 +2101,7 @@
     {
       "id": 186,
       "round": 5,
+      "verdict": "yes",
       "text": "Although the world is full of suffering, it is also full of the overcoming of it.",
       "author": "Helen Keller",
       "work": "Optimism",
@@ -2094,6 +2112,7 @@
     {
       "id": 187,
       "round": 5,
+      "verdict": "yes",
       "text": "Everyone thinks of changing the world, but no one thinks of changing himself.",
       "author": "attributed to Tolstoy",
       "theme": "growth",
@@ -2103,6 +2122,7 @@
     {
       "id": 188,
       "round": 5,
+      "verdict": "no",
       "text": "When the winds of change blow, some build walls and others build windmills.",
       "author": "proverb",
       "theme": "growth",
@@ -2112,6 +2132,7 @@
     {
       "id": 189,
       "round": 5,
+      "verdict": "no",
       "text": "What the caterpillar calls the end of the world, the rest of the world calls a butterfly.",
       "author": "attributed to Lao Tzu",
       "theme": "death",
@@ -2121,6 +2142,7 @@
     {
       "id": 190,
       "round": 5,
+      "verdict": "yes",
       "text": "The oak fought the wind and was broken; the willow bent when it must and survived.",
       "author": "proverb",
       "theme": "endurance",
@@ -2130,6 +2152,7 @@
     {
       "id": 191,
       "round": 5,
+      "verdict": "yes",
       "text": "You never change things by fighting the existing reality; to change something, build a new model that makes the old one obsolete.",
       "author": "Buckminster Fuller",
       "year": 1970,
@@ -2139,6 +2162,7 @@
     {
       "id": 192,
       "round": 5,
+      "verdict": "maybe",
       "text": "Every new beginning comes from some other beginning's end.",
       "author": "after Seneca",
       "theme": "death",
@@ -2148,6 +2172,7 @@
     {
       "id": 193,
       "round": 5,
+      "verdict": "yes",
       "text": "It is not the mountain we conquer but ourselves, and the mountain does not notice either way.",
       "author": "after Edmund Hillary",
       "theme": "climb",
@@ -2157,6 +2182,7 @@
     {
       "id": 194,
       "round": 5,
+      "verdict": "no",
       "text": "A man who dares to waste one hour of time has not discovered the value of life.",
       "author": "Darwin",
       "year": 1836,
@@ -2166,6 +2192,7 @@
     {
       "id": 195,
       "round": 5,
+      "verdict": "yes",
       "text": "There is no such thing as a self-made anything; the ground did half of it and said nothing.",
       "author": "folk saying",
       "theme": "ground",
@@ -2175,6 +2202,7 @@
     {
       "id": 196,
       "round": 5,
+      "verdict": "yes",
       "text": "The mighty oak was once a nut that simply stood its ground; the difference is only in how long.",
       "author": "proverb",
       "theme": "endurance",
@@ -2184,6 +2212,7 @@
     {
       "id": 197,
       "round": 5,
+      "verdict": "no",
       "text": "What is the use of a house if you haven't got a tolerable planet to put it on?",
       "author": "Thoreau",
       "year": 1860,
@@ -2193,6 +2222,7 @@
     {
       "id": 198,
       "round": 5,
+      "verdict": "yes",
       "text": "The world breaks everyone, and afterward many are strong at the broken places.",
       "author": "Hemingway",
       "work": "A Farewell to Arms",

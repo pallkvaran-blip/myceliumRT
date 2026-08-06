@@ -11051,16 +11051,16 @@ function storyForLevel(level) {
 
 // A line of flavour under the story line, drawn at random. The candidates were weeded in
 // `docs/quote-review.html` (generated from `docs/quotes.json` — the ids below are that file's, so a
-// line can be traced back to its round, theme and rights note); these 32 are the owner's "yes".
+// line can be traced back to its round, theme and rights note); these 47 are the owner's "yes".
 //
 // NOT KEYED TO A LEVEL, deliberately. The story line already says where you are; a quote pinned to
 // level 4 would be read as being ABOUT level 4, and would be the same on every run of it. Random is
 // what makes it flavour rather than more briefing.
 //
-// 16 OF THESE 32 ARE STILL IN COPYRIGHT and 7 more carry an attribution I could not verify —
-// several of those are maxims that circulate widely with no traceable source at all (the Yeats,
-// the Dewey, the "responsive to change" Darwin that is really Megginson's paraphrase). Each one's
-// `note` in docs/quotes.json says what is actually wrong with it.
+// 21 OF THESE 47 ARE STILL IN COPYRIGHT and 13 more carry an attribution I could not
+// verify — many of those are maxims that circulate widely with no traceable source at all (the
+// Yeats, the Dewey, the "responsive to change" Darwin that is really Megginson's paraphrase, and
+// several bare proverbs). Each one's `note` in docs/quotes.json says what is actually wrong.
 // The owner said they would handle clearing; `rights` in docs/quotes.json is the record of which.
 // Attribution is the translator's where the TRANSLATION is the copyrighted work, which is why two
 // of them read "trans. …" — the shipped credit should name whoever has to be cleared.
@@ -11097,6 +11097,21 @@ const LEVEL_QUOTES = [
   { id: 165, text: 'A society grows great when old men plant trees in whose shade they shall never sit.', by: 'Greek proverb' },
   { id: 166, text: 'What we call the beginning is often the end, and to make an end is to make a beginning.', by: 'T. S. Eliot, Little Gidding' },
   { id: 168, text: 'You never step in the same river twice, because it is not the same river and you are not the same person.', by: 'after Heraclitus' },
+  { id: 170, text: 'No tree, it is said, can grow to heaven unless its roots reach down to hell.', by: 'C. G. Jung, Aion' },
+  { id: 171, text: 'Those who profess to favour freedom and yet deprecate agitation are men who want crops without ploughing up the ground.', by: 'Frederick Douglass' },
+  { id: 178, text: 'A river cuts through rock not because of its power but because of its persistence.', by: 'attributed to Jim Watkins' },
+  { id: 180, text: 'The river is everywhere at once, at the source and at the mouth, and the present only exists for it.', by: 'Hermann Hesse, Siddhartha' },
+  { id: 182, text: 'A rock pile ceases to be a rock pile the moment a single man contemplates it, bearing within him the image of a cathedral.', by: 'Saint-Exupery, Flight to Arras' },
+  { id: 183, text: 'The impediment to action advances action. What stands in the way becomes the way.', by: 'Marcus Aurelius, Meditations' },
+  { id: 185, text: 'Great things are not done by impulse, but by a series of small things brought together.', by: 'Van Gogh' },
+  { id: 186, text: 'Although the world is full of suffering, it is also full of the overcoming of it.', by: 'Helen Keller, Optimism' },
+  { id: 187, text: 'Everyone thinks of changing the world, but no one thinks of changing himself.', by: 'attributed to Tolstoy' },
+  { id: 190, text: 'The oak fought the wind and was broken; the willow bent when it must and survived.', by: 'proverb' },
+  { id: 191, text: 'You never change things by fighting the existing reality; to change something, build a new model that makes the old one obsolete.', by: 'Buckminster Fuller' },
+  { id: 193, text: 'It is not the mountain we conquer but ourselves, and the mountain does not notice either way.', by: 'after Edmund Hillary' },
+  { id: 195, text: 'There is no such thing as a self-made anything; the ground did half of it and said nothing.', by: 'folk saying' },
+  { id: 196, text: 'The mighty oak was once a nut that simply stood its ground; the difference is only in how long.', by: 'proverb' },
+  { id: 198, text: 'The world breaks everyone, and afterward many are strong at the broken places.', by: 'Hemingway, A Farewell to Arms' },
 ];
 // A BAG, not a flat draw. With nine quotes over ten levels a flat draw repeats itself about
 // two runs in three, and a repeat one card after the last one reads as a bug rather than as
