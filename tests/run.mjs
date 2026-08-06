@@ -33,6 +33,7 @@ const CHECKS = [
   ['store',     'store-check.cjs',   35,  false],
   ['rate',      'rate-check.cjs',    40,  false],
   ['cele',      'cele-check.cjs',    35,  false],
+  ['cardtool',  'card-tool-check.cjs', 45, false],
   ['campaign',  'campaign-check.cjs', 45, false],
   ['water',     'water-check.cjs',   30,  false],
   ['surface',   'surface-edit-check.cjs', 30, false],

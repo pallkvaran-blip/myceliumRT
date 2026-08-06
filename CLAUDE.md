@@ -597,7 +597,7 @@ passes the cascade half** just as "claims everything" passes the forgiveness hal
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**34 checks registered in `run.mjs`**, roughly 1920 assertions, of which `traced` is 818 (one map's
+**35 checks registered in `run.mjs`**, roughly 1955 assertions, of which `traced` is 818 (one map's
 worth each). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -1681,6 +1681,49 @@ Available where there should have been 3.
   bonnet is real at the GROUP level (several *Mycena* relatives hunt and digest nematodes) but not for
   this newly-described species specifically, so the blurb keeps it at that level. Worth knowing before
   anyone "corrects" either one.
+
+## The card tool: costs and descriptions for every card in the game
+
+**`docs/card-tool.html`, GENERATED — `node scripts/gen-card-tool.mjs`; applied back with
+`node scripts/apply-cards.mjs <file.json>`.** Same two-script shape as the roster tool, and for the
+same reason: `docs/card-review.html` (the separate card-TIMING review) has had exported decisions
+nobody applied for months, because "export JSON" and "hand-edit a 30k-line file" are not the same
+distance apart. One row per card: art, the four costs, the description, the ledger line, opening
+copies. Don't hand-edit the page.
+
+- **"ACTIVE" IS `!isArchived(name) && EFFECTS[name]` — 61 of CARD_DATA's 71**, the other 10 being
+  the `ARCHIVED` set. The generator reads `index.html` as TEXT and cannot run the module, so it
+  reconstructs that set from **three shapes**: the EFFECTS literal's own keys (32), the
+  `EFFECTS['X'] =` assignments after it (35), and the `DRAW_ENGINES` loop (4). **A fourth shape
+  would drop cards from the page with nothing to notice it by**, so `__game.cards.active()` is the
+  live answer and `card-tool-check` compares the two.
+- **EVERY CARD LISTS THE `CONFIG.cards` KNOBS ITS EFFECT READS** (26 of the 61 read one), with the
+  current value, editable. This is the "a description edit may mean a function change" half and it
+  is usually not code: the effect functions take their numbers from `s.config.cards.*`, so
+  "Grow 2 steps" IS `foodSeekSteps` and "6 steps" IS `reachSegments`. Extracted by slicing each
+  EFFECTS entry key-to-next-key and grepping `config\.cards\.(\w+)`. Where a rewrite needs
+  behaviour no knob covers there is a per-card **note**, which `apply-cards` reports and
+  deliberately does NOT apply — that is a code change and a human's job.
+- **The page previews the real-time rewrite as you type.** Card text is authored in ROUNDS and
+  rewritten at display time by `timeify`, so "every 6 rounds" ships as "every 60s". The check runs
+  the page's copy and the game's own over all **97 shipped strings** (52 of which change), because
+  a preview that drifts from the real one is worse than none — it is the thing being trusted while
+  the words are written.
+- **A live pool summary sits above the rows** — per pool, the card count and each cost's median,
+  max and a bar-per-card curve — and it is derived on every render, so an edit is visible against
+  the whole pool it lands in. Asserted: type 7 into a Basic card's Water and Basic's "max 2"
+  becomes "max 7". Baked-at-generation numbers would look like the edit had done nothing.
+- **`apply-cards` rewrites the WHOLE CARD_DATA block**, which is safe only because it round-trips
+  byte-identically through `JSON.stringify(arr, null, 1)` — verified, and re-checked at write time
+  so a formatting change refuses rather than reformatting 71 entries. It re-parses the RESULT and
+  compares field by field before replacing the file. Seven refusals are asserted, and the one worth
+  knowing is **rename**: the card NAME is the key that EFFECTS, the species hands, the art
+  filenames and every saved deck all join on, so it is not a field this script writes.
+- **It moves the number and cannot move the comment beside it**, which in this file is usually the
+  reasoning (`foodSeekSteps: 2, // …buffed 1→2`). So it PRINTS the stale comment and asks for a
+  hand fix rather than leaving a knob whose comment argues for the value it no longer holds.
+- Art is inlined as 96px data URIs (224 KB page) because the Artifact CSP blocks every external
+  request — a relative `assets/cards/x.jpg` renders as nothing. `--no-art` skips it.
 
 ## The roster tool: colonies, starting hands, prices and the opening three
 
