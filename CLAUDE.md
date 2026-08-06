@@ -597,8 +597,8 @@ passes the cascade half** just as "claims everything" passes the forgiveness hal
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**44 checks registered in `run.mjs`**, roughly 2470 assertions, of which `traced` is 818 (one map's
-worth each). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
+**44 checks registered in `run.mjs`**, roughly 2840 assertions, of which `traced` is 1190 (one map's
+worth each, 76 maps). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
 ```bash
@@ -607,14 +607,17 @@ node tests/run.mjs --fast    # skip rt/tut/lure (~25 min — `traced` alone is ~
 node tests/run.mjs hs lure   # by name
 ```
 
-**The last measured FULL sweep: 2208 passed, 7 failed** — six are known standing map-data
-failures (`ice-c24` and `side-biolum-c20-2` on channel clearance, `rust-c110` / `rust-c40` /
-`side-veined-c28` / `side-biolum-c20-2` on density; all in Loose ends). The seventh is REAL and
-open: `campaign-10-ember-c30-5: every food cell is reachable — 2 of 61 sealed off`, a genuine
-sealed pocket on campaign level 9 (two food objects at ~(1388,642) and ~(1358,567) enclosed by
-boulders R004/R012/R001/R030; `auditRocks` reports `holing: 0`, so the rock is honest — the food
-is simply walled in). The owner's call: move the food or move a boulder. Everything since has
-been verified on SUBSETS scaled to the
+**The last measured FULL `traced`: 1190 passed, 7 failed across all 76 maps** — six are known
+standing map-data failures (`ice-c24` and `side-biolum-c20-2` on channel clearance, `rust-c110` /
+`rust-c40` / `side-veined-c28` / `side-biolum-c20-2` on density; all in Loose ends). The seventh
+is REAL and open: `campaign-10-ember-c30-5: every food cell is reachable — 10 of 105 sealed off`,
+a genuine sealed pocket on campaign level 9; `auditRocks` reports `holing: 0`, so the rock is
+honest and the food is simply walled in. The owner's call: move the food or move a boulder.
+**None of the seven is a survival map** — the 17 are 245/245.
+(The ember count reads 10 of 105 rather than the 2 of 61 recorded earlier because `traced` boots
+TURN-BASED now: nothing eats the food while it is being counted, so the number is the map's rather
+than whichever tick the probe landed on.)
+Everything else has been verified on SUBSETS scaled to the
 change, which is the recommended gear — the most recent runs, each 0 failed:
 
 | subset | result |
@@ -626,7 +629,7 @@ change, which is the recommended gear — the most recent runs, each 0 failed:
 | handoff · lure · boot · hs · store · campaign · tut · ingame · hover · tutscript | **309 passed** (the menu → run handoff set, ~5 min) |
 | survival · level · core · mode · campaign · hs · store · handoff · sky · ants · ctreats · challenge | see the survival section (the authored-survival set) |
 
-Per-check, measured: traced 818 · edit 118 · threat 114 · rt 69 · campaign 66 · enemy 52 ·
+Per-check, measured: traced 1190 (76 maps) · edit 118 · threat 114 · rt 69 · campaign 66 · enemy 52 ·
 challenge 50 · sky 45 · mode 39 · species 38 · ctreats 31 · harvest 28 · level 27 · scale 26 ·
 ants 22 · fixes 27 · mould 20 · hs 19 · tut 19 · boot 16 · core 16 · cascade 16 · review 13 ·
 water 11 · surface 11 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
@@ -2722,7 +2725,12 @@ death was firing; the screen was lying about it.
   `side-biolum-c20-2` on density (61.9-64.9% solid, and 7.9% at the other extreme). This is MAP
   DATA, not engine: the maps want re-tracing at a different count or dropping from the
   shortlist, and `rust` only ever converted at c90 (see Generated maps). Every sweep reports
-  them; nothing else in `traced`'s 818 fails.
+  them; nothing else in `traced`'s 1190 fails except the ember pocket below.
+- **`campaign-10-ember-c30-5` has a REAL sealed food pocket** — 10 of its 105 food cells are
+  walled in by boulders, on campaign level 9. `auditRocks` reports `holing: 0`, so the rock is
+  honest; the food is simply enclosed. Awaiting the owner's call: move the food or move a boulder.
+  With a fixed campaign seed this is unwinnable food for everyone, forever, where a procedural
+  roll would be gone next run.
   - **A SEVENTH turned up and was the HARNESS RACING THE WORLD CLOCK.**
     `campaign-10-ember-c30-5: every food cell is reachable — 2 of 61 sealed off` looked like map
     data and was not: **`#level,<id>` boots REAL TIME**, so the sim starts ticking the moment the
