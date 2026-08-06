@@ -35,6 +35,7 @@ const CHECKS = [
   ['cele',      'cele-check.cjs',    35,  false],
   ['cardtool',  'card-tool-check.cjs', 45, false],
   ['cardrules', 'card-rules-check.cjs', 40, false],
+  ['telem',     'telemetry-check.cjs', 60, false],
   ['campaign',  'campaign-check.cjs', 45, false],
   ['water',     'water-check.cjs',   30,  false],
   ['surface',   'surface-edit-check.cjs', 30, false],

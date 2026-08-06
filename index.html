@@ -12137,11 +12137,34 @@ async function submitGlobalScore({ name, level, species, speciesName, mode }) {
 // players + returns) and a per-page-load session id. Best-effort + fire-and-forget;
 // every failure is swallowed. Needs the `events` table + RLS (docs/leaderboard-setup.md);
 // until it exists these POSTs just 404 harmlessly. Events:
-//   run_start  {species, level}          — a run begins at the picker
-//   level_clear{species, level}          — a level was cleared
-//   run_end    {species, level, cause, turns} — cause: 'won' | (a death cause:
-//              'water' | 'energy' | 'nocards' | 'infected' | 'devoured' | 'abandon')
-//   purchase   {species}                 — a species was unlocked with Spores
+//   boot        {ms}                      — the page is playable. THE DENOMINATOR: every rate
+//                                           worth knowing is "of everyone who loaded it, how
+//                                           many …", and without this the numerator has nothing
+//                                           to divide by.
+//   picker      {}                        — the species-selection screen was opened
+//   run_start   {species, level, cause}   — cause: 'new' | 'resume' | 'retry'. It used to fire
+//                                           ONLY from the picker, so resumed runs ended without
+//                                           ever having started and the two never balanced.
+//   level_start {species, level}
+//   level_clear {species, level, turns, ms}
+//   retry       {species, level, n}       — n = retries left after this one
+//   run_end     {species, level, cause, turns, n} — cause: 'won' | a death cause ('water' |
+//                                           'energy' | 'nocards' | 'infected' | 'devoured') |
+//                                           'abandon'. n = Spores banked by the run.
+//   tutorial    {detail, n}               — detail: 'start' | 'step' | 'done' | 'skip'; n = step
+//   rate        {detail}                  — detail: 'shown' | 'press' | 'decline'
+//   purchase    {species, n}              — a species was unlocked with Spores; n = price
+//   upgrade     {detail, n, level}        — a store track was bought; level = its new step
+//   deck        {n}                       — cards carried out of a run
+//   draft       {detail, n}               — a card was taken from a draft; n = offer size
+//   session_end {ms, n}                   — ms = session length, n = runs finished in it
+//   perf        {ms, n, cause, device}    — median frame cost and the pixel budget behind it
+//   unlock_rock {species, level}
+//
+// EVERY event also carries `game` (campaign | survival), `mode` (turn | realtime) and `device`
+// (phone | tablet | desktop), attached automatically rather than at each call site. Without the
+// first two a campaign run and a survival run are the same row, and every rate computed over the
+// table is an average across two different games with different lengths.
 const EVENTS_REST = () => cfg().url.replace(/\/+$/, '') + '/rest/v1/events';
 const CLIENT_KEY = 'mycelium.clientid.v1';
 function uuid() {
@@ -12182,27 +12205,95 @@ function postEvent(body) {
   return fetchT(EVENTS_REST(), { method: 'POST', headers: headers({ Prefer: 'return=minimal' }), body: JSON.stringify(body), keepalive: true }, 3000);
 }
 
+// WHAT KIND OF SCREEN IS THIS? Bucketed from the VIEWPORT, not from the user-agent: a UA string
+// lies (desktop-mode phones, in-app browsers), needs constant maintenance, and is the part of a
+// device fingerprint worth avoiding. The shorter edge is the honest axis — a phone held either way
+// still has one — and a coarse pointer separates a small laptop window from an actual tablet.
+function deviceClass() {
+  try {
+    const w = window.innerWidth || 0, h = window.innerHeight || 0;
+    if (!w || !h) return 'unknown';
+    const short = Math.min(w, h), long = Math.max(w, h);
+    let coarse = false;
+    try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (_) {}
+    if (short < 500 || (coarse && long < 900)) return 'phone';
+    if (coarse && long < 1400) return 'tablet';
+    return 'desktop';
+  } catch (_) { return 'unknown'; }
+}
+
+// THE COLUMNS THE ORIGINAL TABLE HAD. Anything outside this set is an addition that a Supabase
+// project may not have migrated yet, and PostgREST rejects the WHOLE row on one unknown column
+// (PGRST204) — so a build that ships ahead of its migration would go completely dark rather than
+// degrade. `_slim` latches on the first 400 and every later event posts the old shape directly:
+// one wasted request per session at worst, instead of doubling every single one.
+const EVENT_BASE_COLS = ['client_id', 'session_id', 'kind', 'species', 'level', 'cause', 'turns'];
+let _slimEvents = false;
+const slimRow = (row) => {
+  const out = {};
+  for (const k of EVENT_BASE_COLS) if (row[k] !== undefined) out[k] = row[k];
+  return out;
+};
+// Where the game reads its own context from. Set once by main so telemetry doesn't have to reach
+// across modules for CONFIG — and so a check can pin it. Returns { game, mode }.
+let _eventCtx = () => ({});
+const setEventContext = (fn) => { _eventCtx = (typeof fn === 'function') ? fn : (() => ({})); };
+
+// A TAP ON THE STREAM, so the funnel can be asserted without a Supabase project behind it —
+// `scoresEnabled()` is false in every check (they explicitly blank the key), which is exactly the
+// state in which nothing would otherwise be observable. The tap sees the row that WOULD be posted
+// and runs before that gate for the same reason.
+let _eventTap = null;
+const setEventTap = (fn) => { _eventTap = (typeof fn === 'function') ? fn : null; };
+// Build the row one event would post. Split out so the TAP and the POST can never describe
+// different things — a tap that reconstructed the row itself would drift the first time a field
+// was clamped differently, and the tap is what every check reads.
+function buildEventRow(kind, fields) {
+  const f = fields || {};
+  const row = { client_id: clientId(), session_id: sessionId(), kind: String(kind).slice(0, 24) };
+  if (f.species != null) row.species = String(f.species).slice(0, 32);
+  if (f.level != null) row.level = f.level | 0;
+  if (f.cause != null) row.cause = String(f.cause).slice(0, 16);
+  if (f.turns != null) row.turns = f.turns | 0;
+  // The added columns. `game`/`mode`/`device` ride on EVERY event rather than being passed at
+  // each call site — a call site that forgets one produces a row nobody can group by, and there
+  // are twenty of them.
+  const ctx = (() => { try { return _eventCtx() || {}; } catch (_) { return {}; } })();
+  const full = Object.assign({ source: eventSource() }, row);
+  if (ctx.game != null) full.game = String(ctx.game).slice(0, 16);
+  if (ctx.mode != null) full.mode = String(ctx.mode).slice(0, 16);
+  full.device = deviceClass();
+  // Three generic carriers rather than a column per feature: `n` counts (steps, spores, cards,
+  // retries), `ms` durations, `detail` names the thing (an upgrade track, a card, a step).
+  if (f.n != null && isFinite(f.n)) full.n = Math.max(-2147483647, Math.min(2147483647, Math.round(f.n)));
+  if (f.ms != null && isFinite(f.ms)) full.ms = Math.max(0, Math.min(2147483647, Math.round(f.ms)));
+  if (f.detail != null) full.detail = String(f.detail).slice(0, 32);
+  if (f.device != null) full.device = String(f.device).slice(0, 16);   // perf reports its own
+  return full;
+}
+
 // Fire-and-forget one event. Returns nothing; never throws.
 function logEvent(kind, fields) {
+  let full = null;
+  try { full = buildEventRow(kind, fields); } catch (_) { return; }
+  if (_eventTap) { try { _eventTap(full); } catch (_) {} }
   if (!scoresEnabled()) return;
   try {
-    const f = fields || {};
-    const row = { client_id: clientId(), session_id: sessionId(), kind: String(kind).slice(0, 24) };
-    if (f.species != null) row.species = String(f.species).slice(0, 32);
-    if (f.level != null) row.level = f.level | 0;
-    if (f.cause != null) row.cause = String(f.cause).slice(0, 16);
-    if (f.turns != null) row.turns = f.turns | 0;
-    // `source` is the newest column. If the migration that adds it hasn't run yet, PostgREST
-    // 400s the whole row (PGRST204, unknown column) — so on a 400 retry ONCE without source,
-    // and telemetry never goes dark during the rollout. Once the column exists the first POST
-    // succeeds and there's no retry. Order of deploy vs migration stops mattering.
-    postEvent(Object.assign({ source: eventSource() }, row))
-      .then((r) => { if (r && !r.ok && r.status === 400) postEvent(row).catch(() => {}); })
+    if (_slimEvents) { postEvent(slimRow(full)).catch(() => {}); return; }
+    postEvent(full)
+      .then((r) => { if (r && !r.ok && r.status === 400) { _slimEvents = true; postEvent(slimRow(full)).catch(() => {}); } })
       .catch(() => {});
   } catch (_) { /* never let telemetry break the game */ }
 }
 
-  return { scoresEnabled, fetchGlobalBoards, submitGlobalScore, classifySource, logEvent };
+// EXPOSED FROM HERE RATHER THAN FROM `__game`, and that is not a style choice: `__game` is
+// assigned inside `begin()`, i.e. once a RUN starts, and `boot` fires long before any run exists.
+// A tap that could only be armed after the game object appeared could never see the one event the
+// whole funnel divides by — which is exactly how the first version of this failed, silently, with
+// every other assertion passing.
+try { window.__telemetry = { tap: setEventTap, device: deviceClass, log: logEvent }; } catch (_) {}
+
+  return { scoresEnabled, fetchGlobalBoards, submitGlobalScore, classifySource, logEvent, setEventContext, setEventTap, deviceClass };
 })();
 
 // ===================== src/engine/rng.js =====================
@@ -23607,7 +23698,9 @@ function upgradeTile(u, progress, onBuy) {
           SPORE_ICON + '<span class="ss-buyn">' + cost + '</span></button>') +
     '</div>';
   const btn = node.querySelector('.ss-upg-btn');
-  if (btn && afford) btn.addEventListener('click', () => { if (buyUpgrade(u.id).ok) onBuy && onBuy(u); });
+  // The PRICE goes to the caller too — `cost` is the next step's price and is only in scope
+  // here; the upgrade object carries a ladder, not the rung just climbed.
+  if (btn && afford) btn.addEventListener('click', () => { if (buyUpgrade(u.id).ok) onBuy && onBuy(u, cost); });
   return node;
 }
 
@@ -23702,6 +23795,7 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
       rateBox.innerHTML = '<p class="ss-rate-msg ss-rate-thanks">Thank you! Your spores will be doubled.</p>';
       return;
     }
+    logEvent('rate', { detail: 'shown' });
     rateBox.innerHTML =
       '<p class="ss-rate-msg">Are you enjoying Mycelium? Please consider rating us on itch.io'
         + ' — we\'ll double the spores you get from your next run!</p>'
@@ -23710,6 +23804,7 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
         + '<button class="ss-rate-no" id="ssRateNo" type="button">No thanks</button>'
       + '</span>';
     rateBox.querySelector('#ssRateNo').addEventListener('click', () => {
+      logEvent('rate', { detail: 'decline' });
       dismissRate();
       progress = loadProgress();
       renderRate();
@@ -23717,6 +23812,7 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
     rateBox.querySelector('#ssRateBtn').addEventListener('click', () => {
       // The anchor still opens the page; this only records the promise. Pressing IS the rating as
       // far as the game can tell — itch tells us nothing back.
+      logEvent('rate', { detail: 'press' });
       markRated();
       progress = loadProgress();
       rateThanksNow = true;
@@ -23760,11 +23856,17 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
     const sale = storeSpecies().filter((s) => !isPlayable(s, progress));
     for (const s of sale) {
       saleGrid.appendChild(speciesSlot(s, { cost: storeSpeciesCost(s), balance: bal, onRead: read,
-        onBuy: (sp) => { if (purchaseStoreSpecies(sp).ok) { logEvent('purchase', { species: sp.id }); refresh(); } } }));
+        onBuy: (sp) => { if (purchaseStoreSpecies(sp).ok) { logEvent('purchase', { species: sp.id, n: storeSpeciesCost(sp.id) }); refresh(); } } }));
     }
     saleSec.style.display = sale.length ? '' : 'none';
     upgGrid.innerHTML = '';
-    for (const u of STORE_UPGRADES) upgGrid.appendChild(upgradeTile(u, progress, refresh));
+    // WHICH TRACK PEOPLE BUY, AND WHEN. The store is the retention loop and nothing measured it:
+    // a track nobody ever buys is priced wrong, and you cannot tell that from the wallet total.
+    // `level` carries the step they just bought (its new level), so the ladder is readable.
+    for (const u of STORE_UPGRADES) upgGrid.appendChild(upgradeTile(u, progress, (bought, paid) => {
+      if (bought) logEvent('upgrade', { detail: bought.id, level: upgradeLevel(bought.id), n: paid || 0 });
+      refresh();
+    }));
   }
   // One re-read of progress after any purchase: a buy moves the wallet, the pips, which
   // section a colony sits in AND whether every other button is still affordable, so
@@ -25148,7 +25250,7 @@ function startTutorial(deps) {
   pop.addEventListener('click', stopEvt);
   catcher.addEventListener('click', () => next());
   btnNext.addEventListener('click', (e) => { e.stopPropagation(); next(); });
-  btnEnd.addEventListener('click', (e) => { e.stopPropagation(); finish(); });
+  btnEnd.addEventListener('click', (e) => { e.stopPropagation(); finish('skip'); });
   const onKey = (e) => { if (!alive) return; if (e.key === 'Escape') finish(); };
   document.addEventListener('keydown', onKey);
 
@@ -25244,18 +25346,24 @@ function startTutorial(deps) {
     // demo gesture
     demo.style.display = step.demo ? '' : 'none';
     if (step.onEnter) step.onEnter(deps.getState(), mem);
+    if (deps.onStep) { try { deps.onStep(idx, steps.length); } catch (_) {} }
     layout();
   }
 
   function next() {
     if (!alive) return;
-    if (idx >= steps.length - 1) { finish(); return; }
+    if (idx >= steps.length - 1) { finish('done'); return; }
     enter(idx + 1);
   }
 
-  function finish() {
+  // `why` is 'done' (walked to the end) or 'skip' (the End button). Telemetry needs the two
+  // apart — a walkthrough everyone skips and one everyone finishes look identical without it —
+  // and `destroy()` passes neither, because a tutorial torn down by a level change is not a
+  // player decision and must not be counted as one.
+  function finish(why) {
     if (!alive) return;
     alive = false;
+    if (why && deps.onEnd) { try { deps.onEnd(why, idx, steps.length); } catch (_) {} }
     clearGlow();
     if (deps.setSightFlash) deps.setSightFlash(false);
     deps.setHandOpen(true);   // always leave the hand carousel maximized afterward
@@ -25936,7 +26044,7 @@ const __m_main = (function () {
   const { showLoading } = __m_render_loading;
   const { showHighScores, checkHighScore, recordHighScore } = __m_render_highscores;
   const { loadPlayerName, savePlayerName } = __m_highscores;
-  const { logEvent } = __m_net_scores;
+  const { logEvent, setEventContext, setEventTap, deviceClass } = __m_net_scores;
   const { showCredits } = __m_render_credits;
   const { CARD_DATA } = __m_cards_data;
 // =============================================================================
@@ -26243,6 +26351,9 @@ function stockRun() {
 function retryLevel() {
   if (runLives <= 0 || !levelEntry) return false;
   runLives--;
+  // A RETRY IS AN ATTEMPT. Without this a level beaten on the third go is indistinguishable from
+  // one beaten first time, which is exactly the difficulty signal a launch is looking for.
+  logEvent('retry', { species: chosenSpecies && chosenSpecies.id, level: currentLevel, n: runLives });
   // Nothing to undo: the death's half-payout is no longer banked when the player dies, only when
   // they end the run (the death screen's "End run" button). A retry simply never pays it.
   const r = state && state.runResult;
@@ -26282,6 +26393,7 @@ function showPicker() {
   // so a boon merely 'armed' (pressed Rate, no run yet) survives every visit to this screen.
   endRunSpores();
   runSporeMult = 1;
+  logEvent('picker', {});   // reached the screen a run is started from — the funnel's second step
   hideCanvas();      // never let a finished run's map show behind the picker
   playMenuMusic();   // vol29 keeps playing (or starts) across the title → picker
   showSpeciesSelect({
@@ -26289,7 +26401,7 @@ function showPicker() {
     // hash, which skips the picker — now the dev map buttons below set it from inside the
     // picker, and levelDefFor() prefers it over every campaign slot, so leaving it set
     // would silently serve the authored map for the rest of the session.
-    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores(); stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
+    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores(); stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel, cause: 'new' }); startRunWithLoadout(sp); },
     onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores(); startRun(); },
     // DEV: play an authored map with the dev loadout — the same thing `#level,<id>` does,
     // reachable without retyping the URL.
@@ -26482,6 +26594,9 @@ function buildResumeSnapshot() {
   };
   return snap;
 }
+// When the current level began, in wall clock — telemetry's `ms` on level_clear. Module-scoped
+// like everything else here because `begin()` rebuilds `state` under it.
+let _levelStartedAt = 0, _levelStartTurn = 0;
 // The current level's opening state, and the retries left in this run. Both module-scoped
 // because both must survive a level transition, which rebuilds `state`.
 let levelEntry = null;
@@ -26622,7 +26737,13 @@ function showDeathCarry(r) {
     emptyText: 'Nothing to keep — you played, drafted and owned no cards this run.',
     confirmText: 'Done',
     // ...into the bucket of the colony just PLAYED, which is the same one its allowance came from.
-    onConfirm: (picked) => { saveDeck(picked, deckBucketFor(memSp)); afterDeath(hsPromise, backToPicker); },
+    onConfirm: (picked) => {
+      // HOW BIG A DECK PEOPLE ACTUALLY CARRY. The allowance is bought in the store, so "did the
+      // Memory upgrade change anything?" is this number against `upgrade` rows — and a player who
+      // keeps nothing is a different problem from one who cannot keep enough.
+      logEvent('deck', { n: (picked || []).length, level: currentLevel });
+      saveDeck(picked, deckBucketFor(memSp)); afterDeath(hsPromise, backToPicker);
+    },
   });
 }
 
@@ -26671,7 +26792,12 @@ function presentRunOver() {
       // half this death is worth. "Collected so far" is the honest word for a figure the player
       // is holding rather than one they have been given.
       r.runSpores = runSpores + (r._pendingSpores || 0);
-      if (r.died) logEvent('run_end', { species: chosenSpecies && chosenSpecies.id, level: currentLevel, cause: r.cause || 'died', turns: (state && state.turn) });
+      // EVERY ENDING, and it used to be deaths only on this path — an abandon carries `died`
+      // so it arrived, but the shape was "if it died". `n` is the Spores the run banked, which is
+      // what makes the economy readable: earned against spent, per run, per game.
+      if (r.died) { _sessionRuns++; logEvent('run_end', { species: chosenSpecies && chosenSpecies.id,
+        level: currentLevel, cause: r.cause || 'died', turns: (state && state.turn),
+        n: Math.round(r.runSpores || 0) }); }
     }
     // High score: a run ends on death — if the LEVEL reached cracks the monthly/all-time
     // top 10 (global board when configured, else local), record it automatically under the
@@ -26982,7 +27108,11 @@ function drawWinCelebration(time) {
 
 function onLevelWon() {
   const cleared = currentLevel;
-  logEvent('level_clear', { species: chosenSpecies && chosenSpecies.id, level: cleared });
+  // HOW LONG A LEVEL TOOK, both ways: `turns` is player actions (the game's own clock, and the
+  // only one that means anything in turn-based) and `ms` is wall clock (the one that says whether
+  // a level OUTSTAYS ITS WELCOME). Neither substitutes for the other.
+  logEvent('level_clear', { species: chosenSpecies && chosenSpecies.id, level: cleared,
+    turns: state && state.turn, ms: _levelStartedAt ? Date.now() - _levelStartedAt : null });
   const prev = loadProgress();
   // One species revealed per clear, in tier order — but only announced if the selection screen
   // can actually offer it. The old tier ROWS are gone (the campaign's roster is the opening three
@@ -27008,7 +27138,9 @@ function onLevelWon() {
   // the threat curve now. A dev/playtest run has no ladder to finish, so it never wins here.
   if (campaignRun() ? cleared >= CAMPAIGN_LEVELS : cleared >= MAX_LEVEL) {
     clearResume();   // whole campaign won — no level left to continue
-    logEvent('run_end', { species: chosenSpecies && chosenSpecies.id, level: cleared, cause: 'won', turns: state && state.turn });
+    _sessionRuns++;
+    logEvent('run_end', { species: chosenSpecies && chosenSpecies.id, level: cleared, cause: 'won',
+      turns: state && state.turn, n: Math.round(runSpores || 0) });
     showGameWon({ spores: runSpores, balance, onNewRun: () => runEndThen(backToPicker) });
   } else {
     const snap = snapshotCarry();
@@ -27073,6 +27205,10 @@ function showMainMenu() {
         runSporeMult = runSporeMultiplier();
         runSpores = 0; for (let l = runStartLevel; l < currentLevel; l++) runSpores += sporesForLevel(l) * runSporeMult;
         stockRun();   // a resumed run gets its retries too — they are bought, not earned in-run
+        // A RESUMED RUN IS A RUN, and it used to end without ever having started — `run_start`
+        // fired only from the picker, so starts and ends never balanced and every funnel built on
+        // the pair silently under-counted continues.
+        logEvent('run_start', { species: sp.id, level: currentLevel, cause: 'resume' });
         startRun();   // → begin() rebuilds the saved deck via rebuildCardsFromSnapshot
       } else {
         showPicker();
@@ -28270,6 +28406,11 @@ function tutorialDeps() {
       trich: (state.clouds && state.clouds[0]) ? { x: state.clouds[0].cx, y: state.clouds[0].cy } : null,
     }),
     onDone: () => { tutorial = null; },
+    // WHERE PEOPLE LEAVE THE WALKTHROUGH. A drop-off curve over nine steps is the only way to
+    // tell "the tutorial is too long" from "step 4 is broken", and the two want opposite fixes.
+    // `n` is the step INDEX so the curve is orderable; `detail` names it for readability.
+    onStep: (i, total) => logEvent('tutorial', { detail: 'step', n: i, level: currentLevel }),
+    onEnd: (why, i, total) => logEvent('tutorial', { detail: why, n: i, level: currentLevel }),
   };
 }
 
@@ -28277,6 +28418,7 @@ function tutorialDeps() {
 // first. Exposed on window.__game for the future "replay tutorial" button + tests.
 function beginTutorial() {
   if (!state || !state.cards) return;
+  logEvent('tutorial', { detail: 'start', n: 0, level: currentLevel });
   if (tutorial) { tutorial.destroy(); tutorial = null; }
   injectTutorialHelpers();
   uiDirty = true;
@@ -28310,6 +28452,13 @@ function beginLevelTip(level) {
 function begin(newState) {
   state = newState;
   if (state.mode !== 'puzzle') state.level = currentLevel;
+  // A LEVEL STARTED, so its clear rate has a denominator of its own. `level_clear` alone gives
+  // you how many people beat level 5 and nothing to divide it by — attempts on 5 include the
+  // retries and the runs that arrived and died there.
+  if (chosenSpecies && state.mode !== 'puzzle') {
+    logEvent('level_start', { species: chosenSpecies.id, level: currentLevel });
+    _levelStartedAt = Date.now(); _levelStartTurn = 0;
+  }
   _runOverPresented = false;
   _runOverAt = 0;                 // reset the "let the last grow finish" defer timer
   winCele = null;                 // drop any lingering win celebration from the prior level
@@ -29016,8 +29165,13 @@ const handlers = {
   },
   onChooseCard(name) {
     // Drafting a pile reward is free and does NOT advance the world.
+    // WHAT PEOPLE ACTUALLY TAKE. Read the offer BEFORE the pick — chooseOffer shifts it off the
+    // queue, so afterwards there is nothing left to say how many choices there were. `n` is the
+    // offer size, which is what turns "Acorn Cache was taken 400 times" into a rate.
+    const offered = (state.cards && state.cards.pendingOffers && state.cards.pendingOffers[0]);
+    const offerN = offered && offered.choices ? offered.choices.length : 0;
     const res = chooseOffer(state, name);
-    if (res.ok) uiDirty = true;
+    if (res.ok) { logEvent('draft', { detail: name, n: offerN, level: currentLevel }); uiDirty = true; }
     else if (res.message) { ui.toast(res.message); uiDirty = true; }
     maybeFinalizePendingWin();   // a win that was waiting on this draft can now finish
   },
@@ -30043,10 +30197,13 @@ function _perfSample(ms) {
   const med = s[Math.floor(s.length / 2)];
   const px = canvas.width * canvas.height;
   try {
+    // IT USED TO SMUGGLE FRAME TIME INTO `turns` AND PIXELS INTO `level`, which quietly poisoned
+    // every query that grouped by level — a perf row is not a level 43 anybody played. They have
+    // their own columns now, and `level` is left off entirely so those queries cannot see it.
     logEvent('perf', {
       species: chosenSpecies && chosenSpecies.id,
-      turns: Math.min(30000, Math.round(med * 10)),      // median frame cost, tenths of a ms
-      level: Math.min(1000, Math.round(px / 1e4)),        // device pixels, hundredths of a Mpx
+      ms: Math.min(30000, Math.round(med * 10)),          // median frame cost, tenths of a ms
+      n: Math.min(100000, Math.round(px / 1e4)),          // device pixels, hundredths of a Mpx
       cause: med < 8 ? 'ok' : med < 20 ? 'slow' : 'bad',  // bucket, for grouping in the dashboard
     });
   } catch (_) {}
@@ -32673,12 +32830,37 @@ function _bootProgress() {
 }
 // Everything decoded (or the safety net fired): rebuild the asset-gated caches, then show
 // "Click" and wait for the tap before entering the game.
+// EVERY EVENT CARRIES WHICH GAME AND MODE IT CAME FROM, and this is where telemetry learns to
+// read them. `state.config` is a deep clone taken at run start, so the LIVE CONFIG is the honest
+// source between runs (at the title, at the picker) and agrees with it during one.
+setEventContext(() => ({ game: CONFIG.game, mode: CONFIG.mode }));
+const _sessionStart = Date.now();
+let _sessionRuns = 0;
+// SESSION LENGTH, and it has to be sent on the way out. `pagehide` fires where `unload` is not
+// guaranteed to (bfcache, mobile Safari), `visibilitychange` catches a tab backgrounded and never
+// returned to, and `keepalive` on the POST is what lets a request outlive the page. Latched, so a
+// tab hidden and shown again does not file a second session.
+let _sessionEnded = false;
+function _endSession() {
+  if (_sessionEnded) return; _sessionEnded = true;
+  logEvent('session_end', { ms: Date.now() - _sessionStart, n: _sessionRuns });
+}
+try {
+  window.addEventListener('pagehide', _endSession);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') _endSession(); });
+} catch (_) {}
+
 function _bootReady() {
   if (_bootEntered) return; _bootEntered = true;
   uiDirty = true; _rockState = null; _formState = null; _propState = null; _mtnState = null; _cityState = null; _lakeState = null;
   if (substrateRenderer) substrateRenderer.rebake();
   assetsReady = true;
   _revealPending = true;   // first map: fade in after the first art-complete frame draws
+  // THE DENOMINATOR, and it is fired at "playable" rather than at first byte on purpose: a
+  // player whose load never finished cannot have bounced off the GAME, and counting them in the
+  // denominator would blame the design for a download. `ms` is how long that took, which is the
+  // other half of the same question on a phone.
+  logEvent('boot', { ms: Date.now() - _sessionStart });
   _load.ready(() => { initMusic(); initSfx(); _load.destroy(); enterGame(); });
 }
 Promise.all([
