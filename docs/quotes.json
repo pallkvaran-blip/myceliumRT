@@ -1573,6 +1573,7 @@
     {
       "id": 135,
       "round": 4,
+      "verdict": "yes",
       "text": "The most difficult thing is the decision to act; the rest is merely tenacity.",
       "author": "Amelia Earhart",
       "year": 1932,
@@ -1582,6 +1583,7 @@
     {
       "id": 136,
       "round": 4,
+      "verdict": "yes",
       "text": "What is to give light must endure burning, and what endures burning is not always destroyed.",
       "author": "after Viktor Frankl",
       "theme": "endurance",
@@ -1591,6 +1593,7 @@
     {
       "id": 137,
       "round": 4,
+      "verdict": "no",
       "text": "You can be a good ancestor or a bad one, but you cannot avoid being one.",
       "author": "Roman Krznaric",
       "work": "The Good Ancestor",
@@ -1601,6 +1604,7 @@
     {
       "id": 138,
       "round": 4,
+      "verdict": "maybe",
       "text": "The opposite of a correct statement is a false statement. But the opposite of a profound truth may well be another profound truth.",
       "author": "Niels Bohr",
       "year": 1949,
@@ -1610,6 +1614,7 @@
     {
       "id": 139,
       "round": 4,
+      "verdict": "yes",
       "text": "We do not learn from experience; we learn from reflecting on experience.",
       "author": "attributed to John Dewey",
       "theme": "growth",
@@ -1619,6 +1624,7 @@
     {
       "id": 140,
       "round": 4,
+      "verdict": "no",
       "text": "The cure for anything is salt water: sweat, tears, or the sea.",
       "author": "attributed to Isak Dinesen",
       "theme": "endurance",
@@ -1628,6 +1634,7 @@
     {
       "id": 141,
       "round": 4,
+      "verdict": "yes",
       "text": "It is not the strongest that survive, nor the most intelligent, but the ones most responsive to change.",
       "author": "after Darwin",
       "work": "paraphrased by Leon Megginson",
@@ -1639,6 +1646,7 @@
     {
       "id": 142,
       "round": 4,
+      "verdict": "maybe",
       "text": "A ship in harbour is safe, but that is not what ships are built for.",
       "author": "John A. Shedd",
       "work": "Salt from My Attic",
@@ -1649,6 +1657,7 @@
     {
       "id": 143,
       "round": 4,
+      "verdict": "maybe",
       "text": "Not all that is faced can be borne, but nothing is borne that is not first faced.",
       "author": "after James Baldwin",
       "theme": "endurance",
@@ -1658,6 +1667,7 @@
     {
       "id": 144,
       "round": 4,
+      "verdict": "yes",
       "text": "You do not rise to the level of your hopes; you fall to the level of your preparation.",
       "author": "Archilochus, modern rendering",
       "theme": "endurance",
@@ -1667,6 +1677,7 @@
     {
       "id": 145,
       "round": 4,
+      "verdict": "yes",
       "text": "The forest would be very quiet if no birds sang except those that sang best.",
       "author": "Henry van Dyke",
       "year": 1904,
@@ -1676,6 +1687,7 @@
     {
       "id": 146,
       "round": 4,
+      "verdict": "maybe",
       "text": "What you fear to do most is usually what you most need to do — and knowing that changes nothing.",
       "author": "mine",
       "theme": "dark",
@@ -1685,6 +1697,7 @@
     {
       "id": 147,
       "round": 4,
+      "verdict": "no",
       "text": "Every road is only as long as the willingness to keep walking it.",
       "author": "mine",
       "theme": "journey",
@@ -1694,6 +1707,7 @@
     {
       "id": 148,
       "round": 4,
+      "verdict": "no",
       "text": "There is no such thing as bad weather, only unsuitable clothing.",
       "author": "Alfred Wainwright",
       "work": "A Coast to Coast Walk",
@@ -1704,6 +1718,7 @@
     {
       "id": 149,
       "round": 4,
+      "verdict": "yes",
       "text": "The world is full of magic things, patiently waiting for our senses to grow sharper.",
       "author": "attributed to W. B. Yeats",
       "theme": "growth",
@@ -1713,6 +1728,7 @@
     {
       "id": 150,
       "round": 4,
+      "verdict": "no",
       "text": "The hardest thing about the second time is knowing exactly how long it takes.",
       "author": "mine",
       "theme": "endurance",
@@ -1722,6 +1738,7 @@
     {
       "id": 151,
       "round": 4,
+      "verdict": "maybe",
       "text": "Twenty years from now you will be more disappointed by the things you didn't do than by the ones you did.",
       "author": "attributed to Mark Twain",
       "theme": "journey",
@@ -1731,6 +1748,7 @@
     {
       "id": 152,
       "round": 4,
+      "verdict": "yes",
       "text": "Nature uses only the longest threads to weave her patterns, so each small piece of her fabric reveals the organisation of the entire tapestry.",
       "author": "Richard Feynman",
       "work": "The Character of Physical Law",
@@ -1741,6 +1759,7 @@
     {
       "id": 153,
       "round": 4,
+      "verdict": "no",
       "text": "There are years that ask questions and years that answer.",
       "author": "Zora Neale Hurston",
       "work": "Their Eyes Were Watching God",
@@ -1751,6 +1770,7 @@
     {
       "id": 154,
       "round": 4,
+      "verdict": "yes",
       "text": "Everything that is done in the world is done by hope; no husbandman would sow one grain of corn if he hoped not it would grow.",
       "author": "Martin Luther",
       "year": 1566,
@@ -1760,6 +1780,7 @@
     {
       "id": 155,
       "round": 4,
+      "verdict": "maybe",
       "text": "The mountains are calling and I must go, and I will work on while I can.",
       "author": "John Muir",
       "year": 1873,
@@ -1769,6 +1790,7 @@
     {
       "id": 156,
       "round": 4,
+      "verdict": "no",
       "text": "It is not down on any map, and the maps are not the country.",
       "author": "after Melville and Korzybski",
       "theme": "journey",
@@ -1778,6 +1800,7 @@
     {
       "id": 157,
       "round": 4,
+      "verdict": "no",
       "text": "Hope is not the conviction that something will turn out well, but the certainty that something makes sense regardless of how it turns out.",
       "author": "Vaclav Havel",
       "work": "Disturbing the Peace",
@@ -1788,6 +1811,7 @@
     {
       "id": 158,
       "round": 4,
+      "verdict": "no",
       "text": "Hold on to the centre; the rest is weather.",
       "author": "mine",
       "theme": "endurance",
@@ -1797,6 +1821,7 @@
     {
       "id": 159,
       "round": 4,
+      "verdict": "yes",
       "text": "Nothing in nature lives for itself: rivers do not drink their own water, and trees do not eat their own fruit.",
       "author": "folk saying",
       "theme": "growth",
@@ -1806,6 +1831,7 @@
     {
       "id": 160,
       "round": 4,
+      "verdict": "maybe",
       "text": "We are all in the gutter, but some of us are looking at the stars.",
       "author": "Oscar Wilde",
       "work": "Lady Windermere's Fan",
@@ -1816,6 +1842,7 @@
     {
       "id": 161,
       "round": 4,
+      "verdict": "maybe",
       "text": "The best time to plant a tree was twenty years ago; the second best time is now.",
       "author": "proverb",
       "theme": "growth",
@@ -1825,6 +1852,7 @@
     {
       "id": 162,
       "round": 4,
+      "verdict": "no",
       "text": "If you want to go fast, go alone; if you want to go far, go together.",
       "author": "proverb",
       "theme": "journey",
@@ -1834,6 +1862,7 @@
     {
       "id": 163,
       "round": 4,
+      "verdict": "yes",
       "text": "Life can only be understood backwards, but it must be lived forwards.",
       "author": "Kierkegaard",
       "work": "Journals",
@@ -1844,6 +1873,7 @@
     {
       "id": 164,
       "round": 4,
+      "verdict": "maybe",
       "text": "The tragedy of life is not that it ends so soon, but that we wait so long to begin it.",
       "author": "attributed to W. M. Lewis",
       "theme": "death",
@@ -1853,6 +1883,7 @@
     {
       "id": 165,
       "round": 4,
+      "verdict": "yes",
       "text": "A society grows great when old men plant trees in whose shade they shall never sit.",
       "author": "Greek proverb",
       "theme": "growth",
@@ -1861,6 +1892,7 @@
     {
       "id": 166,
       "round": 4,
+      "verdict": "yes",
       "text": "What we call the beginning is often the end, and to make an end is to make a beginning.",
       "author": "T. S. Eliot",
       "work": "Little Gidding",
@@ -1871,6 +1903,7 @@
     {
       "id": 167,
       "round": 4,
+      "verdict": "no",
       "text": "The reward for work well done is the opportunity to do more.",
       "author": "Jonas Salk",
       "year": 1955,
@@ -1880,10 +1913,292 @@
     {
       "id": 168,
       "round": 4,
+      "verdict": "yes",
       "text": "You never step in the same river twice, because it is not the same river and you are not the same person.",
       "author": "after Heraclitus",
       "theme": "journey",
       "rights": "pd"
+    },
+    {
+      "id": 169,
+      "round": 5,
+      "text": "The roots below the earth claim no rewards for making the branches fruitful.",
+      "author": "Tagore",
+      "work": "Stray Birds",
+      "year": 1916,
+      "theme": "ground",
+      "rights": "pd"
+    },
+    {
+      "id": 170,
+      "round": 5,
+      "text": "No tree, it is said, can grow to heaven unless its roots reach down to hell.",
+      "author": "C. G. Jung",
+      "work": "Aion",
+      "year": 1951,
+      "theme": "ground",
+      "rights": "c"
+    },
+    {
+      "id": 171,
+      "round": 5,
+      "text": "Those who profess to favour freedom and yet deprecate agitation are men who want crops without ploughing up the ground.",
+      "author": "Frederick Douglass",
+      "year": 1857,
+      "theme": "endurance",
+      "rights": "pd"
+    },
+    {
+      "id": 172,
+      "round": 5,
+      "text": "The forest is the mother of the river, and nobody thanks a mother for the water.",
+      "author": "folk saying",
+      "theme": "ground",
+      "rights": "check",
+      "note": "circulates in several forms with no traceable source"
+    },
+    {
+      "id": 173,
+      "round": 5,
+      "text": "You cannot make the harvest come faster by pulling on the stalks.",
+      "author": "farming proverb",
+      "theme": "growth",
+      "rights": "check",
+      "note": "a proverb in many languages; no single source"
+    },
+    {
+      "id": 174,
+      "round": 5,
+      "text": "The seed never sees the flower, and the flower never remembers the seed.",
+      "author": "anonymous",
+      "theme": "growth",
+      "rights": "check",
+      "note": "circulates unattributed"
+    },
+    {
+      "id": 175,
+      "round": 5,
+      "text": "A society grows great when old men plant trees whose shade they know they shall never sit in.",
+      "author": "Greek proverb",
+      "theme": "growth",
+      "rights": "pd",
+      "note": "a longer form of one you already took — offered so you can pick the wording"
+    },
+    {
+      "id": 176,
+      "round": 5,
+      "text": "It is the little things that make the difference; my little thing is planting trees.",
+      "author": "Wangari Maathai",
+      "year": 2004,
+      "theme": "growth",
+      "rights": "c"
+    },
+    {
+      "id": 177,
+      "round": 5,
+      "text": "The tree that fills a man's embrace grew from a tiny shoot; the tower of nine storeys rose from a heap of earth.",
+      "author": "Lao Tzu, trans. Legge",
+      "work": "Tao Te Ching",
+      "year": 1891,
+      "theme": "growth",
+      "rights": "pd",
+      "note": "the full couplet — you said no to the first half alone in round 1"
+    },
+    {
+      "id": 178,
+      "round": 5,
+      "text": "A river cuts through rock not because of its power but because of its persistence.",
+      "author": "attributed to Jim Watkins",
+      "theme": "endurance",
+      "rights": "check",
+      "note": "universally circulated under this name and never sourced"
+    },
+    {
+      "id": 179,
+      "round": 5,
+      "text": "Water is soft and yielding, but water will wear away rock, which is rigid and cannot yield.",
+      "author": "after Lao Tzu",
+      "theme": "endurance",
+      "rights": "check",
+      "note": "a loose modern rendering of Tao Te Ching 78, not a translation"
+    },
+    {
+      "id": 180,
+      "round": 5,
+      "text": "The river is everywhere at once, at the source and at the mouth, and the present only exists for it.",
+      "author": "Hermann Hesse",
+      "work": "Siddhartha",
+      "year": 1922,
+      "theme": "journey",
+      "rights": "c"
+    },
+    {
+      "id": 181,
+      "round": 5,
+      "text": "Rivers know this: there is no hurry, we shall get there some day.",
+      "author": "A. A. Milne",
+      "work": "The House at Pooh Corner",
+      "year": 1928,
+      "theme": "journey",
+      "rights": "c"
+    },
+    {
+      "id": 182,
+      "round": 5,
+      "text": "A rock pile ceases to be a rock pile the moment a single man contemplates it, bearing within him the image of a cathedral.",
+      "author": "Saint-Exupery",
+      "work": "Flight to Arras",
+      "year": 1942,
+      "theme": "ground",
+      "rights": "c"
+    },
+    {
+      "id": 183,
+      "round": 5,
+      "text": "The impediment to action advances action. What stands in the way becomes the way.",
+      "author": "Marcus Aurelius",
+      "work": "Meditations",
+      "year": 180,
+      "theme": "climb",
+      "rights": "pd"
+    },
+    {
+      "id": 184,
+      "round": 5,
+      "text": "It is not because things are difficult that we do not dare; it is because we do not dare that things are difficult.",
+      "author": "Seneca",
+      "work": "Letters to Lucilius",
+      "year": 65,
+      "theme": "endurance",
+      "rights": "pd"
+    },
+    {
+      "id": 185,
+      "round": 5,
+      "text": "Great things are not done by impulse, but by a series of small things brought together.",
+      "author": "Van Gogh",
+      "year": 1882,
+      "theme": "growth",
+      "rights": "pd"
+    },
+    {
+      "id": 186,
+      "round": 5,
+      "text": "Although the world is full of suffering, it is also full of the overcoming of it.",
+      "author": "Helen Keller",
+      "work": "Optimism",
+      "year": 1903,
+      "theme": "endurance",
+      "rights": "pd"
+    },
+    {
+      "id": 187,
+      "round": 5,
+      "text": "Everyone thinks of changing the world, but no one thinks of changing himself.",
+      "author": "attributed to Tolstoy",
+      "theme": "growth",
+      "rights": "check",
+      "note": "universally attributed to Tolstoy; not found in his work"
+    },
+    {
+      "id": 188,
+      "round": 5,
+      "text": "When the winds of change blow, some build walls and others build windmills.",
+      "author": "proverb",
+      "theme": "growth",
+      "rights": "check",
+      "note": "called a Chinese proverb; no Chinese source has been found"
+    },
+    {
+      "id": 189,
+      "round": 5,
+      "text": "What the caterpillar calls the end of the world, the rest of the world calls a butterfly.",
+      "author": "attributed to Lao Tzu",
+      "theme": "death",
+      "rights": "check",
+      "note": "attributed to Lao Tzu, Chuang Tzu and Richard Bach in turn; none of them wrote it"
+    },
+    {
+      "id": 190,
+      "round": 5,
+      "text": "The oak fought the wind and was broken; the willow bent when it must and survived.",
+      "author": "proverb",
+      "theme": "endurance",
+      "rights": "check",
+      "note": "a stock fable moral with no single source"
+    },
+    {
+      "id": 191,
+      "round": 5,
+      "text": "You never change things by fighting the existing reality; to change something, build a new model that makes the old one obsolete.",
+      "author": "Buckminster Fuller",
+      "year": 1970,
+      "theme": "growth",
+      "rights": "c"
+    },
+    {
+      "id": 192,
+      "round": 5,
+      "text": "Every new beginning comes from some other beginning's end.",
+      "author": "after Seneca",
+      "theme": "death",
+      "rights": "check",
+      "note": "a modern rendering, best known from a song lyric"
+    },
+    {
+      "id": 193,
+      "round": 5,
+      "text": "It is not the mountain we conquer but ourselves, and the mountain does not notice either way.",
+      "author": "after Edmund Hillary",
+      "theme": "climb",
+      "rights": "check",
+      "note": "the first clause is Hillary's; the second is not, and is flagged as such"
+    },
+    {
+      "id": 194,
+      "round": 5,
+      "text": "A man who dares to waste one hour of time has not discovered the value of life.",
+      "author": "Darwin",
+      "year": 1836,
+      "theme": "endurance",
+      "rights": "pd"
+    },
+    {
+      "id": 195,
+      "round": 5,
+      "text": "There is no such thing as a self-made anything; the ground did half of it and said nothing.",
+      "author": "folk saying",
+      "theme": "ground",
+      "rights": "check",
+      "note": "a common sentiment, no source I can point at"
+    },
+    {
+      "id": 196,
+      "round": 5,
+      "text": "The mighty oak was once a nut that simply stood its ground; the difference is only in how long.",
+      "author": "proverb",
+      "theme": "endurance",
+      "rights": "check",
+      "note": "an expanded form of a stock line; the tail is not part of the original"
+    },
+    {
+      "id": 197,
+      "round": 5,
+      "text": "What is the use of a house if you haven't got a tolerable planet to put it on?",
+      "author": "Thoreau",
+      "year": 1860,
+      "theme": "ground",
+      "rights": "pd"
+    },
+    {
+      "id": 198,
+      "round": 5,
+      "text": "The world breaks everyone, and afterward many are strong at the broken places.",
+      "author": "Hemingway",
+      "work": "A Farewell to Arms",
+      "year": 1929,
+      "theme": "endurance",
+      "rights": "c"
     }
   ]
 }

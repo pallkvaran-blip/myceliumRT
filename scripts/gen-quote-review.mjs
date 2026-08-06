@@ -34,6 +34,7 @@ const ROUNDS = {
   2: ['Round 2', 'the unfiltered pass — numbering continues, so these are all new'],
   3: ['Round 3', 'written to your yeses: longer lines, addressed to you, deep cuts rather than the famous one, and the ground rather than the fungus'],
   4: ['Round 4', 'written to the STRUCTURE rather than the theme — every line has a turn in it (antithesis, chiasmus, a reversal, a qualification), which is what ten of your eighteen share. No orders, no place-writing, nothing under 50 characters bar one deliberate control'],
+  5: ['Round 5', 'age-blind (era turned out to be a confound for length), leaning on maxims polished by retelling rather than by citation, and on growing things as metaphor — roots, harvest, a river cutting rock. Nothing under 50, nothing of my own'],
 };
 
 // The second round continued the numbering rather than starting over, so a few lines were offered
@@ -162,6 +163,7 @@ const page = `<meta charset="utf-8">
     <button class="btn" id="fR2" type="button" aria-pressed="false">Round 2</button>
     <button class="btn" id="fR3" type="button" aria-pressed="false">Round 3</button>
     <button class="btn" id="fR4" type="button" aria-pressed="false">Round 4</button>
+    <button class="btn" id="fR5" type="button" aria-pressed="false">Round 5</button>
     <button class="btn" id="fMaybe" type="button" aria-pressed="false">Maybes</button>
     <button class="btn" id="fLeft" type="button" aria-pressed="false">Unjudged</button>
     <button class="btn" id="bReset" type="button">Clear all</button>
@@ -232,6 +234,7 @@ function visible() {
     if (filter === 'r2') return q.round === 2;
     if (filter === 'r3') return q.round === 3;
     if (filter === 'r4') return q.round === 4;
+    if (filter === 'r5') return q.round === 5;
     if (filter === 'maybe') return verdictOf(q.id) === 'maybe';
     return true;
   });
@@ -344,7 +347,7 @@ document.getElementById('bReset').onclick = () => {
   if (!confirm('Throw away every verdict and comment, including the ones already recorded?')) return;
   V = {}; save(); cur = null; render();
 };
-const FILTERS = [['fAll', 'all'], ['fR1', 'r1'], ['fR2', 'r2'], ['fR3', 'r3'], ['fR4', 'r4'], ['fMaybe', 'maybe'], ['fLeft', 'left']];
+const FILTERS = [['fAll', 'all'], ['fR1', 'r1'], ['fR2', 'r2'], ['fR3', 'r3'], ['fR4', 'r4'], ['fR5', 'r5'], ['fMaybe', 'maybe'], ['fLeft', 'left']];
 for (const [id, f] of FILTERS) {
   document.getElementById(id).onclick = () => {
     filter = f;

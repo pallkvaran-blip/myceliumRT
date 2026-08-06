@@ -11006,13 +11006,16 @@ function storyForLevel(level) {
 
 // A line of flavour under the story line, drawn at random. The candidates were weeded in
 // `docs/quote-review.html` (generated from `docs/quotes.json` — the ids below are that file's, so a
-// line can be traced back to its round, theme and rights note); these 18 are the owner's "yes".
+// line can be traced back to its round, theme and rights note); these 32 are the owner's "yes".
 //
 // NOT KEYED TO A LEVEL, deliberately. The story line already says where you are; a quote pinned to
 // level 4 would be read as being ABOUT level 4, and would be the same on every run of it. Random is
 // what makes it flavour rather than more briefing.
 //
-// MOST OF THESE ARE STILL IN COPYRIGHT (14 of 18; one more is an attribution I could not trace).
+// 16 OF THESE 32 ARE STILL IN COPYRIGHT and 7 more carry an attribution I could not verify —
+// several of those are maxims that circulate widely with no traceable source at all (the Yeats,
+// the Dewey, the "responsive to change" Darwin that is really Megginson's paraphrase). Each one's
+// `note` in docs/quotes.json says what is actually wrong with it.
 // The owner said they would handle clearing; `rights` in docs/quotes.json is the record of which.
 // Attribution is the translator's where the TRANSLATION is the copyrighted work, which is why two
 // of them read "trans. …" — the shipped credit should name whoever has to be cleared.
@@ -11035,6 +11038,20 @@ const LEVEL_QUOTES = [
   { id: 128, text: 'On the last day of the world I would want to plant a tree.', by: 'W. S. Merwin, Place' },
   { id: 130, text: 'Those who contemplate the beauty of the earth find reserves of strength that will endure as long as life lasts.', by: 'Rachel Carson, The Sense of Wonder' },
   { id: 134, text: 'Some of us think holding on makes us strong, but sometimes it is letting go.', by: 'attributed to Hermann Hesse' },
+  { id: 135, text: 'The most difficult thing is the decision to act; the rest is merely tenacity.', by: 'Amelia Earhart' },
+  { id: 136, text: 'What is to give light must endure burning, and what endures burning is not always destroyed.', by: 'after Viktor Frankl' },
+  { id: 139, text: 'We do not learn from experience; we learn from reflecting on experience.', by: 'attributed to John Dewey' },
+  { id: 141, text: 'It is not the strongest that survive, nor the most intelligent, but the ones most responsive to change.', by: 'after Darwin, paraphrased by Leon Megginson' },
+  { id: 144, text: 'You do not rise to the level of your hopes; you fall to the level of your preparation.', by: 'Archilochus, modern rendering' },
+  { id: 145, text: 'The forest would be very quiet if no birds sang except those that sang best.', by: 'Henry van Dyke' },
+  { id: 149, text: 'The world is full of magic things, patiently waiting for our senses to grow sharper.', by: 'attributed to W. B. Yeats' },
+  { id: 152, text: 'Nature uses only the longest threads to weave her patterns, so each small piece of her fabric reveals the organisation of the entire tapestry.', by: 'Richard Feynman, The Character of Physical Law' },
+  { id: 154, text: 'Everything that is done in the world is done by hope; no husbandman would sow one grain of corn if he hoped not it would grow.', by: 'Martin Luther' },
+  { id: 159, text: 'Nothing in nature lives for itself: rivers do not drink their own water, and trees do not eat their own fruit.', by: 'folk saying' },
+  { id: 163, text: 'Life can only be understood backwards, but it must be lived forwards.', by: 'Kierkegaard, Journals' },
+  { id: 165, text: 'A society grows great when old men plant trees in whose shade they shall never sit.', by: 'Greek proverb' },
+  { id: 166, text: 'What we call the beginning is often the end, and to make an end is to make a beginning.', by: 'T. S. Eliot, Little Gidding' },
+  { id: 168, text: 'You never step in the same river twice, because it is not the same river and you are not the same person.', by: 'after Heraclitus' },
 ];
 // A BAG, not a flat draw. With nine quotes over ten levels a flat draw repeats itself about
 // two runs in three, and a repeat one card after the last one reads as a bug rather than as
