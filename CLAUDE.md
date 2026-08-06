@@ -2534,6 +2534,14 @@ death was firing; the screen was lying about it.
     **The trap generalises**: any check that boots a map and then measures anything a threat can
     touch is on a clock unless it says `,turn`. And the diagnosis is worth copying — before
     blaming a map, boot it twice and see whether it answers the same way.
+- **`lure` SAT BROKEN AND NOTHING RAN IT.** It waited on `#titleScreen .ts-split`, which only
+  exists when `OFFER_REALTIME` is true — and real time came off the title screen, so the selector
+  named a layout that no longer ships. The check died on the wait (exit 2, "did not report"), and
+  **`--fast` skips `lure`**, so every sweep since was silent about it. It waits on `#tsNew` now,
+  which is in BOTH title layouts, and its `chromium.launch` names `executablePath` like every
+  other check did — it was one env-var away from failing for a second, unrelated reason. 8/8.
+  **The lesson is about `--fast`, not about lure**: the three checks it skips (`rt`, `tut`, `lure`)
+  can rot for weeks, so run them by name after anything that touches a screen they drive.
 - Five checks are unreliable and all five are harness-side, not game-side. Re-run before
   believing any of them. (`turn-play` was a sixth and is fixed — see below.)
   - **`tut`'s real-time assertions fail on some runs** — the starter pile hasn't finished

@@ -16,14 +16,21 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     rs.writeHead(200, { 'Content-Type': TYPES[path.extname(fp)] || 'application/octet-stream' });
     fs.createReadStream(fp).pipe(rs); }); s.listen(0, () => res(s)); });
   const base = 'http://localhost:' + srv.address().port;
-  const browser = await chromium.launch({ headless: true });
+  // The container has no Playwright-downloaded browser; every other check names the path and
+  // this one did not, so it was one env-var away from failing for a second, unrelated reason.
+  const browser = await chromium.launch({ headless: true, executablePath: '/opt/pw-browsers/chromium' });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errs = []; page.on('pageerror', (e) => errs.push(String(e && e.message)));
   page.on('console', (m) => { if (m.type() === 'error') errs.push('console:' + m.text()); });
   await page.goto(base + '/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#loadscreen.ld-ready', { timeout: 20000 }).catch(() => {});
   await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
-  await page.waitForSelector('#titleScreen .ts-split', { timeout: 20000 });
+  // `.ts-split` ONLY EXISTS WHEN `OFFER_REALTIME` IS ON, and real time was taken off the title
+  // screen — so this waited for a layout that no longer ships and the whole check died on the
+  // wait, reporting nothing. `--fast` skips `lure`, which is why it sat broken unnoticed.
+  // `#tsNew` is in BOTH branches: it is the New button, and a title screen without one is a
+  // failure worth hanging on.
+  await page.waitForSelector('#titleScreen #tsNew', { timeout: 20000 });
   await sleep(6000);   // let the title finish blooming
 
   // Ink coverage inside a probe box, as a proxy for "strands are here".
