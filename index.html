@@ -1674,9 +1674,11 @@
       overflow:hidden; background:#000; box-shadow:0 0 18px -6px rgba(255,255,255,0.4); }
     .tut-fig img { display:block; width:100%; height:auto; max-height:236px; object-fit:cover;
       filter:contrast(1.05); }
-    .tut-btns { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-top:16px; }
-    .tut-btn { font:inherit; font-weight:600; font-size:14px; cursor:pointer; pointer-events:auto;
-      border-radius:11px; padding:9px 18px; letter-spacing:.01em; transition:background .12s, color .12s, border-color .12s; }
+    /* SMALLER (owner). These are the two controls on a screen whose subject is the map behind
+       them, and at the old size they were the loudest thing in the popup. */
+    .tut-btns { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:13px; }
+    .tut-btn { font:inherit; font-weight:600; font-size:12.5px; cursor:pointer; pointer-events:auto;
+      border-radius:9px; padding:6px 13px; letter-spacing:.01em; transition:background .12s, color .12s, border-color .12s; }
     .tut-end { background:#000; border:1px solid rgba(255,255,255,0.5); color:#c8c8c8; }
     .tut-end:hover { background:#151515; color:#fff; border-color:#fff; }
     .tut-next { background:#fff; border:1px solid #fff; color:#000; }
@@ -1724,8 +1726,8 @@
       .tut-body { font-size:14px; line-height:1.45; }
       .tut-fig { margin:-1px 0 10px; }
       .tut-fig img { max-height:146px; }
-      .tut-btns { margin-top:11px; }
-      .tut-btn { padding:8px 15px; font-size:13px; }
+      .tut-btns { margin-top:10px; }
+      .tut-btn { padding:6px 12px; font-size:11.5px; }
     }
 
     /* ---- Run-end loadout picker (memory species, e.g. Split Gill) ----------
@@ -4629,8 +4631,8 @@ const LEVELS = [
       {"t":"nematode","x":1887,"y":1823},
       {"t":"nematode","x":1865,"y":1876},
       {"t":"food","kind":"cache","x":2692,"y":1164,"r":1,"energy":4},
-      {"t":"mountain","key":"mountain2","x":1332,"w":720},
-      {"t":"city","key":"skyline1","x":594,"w":324},
+      {"t":"mountain","key":"mountain2","x":1372,"w":1021.3},
+      {"t":"city","key":"skyline1","x":347,"w":228.5},
       {"t":"city","key":"skyline6","x":2070,"w":396},
       {"t":"trichoderma","x":1551,"y":485},
       {"t":"nematode","x":2563,"y":1603},
@@ -22811,10 +22813,19 @@ function growMyceliumTitle(container, opts = {}) {
     ctx.filter = 'none'; ctx.globalAlpha = 1; ctx.drawImage(ink, 0, 0);                              // sharp
     ctx.restore();
   }
-  // `onGrown` fires ONCE, the moment the word has finished blooming — the hook the level card's
-  // staged reveal hangs off, so the subtitle and the rest arrive after the title rather than with
-  // it. Latched (`grownFired`) because `layout()` re-seeds on resize and would otherwise fire it
-  // again mid-card, and called out of a try/catch so a throwing consumer cannot kill the RAF loop.
+  // `onGrown` fires ONCE, when the word has finished BLOOMING — the hook the level card's staged
+  // reveal hangs off, so the rest of the card arrives after the title rather than with it.
+  //
+  // IT IS THE BLOOM, NOT `g.done`, and the difference is about a second. Space colonization
+  // trickles a few nodes ~forever as the mat wanders into scattered unreachable attractors, so the
+  // graph is "done" long after the word looks finished — the reveal hung on it read as too late
+  // (owner). `playGrowSfx` already had to solve exactly this to stop the growing sound looping, so
+  // this rides its latch: when activity falls to a trickle relative to the peak, the word is
+  // visually there. `g.done` stays as the backstop for a word that never blooms hard enough to
+  // trip that test.
+  //
+  // Latched (`grownFired`) because `layout()` re-seeds on resize and would otherwise fire it again
+  // mid-card, and called out of a try/catch so a throwing consumer cannot kill the RAF loop.
   let grownFired = false;
   function fireGrown() {
     if (grownFired) return; grownFired = true;
@@ -22839,12 +22850,15 @@ function growMyceliumTitle(container, opts = {}) {
   function playGrowSfx(grew) {
     if (sfxDone) return;
     if (grew > sfxPeak) sfxPeak = grew;
-    if (sfxPeak >= 20 && grew < Math.max(4, sfxPeak * 0.06)) { if (++sfxQuiet >= 10) { sfxDone = true; return; } }
+    if (sfxPeak >= 20 && grew < Math.max(4, sfxPeak * 0.06)) { if (++sfxQuiet >= 10) { sfxDone = true; fireGrown(); return; } }
     else sfxQuiet = 0;
     if (grew <= 0) return;
     const now = performance.now();
     if (!sfxT0) sfxT0 = now;
-    if (now - sfxT0 > 1800) { sfxDone = true; return; }   // never sonify longer than the bloom
+    // Hard cap on the bloom, and the SECOND thing that can fire `onGrown`. The quiet-frames
+    // test above needs ten consecutive frames to agree, which a throttled rAF stretches — so on
+    // a slow or backgrounded page the reveal was still waiting long after the word was there.
+    if (now - sfxT0 > 1800) { sfxDone = true; fireGrown(); return; }
     sfxAcc += grew;
     if (now - sfxLastT >= 170) { playGrowBurst(sfxAcc, 350); sfxAcc = 0; sfxLastT = now; }
   }
@@ -24625,11 +24639,18 @@ function startTutorial(deps) {
   // Each step: { text, focus(s), target(s), image, gate(s,mem), interactive,
   //              place, glowCard, demo, onEnter(s,mem) }
   const APICAL = 'Apical Drive';
-  const steps = [
+  // The LEVEL-1 walkthrough, as scripted by the owner. Ants and Trichoderma have moved OUT of it
+  // and onto levels 2 and 3 (`LEVEL_TIPS` below): meeting all three threats before playing a card
+  // is a lot to hold, and the maps introduce them in that order anyway.
+  const MAIN_STEPS = [
     {
-      text: 'This is your mycelium colony.<br><b>You are mycelium. Mycelium is you.</b>',
+      text: 'This is your colony.<br><b>You are mycelium. Mycelium is you.</b>',
       focus: (s) => world(deps.colonyRoot(), 1.35),
       target: (s) => worldTarget(deps.colonyRoot()),
+      // The ring is drawn at a fixed radius for a world target, which sat ON the colony rather
+      // than around it (owner). Widened for this step only — it is the one step whose subject is
+      // the colony itself rather than a point on the map.
+      ringR: 96,
       place: 'bottom',
     },
     {
@@ -24639,7 +24660,7 @@ function startTutorial(deps) {
       place: 'bottom',
     },
     {
-      text: 'This is your hand.<br><b>Click a card to play it.</b>',
+      text: 'This is your deck.<br><b>Click a card to play it.</b>',
       focus: (s) => world(deps.colonyRoot(), 1.1),
       target: () => cardTarget(APICAL),
       glowCard: APICAL,
@@ -24650,94 +24671,111 @@ function startTutorial(deps) {
       gate: () => { const pc = deps.pendingCard(); return !!(pc && pc.name === APICAL); },
     },
     {
-      text: '<b>Drag and release to grow.</b><br>Press on your colony and pull down into the soil you want to reach.',
-      focus: (s) => world(deps.colonyRoot(), 1.1),
-      target: (s) => worldTarget(deps.colonyRoot()),
-      glowCard: APICAL,
-      demo: true,
-      hand: 'open',          // keep the glowing card visible while dragging to grow
-      place: 'top',
-      onEnter: (s, mem) => { mem.baseNodes = nodeCount(s); },
-      // Forced: advance the moment the colony actually grows.
-      gate: (s, mem) => nodeCount(s) > (mem.baseNodes || 0),
-    },
-    {
-      // The pile beside the colony is an ORANGE cache (injectTutorialHelpers plants it), so
-      // finishing it hands out a real draft — which the next step then explains. Forced: the
-      // player grows into it and the step ends when that draft actually appears.
-      // `live` lets the real-time clock RUN here (the tutorial otherwise freezes it): the pile
-      // is only digested by world ticks, and time has to be moving for "time stops when
-      // drafts happen" to mean anything. Turn-based ticks on the action itself, so it's moot.
-      text: 'Grow into <b>substrate</b> to consume it — for energy, and&nbsp;<i>sometimes</i>&nbsp;new cards.'
-        + '<br><b>Grow into the orange leaves.</b>',
+      // THE DRAG GESTURE STILL HAS TO BE TAUGHT, and this is the step that does it — the owner's
+      // script has the substrate line here, so the two are one step rather than two. It keeps the
+      // demo gesture and the grow gate: without them the player has just armed a card and the
+      // walkthrough moves on without ever saying what to do with it.
+      // `live` lets the real-time clock RUN (the tutorial otherwise freezes it): a pile is only
+      // digested by world ticks. Turn-based ticks on the action itself, so it is moot there.
+      text: 'Grow into <b>substrate</b> to consume it.<br>Yellow piles give you energy.'
+        + ' Orange piles give you energy and <b>new cards</b>.',
       focus: (s) => world(deps.starterPile() || deps.colonyRoot(), 1.5),
       target: (s) => worldTarget(deps.starterPile()),
-      place: 'bottom',
+      glowCard: APICAL,
+      demo: true,
+      hand: 'open',
+      place: 'top',
       live: true,
-      // Advance on the draft appearing — or on the pile being gone regardless (a threat can
-      // beat the player to it), so a forced step can't strand anyone on a pile that no
-      // longer exists.
+      // DO NOT ADVANCE ON "THE COLONY GREW". This step is the only `live` one — the only one where
+      // the real-time clock is allowed to run — and a pile is digested by world ticks. Gating on
+      // growth ended the step on the frame the grow was played, which froze the clock again before
+      // the pile could be eaten, so in real time the draft never arrived at all (turn-based hid it:
+      // its ticks come from player actions, which carry on regardless). Measured as
+      // "0 offer(s), 150 nutrient left", twice, on a build whose turn-based half was green.
+      //
+      // So it ends on the REWARD, or on the pile being gone regardless — a threat can beat the
+      // player to it, and a forced step must not strand anyone on a pile that no longer exists.
       gate: (s) => !!(s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length)
         || (deps.starterPileGone && deps.starterPileGone()),
     },
     {
-      // Shown WHILE the draft is on screen. Gated (so no click-catcher) → the player's clicks
-      // reach the cards, and the step ends when they've chosen one.
-      text: 'Orange piles let you draft new basic/event cards.'
-        + (rt() ? '<br><b>Time stops when drafts happen</b> — take a breath and make a smart choice.' : ''),
-      focus: (s) => world(deps.starterPile() || deps.colonyRoot(), 1.5),
-      place: 'top',
-      gate: (s) => !(s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length),
-    },
-    {
-      text: '<b>Red</b> leaves give you engine cards — <b>very rare</b>.',
+      text: '<b>Red</b> leaves are rare and give you engine cards.<br><b>Very valuable.</b>',
       focus: (s) => world(deps.enginePile() || deps.starterPile() || deps.colonyRoot(), 1.5),
       target: (s) => worldTarget(deps.enginePile()),
       skip: (s) => !(deps.enginePile && deps.enginePile()),   // no red pile on this map → skip cleanly
       place: 'bottom',
     },
     {
-      text: 'Touch <b>water</b> to get Water income.<br>Your colony will <b>die</b> if you run out of water.',
+      text: 'Grow into bodies of <b>water</b> to harvest 1 water per round.'
+        + '<br>Be careful: you won\'t survive for long without water.',
       focus: (s) => world(deps.reservoir() || deps.colonyRoot(), 1.5),
       target: (s) => worldTarget(deps.reservoir()),
       skip: (s) => !(deps.reservoir && deps.reservoir()),   // no reservoir on this map → skip cleanly
       place: 'bottom',
     },
     {
-      text: 'Ants will eat your substrate.',
-      focus: (s) => world(deps.threats().ant, 1.1),
-      target: (s) => worldTarget(deps.threats().ant),
-      image: threatImg('ant'),
-      place: 'bottom',
-    },
-    {
-      text: 'Nematodes love eating ants. But they love eating <b>you</b> more.<br>You are currently defenceless: <b>run or hide.</b>',
+      text: 'Nematodes love eating mycelium.<br><b>Be careful around them.</b>',
       focus: (s) => world(deps.threats().nematode, 1.3),
       target: (s) => worldTarget(deps.threats().nematode),
       image: threatImg('nematode'),
+      skip: (s) => !deps.threats().nematode,
       place: 'bottom',
     },
     {
-      text: 'Trichoderma is drawn to substrate — and even more drawn to <b>you</b>.<br><b>Not good.</b>',
-      focus: (s) => world(deps.threats().trich, 1.3),
-      target: (s) => worldTarget(deps.threats().trich),
-      image: threatImg('trichoderma'),
-      place: 'bottom',
-    },
-    {
-      text: '<b>Click on threats</b> to see their field of vision.',
+      text: '<b>Click on enemies</b> to see their sensing range.',
       focus: (s) => world(deps.threats().nematode || deps.threats().trich || deps.threats().ant, 1.1),
       target: (s) => worldTarget(deps.threats().nematode || deps.threats().trich || deps.threats().ant),
       interactive: true,   // leave the canvas live so a threat-tap really shows its sight
+      // Pulse every creature's range slowly until the player clicks ANYTHING (owner). Showing what
+      // the sentence is describing is the whole instruction; a player who has never seen a sight
+      // ring does not know what they are being told to look for. Cleared on the first click
+      // wherever it lands, including on the Next button.
+      flashSight: true,
       place: 'bottom',
     },
     {
-      text: '<b>Good luck.</b>',
+      text: '<b>Good luck: Persist.</b>',
       focus: (s) => world(deps.colonyRoot(), 1.0),
       place: 'center',
       last: true,
     },
   ];
+
+  // ONE-STEP TIPS ON LATER LEVELS. Ants and Trichoderma used to be steps 9 and 11 of the level-1
+  // walkthrough; the owner moved them onto the levels that introduce them (2 and 3). A tip is the
+  // same machinery as the walkthrough — same popup, same ring, same End button — so the player is
+  // not learning a second kind of interruption, and each `skip`s cleanly on a map that happens not
+  // to have its subject.
+  const LEVEL_TIPS = {
+    2: [
+      {
+        text: 'Ants are <b>harmless to you</b>, but they do tend to attract nematodes.'
+          + '<br>They also like eating your food, so you may want to hurry.',
+        focus: (s) => world(deps.threats().ant, 1.1),
+        target: (s) => worldTarget(deps.threats().ant),
+        image: threatImg('ant'),
+        skip: (s) => !deps.threats().ant,
+        place: 'bottom',
+        last: true,
+      },
+    ],
+    3: [
+      {
+        text: '<b>Trichoderma</b> — green mould.<br>Approach at your own risk.',
+        focus: (s) => world(deps.threats().trich, 1.3),
+        target: (s) => worldTarget(deps.threats().trich),
+        image: threatImg('trichoderma'),
+        skip: (s) => !deps.threats().trich,
+        place: 'bottom',
+        last: true,
+      },
+    ],
+  };
+  // `tipLevel` picks a tip script; without it this is the full walkthrough.
+  const steps = (deps.tipLevel && LEVEL_TIPS[deps.tipLevel]) || MAIN_STEPS;
+  // A tip whose subject is absent has nothing to show, and `enter()`'s skip path would finish the
+  // walkthrough — which is right, but it should never have been started. Reported by the caller.
+  const empty = steps.every((st) => st.skip && st.skip(deps.getState()));
 
   // ---- helpers used by the script -----------------------------------------
   function world(p, zoom) { return p ? { x: p.x, y: p.y, zoom } : null; }
@@ -24756,7 +24794,7 @@ function startTutorial(deps) {
     '<div class="tut-body" id="tutBody"></div>' +
     '<div class="tut-btns">' +
       '<button class="tut-btn tut-end" id="tutEnd" type="button">End</button>' +
-      '<button class="tut-btn tut-next" id="tutNext" type="button">Next ▸</button>' +
+      '<button class="tut-btn tut-next" id="tutNext" type="button">Next</button>' +
     '</div>';
   root.appendChild(catcher);
   root.appendChild(ring);
@@ -24783,6 +24821,19 @@ function startTutorial(deps) {
   btnEnd.addEventListener('click', (e) => { e.stopPropagation(); finish(); });
   const onKey = (e) => { if (!alive) return; if (e.key === 'Escape') finish(); };
   document.addEventListener('keydown', onKey);
+
+  // THE CATCHER MUST NEVER SIT OVER A LIVE DRAFT. It is a full-screen click target that advances
+  // the step, so with one up a click meant to pick a card advances the walkthrough instead and the
+  // draft is unreachable. This used to be handled by the step itself — the draft had its own GATED
+  // step, and gated steps have no catcher — but the owner's rewrite folds that step away, so the
+  // rule has to hold for whatever step happens to be showing when the offer arrives. Re-evaluated
+  // every frame from `tick`, because a draft can appear at any moment on a `live` step.
+  let wantCatcher = false;
+  function draftUp() {
+    const s = deps.getState();
+    return !!(s && s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length);
+  }
+  function syncCatcher() { catcher.style.display = (wantCatcher && !draftUp()) ? '' : 'none'; }
 
   function clearGlow() { if (glowed) { glowed.classList.remove('tut-glow'); glowed = null; } }
   function applyGlow(name) {
@@ -24841,8 +24892,9 @@ function startTutorial(deps) {
     const forced = !!step.gate;
     const interactive = !!step.interactive;
     btnNext.style.display = forced ? 'none' : '';
-    btnNext.textContent = step.last ? 'Begin ▸' : 'Next ▸';
-    catcher.style.display = (forced || interactive) ? 'none' : '';
+    btnNext.textContent = step.last ? 'Begin' : 'Next';
+    wantCatcher = !(forced || interactive);
+    syncCatcher();
     // camera focus: frame the subject at (anchorX, anchorY). focusWorld applies the
     // offsets only on the matching form factor (portrait → anchorY; desktop → both).
     if (f && f.zoom != null) deps.focusWorld(f.x, f.y, f.zoom, anchorY, anchorX);
@@ -24851,6 +24903,14 @@ function startTutorial(deps) {
     applyGlow(step.glowCard);
     // demo gesture
     demo.style.display = step.demo ? '' : 'none';
+    // Pulse every creature's sensing range while this step is up, and stop on the first click
+    // anywhere. Handled here rather than by toggling each creature's own `showSight`, so a real
+    // tap during the step still works exactly as it does in play and nothing is left switched on.
+    if (deps.setSightFlash) deps.setSightFlash(!!step.flashSight);
+    if (step.flashSight) {
+      const stop = () => { if (deps.setSightFlash) deps.setSightFlash(false); };
+      document.addEventListener('pointerdown', stop, { once: true, capture: true });
+    }
     if (step.onEnter) step.onEnter(deps.getState(), mem);
     layout();
   }
@@ -24865,6 +24925,7 @@ function startTutorial(deps) {
     if (!alive) return;
     alive = false;
     clearGlow();
+    if (deps.setSightFlash) deps.setSightFlash(false);
     deps.setHandOpen(true);   // always leave the hand carousel maximized afterward
     if (deps.setHandFilter) deps.setHandFilter('all');   // ...and back to the full hand
     document.removeEventListener('keydown', onKey);
@@ -24878,7 +24939,7 @@ function startTutorial(deps) {
     const step = steps[idx]; if (!step) return;
     const t = step.target && step.target(deps.getState());
     let tx = null, ty = null, r = 46;
-    if (t && t.world) { const s = deps.worldToScreen(t.world.x, t.world.y); tx = s.x; ty = s.y; r = 52; }
+    if (t && t.world) { const s = deps.worldToScreen(t.world.x, t.world.y); tx = s.x; ty = s.y; r = step.ringR || 52; }
     else if (t && t.el) { const b = t.el.getBoundingClientRect(); if (b.width) { tx = b.left + b.width / 2; ty = b.top + b.height / 2; r = Math.max(b.width, b.height) / 2 + 12; } }
     if (tx == null) { ring.style.display = 'none'; }
     else {
@@ -24898,11 +24959,17 @@ function startTutorial(deps) {
     if (!alive) return;
     const step = steps[idx];
     if (step && step.gate && step.gate(deps.getState(), mem)) { next(); return; }
+    syncCatcher();
     layout();
   }
 
+  // Nothing to show — a tip whose creature isn't on this map. `enter(0)` would skip straight to
+  // `finish()`, which is right but flashes the popup for a frame; the caller checks `empty` and
+  // never starts one instead.
+  if (empty) { root.remove(); alive = false; return { empty: true, tick() {}, destroy() {}, get active() { return false; }, get liveStep() { return false; } }; }
   enter(0);
   return {
+    empty: false,
     tick,
     destroy: finish,
     get active() { return alive; },
@@ -24968,11 +25035,11 @@ function levelWord(n) {
 // How long between one staged element arriving and the next, and how long each takes to fade.
 // Slow enough to read as a sequence rather than as one block with a stutter; fast enough that the
 // whole card is up well inside the time it takes to read the story line.
-const LI_STAGE_GAP = 520, LI_STAGE_FADE = 700;
+const LI_STAGE_GAP = 430, LI_STAGE_FADE = 620;
 // Backstop: if the wordmark never reports (it is drawn on a canvas and can fail on a context
 // error), the card must still assemble itself. A screen that stays blank because an ANIMATION
 // hook did not fire is the worst failure available here.
-const LI_STAGE_FALLBACK = 3200;
+const LI_STAGE_FALLBACK = 2200;
 
 function showLevelIntro(opts) {
   const level = (opts && opts.level) || 1;
@@ -25686,6 +25753,13 @@ const ENERGY_BOLT = (typeof Path2D !== 'undefined') ? new Path2D('M13.5 2 4 13.5
 const FLOAT_FONT = '"Inter", system-ui, "Segoe UI", sans-serif';
 let lastTime = 0;                     // most recent frame timestamp (for action-driven effects)
 let excreteFlashStart = -1e9;         // when the last Excrete fired, for the sticky pulse
+// The tutorial's "click on enemies to see their sensing range" step pulses EVERY creature's range
+// while it is up, so the sentence has the thing it describes on screen next to it. A wall-clock
+// sine rather than a frame counter: the idle board runs at IDLE_FPS and the pulse has to read the
+// same at 30fps as at 60. Kept out of each creature's own `showSight` so a real tap during the step
+// behaves exactly as it does in play, and nothing is left switched on when the step ends.
+let tutSightFlash = false;
+const tutSightAlpha = () => 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(performance.now() / 620));
 let showNematodeVision = false;       // dev overlay: nematode sight range + line of sight (off by default — the rings cluttered the map)
 let placingWorm = false;              // dev: click the map to drop a nematode
 let showColonyLOS = false;            // "Colony line of sight" overlay: on while the HUD button is toggled on
@@ -25854,8 +25928,8 @@ function showPicker() {
     // hash, which skips the picker — now the dev map buttons below set it from inside the
     // picker, and levelDefFor() prefers it over every campaign slot, so leaving it set
     // would silently serve the authored map for the rest of the session.
-    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
-    onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; startRun(); },
+    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; runTips = new Set(); stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
+    onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; runTips = new Set(); startRun(); },
     // DEV: play an authored map with the dev loadout — the same thing `#level,<id>` does,
     // reachable without retyping the URL.
     onLevel: (id) => {
@@ -27689,6 +27763,7 @@ function tutorialDeps() {
       }
       return best;
     },
+    setSightFlash: (on) => { tutSightFlash = !!on; uiDirty = true; },
     threats: () => ({
       ant: (state.ants && state.ants[0]) ? { x: state.ants[0].x, y: surf() + 40 } : null,
       nematode: (state.nematodes && state.nematodes[0]) ? { x: state.nematodes[0].x, y: state.nematodes[0].y } : null,
@@ -27706,6 +27781,30 @@ function beginTutorial() {
   injectTutorialHelpers();
   uiDirty = true;
   tutorial = startTutorial(tutorialDeps());
+}
+
+// One-step tips on later campaign levels — ants on 2, Trichoderma on 3 (owner). Same machinery as
+// the walkthrough, so a tip is not a second kind of interruption to learn.
+//
+// ONCE PER RUN, tracked in `runTips` and cleared at run start, for the same reason the walkthrough
+// fires on every press of New: a run is an attempt, and a player who died on level 2 and came back
+// is meeting the ants for the first time in THIS attempt. It does NOT inject the tutorial's
+// scripted props — those belong to level 1's script and a later level has its own creatures.
+const TIP_LEVELS = [2, 3];
+let runTips = new Set();
+function beginLevelTip(level) {
+  if (!state || !state.cards) return;
+  // NO SCRIPT, NO TIP. Without this an unknown level fell through to `LEVEL_TIPS[n] || MAIN_STEPS`
+  // and started the whole level-1 walkthrough — on level 4, mid-run.
+  if (!TIP_LEVELS.includes(level)) return;
+  if (tutorial && tutorial.active) return;            // never on top of the walkthrough
+  if (runTips.has(level)) return;
+  runTips.add(level);
+  const t = startTutorial(Object.assign(tutorialDeps(), { tipLevel: level }));
+  if (t.empty) return;                                 // that creature isn't on this map
+  if (tutorial) { tutorial.destroy(); }
+  tutorial = t;
+  uiDirty = true;
 }
 
 function begin(newState) {
@@ -27855,7 +27954,7 @@ function begin(newState) {
         setGame('campaign');   // the title screen's Campaign row does this; without it the run is Survival
         playtestLevel = null; chosenSpecies = sp;
         currentLevel = Math.max(1, (level | 0) || CAMPAIGN_START_LEVEL); runStartLevel = currentLevel;
-        carryOver = null; runSpores = 0;
+        carryOver = null; runSpores = 0; runTips = new Set();
         stockRun();   // same as the picker's Select — a run without this has no retries to spend
         startRun();
         return true;
@@ -27996,6 +28095,10 @@ function begin(newState) {
     antMarks: () => _antMarks.slice(),
     // Tutorial hooks (used by the future "replay tutorial" button + tests).
     startTutorial: () => beginTutorial(),
+    // The later-level tips (ants on 2, Trichoderma on 3). Their real trigger is entering that
+    // level of a campaign run, which a check would otherwise have to play through.
+    levelTip: (n) => { runTips.delete(n); beginLevelTip(n); },
+    get tutorial() { return tutorial; },
     resetTutorial: () => { try { localStorage.removeItem(TUT_KEY); } catch (_) {} },
   };
   if (ui) ui.setState(state); else ui = new UI(state, handlers);
@@ -28046,6 +28149,14 @@ function begin(newState) {
   // (below) so its camera zooms / popups only begin once the black "Level 1" screen clears
   // and the map is on show.
   let afterIntro = null;
+  // A later-level tip rides the SAME deferral as the walkthrough — behind the level card, so it
+  // opens over a visible map rather than over black. Campaign only: the tips name creatures that
+  // levels 2 and 3 of the campaign introduce, and a survival ladder's level 2 is a fresh roll.
+  if (campaignRun() && TIP_LEVELS.includes(currentLevel) && state.mode !== 'puzzle'
+      && state.config.cards && state.config.cards.enabled) {
+    const lv = currentLevel;
+    afterIntro = () => beginLevelTip(lv);
+  }
   if ((tutorialPending || tutorialDevForce) && state.mode !== 'puzzle') {
     const devForced = tutorialDevForce;
     // Consume the flag on ANY real run start, not only a level-1 one. A New run that picks a
@@ -29686,8 +29797,9 @@ function drawCloudSight() {
   if (!clouds || !clouds.length) return;
   const sight = state.config.trichoderma.sightRadius;
   for (const c of clouds) {
-    if (!c.showSight) continue;                       // only when the player has tapped this cloud
-    drawOccludedSight(c.cx, c.cy, sight, '120,155,45', c.dying ? 0.12 : 0.28);
+    if (!(c.showSight || tutSightFlash)) continue;    // tapped by the player, or the tutorial step
+    const a = c.showSight ? (c.dying ? 0.12 : 0.28) : tutSightAlpha();
+    drawOccludedSight(c.cx, c.cy, sight, '120,155,45', a);
   }
 }
 
@@ -31714,9 +31826,10 @@ function drawNematodes(time) {
   {
     const sight = state.config.nematodes.sightRadius;
     for (const w of worms) {
-      // Shown for any worm the player has TAPPED, plus the dev "Worm Vision" overlay.
-      if (!(w.showSight || (showNematodeVision && !w.sees))) continue;
-      drawOccludedSight(w.x, w.y, sight, '130,165,80', 0.28);
+      // Shown for any worm the player has TAPPED, plus the dev "Worm Vision" overlay, plus the
+      // tutorial step that is telling them these exist.
+      if (!(w.showSight || tutSightFlash || (showNematodeVision && !w.sees))) continue;
+      drawOccludedSight(w.x, w.y, sight, '130,165,80', w.showSight ? 0.28 : tutSightAlpha());
     }
   }
 

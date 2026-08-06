@@ -43,9 +43,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       });
       if (nextVisible) { await page.click('#tutNext'); await sleep(400); continue; }
       // A FORCED step: do what it's asking for.
-      if (/This is your hand/i.test(txt || '')) {
+      if (/This is your deck/i.test(txt || '')) {
         await page.evaluate(() => window.__game.armAim('Apical Drive'));
-      } else if (/Drag and release to grow/i.test(txt || '')) {
+      } else if (/Grow into .?substrate/i.test(txt || '')) {
         // Grow AWAY from the orange pile, so this step doesn't eat it early.
         await page.evaluate(() => {
           const g = window.__game, s = g.state, net = s.active, C = s.cards;
@@ -97,13 +97,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     // reached — at which point its gate is already satisfied and the tutorial moves on. That
     // is the right behaviour (don't ask for something already done), so only assert the step's
     // own properties when we actually landed on it.
-    const growTxt = await advanceTo(page, /orange leaves/i);
-    const onGrowStep = /orange leaves/i.test(growTxt || '');
+    const growTxt = await advanceTo(page, /Grow into substrate/i);
+    const onGrowStep = /Grow into substrate/i.test(growTxt || '');
     if (!onGrowStep) {
       console.log(`  [info] ${label}: the pile was already claimed by an earlier grow, so the`
-        + ` "grow into the orange leaves" step self-advanced — asserting the draft step only`);
+        + ` substrate step self-advanced — asserting the draft only`);
     } else {
-      ok(`${label}: the pile step asks the player to grow into the orange leaves`, true, JSON.stringify(growTxt));
+      ok(`${label}: the pile step names both pile colours`,
+         /Yellow piles/i.test(growTxt || '') && /Orange piles/i.test(growTxt || ''), JSON.stringify(growTxt));
       const forced = await page.evaluate(() => {
         const b = document.getElementById('tutNext');
         return { nextHidden: !b || getComputedStyle(b).display === 'none',
@@ -147,16 +148,20 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok(`${label}: growing into it digests the pile and offers a DRAFT`, drafted.offers > 0,
        `${drafted.offers} offer(s), ${drafted.food} nutrient left`);
 
-    // The draft step's wording.
+    // THERE IS NO DEDICATED DRAFT STEP ANY MORE. The owner's rewrite folds what it said into the
+    // pile step above ("Orange piles give you energy and new cards"), so the two assertions about
+    // its wording — and the real-time "time stops when drafts happen" line — describe a screen
+    // that no longer exists. The BEHAVIOUR they sat next to is still worth pinning: the pile step
+    // is the only `live` one, so the clock must stop again the moment it hands over.
     await sleep(1400);
-    const draftTxt = await page.evaluate(() => { const b = document.getElementById('tutBody'); return b ? b.innerText : null; });
-    ok(`${label}: the draft step explains orange piles`, /Orange piles let you draft new basic\/event cards/i.test(draftTxt || ''),
-       JSON.stringify(draftTxt));
     if (wantTimeLine) {
-      ok(`${label}: ...and that time stops during drafts`, /Time stops when drafts happen/i.test(draftTxt || ''), JSON.stringify(draftTxt));
-      ok(`${label}: the clock IS stopped while the draft is up`, await page.evaluate(() => !!window.__game.state._simPaused));
+      ok(`${label}: the clock IS stopped again once the pile step hands over`,
+         await page.evaluate(() => !!window.__game.state._simPaused));
     } else {
-      ok(`${label}: ...with no "time stops" line (there is no clock)`, !/Time stops/i.test(draftTxt || ''), JSON.stringify(draftTxt));
+      // Turn-based has no clock to stop, so the equivalent is simply that the walkthrough moved on.
+      const moved = await page.evaluate(() => { const b = document.getElementById('tutBody'); return b ? b.innerText : null; });
+      ok(`${label}: ...and the walkthrough has moved past the pile step`,
+         !/Grow into substrate/i.test(moved || ''), JSON.stringify(moved));
     }
     // No click-catcher over the draft, so the cards are actually reachable.
     const reachable = await page.evaluate(() => {
@@ -181,7 +186,8 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     await sleep(1200);
     const redTxt = await page.evaluate(() => { const b = document.getElementById('tutBody'); return b ? b.innerText : null; });
     ok(`${label}: the following prompt is about RED piles only`,
-       /Red leaves give you engine cards/i.test(redTxt || '') && !/Orange/i.test(redTxt || ''), JSON.stringify(redTxt));
+       /Red leaves are rare and give you engine cards/i.test(redTxt || '') && !/Orange/i.test(redTxt || ''),
+       JSON.stringify(redTxt));
 
     ok(`${label}: no page errors`, errs.length === 0, errs.slice(0, 2).join(' | '));
     await page.close();
