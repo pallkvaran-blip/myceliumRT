@@ -27,9 +27,19 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 
 // Drafts of three campaign maps, written the way Save as… writes them: same ids as the committed
 // files, and `campaignLevel: null`.
-const DRAFTS = [['2-obsidian', '2 — Obsidian', 'obsidian-c40'],
-                ['3-veined', '3 — Veined', 'veined-c40'],
-                ['4-rust', '4 — Rust', 'rust-c90']];
+//
+// DERIVED FROM DISK, not typed out. The first version hard-coded ids and names, and both went
+// stale the moment the owner archived a map and the seven behind it moved up a slot: it was
+// shadowing a level that is no longer in the campaign, under a name a slot out of date, and the
+// slot-order assertion failed on a build that was correct. The point of the fixture is "a draft
+// shadows a COMMITTED CAMPAIGN MAP", so it should ask disk which those are.
+const DRAFTS = fs.readdirSync(path.join(ROOT, 'docs', 'levels'))
+  .filter((f) => f.endsWith('.json'))
+  .map((f) => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'docs', 'levels', f), 'utf8')); } catch (_) { return null; } })
+  .filter((d) => d && d.campaignLevel != null)
+  .sort((a, b) => a.campaignLevel - b.campaignLevel)
+  .slice(0, 3)
+  .map((d) => [d.id, d.name, d.assetsFrom || d.id]);
 
 (async () => {
   const srv = await new Promise((res) => { const s = http.createServer((rq, rs) => { let p = decodeURIComponent(rq.url.split('?')[0].split('#')[0]); if (p === '/') p = '/index.html'; const fp = path.join(ROOT, p); if (!fp.startsWith(ROOT) || !fs.existsSync(fp) || fs.statSync(fp).isDirectory()) { rs.writeHead(404); rs.end('nf'); return; } rs.writeHead(200, { 'Content-Type': T[path.extname(fp)] || 'application/octet-stream' }); fs.createReadStream(fp).pipe(rs); }); s.listen(0, () => res(s)); });

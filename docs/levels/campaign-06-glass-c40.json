@@ -2,8 +2,8 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-06-glass-c40",
-  "name": "6 — Glass",
-  "campaignLevel": 6,
+  "name": "5 — Glass",
+  "campaignLevel": 5,
   "assetsFrom": "glass-c40",
   "world": {
     "width": 2952,

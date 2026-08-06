@@ -2,8 +2,8 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "4-rust",
-  "name": "4 — Rust",
-  "campaignLevel": 4,
+  "name": "3 — Rust",
+  "campaignLevel": 3,
   "assetsFrom": "rust-c90",
   "world": {
     "width": 2952,
@@ -573,8 +573,8 @@
     {
       "t": "food",
       "kind": "cache",
-      "x": 2668,
-      "y": 1039,
+      "x": 2692,
+      "y": 1164,
       "r": 1,
       "energy": 4
     },
@@ -615,21 +615,6 @@
       "t": "nematode",
       "x": 2529,
       "y": 1551
-    },
-    {
-      "t": "nematode",
-      "x": 2460,
-      "y": 1666
-    },
-    {
-      "t": "nematode",
-      "x": 2528,
-      "y": 1662
-    },
-    {
-      "t": "nematode",
-      "x": 2502,
-      "y": 1715
     }
   ],
   "chapter": "Chapter 1"

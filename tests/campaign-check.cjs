@@ -2,7 +2,10 @@
  *
  * What this guards, and why each one is here rather than obvious:
  *   - TEN LEVELS, AND IT ENDS. The old ladder ran to MAX_LEVEL (100) and was unwinnable past
- *     ~35 by design. Clearing level 10 must now finish the campaign, and clearing 9 must not —
+ *     ~35 by design. Clearing the LAST level must finish the campaign and the one before it must
+ *     not — the length is read from the model rather than written here, because it has moved once
+ *     (ten to nine, when a map was archived) and an assertion pinned to 10 would then have been
+ *     asserting the bug —
  *     an off-by-one either strands the ending or fires it a level early, and neither shows up
  *     anywhere except at the end of a full run.
  *   - EACH LEVEL IS A MAP, NOT A ROLL. That is the entire difference between this and what came
@@ -149,7 +152,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     return { levels: c.levels, start: c.startLevel, seeds: c.seeds, payout: c.payout,
              past: c.seed(c.levels + 1), zero: c.seed(0), first: c.seed(1), last: c.seed(c.levels) };
   });
-  ok('the campaign is ten levels', shape.levels === 10, String(shape.levels));
+  ok('the campaign is nine levels', shape.levels === 9, String(shape.levels));
   ok('every colony starts on level 1', shape.start === 1, String(shape.start));
   ok('there is one seed per level', shape.seeds.length === shape.levels,
      `${shape.seeds.length} seeds for ${shape.levels} levels`);
@@ -163,13 +166,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      `level ${shape.levels + 1}: ${shape.past}, level 0: ${shape.zero}`);
   console.log(`  note  a full clear pays ${shape.payout} Spores (sum of 1..${shape.levels})`);
 
-  // ---- the ten maps ---------------------------------------------------------
+  // ---- every map -------------------------------------------------------------
   const maps = [];
   for (let n = 1; n <= shape.levels; n++) {
     maps.push(await page.evaluate((lv) => window.__probe(lv), n));
     await sleep(60);
   }
-  ok('all ten levels build', maps.length === 10 && maps.every((m) => m && m.cols > 0 && m.rows > 0),
+  ok('every level builds', maps.length === shape.levels && maps.every((m) => m && m.cols > 0 && m.rows > 0),
      maps.map((m) => `${m.level}:${m.cols}x${m.rows}`).join(' '));
   ok('every level seeds a colony', maps.every((m) => m.nodes > 0),
      maps.map((m) => m.level + ':' + m.nodes).join(' '));
@@ -208,7 +211,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      `${third.rootAt} vs ${again.rootAt}`);
 
   // ---- the ladder ends ------------------------------------------------------
-  // Clearing 9 continues; clearing 10 finishes the campaign. Both go through the real win path.
+  // Clearing the second-to-last continues; clearing the last finishes the campaign. Both go
+  // through the real win path. Derived from `shape.levels` so archiving a map moves them together —
+  // hard-coded 9 and 10 would have started asserting "the ladder ends at 10" on a 9-level campaign,
+  // which is the same off-by-one this block exists to catch.
   const clear = async (level) => page.evaluate(async (lv) => {
     document.querySelectorAll('#ssLevelComplete, #ssGameWon, #levelIntro').forEach((n) => n.remove());
     window.__game.campaign.play('marasmius', lv);
@@ -222,71 +228,91 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     return { complete: !!document.getElementById('ssLevelComplete'), won: !!document.getElementById('ssGameWon') };
   }, level);
 
-  const nine = await clear(9);
-  ok('clearing level 9 does not end the campaign', nine.complete === true && nine.won === false,
-     JSON.stringify(nine));
-  const ten = await clear(10);
-  ok('clearing level 10 finishes the campaign', ten.won === true && ten.complete === false,
-     JSON.stringify(ten));
+  const penult = await clear(shape.levels - 1);
+  ok(`clearing level ${shape.levels - 1} does not end the campaign`,
+     penult.complete === true && penult.won === false, JSON.stringify(penult));
+  const last = await clear(shape.levels);
+  ok(`clearing level ${shape.levels} finishes the campaign`,
+     last.won === true && last.complete === false, JSON.stringify(last));
   await page.evaluate(() => document.querySelectorAll('#ssLevelComplete, #ssGameWon').forEach((n) => n.remove()));
 
-  // ---- the opening, once per RUN ---------------------------------------------
-  // Three paragraphs and a question before the first level card. Armed in startRun(), which is the
-  // one place EVERY route into a run passes through — arming it at the picker instead left it
-  // unarmed for the campaign hook, and a probe driving that hook saw no opening at all while the
-  // game showed one.
-  const openIntro = await page.evaluate(async () => {
-    document.querySelectorAll('#levelIntro, #ssLevelComplete, #ssGameWon').forEach((n) => n.remove());
-    const was = window.__cfg.dev.enabled;
-    window.__cfg.dev.enabled = false;
-    window.__game.campaign.play('marasmius', 1);
-    for (let i = 0; i < 90 && !document.querySelector('#levelIntro.li-story'); i++) await new Promise((r) => setTimeout(r, 150));
+  // ---- the opening, on NEW ---------------------------------------------------
+  // It fires when you press New and before the species picker (owner), not at run start in front
+  // of the first level card. Driven through the REAL route — title -> New -> name -> Start —
+  // because the whole defect class here is "the screen exists but nothing reaches it": the level
+  // card was hidden from every build by a dev-flag skip that no assertion could see, and this
+  // screen's previous placement was reachable only through a latch that stopped re-arming.
+  const onNew = await page.evaluate(async () => {
+    document.querySelectorAll('#levelIntro, #speciesSelect, #ssLevelComplete, #ssGameWon').forEach((n) => n.remove());
+    window.__game.showTitle();
+    for (let i = 0; i < 60 && !document.querySelector('#tsNewCamp'); i++) await new Promise((r) => setTimeout(r, 100));
+    if (!document.querySelector('#tsNewCamp')) return { reachedTitle: false };
+    document.querySelector('#tsNewCamp').click();
+    for (let i = 0; i < 40 && !document.querySelector('#tsNameStart'); i++) await new Promise((r) => setTimeout(r, 100));
+    if (!document.querySelector('#tsNameStart')) return { reachedTitle: true, reachedDialog: false };
+    document.querySelector('#tsNameInput').value = 'probe';
+    document.querySelector('#tsNameStart').click();
+    // The title screen plays a consume animation before onNew fires, so poll rather than guess.
+    for (let i = 0; i < 120 && !document.querySelector('#levelIntro.li-story'); i++) await new Promise((r) => setTimeout(r, 100));
     const st = document.querySelector('#levelIntro.li-story');
-    const out = { shown: !!st,
+    const cs = (sel) => { const n = document.querySelector(sel); return n ? getComputedStyle(n) : null; };
+    const pc = cs('.li-story-p'), ac = cs('.li-story-ask');
+    const rgb = (c) => c ? (c.color.match(/\d+/g) || []).slice(0, 3).map(Number) : null;
+    const out = { reachedTitle: true, reachedDialog: true, shown: !!st,
                   paras: [...document.querySelectorAll('.li-story-p')].map((n) => n.textContent.trim()),
-                  ask: (document.querySelector('.li-story-ask') || {}).textContent,
-                  btn: (document.querySelector('.li-story-btn') || {}).textContent };
-    // Dismissing it must reveal the LEVEL card behind it — one sequence, not a cutscene that
-    // replaces the screen carrying the threats and the counter.
-    if (st) { document.querySelector('.li-story-btn').click(); }
+                  ask: (document.querySelector('.li-story-ask') || {}).textContent || null,
+                  btns: document.querySelectorAll('#levelIntro button').length,
+                  hint: (document.querySelector('#levelIntro .li-hint') || {}).textContent || null,
+                  paraRGB: rgb(pc), askRGB: rgb(ac),
+                  preLine: pc ? pc.whiteSpace : null,
+                  // The picker must NOT already be up behind it — the point of moving this screen
+                  // is that it frames the choice rather than following it.
+                  pickerBefore: !!document.getElementById('speciesSelect') };
+    if (st) document.querySelector('#levelIntro').click();
     for (let i = 0; i < 90 && document.querySelector('.li-story'); i++) await new Promise((r) => setTimeout(r, 100));
-    for (let i = 0; i < 60 && !document.querySelector('#levelIntro .li-of'); i++) await new Promise((r) => setTimeout(r, 100));
-    out.thenLevel = (document.querySelector('#levelIntro .li-of') || {}).textContent;
-    // ...and it does NOT come back on the next level of the same run.
-    document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
-    window.__game.campaign.play('marasmius', 2);   // a fresh run, level 2 — not the start level
-    for (let i = 0; i < 40 && !document.getElementById('levelIntro'); i++) await new Promise((r) => setTimeout(r, 150));
-    out.midRun = !!document.querySelector('#levelIntro.li-story');
-    window.__cfg.dev.enabled = was;
-    document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
+    for (let i = 0; i < 60 && !document.getElementById('speciesSelect'); i++) await new Promise((r) => setTimeout(r, 100));
+    out.pickerAfter = !!document.getElementById('speciesSelect');
+    document.querySelectorAll('#levelIntro, #speciesSelect').forEach((n) => n.remove());
     return out;
   });
-  ok('a campaign run opens with the story', openIntro.shown === true);
-  // ...AND SO DOES THE NEXT ONE. `_storyRun !== runStartLevel` cannot tell two different runs that
-  // both begin on level 1 apart, so the opening used to fire once per page load: die on level 1,
-  // start again, and the story that frames the whole campaign never appeared again. It is cleared
-  // at the three sites that begin a run now. Asserted as a SECOND run rather than as the latch,
-  // because the latch is module state a check cannot see.
-  const secondRun = await page.evaluate(async () => {
+  ok('pressing New on the Campaign row shows the opening', onNew.shown === true,
+     `title=${onNew.reachedTitle} dialog=${onNew.reachedDialog}`);
+  ok('...before the species picker, not after it',
+     onNew.pickerBefore === false && onNew.pickerAfter === true,
+     `picker before=${onNew.pickerBefore} after=${onNew.pickerAfter}`);
+  ok('...all three paragraphs of it', onNew.paras.length === 3, `${onNew.paras.length} paragraph(s)`);
+  ok('...closing on "You must persist."', /You must persist\./.test(onNew.ask || ''),
+     onNew.ask || '(none)');
+  ok('...naming nine geologies, not ten', /Nine geologies/.test(onNew.paras.join(' ')),
+     onNew.paras[2] ? onNew.paras[2].slice(0, 40) : '(none)');
+  // The owner's own line break inside the first block, which only `pre-line` keeps.
+  ok('...keeping the line break inside the first block',
+     onNew.preLine === 'pre-line' && /\n/.test(onNew.paras[0] || ''), onNew.preLine);
+  // NO BUTTON, and a tiny "click" instead (owner).
+  ok('...with no button on it at all', onNew.btns === 0, String(onNew.btns));
+  ok('...just a tiny "click"', onNew.hint === 'click', onNew.hint || '(none)');
+  // ALL WHITE (owner). The closing line used to take the game's mint; measured as channels rather
+  // than as a string, because that is what says "not coloured" for any colour.
+  const white = (c) => c && Math.abs(c[0] - c[1]) < 10 && Math.abs(c[1] - c[2]) < 10 && c[0] > 230;
+  ok('...and every line of it white, the closing one included',
+     white(onNew.paraRGB) && white(onNew.askRGB),
+     `body ${JSON.stringify(onNew.paraRGB)} close ${JSON.stringify(onNew.askRGB)}`);
+  // It is NOT part of run start any more, so the level card stands alone.
+  const notAtRunStart = await page.evaluate(async () => {
     document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
     const was = window.__cfg.dev.enabled;
     window.__cfg.dev.enabled = false;
     window.__game.campaign.play('marasmius', 1);
-    for (let i = 0; i < 90 && !document.querySelector('#levelIntro.li-story'); i++) await new Promise((r) => setTimeout(r, 150));
-    const out = !!document.querySelector('#levelIntro.li-story');
+    for (let i = 0; i < 60 && !document.getElementById('levelIntro'); i++) await new Promise((r) => setTimeout(r, 150));
+    const out = { story: !!document.querySelector('#levelIntro.li-story'),
+                  card: (document.querySelector('#levelIntro .li-of') || {}).textContent || null };
     window.__cfg.dev.enabled = was;
     document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
     return out;
   });
-  ok('...and starting a second run shows it again', secondRun === true);
-  ok('...all three paragraphs of it', openIntro.paras.length === 3,
-     `${openIntro.paras.length} paragraph(s)`);
-  ok('...ending on the question', /Will you persist\?/.test(openIntro.ask || ''), openIntro.ask || '(none)');
-  ok('...and the button answers it', (openIntro.btn || '').trim() === 'Persist', openIntro.btn);
-  ok('dismissing it reveals the level card behind', openIntro.thenLevel === '1/10',
-     openIntro.thenLevel || '(no level card)');
-  // Once per RUN and only at the start level: a run that begins deeper is already past the opening.
-  ok('it does not reappear on a level that is not the start', openIntro.midRun === false);
+  ok('starting a level goes straight to the level card, with no opening in front of it',
+     notAtRunStart.story === false && notAtRunStart.card === '1/9',
+     `story=${notAtRunStart.story} card=${notAtRunStart.card}`);
 
   // ---- the level intro counts toward the end --------------------------------
   // A finite campaign has to say it is finite; the wordmark can't carry the total.
@@ -378,11 +404,11 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     return out;
   });
   ok('the level intro appears with the dev flag off', intro.shown === true);
-  ok('the intro counts the level out of the campaign length', intro.text === '4/10',
+  ok('the intro counts the level out of the campaign length', intro.text === '4/9',
      intro.text || '(no counter)');
   // Screen readers keep the long form: "4/10" is a page number to look at, "Level 4 of 10" is the
   // sentence you would say out loud, and the wordmark's aria-label is the only place it is said.
-  ok('...and a screen reader still hears it as a sentence', intro.aria === 'Level 4 of 10', intro.aria);
+  ok('...and a screen reader still hears it as a sentence', intro.aria === 'Level 4 of 9', intro.aria);
   // ---- the campaign card's own shape (owner) ---------------------------------
   ok('the campaign card drops the threat portraits', intro.portraits === 0, String(intro.portraits));
   ok('...and moves the counter out of the title block to the foot',

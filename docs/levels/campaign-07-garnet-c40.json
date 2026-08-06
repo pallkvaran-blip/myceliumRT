@@ -2,8 +2,8 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "campaign-07-garnet-c40",
-  "name": "7 — Garnet",
-  "campaignLevel": 7,
+  "name": "6 — Garnet",
+  "campaignLevel": 6,
   "assetsFrom": "garnet-c40",
   "world": {
     "width": 2952,

@@ -2,8 +2,8 @@
   "format": "mycelium-level",
   "version": 1,
   "id": "3-veined",
-  "name": "3 — Chrysocolla",
-  "campaignLevel": 3,
+  "name": "Chrysocolla (archived)",
+  "campaignLevel": null,
   "assetsFrom": "veined-c40",
   "world": {
     "width": 2952,
@@ -683,5 +683,5 @@
       "y": 639
     }
   ],
-  "chapter": "Chapter 1"
+  "chapter": "Archive"
 }

@@ -53,7 +53,14 @@ const LEVELS = fs.readdirSync(path.join(ROOT, 'docs', 'levels'))
   const base = 'http://localhost:' + srv.address().port;
   const browser = await chromium.launch({ headless: true });
 
-  ok('there are ten campaign levels to check', LEVELS.length === 10, `${LEVELS.length} found`);
+  // A CONTIGUOUS RUN FROM 1, not a fixed count: the campaign has been nine levels since a map was
+  // archived, and the length is the owner's to change. What must never be true is a HOLE — slot 3
+  // empty because a map was archived and the ones behind it were not moved up, which the runtime
+  // handles silently and the player meets as a campaign that stops in the middle.
+  const slots = LEVELS.map((d) => d.campaignLevel);
+  ok('the campaign slots run 1..N with no gaps and no duplicates',
+     LEVELS.length > 0 && slots.every((n, i) => n === i + 1),
+     `${LEVELS.length} level(s): ${slots.join(',')}`);
 
   for (const def of LEVELS) {
     const want = {

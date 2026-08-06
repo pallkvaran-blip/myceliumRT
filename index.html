@@ -1882,18 +1882,16 @@
        be READ rather than scanned, and the rest of the HUD is a condensed sans. */
     .li-story .li-inner { max-width:none; }
     .li-story-body { max-width:min(56ch, 88vw); margin:0 auto; text-align:left; }
-    .li-story-p { font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
-      font-size:clamp(16px,2.3vw,22px); line-height:1.65; color:#e8f2ec; margin:0 0 1.15em; }
-    /* The question gets the mint the game uses for the player's own colour, and centres — it is
-       addressed to the player rather than to the world the paragraphs describe. */
+    /* `pre-line` so the owner's own line break inside the first block survives; everything else
+       still wraps normally. */
+    .li-story-p { font-family:var(--ss-serif, Georgia, 'Times New Roman', serif); white-space:pre-line;
+      font-size:clamp(16px,2.3vw,22px); line-height:1.65; color:#fff; margin:0 0 1.15em; }
+    /* NOT COLOURED (owner: "all white"). It used to take the mint the game uses for the player's
+       own colour; it is white like everything else on this screen now, and centring plus a size up
+       is what still sets it apart from the paragraphs it closes. */
     .li-story-ask { font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
-      font-size:clamp(18px,2.6vw,25px); line-height:1.5; color:#7ef0c0; text-align:center;
+      font-size:clamp(18px,2.6vw,25px); line-height:1.5; color:#fff; text-align:center;
       margin:1.6em 0 0; }
-    .li-story-btn { display:block; margin:clamp(18px,4vh,34px) auto 0; cursor:pointer;
-      font:inherit; font-size:clamp(14px,1.8vw,17px); font-weight:700; letter-spacing:.06em;
-      text-transform:uppercase; color:#06231a; background:#7ef0c0; border:0;
-      border-radius:11px; padding:11px 34px; }
-    .li-story-btn:hover { background:#9df7d3; }
     .li-of { font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
       font-weight:700; letter-spacing:0.22em; text-transform:uppercase;
       font-size:clamp(10px,1.25vw,12.5px); font-variant-numeric:tabular-nums;
@@ -4358,9 +4356,10 @@ const LEVELS = [
       {"t":"ant","x":763},
       {"t":"food","kind":"cache","x":289,"y":957,"r":1,"energy":4},
       {"t":"ant","x":1078},
+      {"t":"food","kind":"cache","x":2485,"y":1506,"r":1,"energy":4},
       {"t":"food","kind":"cache","x":2751,"y":991,"r":1,"energy":4},
       {"t":"food","kind":"cache","x":2625,"y":1875,"r":1,"energy":4},
-      {"t":"food","kind":"cache","x":1434,"y":1946,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":1926,"y":1934,"r":1,"energy":4},
       {"t":"food","kind":"duff","x":1722,"y":1752,"r":1,"energy":2},
       {"t":"food","kind":"duff","x":2761,"y":1203,"r":1,"energy":2},
       {"t":"food","kind":"duff","x":2654,"y":627,"r":1,"energy":2},
@@ -4376,8 +4375,22 @@ const LEVELS = [
       {"t":"food","kind":"cache","x":1130,"y":1542,"r":1,"energy":4},
       {"t":"food","kind":"duff","x":740,"y":1500,"r":1,"energy":2},
       {"t":"food","kind":"cache","x":846,"y":1105,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":929,"y":1882,"r":1,"energy":4},
       {"t":"nematode","x":1573,"y":890},
       {"t":"nematode","x":1945,"y":444},
+      {"t":"nematode","x":172,"y":1684},
+      {"t":"nematode","x":112,"y":1703},
+      {"t":"nematode","x":231,"y":1718},
+      {"t":"nematode","x":2532,"y":1977},
+      {"t":"nematode","x":2486,"y":1898},
+      {"t":"nematode","x":2795,"y":1437},
+      {"t":"nematode","x":2855,"y":1392},
+      {"t":"nematode","x":1505,"y":1804},
+      {"t":"nematode","x":1510,"y":1738},
+      {"t":"nematode","x":1925,"y":494},
+      {"t":"nematode","x":1985,"y":491},
+      {"t":"nematode","x":1551,"y":839},
+      {"t":"nematode","x":1605,"y":854},
       {"t":"mountain","key":"mountain3","x":1332,"w":1872},
       {"t":"city","key":"skyline3","x":306,"w":180},
       {"t":"city","key":"skyline1","x":2376,"w":216}
@@ -4387,8 +4400,8 @@ const LEVELS = [
     "format": "mycelium-level",
     "version": 1,
     "id": "3-veined",
-    "name": "3 — Chrysocolla",
-    "campaignLevel": 3,
+    "name": "Chrysocolla (archived)",
+    "campaignLevel": null,
     "assetsFrom": "veined-c40",
     "world": {
       "width": 2952,
@@ -4420,7 +4433,7 @@ const LEVELS = [
         "saturate": 0.9
       }
     },
-    "chapter": "Chapter 1",
+    "chapter": "Archive",
     "objects": [
       {"t":"boulder","key":"veined-c40R013","x":1767.2,"y":1226.8,"w":267.7,"h":232.9,"rot":6.545},
       {"t":"boulder","key":"veined-c40R023","x":1604.8,"y":1009,"w":237.3,"h":234.2,"rot":0},
@@ -4512,8 +4525,8 @@ const LEVELS = [
     "format": "mycelium-level",
     "version": 1,
     "id": "4-rust",
-    "name": "4 — Rust",
-    "campaignLevel": 4,
+    "name": "3 — Rust",
+    "campaignLevel": 3,
     "assetsFrom": "rust-c90",
     "world": {
       "width": 2952,
@@ -4615,17 +4628,14 @@ const LEVELS = [
       {"t":"nematode","x":1900,"y":1866},
       {"t":"nematode","x":1887,"y":1823},
       {"t":"nematode","x":1865,"y":1876},
-      {"t":"food","kind":"cache","x":2668,"y":1039,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":2692,"y":1164,"r":1,"energy":4},
       {"t":"mountain","key":"mountain2","x":1332,"w":720},
       {"t":"city","key":"skyline1","x":594,"w":324},
       {"t":"city","key":"skyline6","x":2070,"w":396},
       {"t":"trichoderma","x":1551,"y":485},
       {"t":"nematode","x":2563,"y":1603},
       {"t":"nematode","x":2495,"y":1606},
-      {"t":"nematode","x":2529,"y":1551},
-      {"t":"nematode","x":2460,"y":1666},
-      {"t":"nematode","x":2528,"y":1662},
-      {"t":"nematode","x":2502,"y":1715}
+      {"t":"nematode","x":2529,"y":1551}
     ]
   },
   {
@@ -5472,8 +5482,8 @@ const LEVELS = [
     "format": "mycelium-level",
     "version": 1,
     "id": "campaign-05-anthracite-c24",
-    "name": "5 — Anthracite",
-    "campaignLevel": 5,
+    "name": "4 — Anthracite",
+    "campaignLevel": 4,
     "assetsFrom": "anthracite-c24",
     "world": {
       "width": 2952,
@@ -5586,8 +5596,8 @@ const LEVELS = [
     "format": "mycelium-level",
     "version": 1,
     "id": "campaign-06-glass-c40",
-    "name": "6 — Glass",
-    "campaignLevel": 6,
+    "name": "5 — Glass",
+    "campaignLevel": 5,
     "assetsFrom": "glass-c40",
     "world": {
       "width": 2952,
@@ -5707,8 +5717,8 @@ const LEVELS = [
     "format": "mycelium-level",
     "version": 1,
     "id": "campaign-07-garnet-c40",
-    "name": "7 — Garnet",
-    "campaignLevel": 7,
+    "name": "6 — Garnet",
+    "campaignLevel": 6,
     "assetsFrom": "garnet-c40",
     "world": {
       "width": 2952,
@@ -5822,8 +5832,8 @@ const LEVELS = [
     "format": "mycelium-level",
     "version": 1,
     "id": "campaign-08-hematite-c24",
-    "name": "8 — Hematite",
-    "campaignLevel": 8,
+    "name": "7 — Hematite",
+    "campaignLevel": 7,
     "assetsFrom": "hematite-c24",
     "world": {
       "width": 2952,
@@ -5963,8 +5973,8 @@ const LEVELS = [
     "format": "mycelium-level",
     "version": 1,
     "id": "campaign-09-veined-c28",
-    "name": "9 — Serpentine",
-    "campaignLevel": 9,
+    "name": "8 — Serpentine",
+    "campaignLevel": 8,
     "assetsFrom": "side-veined-c28",
     "world": {
       "width": 2952,
@@ -6060,8 +6070,8 @@ const LEVELS = [
     "format": "mycelium-level",
     "version": 1,
     "id": "campaign-10-ember-c30-5",
-    "name": "10 — Ember",
-    "campaignLevel": 10,
+    "name": "9 — Ember",
+    "campaignLevel": 9,
     "assetsFrom": "side-ember-c30-5",
     "world": {
       "width": 2952,
@@ -10920,7 +10930,10 @@ const MAX_LEVEL = 100;
 // campaign's length. Levels 1..11 are hand-authored in LEVEL_THREATS, which is exactly the span
 // the campaign uses, so the difficulty curve needed no change at all — the campaign is the
 // authored part of a curve that used to run off into the unwinnable.
-const CAMPAIGN_LEVELS = 10;
+// NINE, not ten: the owner archived the third map (Chrysocolla) and the seven behind it moved up
+// a slot. Both halves matter — a level number is written into each map's NAME as well as its
+// `campaignLevel`, so the counter and the card would otherwise disagree by one from level 3 on.
+const CAMPAIGN_LEVELS = 9;
 // Every colony opens on level 1. The old ladder let a higher tier skip the early grind
 // (START_LEVEL_SHIFT and startLevelRange, both still here), which made sense over 100 levels and
 // would hand away half a campaign over 10. The owner settled it when the start-level stepper was
@@ -10929,9 +10942,12 @@ const CAMPAIGN_START_LEVEL = 1;
 // Ten arbitrary, fixed 31-bit seeds. Nothing distinguishes them but being CONSTANT — reroll any
 // slot by editing its number, and the level becomes a different map for everyone from that build
 // on. `campaign-check` asserts they are distinct and that each one builds the same world twice.
+// Nine now. These are the PROCEDURAL fallback — every slot is an authored map today, so nothing
+// reads them; they are kept so an unfilled slot still builds the same world every time. The tenth
+// went with the archived level rather than being left dangling past the end of the ladder.
 const CAMPAIGN_SEEDS = [
   0x1A3F0C5, 0x2C71E93, 0x3B0D4A7, 0x47E2B19, 0x5D19F60,
-  0x6402C8B, 0x71BE35D, 0x8A5701E, 0x93CD2F4, 0xA6841B2,
+  0x6402C8B, 0x71BE35D, 0x8A5701E, 0x93CD2F4,
 ];
 const isCampaignLevel = (n) => (n | 0) >= 1 && (n | 0) <= CAMPAIGN_LEVELS;
 // The seed for a campaign level, or null off the ladder (dev runs, playtests, anything past the
@@ -11022,15 +11038,16 @@ function threatBonusForLevel(level) {
 // slot happen to agree today (the ten maps are named for the rock they are cut from) and the lines
 // lean on both.
 //
-// Written to be read ONCE each, so they are fragments rather than paragraphs — the level card
-// already carries a grown wordmark, a "3 of 10" counter and the threat portraits, and a paragraph
-// there stops being a title card.
+// The owner's words, and their line breaks: the first block is two sentences on two lines, which
+// `white-space: pre-line` on `.li-story-p` preserves. Shown ON PRESSING NEW now, before the species
+// picker — it frames the run you are about to choose a colony for, which is not something to read
+// after you have already chosen one.
 const CAMPAIGN_OPENING = [
-  'The world got warm and the ground went dry. There is nothing left where you are.',
-  'East, the land is green and the rain still comes. Ten rocks stand between.',
-  'But you will not get through. You will die in the dark and fruit, and the spores will fall, and what grows from them will be stronger.',
+  'The world got warm and the ground went dry.\nThere is nothing left where you are.',
+  'The land to the east is green and the rain still comes.',
+  'Nine geologies stand between and you will not get through. You will die in the dark and fruit, and the spores will fall, and what grows from them will be stronger.',
 ];
-const CAMPAIGN_OPENING_ASK = 'Will you persist?';
+const CAMPAIGN_OPENING_ASK = 'You must persist.';
 // THE PER-LEVEL STORY LINES ARE GONE (owner). `CAMPAIGN_STORY` held one sentence per level and the
 // level card printed it under the title; it is deleted rather than left unrendered, and it is in
 // git if it is ever wanted back. What names the level now is the ROCK — one word, in the card's
@@ -25149,15 +25166,16 @@ function showStoryIntro(opts) {
   const ask = opts && opts.ask;
   const onDone = opts && opts.onDone;
 
-  const root = el('div'); root.id = 'levelIntro'; root.classList.add('li-story');
+  const root = el('div'); root.id = 'levelIntro'; root.classList.add('li-story', 'li-camp');
   const inner = el('div', 'li-inner');
   const body = el('div', 'li-story-body');
   for (const line of lines) body.appendChild(el('p', 'li-story-p', String(line)));
   if (ask) body.appendChild(el('p', 'li-story-ask', String(ask)));
   inner.appendChild(body);
-  // The button answers the question above it, which is why it is not "Continue".
-  const btn = el('button', 'li-story-btn', 'Persist'); btn.type = 'button';
-  inner.appendChild(btn);
+  // NO BUTTON (owner) — a tiny "click", the same prompt the level card uses. A button is a control
+  // and this screen has no choice on it; the whole overlay has always been the click target, so the
+  // button was a second way to do the one thing that was already true of the whole screen.
+  inner.appendChild(el('div', 'li-hint li-hint--tiny', 'click'));
   root.appendChild(inner);
   document.body.appendChild(root);
 
@@ -25573,9 +25591,7 @@ let pendingLevelIntro = null;         // {level, threats, onContinue} — black 
 // lineage and the opening is about exactly that ("you will die in the dark and fruit"), so a player
 // who dies on level 4 and starts again is starting the story again too. Set when a campaign run
 // begins, cleared as it is shown.
-let pendingStoryIntro = false;
 let storyIntro = null;
-let _storyRun = null;   // the runStartLevel the opening was last armed for — see startRun
 let levelIntro = null;                // active level-intro overlay controller
 let draftIntro = null;                // sequenced food-pile → card-draft animation (see updateDraftIntro)
 
@@ -25618,9 +25634,8 @@ function revealMap() {
     canvas.style.transition = 'none';
     canvas.style.opacity = '1';
     if (levelIntro) { try { levelIntro.destroy(); } catch (_) {} levelIntro = null; }
-    // THE OPENING GOES IN FRONT OF THE LEVEL CARD, not instead of it: the level card is where the
-    // threats and the "1 of 10" live. Both sit on the same black, so dismissing the first reveals
-    // the second and the map only appears after them — one sequence, not two screens.
+    // The opening used to sit in front of this card. It fires ON NEW now (owner), before the
+    // species picker, so by the time a level card is built there is only ever the one screen.
     const showLevel = () => {
       levelIntro = showLevelIntro({
         level: info.level,
@@ -25634,15 +25649,6 @@ function revealMap() {
         onDone: () => { levelIntro = null; if (info.onContinue) info.onContinue(); },
       });
     };
-    if (pendingStoryIntro) {
-      pendingStoryIntro = false;
-      if (storyIntro) { try { storyIntro.destroy(); } catch (_) {} }
-      storyIntro = showStoryIntro({
-        lines: CAMPAIGN_OPENING, ask: CAMPAIGN_OPENING_ASK,
-        onDone: () => { storyIntro = null; showLevel(); },
-      });
-      return;
-    }
     showLevel();
     return;
   }
@@ -25820,21 +25826,23 @@ function retryLevel() {
   return true;
 }
 function startRun() {
-  // ARM THE OPENING HERE, because this is the one place EVERY route into a run passes through —
-  // the picker's Select, the campaign hook, the boot hashes. Arming it at the picker instead left
-  // it unarmed for the other entries, which is how a check driving `campaign.play` saw no opening
-  // at all while the game showed one.
-  //
-  // Once per RUN, not once per level and not once per save: the story is about a lineage that dies
-  // and fruits, so a player who starts again is starting it again. `_storyRun` is the level the
-  // run began on — a transition to level 2 does not re-arm, because runStartLevel does not move
-  // inside a run, and a retry does not either.
-  if (campaignRun() && currentLevel === CAMPAIGN_START_LEVEL && _storyRun !== runStartLevel) {
-    _storyRun = runStartLevel;
-    pendingStoryIntro = true;
-  }
   const fixed = campaignRun() ? campaignSeed(currentLevel) : null;
   start(fixed != null ? fixed : ((Date.now() & 0x7fffffff) || 1));
+}
+
+// THE CAMPAIGN OPENING, shown on pressing New and nowhere else (owner). It used to be armed at
+// `startRun` and shown in front of the first level card, which meant reading the setup for a run
+// AFTER choosing the colony to run it with; on New it frames the choice instead.
+//
+// Once per press, not once per run: New is the press that begins a campaign, so there is no latch
+// left to get wrong — the previous one (`_storyRun !== runStartLevel`) could not tell two runs that
+// both started on level 1 apart, and silently showed the opening once per page load.
+function showCampaignOpening(next) {
+  if (storyIntro) { try { storyIntro.destroy(); } catch (_) {} }
+  storyIntro = showStoryIntro({
+    lines: CAMPAIGN_OPENING, ask: CAMPAIGN_OPENING_ASK,
+    onDone: () => { storyIntro = null; if (next) next(); },
+  });
 }
 
 // Show the start-of-run picker (also used on death → back to picker).
@@ -25846,8 +25854,8 @@ function showPicker() {
     // hash, which skips the picker — now the dev map buttons below set it from inside the
     // picker, and levelDefFor() prefers it over every campaign slot, so leaving it set
     // would silently serve the authored map for the rest of the session.
-    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; _storyRun = null; stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
-    onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; _storyRun = null; startRun(); },
+    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
+    onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; startRun(); },
     // DEV: play an authored map with the dev loadout — the same thing `#level,<id>` does,
     // reachable without retyping the URL.
     onLevel: (id) => {
@@ -26488,7 +26496,13 @@ function showMainMenu() {
     // and it is shared between the two games, so it is wiped whichever one you start. Only the
     // resume slot being cleared is per-game: the OTHER game's half-finished run is not this
     // game's business, and clearResume reads CONFIG.game, so setGame has to come first.
-    onNew: (name, mode, game) => { setMode(mode); setGame(game); savePlayerName(name); resetProgress(); clearResume(); tutorialPending = true; showPicker(); },
+    onNew: (name, mode, game) => {
+      setMode(mode); setGame(game); savePlayerName(name); resetProgress(); clearResume(); tutorialPending = true;
+      // The opening goes between New and the picker, and only for the campaign — the survival
+      // ladder has no story to tell and never had this screen.
+      if (isCampaignGame()) showCampaignOpening(() => showPicker());
+      else showPicker();
+    },
     // "Old" = continue last game: if a mid-run level was saved (tab closed mid-run),
     // re-enter that level (fresh map, saved deck); otherwise fall back to the picker.
     // Each mode has its OWN continue slot, so "Old" resumes that mode's run.
@@ -27780,6 +27794,10 @@ function begin(newState) {
     // to scrape a tile.
     showPicker: () => showPicker(),
     showTitle: () => backToTitle(),
+    // The campaign opening, reachable without driving the title screen's New dialog. The REAL
+    // route is asserted separately (title → New → name → Start); this is here so the screen's
+    // own content and shape can be checked without four clicks in front of them.
+    showOpening: (next) => showCampaignOpening(next),
     resumeKey: () => resumeKey(),
     store: {
       upgrades: STORE_UPGRADES,
@@ -27837,7 +27855,7 @@ function begin(newState) {
         setGame('campaign');   // the title screen's Campaign row does this; without it the run is Survival
         playtestLevel = null; chosenSpecies = sp;
         currentLevel = Math.max(1, (level | 0) || CAMPAIGN_START_LEVEL); runStartLevel = currentLevel;
-        carryOver = null; runSpores = 0; _storyRun = null;
+        carryOver = null; runSpores = 0;
         stockRun();   // same as the picker's Select — a run without this has no retries to spend
         startRun();
         return true;
