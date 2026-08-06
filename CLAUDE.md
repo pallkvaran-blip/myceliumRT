@@ -597,7 +597,7 @@ passes the cascade half** just as "claims everything" passes the forgiveness hal
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**37 checks registered in `run.mjs`**, roughly 2025 assertions, of which `traced` is 818 (one map's
+**38 checks registered in `run.mjs`**, roughly 2045 assertions, of which `traced` is 818 (one map's
 worth each). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -1682,6 +1682,65 @@ Available where there should have been 3.
   this newly-described species specifically, so the blurb keeps it at that level. Worth knowing before
   anyone "corrects" either one.
 
+## Telemetry: what the game tells you once it is published
+
+`logEvent(kind, fields)` posts one anonymous row to the `events` table. **`docs/analytics.html`
+(GENERATED — `node scripts/gen-analytics.mjs`) is what reads it.** Schema and the migration SQL
+live in `docs/leaderboard-setup.md`.
+
+**EVERY EVENT CARRIES `game`, `mode` AND `device`, attached centrally in `buildEventRow` and not
+at the call sites.** There are twenty call sites; one that forgot would produce rows nobody can
+group by, and you would find out a month after launch. Before this, a campaign run and a survival
+run were the same row and every rate over the table was an average across two different games.
+
+- **`boot` is the denominator**, and it fires at PLAYABLE rather than at first byte: a player
+  whose download never finished cannot have bounced off the *design*, and counting them would
+  blame the game for a download. Everything else is a share of it.
+- **`run_start` fires on resume and retry too** (`cause: new|resume|retry`). It used to fire only
+  from the picker, so a continued run ended having never begun and starts never balanced ends.
+- **`device` is bucketed from the VIEWPORT, never the user-agent** — a UA lies, needs endless
+  maintenance, and is the part of a fingerprint worth not collecting. Shorter edge plus
+  `pointer: coarse` → phone / tablet / desktop.
+- **Three generic carriers rather than a column per feature**: `n` a count, `ms` a duration,
+  `detail` names the thing. `perf` used to smuggle frame-ms into `turns` and pixels into `level`,
+  which quietly poisoned every query grouping by level; it uses `ms`/`n` now and sends no `level`.
+- **IT SURVIVES AN UN-MIGRATED TABLE.** PostgREST rejects the WHOLE row on one unknown column
+  (PGRST204), so a build shipped ahead of its migration would go completely dark rather than
+  degrade. `_slimEvents` latches on the first 400 and posts the original seven columns for the
+  rest of the session — one wasted request, nothing lost, deploy order irrelevant.
+- **The tap is on `window.__telemetry`, NOT `__game`.** `__game` is assigned inside `begin()`,
+  i.e. once a RUN starts, and `boot` fires long before that — a tap hanging off `__game` could
+  never see the one event the whole funnel divides by. That is how the first version failed,
+  silently, with every other assertion passing.
+- Nothing identifying leaves: anonymous device + session ids, no names, no IP, no user-agent, no
+  free text from the player. `telemetry-check` asserts the field set as a **whitelist**, so a new
+  field has to be added there deliberately rather than arriving by accident.
+
+### The dashboard
+
+**It CANNOT be an Artifact.** A published Artifact has no outbound network — the only runtime
+capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it instead:
+
+- GitHub Pages, if the repo enables it for `/docs` (there is no Pages workflow in this repo yet)
+- `python3 -m http.server 8000` at the repo root, then `/docs/analytics.html`. **Not `file://`** —
+  that sends `Origin: null` and Supabase's CORS refuses it.
+- `node scripts/gen-analytics.mjs --snapshot rows.json` bakes rows in, which needs no network and
+  IS publishable. It says on the page that it is a snapshot.
+
+- **PostgREST caps a GET at 1000 rows and says nothing**, so the page pages with `Range` headers.
+  This is the most dangerous bug the file can have: without it every number stays plausible and
+  describes the first thousand events. `analytics-check` feeds it 2198 rows over 3 requests.
+- **Source defaults to `itch`** — the same table carries dev boots and Playwright runs, and mixing
+  them into a launch number is how you convince yourself the game has ten times the players it
+  has. It falls back to "all" when nothing is tagged `itch`, so pre-v2 rows are not hidden.
+- Two things the FIRST RENDER caught, both of which would have been read as fact: a bar scaled to
+  the biggest value in its column printed a percentage beside it, so 8 retries on level 1 read as
+  "88.9%" of nothing in particular (`barRow`'s `rate` flag now gates that, and retries are per
+  attempt); and device share was over PLAYERS, which summed past 100% because a browser resized
+  across a bucket boundary legitimately appears under two device classes (sessions now).
+- The generator **refuses to write a key whose JWT role is not `anon`** — the anon key and the
+  `service_role` key look identical at a glance and one of them is a real secret.
+
 ## The card tool: costs and descriptions for every card in the game
 
 **`docs/card-tool.html`, GENERATED — `node scripts/gen-card-tool.mjs`; applied back with
@@ -2456,7 +2515,8 @@ death was firing; the screen was lying about it.
   `getBoard`). Until then the client falls back to a combined board and says so.
 - The card-timing review decisions in `docs/card-review.html` are still awaiting the user's
   picks; nothing has been converted to N×-per-level yet.
-- **`logEvent` telemetry doesn't record the mode**, so the analytics funnel mixes the two games.
+- ~~`logEvent` telemetry doesn't record the mode~~ — **fixed**: every event carries `game`, `mode`
+  and `device` now, and `docs/analytics.html` reads them. See "Telemetry" above.
 - **Six `traced` assertions fail on four maps, and have for a while** — `ice-c24` and
   `side-biolum-c20-2` on channel clearance, `rust-c110` / `rust-c40` / `side-veined-c28` /
   `side-biolum-c20-2` on density (61.9-64.9% solid, and 7.9% at the other extreme). This is MAP
