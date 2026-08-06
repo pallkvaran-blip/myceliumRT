@@ -110,7 +110,11 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
         return { nextHidden: !b || getComputedStyle(b).display === 'none',
                  clockLive: !window.__game.state._simPaused };
       });
-      ok(`${label}: it is forced (no Next — the draft has to happen)`, forced.nextHidden, JSON.stringify(forced));
+      // IT KEEPS ITS GATE BUT NOW SHOWS NEXT TOO (owner: "just to be safe"). It used to hide the
+      // button, which is what a gated step normally does — and that is exactly how a player who
+      // grew somewhere the gate could not see ended up with no way forward at all.
+      ok(`${label}: it offers a Next button as well as its gate`, forced.nextHidden === false,
+         JSON.stringify(forced));
       if (wantTimeLine) ok(`${label}: the clock RUNS on that step`, forced.clockLive === true, `simPaused=${!forced.clockLive}`);
     }
 

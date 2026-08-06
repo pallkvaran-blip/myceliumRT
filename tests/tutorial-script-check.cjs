@@ -61,6 +61,11 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
                next: nx ? getComputedStyle(nx).display !== 'none' : false,
                nextLabel: nx ? nx.textContent.trim() : null,
                nextFont: nx ? parseFloat(getComputedStyle(nx).fontSize) : null,
+               zoom: (() => { try { return +window.__game.camera.zoom.toFixed(3); } catch (_) { return null; } })(),
+               // How many creatures are pulsing a range. ONE (owner) — every range at once on a
+               // zoomed-out map is a wash of green with no edge to read.
+               flashing: (() => { const g = window.__game;
+                 return g.sightFlashCount ? g.sightFlashCount() : null; })(),
                img: (() => { const f = document.getElementById('tutFig');
                  return f && getComputedStyle(f).display !== 'none' ? (document.getElementById('tutImg') || {}).src || '' : null; })(),
                ringW: ring && getComputedStyle(ring).display !== 'none' ? Math.round(ring.getBoundingClientRect().width) : null };
@@ -123,8 +128,44 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('5. red leaves are engine cards', has(/Red leaves are rare and give you engine cards\.\s*Very valuable\./));
   ok('6. water harvests 1 per round, and running out kills',
      has(/harvest 1 water per round/) && has(/won.t survive for long without water/));
+  // ...ON ONE LINE at a desktop width. The sentence is 486px wide at this font and the popup used
+  // to give it 434, so it wrapped — and `text-wrap: balance` then evened the halves and put the
+  // break after the dangling "to" ("…bodies of water to / harvest 1 water per round"). Asserted by
+  // MEASURING the sentence against the box, because no wrap mode fixes text that does not fit and
+  // the failure is a box width rather than anything in the copy.
+  const fitsOneLine = await page.evaluate(() => {
+    const pop = document.createElement('div');
+    pop.className = 'tut-pop tut-pop--side tut-pop--left';
+    pop.style.visibility = 'hidden';
+    const body = document.createElement('div'); body.className = 'tut-body';
+    pop.appendChild(body); document.body.appendChild(pop);
+    const avail = body.getBoundingClientRect().width;
+    const probe = document.createElement('span');
+    probe.className = 'tut-body';
+    probe.style.cssText = 'position:absolute;visibility:hidden;white-space:nowrap;left:-9999px';
+    probe.innerHTML = 'Grow into bodies of <b>water</b> to harvest 1 water per round.';
+    document.body.appendChild(probe);
+    const natural = probe.getBoundingClientRect().width;
+    probe.remove(); pop.remove();
+    return { avail: Math.round(avail), natural: Math.round(natural) };
+  });
+  ok('...and the popup is wide enough to hold that sentence on one line',
+     fitsOneLine.avail >= fitsOneLine.natural,
+     `${fitsOneLine.natural}px of text in ${fitsOneLine.avail}px of box`);
   ok('7. nematodes', has(/Nematodes love eating mycelium\.\s*Be careful around them\./));
   ok('8. click enemies to see their sensing range', has(/Click on enemies to see their sensing range\./));
+  // THE STEP'S CAMERA AND ITS RING. A sensing radius is 500 world units across, so at the
+  // walkthrough's usual 1.1 the circle is wider than the screen and reads as a tint over
+  // everything rather than as a range with an edge.
+  const sight = seen.find((s2) => /sensing range/.test(s2.text)) || {};
+  const other = seen.find((s2) => /This is your colony/.test(s2.text)) || {};
+  ok('...seen from much further out than the rest of the walkthrough',
+     sight.zoom > 0 && other.zoom > 0 && sight.zoom < other.zoom * 0.6,
+     `zoom ${sight.zoom} vs ${other.zoom} on step 1`);
+  ok('...with exactly one creature pulsing its range', sight.flashing === 1, String(sight.flashing));
+  // ...and it must not survive the step.
+  const afterFlash = await page.evaluate(() => window.__game.sightFlashCount());
+  ok('...and nothing is left pulsing once the walkthrough ends', afterFlash === 0, String(afterFlash));
   ok('9. it ends on "Good luck: Persist."', /Good luck: Persist\./.test(texts[texts.length - 1] || ''),
      texts[texts.length - 1] || '(none)');
   // MOVED OFF LEVEL 1 (owner). "an ant step exists" would pass on the old build, which is why this
@@ -134,6 +175,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 
   // ---- the popup's furniture --------------------------------------------------
   const step1 = seen[0] || {};
+  const pile = seen.find((s2) => /Grow into substrate/.test(s2.text)) || {};
+  ok('the substrate step offers a Next button as well as its gate', pile.next === true,
+     `next visible = ${pile.next}`);
   ok('the Next button has no chevron on it', (seen.find((s) => s.nextLabel) || {}).nextLabel === 'Next',
      (seen.find((s) => s.nextLabel) || {}).nextLabel || '(none)');
   const fsz = (seen.find((s) => s.nextFont) || {}).nextFont;
@@ -145,7 +189,49 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('the nematode step carries its portrait',
      (seen.find((s) => /Nematodes love/.test(s.text)) || {}).img || '' , 'nematode.jpg expected');
 
-  // ---- the tips, on their own levels -----------------------------------------
+  // ---- the reported stall ----------------------------------------------------
+  // "I grew into the substrate, but the message failed to move on." The gate waited on the
+  // REWARD, and in turn-based the world only ticks when the player acts — so after growing in
+  // there was nothing left to do and no reason to act, the pile never finished digesting, and the
+  // step stayed up forever. It ends on the CLAIM now, which lands inside the grow itself.
+  // Asserted with NO further ticking, which is the whole point: the previous build only passed
+  // because the harness kept the world moving on the player's behalf.
+  const stall = await page.evaluate(async () => {
+    const g = window.__game, s = g.state, sub = s.substrate, net = s.active, C = s.cards;
+    document.querySelectorAll('#tutorial').forEach((n) => n.remove());
+    const t = g.tutorial; if (t) { try { t.destroy(); } catch (_) {} }
+    g.startTutorial();
+    await new Promise((r) => setTimeout(r, 400));
+    // Walk to the substrate step the way a player would.
+    for (let i = 0; i < 12; i++) {
+      const b = document.getElementById('tutBody');
+      if (b && /Grow into substrate/.test(b.textContent)) break;
+      const nx = document.getElementById('tutNext');
+      if (nx && getComputedStyle(nx).display !== 'none') nx.click();
+      else if (/This is your deck/.test((b || {}).textContent || '')) g.armAim('Apical Drive');
+      await new Promise((r) => setTimeout(r, 260));
+    }
+    const before = (document.getElementById('tutBody') || {}).textContent || '';
+    const at = g.starterPile();
+    const ctrOf = (q) => { let x = 0, y = 0; for (const i of q.cells) { const c = sub.cellCenter(i % sub.cols, (i / sub.cols) | 0); x += c.x; y += c.y; } return { x: x / q.cells.length, y: y / q.cells.length }; };
+    const p2 = at && (sub.foodPiles || []).filter((q) => q.cells && q.cells.length)
+      .sort((a, b) => Math.hypot(ctrOf(a).x - at.x, ctrOf(a).y - at.y) - Math.hypot(ctrOf(b).x - at.x, ctrOf(b).y - at.y))[0];
+    if (!p2) return { skipped: true };
+    const ctr = ctrOf(p2);
+    net.energy = 1e6; net.water = 999; net.phosphorus = 999;
+    const fp = net.frontierPoint() || net.nodes[0];
+    C.hand.push({ id: C.seq++, name: 'Rhizomorph Lance' });
+    g.play(C.hand.length - 1, { x: ctr.x, y: ctr.y, srcX: fp.x, srcY: fp.y });
+    // NO tickWorld here, deliberately. Just wait, the way a player who has done what they were
+    // asked would.
+    await new Promise((r) => setTimeout(r, 2500));
+    const after = (document.getElementById('tutBody') || {}).textContent || '';
+    return { before, after, moved: /Grow into substrate/.test(before) && !/Grow into substrate/.test(after) };
+  });
+  ok('growing into the substrate advances the step with no further action',
+     stall.skipped === true || stall.moved === true,
+     stall.skipped ? '(no pile on this map)' : `"${(stall.before || '').slice(0, 30)}" -> "${(stall.after || '').slice(0, 30)}"`);
+
   // ---- the tips, on their own levels -----------------------------------------
   // A SECOND PAGE, ON A MAP THAT HAS THE CREATURES. Each tip `skip`s when its subject is absent —
   // correctly — and the dev boot rolls a level 1 with no ants and no mould, so the first version of

@@ -1662,8 +1662,15 @@
     /* Desktop: popup in the TOP HALF, on the LEFT or RIGHT (opposite the framed subject),
        clear of the top-left resource pill (top offset) and the bottom card carousel (top
        half). Applied by tutorial.js only on wide screens. */
+    /* 440 -> 545, and the number is measured rather than guessed. The water line ("Grow into
+       bodies of water to harvest 1 water per round.") is 486px wide at this font against 434px of
+       content box, so it wrapped — and `text-wrap: balance` then evened the two lines and put the
+       break after the dangling "to". No wrap mode fixes a sentence that does not fit; the box has
+       to hold it. 545 leaves 501px of content, and the side popup owns a screen quadrant anyway.
+       A narrow desktop (under ~1240px) falls back to 44vw and wraps again, which is the same
+       trade every other step already makes. */
     .tut-pop--side { top:clamp(72px, 11vh, 150px); bottom:auto; left:auto; right:auto;
-      transform:none; width:min(440px, 40vw); }
+      transform:none; width:min(545px, 44vw); }
     .tut-pop--side.tut-pop--left  { left:clamp(20px, 4vw, 72px); }
     .tut-pop--side.tut-pop--right { right:clamp(20px, 4vw, 72px); }
     .tut-pop--side .tut-fig img { max-height:200px; }
@@ -24695,7 +24702,12 @@ function startTutorial(deps) {
       //
       // So it ends on the REWARD, or on the pile being gone regardless — a threat can beat the
       // player to it, and a forced step must not strand anyone on a pile that no longer exists.
-      gate: (s) => !!(s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length)
+      // ...and a Next button as well (owner: "just to be safe"). A gated step normally hides it,
+      // because the step is asking for something specific; this one keeps it, so a player who
+      // grows somewhere the gate cannot see is never stuck. `showNext` is the opt-out.
+      showNext: true,
+      gate: (s) => (deps.starterPileClaimed && deps.starterPileClaimed())
+        || !!(s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length)
         || (deps.starterPileGone && deps.starterPileGone()),
     },
     {
@@ -24706,7 +24718,10 @@ function startTutorial(deps) {
       place: 'bottom',
     },
     {
-      text: 'Grow into bodies of <b>water</b> to harvest 1 water per round.'
+      // `text-wrap: balance` evens the two halves but still broke right after "bodies of water",
+      // leaving the clause that says what water is FOR stranded on its own line. The non-breaking
+      // spaces keep the phrase whole, so the wrap has to fall inside "to harvest 1 water per round".
+      text: 'Grow into bodies&nbsp;of&nbsp;<b>water</b> to harvest 1 water per round.'
         + '<br>Be careful: you won\'t survive for long without water.',
       focus: (s) => world(deps.reservoir() || deps.colonyRoot(), 1.5),
       target: (s) => worldTarget(deps.reservoir()),
@@ -24723,8 +24738,12 @@ function startTutorial(deps) {
     },
     {
       text: '<b>Click on enemies</b> to see their sensing range.',
-      focus: (s) => world(deps.threats().nematode || deps.threats().trich || deps.threats().ant, 1.1),
-      target: (s) => worldTarget(deps.threats().nematode || deps.threats().trich || deps.threats().ant),
+      // ZOOMED RIGHT OUT (owner). A sensing radius is 500 world units across — at the walkthrough's
+      // usual 1.1 the circle is wider than the screen and reads as a green tint over everything
+      // rather than as a range with an edge. `onEnter` picks the creature first, so the camera and
+      // the pulsing ring are guaranteed to be about the same one.
+      focus: (s) => world(deps.sightFlashAt() || deps.threats().nematode || deps.threats().trich, 0.42),
+      target: (s) => worldTarget(deps.sightFlashAt() || deps.threats().nematode || deps.threats().trich),
       interactive: true,   // leave the canvas live so a threat-tap really shows its sight
       // Pulse every creature's range slowly until the player clicks ANYTHING (owner). Showing what
       // the sentence is describing is the whole instruction; a player who has never seen a sight
@@ -24855,6 +24874,16 @@ function startTutorial(deps) {
     mem = {};
     const step = steps[i];
     const s = deps.getState();
+    // PICK THE PULSING CREATURE FIRST, before the focus is computed — the step frames whatever
+    // `sightFlashAt()` returns, so choosing it afterwards would leave the camera on one creature
+    // and the pulsing ring on another the first time they ever differ. Stops on the first click
+    // anywhere. Handled here rather than by toggling the creature's own `showSight`, so a real tap
+    // during the step works exactly as it does in play and nothing is left switched on.
+    if (deps.setSightFlash) deps.setSightFlash(!!step.flashSight);
+    if (step.flashSight) {
+      const stop = () => { if (deps.setSightFlash) deps.setSightFlash(false); };
+      document.addEventListener('pointerdown', stop, { once: true, capture: true });
+    }
     const f = step.focus && step.focus(s);
     // popup content
     body.innerHTML = step.text;
@@ -24891,7 +24920,7 @@ function startTutorial(deps) {
     // explanatory → Next + full-screen click catcher.
     const forced = !!step.gate;
     const interactive = !!step.interactive;
-    btnNext.style.display = forced ? 'none' : '';
+    btnNext.style.display = (forced && !step.showNext) ? 'none' : '';
     btnNext.textContent = step.last ? 'Begin' : 'Next';
     wantCatcher = !(forced || interactive);
     syncCatcher();
@@ -24903,14 +24932,6 @@ function startTutorial(deps) {
     applyGlow(step.glowCard);
     // demo gesture
     demo.style.display = step.demo ? '' : 'none';
-    // Pulse every creature's sensing range while this step is up, and stop on the first click
-    // anywhere. Handled here rather than by toggling each creature's own `showSight`, so a real
-    // tap during the step still works exactly as it does in play and nothing is left switched on.
-    if (deps.setSightFlash) deps.setSightFlash(!!step.flashSight);
-    if (step.flashSight) {
-      const stop = () => { if (deps.setSightFlash) deps.setSightFlash(false); };
-      document.addEventListener('pointerdown', stop, { once: true, capture: true });
-    }
     if (step.onEnter) step.onEnter(deps.getState(), mem);
     layout();
   }
@@ -25753,12 +25774,18 @@ const ENERGY_BOLT = (typeof Path2D !== 'undefined') ? new Path2D('M13.5 2 4 13.5
 const FLOAT_FONT = '"Inter", system-ui, "Segoe UI", sans-serif';
 let lastTime = 0;                     // most recent frame timestamp (for action-driven effects)
 let excreteFlashStart = -1e9;         // when the last Excrete fired, for the sticky pulse
-// The tutorial's "click on enemies to see their sensing range" step pulses EVERY creature's range
-// while it is up, so the sentence has the thing it describes on screen next to it. A wall-clock
-// sine rather than a frame counter: the idle board runs at IDLE_FPS and the pulse has to read the
-// same at 30fps as at 60. Kept out of each creature's own `showSight` so a real tap during the step
-// behaves exactly as it does in play, and nothing is left switched on when the step ends.
-let tutSightFlash = false;
+// The tutorial's "click on enemies to see their sensing range" step pulses ONE creature's range
+// while it is up, so the sentence has the thing it describes on screen next to it.
+//
+// ONE, not all of them (owner). Every range at once on a zoomed-out map is a wash of overlapping
+// green with no edge you can read, which teaches the opposite of what the step is for — the shape
+// of a single circle is the whole lesson. Holds the creature itself rather than a flag, so the
+// renderer can compare identity.
+//
+// A wall-clock sine rather than a frame counter: the idle board runs at IDLE_FPS and the pulse has
+// to read the same at 30fps as at 60. Kept out of the creature's own `showSight`, so a real tap
+// during the step behaves exactly as it does in play and nothing is left switched on afterwards.
+let tutSightFlash = null;
 const tutSightAlpha = () => 0.10 + 0.22 * (0.5 + 0.5 * Math.sin(performance.now() / 620));
 let showNematodeVision = false;       // dev overlay: nematode sight range + line of sight (off by default — the rings cluttered the map)
 let placingWorm = false;              // dev: click the map to drop a nematode
@@ -27739,6 +27766,16 @@ function tutorialDeps() {
       if (!p || !sub) return false;
       return p.rewarded || p.cells.every((i) => !sub.cells[i] || sub.cells[i].nutrient <= 0);
     },
+    // Has the colony REACHED the pile — a claim, which happens the instant the growth arrives,
+    // rather than the reward, which does not. In turn-based the world only ticks when the player
+    // acts, so a pile digests over following TURNS: after growing in there is nothing left to do
+    // and no reason to act, so waiting on the draft left the step up forever. Reported as "I grew
+    // into the substrate, but the message failed to move on".
+    starterPileClaimed: () => {
+      const p = tutorialStarterObj, sub = state.substrate;
+      if (!p || !sub) return false;
+      return p.cells.some((i) => sub.cells[i] && sub.cells[i].colonized);
+    },
     // Centre of the map's RED engine cache (for the "orange vs red leaves" step).
     enginePile: () => {
       const sub = state.substrate; const piles = sub && sub.foodPiles;
@@ -27763,7 +27800,17 @@ function tutorialDeps() {
       }
       return best;
     },
-    setSightFlash: (on) => { tutSightFlash = !!on; uiDirty = true; },
+    // Pick ONE creature to pulse — the first worm, else the first cloud. `null` clears it.
+    setSightFlash: (on) => {
+      tutSightFlash = on ? ((state.nematodes && state.nematodes[0]) || (state.clouds && state.clouds[0]) || null) : null;
+      uiDirty = true;
+    },
+    // ...and where it is, so the step can frame that creature rather than some other one.
+    sightFlashAt: () => {
+      const t = tutSightFlash;
+      if (!t) return null;
+      return { x: t.x != null ? t.x : t.cx, y: t.y != null ? t.y : t.cy };
+    },
     threats: () => ({
       ant: (state.ants && state.ants[0]) ? { x: state.ants[0].x, y: surf() + 40 } : null,
       nematode: (state.nematodes && state.nematodes[0]) ? { x: state.nematodes[0].x, y: state.nematodes[0].y } : null,
@@ -28098,6 +28145,10 @@ function begin(newState) {
     // The later-level tips (ants on 2, Trichoderma on 3). Their real trigger is entering that
     // level of a campaign run, which a check would otherwise have to play through.
     levelTip: (n) => { runTips.delete(n); beginLevelTip(n); },
+    // How many creatures are pulsing a sensing range right now. The answer must be 1 during that
+    // tutorial step and 0 otherwise; counting is the only way to assert "one, not all of them"
+    // without reading pixels.
+    sightFlashCount: () => (tutSightFlash ? 1 : 0),
     get tutorial() { return tutorial; },
     resetTutorial: () => { try { localStorage.removeItem(TUT_KEY); } catch (_) {} },
   };
@@ -29797,7 +29848,7 @@ function drawCloudSight() {
   if (!clouds || !clouds.length) return;
   const sight = state.config.trichoderma.sightRadius;
   for (const c of clouds) {
-    if (!(c.showSight || tutSightFlash)) continue;    // tapped by the player, or the tutorial step
+    if (!(c.showSight || tutSightFlash === c)) continue;   // tapped by the player, or the tutorial
     const a = c.showSight ? (c.dying ? 0.12 : 0.28) : tutSightAlpha();
     drawOccludedSight(c.cx, c.cy, sight, '120,155,45', a);
   }
@@ -31828,7 +31879,7 @@ function drawNematodes(time) {
     for (const w of worms) {
       // Shown for any worm the player has TAPPED, plus the dev "Worm Vision" overlay, plus the
       // tutorial step that is telling them these exist.
-      if (!(w.showSight || tutSightFlash || (showNematodeVision && !w.sees))) continue;
+      if (!(w.showSight || tutSightFlash === w || (showNematodeVision && !w.sees))) continue;
       drawOccludedSight(w.x, w.y, sight, '130,165,80', w.showSight ? 0.28 : tutSightAlpha());
     }
   }
