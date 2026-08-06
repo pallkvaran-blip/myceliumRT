@@ -1102,11 +1102,21 @@
     .ss-rate-thanks { color:var(--ss-mint); font-weight:600; }
     .ss-rate-link { color:var(--ss-mint); text-decoration:underline; text-underline-offset:2px; }
     .ss-rate-link:hover { color:var(--ss-mint-hi); }
-    .ss-rate-btn { flex:0 0 auto; display:inline-block; text-decoration:none; cursor:pointer;
-      font:inherit; font-size:13px; font-weight:700; letter-spacing:.04em;
-      padding:8px 22px; border-radius:10px; color:#06231a; background:var(--ss-mint);
-      border:1px solid var(--ss-mint); transition:background .12s, color .12s; }
-    .ss-rate-btn:hover { background:var(--ss-mint-hi); border-color:var(--ss-mint-hi); }
+    .ss-rate-acts { flex:0 0 auto; display:inline-flex; align-items:center; gap:12px; }
+    /* WHITE AND SMALLER (owner). Mint is the colony's own colour and it made this the loudest
+       thing on a screen full of things to buy — white reads as a plain call to action rather than
+       as part of the game's palette. */
+    .ss-rate-btn { display:inline-block; text-decoration:none; cursor:pointer;
+      font:inherit; font-size:12px; font-weight:700; letter-spacing:.03em;
+      padding:6px 16px; border-radius:8px; color:#0c1610; background:#fff;
+      border:1px solid #fff; transition:background .12s, border-color .12s; }
+    .ss-rate-btn:hover { background:#e6e6e6; border-color:#e6e6e6; }
+    /* The decline is a WORD, not a second button. It has to be findable and it must not compete —
+       an equally-weighted "No thanks" turns an aside into a decision the player has to make. */
+    .ss-rate-no { font:inherit; font-size:11.5px; cursor:pointer; background:none; border:0;
+      padding:2px 2px; color:var(--ss-ink-faint); text-decoration:underline;
+      text-underline-offset:2px; transition:color .12s; }
+    .ss-rate-no:hover { color:var(--ss-ink-dim); }
     .ss-section:first-child { margin-top:8px; }
     .ss-rowlabel { display:flex; align-items:baseline; gap:12px; margin-bottom:14px; }
     .ss-lk { font-size:12px; letter-spacing:0.2em; text-transform:uppercase; font-weight:700; color:var(--ss-ink); }
@@ -11416,6 +11426,18 @@ function sporesBalance(progress) {
 // Rate, began a run and then closed the tab came back to neither the bonus nor the offer.
 const RATE_URL = 'https://pallkvaran.itch.io/mycelium/rate?source=game';
 const hasRated = (progress) => !!(progress || loadProgress()).rated;
+// "No thanks" — the third answer, and the one the ask needed to be honest. Without it a player who
+// does not want to rate meets the same request at the foot of the picker between every single run,
+// which is how a polite ask becomes nagging. Permanent, and it forfeits the boon: declining is a
+// decision, not a postponement.
+const rateDismissed = (progress) => !!(progress || loadProgress()).rateNo;
+function dismissRate() {
+  const p = loadProgress();
+  if (p.rateNo) return false;
+  p.rateNo = true;
+  saveProgress(p);
+  return true;
+}
 // Arm the boon. Returns true only the FIRST time — pressing the link again on a later visit is
 // a second trip to the rating page, not a second doubling.
 function markRated() {
@@ -11860,7 +11882,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -23041,7 +23063,7 @@ function growMyceliumTitle(container, opts = {}) {
 
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
-  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, loadDeck, deckBucketFor, deckBuckets, deckSize,
+  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, loadDeck, deckBucketFor, deckBuckets, deckSize,
     STORE_UPGRADES, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
@@ -23580,6 +23602,9 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   // to "have they rated?" is one bit, and this is a different question.
   let rateThanksNow = false;
   function renderRate() {
+    // DECLINED, and that is the end of it — no empty bordered card left sitting there either.
+    if (rateDismissed(progress) && !hasRated(progress)) { rateBox.hidden = true; rateBox.innerHTML = ''; return; }
+    rateBox.hidden = false;
     if (hasRated(progress) && !rateThanksNow) {
       // The link stays live — some players will want to go back and change a rating — but
       // `markRated` refuses to arm a second boon, so this cannot be farmed.
@@ -23594,7 +23619,15 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
     rateBox.innerHTML =
       '<p class="ss-rate-msg">Are you enjoying Mycelium? Please consider rating us on itch.io'
         + ' — we\'ll double the spores you get from your next run!</p>'
-      + '<a class="ss-rate-btn" id="ssRateBtn" href="' + RATE_URL + '" target="_blank" rel="noopener noreferrer">Rate</a>';
+      + '<span class="ss-rate-acts">'
+        + '<a class="ss-rate-btn" id="ssRateBtn" href="' + RATE_URL + '" target="_blank" rel="noopener noreferrer">Rate</a>'
+        + '<button class="ss-rate-no" id="ssRateNo" type="button">No thanks</button>'
+      + '</span>';
+    rateBox.querySelector('#ssRateNo').addEventListener('click', () => {
+      dismissRate();
+      progress = loadProgress();
+      renderRate();
+    });
     rateBox.querySelector('#ssRateBtn').addEventListener('click', () => {
       // The anchor still opens the page; this only records the promise. Pressing IS the rating as
       // far as the game can tell — itch tells us nothing back.
@@ -25810,7 +25843,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -28183,9 +28216,11 @@ function begin(newState) {
       url: RATE_URL,
       rated: () => hasRated(),
       state: () => (loadProgress().rateBonus || null),
+      dismissed: () => rateDismissed(),
+      decline: () => dismissRate(),
       mult: () => runSporeMultiplier(),
       press: () => markRated(),
-      forget: () => { const p = loadProgress(); delete p.rated; delete p.rateBonus; saveProgress(p); },
+      forget: () => { const p = loadProgress(); delete p.rated; delete p.rateBonus; delete p.rateNo; saveProgress(p); },
     },
     store: {
       upgrades: STORE_UPGRADES,

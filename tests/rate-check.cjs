@@ -62,6 +62,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
              btnHref: btn ? btn.getAttribute('href') : null,
              btnTarget: btn ? btn.getAttribute('target') : null,
              btnRel: btn ? btn.getAttribute('rel') : null,
+             btnBg: btn ? getComputedStyle(btn).backgroundColor : null,
+             btnSize: btn ? parseFloat(getComputedStyle(btn).fontSize) : null,
+             no: (() => { const n = box.querySelector('#ssRateNo'); return n ? n.textContent.trim() : null; })(),
+             noSize: (() => { const n = box.querySelector('#ssRateNo');
+               return n ? parseFloat(getComputedStyle(n).fontSize) : null; })(),
+             hidden: box.hidden || getComputedStyle(box).display === 'none',
              link: link ? link.textContent.trim() : null,
              linkHref: link ? link.getAttribute('href') : null,
              // It must be the LAST thing on the screen (owner: "the bottom of the species
@@ -84,8 +90,37 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // A new tab, and `noopener` — the linked page must not get a handle on the game's window.
   ok('...opening in a new tab, safely',
      b.btnTarget === '_blank' && /noopener/.test(b.btnRel || ''), `${b.btnTarget} ${b.btnRel}`);
+  // WHITE, NOT MINT (owner). Mint is the colony's own colour and made this the loudest thing on a
+  // screen full of things to buy. Read as channels, which is what says "white" for any white.
+  const wrgb = (b.btnBg || '').match(/\d+/g) || [];
+  ok('...on a white button', wrgb.length >= 3 && wrgb.slice(0, 3).every((v) => +v > 240), b.btnBg);
+  ok('...and a smaller one than it was', b.btnSize > 0 && b.btnSize <= 12.5, `${b.btnSize}px (was 13)`);
+  // The decline has to be findable and must not compete — an equally-weighted "No thanks" turns an
+  // aside into a decision the player has to make.
+  ok('...beside a quiet "No thanks"',
+     b.no === 'No thanks' && b.noSize > 0 && b.noSize < b.btnSize, `${b.no} at ${b.noSize}px`);
   ok('nothing is owed before it is pressed',
      await page.evaluate(() => window.__game.rate.state()) === null);
+
+  // ---- declining -------------------------------------------------------------
+  // Asserted BEFORE the accept path, and on a fresh state, because "No thanks" and "Rate" are
+  // mutually exclusive answers and testing one after the other would be testing the second one's
+  // effect on the first.
+  await page.evaluate(() => window.__game.rate.forget());
+  await openPicker();
+  await page.click('#ssRateNo');
+  await sleep(250);
+  let d = await readBanner();
+  ok('"No thanks" makes the ask disappear', d.hidden === true && d.text === null,
+     `hidden=${d.hidden} text=${d.text}`);
+  ok('...and it is recorded', await page.evaluate(() => window.__game.rate.dismissed()) === true);
+  await openPicker();
+  d = await readBanner();
+  ok('...and it never comes back', d.hidden === true, `hidden=${d.hidden}`);
+  ok('...having cost the player no boon they had already earned',
+     await page.evaluate(() => window.__game.rate.state()) === null);
+  await page.evaluate(() => window.__game.rate.forget());
+  await openPicker();
 
   // ---- state B: pressed, this visit -------------------------------------------
   await page.click('#ssRateBtn');
