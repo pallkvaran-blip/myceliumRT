@@ -1801,6 +1801,19 @@
       font-family:"Segoe UI",Roboto,-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif; padding:10px; overflow:auto; }
     #loadoutSelect *, #loadoutSelect *::before, #loadoutSelect *::after { box-sizing:border-box; }
     body.lo-open #ui { display:none; }
+    /* THE HANDOFF CURTAIN, and the thing to know is WHEN it has to be up. `showMainMenu` already
+       calls `hideCanvas()` but leaves `#ui` standing, so coming back to the title from a run
+       parks the previous run's card carousel behind a screen that covers it — and the title's
+       own 560 ms fade-out then reveals it, frame by frame, on the way into the next run. That is
+       the reported flash, and it happens BEFORE `finishFn` fires `cb()`, so raising the curtain
+       at the run start is too late by the whole fade (measured: 21 exposed frames without it,
+       20 with). It goes up when the MENU does and comes down at `revealMap`.
+       `visibility`, not `display`: the HUD measures itself as it builds, and a display:none
+       parent reports every width as 0. It costs nothing in clicks — visibility is inherited and
+       a hidden element is not a hit target, so the carousel is unclickable while it is up
+       (`#ui` itself is already pointer-events:none; its children opt back in). */
+    body.handoff #ui { visibility:hidden; }
+    body.handoff #game { opacity:0 !important; }
     /* IT MUST FIT WITHOUT SCROLLING (owner: "there is too much spacing so now I need to scroll to
        see the whole thing after I have selected some cards"). TWO card rows is the whole budget,
        and measured at 1280x720 the content came to 806px against a 720 viewport — 86 over.
@@ -26176,6 +26189,7 @@ function revealMap() {
     if (info.onContinue) { try { info.onContinue(); } catch (_) {} }
     canvas.style.transition = 'none';
     canvas.style.opacity = '1';
+    dropHandoff();          // the map IS the destination on this path
     return;
   }
   if (pendingLevelIntro) {
@@ -26199,8 +26213,13 @@ function revealMap() {
       });
     };
     showLevel();
+    // AFTER `showLevel()`, never before: the card is what replaces the curtain, and dropping it
+    // first would re-open the very gap this closes. Both are synchronous in this one task, so
+    // the browser never paints between them.
+    dropHandoff();
     return;
   }
+  dropHandoff();            // no card to hand over to — the fade below is the reveal
   canvas.style.transition = 'none';
   canvas.style.opacity = '0';
   void canvas.offsetWidth;            // commit opacity:0 with no transition
@@ -26390,7 +26409,30 @@ function retryLevel() {
   startRun();
   return true;
 }
+// Raise/lower the handoff curtain (see the CSS). RAISED when a full-screen menu goes up and at
+// every run start; LOWERED by `revealMap` at the moment the level card — or the map's own fade —
+// takes over. It is a class on <body> rather than a new element so it cannot end up in the wrong
+// stacking context, and so the existing `body.lo-open` sits beside it as the same idea.
+//
+// THE SAFETY TIMER IS ARMED BY THE RUN START, NOT BY THE RAISE, and that split is the whole
+// reason there are two functions. A curtain that fails to lift is a black screen, which is far
+// worse than the flash it prevents — but a player can sit on the title screen for a minute, and a
+// timer armed there would drop the curtain behind the menu and hand the flash straight back.
+// Nothing is waiting to be revealed until a run is actually starting, so that is where the clock
+// starts.
+let _curtainT = 0;
+function raiseHandoff() {
+  try { document.body.classList.add('handoff'); clearTimeout(_curtainT); _curtainT = 0; } catch (_) {}
+}
+function armHandoffSafety() {
+  try { clearTimeout(_curtainT); _curtainT = setTimeout(dropHandoff, 4000); } catch (_) {}
+}
+function dropHandoff() {
+  try { clearTimeout(_curtainT); _curtainT = 0; document.body.classList.remove('handoff'); } catch (_) {}
+}
+
 function startRun() {
+  raiseHandoff(); armHandoffSafety();   // nothing of the game shows until the card (or the map fade) is ready
   const fixed = campaignRun() ? campaignSeed(currentLevel) : null;
   start(fixed != null ? fixed : ((Date.now() & 0x7fffffff) || 1));
 }
@@ -26421,6 +26463,7 @@ function showPicker() {
   runSporeMult = 1;
   logEvent('picker', {});   // reached the screen a run is started from — the funnel's second step
   hideCanvas();      // never let a finished run's map show behind the picker
+  raiseHandoff();    // ...nor its HUD, which the title's fade-out into here would otherwise reveal
   playMenuMusic();   // vol29 keeps playing (or starts) across the title → picker
   showSpeciesSelect({
     // Both normal routes CLEAR playtestLevel. It used to be settable only by the boot
@@ -27191,6 +27234,9 @@ function backToPicker() {
 function showMainMenu() {
   if (ui) ui.hideOverlay();
   hideCanvas();      // hide any finished-run map so the title's fade-out to the picker doesn't flash it
+  // ...and the HUD with it. `hideCanvas` was half the answer: the previous run's card carousel
+  // stays mounted behind the title, and the 560 ms fade-out is exactly long enough to read it.
+  raiseHandoff();
   playMenuMusic();   // title theme: backrooms-vol29, fading in over its first 20s
   showTitleScreen({          // title → Survival New (wipe unlocks) / Continue (keep unlocks) → picker
     // New Game collects the player's high-score name (pre-filled with their last one).

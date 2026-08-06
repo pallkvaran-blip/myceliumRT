@@ -597,7 +597,7 @@ passes the cascade half** just as "claims everything" passes the forgiveness hal
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**38 checks registered in `run.mjs`**, roughly 2045 assertions, of which `traced` is 818 (one map's
+**42 checks registered in `run.mjs`**, roughly 2215 assertions, of which `traced` is 818 (one map's
 worth each). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -607,9 +607,14 @@ node tests/run.mjs --fast    # skip rt/tut/lure (~25 min — `traced` alone is ~
 node tests/run.mjs hs lure   # by name
 ```
 
-**The last measured FULL sweep: 1470 passed, 10 failed** — every one a known standing failure
-rather than a regression (6 `traced` map-data assertions on four maps, 3 `tut` real-time flakes,
-1 `rt` worm flake; all in Loose ends). Everything since has been verified on SUBSETS scaled to the
+**The last measured FULL sweep: 2208 passed, 7 failed** — six are known standing map-data
+failures (`ice-c24` and `side-biolum-c20-2` on channel clearance, `rust-c110` / `rust-c40` /
+`side-veined-c28` / `side-biolum-c20-2` on density; all in Loose ends). The seventh is REAL and
+open: `campaign-10-ember-c30-5: every food cell is reachable — 2 of 61 sealed off`, a genuine
+sealed pocket on campaign level 9 (two food objects at ~(1388,642) and ~(1358,567) enclosed by
+boulders R004/R012/R001/R030; `auditRocks` reports `holing: 0`, so the rock is honest — the food
+is simply walled in). The owner's call: move the food or move a boulder. Everything since has
+been verified on SUBSETS scaled to the
 change, which is the recommended gear — the most recent runs, each 0 failed:
 
 | subset | result |
@@ -897,6 +902,30 @@ Already in place before any of that, and worth not re-deriving: `RENDER_DPR_CAP`
 
 ## Things that break if you forget them
 
+- **THE HANDOFF CURTAIN, and the thing about it is WHEN it goes up.** Owner: *"when I enter the
+  game via old - I'm sometimes getting a flash of the card carousel or of the map before they
+  should appear."* `showMainMenu` calls `hideCanvas()` and leaves **`#ui` standing**, so coming
+  back to the title from a run parks the previous run's card carousel behind a screen that covers
+  it — and the title's own **560 ms fade-out** then reveals it, frame by frame, on the way into
+  the next run. `body.handoff` hides `#ui` and forces `#game` transparent; `raiseHandoff()` sits
+  beside the existing `hideCanvas()` in **`showMainMenu` and `showPicker`**, and `revealMap`
+  drops it at all three of its exits (after `showLevel()`, never before — the card is what
+  replaces the curtain).
+  - **RAISING IT AT `startRun()` IS A WHOLE FADE TOO LATE, and that was the first version.**
+    The exposure runs from mid-fade (title opacity ~0.33) to the frame the card arrives on, and
+    all of that is *before* `finishFn` does `root.remove(); cb()`. Measured: **21 exposed frames
+    without it, 20 with** — i.e. it did nothing. Raised at the menu instead: **0**.
+  - **The safety timer is armed by the RUN START, not by the raise** — hence two functions
+    (`raiseHandoff` / `armHandoffSafety`). A 4 s timer armed at the menu drops the curtain while
+    the player is still reading the title and hands the flash straight back. Nothing is waiting
+    to be revealed until a run is actually starting. A curtain that fails to lift is a black
+    screen, which is far worse than the flash, so the timer itself is not optional.
+  - **`visibility`, not `display`.** The HUD measures itself as it builds and a `display:none`
+    parent reports every width as 0. It costs nothing in clicks — visibility inherits and a
+    hidden element is not a hit target.
+  - Safe because the picker, the title and every other menu mount on **`document.body`**, not
+    inside `#ui`. `tests/handoff-check.cjs` (19) asserts that too, since hiding the picker would
+    be a far louder bug than the one being fixed.
 - **Level sprites are NOT preloaded at boot.** `loadAssets` waits for every manifest entry to
   settle, so with 59 traced maps it was decoding ~2250 sprites and ~98 MB to play one, and
   never finished. Entries tagged `kind: 'level'` are held back and `loadLevelAssets(id)` picks
