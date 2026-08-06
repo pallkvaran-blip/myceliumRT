@@ -24788,6 +24788,10 @@ function startTutorial(deps) {
       // because the step is asking for something specific; this one keeps it, so a player who
       // grows somewhere the gate cannot see is never stuck. `showNext` is the opt-out.
       showNext: true,
+      // Let the grow finish on screen before moving on (owner). The floor is there because the
+      // claim can land before the reveal has even started, and the ceiling because a walkthrough
+      // must never be at the mercy of an animation.
+      hold: { min: 900, max: 6000 },
       gate: (s) => (deps.starterPileClaimed && deps.starterPileClaimed())
         || !!(s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length)
         || (deps.starterPileGone && deps.starterPileGone()),
@@ -24835,7 +24839,7 @@ function startTutorial(deps) {
       place: 'bottom',
     },
     {
-      text: '<b>Good luck: Persist.</b>',
+      text: '<b>Good luck…</b>',
       focus: (s) => world(deps.colonyRoot(), 1.0),
       place: 'center',
       last: true,
@@ -25061,7 +25065,19 @@ function startTutorial(deps) {
   function tick() {
     if (!alive) return;
     const step = steps[idx];
-    if (step && step.gate && step.gate(deps.getState(), mem)) { next(); return; }
+    if (step && step.gate && step.gate(deps.getState(), mem)) {
+      // HOLD BEFORE HANDING OVER, when the step asks for it. A gate answers a question about the
+      // MODEL — "has the colony claimed the pile?" — and the model has it the instant the card
+      // resolves, while the growth is still walking out on screen over the next second or two.
+      // So the step it taught vanished mid-animation and the player never saw their own grow
+      // finish (owner). Waits for the reveal to end, with a floor so an instant grow still gets a
+      // beat, and a ceiling so nothing can strand the walkthrough on an animation that never ends.
+      if (!step.hold) { next(); return; }
+      if (mem._gateAt == null) mem._gateAt = performance.now();
+      const held = performance.now() - mem._gateAt;
+      const revealing = deps.growthRevealing && deps.growthRevealing();
+      if (held >= step.hold.max || (!revealing && held >= step.hold.min)) { next(); return; }
+    }
     syncCatcher();
     layout();
   }
@@ -27883,6 +27899,10 @@ function tutorialDeps() {
       return best;
     },
     // Pick ONE creature to pulse — the first worm, else the first cloud. `null` clears it.
+    // Is a growth still animating in? The reveal walks new strands out over ~1-3s; the model has
+    // them the moment the card resolves, so a step that ends on the model ends while the picture
+    // is still being drawn.
+    growthRevealing: () => { try { return !!anyRevealing(lastTime); } catch (_) { return false; } },
     setSightFlash: (on) => {
       tutSightFlash = on ? ((state.nematodes && state.nematodes[0]) || (state.clouds && state.clouds[0]) || null) : null;
       uiDirty = true;

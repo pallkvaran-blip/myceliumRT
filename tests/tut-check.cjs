@@ -157,15 +157,22 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     // its wording — and the real-time "time stops when drafts happen" line — describe a screen
     // that no longer exists. The BEHAVIOUR they sat next to is still worth pinning: the pile step
     // is the only `live` one, so the clock must stop again the moment it hands over.
-    await sleep(1400);
+    // POLL FOR THE HANDOVER; do not guess how long it takes. The pile step deliberately HOLDS
+    // after its gate is satisfied, so the player sees their own growth finish drawing — a fixed
+    // 1400ms wait sampled while the step was still up and read as a regression in both modes.
+    const handedOver = await page.evaluate(async () => {
+      for (let i = 0; i < 60; i++) {
+        const b = document.getElementById('tutBody');
+        if (!b || !/Grow into substrate/i.test(b.innerText)) return true;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      return false;
+    });
+    ok(`${label}: the pile step hands over once the growth has finished drawing`, handedOver === true);
     if (wantTimeLine) {
+      // The pile step is the only `live` one, so the clock must stop again the moment it does.
       ok(`${label}: the clock IS stopped again once the pile step hands over`,
          await page.evaluate(() => !!window.__game.state._simPaused));
-    } else {
-      // Turn-based has no clock to stop, so the equivalent is simply that the walkthrough moved on.
-      const moved = await page.evaluate(() => { const b = document.getElementById('tutBody'); return b ? b.innerText : null; });
-      ok(`${label}: ...and the walkthrough has moved past the pile step`,
-         !/Grow into substrate/i.test(moved || ''), JSON.stringify(moved));
     }
     // No click-catcher over the draft, so the cards are actually reachable.
     const reachable = await page.evaluate(() => {

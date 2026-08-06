@@ -166,7 +166,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // ...and it must not survive the step.
   const afterFlash = await page.evaluate(() => window.__game.sightFlashCount());
   ok('...and nothing is left pulsing once the walkthrough ends', afterFlash === 0, String(afterFlash));
-  ok('9. it ends on "Good luck: Persist."', /Good luck: Persist\./.test(texts[texts.length - 1] || ''),
+  ok('9. it ends on "Good luck…"', /^Good luck…$/.test((texts[texts.length - 1] || '').trim()),
      texts[texts.length - 1] || '(none)');
   // MOVED OFF LEVEL 1 (owner). "an ant step exists" would pass on the old build, which is why this
   // asserts their ABSENCE from the walkthrough and their presence as tips further down.
@@ -223,14 +223,31 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     C.hand.push({ id: C.seq++, name: 'Rhizomorph Lance' });
     g.play(C.hand.length - 1, { x: ctr.x, y: ctr.y, srcX: fp.x, srcY: fp.y });
     // NO tickWorld here, deliberately. Just wait, the way a player who has done what they were
-    // asked would.
-    await new Promise((r) => setTimeout(r, 2500));
+    // asked would. Long enough to outlast the reveal AND the deliberate hold after it.
+    // SAMPLED ALONG THE WAY, because "it advanced" and "it advanced only after the growth had
+    // finished drawing" are different claims and the owner asked for the second one.
+    const marks = [];
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      const t = (document.getElementById('tutBody') || {}).textContent || '';
+      marks.push({ ms: (i + 1) * 250, on: /Grow into substrate/.test(t) });
+      if (!marks[marks.length - 1].on) break;
+    }
     const after = (document.getElementById('tutBody') || {}).textContent || '';
-    return { before, after, moved: /Grow into substrate/.test(before) && !/Grow into substrate/.test(after) };
+    const leftAt = (marks.find((m) => !m.on) || {}).ms || null;
+    return { before, after, leftAt,
+             moved: /Grow into substrate/.test(before) && !/Grow into substrate/.test(after) };
   });
   ok('growing into the substrate advances the step with no further action',
      stall.skipped === true || stall.moved === true,
-     stall.skipped ? '(no pile on this map)' : `"${(stall.before || '').slice(0, 30)}" -> "${(stall.after || '').slice(0, 30)}"`);
+     stall.skipped ? '(no pile on this map)' : `"${(stall.before || '').slice(0, 30)}" -> "${(stall.after || '').slice(0, 30)}" after ${stall.leftAt}ms`);
+  // ...BUT NOT INSTANTLY (owner). The gate answers a question about the MODEL, which has the growth
+  // the moment the card resolves — so without the hold the step vanished while the player's own
+  // grow was still walking out on screen. The floor is 900ms; anything under that means the hold
+  // was dropped.
+  ok('...and not before the growth has had time to finish drawing',
+     stall.skipped === true || (stall.leftAt != null && stall.leftAt >= 900),
+     stall.skipped ? '(no pile on this map)' : `left the step after ${stall.leftAt}ms`);
 
   // ---- the tips, on their own levels -----------------------------------------
   // A SECOND PAGE, ON A MAP THAT HAS THE CREATURES. Each tip `skip`s when its subject is absent —
