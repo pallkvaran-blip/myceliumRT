@@ -35,6 +35,7 @@
       "saturate": 1.52
     }
   },
+  "chapter": "Chapter 1",
   "objects": [
     {
       "t": "boulder",
@@ -408,13 +409,6 @@
     },
     {
       "t": "reservoir",
-      "key": "reservoir1",
-      "x": 514,
-      "y": 924,
-      "r": 72
-    },
-    {
-      "t": "reservoir",
       "key": "reservoir3",
       "x": 1279,
       "y": 1683,
@@ -616,6 +610,5 @@
       "x": 2529,
       "y": 1551
     }
-  ],
-  "chapter": "Chapter 1"
+  ]
 }
