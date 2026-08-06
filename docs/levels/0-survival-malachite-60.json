@@ -1,373 +1,373 @@
 {
- "format": "mycelium-level",
- "version": 1,
- "id": "0-survival-malachite-60",
- "name": "0 survival Malachite 60",
- "campaignLevel": null,
- "survival": true,
- "assetsFrom": "malachite-c60",
- "world": {
-  "width": 2952,
-  "height": 1467.1,
-  "surfaceY": 380,
-  "cellSize": 36
- },
- "layout": {
-  "startCols": 2,
-  "goalCols": 6,
-  "summerCols": 7,
-  "clearChannels": true
- },
- "traced": {
-  "image": "docs/maps/top-malachite-scatter-c60-1@4x.webp",
-  "threshold": 128,
-  "minArea": 9600
- },
- "render": {
-  "rockFilter": {
-   "brightness": 0.74,
-   "contrast": 1.18,
-   "saturate": 1.3
-  }
- },
- "objects": [
-  {
-   "t": "boulder",
-   "key": "malachite-c60R015",
-   "x": 1269.1,
-   "y": 609.8,
-   "w": 486.3,
-   "h": 327.3,
-   "rot": 0
+  "format": "mycelium-level",
+  "version": 1,
+  "id": "0-survival-malachite-60",
+  "name": "0 survival Malachite 60",
+  "campaignLevel": null,
+  "survival": true,
+  "assetsFrom": "malachite-c60",
+  "world": {
+    "width": 2952,
+    "height": 1467.1,
+    "surfaceY": 380,
+    "cellSize": 36
   },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R009",
-   "x": 1335.2,
-   "y": 1484.2,
-   "w": 500.9,
-   "h": 571.1,
-   "rot": 0
+  "layout": {
+    "startCols": 2,
+    "goalCols": 6,
+    "summerCols": 7,
+    "clearChannels": true
   },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R001",
-   "x": 1933.8,
-   "y": 1008.9,
-   "w": 702.3,
-   "h": 674.3,
-   "rot": 0
+  "traced": {
+    "image": "docs/maps/top-malachite-scatter-c60-1@4x.webp",
+    "threshold": 128,
+    "minArea": 9600
   },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R002",
-   "x": 1242,
-   "y": 972.8,
-   "w": 583.8,
-   "h": 591.5,
-   "rot": 0
+  "render": {
+    "rockFilter": {
+      "brightness": 0.74,
+      "contrast": 1.18,
+      "saturate": 1.3
+    }
   },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R003",
-   "x": 2491.4,
-   "y": 1416.8,
-   "w": 496,
-   "h": 542.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R004",
-   "x": 2385.6,
-   "y": 592.2,
-   "w": 508.1,
-   "h": 482.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R005",
-   "x": 466.9,
-   "y": 609.9,
-   "w": 515.3,
-   "h": 489.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R006",
-   "x": 225.4,
-   "y": 1437.4,
-   "w": 510.7,
-   "h": 496.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R008",
-   "x": 1843.5,
-   "y": 523.9,
-   "w": 532.9,
-   "h": 386.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R010",
-   "x": 512.9,
-   "y": 1858.5,
-   "w": 567.5,
-   "h": 336.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R011",
-   "x": 824.2,
-   "y": 1359.7,
-   "w": 410.6,
-   "h": 407.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R012",
-   "x": 1973.8,
-   "y": 1908.3,
-   "w": 569.6,
-   "h": 241.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R013",
-   "x": 1347,
-   "y": 1876.9,
-   "w": 503.9,
-   "h": 297.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R014",
-   "x": 2852.9,
-   "y": 738.2,
-   "w": 335.8,
-   "h": 431.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R016",
-   "x": 84.7,
-   "y": 740.5,
-   "w": 199.7,
-   "h": 476.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R017",
-   "x": 1020.7,
-   "y": 450.6,
-   "w": 438.5,
-   "h": 166.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R018",
-   "x": 526.6,
-   "y": 974.5,
-   "w": 267.8,
-   "h": 231.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R019",
-   "x": 2511.9,
-   "y": 1951.2,
-   "w": 328.2,
-   "h": 167.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R020",
-   "x": 27.9,
-   "y": 1933.6,
-   "w": 254,
-   "h": 198.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R021",
-   "x": 2807.5,
-   "y": 1936.2,
-   "w": 214.4,
-   "h": 172.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R023",
-   "x": 2925.5,
-   "y": 441.5,
-   "w": 109.8,
-   "h": 122.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R024",
-   "x": 2928.5,
-   "y": 1058.7,
-   "w": 73.7,
-   "h": 178.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R025",
-   "x": 888.8,
-   "y": 1986.5,
-   "w": 232.7,
-   "h": 55.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R026",
-   "x": 832.1,
-   "y": 978.9,
-   "w": 106.2,
-   "h": 97.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "malachite-c60R027",
-   "x": 2077.8,
-   "y": 1618.1,
-   "w": 81.8,
-   "h": 85.8,
-   "rot": 0
-  },
-  {
-   "t": "food",
-   "kind": "cache-engine",
-   "x": 1434,
-   "y": 469,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 180,
-   "y": 1928,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 2340,
-   "y": 1928,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 144,
-   "y": 452,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 1224,
-   "y": 1676,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 2412,
-   "y": 848,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 540,
-   "y": 1172,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 1692,
-   "y": 1136,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 792,
-   "y": 560,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 1800,
-   "y": 1712,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 684,
-   "y": 1712,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "reservoir",
-   "key": "reservoir1",
-   "x": 836,
-   "y": 693,
-   "r": 72
-  },
-  {
-   "t": "mountain",
-   "key": "mountain4",
-   "x": 882,
-   "w": 1332
-  },
-  {
-   "t": "city",
-   "key": "skyline1",
-   "x": 1656,
-   "w": 216
-  },
-  {
-   "t": "mountain",
-   "key": "mountain2",
-   "x": 2124,
-   "w": 720
-  }
- ]
+  "objects": [
+    {
+      "t": "boulder",
+      "key": "malachite-c60R015",
+      "x": 1269.1,
+      "y": 609.8,
+      "w": 486.3,
+      "h": 327.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R009",
+      "x": 1335.2,
+      "y": 1484.2,
+      "w": 500.9,
+      "h": 571.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R001",
+      "x": 1933.8,
+      "y": 1008.9,
+      "w": 702.3,
+      "h": 674.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R002",
+      "x": 1242,
+      "y": 972.8,
+      "w": 583.8,
+      "h": 591.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R003",
+      "x": 2491.4,
+      "y": 1416.8,
+      "w": 496,
+      "h": 542.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R004",
+      "x": 2385.6,
+      "y": 592.2,
+      "w": 508.1,
+      "h": 482.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R005",
+      "x": 466.9,
+      "y": 609.9,
+      "w": 515.3,
+      "h": 489.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R006",
+      "x": 225.4,
+      "y": 1437.4,
+      "w": 510.7,
+      "h": 496.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R008",
+      "x": 1843.5,
+      "y": 523.9,
+      "w": 532.9,
+      "h": 386.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R010",
+      "x": 512.9,
+      "y": 1858.5,
+      "w": 567.5,
+      "h": 336.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R011",
+      "x": 824.2,
+      "y": 1359.7,
+      "w": 410.6,
+      "h": 407.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R012",
+      "x": 1973.8,
+      "y": 1908.3,
+      "w": 569.6,
+      "h": 241.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R013",
+      "x": 1347,
+      "y": 1876.9,
+      "w": 503.9,
+      "h": 297.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R014",
+      "x": 2852.9,
+      "y": 738.2,
+      "w": 335.8,
+      "h": 431.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R016",
+      "x": 84.7,
+      "y": 740.5,
+      "w": 199.7,
+      "h": 476.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R017",
+      "x": 1020.7,
+      "y": 450.6,
+      "w": 438.5,
+      "h": 166.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R018",
+      "x": 526.6,
+      "y": 974.5,
+      "w": 267.8,
+      "h": 231.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R019",
+      "x": 2511.9,
+      "y": 1951.2,
+      "w": 328.2,
+      "h": 167.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R020",
+      "x": 27.9,
+      "y": 1933.6,
+      "w": 254,
+      "h": 198.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R021",
+      "x": 2807.5,
+      "y": 1936.2,
+      "w": 214.4,
+      "h": 172.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R023",
+      "x": 2925.5,
+      "y": 441.5,
+      "w": 109.8,
+      "h": 122.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R024",
+      "x": 2928.5,
+      "y": 1058.7,
+      "w": 73.7,
+      "h": 178.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R025",
+      "x": 888.8,
+      "y": 1986.5,
+      "w": 232.7,
+      "h": 55.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R026",
+      "x": 832.1,
+      "y": 978.9,
+      "w": 106.2,
+      "h": 97.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "malachite-c60R027",
+      "x": 2077.8,
+      "y": 1618.1,
+      "w": 81.8,
+      "h": 85.8,
+      "rot": 0
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 1434,
+      "y": 469,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 180,
+      "y": 1928,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2340,
+      "y": 1928,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 144,
+      "y": 452,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1224,
+      "y": 1676,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2412,
+      "y": 848,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 540,
+      "y": 1172,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1692,
+      "y": 1136,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 792,
+      "y": 560,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1800,
+      "y": 1712,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 684,
+      "y": 1712,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "reservoir",
+      "key": "reservoir1",
+      "x": 836,
+      "y": 693,
+      "r": 72
+    },
+    {
+      "t": "mountain",
+      "key": "mountain2",
+      "x": 720,
+      "w": 1008
+    },
+    {
+      "t": "mountain",
+      "key": "mountain1",
+      "x": 2034,
+      "w": 900
+    },
+    {
+      "t": "city",
+      "key": "skyline3",
+      "x": 1404,
+      "w": 360
+    }
+  ]
 }

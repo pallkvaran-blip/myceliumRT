@@ -1,494 +1,488 @@
 {
- "format": "mycelium-level",
- "version": 1,
- "id": "0-survival-veined-40-main",
- "name": "0 survival Veined 40 main",
- "campaignLevel": null,
- "survival": true,
- "assetsFrom": "veined-c40",
- "world": {
-  "width": 2952,
-  "height": 1467.1,
-  "surfaceY": 380,
-  "cellSize": 36
- },
- "layout": {
-  "startCols": 2,
-  "goalCols": 6,
-  "summerCols": 7,
-  "clearChannels": true
- },
- "traced": {
-  "image": "docs/maps/top-veined-scatter-c40-1@4x.webp",
-  "threshold": 128,
-  "minArea": 9600
- },
- "render": {
-  "rockFilter": {
-   "brightness": 0.96,
-   "contrast": 1.24,
-   "saturate": 0.9
-  }
- },
- "objects": [
-  {
-   "t": "boulder",
-   "key": "veined-c40R001",
-   "x": 2956.7,
-   "y": 563.5,
-   "w": 667.4,
-   "h": 394.8,
-   "rot": 0
+  "format": "mycelium-level",
+  "version": 1,
+  "id": "0-survival-veined-40-main",
+  "name": "0 survival Veined 40 main",
+  "campaignLevel": null,
+  "survival": true,
+  "assetsFrom": "veined-c40",
+  "world": {
+    "width": 2952,
+    "height": 1467.1,
+    "surfaceY": 380,
+    "cellSize": 36
   },
-  {
-   "t": "boulder",
-   "key": "veined-c40R002",
-   "x": 2767.8,
-   "y": 1257.1,
-   "w": 513.2,
-   "h": 451.2,
-   "rot": 0
+  "layout": {
+    "startCols": 2,
+    "goalCols": 6,
+    "summerCols": 7,
+    "clearChannels": true
   },
-  {
-   "t": "boulder",
-   "key": "veined-c40R003",
-   "x": 301.6,
-   "y": 1865.8,
-   "w": 584.7,
-   "h": 414.2,
-   "rot": 0
+  "traced": {
+    "image": "docs/maps/top-veined-scatter-c40-1@4x.webp",
+    "threshold": 128,
+    "minArea": 9600
   },
-  {
-   "t": "boulder",
-   "key": "veined-c40R004",
-   "x": 1862.5,
-   "y": 644.3,
-   "w": 444,
-   "h": 556.2,
-   "rot": 0
+  "render": {
+    "rockFilter": {
+      "brightness": 0.96,
+      "contrast": 1.24,
+      "saturate": 0.9
+    }
   },
-  {
-   "t": "boulder",
-   "key": "veined-c40R005",
-   "x": 729.8,
-   "y": 514.3,
-   "w": 708.1,
-   "h": 313.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R006",
-   "x": 1048.6,
-   "y": 1879.4,
-   "w": 486.6,
-   "h": 331.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R007",
-   "x": 1844.8,
-   "y": 1881.3,
-   "w": 548,
-   "h": 343.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R008",
-   "x": 669.8,
-   "y": 1417.5,
-   "w": 361.8,
-   "h": 340.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R009",
-   "x": 1577.1,
-   "y": 993.3,
-   "w": 365,
-   "h": 321.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R010",
-   "x": 74.6,
-   "y": 1340.8,
-   "w": 213,
-   "h": 287.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R011",
-   "x": 2436.1,
-   "y": 1938.3,
-   "w": 315.6,
-   "h": 195.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R012",
-   "x": 1436.2,
-   "y": 608.8,
-   "w": 250.1,
-   "h": 253.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R013",
-   "x": 915.5,
-   "y": 988.5,
-   "w": 267.7,
-   "h": 232.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R014",
-   "x": 2032.2,
-   "y": 1464,
-   "w": 201.2,
-   "h": 235.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R015",
-   "x": 474.4,
-   "y": 793.3,
-   "w": 241,
-   "h": 218.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R016",
-   "x": 1227.1,
-   "y": 1341.5,
-   "w": 187.2,
-   "h": 197.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R017",
-   "x": 278.3,
-   "y": 608.1,
-   "w": 189.5,
-   "h": 197.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R019",
-   "x": 1187.2,
-   "y": 495.5,
-   "w": 158.7,
-   "h": 195.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R020",
-   "x": 14.4,
-   "y": 914.5,
-   "w": 132.5,
-   "h": 189,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R021",
-   "x": 2908.1,
-   "y": 1604,
-   "w": 118.9,
-   "h": 226.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R022",
-   "x": 2110.8,
-   "y": 1049.5,
-   "w": 166.4,
-   "h": 158.7,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R023",
-   "x": 2322.9,
-   "y": 709.2,
-   "w": 167.3,
-   "h": 165.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R024",
-   "x": 1959.9,
-   "y": 876.5,
-   "w": 134.3,
-   "h": 128.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R025",
-   "x": 2928.9,
-   "y": 880,
-   "w": 92.7,
-   "h": 146,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R026",
-   "x": 1345,
-   "y": 403.4,
-   "w": 170.4,
-   "h": 63.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R027",
-   "x": 740.4,
-   "y": 815.5,
-   "w": 129.8,
-   "h": 105.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R028",
-   "x": 387.4,
-   "y": 1148.8,
-   "w": 113.9,
-   "h": 103.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R029",
-   "x": 503.6,
-   "y": 1043.4,
-   "w": 99.9,
-   "h": 114.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R030",
-   "x": 1605.7,
-   "y": 546.2,
-   "w": 88.6,
-   "h": 100.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R031",
-   "x": 1190.3,
-   "y": 1051.5,
-   "w": 85.5,
-   "h": 93.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R032",
-   "x": 1556.2,
-   "y": 1336.8,
-   "w": 80.1,
-   "h": 94.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R033",
-   "x": 2266.6,
-   "y": 1277.8,
-   "w": 88.2,
-   "h": 80.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R034",
-   "x": 847.6,
-   "y": 691.1,
-   "w": 80,
-   "h": 77.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R035",
-   "x": 1446.3,
-   "y": 1433.4,
-   "w": 80,
-   "h": 67.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R036",
-   "x": 1592.6,
-   "y": 398.8,
-   "w": 88.6,
-   "h": 59.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R037",
-   "x": 927,
-   "y": 1134,
-   "w": 80.5,
-   "h": 81.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "veined-c40R038",
-   "x": 270.3,
-   "y": 1444.5,
-   "w": 100.4,
-   "h": 45.2,
-   "rot": 0
-  },
-  {
-   "t": "food",
-   "kind": "cache-engine",
-   "x": 649,
-   "y": 1941,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 2412,
-   "y": 452,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 144,
-   "y": 452,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 2160,
-   "y": 1928,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 1296,
-   "y": 884,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 216,
-   "y": 1244,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 1404,
-   "y": 1676,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 2052,
-   "y": 1136,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 720,
-   "y": 668,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 828,
-   "y": 1280,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 1656,
-   "y": 452,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "reservoir",
-   "key": "reservoir3",
-   "x": 1427,
-   "y": 1866,
-   "r": 72
-  },
-  {
-   "t": "reservoir",
-   "key": "reservoir2",
-   "x": 2276,
-   "y": 1760,
-   "r": 72
-  },
-  {
-   "t": "city",
-   "key": "skyline6",
-   "x": 360,
-   "w": 288
-  },
-  {
-   "t": "mountain",
-   "key": "mountain5",
-   "x": 756,
-   "w": 504
-  },
-  {
-   "t": "city",
-   "key": "skyline1",
-   "x": 1242,
-   "w": 468
-  },
-  {
-   "t": "mountain",
-   "key": "mountain3",
-   "x": 1980,
-   "w": 1008
-  }
- ]
+  "objects": [
+    {
+      "t": "boulder",
+      "key": "veined-c40R001",
+      "x": 2956.7,
+      "y": 563.5,
+      "w": 667.4,
+      "h": 394.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R002",
+      "x": 2767.8,
+      "y": 1257.1,
+      "w": 513.2,
+      "h": 451.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R003",
+      "x": 301.6,
+      "y": 1865.8,
+      "w": 584.7,
+      "h": 414.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R004",
+      "x": 1862.5,
+      "y": 644.3,
+      "w": 444,
+      "h": 556.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R005",
+      "x": 729.8,
+      "y": 514.3,
+      "w": 708.1,
+      "h": 313.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R006",
+      "x": 1048.6,
+      "y": 1879.4,
+      "w": 486.6,
+      "h": 331.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R007",
+      "x": 1844.8,
+      "y": 1881.3,
+      "w": 548,
+      "h": 343.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R008",
+      "x": 669.8,
+      "y": 1417.5,
+      "w": 361.8,
+      "h": 340.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R009",
+      "x": 1577.1,
+      "y": 993.3,
+      "w": 365,
+      "h": 321.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R010",
+      "x": 74.6,
+      "y": 1340.8,
+      "w": 213,
+      "h": 287.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R011",
+      "x": 2436.1,
+      "y": 1938.3,
+      "w": 315.6,
+      "h": 195.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R012",
+      "x": 1436.2,
+      "y": 608.8,
+      "w": 250.1,
+      "h": 253.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R013",
+      "x": 915.5,
+      "y": 988.5,
+      "w": 267.7,
+      "h": 232.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R014",
+      "x": 2032.2,
+      "y": 1464,
+      "w": 201.2,
+      "h": 235.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R015",
+      "x": 474.4,
+      "y": 793.3,
+      "w": 241,
+      "h": 218.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R016",
+      "x": 1227.1,
+      "y": 1341.5,
+      "w": 187.2,
+      "h": 197.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R017",
+      "x": 278.3,
+      "y": 608.1,
+      "w": 189.5,
+      "h": 197.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R019",
+      "x": 1187.2,
+      "y": 495.5,
+      "w": 158.7,
+      "h": 195.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R020",
+      "x": 14.4,
+      "y": 914.5,
+      "w": 132.5,
+      "h": 189,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R021",
+      "x": 2908.1,
+      "y": 1604,
+      "w": 118.9,
+      "h": 226.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R022",
+      "x": 2110.8,
+      "y": 1049.5,
+      "w": 166.4,
+      "h": 158.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R023",
+      "x": 2322.9,
+      "y": 709.2,
+      "w": 167.3,
+      "h": 165.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R024",
+      "x": 1959.9,
+      "y": 876.5,
+      "w": 134.3,
+      "h": 128.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R025",
+      "x": 2928.9,
+      "y": 880,
+      "w": 92.7,
+      "h": 146,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R026",
+      "x": 1345,
+      "y": 403.4,
+      "w": 170.4,
+      "h": 63.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R027",
+      "x": 740.4,
+      "y": 815.5,
+      "w": 129.8,
+      "h": 105.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R028",
+      "x": 387.4,
+      "y": 1148.8,
+      "w": 113.9,
+      "h": 103.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R029",
+      "x": 503.6,
+      "y": 1043.4,
+      "w": 99.9,
+      "h": 114.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R030",
+      "x": 1605.7,
+      "y": 546.2,
+      "w": 88.6,
+      "h": 100.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R031",
+      "x": 1190.3,
+      "y": 1051.5,
+      "w": 85.5,
+      "h": 93.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R032",
+      "x": 1556.2,
+      "y": 1336.8,
+      "w": 80.1,
+      "h": 94.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R033",
+      "x": 2266.6,
+      "y": 1277.8,
+      "w": 88.2,
+      "h": 80.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R034",
+      "x": 847.6,
+      "y": 691.1,
+      "w": 80,
+      "h": 77.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R035",
+      "x": 1446.3,
+      "y": 1433.4,
+      "w": 80,
+      "h": 67.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R036",
+      "x": 1592.6,
+      "y": 398.8,
+      "w": 88.6,
+      "h": 59.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R037",
+      "x": 927,
+      "y": 1134,
+      "w": 80.5,
+      "h": 81.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "veined-c40R038",
+      "x": 270.3,
+      "y": 1444.5,
+      "w": 100.4,
+      "h": 45.2,
+      "rot": 0
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 649,
+      "y": 1941,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2412,
+      "y": 452,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 144,
+      "y": 452,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2160,
+      "y": 1928,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1296,
+      "y": 884,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 216,
+      "y": 1244,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1404,
+      "y": 1676,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2052,
+      "y": 1136,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 720,
+      "y": 668,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 828,
+      "y": 1280,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1656,
+      "y": 452,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "reservoir",
+      "key": "reservoir3",
+      "x": 1427,
+      "y": 1866,
+      "r": 72
+    },
+    {
+      "t": "reservoir",
+      "key": "reservoir2",
+      "x": 2276,
+      "y": 1760,
+      "r": 72
+    },
+    {
+      "t": "mountain",
+      "key": "mountain4",
+      "x": 1242,
+      "w": 1692
+    },
+    {
+      "t": "city",
+      "key": "skyline2",
+      "x": 306,
+      "w": 180
+    },
+    {
+      "t": "city",
+      "key": "skyline1",
+      "x": 2268,
+      "w": 360
+    }
+  ]
 }

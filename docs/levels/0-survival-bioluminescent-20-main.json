@@ -1,457 +1,475 @@
 {
- "format": "mycelium-level",
- "version": 1,
- "id": "0-survival-bioluminescent-20-main",
- "name": "0 survival Bioluminescent 20 main",
- "campaignLevel": null,
- "survival": true,
- "assetsFrom": "biolum-c20",
- "world": {
-  "width": 2952,
-  "height": 1467.1,
-  "surfaceY": 380,
-  "cellSize": 36
- },
- "layout": {
-  "startCols": 2,
-  "goalCols": 6,
-  "summerCols": 7,
-  "clearChannels": true
- },
- "traced": {
-  "image": "docs/maps/top-bioluminescent-scatter-c20-1@4x.webp",
-  "threshold": 128,
-  "minArea": 9600
- },
- "render": {
-  "rockFilter": {
-   "brightness": 0.8,
-   "contrast": 1.08,
-   "saturate": 0.9
-  }
- },
- "objects": [
-  {
-   "t": "boulder",
-   "key": "biolum-c20R001",
-   "x": 1495.6,
-   "y": 1115,
-   "w": 360.1,
-   "h": 205.6,
-   "rot": 0
+  "format": "mycelium-level",
+  "version": 1,
+  "id": "0-survival-bioluminescent-20-main",
+  "name": "0 survival Bioluminescent 20 main",
+  "campaignLevel": null,
+  "survival": true,
+  "assetsFrom": "biolum-c20",
+  "world": {
+    "width": 2952,
+    "height": 1467.1,
+    "surfaceY": 380,
+    "cellSize": 36
   },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R002",
-   "x": 2334.3,
-   "y": 535.7,
-   "w": 752.9,
-   "h": 369.9,
-   "rot": 0
+  "layout": {
+    "startCols": 2,
+    "goalCols": 6,
+    "summerCols": 7,
+    "clearChannels": true
   },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R003",
-   "x": 1087.7,
-   "y": 752.1,
-   "w": 240.2,
-   "h": 180.2,
-   "rot": 0
+  "traced": {
+    "image": "docs/maps/top-bioluminescent-scatter-c20-1@4x.webp",
+    "threshold": 128,
+    "minArea": 9600
   },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R004",
-   "x": 534.2,
-   "y": 579.4,
-   "w": 560.2,
-   "h": 435.9,
-   "rot": 0
+  "render": {
+    "rockFilter": {
+      "brightness": 0.8,
+      "contrast": 1.08,
+      "saturate": 0.9
+    }
   },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R005",
-   "x": 2295.3,
-   "y": 1275.8,
-   "w": 577.9,
-   "h": 382.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R006",
-   "x": 472.3,
-   "y": 997,
-   "w": 283.7,
-   "h": 211.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R008",
-   "x": 1536.9,
-   "y": 490.9,
-   "w": 432.3,
-   "h": 248.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R009",
-   "x": 2036,
-   "y": 949.8,
-   "w": 345.9,
-   "h": 388.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R010",
-   "x": 2806.1,
-   "y": 827.9,
-   "w": 307.5,
-   "h": 312.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R011",
-   "x": 59.9,
-   "y": 667.5,
-   "w": 168.2,
-   "h": 297.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R012",
-   "x": 34.2,
-   "y": 1153.9,
-   "w": 138.4,
-   "h": 307.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R013",
-   "x": 1151.7,
-   "y": 423,
-   "w": 265,
-   "h": 108.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R014",
-   "x": 1141.5,
-   "y": 1356.5,
-   "w": 173.2,
-   "h": 155.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R015",
-   "x": 939.8,
-   "y": 1103.8,
-   "w": 156.9,
-   "h": 146.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R016",
-   "x": 1611.5,
-   "y": 761.5,
-   "w": 142.9,
-   "h": 144.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R017",
-   "x": 2263.6,
-   "y": 825.4,
-   "w": 151,
-   "h": 145.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R018",
-   "x": 358.5,
-   "y": 1393.2,
-   "w": 130.2,
-   "h": 124.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R019",
-   "x": 372.1,
-   "y": 1257,
-   "w": 131.2,
-   "h": 126.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R020",
-   "x": 832.1,
-   "y": 436.5,
-   "w": 111.7,
-   "h": 113,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R021",
-   "x": 1752.4,
-   "y": 716.2,
-   "w": 96.3,
-   "h": 126.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R022",
-   "x": 1851,
-   "y": 424.6,
-   "w": 120.8,
-   "h": 89.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R023",
-   "x": 2667.7,
-   "y": 1331.4,
-   "w": 64.7,
-   "h": 155.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R024",
-   "x": 2442.7,
-   "y": 998.6,
-   "w": 122,
-   "h": 83.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R025",
-   "x": 1831.8,
-   "y": 811.8,
-   "w": 102.2,
-   "h": 93.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R026",
-   "x": 1819.3,
-   "y": 565.2,
-   "w": 93.6,
-   "h": 109,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R027",
-   "x": 2544,
-   "y": 1020.1,
-   "w": 107.6,
-   "h": 90,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R028",
-   "x": 1896.7,
-   "y": 627.8,
-   "w": 101.7,
-   "h": 86,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R029",
-   "x": 2313.4,
-   "y": 967.4,
-   "w": 85.9,
-   "h": 100.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R030",
-   "x": 1877.5,
-   "y": 1420.8,
-   "w": 85.1,
-   "h": 92.7,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R031",
-   "x": 1126.2,
-   "y": 953.9,
-   "w": 90.9,
-   "h": 73.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R032",
-   "x": 2291.9,
-   "y": 1085.8,
-   "w": 90.9,
-   "h": 75.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R033",
-   "x": 1398.3,
-   "y": 1435.4,
-   "w": 81.9,
-   "h": 63.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R034",
-   "x": 2631.3,
-   "y": 1182.8,
-   "w": 76,
-   "h": 68.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R035",
-   "x": 308.4,
-   "y": 780.9,
-   "w": 75.1,
-   "h": 75.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "biolum-c20R036",
-   "x": 1506.9,
-   "y": 694.5,
-   "w": 72.8,
-   "h": 71.9,
-   "rot": 0
-  },
-  {
-   "t": "food",
-   "kind": "cache-engine",
-   "x": 1692,
-   "y": 1396,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 144,
-   "y": 452,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 324,
-   "y": 1928,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 1152,
-   "y": 524,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 2412,
-   "y": 740,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 2412,
-   "y": 1928,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 648,
-   "y": 1172,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 1116,
-   "y": 1928,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 1800,
-   "y": 488,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 1836,
-   "y": 1928,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 1224,
-   "y": 1100,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "reservoir",
-   "key": "reservoir3",
-   "x": 626,
-   "y": 1282,
-   "r": 72
-  },
-  {
-   "t": "mountain",
-   "key": "mountain5",
-   "x": 1152,
-   "w": 1872
-  },
-  {
-   "t": "city",
-   "key": "skyline4",
-   "x": 2286,
-   "w": 396
-  }
- ]
+  "objects": [
+    {
+      "t": "boulder",
+      "key": "biolum-c20R001",
+      "x": 1495.6,
+      "y": 1115,
+      "w": 360.1,
+      "h": 205.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R002",
+      "x": 2334.3,
+      "y": 535.7,
+      "w": 752.9,
+      "h": 369.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R003",
+      "x": 1087.7,
+      "y": 752.1,
+      "w": 240.2,
+      "h": 180.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R004",
+      "x": 534.2,
+      "y": 579.4,
+      "w": 560.2,
+      "h": 435.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R005",
+      "x": 2295.3,
+      "y": 1275.8,
+      "w": 577.9,
+      "h": 382.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R006",
+      "x": 472.3,
+      "y": 997,
+      "w": 283.7,
+      "h": 211.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R008",
+      "x": 1536.9,
+      "y": 490.9,
+      "w": 432.3,
+      "h": 248.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R009",
+      "x": 2036,
+      "y": 949.8,
+      "w": 345.9,
+      "h": 388.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R010",
+      "x": 2806.1,
+      "y": 827.9,
+      "w": 307.5,
+      "h": 312.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R011",
+      "x": 59.9,
+      "y": 667.5,
+      "w": 168.2,
+      "h": 297.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R012",
+      "x": 34.2,
+      "y": 1153.9,
+      "w": 138.4,
+      "h": 307.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R013",
+      "x": 1151.7,
+      "y": 423,
+      "w": 265,
+      "h": 108.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R014",
+      "x": 1141.5,
+      "y": 1356.5,
+      "w": 173.2,
+      "h": 155.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R015",
+      "x": 939.8,
+      "y": 1103.8,
+      "w": 156.9,
+      "h": 146.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R016",
+      "x": 1611.5,
+      "y": 761.5,
+      "w": 142.9,
+      "h": 144.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R017",
+      "x": 2263.6,
+      "y": 825.4,
+      "w": 151,
+      "h": 145.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R018",
+      "x": 358.5,
+      "y": 1393.2,
+      "w": 130.2,
+      "h": 124.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R019",
+      "x": 372.1,
+      "y": 1257,
+      "w": 131.2,
+      "h": 126.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R020",
+      "x": 832.1,
+      "y": 436.5,
+      "w": 111.7,
+      "h": 113,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R021",
+      "x": 1752.4,
+      "y": 716.2,
+      "w": 96.3,
+      "h": 126.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R022",
+      "x": 1851,
+      "y": 424.6,
+      "w": 120.8,
+      "h": 89.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R023",
+      "x": 2667.7,
+      "y": 1331.4,
+      "w": 64.7,
+      "h": 155.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R024",
+      "x": 2442.7,
+      "y": 998.6,
+      "w": 122,
+      "h": 83.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R025",
+      "x": 1831.8,
+      "y": 811.8,
+      "w": 102.2,
+      "h": 93.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R026",
+      "x": 1819.3,
+      "y": 565.2,
+      "w": 93.6,
+      "h": 109,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R027",
+      "x": 2544,
+      "y": 1020.1,
+      "w": 107.6,
+      "h": 90,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R028",
+      "x": 1896.7,
+      "y": 627.8,
+      "w": 101.7,
+      "h": 86,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R029",
+      "x": 2313.4,
+      "y": 967.4,
+      "w": 85.9,
+      "h": 100.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R030",
+      "x": 1877.5,
+      "y": 1420.8,
+      "w": 85.1,
+      "h": 92.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R031",
+      "x": 1126.2,
+      "y": 953.9,
+      "w": 90.9,
+      "h": 73.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R032",
+      "x": 2291.9,
+      "y": 1085.8,
+      "w": 90.9,
+      "h": 75.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R033",
+      "x": 1398.3,
+      "y": 1435.4,
+      "w": 81.9,
+      "h": 63.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R034",
+      "x": 2631.3,
+      "y": 1182.8,
+      "w": 76,
+      "h": 68.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R035",
+      "x": 308.4,
+      "y": 780.9,
+      "w": 75.1,
+      "h": 75.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "biolum-c20R036",
+      "x": 1506.9,
+      "y": 694.5,
+      "w": 72.8,
+      "h": 71.9,
+      "rot": 0
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 1692,
+      "y": 1396,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 144,
+      "y": 452,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 324,
+      "y": 1928,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1152,
+      "y": 524,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2412,
+      "y": 740,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2412,
+      "y": 1928,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 648,
+      "y": 1172,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1116,
+      "y": 1928,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1800,
+      "y": 488,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1836,
+      "y": 1928,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1224,
+      "y": 1100,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "reservoir",
+      "key": "reservoir3",
+      "x": 626,
+      "y": 1282,
+      "r": 72
+    },
+    {
+      "t": "mountain",
+      "key": "mountain1",
+      "x": 468,
+      "w": 432
+    },
+    {
+      "t": "mountain",
+      "key": "mountain2",
+      "x": 1368,
+      "w": 720
+    },
+    {
+      "t": "mountain",
+      "key": "mountain3",
+      "x": 2232,
+      "w": 504
+    },
+    {
+      "t": "city",
+      "key": "skyline6",
+      "x": 846,
+      "w": 252
+    },
+    {
+      "t": "city",
+      "key": "skyline5",
+      "x": 1854,
+      "w": 252
+    }
+  ]
 }

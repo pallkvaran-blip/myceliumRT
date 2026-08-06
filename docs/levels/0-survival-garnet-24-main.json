@@ -1,432 +1,432 @@
 {
- "format": "mycelium-level",
- "version": 1,
- "id": "0-survival-garnet-24-main",
- "name": "0 survival Garnet 24 main",
- "campaignLevel": null,
- "survival": true,
- "assetsFrom": "garnet-c24",
- "world": {
-  "width": 2952,
-  "height": 1194,
-  "surfaceY": 380,
-  "cellSize": 36
- },
- "layout": {
-  "startCols": 2,
-  "goalCols": 6,
-  "summerCols": 7,
-  "clearChannels": true
- },
- "traced": {
-  "image": "docs/maps/top-garnet-scatter-c24-1@4x.webp",
-  "threshold": 128,
-  "minArea": 9600
- },
- "render": {
-  "rockFilter": {
-   "brightness": 0.92,
-   "contrast": 1.32,
-   "saturate": 1.34
-  }
- },
- "objects": [
-  {
-   "t": "boulder",
-   "key": "garnet-c24R001",
-   "x": 2049.3,
-   "y": 1694.6,
-   "w": 569.1,
-   "h": 465.8,
-   "rot": 0
+  "format": "mycelium-level",
+  "version": 1,
+  "id": "0-survival-garnet-24-main",
+  "name": "0 survival Garnet 24 main",
+  "campaignLevel": null,
+  "survival": true,
+  "assetsFrom": "garnet-c24",
+  "world": {
+    "width": 2952,
+    "height": 1194,
+    "surfaceY": 380,
+    "cellSize": 36
   },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R002",
-   "x": 1207.2,
-   "y": 1473.6,
-   "w": 451.1,
-   "h": 449.7,
-   "rot": 0
+  "layout": {
+    "startCols": 2,
+    "goalCols": 6,
+    "summerCols": 7,
+    "clearChannels": true
   },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R003",
-   "x": 2550.3,
-   "y": 658.3,
-   "w": 339,
-   "h": 509.6,
-   "rot": 0
+  "traced": {
+    "image": "docs/maps/top-garnet-scatter-c24-1@4x.webp",
+    "threshold": 128,
+    "minArea": 9600
   },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R004",
-   "x": 942.2,
-   "y": 1173.8,
-   "w": 481.2,
-   "h": 416.1,
-   "rot": 0
+  "render": {
+    "rockFilter": {
+      "brightness": 0.92,
+      "contrast": 1.32,
+      "saturate": 1.34
+    }
   },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R005",
-   "x": 1454.9,
-   "y": 902.5,
-   "w": 376.5,
-   "h": 443.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R006",
-   "x": 722.8,
-   "y": 571.2,
-   "w": 363.8,
-   "h": 432.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R007",
-   "x": 901.7,
-   "y": 825.9,
-   "w": 341.5,
-   "h": 406.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R008",
-   "x": 1615.3,
-   "y": 567.1,
-   "w": 320.6,
-   "h": 452.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R009",
-   "x": 1192.8,
-   "y": 1015,
-   "w": 301.2,
-   "h": 386.7,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R010",
-   "x": 247.3,
-   "y": 595.8,
-   "w": 325.2,
-   "h": 258.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R011",
-   "x": 2832.7,
-   "y": 755.8,
-   "w": 220.6,
-   "h": 314.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R012",
-   "x": 2619.6,
-   "y": 1345.3,
-   "w": 319,
-   "h": 302.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R013",
-   "x": 512.1,
-   "y": 1576.3,
-   "w": 233.8,
-   "h": 293.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R014",
-   "x": 2123.6,
-   "y": 790.4,
-   "w": 254.5,
-   "h": 280,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R015",
-   "x": 281,
-   "y": 1160.6,
-   "w": 272.8,
-   "h": 243.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R016",
-   "x": 1843.8,
-   "y": 965.2,
-   "w": 263.1,
-   "h": 237.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R017",
-   "x": 1935.5,
-   "y": 573.7,
-   "w": 239.3,
-   "h": 275.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R018",
-   "x": 560.5,
-   "y": 1058.4,
-   "w": 268.3,
-   "h": 204.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R019",
-   "x": 2830.2,
-   "y": 1139.8,
-   "w": 225.6,
-   "h": 196.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R020",
-   "x": 1504.8,
-   "y": 1328.9,
-   "w": 176.3,
-   "h": 168.7,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R021",
-   "x": 2316.1,
-   "y": 684.8,
-   "w": 163.6,
-   "h": 160.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R022",
-   "x": 1065.4,
-   "y": 532.8,
-   "w": 170.7,
-   "h": 129.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R023",
-   "x": 98,
-   "y": 883.3,
-   "w": 134.6,
-   "h": 141.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R024",
-   "x": 93.9,
-   "y": 773.2,
-   "w": 126.5,
-   "h": 111.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R025",
-   "x": 2003,
-   "y": 868,
-   "w": 113.8,
-   "h": 120.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R026",
-   "x": 2757.1,
-   "y": 991.6,
-   "w": 114.8,
-   "h": 110.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R027",
-   "x": 2185.7,
-   "y": 579.9,
-   "w": 111.2,
-   "h": 106.7,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R028",
-   "x": 397.5,
-   "y": 721.4,
-   "w": 97.5,
-   "h": 112.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R029",
-   "x": 194.5,
-   "y": 1390.5,
-   "w": 102.6,
-   "h": 99.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R030",
-   "x": 133.8,
-   "y": 1004.8,
-   "w": 91.5,
-   "h": 94.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "garnet-c24R031",
-   "x": 483,
-   "y": 1235.6,
-   "w": 84.8,
-   "h": 90.9,
-   "rot": 0
-  },
-  {
-   "t": "food",
-   "kind": "cache-engine",
-   "x": 1328,
-   "y": 1170,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 144,
-   "y": 1928,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 2412,
-   "y": 1928,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 144,
-   "y": 452,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 2376,
-   "y": 452,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 1008,
-   "y": 1928,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 468,
-   "y": 1172,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 2088,
-   "y": 1208,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 936,
-   "y": 452,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 1692,
-   "y": 1784,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 1728,
-   "y": 596,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "city",
-   "key": "skyline4",
-   "x": 414,
-   "w": 396
-  },
-  {
-   "t": "mountain",
-   "key": "mountain4",
-   "x": 972,
-   "w": 720
-  },
-  {
-   "t": "city",
-   "key": "skyline5",
-   "x": 1494,
-   "w": 324
-  },
-  {
-   "t": "mountain",
-   "key": "mountain1",
-   "x": 1980,
-   "w": 648
-  },
-  {
-   "t": "city",
-   "key": "skyline6",
-   "x": 2394,
-   "w": 180
-  }
- ]
+  "objects": [
+    {
+      "t": "boulder",
+      "key": "garnet-c24R001",
+      "x": 2049.3,
+      "y": 1694.6,
+      "w": 569.1,
+      "h": 465.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R002",
+      "x": 1207.2,
+      "y": 1473.6,
+      "w": 451.1,
+      "h": 449.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R003",
+      "x": 2550.3,
+      "y": 658.3,
+      "w": 339,
+      "h": 509.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R004",
+      "x": 942.2,
+      "y": 1173.8,
+      "w": 481.2,
+      "h": 416.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R005",
+      "x": 1454.9,
+      "y": 902.5,
+      "w": 376.5,
+      "h": 443.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R006",
+      "x": 722.8,
+      "y": 571.2,
+      "w": 363.8,
+      "h": 432.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R007",
+      "x": 901.7,
+      "y": 825.9,
+      "w": 341.5,
+      "h": 406.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R008",
+      "x": 1615.3,
+      "y": 567.1,
+      "w": 320.6,
+      "h": 452.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R009",
+      "x": 1192.8,
+      "y": 1015,
+      "w": 301.2,
+      "h": 386.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R010",
+      "x": 247.3,
+      "y": 595.8,
+      "w": 325.2,
+      "h": 258.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R011",
+      "x": 2832.7,
+      "y": 755.8,
+      "w": 220.6,
+      "h": 314.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R012",
+      "x": 2619.6,
+      "y": 1345.3,
+      "w": 319,
+      "h": 302.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R013",
+      "x": 512.1,
+      "y": 1576.3,
+      "w": 233.8,
+      "h": 293.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R014",
+      "x": 2123.6,
+      "y": 790.4,
+      "w": 254.5,
+      "h": 280,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R015",
+      "x": 281,
+      "y": 1160.6,
+      "w": 272.8,
+      "h": 243.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R016",
+      "x": 1843.8,
+      "y": 965.2,
+      "w": 263.1,
+      "h": 237.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R017",
+      "x": 1935.5,
+      "y": 573.7,
+      "w": 239.3,
+      "h": 275.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R018",
+      "x": 560.5,
+      "y": 1058.4,
+      "w": 268.3,
+      "h": 204.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R019",
+      "x": 2830.2,
+      "y": 1139.8,
+      "w": 225.6,
+      "h": 196.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R020",
+      "x": 1504.8,
+      "y": 1328.9,
+      "w": 176.3,
+      "h": 168.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R021",
+      "x": 2316.1,
+      "y": 684.8,
+      "w": 163.6,
+      "h": 160.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R022",
+      "x": 1065.4,
+      "y": 532.8,
+      "w": 170.7,
+      "h": 129.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R023",
+      "x": 98,
+      "y": 883.3,
+      "w": 134.6,
+      "h": 141.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R024",
+      "x": 93.9,
+      "y": 773.2,
+      "w": 126.5,
+      "h": 111.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R025",
+      "x": 2003,
+      "y": 868,
+      "w": 113.8,
+      "h": 120.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R026",
+      "x": 2757.1,
+      "y": 991.6,
+      "w": 114.8,
+      "h": 110.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R027",
+      "x": 2185.7,
+      "y": 579.9,
+      "w": 111.2,
+      "h": 106.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R028",
+      "x": 397.5,
+      "y": 721.4,
+      "w": 97.5,
+      "h": 112.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R029",
+      "x": 194.5,
+      "y": 1390.5,
+      "w": 102.6,
+      "h": 99.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R030",
+      "x": 133.8,
+      "y": 1004.8,
+      "w": 91.5,
+      "h": 94.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "garnet-c24R031",
+      "x": 483,
+      "y": 1235.6,
+      "w": 84.8,
+      "h": 90.9,
+      "rot": 0
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 1328,
+      "y": 1170,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 144,
+      "y": 1928,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2412,
+      "y": 1928,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 144,
+      "y": 452,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2376,
+      "y": 452,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1008,
+      "y": 1928,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 468,
+      "y": 1172,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2088,
+      "y": 1208,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 936,
+      "y": 452,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1692,
+      "y": 1784,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1728,
+      "y": 596,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "mountain",
+      "key": "mountain3",
+      "x": 792,
+      "w": 432
+    },
+    {
+      "t": "mountain",
+      "key": "mountain5",
+      "x": 1620,
+      "w": 432
+    },
+    {
+      "t": "city",
+      "key": "skyline6",
+      "x": 396,
+      "w": 360
+    },
+    {
+      "t": "city",
+      "key": "skyline3",
+      "x": 1206,
+      "w": 396
+    },
+    {
+      "t": "city",
+      "key": "skyline5",
+      "x": 2142,
+      "w": 324
+    }
+  ]
 }

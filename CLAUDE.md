@@ -2353,17 +2353,18 @@ The owner placed the ROCK, the lakes/reservoirs and the RED leaf piles. Both scr
 through untouched and are re-runnable.
 
 - **`node scripts/gen-survival-maps.mjs <dir-of-exports>`** writes `docs/levels/*.json`: the
-  owner's objects, plus `survival` / `assetsFrom` / `campaignLevel: null`, plus the **surface
-  backdrop**. `assetsFrom` is resolved from the BOULDER KEYS (`anthracite-c24R017` →
-  `anthracite-c24`), not parsed out of the id, because the ids are the owner's and do not all
-  follow one pattern.
-  - The backdrop is a **tiling, not a scatter**, and that is copied from the committed maps rather
-    than invented: `campaign-05` runs city 216-468, mountain 468-900, city 900-1116, … edge to
-    edge, snapped to whole cells. **Both ends of the band are load-bearing** — left of 216 is the
-    entry channel, right of **2484** is the goal meadow, whose green hill the game draws itself, so
-    a city there stands on top of it.
-  - Deterministic (seeded from the map id), so a re-run is an empty diff rather than a reshuffled
-    skyline nobody can review.
+  owner's objects plus `survival` / `assetsFrom` / `campaignLevel: null`, and nothing else.
+  `assetsFrom` is resolved from the BOULDER KEYS (`anthracite-c24R017` → `anthracite-c24`), not
+  parsed out of the id, because the ids are the owner's and do not all follow one pattern.
+- **`node scripts/author-campaign-surface.mjs 0-survival`** writes the sky. **DO NOT hand-roll
+  this — it already existed and it owns a rule that cannot be got right from the JSON**: *no
+  building over rock the soil line cuts*. An authored map's rock is a sprite clipped at `surfaceY`,
+  so a boulder placed high ends as a flat cut along the horizon and a skyline on it reads as a
+  building balanced on a sawn-off rock; a mountain reads as the rock carrying on upward. The cut is
+  a property of the sprite's **alpha**, which is why that script needs a browser. The first version
+  of `gen-survival-maps` tiled mountains and cities edge to edge across the band instead and put a
+  city over cut rock on **13 of the 17** maps — `sky` caught it at 83/109. It also takes ids, not
+  just campaign slots, which is what makes it usable here at all.
 - **`node scripts/place-survival-food.mjs`** scatters **5 orange + 5 yellow** per map. **It boots
   each map in a real browser**, because a traced map's collision is derived from each sprite's
   alpha at RENDER time and there is no rock in the JSON to test against — computing the mask
@@ -2374,9 +2375,17 @@ through untouched and are re-runnable.
   legal spots per map, nearest pair **490-664 units**, **all 17 at `holing: 0`**.
   - It boots **`#level,<id>,turn`**. `#level,<id>` alone boots REAL TIME and the threats start
     eating the food while it is being measured — the same trap that made `traced-check` flaky.
-- **Order matters**: `gen-survival-maps` → `gen-levels.mjs` → `place-survival-food` →
-  `gen-levels.mjs` again. The placement writes the JSONs; the inline `LEVELS` array in
-  `index.html` is what the game reads, and it is stale until `gen-levels` re-splices.
+- **Order matters, and `gen-levels` has to run between the steps that need a browser**, because
+  the inline `LEVELS` array in `index.html` is what the game boots from and it is stale until
+  `gen-levels` re-splices:
+  ```
+  node scripts/gen-survival-maps.mjs <dir>        # the owner's objects + the three fields
+  node scripts/gen-levels.mjs
+  node scripts/author-campaign-surface.mjs 0-survival   # the sky (needs a browser)
+  node scripts/place-survival-food.mjs                  # the piles (needs a browser)
+  node scripts/gen-levels.mjs
+  ```
+  All three are re-runnable in any order: each keeps what the other two wrote.
 
 ### Consequences of survival becoming authored, worth knowing
 
@@ -2650,7 +2659,16 @@ death was firing; the screen was lying about it.
   carousel and the skipped level intro all read it.
 - **The 58 traced maps are not campaign levels yet.** Every one has `campaignLevel: null`, so
   they claim no slot and are reachable only from the editor's map list or `#level,<id>`. The
-  owner is picking 10-15 of them for a new campaign; the rest are for later.
+  owner is picking 10-15 of them for a new campaign; the rest are for later. (Seventeen of them
+  now have a SURVIVAL twin — see "Survival's 17 authored maps" — but the source maps are
+  untouched and still claim no slot.)
+- **`0-survival-garnet-24-main` has NO water at all** — no lake and no reservoir, where the other
+  sixteen carry one or two. It is the owner's own placement and may be deliberate (a dry map is a
+  real difficulty lever), so it was left as it is rather than "fixed". Worth a look if survival
+  suddenly feels harsh on one map in seventeen.
+- **The survival maps' ids and names are the owner's, verbatim**, including
+  `0-survival-glass-24-main-maybe`. The id is what `#level,<id>` boots, what the map list keys on
+  and what a saved draft records as `assetsFrom`, so renaming one strands all three.
 - **THE OWNER'S CHAPTER 1 MAPS ARE NOT IN THE REPO.** Zero of the 59 committed JSONs carry a
   `chapter` field — the named ones they work on ("3 - Rust 90", "5 - Garnet 40") live only in
   their browser's localStorage, because Save as… cannot write `docs/levels/`. So a bug they

@@ -1,697 +1,709 @@
 {
- "format": "mycelium-level",
- "version": 1,
- "id": "0-survival-rhodonite-40-main",
- "name": "0 survival Rhodonite 40 main",
- "campaignLevel": null,
- "survival": true,
- "assetsFrom": "rhodonite-c40",
- "world": {
-  "width": 2952,
-  "height": 1467.1,
-  "surfaceY": 380,
-  "cellSize": 36
- },
- "layout": {
-  "startCols": 2,
-  "goalCols": 6,
-  "summerCols": 7,
-  "clearChannels": true
- },
- "traced": {
-  "image": "docs/maps/top-rhodonite-scatter-c40-1@4x.webp",
-  "threshold": 128,
-  "minArea": 9600
- },
- "render": {
-  "rockFilter": {
-   "brightness": 0.7,
-   "contrast": 1.18,
-   "saturate": 0.76
-  }
- },
- "objects": [
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R001",
-   "x": 2787,
-   "y": 1283.4,
-   "w": 410.1,
-   "h": 431.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R002",
-   "x": 499.8,
-   "y": 533.6,
-   "w": 445.4,
-   "h": 367.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R003",
-   "x": 1699.5,
-   "y": 544.6,
-   "w": 451.3,
-   "h": 366.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R004",
-   "x": 793.8,
-   "y": 1915.5,
-   "w": 513.3,
-   "h": 284,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R005",
-   "x": 804.7,
-   "y": 1175.1,
-   "w": 356.3,
-   "h": 412.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R006",
-   "x": 2869.4,
-   "y": 522.6,
-   "w": 396.1,
-   "h": 270,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R007",
-   "x": 1239.1,
-   "y": 1534.6,
-   "w": 358.1,
-   "h": 359.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R008",
-   "x": 960.8,
-   "y": 513.5,
-   "w": 352.3,
-   "h": 303.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R009",
-   "x": 2141.8,
-   "y": 625.7,
-   "w": 329.7,
-   "h": 326.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R010",
-   "x": 1774.2,
-   "y": 1687.1,
-   "w": 351.3,
-   "h": 293.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R011",
-   "x": 62,
-   "y": 1366.9,
-   "w": 270.9,
-   "h": 357.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R012",
-   "x": 2415.9,
-   "y": 1896.7,
-   "w": 372.6,
-   "h": 229.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R013",
-   "x": 2337,
-   "y": 1499.7,
-   "w": 256.9,
-   "h": 270.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R014",
-   "x": 1947.2,
-   "y": 1935.2,
-   "w": 297.1,
-   "h": 195.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R015",
-   "x": 1717.6,
-   "y": 988.7,
-   "w": 215.2,
-   "h": 291.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R016",
-   "x": 2925.8,
-   "y": 758.3,
-   "w": 138.8,
-   "h": 306.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R017",
-   "x": 205.2,
-   "y": 829.7,
-   "w": 214.8,
-   "h": 214.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R018",
-   "x": 2054.5,
-   "y": 1269.8,
-   "w": 198.1,
-   "h": 223.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R019",
-   "x": 2139.2,
-   "y": 849.8,
-   "w": 194.4,
-   "h": 252.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R020",
-   "x": 1045.6,
-   "y": 974.5,
-   "w": 200.8,
-   "h": 231.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R021",
-   "x": 1374.9,
-   "y": 588.8,
-   "w": 243.3,
-   "h": 204.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R022",
-   "x": 1033.2,
-   "y": 779.6,
-   "w": 260.9,
-   "h": 194,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R023",
-   "x": 2358.1,
-   "y": 914.8,
-   "w": 176.8,
-   "h": 213,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R024",
-   "x": 430.8,
-   "y": 1056.3,
-   "w": 206.7,
-   "h": 227.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R025",
-   "x": 836.6,
-   "y": 1481.3,
-   "w": 168.7,
-   "h": 198.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R026",
-   "x": 1526.7,
-   "y": 1991.7,
-   "w": 367.6,
-   "h": 94.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R027",
-   "x": 1857.8,
-   "y": 770.3,
-   "w": 208,
-   "h": 181.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R028",
-   "x": 409.7,
-   "y": 1384.8,
-   "w": 196.7,
-   "h": 127.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R029",
-   "x": 1475.9,
-   "y": 867.5,
-   "w": 219.4,
-   "h": 140.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R030",
-   "x": 1280.5,
-   "y": 751.5,
-   "w": 185.9,
-   "h": 172.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R031",
-   "x": 2540.8,
-   "y": 887,
-   "w": 178.6,
-   "h": 141.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R032",
-   "x": 2456.7,
-   "y": 555.8,
-   "w": 151,
-   "h": 150.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R033",
-   "x": 2049.3,
-   "y": 412.8,
-   "w": 218.4,
-   "h": 102.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R034",
-   "x": 644.1,
-   "y": 881.1,
-   "w": 153.8,
-   "h": 134.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R035",
-   "x": 2197,
-   "y": 1150.8,
-   "w": 137.5,
-   "h": 138.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R036",
-   "x": 521.8,
-   "y": 1221.4,
-   "w": 165.9,
-   "h": 135.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R037",
-   "x": 22.1,
-   "y": 1058,
-   "w": 117.1,
-   "h": 155.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R038",
-   "x": 1215.4,
-   "y": 892.1,
-   "w": 118,
-   "h": 142.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R040",
-   "x": 1200,
-   "y": 473,
-   "w": 116.3,
-   "h": 142.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R041",
-   "x": 1601.8,
-   "y": 777,
-   "w": 121.2,
-   "h": 133.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R042",
-   "x": 1395,
-   "y": 408.8,
-   "w": 149.7,
-   "h": 94.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R043",
-   "x": 935,
-   "y": 707,
-   "w": 126.1,
-   "h": 122.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R044",
-   "x": 2357.9,
-   "y": 717.4,
-   "w": 109.4,
-   "h": 121.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R045",
-   "x": 1717.6,
-   "y": 1181.3,
-   "w": 120.2,
-   "h": 103.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R046",
-   "x": 271.6,
-   "y": 1976.2,
-   "w": 128.9,
-   "h": 95,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R047",
-   "x": 221.5,
-   "y": 568.4,
-   "w": 114.4,
-   "h": 115.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R048",
-   "x": 1305.7,
-   "y": 1137.9,
-   "w": 113.5,
-   "h": 106.3,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R049",
-   "x": 1969.2,
-   "y": 515,
-   "w": 109.9,
-   "h": 101.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R050",
-   "x": 430,
-   "y": 837.7,
-   "w": 89.1,
-   "h": 123.9,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R051",
-   "x": 704.7,
-   "y": 395.4,
-   "w": 170,
-   "h": 67.8,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R052",
-   "x": 779.3,
-   "y": 704.3,
-   "w": 94,
-   "h": 106.7,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R053",
-   "x": 2224.8,
-   "y": 401.1,
-   "w": 103.5,
-   "h": 79.1,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R054",
-   "x": 842.5,
-   "y": 787.9,
-   "w": 85.9,
-   "h": 102.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R055",
-   "x": 1466.4,
-   "y": 1292.3,
-   "w": 97.2,
-   "h": 75.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R056",
-   "x": 2654.6,
-   "y": 627.4,
-   "w": 84.1,
-   "h": 76,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R057",
-   "x": 1909.8,
-   "y": 598.5,
-   "w": 79.6,
-   "h": 79.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R058",
-   "x": 12.4,
-   "y": 653.4,
-   "w": 57.9,
-   "h": 86.4,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R059",
-   "x": 1898.7,
-   "y": 907.5,
-   "w": 80,
-   "h": 85.5,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R060",
-   "x": 1197.1,
-   "y": 1009.5,
-   "w": 77.8,
-   "h": 69.6,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R061",
-   "x": 299,
-   "y": 434.3,
-   "w": 69.7,
-   "h": 74.2,
-   "rot": 0
-  },
-  {
-   "t": "boulder",
-   "key": "rhodonite-c40R062",
-   "x": 2271.4,
-   "y": 1085,
-   "w": 73.7,
-   "h": 75,
-   "rot": 0
-  },
-  {
-   "t": "food",
-   "kind": "cache-engine",
-   "x": 1696,
-   "y": 1405,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 144,
-   "y": 452,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 324,
-   "y": 1928,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 2412,
-   "y": 452,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 1296,
-   "y": 452,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 900,
-   "y": 1352,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 2412,
-   "y": 1748,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 144,
-   "y": 1208,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 1296,
-   "y": 1928,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "food",
-   "kind": "cache",
-   "x": 2340,
-   "y": 1100,
-   "r": 1,
-   "energy": 4
-  },
-  {
-   "t": "food",
-   "kind": "duff",
-   "x": 720,
-   "y": 740,
-   "r": 1,
-   "energy": 2
-  },
-  {
-   "t": "reservoir",
-   "key": "reservoir2",
-   "x": 315,
-   "y": 1639,
-   "r": 72
-  },
-  {
-   "t": "mountain",
-   "key": "mountain2",
-   "x": 576,
-   "w": 720
-  },
-  {
-   "t": "city",
-   "key": "skyline6",
-   "x": 1134,
-   "w": 396
-  },
-  {
-   "t": "mountain",
-   "key": "mountain5",
-   "x": 1908,
-   "w": 1152
-  }
- ]
+  "format": "mycelium-level",
+  "version": 1,
+  "id": "0-survival-rhodonite-40-main",
+  "name": "0 survival Rhodonite 40 main",
+  "campaignLevel": null,
+  "survival": true,
+  "assetsFrom": "rhodonite-c40",
+  "world": {
+    "width": 2952,
+    "height": 1467.1,
+    "surfaceY": 380,
+    "cellSize": 36
+  },
+  "layout": {
+    "startCols": 2,
+    "goalCols": 6,
+    "summerCols": 7,
+    "clearChannels": true
+  },
+  "traced": {
+    "image": "docs/maps/top-rhodonite-scatter-c40-1@4x.webp",
+    "threshold": 128,
+    "minArea": 9600
+  },
+  "render": {
+    "rockFilter": {
+      "brightness": 0.7,
+      "contrast": 1.18,
+      "saturate": 0.76
+    }
+  },
+  "objects": [
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R001",
+      "x": 2787,
+      "y": 1283.4,
+      "w": 410.1,
+      "h": 431.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R002",
+      "x": 499.8,
+      "y": 533.6,
+      "w": 445.4,
+      "h": 367.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R003",
+      "x": 1699.5,
+      "y": 544.6,
+      "w": 451.3,
+      "h": 366.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R004",
+      "x": 793.8,
+      "y": 1915.5,
+      "w": 513.3,
+      "h": 284,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R005",
+      "x": 804.7,
+      "y": 1175.1,
+      "w": 356.3,
+      "h": 412.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R006",
+      "x": 2869.4,
+      "y": 522.6,
+      "w": 396.1,
+      "h": 270,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R007",
+      "x": 1239.1,
+      "y": 1534.6,
+      "w": 358.1,
+      "h": 359.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R008",
+      "x": 960.8,
+      "y": 513.5,
+      "w": 352.3,
+      "h": 303.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R009",
+      "x": 2141.8,
+      "y": 625.7,
+      "w": 329.7,
+      "h": 326.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R010",
+      "x": 1774.2,
+      "y": 1687.1,
+      "w": 351.3,
+      "h": 293.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R011",
+      "x": 62,
+      "y": 1366.9,
+      "w": 270.9,
+      "h": 357.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R012",
+      "x": 2415.9,
+      "y": 1896.7,
+      "w": 372.6,
+      "h": 229.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R013",
+      "x": 2337,
+      "y": 1499.7,
+      "w": 256.9,
+      "h": 270.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R014",
+      "x": 1947.2,
+      "y": 1935.2,
+      "w": 297.1,
+      "h": 195.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R015",
+      "x": 1717.6,
+      "y": 988.7,
+      "w": 215.2,
+      "h": 291.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R016",
+      "x": 2925.8,
+      "y": 758.3,
+      "w": 138.8,
+      "h": 306.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R017",
+      "x": 205.2,
+      "y": 829.7,
+      "w": 214.8,
+      "h": 214.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R018",
+      "x": 2054.5,
+      "y": 1269.8,
+      "w": 198.1,
+      "h": 223.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R019",
+      "x": 2139.2,
+      "y": 849.8,
+      "w": 194.4,
+      "h": 252.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R020",
+      "x": 1045.6,
+      "y": 974.5,
+      "w": 200.8,
+      "h": 231.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R021",
+      "x": 1374.9,
+      "y": 588.8,
+      "w": 243.3,
+      "h": 204.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R022",
+      "x": 1033.2,
+      "y": 779.6,
+      "w": 260.9,
+      "h": 194,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R023",
+      "x": 2358.1,
+      "y": 914.8,
+      "w": 176.8,
+      "h": 213,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R024",
+      "x": 430.8,
+      "y": 1056.3,
+      "w": 206.7,
+      "h": 227.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R025",
+      "x": 836.6,
+      "y": 1481.3,
+      "w": 168.7,
+      "h": 198.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R026",
+      "x": 1526.7,
+      "y": 1991.7,
+      "w": 367.6,
+      "h": 94.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R027",
+      "x": 1857.8,
+      "y": 770.3,
+      "w": 208,
+      "h": 181.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R028",
+      "x": 409.7,
+      "y": 1384.8,
+      "w": 196.7,
+      "h": 127.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R029",
+      "x": 1475.9,
+      "y": 867.5,
+      "w": 219.4,
+      "h": 140.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R030",
+      "x": 1280.5,
+      "y": 751.5,
+      "w": 185.9,
+      "h": 172.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R031",
+      "x": 2540.8,
+      "y": 887,
+      "w": 178.6,
+      "h": 141.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R032",
+      "x": 2456.7,
+      "y": 555.8,
+      "w": 151,
+      "h": 150.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R033",
+      "x": 2049.3,
+      "y": 412.8,
+      "w": 218.4,
+      "h": 102.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R034",
+      "x": 644.1,
+      "y": 881.1,
+      "w": 153.8,
+      "h": 134.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R035",
+      "x": 2197,
+      "y": 1150.8,
+      "w": 137.5,
+      "h": 138.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R036",
+      "x": 521.8,
+      "y": 1221.4,
+      "w": 165.9,
+      "h": 135.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R037",
+      "x": 22.1,
+      "y": 1058,
+      "w": 117.1,
+      "h": 155.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R038",
+      "x": 1215.4,
+      "y": 892.1,
+      "w": 118,
+      "h": 142.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R040",
+      "x": 1200,
+      "y": 473,
+      "w": 116.3,
+      "h": 142.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R041",
+      "x": 1601.8,
+      "y": 777,
+      "w": 121.2,
+      "h": 133.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R042",
+      "x": 1395,
+      "y": 408.8,
+      "w": 149.7,
+      "h": 94.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R043",
+      "x": 935,
+      "y": 707,
+      "w": 126.1,
+      "h": 122.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R044",
+      "x": 2357.9,
+      "y": 717.4,
+      "w": 109.4,
+      "h": 121.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R045",
+      "x": 1717.6,
+      "y": 1181.3,
+      "w": 120.2,
+      "h": 103.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R046",
+      "x": 271.6,
+      "y": 1976.2,
+      "w": 128.9,
+      "h": 95,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R047",
+      "x": 221.5,
+      "y": 568.4,
+      "w": 114.4,
+      "h": 115.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R048",
+      "x": 1305.7,
+      "y": 1137.9,
+      "w": 113.5,
+      "h": 106.3,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R049",
+      "x": 1969.2,
+      "y": 515,
+      "w": 109.9,
+      "h": 101.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R050",
+      "x": 430,
+      "y": 837.7,
+      "w": 89.1,
+      "h": 123.9,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R051",
+      "x": 704.7,
+      "y": 395.4,
+      "w": 170,
+      "h": 67.8,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R052",
+      "x": 779.3,
+      "y": 704.3,
+      "w": 94,
+      "h": 106.7,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R053",
+      "x": 2224.8,
+      "y": 401.1,
+      "w": 103.5,
+      "h": 79.1,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R054",
+      "x": 842.5,
+      "y": 787.9,
+      "w": 85.9,
+      "h": 102.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R055",
+      "x": 1466.4,
+      "y": 1292.3,
+      "w": 97.2,
+      "h": 75.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R056",
+      "x": 2654.6,
+      "y": 627.4,
+      "w": 84.1,
+      "h": 76,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R057",
+      "x": 1909.8,
+      "y": 598.5,
+      "w": 79.6,
+      "h": 79.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R058",
+      "x": 12.4,
+      "y": 653.4,
+      "w": 57.9,
+      "h": 86.4,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R059",
+      "x": 1898.7,
+      "y": 907.5,
+      "w": 80,
+      "h": 85.5,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R060",
+      "x": 1197.1,
+      "y": 1009.5,
+      "w": 77.8,
+      "h": 69.6,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R061",
+      "x": 299,
+      "y": 434.3,
+      "w": 69.7,
+      "h": 74.2,
+      "rot": 0
+    },
+    {
+      "t": "boulder",
+      "key": "rhodonite-c40R062",
+      "x": 2271.4,
+      "y": 1085,
+      "w": 73.7,
+      "h": 75,
+      "rot": 0
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 1696,
+      "y": 1405,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 144,
+      "y": 452,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 324,
+      "y": 1928,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2412,
+      "y": 452,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1296,
+      "y": 452,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 900,
+      "y": 1352,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 2412,
+      "y": 1748,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 144,
+      "y": 1208,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 1296,
+      "y": 1928,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2340,
+      "y": 1100,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "duff",
+      "x": 720,
+      "y": 740,
+      "r": 1,
+      "energy": 2
+    },
+    {
+      "t": "reservoir",
+      "key": "reservoir2",
+      "x": 315,
+      "y": 1639,
+      "r": 72
+    },
+    {
+      "t": "mountain",
+      "key": "mountain3",
+      "x": 756,
+      "w": 720
+    },
+    {
+      "t": "mountain",
+      "key": "mountain1",
+      "x": 1800,
+      "w": 936
+    },
+    {
+      "t": "city",
+      "key": "skyline5",
+      "x": 306,
+      "w": 180
+    },
+    {
+      "t": "city",
+      "key": "skyline3",
+      "x": 1224,
+      "w": 216
+    },
+    {
+      "t": "city",
+      "key": "skyline6",
+      "x": 2376,
+      "w": 216
+    }
+  ]
 }

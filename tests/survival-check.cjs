@@ -74,14 +74,21 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
   ok("the owner's red pile survived on every map", noRed.length === 0, noRed.map((d) => d.id).join(', '));
   const noRock = DISK.filter((d) => d.objects.filter((o) => o.t === 'boulder' || o.t === 'formation').length < 10);
   ok("the owner's rock survived on every map", noRock.length === 0, noRock.map((d) => d.id).join(', '));
-  // The surface backdrop, and the one thing about it that is a rule rather than taste: it must
-  // stop where the goal meadow begins, or a city stands on the hill the game draws there.
-  const GOAL_X = 2484;
+  // The surface backdrop. Only two things are asserted here: that every map HAS one — a traced
+  // map ships with a bare horizon, which is the state these were in when the owner sent them —
+  // and that it stays inside the band, since left of it is the entry channel and right of it the
+  // goal meadow, whose green hill the game draws itself.
+  //
+  // The rule that actually governs its CONTENT — no city over rock the soil line cuts — belongs
+  // to `surface-rock-check` (`sky`) and to the script that writes it,
+  // `scripts/author-campaign-surface.mjs`. Restating it here would be a second, weaker copy: the
+  // cut is a property of the sprite's alpha and can only be measured in the running game.
+  const BAND_LO = 216, BAND_HI = 2484;
   const badBd = DISK.filter((d) => {
     const bd = d.objects.filter((o) => o.t === 'mountain' || o.t === 'city');
-    return !bd.length || bd.some((o) => o.x + o.w / 2 > GOAL_X + 0.01) || bd.some((o) => o.x - o.w / 2 < 108);
+    return !bd.length || bd.some((o) => o.x + o.w / 2 > BAND_HI + 0.01 || o.x - o.w / 2 < BAND_LO - 0.01);
   });
-  ok('every map has a surface backdrop, clear of both channels', badBd.length === 0,
+  ok('every map has a surface backdrop, inside the band', badBd.length === 0,
     badBd.length ? badBd.map((d) => d.id).join(', ') : `${DISK.length} maps`);
   const noAssets = DISK.filter((d) => !d.assetsFrom || !fs.existsSync(path.join(ROOT, 'assets', d.assetsFrom)));
   ok('every map points at an asset folder that exists', noAssets.length === 0, noAssets.map((d) => d.id).join(', '));
