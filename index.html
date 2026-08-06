@@ -18136,6 +18136,10 @@ function buildLevel(config, level) {
   sub.authoredCities = [];          // { c0, c1, wCells, key } — explicit skylines (main.js cityRuns)
   sub.authoredMountains = [];       // { c0, c1, wCells, key } — explicit peaks (main.js mountainRuns)
   sub.authoredProps = [];           // { key, col, h, embed, flip } — surface decor (main.js surfaceProps)
+  // The pathClear entry/goal bands, in world units, filled in below only when they are actually
+  // dug. drawLevelRocks clips the rock art to them; null means "no channel here, the rock is real".
+  sub.channelX0 = null;
+  sub.channelX1 = null;
 
   // --- surface layout: impassable middle, fruitable goal + summery approach ----
   for (let c = 0; c < sub.cols; c++) {
@@ -18239,6 +18243,14 @@ function buildLevel(config, level) {
     };
     clearChannel(0, startCols + 1);
     clearChannel(goalStart - 1, sub.cols);
+    // ...and record where they are, in world units, so the RENDERER can clip the rock art to
+    // them. Nothing is solid inside these two bands — pathClear beats rock outright — so a
+    // sprite drawn over one is rock you can see and grow straight through, which is the
+    // see-through-wall defect wearing its third disguise. Clipping is the same answer the soil
+    // line and the core line already get in drawLevelRocks. Null when the channels are not dug,
+    // because then the rock there is real.
+    sub.channelX0 = (startCols + 1) * cs;
+    sub.channelX1 = (goalStart - 1) * cs;
   }
 
   const startCol = Math.max(1, Math.floor(startCols / 2));
@@ -33421,11 +33433,23 @@ function drawLevelRocks() {
   // down there is cut off by it instead of floating over the glow. Collision below the line is
   // left alone deliberately — the colony cannot reach it (Network._placeOk stops at
   // growFloorY), so an invisible wall down there is unreachable rather than unfair.
+  //
+  // AND THE TWO CHANNELS CLIP IT SIDEWAYS, for exactly the same reason in a third direction.
+  // buildLevel digs the entry and goal channels clear and flags them `pathClear`, which beats
+  // rock outright — so a sprite reaching into one is rock you can SEE and grow straight
+  // through, at the two places every run begins and ends. The tracer sizes each world so its
+  // sprites cannot reach a channel, but a map edited afterwards has no such guarantee: the
+  // owner's 17 survival maps carry 3-15 such sprites each, up to 590 units deep into the goal
+  // channel. Clipping keeps their composition and makes what-you-see-is-what-blocks true again.
+  // Null bounds (a map with `clearChannels: false`) mean the rock there is real — no clip.
   ctx.save();
   const _surfY = camera.worldToScreen(0, sub.surfaceY).y;
   const _coreY = sub.coreY != null ? camera.worldToScreen(0, sub.coreY).y : camera.viewH;
+  const _chX0 = sub.channelX0 != null ? camera.worldToScreen(sub.channelX0, 0).x : 0;
+  const _chX1 = sub.channelX1 != null ? camera.worldToScreen(sub.channelX1, 0).x : camera.viewW;
+  const _clipL = Math.max(0, _chX0), _clipR = Math.min(camera.viewW, _chX1);
   ctx.beginPath();
-  ctx.rect(0, _surfY, camera.viewW, Math.max(0, Math.min(_coreY, camera.viewH) - _surfY));
+  ctx.rect(_clipL, _surfY, Math.max(0, _clipR - _clipL), Math.max(0, Math.min(_coreY, camera.viewH) - _surfY));
   ctx.clip();
   if (filtered) {
     ctx.filter = `brightness(${rf.brightness}) contrast(${rf.contrast}) saturate(${rf.saturate})`;

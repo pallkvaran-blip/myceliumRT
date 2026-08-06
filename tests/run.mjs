@@ -34,6 +34,7 @@ const CHECKS = [
   ['rate',      'rate-check.cjs',    40,  false],
   ['cele',      'cele-check.cjs',    35,  false],
   ['handoff',   'handoff-check.cjs', 60,  false],
+  ['survival',  'survival-check.cjs', 75, false],
   ['cardtool',  'card-tool-check.cjs', 45, false],
   ['cardrules', 'card-rules-check.cjs', 40, false],
   ['telem',     'telemetry-check.cjs', 60, false],

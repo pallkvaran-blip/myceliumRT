@@ -597,7 +597,7 @@ passes the cascade half** just as "claims everything" passes the forgiveness hal
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**42 checks registered in `run.mjs`**, roughly 2215 assertions, of which `traced` is 818 (one map's
+**44 checks registered in `run.mjs`**, roughly 2465 assertions, of which `traced` is 818 (one map's
 worth each). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -624,6 +624,7 @@ change, which is the recommended gear — the most recent runs, each 0 failed:
 | campaign · surface · level · ctreats · ants · challenge · sky | **252 passed** (the maps/threat-placement set) |
 | store · campaign · rate · cele · hover · tutscript | **-** (the rating-gate / celebration set) |
 | handoff · lure · boot · hs · store · campaign · tut · ingame · hover · tutscript | **309 passed** (the menu → run handoff set, ~5 min) |
+| survival · level · core · mode · campaign · hs · store · handoff · sky · ants · ctreats · challenge | see the survival section (the authored-survival set) |
 
 Per-check, measured: traced 818 · edit 118 · threat 114 · rt 69 · campaign 66 · enemy 52 ·
 challenge 50 · sky 45 · mode 39 · species 38 · ctreats 31 · harvest 28 · level 27 · scale 26 ·
@@ -2238,14 +2239,16 @@ before a run begins (like `setMode` — `state.config` is a deep clone taken at 
 |---|---|---|
 | entry | Turn-based New/Old **+** Real time New/Old | one New/Old, **turn-based only** (owner) |
 | levels | 100 (`MAX_LEVEL`), unwinnable past ~35 | **10** (`CAMPAIGN_LEVELS`), and it ends |
-| maps | a fresh procedural roll every level | one **fixed seed** per level |
+| maps | **17 authored maps in a shuffled bag** — see below | one **fixed seed** per level |
+| threats | from the LEVEL (`threatsForLevel`), seeded procedurally onto the authored map | exactly what the map's JSON places |
 | high scores | yes | **no** — see below |
 | resume slot | `mycelium.resume.v1` / `.rt.v1` | `mycelium.resume.campaign.v1` |
 
 They share EVERYTHING meta: one Spores wallet, one store, one deck, one species roster, one
-selection screen. Only the ladder's length, whether the map is fixed, and whether the run scores
+selection screen. Only the ladder's length, which maps it draws from, and whether the run scores
 differ. **`campaignRun()` is the gate** (`chosenSpecies && !playtestLevel && isCampaignGame()`),
-so flipping the flag flips the behaviour and nothing else has to know.
+and **`survivalRun()`** is its mirror, so flipping the flag flips the behaviour and nothing else
+has to know.
 
 - **The title screen's Campaign row was a locked "coming soon" placeholder** the owner had drawn.
   It is a real entry now — `#tsNewCamp` / `#tsContCamp`, the same treatment as the Survival pairs.
@@ -2271,6 +2274,119 @@ so flipping the flag flips the behaviour and nothing else has to know.
     both **against a Survival control** on the same board — without it the assertion passes on a
     table that simply never works. The board is PER MODE and the checks boot real-time (`#dev`),
     which is how the control read 0 → 0 the first time and made the campaign look meaningful.
+
+## Survival's 17 authored maps
+
+**Survival no longer rolls a procedural map** (owner: *"I have created new maps for it… Let's only
+use those from now on, not the procedurally generated ones."*). It plays the AUTHORED SURVIVAL
+POOL — every `docs/levels/*.json` carrying **`survival: true`**, currently 17, all traced maps the
+owner re-dressed by hand. Their ids are the owner's own (`0-survival-<theme>-<count>-main`), kept
+verbatim because the id is what `#level,<id>` boots and what the map list keys on.
+
+**One flag, one meaning: "this is a survival map".** It puts the map in the pool AND makes the
+map's threats come from the level rather than from its JSON — those are the same fact, not two
+features, because a survival map is level 2 in one run and level 40 in the next.
+
+### The rotation is a shuffled BAG, not a roll per level
+
+An independent pick each level repeats a map two levels running about **one time in seventeen**,
+which reads as the rotation being broken rather than as chance. `survivalMapIdFor(n)` draws from a
+bag that is emptied before any map returns, refills with a fresh shuffle, and **rejects a refill
+that would repeat across the seam**.
+
+- **It is a RUN-LONG order and it is PERSISTED** (`survivalOrder`, saved in the resume snapshot).
+  Three things re-enter a level — a **retry**, the title screen's **"Old"**, and the
+  level-complete screen's deferred advance — and a re-roll would hand the player a different map
+  for the level they just died on. `stockRun()` resets it; the resume path restores it *after*
+  that call, which is the ordering that matters. An older save has no order and simply reshuffles.
+- **A saved editor draft with `survival: true` joins the pool**, because the pool reads
+  `allLevels()`. That is deliberate — it is how you playtest a new survival map in rotation.
+- `#dev` and the picker's **Dev quick-start keep the procedural generator** (`survivalRun()`
+  requires `chosenSpecies`). It is the only sandbox left that has one, and `core-check`'s null
+  case — no core, therefore procedural — depends on it.
+
+### The threats are the LEVEL's, and they are seeded LATE
+
+`configForLevel` has already put `threatsForLevel(currentLevel)` into the config's counts, so
+running the ordinary procedural **seeders** on the authored substrate gets the whole escalation —
+the authored 1..11 table, the compounding bonus from level 7, the `MAX_ANT_NESTS` cap — with
+nothing restated. Measured: **L1 = 1/1/1, L20 = 66 worms / 66 clouds / 8 nests.**
+
+**`seedLevelThreats(state)` runs on the first frame after the ROCK MASK LANDS, not at build
+time,** and that is the whole reason it is a separate function rather than three lines in
+`createLevelState`. `findSpawnSpot` rejects a spot whose cell is `rock` or that has rock within
+**four cells** — and on an authored map every one of those flags is stamped by `solidifyRock`
+during RENDER, from each sprite's own alpha, and is **clear at build time**. Seed early and worms
+and clouds land inside boulders, silently. Same trap as the ants' opening trail
+(`replanAntTrailsForFineMask`), one step further on; it is hooked in `advanceSim` right beside it,
+and the nests seeded here get their road right first time because the mask already exists.
+
+- One-shot (`state._needLevelThreats`), so it is a null check on every other frame.
+- Additive: whatever the JSON placed stays, so a survival map *could* carry a scripted encounter
+  and still get its level's share on top.
+- If a map's sprites never decode the flag never clears and the map plays with no seeded threats —
+  the respawn ceilings still top worms and clouds up over time, so it degrades to "they arrive
+  late" rather than to an empty map.
+
+### THE ROCK ART IS NOW CLIPPED TO THE ENTRY/GOAL CHANNELS
+
+`buildLevel` digs the two channels clear and flags them `pathClear`, which beats rock outright —
+so **a sprite reaching into one is rock you can see and grow straight through**, at the two places
+every run begins and ends. The tracer guarantees this cannot happen by sizing each world so its
+sprites do not reach a channel; a map EDITED afterwards has no such guarantee, and the owner's 17
+carry **3-15 such sprites each, up to 590 units deep into the goal channel**.
+
+`drawLevelRocks` clips to `sub.channelX0` / `channelX1` — the same answer the soil line and the
+core line already get, in a third direction. It keeps the owner's composition and makes
+what-you-see-is-what-blocks true again. Null bounds (`clearChannels: false`) mean the rock there is
+real, so no clip. `three-ways` is the only other map affected (12 of 175 sprites).
+
+- **`traced-check`'s assertion moved from the overlap to the CLIP.** Demanding no sprite reach a
+  channel is a property of the TRACER, not of a playable map, and every edited map loses it —
+  nudging 130 boulders out to satisfy a check would rewrite the owner's compositions. What can
+  actually drift is whether the clip bounds are the bounds that were dug, so that is what it
+  asserts now, reporting the overlap count as context.
+
+### What the two scripts do (and what they must never touch)
+
+The owner placed the ROCK, the lakes/reservoirs and the RED leaf piles. Both scripts copy those
+through untouched and are re-runnable.
+
+- **`node scripts/gen-survival-maps.mjs <dir-of-exports>`** writes `docs/levels/*.json`: the
+  owner's objects, plus `survival` / `assetsFrom` / `campaignLevel: null`, plus the **surface
+  backdrop**. `assetsFrom` is resolved from the BOULDER KEYS (`anthracite-c24R017` →
+  `anthracite-c24`), not parsed out of the id, because the ids are the owner's and do not all
+  follow one pattern.
+  - The backdrop is a **tiling, not a scatter**, and that is copied from the committed maps rather
+    than invented: `campaign-05` runs city 216-468, mountain 468-900, city 900-1116, … edge to
+    edge, snapped to whole cells. **Both ends of the band are load-bearing** — left of 216 is the
+    entry channel, right of **2484** is the goal meadow, whose green hill the game draws itself, so
+    a city there stands on top of it.
+  - Deterministic (seeded from the map id), so a re-run is an empty diff rather than a reshuffled
+    skyline nobody can review.
+- **`node scripts/place-survival-food.mjs`** scatters **5 orange + 5 yellow** per map. **It boots
+  each map in a real browser**, because a traced map's collision is derived from each sprite's
+  alpha at RENDER time and there is no rock in the JSON to test against — computing the mask
+  offline would be a second implementation of the exact thing being placed against. Rules: never
+  overlap rock (`markCoverGrid` skips food cells deliberately, so a pile inside a boulder opens a
+  hole in a wall that still looks solid), reachable by a flood over the FINE mask from the colony's
+  own root, clear of water and of both channels, and farthest-point spread. Measured: 917-1815
+  legal spots per map, nearest pair **490-664 units**, **all 17 at `holing: 0`**.
+  - It boots **`#level,<id>,turn`**. `#level,<id>` alone boots REAL TIME and the threats start
+    eating the food while it is being measured — the same trap that made `traced-check` flaky.
+- **Order matters**: `gen-survival-maps` → `gen-levels.mjs` → `place-survival-food` →
+  `gen-levels.mjs` again. The placement writes the JSONs; the inline `LEVELS` array in
+  `index.html` is what the game reads, and it is stale until `gen-levels` re-splices.
+
+### Consequences of survival becoming authored, worth knowing
+
+- **Survival maps get the CORE and lose the soil pebbles.** `configForLevelDef` turns the molten
+  floor on for every authored map and forces `render.soilPebbles: false`. Survival looks like the
+  campaign now, not like the old procedural roll. Both are deliberate for traced art.
+- The **tutorial still works**: it injects its own orange starter pile (`injectFoodPile`), which
+  already tests `cell.rock` and keeps a 1.5-cell clearance, and by the time it runs the mask exists.
+- `tests/survival-check.cjs` (35) covers all of it, with `__game.survival`
+  (`maps`/`order`/`mapFor`/`reset`/`isRun`/`defFor`/`play`).
 
 ## The campaign itself
 

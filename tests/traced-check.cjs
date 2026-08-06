@@ -181,6 +181,9 @@ const TRACED = ALL.filter((l) => l && l.traced)
 
       return {
         digsChannels,
+        // The clip the renderer applies, and the channel this map actually dug, so the assertion
+        // can compare them rather than trusting either alone.
+        chX0: sub.channelX0, chX1: sub.channelX1, entryX, goalEdge,
         floods: !!f, size: f ? f.n : 0, total: FC * FR,
         reachesGoal: f ? [60, 300, 700].some((dy) => f.reaches(goalX, surfaceY + dy)) : false,
         piles: piles.length, unreachable, overlap,
@@ -193,16 +196,27 @@ const TRACED = ALL.filter((l) => l && l.traced)
     ok(`${ID}: open space runs colony → goal channel`, res.reachesGoal,
       `reachable region is ${Math.round(100 * res.size / res.total)}% of the underground`);
     ok(`${ID}: every food cell is reachable`, res.unreachable === 0, `${res.unreachable} of ${res.piles} sealed off`);
-    // ONLY WHERE THERE IS A pathClear CHANNEL TO OVERLAP. buildLevel digs the entry and goal
-    // channels and flags them pathClear, which solidifyRock honours as "never solid" — so a
-    // sprite drawn across one is rock you can see and walk through, the worst kind of defect
-    // here because it looks like a wall. A level that sets `clearChannels: false` digs neither,
+    // ONLY WHERE THERE IS A pathClear CHANNEL. buildLevel digs the entry and goal channels and
+    // flags them pathClear, which solidifyRock honours as "never solid" — so a sprite drawn
+    // across one is rock you can see and grow straight through, the worst kind of defect here
+    // because it looks like a wall. A level that sets `clearChannels: false` digs neither,
     // nothing is flagged pathClear, and the same sprite's alpha is stamped solid like any other:
-    // the rock at the map edge is then simply rock. Asserting the overlap there would report a
-    // hazard the level has deliberately removed — which is exactly what it did for the ten
-    // campaign maps, whose edge rock is placed and meant to collide.
+    // the rock at the map edge is then simply rock.
+    //
+    // THE ASSERTION MOVED FROM THE OVERLAP TO THE CLIP, and the reason is worth keeping. It used
+    // to demand that no sprite's box reach a channel — which the TRACER guarantees by sizing each
+    // world so its sprites cannot, and which any map EDITED afterwards immediately loses: the
+    // owner's 17 survival maps carry 3-15 such sprites each, up to 590 units into the goal
+    // channel. Nudging 130 boulders out would rewrite their compositions to satisfy a check.
+    // `drawLevelRocks` clips the rock art to the channel bounds instead — the same answer the
+    // soil line and the core line already get, in a third direction — so an overlapping sprite is
+    // simply cut off at the lane and no longer draws rock where nothing is solid. What still has
+    // to hold, and is what can drift, is that the CLIP bounds are the bounds actually dug.
     if (res.digsChannels) {
-      ok(`${ID}: no sprite overlaps a pathClear channel`, res.overlap === 0, `${res.overlap} overlapping`);
+      ok(`${ID}: the rock art is clipped to the dug channels`,
+        res.chX0 === res.entryX && res.chX1 === res.goalEdge,
+        `clip ${res.chX0}/${res.chX1} vs dug ${res.entryX}/${res.goalEdge}` +
+        (res.overlap ? ` — ${res.overlap} sprite(s) reach a channel and are cut off there` : ' — no sprite reaches one'));
     } else {
       ok(`${ID}: edge rock is solid (channels not dug, so nothing is walk-through)`, true,
         `${res.overlap} sprite(s) reach the map edge, all collidable`);
