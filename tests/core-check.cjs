@@ -268,6 +268,20 @@ const noCore=await p.evaluate(()=>{const s=window.__game.state.substrate;
 ok('a level can set coreDepthFrac null and have no core at all',
    noCore.id==='core-off' && noCore.coreY===null && noCore.growFloorY===noCore.worldHeight,
    JSON.stringify(noCore));
+// ---- the red band's depth ----------------------------------------------------
+// The band below the line is what a phone in PORTRAIT scrolls through, and it is what lets the
+// whole play area sit clear of the card carousel at the foot of the screen — so its depth is a
+// layout number, not decoration. Deepened 10% (owner). Asserted as the RATIO to the playable box
+// rather than as 1076: the box has moved before, and a bare constant would then be asserting the
+// old proportion under a new name.
+p=await boot(ctx, base+'/index.html#level,three-ways');
+const band=await p.evaluate(()=>{const g=window.__game;
+  return {line:g.coreLineDepth, total:g.coreTotalDepth, box:g.coreBoxDepth,
+          buffer:g.state.config.world.bottomBuffer};});
+ok('the red band is the remainder below the line', band.buffer===band.total-band.box,
+   `${band.buffer} vs ${band.total} - ${band.box}`);
+ok('...and is deeper than the ~0.60 of the box it used to be',
+   band.buffer/band.box > 0.63, `${band.buffer} / ${band.box} = ${(band.buffer/band.box).toFixed(3)}`);
 await ctx.close();
 
 await b.close();srv.close();

@@ -236,6 +236,35 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      last.won === true && last.complete === false, JSON.stringify(last));
   await page.evaluate(() => document.querySelectorAll('#ssLevelComplete, #ssGameWon').forEach((n) => n.remove()));
 
+  // ---- the final level's goal band ------------------------------------------
+  // "Almost twice as big", with things floating over it (owner) — the map that ENDS the campaign,
+  // so its goal is meant to look like an arrival rather than like every other level's exit.
+  // Asserted against the campaign's LAST level rather than against level 9, and by counting the
+  // surface columns the engine actually flagged `goal` rather than by reading the JSON: the point
+  // is what the world came out as, and `summerCols` is clamped on the way in.
+  const goalBand = await page.evaluate(async ({ last }) => {
+    document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
+    const g = window.__game;
+    const read = (lv) => {
+      g.campaign.play('marasmius', lv);
+      const sub = g.state.substrate;
+      let n = 0;
+      for (let c = 0; c < sub.cols; c++) if (sub.surface[c] && sub.surface[c].goal) n++;
+      return { green: n, motes: g.state.config.render.goalMotes | 0,
+               drawn: (sub.renderer && sub.renderer.goalMotes) ? sub.renderer.goalMotes.length : null };
+    };
+    const a = read(1), b = read(last);
+    await new Promise((r) => setTimeout(r, 100));
+    document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
+    return { first: a, last: b };
+  }, { last: shape.levels });
+  ok('the final level\'s green band is close to twice any other level\'s',
+     goalBand.last.green >= goalBand.first.green * 1.6,
+     `${goalBand.last.green} columns vs ${goalBand.first.green} on level 1`);
+  ok('...and only it has things drifting over the goal',
+     goalBand.last.motes > 0 && goalBand.first.motes === 0,
+     `last ${goalBand.last.motes}, first ${goalBand.first.motes}`);
+
   // ---- the opening, on NEW ---------------------------------------------------
   // It fires when you press New and before the species picker (owner), not at run start in front
   // of the first level card. Driven through the REAL route — title -> New -> name -> Start —

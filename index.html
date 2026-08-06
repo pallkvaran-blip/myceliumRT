@@ -642,8 +642,13 @@
     /* Carousel: a single horizontal drag-scroll row on every platform (no nav
        buttons — you drag; Play Card lives in the bottom action bar). */
     .handcarousel { position: relative; align-items: center; gap: 8px; max-width: 100%; }   /* display gated by .handbar.open above; position:relative anchors the edge-fade nav arrows */
+    /* PADDED AT BOTH ENDS so the first and last card can scroll clear of the nav arrows. The
+       arrows are 54px wide and overlay the list's edges — deliberately, so cards run full-width
+       beneath them — but at the extremes of the scroll there is nothing left to melt under, and
+       the outermost card just sits half-covered. 60px is the arrow plus a little air. Symmetric,
+       so `safe center` still centres a short hand. */
     .handlist { display: flex; gap: 6px; flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; justify-content: safe center;
-      max-width: none; overflow-x: auto; overflow-y: hidden;
+      max-width: none; overflow-x: auto; overflow-y: hidden; padding-inline: 60px;
       scrollbar-width: none; scroll-snap-type: none; cursor: grab; }
     .handlist::-webkit-scrollbar { display: none; }
     .handlist:active { cursor: grabbing; }
@@ -868,7 +873,7 @@
       .handnav { display: none; }   /* phones swipe — no arrows */
       .handlist { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
         justify-content: flex-start; max-height: none; max-width: none; scroll-snap-type: x mandatory;
-        -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+        -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-inline: 12px; }
       .handlist::-webkit-scrollbar { display: none; }
       /* Portrait cards keep the SAME fixed 5:7 shape as desktop (aspect-ratio from the
          base rule) — only the width scales. Uniform 3:2 picture, all text shown. */
@@ -907,7 +912,8 @@
       .handcarousel { align-self: stretch; }
       .handnav { display: none; }
       .handlist { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
-        justify-content: flex-start; max-height: none; max-width: none; scroll-snap-type: x mandatory; scrollbar-width: none; }
+        justify-content: flex-start; max-height: none; max-width: none; scroll-snap-type: x mandatory;
+        scrollbar-width: none; padding-inline: 12px; }
       .handlist::-webkit-scrollbar { display: none; }
       /* Landscape phones: same fixed 5:7 shape, just a smaller width so a card fits
          the short viewport; text kept small so it still all shows. */
@@ -1236,7 +1242,6 @@
     .ss-d-special { font-size:13px; line-height:1.5; color:#ecd9fd; margin:0;
       background:rgba(199,155,230,0.1); border:1px solid rgba(199,155,230,0.32);
       border-radius:10px; padding:9px 12px; }
-    .ss-d-special-tag { font-weight:700; color:#d9b8f0; margin-right:5px; white-space:nowrap; }
 
     .ss-hand { border-top:1px solid rgba(120,160,140,0.16); padding-top:14px; }
     .ss-hand h3 { font-size:11px; letter-spacing:0.22em; text-transform:uppercase; color:var(--ss-mint); margin:0 0 12px; font-weight:700; }
@@ -2735,6 +2740,13 @@ const CONFIG = {
     spore: 'rgba(202,255,216,0.75)',
     mote: 'rgba(150,205,195,0.42)',
     particleCount: 80,
+    // MOTES OVER THE GOAL — the little drifting things above the green band at the far end. OFF by
+    // default and declared per level (`render.goalMotes` in the JSON), because it is a flourish for
+    // the map that ENDS the campaign rather than a property of every surface. They are the same
+    // idea as the atmosphere's spores, just smaller, warmer and wandering rather than sliding, so
+    // they read as something alive over the one patch of living ground on the map.
+    goalMotes: 0,
+    goalMoteColor: 'rgba(255,246,190,0.92)',
     // Dynamic lighting: dim the earth, then add the network/food/hazards back as emitters.
     //
     // OFF. It was the last thing still altering how a traced map's rock looks: compose()
@@ -6091,7 +6103,7 @@ const LEVELS = [
     "layout": {
       "startCols": 2,
       "goalCols": 6,
-      "summerCols": 7,
+      "summerCols": 16,
       "clearChannels": false
     },
     "threats": {
@@ -6110,7 +6122,8 @@ const LEVELS = [
         "brightness": 1,
         "contrast": 1.14,
         "saturate": 1.34
-      }
+      },
+      "goalMotes": 130
     },
     "objects": [
       {"t":"boulder","key":"side-ember-c30-5R012","x":1589.4,"y":493.6,"w":446.5,"h":210.7,"rot":0.7854},
@@ -6185,7 +6198,7 @@ const LEVELS = [
       {"t":"food","kind":"duff","x":34,"y":1945,"r":1,"energy":2},
       {"t":"mountain","key":"mountain2","x":1044,"w":432},
       {"t":"city","key":"skyline2","x":504,"w":432},
-      {"t":"city","key":"skyline6","x":1872,"w":432},
+      {"t":"city","key":"skyline6","x":1872,"w":276},
       {"t":"trichoderma","x":1306,"y":445}
     ]
   },
@@ -10768,7 +10781,7 @@ const SPECIES = [
     id: 'hydnellum', vibe: 'aqua', unlock: 'Complete level 3',
     name: 'Bleeding Tooth Fungus', latin: 'Hydnellum peckii', img: 'hydnellum-peckii',
     cardPos: 'center 25%',   // grid tile framing (owner-tuned)
-    blurb: 'A damp-forest fungus that runs on water: it drives so much moisture through itself that it weeps bright red droplets from its cap — real <b>guttation</b>. That constant flow lets it grow almost anywhere the ground is wet, fanning out in every direction and pressing on long after drier colonies stall. Open the taps and flood the map.',
+    blurb: 'A damp-forest fungus that runs on water: it drives so much moisture through itself that it weeps bright red droplets from its cap — real <b>guttation</b>. That constant flow lets it grow almost anywhere the ground is wet, fanning out in every direction and pressing on long after drier colonies stall.',
     hand: [
       { name: 'Perennial Decoy', count: 1 },
       { name: 'Dew Traps', count: 1 },
@@ -10829,7 +10842,7 @@ const SPECIES = [
     cardPos: 'center 15%',   // grid tile framing (owner-tuned)
     special: 'berserk',
     specialText: 'Berserk: Once per level, tap a point — amputate all mycelium, infected or not, within a small radius',
-    blurb: 'The most quintessential mushroom. A <b>mycorrhizal partner</b> to birch and pine, it trades sugar for water and minerals at the root tip - which is why it follows those trees wherever they are planted. Its name is literal: crushed into milk it was set out as <b>flypaper</b>, the ibotenic acid drawing insects in and killing them. Norse legend has berserkers eating it before battle to feel no pain. Use at your own risk.',
+    blurb: 'The quintessential mushroom. A <b>mycorrhizal partner</b> to birch and pine, it trades sugar for water and minerals at the root tip - which is why it follows those trees wherever they are planted. Its name is literal: crushed into milk it was set out as <b>flypaper</b>, the ibotenic acid drawing insects in and killing them. Norse legend has berserkers eating it before battle to feel no pain. Use at your own risk.',
     hand: [
       { name: 'Apical Drive', count: 8 },
       { name: 'Turgor Thrust', count: 8 },
@@ -10844,7 +10857,7 @@ const SPECIES = [
     name: 'Blue Bonnet', latin: 'Pruinomycena subcyanocephala', img: 'pruinomycena-subcyanocephala',
     cardPos: 'center 45%',   // grid tile framing (owner-tuned)
     special: 'toxic',
-    specialText: 'Toxic Burst — once per level, tap a point: every nematode within the radius is digested (+1 Phosphorus each, up to 7).',
+    specialText: 'Toxic Burst: Once per level, tap a point — every nematode within the radius is digested (+1 Phosphorus each, up to 7).',
     blurb: 'One of the smallest mushroom species on earth - barely a centimetre across. Its deep blue cap is dusted with a white <b>pruina</b> — a frost of fine crystals that gives the genus its name. While most Bonnets are gentle leaf-litter recyclers, some have been caught killing and digesting nematodes that share the wood they rot - one of the few ways a fungus feeds on an animal.',
     hand: [
       { name: 'Foraging Fan', count: 4 },
@@ -10877,7 +10890,7 @@ const SPECIES = [
     id: 'psilocybe', vibe: 'spore', unlock: '?', cost: 1200,
     revealBy: 'rockface', revealHint: 'Touch rockface',
     special: 'magic', magicEvery: 4,
-    specialText: 'Every 4 turns, a random basic or event card magically appears in your hand. Cannot be sped up.',
+    specialText: 'Hallucinate: Every 4 turns, a random basic or event card magically appears in your hand. Cannot be sped up.',
     name: 'Magic Mushroom', latin: 'Psilocybe cubensis', img: 'psilocybe-cubensis',
     // Animated detail-view portrait. The photo itself is a STATIC plate (`<img>-base.jpg`,
     // the two gnomes inpainted away) and `artAnimLayers` full-frame overlay layers
@@ -16289,13 +16302,17 @@ function isLevel(o) {
 //   CORE_LINE_DEPTH   surface -> the molten line, and the whole playable depth: the line sits
 //                     on the content box's floor, so this IS the box.
 //   CORE_TOTAL_DEPTH  surface -> the very bottom. The remainder is the red band, held as
+//                     `bottomBuffer`. DEEPENED BY 10% (owner) — 978 -> 1076, so the total goes
+//                     2608 -> 2706 while the playable box is untouched. The red is what a phone in
+//                     portrait scrolls THROUGH: a deeper band is what lets the whole play area sit
+//                     clear of the card carousel at the bottom of the screen.
 //                     BUFFER rather than cells — the colony cannot cross the line, so rows
 //                     down there would be grid nobody can reach.
 //
 // Art below the line would be clipped by the core; at 1956 the deepest map (1188) clears it
 // with room to spare, so nothing is trimmed.
 const CORE_LINE_DEPTH = 1630;
-const CORE_TOTAL_DEPTH = 2608;
+const CORE_TOTAL_DEPTH = 2706;   // 2608 -> +10% of the RED BAND (978 -> 1076); see below
 const CORE_BOX_DEPTH = CORE_LINE_DEPTH;
 
 // A clone of `config` with the level's world box applied. The rest of CONFIG
@@ -16351,6 +16368,8 @@ function configForLevelDef(config, level) {
   if (r.lighting != null) cfg.render.lighting = r.lighting;
   if (r.ambientWarmth != null) cfg.render.ambientWarmth = r.ambientWarmth;
   if (r.rockFilter) cfg.render.rockFilter = r.rockFilter;
+  if (r.goalMotes != null) cfg.render.goalMotes = r.goalMotes;
+  if (r.goalMoteColor) cfg.render.goalMoteColor = r.goalMoteColor;
 
   // THE THREAT POPULATION, which an authored map could not previously control at all — and
   // that made a DESIGNED encounter impossible rather than merely awkward. createLevelState
@@ -18976,6 +18995,7 @@ class SubstrateRenderer {
     this.foodLightPoints = [];   // {x, y, i} emissive nutrient pockets (for lighting)
     this.hazardLightPoints = []; // {x, y} glowing toxic pools (for lighting)
     this.particles = this._initParticles();
+    this.goalMotes = this._initGoalMotes();
     this._bakeBase();
   }
 
@@ -19692,6 +19712,66 @@ class SubstrateRenderer {
       });
     }
     return arr;
+  }
+
+  // Seeded over the GREEN surface columns only — the ones buildLevel flagged `goal` — so the
+  // drift belongs to that patch of ground rather than to a slab of the map. Empty when the level
+  // declares none, which is every level but the last.
+  _initGoalMotes() {
+    const n = this.config.render.goalMotes | 0;
+    if (n <= 0) return [];
+    const sub = this.substrate;
+    const cols = [];
+    for (let c = 0; c < sub.cols; c++) if (sub.surface[c] && sub.surface[c].goal) cols.push(c);
+    if (!cols.length) return [];
+    const x0 = cols[0] * sub.cellSize, x1 = (cols[cols.length - 1] + 1) * sub.cellSize;
+    const arr = [];
+    for (let i = 0; i < n; i++) {
+      arr.push({
+        x: x0 + this.rng() * (x1 - x0),
+        // Above the soil line, in the air over the green — the band they live in is a little
+        // taller than the hill so they read as flying rather than as sitting on it.
+        y: sub.surfaceY - 18 - this.rng() * 190,
+        r: 0.55 + this.rng() * 0.75,
+        phase: this.rng() * Math.PI * 2,
+        // Two wander amplitudes and two rates, deliberately unequal, so the path is a slow
+        // lissajous rather than a circle — a circle reads as machinery, and this is meant to
+        // look like something with its own mind.
+        ax: 26 + this.rng() * 54, ay: 16 + this.rng() * 40,
+        sx: this.rng() * 0.00042 + 0.00016,
+        sy: this.rng() * 0.00058 + 0.00021,
+        // Blink rate. They fade nearly out and back, which is what stops a fixed count of dots
+        // reading as a constellation.
+        bl: this.rng() * 0.0016 + 0.0007,
+      });
+    }
+    return arr;
+  }
+
+  drawGoalMotes(ctx, camera, time) {
+    const list = this.goalMotes;
+    if (!list || !list.length) return;
+    const col = this.config.render.goalMoteColor || 'rgba(255,246,190,0.92)';
+    const vw = camera.viewW, vh = camera.viewH;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (const p of list) {
+      const wx = p.x + Math.sin(time * p.sx + p.phase) * p.ax;
+      const wy = p.y + Math.sin(time * p.sy + p.phase * 1.7) * p.ay;
+      const s = camera.worldToScreen(wx, wy);
+      if (s.x < -12 || s.x > vw + 12 || s.y < -12 || s.y > vh + 12) continue;
+      const a = 0.28 + 0.72 * (0.5 + 0.5 * Math.sin(time * p.bl + p.phase));
+      const rad = Math.max(0.6, p.r * camera.zoom) * (0.85 + 0.3 * Math.sin(time * 0.0022 + p.phase));
+      const g = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, rad * 4);
+      g.addColorStop(0, col);
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.globalAlpha = a;
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, rad * 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   drawAtmosphere(ctx, camera, time) {
@@ -23117,7 +23197,9 @@ function openSpeciesDetail(species) {
   // Special-power callout (e.g. Magic Mushroom's conjure clock), shown only when set.
   const specialEl = ins.wrap.querySelector('#ssISpecial');
   if (species.specialText) {
-    specialEl.innerHTML = '<span class="ss-d-special-tag">Special</span> ' + esc(species.specialText);
+    // NO "Special" TAG (owner). Every specialText opens by naming its ability — "Berserk:",
+    // "Toxic Burst:", "Adapt:" — so the tag was a label on a box that labels itself.
+    specialEl.innerHTML = esc(species.specialText);
     specialEl.style.display = '';
   } else { specialEl.style.display = 'none'; }
   // NO RESOURCE PILLS. Starting energy / water / phosphorus are universal — the base in CONFIG
@@ -29611,6 +29693,7 @@ function renderFrame(time, dtFrames = 1) {
 
   // Atmosphere drifts on top of the lighting so spores read as bright motes.
   substrateRenderer.drawAtmosphere(ctx, camera, time);
+  substrateRenderer.drawGoalMotes(ctx, camera, time);   // no-op unless the level declares them
 
   drawChest(time);
   if (state.rockface && !state.rockface.done) checkRockfaceTouch();   // reveal Magic Mushroom on contact

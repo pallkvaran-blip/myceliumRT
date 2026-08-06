@@ -107,6 +107,51 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
   ok('the ledger cadence bar element is NOT re-created either',!res.noCard&&res.barSame,`same element: ${res.barSame}, fill ${res.fillPct}`);
   ok('the bar FILLS as the round clock advances',!res.noCard&&parseFloat(res.fillPct)>parseFloat(res.fill0),`fill ${res.fill0} → ${res.fillPct}`);
   ok('the fill GLIDES (a CSS transition) rather than jumping',!res.noCard&&parseFloat(res.trans)>0,`transition-duration ${res.trans}`);
+  // ---- the carousel's ends ----------------------------------------------------
+  // The nav arrows are 54px wide and OVERLAY the list's edges — deliberately, so cards run
+  // full-width beneath them — but at the extremes of the scroll there is nothing left to melt
+  // under and the outermost card just sat half-covered (owner). The list is padded at both ends
+  // now. Asserted as the geometry a player sees, not as the padding value: the arrow's width and
+  // the padding are two numbers that have to stay in a relationship, and only one of them is
+  // under test if the other is assumed.
+  // REFILL THE HAND FIRST. The probes above deliberately replace it with one or two planted
+  // cards, so measuring here read `cards.length < 3` and the assertions passed having measured
+  // nothing — the zero-coverage pass, in a check whose whole subject is the carousel.
+  await page.evaluate(() => {
+    const C = window.__game.state.cards;
+    const names = ['Apical Drive', 'Acorn Cache', 'Acorn Fall', 'Amputate', 'Appressorial Punch',
+                   'Foraging Fan', 'Fruiting Vigil', 'Explorer Cord', 'Forager Bloom', 'Colonizing Front'];
+    C.hand = names.map((n, i) => ({ id: 90000 + i, name: n }));
+    if (window.__game.setHandOpen) window.__game.setHandOpen(true);
+  });
+  await page.waitForFunction(() => document.querySelectorAll('.handlist .cardbtn').length >= 8,
+                             null, { timeout: 8000 }).catch(() => {});
+  const ends = await page.evaluate(() => {
+    const l = document.querySelector('.handlist');
+    if (!l) return null;
+    const cards = l.querySelectorAll('.cardbtn');
+    if (cards.length < 3) return { few: true, n: cards.length };
+    l.scrollLeft = 0;
+    const first = cards[0].getBoundingClientRect();
+    const prev = document.querySelector('.handnav.prev');
+    const pr = prev && getComputedStyle(prev).display !== 'none' ? prev.getBoundingClientRect() : null;
+    l.scrollLeft = l.scrollWidth;
+    const lastEl = cards[cards.length - 1].getBoundingClientRect();
+    const next = document.querySelector('.handnav.next');
+    const nx = next && getComputedStyle(next).display !== 'none' ? next.getBoundingClientRect() : null;
+    const box = l.getBoundingClientRect();
+    return { few: false, arrows: !!pr,
+             leftGap: Math.round(first.left - (pr ? pr.right : box.left)),
+             rightGap: Math.round((nx ? nx.left : box.right) - lastEl.right) };
+  });
+  // Not `|| ends.few`: a probe that measured nothing must FAIL here, not pass quietly.
+  ok('scrolled hard left, the first card clears the prev arrow',
+     !!ends && !ends.few && ends.leftGap >= 0,
+     ends ? (ends.few ? `only ${ends.n} card(s) — measured nothing` : `gap ${ends.leftGap}px`) : '(no list)');
+  ok('scrolled hard right, the last card clears the next arrow',
+     !!ends && !ends.few && ends.rightGap >= 0,
+     ends ? (ends.few ? `only ${ends.n} card(s) — measured nothing` : `gap ${ends.rightGap}px`) : '(no list)');
+
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   await browser.close();srv.close();process.exit(fail?1:0);
 })().catch(e=>{console.error('HARNESS ERROR',e);process.exit(2);});

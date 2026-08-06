@@ -14,7 +14,7 @@
   "layout": {
     "startCols": 2,
     "goalCols": 6,
-    "summerCols": 7,
+    "summerCols": 16,
     "clearChannels": false
   },
   "threats": {
@@ -33,7 +33,8 @@
       "brightness": 1,
       "contrast": 1.14,
       "saturate": 1.34
-    }
+    },
+    "goalMotes": 130
   },
   "objects": [
     {
@@ -592,7 +593,7 @@
       "t": "city",
       "key": "skyline6",
       "x": 1872,
-      "w": 432
+      "w": 276
     },
     {
       "t": "trichoderma",
