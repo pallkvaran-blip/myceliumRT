@@ -1851,30 +1851,22 @@
       font-size:clamp(11.5px,1.85vw,17px); line-height:1.4; text-wrap:balance;
       color:#c0281f; max-width:min(700px,92vw);
       text-shadow:0 0 20px rgba(190,30,22,0.45); }
-    /* A STORY LINE IS NOT A TAUNT. `.li-sub`'s red mono shout is the escalation taunt's voice — it
-       exists to alarm, and the campaign's story lines went in that slot and inherited it, which made
-       "The calm before the storm." look like a klaxon. Same position, different register: the
-       opening's serif, quiet, no glow. */
-    .li-sub.li-story-line { font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
-      font-weight:400; font-size:clamp(14px,2.1vw,20px); line-height:1.5; letter-spacing:0;
-      color:#cfe0d6; text-shadow:none; max-width:min(640px,90vw); }
     @media (max-width:720px) { .li-sub { font-size:clamp(11px,2.9vw,14px); } }
-    /* The flavour quote, under the story line. Same serif so the two belong to one voice, but a
-       size DOWN and dimmer, because the story line is what this level is and the quote is only
-       decoration — at the same weight they read as one four-line paragraph and the story stopped
-       being the thing you notice. Italic does the same separating job as a rule would without
-       adding furniture to a card that already carries a wordmark, a counter and the portraits.
+    /* The flavour quote. It was sized DOWN and dimmed to sit under the campaign's story line
+       without competing with it; the story lines are gone, so it is the only prose on the card and
+       carries it — up a step in size and lifted out of the murk, but still italic and still short
+       of the wordmark, because it is a quotation and not a heading.
        Names checked free before adding: `.li-quote*` is used nowhere else in this sheet, which is
        not a formality here — `.li-count` and `.ss-hint` were both silently taken. */
-    .li-quote { margin-top:clamp(9px,1.5vh,15px); max-width:min(600px,88vw); }
+    .li-quote { margin-top:clamp(14px,2.4vh,26px); max-width:min(640px,88vw); }
     .li-quote-t { font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
-      font-style:italic; font-weight:400; font-size:clamp(12px,1.65vw,15.5px); line-height:1.5;
-      letter-spacing:0; text-wrap:balance; color:rgba(207,224,214,0.62); text-shadow:none; }
+      font-style:italic; font-weight:400; font-size:clamp(13.5px,1.95vw,18px); line-height:1.55;
+      letter-spacing:0; text-wrap:balance; color:rgba(207,224,214,0.78); text-shadow:none; }
     /* Its own line, not a trailing dash: the longer quotes wrap to two lines by themselves and an
        attribution running off the end of the last one read as the quote being cut short. */
-    .li-quote-by { margin-top:0.35em; font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
-      font-style:normal; font-size:clamp(10.5px,1.3vw,12.5px); line-height:1.4;
-      letter-spacing:0.02em; color:rgba(207,224,214,0.4); }
+    .li-quote-by { margin-top:0.4em; font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
+      font-style:normal; font-size:clamp(11px,1.4vw,13.5px); line-height:1.4;
+      letter-spacing:0.02em; color:rgba(207,224,214,0.45); }
     /* "3 of 10" — how far through the campaign this level is. Deliberately QUIET and in the
        colony's own mint rather than the taunt's red: it is a position, not a threat, and it sits
        directly above a line whose whole job is to be alarming. Same mono face as .li-sub so the
@@ -1947,10 +1939,16 @@
     .li-stage { opacity:0; transform:translateY(6px);
       transition:opacity var(--li-fade,700ms) ease, transform var(--li-fade,700ms) ease; }
     .li-stage.li-stage-in { opacity:1; transform:none; }
-    /* The position, at the foot of the campaign card: small and white, "3/10". Tabular figures so
-       it does not jitter between levels; well down in opacity because it is a page number. */
-    .li-of--foot { color:rgba(255,255,255,0.66); text-shadow:none;
+    /* "3/10", pinned to the VERY BOTTOM OF THE VIEWPORT (owner). Absolute against `#levelIntro`
+       rather than the last item in `.li-inner`: that column is centred, so a child of it rides up
+       and down with however long the quote happens to be, and the number moved between levels.
+       Small, white and low in opacity because it is a page number. Tabular figures so it does not
+       jitter. `.li-camp` reserves the strip it sits in so the centred column can never grow down
+       into it on a short viewport. */
+    .li-of--foot { position:absolute; left:0; right:0; bottom:clamp(12px,2.6vh,26px);
+      text-align:center; color:rgba(255,255,255,0.66); text-shadow:none;
       letter-spacing:0.14em; font-size:clamp(9.5px,1.1vw,11.5px); }
+    #levelIntro.li-camp { padding-bottom:clamp(56px,9vh,84px); }
     /* Just "click". Smaller and quieter than the ladder's full sentence, and lower case — it is a
        nudge, not an instruction. Keeps the slow pulse, which is what makes it read as interactive
        at this size. */
@@ -4389,7 +4387,7 @@ const LEVELS = [
     "format": "mycelium-level",
     "version": 1,
     "id": "3-veined",
-    "name": "3 — Veined",
+    "name": "3 — Chrysocolla",
     "campaignLevel": 3,
     "assetsFrom": "veined-c40",
     "world": {
@@ -5965,7 +5963,7 @@ const LEVELS = [
     "format": "mycelium-level",
     "version": 1,
     "id": "campaign-09-veined-c28",
-    "name": "9 — Veined",
+    "name": "9 — Serpentine",
     "campaignLevel": 9,
     "assetsFrom": "side-veined-c28",
     "world": {
@@ -11033,21 +11031,11 @@ const CAMPAIGN_OPENING = [
   'But you will not get through. You will die in the dark and fruit, and the spores will fall, and what grows from them will be stronger.',
 ];
 const CAMPAIGN_OPENING_ASK = 'Will you persist?';
-const CAMPAIGN_STORY = {
-  1:  'Black iron, and nothing down here to steer by. Worms.',
-  2:  'Glass broke sharp. The ants keep their own time, faster than yours.',
-  3:  'Path of least resistance.',
-  4:  'This rock has been breathing a long time and it shows. Call it out, or go in after it.',
-  5:  'A whole forest pressed into the seam.',
-  6:  'Four rooms.',
-  7:  'Garnet is what they cut steel with. The walls turn you until you are out of corners.',
-  8:  'Break it black and it still bleeds red.',
-  9:  'The calm before the storm.',
-  10: 'Nowhere left to stand: Run.',
-};
-function storyForLevel(level) {
-  return CAMPAIGN_STORY[Math.max(1, level | 0)] || null;
-}
+// THE PER-LEVEL STORY LINES ARE GONE (owner). `CAMPAIGN_STORY` held one sentence per level and the
+// level card printed it under the title; it is deleted rather than left unrendered, and it is in
+// git if it is ever wanted back. What names the level now is the ROCK — one word, in the card's
+// dark red — which is the job those sentences had drifted into doing anyway.
+// The campaign OPENING above is a different screen and is untouched.
 
 // A line of flavour under the story line, drawn at random. The candidates were weeded in
 // `docs/quote-review.html` (generated from `docs/quotes.json` — the ids below are that file's, so a
@@ -11770,7 +11758,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, storyForLevel, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -24982,6 +24970,9 @@ function showLevelIntro(opts) {
   const onDone = opts && opts.onDone;
 
   const root = el('div'); root.id = 'levelIntro';
+  // A hook for the campaign card's own layout — today it reserves the strip at the foot that the
+  // pinned "3/10" sits in, so the centred column can never grow down into it on a short viewport.
+  if (campaign) root.classList.add('li-camp');
   // The stagger and the fade are one constant each, read by the CSS through a variable rather than
   // written down twice — the JS schedules the reveal and the CSS animates it, and the two drifting
   // apart is invisible until the card looks subtly wrong.
@@ -25020,7 +25011,6 @@ function showLevelIntro(opts) {
   if (of && !campaign) head.appendChild(el('div', 'li-of', level + ' of ' + of));
   if (opts && opts.note) {
     const sub = el('div', 'li-sub', String(opts.note));
-    if (opts.storyNote) sub.classList.add('li-story-line');   // prose, not the red taunt
     head.appendChild(stage(sub));
   }
   // A quote under the story line, when one was drawn. Quieter and a size down from the story it
@@ -25057,9 +25047,12 @@ function showLevelIntro(opts) {
     }
     inner.appendChild(row);
   }
-  // The position, at the foot: small, white, "3/10" (owner). Down here it reads as a page number
-  // rather than as a headline, which is what it is.
-  if (of && campaign) inner.appendChild(stage(el('div', 'li-of li-of--foot', level + '/' + of)));
+  // "3/10" at the VERY BOTTOM OF THE SCREEN (owner), which means the viewport and not the end of
+  // the stack — so it goes on `root` and is positioned absolutely, not appended to `.li-inner`.
+  // `.li-inner` is a centred flex column, so a child of it lands under the last line of content and
+  // rides up and down with however long the quote happens to be; pinned to the overlay it sits in
+  // the same place on every level. Out of flow, so the block above stays optically centred.
+  if (of && campaign) root.appendChild(stage(el('div', 'li-of li-of--foot', level + '/' + of)));
   // "click" rather than "Click anywhere to begin" on the campaign card (owner) — by the time the
   // staged reveal has finished, a sentence of instruction is the loudest thing left on a screen
   // whose whole job was the three quiet lines above it.
@@ -25507,7 +25500,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, storyForLevel, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -25598,7 +25591,15 @@ function revealMap() {
   // The level intro is skipped under the dev flag — hopping between 59 maps means dismissing
   // it 59 times, and it says nothing useful about a traced map that has no threats yet. Its
   // callbacks still run, so nothing downstream notices it did not appear.
-  if (pendingLevelIntro && state && state.config && state.config.dev && state.config.dev.enabled) {
+  //
+  // BUT NEVER ON A CAMPAIGN RUN, and that exemption is the whole reason this comment is long.
+  // `CONFIG.dev.enabled` ships TRUE (it is turned off only at the release cut), so as written this
+  // skip hid the level card from every single player of every build — reported as "I'm not seeing
+  // them on my phone", and the checks could not catch it because `campaign-check` has to turn the
+  // dev flag OFF to make the screen appear at all. The skip was written for MAP PLAYTESTING, which
+  // is the case it still covers: a playtest is not a campaign run.
+  const devSkip = pendingLevelIntro && !pendingLevelIntro.campaign;
+  if (devSkip && state && state.config && state.config.dev && state.config.dev.enabled) {
     const info = pendingLevelIntro; pendingLevelIntro = null;
     // onDismiss IS called now. Its only job is `ui.setHandOpen(true)`, and skipping it was what
     // left a dev run staring at a collapsed carousel: begin() closes the hand for every
@@ -25626,7 +25627,6 @@ function revealMap() {
         of: info.of,
         threats: info.threats,
         note: info.note,
-        storyNote: info.storyNote,
         quote: info.quote,
         campaign: info.campaign,
         rock: info.rock,
@@ -25846,8 +25846,8 @@ function showPicker() {
     // hash, which skips the picker — now the dev map buttons below set it from inside the
     // picker, and levelDefFor() prefers it over every campaign slot, so leaving it set
     // would silently serve the authored map for the rest of the session.
-    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
-    onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; startRun(); },
+    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; _storyRun = null; stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
+    onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; _storyRun = null; startRun(); },
     // DEV: play an authored map with the dev loadout — the same thing `#level,<id>` does,
     // reachable without retyping the URL.
     onLevel: (id) => {
@@ -27837,7 +27837,7 @@ function begin(newState) {
         setGame('campaign');   // the title screen's Campaign row does this; without it the run is Survival
         playtestLevel = null; chosenSpecies = sp;
         currentLevel = Math.max(1, (level | 0) || CAMPAIGN_START_LEVEL); runStartLevel = currentLevel;
-        carryOver = null; runSpores = 0;
+        carryOver = null; runSpores = 0; _storyRun = null;
         stockRun();   // same as the picker's Select — a run without this has no retries to spend
         startRun();
         return true;
@@ -28065,8 +28065,10 @@ function begin(newState) {
       // taunts ("You're doing well. Time to die.") are the survival ladder's voice — a running joke
       // about how far past sane you are — and they land badly next to a story told straight. Off the
       // ladder there is no story to tell, so the taunt keeps its slot there.
-      note: (campaignRun() && storyForLevel(currentLevel)) || escalationNote(currentLevel),
-      storyNote: !!(campaignRun() && storyForLevel(currentLevel)),
+      // `note` is the survival ladder's escalation taunt, and now only that: the campaign's own
+      // sentences used to pre-empt it here and have been dropped. A campaign run passes null, so
+      // the slot is simply absent on that card.
+      note: campaignRun() ? null : escalationNote(currentLevel),
       // Flavour under the story line, and CAMPAIGN-ONLY for the same reason the story is: the
       // survival ladder's voice is the taunt, and a line of Rilke under "How are you still alive?"
       // is two jokes at once. Drawn here rather than in the renderer so the card is a pure

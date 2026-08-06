@@ -1,5 +1,5 @@
-/* Frames of the CAMPAIGN level card — grown wordmark, the rock name, the story line, the quote,
- * "3/10" at the foot and the tiny "click" — plus the survival ladder's card as a control.
+/* Frames of the CAMPAIGN level card — grown wordmark, the rock name, the quote, "3/10" pinned to
+ * the bottom of the viewport and the tiny "click" — plus the survival ladder's card as a control.
  *
  *   node tests/level-card-shot.cjs        -> tests/.artifacts/level-card-*.png
  *
@@ -28,11 +28,12 @@ fs.mkdirSync(path.join(__dirname, '.artifacts'), { recursive: true });
 const T = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.webp': 'image/webp',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.svg': 'image/svg+xml' };
 
+// The campaign card carries no `note` at all now — the per-level story lines were dropped, and the
+// rock name is what identifies the level. The ladder override below puts a taunt back, which is
+// the only thing that slot is still for.
 const CARD = {
   level: 7, of: 10, campaign: true, rock: 'Garnet',
   threats: [{ slug: 'trichoderma', label: 'Trichoderma', count: 4 }, { slug: 'nematode', label: 'Nematodes', count: 3 }],
-  note: 'Garnet is what they cut steel with. The walls turn you until you are out of corners.',
-  storyNote: true,
 };
 
 (async () => {
@@ -52,7 +53,7 @@ const CARD = {
     ['campaign-longest', 1280, 720, 5200, { longest: true }],
     ['campaign-phone', 390, 844, 5200, { longest: true }],
     ['ladder', 1280, 720, 3000, { campaign: false, rock: null, of: 0,
-                                  note: "You're doing well. Time to die.", storyNote: false }],
+                                  note: "You're doing well. Time to die." }],
   ];
   for (const [name, w, h, wait, over] of SHOTS) {
     const p = await b.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2,
@@ -77,7 +78,7 @@ const CARD = {
     // looking exactly like the settled one. Sample the live opacities instead and print the order.
     if (name === 'campaign') {
       const line = await p.evaluate(async () => {
-        const SEL = ['.li-rock', '.li-sub', '.li-quote', '.li-of--foot', '.li-hint'];
+        const SEL = ['.li-rock', '.li-quote', '.li-of--foot', '.li-hint'];
         const t0 = performance.now(), rows = [];
         for (let i = 0; i < 26; i++) {
           rows.push([Math.round(performance.now() - t0),
@@ -87,7 +88,7 @@ const CARD = {
         // Collapse to the moment each pattern first appears — 26 identical rows say nothing.
         return rows.filter((r, i) => i === 0 || r[1] !== rows[i - 1][1]).map((r) => r[0] + 'ms ' + r[1]).join('  ');
       });
-      console.log('  reveal (rock/story/quote/foot/hint):', line);
+      console.log('  reveal (rock/quote/foot/hint):', line);
     }
     await p.waitForTimeout(wait);
     const m = await p.evaluate(() => {
@@ -98,7 +99,12 @@ const CARD = {
                of: (document.querySelector('.li-of') || {}).textContent || null,
                hint: (document.querySelector('.li-hint') || {}).textContent || null,
                portraits: document.querySelectorAll('.li-threat').length,
-               shown: ['.li-rock', '.li-sub', '.li-quote', '.li-of--foot', '.li-hint'].filter(seen).length };
+               shown: ['.li-rock', '.li-quote', '.li-of--foot', '.li-hint'].filter(seen).length,
+               // Where the pinned counter actually sits, as a fraction of viewport height. "At the
+               // bottom" is a POSITION, and the failure to catch is it silently going back to
+               // riding under the last line of the centred column.
+               ofBottomFrac: (() => { const n = document.querySelector('.li-of--foot');
+                 return n ? +(n.getBoundingClientRect().bottom / window.innerHeight).toFixed(3) : null; })() };
     });
     console.log(name.padEnd(17), JSON.stringify(m));
     await p.screenshot({ path: OUT + name + '.png', animations: 'disabled', timeout: 15000 }).catch(() => {});

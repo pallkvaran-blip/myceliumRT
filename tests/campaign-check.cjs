@@ -262,6 +262,23 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     return out;
   });
   ok('a campaign run opens with the story', openIntro.shown === true);
+  // ...AND SO DOES THE NEXT ONE. `_storyRun !== runStartLevel` cannot tell two different runs that
+  // both begin on level 1 apart, so the opening used to fire once per page load: die on level 1,
+  // start again, and the story that frames the whole campaign never appeared again. It is cleared
+  // at the three sites that begin a run now. Asserted as a SECOND run rather than as the latch,
+  // because the latch is module state a check cannot see.
+  const secondRun = await page.evaluate(async () => {
+    document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
+    const was = window.__cfg.dev.enabled;
+    window.__cfg.dev.enabled = false;
+    window.__game.campaign.play('marasmius', 1);
+    for (let i = 0; i < 90 && !document.querySelector('#levelIntro.li-story'); i++) await new Promise((r) => setTimeout(r, 150));
+    const out = !!document.querySelector('#levelIntro.li-story');
+    window.__cfg.dev.enabled = was;
+    document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
+    return out;
+  });
+  ok('...and starting a second run shows it again', secondRun === true);
   ok('...all three paragraphs of it', openIntro.paras.length === 3,
      `${openIntro.paras.length} paragraph(s)`);
   ok('...ending on the question', /Will you persist\?/.test(openIntro.ask || ''), openIntro.ask || '(none)');
@@ -277,6 +294,26 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // taken at run start — so turning the LIVE flag off before starting the level is what makes the
   // screen appear at all. Without this the assertion passes on a screen that was never built,
   // which is the zero-coverage pass CLAUDE.md warns about; the flag goes back on afterwards.
+  // WITH THE DEV FLAG ON — which is how the build SHIPS, and how the owner plays it. `revealMap`
+  // skips the level card under that flag so map playtesting is not interrupted 59 times, and the
+  // exemption for campaign runs was missing: the card was hidden from every player of every build.
+  // Reported as "I'm not seeing them on my phone", and invisible to every assertion below, because
+  // they all turn the flag OFF first to make the screen appear at all. So this one asserts the
+  // shipping configuration, and it has to come first — the block below leaves the flag restored.
+  const introDevOn = await page.evaluate(async () => {
+    document.querySelectorAll('#levelIntro, #ssLevelComplete, #ssGameWon').forEach((n) => n.remove());
+    window.__cfg.dev.enabled = true;
+    window.__game.campaign.play('marasmius', 4);
+    for (let i = 0; i < 60 && !document.getElementById('levelIntro'); i++) await new Promise((r) => setTimeout(r, 150));
+    const out = { shown: !!document.getElementById('levelIntro'),
+                  rock: !!document.querySelector('#levelIntro .li-rock') };
+    document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
+    return out;
+  });
+  ok('the campaign level card appears in the SHIPPING build, dev flag and all',
+     introDevOn.shown === true && introDevOn.rock === true,
+     `shown=${introDevOn.shown} rock=${introDevOn.rock}`);
+
   const intro = await page.evaluate(async () => {
     document.querySelectorAll('#levelIntro, #ssLevelComplete, #ssGameWon').forEach((n) => n.remove());
     const was = window.__cfg.dev.enabled;
@@ -289,10 +326,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const rockEl = document.querySelector('#levelIntro .li-rock');
     const rs = rockEl ? getComputedStyle(rockEl) : null;
     const hintEl = document.querySelector('#levelIntro .li-hint');
-    // The story line shares the taunt's SLOT (.li-sub) and must not share its voice: that slot is a
-    // red mono shout built to alarm, and "The calm before the storm." in it reads as a klaxon.
+    // `.li-sub` is the survival ladder's escalation taunt and nothing else now — the campaign's
+    // per-level story lines used to share the slot and have been dropped, so its ABSENCE here is
+    // the assertion.
     const sub = document.querySelector('#levelIntro .li-sub');
-    const ss = sub ? getComputedStyle(sub) : null;
     const out = { shown: !!document.getElementById('levelIntro'),
                   text: el ? el.textContent.trim() : null,
                   aria: box ? box.getAttribute('aria-label') : null,
@@ -312,6 +349,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
                   rockFromModel: window.__game.rockName(),
                   rockRGB: rs ? (rs.color.match(/\d+/g) || []).slice(0, 3).map(Number) : null,
                   rockCaps: rs ? rs.textTransform : null,
+                  rockSize: rs ? parseFloat(rs.fontSize) : null,
+                  // "At the very bottom" is a POSITION, not a class. Measured as a fraction of the
+                  // viewport, because the failure to catch is the counter quietly going back to
+                  // riding under the last line of the centred column, which no class name shows.
+                  ofBottomFrac: (() => { const n = document.querySelector('#levelIntro .li-of--foot');
+                    return n ? n.getBoundingClientRect().bottom / window.innerHeight : null; })(),
                   hint: hintEl ? hintEl.textContent.trim() : null,
                   // Every part after the wordmark is staged, and starts hidden. Sampled right after
                   // the card is built, which is before the title can have finished growing — the
@@ -320,12 +363,6 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
                   stagedHidden: [...document.querySelectorAll('#levelIntro .li-stage')]
                     .filter((n) => +getComputedStyle(n).opacity < 0.1).length,
                   story: sub ? sub.textContent.trim() : null,
-                  storyTagged: !!(sub && sub.classList.contains('li-story-line')),
-                  storyColor: ss ? ss.color : null, storyFont: ss ? ss.fontFamily.split(',')[0] : null,
-                  // Redness as NUMBERS, not as a string shape: the taunt is #c0281f, so what makes
-                  // it a klaxon is r far above g and b. (A regex over "rgb(207, 224, 214)" flagged
-                  // the pale grey as red, which is the assertion failing on the thing it wanted.)
-                  storyRGB: ss ? (ss.color.match(/\d+/g) || []).slice(0, 3).map(Number) : null,
                   // The flavour quote under the story line. Read its SIZE and OPACITY as numbers:
                   // the failure to catch is the two reading as one paragraph, which "a quote is
                   // present" passes on.
@@ -333,7 +370,6 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
                   quoteBy: (document.querySelector('#levelIntro .li-quote-by') || {}).textContent || null,
                   quoteSize: (() => { const q = document.querySelector('#levelIntro .li-quote-t');
                     return q ? parseFloat(getComputedStyle(q).fontSize) : null; })(),
-                  storySize: ss ? parseFloat(ss.fontSize) : null,
                   quoteItalic: (() => { const q = document.querySelector('#levelIntro .li-quote-t');
                     return q ? getComputedStyle(q).fontStyle : null; })(),
                   pool: (window.__game.levelQuotes || []).map((q) => q.text) };
@@ -360,8 +396,11 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('...in white, not the mint it used to be',
      Math.abs(orgb[0] - orgb[1]) < 12 && Math.abs(orgb[1] - orgb[2]) < 12 && orgb[0] > 180,
      intro.color);
-  ok('...and smaller than the story line above it', intro.ofSize > 0 && intro.ofSize < intro.storySize,
-     `${intro.ofSize}px vs story ${intro.storySize}px`);
+  ok('...and smaller than the rock name above it', intro.ofSize > 0 && intro.ofSize < intro.rockSize,
+     `${intro.ofSize}px vs rock ${intro.rockSize}px`);
+  // Pinned to the viewport, not to the end of the stack.
+  ok('...and sits at the very bottom of the screen', intro.ofBottomFrac > 0.9,
+     `bottom edge at ${Math.round((intro.ofBottomFrac || 0) * 100)}% of the viewport`);
   // The rock the level is cut from. Asserted against the MODEL's answer rather than a literal, so
   // renaming a map or re-slotting the campaign does not fail this for the wrong reason.
   ok('the card names the rock under the title',
@@ -375,18 +414,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // The staged reveal. Sampled the instant the card is built — before the wordmark can have
   // finished — so this measures that the parts WAIT, which is the whole of the owner's ask. A
   // reveal that fired immediately would look identical in a settled screenshot.
-  ok('everything after the wordmark is staged', intro.stagedCount === 5, String(intro.stagedCount));
+  ok('everything after the wordmark is staged', intro.stagedCount === 4, String(intro.stagedCount));
   ok('...and none of it is showing while the title is still growing',
      intro.stagedHidden === intro.stagedCount, `${intro.stagedHidden} of ${intro.stagedCount} hidden`);
-  // ---- the story ------------------------------------------------------------
-  // Level 4's line, on level 4's card. Asserted by CONTENT, because the slot it uses also carries
-  // the survival ladder's escalation taunt and "a line is present" would pass on either.
-  ok('the level card carries that level\'s story line',
-     /breathing a long time/.test(intro.story || ''), intro.story || '(none)');
-  const rgb = intro.storyRGB || [0, 0, 0];
-  const klaxon = rgb[0] - rgb[1] > 60 && rgb[0] - rgb[2] > 60;   // the taunt is #c0281f
-  ok('...styled as prose, not as the red escalation taunt',
-     intro.storyTagged === true && !klaxon, `${intro.storyFont} ${intro.storyColor}`);
+  // ---- no prose subtitle -----------------------------------------------------
+  // The per-level story lines were dropped (owner). Asserted as the slot being EMPTY rather than as
+  // the old text being absent: `.li-sub` still exists for the ladder's taunt, so "the sentence is
+  // gone" has to mean "nothing is in that slot on a campaign card" or a stray taunt would pass it.
+  ok('the campaign card carries no prose subtitle any more', intro.story === null,
+     intro.story || '(none)');
 
   // ---- the flavour quote ----------------------------------------------------
   // A line drawn at random from the owner's accepted set, under the story line. Asserted against
@@ -396,12 +432,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('...and it came from the accepted pool',
      (intro.pool || []).includes(qText), qText.slice(0, 50));
   ok('...attributed on its own line', /^—\s+\S/.test(intro.quoteBy || ''), intro.quoteBy || '(none)');
-  // The one that matters. The story line is what this level IS; the quote is decoration, and at the
-  // same size and weight the two read as one four-line paragraph with the story buried in it.
-  ok('...quieter and smaller than the story line it sits under',
-     intro.quoteSize > 0 && intro.storySize > 0 && intro.quoteSize < intro.storySize
-       && intro.quoteItalic === 'italic',
-     `quote ${intro.quoteSize}px ${intro.quoteItalic}, story ${intro.storySize}px`);
+  // With the story lines gone the quote is the only prose on the card, so it is no longer sized
+  // against something above it — but it must still read as a QUOTATION rather than as a heading,
+  // which is what the italic and staying under the rock-name's tracking-and-caps weight do.
+  ok('...set as a quotation, not as a heading',
+     intro.quoteSize > 0 && intro.quoteItalic === 'italic' && intro.quoteSize < 24,
+     `${intro.quoteSize}px ${intro.quoteItalic}`);
 
   // The bag, not a flat draw: nine quotes over ten levels repeat about two runs in three under a
   // flat draw, and a repeat one card later reads as a bug.
@@ -432,7 +468,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     window.__game.showLevelIntro({ level: 10, of: null, campaign: false,
                                    threats: [{ slug: 'nematode', label: 'Nematodes', count: 3 },
                                              { slug: 'trichoderma', label: 'Trichoderma', count: 2 }],
-                                   note: "You're doing well. Time to die.", storyNote: false, quote: null });
+                                   note: "You're doing well. Time to die.", quote: null });
     await new Promise((r) => setTimeout(r, 200));
     const out = { sub: (document.querySelector('#levelIntro .li-sub') || {}).textContent || null,
                   quote: !!document.querySelector('#levelIntro .li-quote'),
