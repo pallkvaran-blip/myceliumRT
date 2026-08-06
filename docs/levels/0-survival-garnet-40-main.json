@@ -1,0 +1,394 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "0-survival-garnet-40-main",
+ "name": "0 survival Garnet 40 main",
+ "campaignLevel": null,
+ "survival": true,
+ "assetsFrom": "garnet-c40",
+ "world": {
+  "width": 2952,
+  "height": 1444.9,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/top-garnet-scatter-c40-1@4x.webp",
+  "threshold": 128,
+  "minArea": 9600
+ },
+ "render": {
+  "rockFilter": {
+   "brightness": 0.84,
+   "contrast": 1.08,
+   "saturate": 1.88
+  }
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "garnet-c40R001",
+   "x": 938.2,
+   "y": 1209.2,
+   "w": 701.7,
+   "h": 830.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R002",
+   "x": 254,
+   "y": 1472.4,
+   "w": 572.6,
+   "h": 947.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R003",
+   "x": 1590.2,
+   "y": 629.8,
+   "w": 718.4,
+   "h": 587.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R004",
+   "x": 1471.2,
+   "y": 1630.1,
+   "w": 559.3,
+   "h": 567,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R005",
+   "x": 2798,
+   "y": 1391.9,
+   "w": 450.1,
+   "h": 537.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R006",
+   "x": 2245,
+   "y": 521.5,
+   "w": 526.9,
+   "h": 372.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R007",
+   "x": 2184.1,
+   "y": 1680.9,
+   "w": 582.2,
+   "h": 377,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R008",
+   "x": 2509.2,
+   "y": 986.8,
+   "w": 451.1,
+   "h": 397.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R009",
+   "x": 2864.6,
+   "y": 672.6,
+   "w": 291.7,
+   "h": 465.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R010",
+   "x": 912.9,
+   "y": 509.2,
+   "w": 393.7,
+   "h": 322.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R011",
+   "x": 1507.2,
+   "y": 1144.3,
+   "w": 353.6,
+   "h": 366.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R012",
+   "x": 298.7,
+   "y": 561.4,
+   "w": 392.7,
+   "h": 220,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R013",
+   "x": 2082,
+   "y": 1074.6,
+   "w": 403.4,
+   "h": 257.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R014",
+   "x": 589.2,
+   "y": 723.2,
+   "w": 360.7,
+   "h": 278.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R015",
+   "x": 1878.9,
+   "y": 982.3,
+   "w": 235.3,
+   "h": 263.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R016",
+   "x": 80.3,
+   "y": 787.7,
+   "w": 181.3,
+   "h": 286.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R021",
+   "x": 1182.6,
+   "y": 737.1,
+   "w": 116.3,
+   "h": 97.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R024",
+   "x": 654.3,
+   "y": 1572.2,
+   "w": 100.6,
+   "h": 95.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R025",
+   "x": 2538.4,
+   "y": 1562.5,
+   "w": 94,
+   "h": 98.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R026",
+   "x": 1881.6,
+   "y": 1484.6,
+   "w": 85.4,
+   "h": 84.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R027",
+   "x": 1679.6,
+   "y": 875.3,
+   "w": 80.8,
+   "h": 90.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R028",
+   "x": 2460.3,
+   "y": 781.2,
+   "w": 80.8,
+   "h": 87.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R030",
+   "x": 1320.9,
+   "y": 866,
+   "w": 78.3,
+   "h": 84.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R031",
+   "x": 2555.7,
+   "y": 721.6,
+   "w": 75.7,
+   "h": 88.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R032",
+   "x": 553.1,
+   "y": 527.4,
+   "w": 73.1,
+   "h": 91.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "garnet-c40R033",
+   "x": 1251.4,
+   "y": 1347.7,
+   "w": 79.8,
+   "h": 77.2,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 190,
+   "y": 1948,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2412,
+   "y": 668,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 684,
+   "y": 452,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1656,
+   "y": 1928,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1476,
+   "y": 956,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2412,
+   "y": 1532,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 936,
+   "y": 1640,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 144,
+   "y": 992,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1836,
+   "y": 1388,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1188,
+   "y": 524,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1980,
+   "y": 920,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "reservoir",
+   "key": "reservoir3",
+   "x": 812,
+   "y": 1831,
+   "r": 72
+  },
+  {
+   "t": "city",
+   "key": "skyline3",
+   "x": 414,
+   "w": 396
+  },
+  {
+   "t": "mountain",
+   "key": "mountain3",
+   "x": 1062,
+   "w": 900
+  },
+  {
+   "t": "city",
+   "key": "skyline1",
+   "x": 1656,
+   "w": 288
+  },
+  {
+   "t": "mountain",
+   "key": "mountain5",
+   "x": 2052,
+   "w": 504
+  },
+  {
+   "t": "city",
+   "key": "skyline6",
+   "x": 2394,
+   "w": 180
+  }
+ ]
+}

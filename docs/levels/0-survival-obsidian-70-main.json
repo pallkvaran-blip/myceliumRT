@@ -1,0 +1,547 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "0-survival-obsidian-70-main",
+ "name": "0 survival Obsidian 70 main",
+ "campaignLevel": null,
+ "survival": true,
+ "assetsFrom": "obsidian-c70",
+ "world": {
+  "width": 2952,
+  "height": 1293.6,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/top-obsidian-scatter-c70-1@4x.webp",
+  "threshold": 128,
+  "minArea": 9600
+ },
+ "render": {
+  "rockFilter": {
+   "brightness": 0.66,
+   "contrast": 1.04,
+   "saturate": 1
+  }
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R001",
+   "x": 2484.1,
+   "y": 1089.6,
+   "w": 687.5,
+   "h": 634.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R002",
+   "x": 613.9,
+   "y": 1013.1,
+   "w": 645.4,
+   "h": 702.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R003",
+   "x": 1396.2,
+   "y": 1041.4,
+   "w": 593.1,
+   "h": 556.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R004",
+   "x": 1016.4,
+   "y": 639.7,
+   "w": 628.3,
+   "h": 551.4,
+   "rot": -0.6981
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R005",
+   "x": 1880.9,
+   "y": 652.1,
+   "w": 482.9,
+   "h": 729.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R006",
+   "x": 1984.7,
+   "y": 1724.6,
+   "w": 427,
+   "h": 385.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R007",
+   "x": 295.6,
+   "y": 1556.6,
+   "w": 332,
+   "h": 253.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R008",
+   "x": 988.8,
+   "y": 1188.6,
+   "w": 251.7,
+   "h": 322.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R009",
+   "x": 1403.4,
+   "y": 466.1,
+   "w": 261.6,
+   "h": 201.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R010",
+   "x": 2912.9,
+   "y": 975.6,
+   "w": 218.8,
+   "h": 220.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R011",
+   "x": 2676.6,
+   "y": 1461.7,
+   "w": 195.3,
+   "h": 208.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R012",
+   "x": 620.5,
+   "y": 1770.7,
+   "w": 183.1,
+   "h": 214.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R013",
+   "x": 1066.2,
+   "y": 1703.6,
+   "w": 190.6,
+   "h": 207.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R014",
+   "x": 2906.2,
+   "y": 1509.9,
+   "w": 181.8,
+   "h": 196.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R015",
+   "x": 151,
+   "y": 791.1,
+   "w": 166,
+   "h": 197.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R016",
+   "x": 2232.5,
+   "y": 1501.7,
+   "w": 184.8,
+   "h": 160.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R017",
+   "x": 1363.1,
+   "y": 666.8,
+   "w": 167.3,
+   "h": 184.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R018",
+   "x": 1505.6,
+   "y": 1542.4,
+   "w": 162.5,
+   "h": 171.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R019",
+   "x": 455.3,
+   "y": 1148.2,
+   "w": 189.5,
+   "h": 156,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R020",
+   "x": 195.4,
+   "y": 1042.8,
+   "w": 162.6,
+   "h": 189,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R021",
+   "x": 2684.8,
+   "y": 736.9,
+   "w": 164.9,
+   "h": 183.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R022",
+   "x": 2210.1,
+   "y": 817.6,
+   "w": 174.3,
+   "h": 160.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R023",
+   "x": 2060.8,
+   "y": 716.7,
+   "w": 185.3,
+   "h": 163.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R024",
+   "x": 9.3,
+   "y": 1464.9,
+   "w": 150.2,
+   "h": 147.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R025",
+   "x": 834.5,
+   "y": 1314.5,
+   "w": 149.6,
+   "h": 164.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R026",
+   "x": -185.5,
+   "y": 1073.4,
+   "w": 129,
+   "h": 127.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R027",
+   "x": 589.7,
+   "y": 519.8,
+   "w": 120.3,
+   "h": 163.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R028",
+   "x": 2848.6,
+   "y": 752.8,
+   "w": 137.2,
+   "h": 130.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R029",
+   "x": 2892.4,
+   "y": 1195.3,
+   "w": 146.1,
+   "h": 119.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R030",
+   "x": 1647.9,
+   "y": 1442.6,
+   "w": 131.4,
+   "h": 127.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R031",
+   "x": 2103.6,
+   "y": 1000,
+   "w": 129,
+   "h": 134.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R032",
+   "x": 2857.5,
+   "y": 588.2,
+   "w": 135,
+   "h": 120.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R033",
+   "x": 2524.6,
+   "y": 695.5,
+   "w": 110.8,
+   "h": 134.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R034",
+   "x": 367.3,
+   "y": 640.4,
+   "w": 105,
+   "h": 140.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R035",
+   "x": -0.9,
+   "y": 661,
+   "w": 127.4,
+   "h": 119.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R036",
+   "x": 2162.6,
+   "y": 560.9,
+   "w": 119.2,
+   "h": 99.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R037",
+   "x": -112.6,
+   "y": 1320.7,
+   "w": 126.6,
+   "h": 111.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R038",
+   "x": 2418,
+   "y": 631.6,
+   "w": 107.9,
+   "h": 122.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R039",
+   "x": 1989.5,
+   "y": 1266,
+   "w": 112.1,
+   "h": 110.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R040",
+   "x": 1703.8,
+   "y": 655.1,
+   "w": 92.2,
+   "h": 128.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R042",
+   "x": 147.2,
+   "y": 1326.7,
+   "w": 116.1,
+   "h": 101.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R043",
+   "x": 1584.1,
+   "y": 668.2,
+   "w": 90.9,
+   "h": 125.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R044",
+   "x": 1159.9,
+   "y": 1403,
+   "w": 95.6,
+   "h": 109.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R045",
+   "x": 2761.8,
+   "y": 1282.8,
+   "w": 115,
+   "h": 92.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "obsidian-c70R046",
+   "x": 1252.5,
+   "y": 1554.5,
+   "w": 95.1,
+   "h": 100.4,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 2834,
+   "y": 1366,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 144,
+   "y": 452,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1152,
+   "y": 1928,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1620,
+   "y": 452,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 144,
+   "y": 1604,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2088,
+   "y": 1928,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 864,
+   "y": 1028,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1620,
+   "y": 1280,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2412,
+   "y": 524,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2232,
+   "y": 1352,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 756,
+   "y": 452,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "reservoir",
+   "key": "reservoir1",
+   "x": 729,
+   "y": 1539,
+   "r": 72
+  },
+  {
+   "t": "mountain",
+   "key": "mountain2",
+   "x": 1026,
+   "w": 1620
+  },
+  {
+   "t": "city",
+   "key": "skyline1",
+   "x": 2160,
+   "w": 648
+  }
+ ]
+}

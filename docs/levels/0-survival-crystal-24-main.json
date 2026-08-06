@@ -1,0 +1,467 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "0-survival-crystal-24-main",
+ "name": "0 survival Crystal 24 main",
+ "campaignLevel": null,
+ "survival": true,
+ "assetsFrom": "crystal-c24",
+ "world": {
+  "width": 2952,
+  "height": 1438.1,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/top-crystal-scatter-c24-1@4x.webp",
+  "threshold": 128,
+  "minArea": 9600
+ },
+ "render": {
+  "rockFilter": {
+   "brightness": 0.68,
+   "contrast": 1.26,
+   "saturate": 1.08
+  }
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "crystal-c24R001",
+   "x": 1838.2,
+   "y": 577.3,
+   "w": 496,
+   "h": 530.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R002",
+   "x": 406.3,
+   "y": 601.9,
+   "w": 503.9,
+   "h": 533.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R003",
+   "x": 1052.4,
+   "y": 1219.6,
+   "w": 512.3,
+   "h": 350,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R004",
+   "x": 2805.2,
+   "y": 986.8,
+   "w": 430,
+   "h": 445.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R005",
+   "x": 1142.2,
+   "y": 539.3,
+   "w": 409.7,
+   "h": 348.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R006",
+   "x": 2197.7,
+   "y": 1630.7,
+   "w": 400.2,
+   "h": 353.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R007",
+   "x": 409.3,
+   "y": 1432.4,
+   "w": 333.7,
+   "h": 316.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R008",
+   "x": 1880.1,
+   "y": 1076.7,
+   "w": 327.4,
+   "h": 300.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R009",
+   "x": 2552.6,
+   "y": 546.9,
+   "w": 294.8,
+   "h": 280.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R010",
+   "x": 530.1,
+   "y": 1091.1,
+   "w": 276.7,
+   "h": 295.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R011",
+   "x": 1298,
+   "y": 836.5,
+   "w": 273.5,
+   "h": 230.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R012",
+   "x": 712.3,
+   "y": 1658.4,
+   "w": 307.5,
+   "h": 212,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R013",
+   "x": 300.2,
+   "y": 1709.9,
+   "w": 233.8,
+   "h": 186.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R014",
+   "x": 1199.9,
+   "y": 1533,
+   "w": 245.6,
+   "h": 160.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R015",
+   "x": 956.4,
+   "y": 831.5,
+   "w": 254.1,
+   "h": 138.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R016",
+   "x": 1444,
+   "y": 633.3,
+   "w": 164.2,
+   "h": 214.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R017",
+   "x": 2495.4,
+   "y": 1183.5,
+   "w": 167.8,
+   "h": 142.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R018",
+   "x": 2303.9,
+   "y": 508.4,
+   "w": 170.9,
+   "h": 144.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R019",
+   "x": 1436.8,
+   "y": 1163.7,
+   "w": 116.2,
+   "h": 191.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R020",
+   "x": 2908.7,
+   "y": 1407.8,
+   "w": 117.6,
+   "h": 158.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R021",
+   "x": 167.4,
+   "y": 1083.2,
+   "w": 118.9,
+   "h": 144.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R022",
+   "x": 763.7,
+   "y": 484,
+   "w": 132,
+   "h": 121.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R023",
+   "x": 834.9,
+   "y": 613.5,
+   "w": 139.8,
+   "h": 105.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R024",
+   "x": 598.3,
+   "y": 464.6,
+   "w": 167.3,
+   "h": 103.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R025",
+   "x": 2197.1,
+   "y": 1296.7,
+   "w": 143.4,
+   "h": 99.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R026",
+   "x": 1934.2,
+   "y": 1366.4,
+   "w": 90,
+   "h": 111.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R027",
+   "x": 2524.6,
+   "y": 1360.8,
+   "w": 94.1,
+   "h": 101.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R028",
+   "x": 1553,
+   "y": 1085.5,
+   "w": 91.8,
+   "h": 103.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R029",
+   "x": 2385.4,
+   "y": 1026,
+   "w": 90.8,
+   "h": 103.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R030",
+   "x": 1623.6,
+   "y": 1402.5,
+   "w": 95,
+   "h": 86.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R031",
+   "x": 2241.5,
+   "y": 674,
+   "w": 77.8,
+   "h": 106.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R032",
+   "x": 2137.7,
+   "y": 941.1,
+   "w": 79.2,
+   "h": 108.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R033",
+   "x": 2662.7,
+   "y": 784,
+   "w": 74.6,
+   "h": 76.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "crystal-c24R034",
+   "x": 860.2,
+   "y": 752,
+   "w": 95.4,
+   "h": 68.3,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 1556,
+   "y": 1588,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 144,
+   "y": 524,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 180,
+   "y": 1928,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2412,
+   "y": 452,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1368,
+   "y": 524,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2412,
+   "y": 1928,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 720,
+   "y": 1208,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2232,
+   "y": 1208,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 936,
+   "y": 1928,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 144,
+   "y": 1316,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 720,
+   "y": 596,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "reservoir",
+   "key": "reservoir2",
+   "x": 736,
+   "y": 1442,
+   "r": 72
+  },
+  {
+   "t": "reservoir",
+   "key": "reservoir1",
+   "x": 676,
+   "y": 802,
+   "r": 72
+  },
+  {
+   "t": "mountain",
+   "key": "mountain3",
+   "x": 612,
+   "w": 792
+  },
+  {
+   "t": "city",
+   "key": "skyline5",
+   "x": 1152,
+   "w": 288
+  },
+  {
+   "t": "mountain",
+   "key": "mountain4",
+   "x": 1728,
+   "w": 864
+  },
+  {
+   "t": "city",
+   "key": "skyline6",
+   "x": 2322,
+   "w": 324
+  }
+ ]
+}
