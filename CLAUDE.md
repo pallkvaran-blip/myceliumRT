@@ -2301,9 +2301,20 @@ that would repeat across the seam**.
   that call, which is the ordering that matters. An older save has no order and simply reshuffles.
 - **A saved editor draft with `survival: true` joins the pool**, because the pool reads
   `allLevels()`. That is deliberate — it is how you playtest a new survival map in rotation.
-- `#dev` and the picker's **Dev quick-start keep the procedural generator** (`survivalRun()`
-  requires `chosenSpecies`). It is the only sandbox left that has one, and `core-check`'s null
-  case — no core, therefore procedural — depends on it.
+- **`survivalRun()` DOES NOT REQUIRE A CHOSEN SPECIES, and gating it on one cost two rounds.**
+  `chosenSpecies` looks like "is this a real run?" and is really "did the player click a species
+  tile?" — which the picker's own **Dev quick-start** does not. First that dropped through to
+  `levelForNumber(n)` and served a CAMPAIGN map; closing the fall-through then served a PROCEDURAL
+  one. Both were reported. The rule is that survival plays the 17, and a button inside the survival
+  picker is survival.
+  - **Only the BOOT HASH is exempt** (`bootSandbox`, set by `#dev` / `#notrich` / `#ants`). Those
+    skip the title and the picker entirely — a developer's URL, not somebody playing Survival — and
+    they are the only route left with a procedural generator, which ~40 checks boot and which
+    `core-check`'s null case (no core, therefore procedural) depends on.
+  - **It is cleared in `stockRun()` as well as `showPicker()`, and it needs both.** Not every run
+    starts at the picker: the resume path and the `__game.campaign.play` / `survival.play` hooks go
+    straight to `startRun`. Booting `#dev` and then starting a real run left the flag set and every
+    later run rolled procedural — caught by `survival-check`, whose own runs boot `#dev,turn`.
 
 ### The threats are the LEVEL's, and they are seeded LATE
 
@@ -2412,7 +2423,7 @@ through untouched and are re-runnable.
   winnable, veined-40 the tightest at 7.
 - The **tutorial still works**: it injects its own orange starter pile (`injectFoodPile`), which
   already tests `cell.rock` and keeps a 1.5-cell clearance, and by the time it runs the mask exists.
-- `tests/survival-check.cjs` (42) covers all of it, with `__game.survival`
+- `tests/survival-check.cjs` (44) covers all of it, with `__game.survival`
   (`maps`/`order`/`mapFor`/`reset`/`isRun`/`defFor`/`play`).
 
 ## The campaign itself

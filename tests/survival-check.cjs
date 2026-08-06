@@ -200,14 +200,44 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
       `${r.wormsOnRock} worm(s) and ${r.cloudsOnRock} cloud(s) on solid ground`);
   }
 
-  // A DEV BOOT KEEPS THE PROCEDURAL GENERATOR. It is the only sandbox left that has one, and
-  // core-check's null case (no core → procedural) depends on it.
-  console.log('\n-- the dev sandbox is still procedural --');
-  const dev = await page.evaluate(() => {
+  // WHICH WAYS IN PLAY THE POOL, and which one deliberately does not. This is the distinction the
+  // owner reported twice: gating on `chosenSpecies` looked like "is this a real run?" and was
+  // really "did they click a species tile?", so the picker's own Dev quick-start fell through —
+  // first to a campaign map, then (once that was closed) to a procedural roll. Both halves are
+  // asserted, because either one alone passes on a build that gets the other wrong.
+  console.log('\n-- which ways in play the pool --');
+  const devQuick = await page.evaluate(async () => {
     const g = window.__game;
-    return { isRun: g.survival.isRun(), def: g.survival.defFor(1) };
+    document.querySelectorAll('#speciesSelect,#levelIntro,#tutorial').forEach((n) => n.remove());
+    g.showPicker();                       // the button lives here, and reaching it clears the sandbox flag
+    await new Promise((r) => setTimeout(r, 400));
+    const b = document.getElementById('ssDev');
+    if (!b) return { err: 'no Dev quick-start button' };
+    b.click();
+    await new Promise((r) => setTimeout(r, 2500));
+    const s = g.state;
+    return { id: s.levelDef ? s.levelDef.id : '(procedural)', survival: !!(s.levelDef && s.levelDef.survival), isRun: g.survival.isRun() };
   });
-  ok('a run with a chosen species is a survival run', dev.isRun);
+  ok("the picker's Dev quick-start plays the survival pool", devQuick.survival && inGame.includes(devQuick.id),
+    devQuick.err || devQuick.id);
+  // ...and the BOOT HASH does not. `#dev` is a developer's URL, not somebody playing Survival, and
+  // it is the only route left with a procedural generator — `core-check`'s null case is "no core,
+  // therefore procedural" and boots exactly this.
+  const ctx3 = await browser.newContext({ viewport: { width: 1100, height: 700 } });
+  const p3 = await ctx3.newPage();
+  await p3.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+  await p3.goto(base + '/index.html#dev,turn', { waitUntil: 'domcontentloaded' });
+  await p3.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 }).catch(() => {});
+  await p3.click('#loadscreen', { timeout: 5000 }).catch(() => {});
+  await p3.waitForFunction(() => !!(window.__game && window.__game.state), { timeout: 40000 }).catch(() => {});
+  await sleep(2000);
+  const hashDev = await p3.evaluate(() => ({
+    id: window.__game.state.levelDef ? window.__game.state.levelDef.id : null,
+    core: window.__game.state.substrate.coreY,
+  }));
+  await ctx3.close();
+  ok('the `#dev` boot hash still rolls a procedural map', hashDev.id === null, hashDev.id || 'procedural');
+  ok('...so it still has no molten core (core-check depends on this)', hashDev.core == null, String(hashDev.core));
 
   await page.screenshot({ path: path.join(__dirname, '.artifacts', 'survival-level.png'), animations: 'disabled', timeout: 15000 }).catch(() => {});
 

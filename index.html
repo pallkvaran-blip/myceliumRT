@@ -27847,6 +27847,15 @@ function configForLevel(level) {
 // normal play, and it survives level-to-level so you can keep replaying the draft.
 const PLAYTEST_KEY = 'mycelium.editor.playtest';
 let playtestLevel = null;
+// THE BOOT-HASH SANDBOX. `#dev` / `#notrich` / `#ants` skip the title and the picker entirely and
+// start a run with no species — they are a developer's URL, not somebody playing Survival, and
+// they keep the PROCEDURAL generator. It is the only route left that has one (~40 checks boot
+// `#dev`, and `core-check`'s null case is "no core, therefore procedural"). The picker's
+// "Dev quick-start" button is the opposite case: it is inside the game, in Survival, and the
+// owner uses it to get into a run quickly — so it plays the survival pool like any other run.
+// Cleared on reaching the picker, so `#dev` → title → New still gets the real thing.
+let bootSandbox = false;
+function leaveSandbox() { bootSandbox = false; }
 function loadPlaytestLevel() {
   try {
     const obj = JSON.parse(localStorage.getItem(PLAYTEST_KEY) || 'null');
@@ -27911,9 +27920,16 @@ function survivalMapIdFor(n) {
   }
   return survivalOrder[want - 1];
 }
-// A real SURVIVAL run: a chosen species (so the dev quick-start and `#dev` keep the procedural
-// generator, which is the only sandbox left that has one), no playtest map, and not the campaign.
-function survivalRun() { return !!chosenSpecies && !playtestLevel && !isCampaignGame(); }
+// A SURVIVAL run: not the campaign, not a playtest map, and not the boot-hash sandbox.
+//
+// IT DOES NOT REQUIRE A CHOSEN SPECIES, and that was the first version's mistake. Gating on
+// `chosenSpecies` looks like "is this a real run?" and is really "did the player come through the
+// picker's species tiles?" — which the picker's own **Dev quick-start** button does not, so it
+// dropped through to the procedural generator. Reported twice: first as survival serving campaign
+// maps, then, once that fall-through was closed, as *"it's now starting me on the procedurally
+// generated map"*. The owner's rule is that survival plays the 17 authored maps, and a button
+// inside the survival picker is survival. Only the boot hash is exempt.
+function survivalRun() { return !playtestLevel && !isCampaignGame() && !bootSandbox; }
 
 // The map for a level: the playtest draft if one is loaded, else — in a survival run — this
 // level's turn in the survival rotation, else a hand-authored level claiming this campaign slot
@@ -27969,6 +27985,11 @@ function campaignRun() { return !!chosenSpecies && !playtestLevel && isCampaignG
 function stockRun() {
   runLives = storeBonuses().lives | 0;
   levelEntry = null;
+  // A FRESH RUN IS NEVER THE SANDBOX. `showPicker` clears this too, but not every run starts
+  // there: the resume path and the `__game.campaign.play` / `survival.play` hooks go straight to
+  // `startRun`. Booting `#dev` and then starting a real run left the flag set and the run kept
+  // rolling procedural maps — caught by survival-check, whose own runs boot `#dev,turn`.
+  leaveSandbox();
   // A fresh run gets a fresh shuffle of the survival pool. A RESUME calls this too and then puts
   // the saved order back over the top (see onContinue) — it has to, or "Old" would hand the
   // player a different map for the level they left off on.
@@ -28054,6 +28075,7 @@ function showPicker() {
   logEvent('picker', {});   // reached the screen a run is started from — the funnel's second step
   hideCanvas();      // never let a finished run's map show behind the picker
   raiseHandoff();    // ...nor its HUD, which the title's fade-out into here would otherwise reveal
+  leaveSandbox();    // reaching the picker means this is the game, not the `#dev` sandbox
   playMenuMusic();   // vol29 keeps playing (or starts) across the title → picker
   showSpeciesSelect({
     // Both normal routes CLEAR playtestLevel. It used to be settable only by the boot
@@ -34503,8 +34525,9 @@ function enterGame() {
     if (!playtestLevel) { showMainMenu(); return; }
     chosenSpecies = null; currentLevel = playtestLevel.campaignLevel || 1; runStartLevel = currentLevel; startRun();
   }
-  else if (dest === '#notrich' || dest === '#ants') { noTrich = true; currentLevel = 1; runStartLevel = 1; startRun(); }
-  else if (dest === '#dev') { chosenSpecies = null; currentLevel = 1; runStartLevel = 1; startRun(); }   // skip the picker
+  else if (dest === '#notrich' || dest === '#ants') { noTrich = true; bootSandbox = true; currentLevel = 1; runStartLevel = 1; startRun(); }
+  // `#dev` skips the picker AND keeps the procedural generator — see `bootSandbox`.
+  else if (dest === '#dev') { chosenSpecies = null; bootSandbox = true; currentLevel = 1; runStartLevel = 1; startRun(); }
   else if (dest === '#tutorial') { tutorialPending = true; showPicker(); }             // force the first-run tutorial (testing)
   else showMainMenu();
 }
