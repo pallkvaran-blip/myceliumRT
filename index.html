@@ -30646,6 +30646,18 @@ function begin(newState) {
   // first map also waits for art to load — see the loadAssets() boot below), so it
   // never fades in half-drawn or on a blank canvas.
   if (assetsReady) _revealPending = true;
+  // ONE LINE TO THE CONSOLE PER LEVEL, NAMING THE MAP. This exists because "which map am I on,
+  // and is this even the build I just pushed?" has cost several rounds and there was no way to
+  // answer it from inside the game: a procedural roll and an authored map are told apart by
+  // eye, and a browser serving a cached `index.html` looks identical to a stale deploy.
+  //
+  // `PROCEDURAL` in a SURVIVAL run now means exactly one thing — the build predates the authored
+  // survival pool, or you booted a `#dev`-style hash. Nothing else can reach the generator.
+  try {
+    const _m = state.levelDef ? state.levelDef.id : 'PROCEDURAL';
+    console.log(`[mycelium] ${CONFIG.game}/${CONFIG.mode} level ${currentLevel} — map: ${_m}`
+      + (isCampaignGame() ? '' : `  (survival pool: ${survivalMaps().length})`));
+  } catch (_) {}
   // Swap the menu theme (vol29) for a random level track LAST — after the one-time
   // seeding/render setup above — so the fast fade-out (a wall-clock ramp) isn't starved
   // by that synchronous work and can ease out smoothly instead of cutting off sharply.
