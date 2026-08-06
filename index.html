@@ -1098,6 +1098,13 @@
       border:1px solid rgba(127,230,163,0.18); border-radius:12px; background:rgba(12,22,17,0.5);
       display:flex; align-items:center; justify-content:center; gap:clamp(10px,1.6vw,20px);
       flex-wrap:wrap; text-align:center; }
+    /* AND `hidden` HAS TO WIN, which `display:flex` above otherwise beats — the attribute's
+       display:none lives in the UA stylesheet and any author rule outranks it. Without this the
+       three states that hide the ask ("No thanks", and now "they haven't finished a run yet")
+       left an empty 970x38 bordered rectangle at the foot of the screen. It went unnoticed for
+       the decline because a declining player has already read the box; the play-first gate makes
+       it the FIRST thing every new player would see. Measured, not assumed. */
+    .ss-rate[hidden] { display:none; }
     .ss-rate-msg { margin:0; font-size:13px; line-height:1.5; color:var(--ss-ink-dim); max-width:62ch; }
     .ss-rate-thanks { color:var(--ss-mint); font-weight:600; }
     .ss-rate-link { color:var(--ss-mint); text-decoration:underline; text-underline-offset:2px; }
@@ -11426,6 +11433,29 @@ function sporesBalance(progress) {
 // Rate, began a run and then closed the tab came back to neither the bonus nor the offer.
 const RATE_URL = 'https://pallkvaran.itch.io/mycelium/rate?source=game';
 const hasRated = (progress) => !!(progress || loadProgress()).rated;
+// THE ASK WAITS FOR A FINISHED RUN (owner: "it's weird to have it there when they have not even
+// tried the game"). `p.runsDone` counts ENDINGS, not starts — a player who opened the picker,
+// began a run and came back has not formed an opinion yet, and a start-counter would show the
+// banner to exactly that player. Recorded in `runEndThen`, the one funnel every ending passes
+// through; deliberately NOT in `showPicker`, which also fires at boot with no run behind it.
+// Defaults to 0 for every existing save, so a returning player meets the ask after their next
+// ending rather than never — which is the right side to err on for a one-off boon.
+const runsFinished = (progress) => {
+  const n = (progress || loadProgress()).runsDone;
+  return (typeof n === 'number' && isFinite(n)) ? Math.max(0, n | 0) : 0;
+};
+function recordRunFinished() {
+  const p = loadProgress();
+  p.runsDone = runsFinished(p) + 1;
+  saveProgress(p);
+  return p.runsDone;
+}
+// May the picker ASK? Only once a run has ended, and only while there is something to ask for —
+// a player who already rated still gets their "Thank you for rating" line on every visit.
+const rateAskReady = (progress) => {
+  const p = progress || loadProgress();
+  return !!p.rated || runsFinished(p) > 0;
+};
 // "No thanks" — the third answer, and the one the ask needed to be honest. Without it a player who
 // does not want to rate meets the same request at the foot of the picker between every single run,
 // which is how a polite ask becomes nagging. Permanent, and it forfeits the boon: declining is a
@@ -11882,7 +11912,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -23063,7 +23093,7 @@ function growMyceliumTitle(container, opts = {}) {
 
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
-  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, loadDeck, deckBucketFor, deckBuckets, deckSize,
+  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, loadDeck, deckBucketFor, deckBuckets, deckSize,
     STORE_UPGRADES, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
@@ -23602,6 +23632,11 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   // to "have they rated?" is one bit, and this is a different question.
   let rateThanksNow = false;
   function renderRate() {
+    // NOT UNTIL THEY HAVE PLAYED (owner). Asking a player who has never finished a run to rate
+    // the game is asking them to have an opinion they cannot have — and the boon on offer is
+    // meaningless to someone who has not seen a spore yet. `rateAskReady` also lets the thank-you
+    // through unconditionally, so a player who rated can never lose that line to this gate.
+    if (!rateAskReady(progress)) { rateBox.hidden = true; rateBox.innerHTML = ''; return; }
     // DECLINED, and that is the end of it — no empty bordered card left sitting there either.
     if (rateDismissed(progress) && !hasRated(progress)) { rateBox.hidden = true; rateBox.innerHTML = ''; return; }
     rateBox.hidden = false;
@@ -25843,7 +25878,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -26301,6 +26336,12 @@ function runEndThen(next) {
   // all arrive here. Releasing it at each of those instead would be three chances to leave a
   // player permanently on double.
   endRunSpores();
+  // AND THE SAME FUNNEL COUNTS THE RUN, for the rating ask's "have they actually played yet?"
+  // gate. It has to be an ENDING rather than a start: the question is whether the player has an
+  // opinion of the game, and a run they walked away from mid-level has taught them nothing they
+  // could rate. Counting here also means the retry path doesn't inflate it — a retry continues
+  // the run and never reaches this function.
+  recordRunFinished();
   runSporeMult = 1;
   // The per-species record of last run's drafts is GONE with the picker that read it — the deck is
   // the one carry now, and `state.cards.runDrafted` still feeds the keep screen's pool directly.
@@ -26632,6 +26673,61 @@ const smooth01 = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b -
 function startWinCelebration(onFinish) { startCelebration('goal', onFinish); }
 function startDeathCelebration(onFinish) { startCelebration('home', onFinish); }
 
+// ===================== standing ON the hill, not on a model of it =====================
+// THE CELEBRATION MUSHROOMS USED TO BE PLACED BY A FORMULA WHILE THE HILL IS A DRAWN SPRITE,
+// and where the two disagreed the mushrooms floated in mid-air. Reported on the DEATH (home)
+// hill: `Math.pow(1 - fx, 0.9)` with a 0.28 floor decays far more slowly than the art's own
+// slope, so past the little tree — which sits at the halfway column, exactly where the owner
+// said the floating starts — the model was still lifting mushrooms a sixth of the hill's
+// height into ground the sprite had already descended out of. Measured on `goalhill.png`
+// (1108x175) at the far end of the home slope: the model asked for 0.156 of the hill's height
+// where the art offers 0.029.
+//
+// So the profile is now READ OFF THE SPRITE'S ALPHA, sampled with the same geometry the two
+// draw functions use, and the modelled dome survives only as the fallback for a frame drawn
+// before the asset has decoded. Applied to the GOAL hill as well: its `sin` profile has the
+// same 0.28 floor and the same divergence at the meadow's edges, and leaving one side on a
+// model would be two answers to "where is the ground?".
+const HILL_BASE_DROP = 0.04;             // both draws sit the sprite's base this far BELOW the soil line
+const HILL_PROF_COLS = 256;              // horizontal samples; vertical resolution stays the sprite's own
+const _hillProfCache = new Map();        // img.src -> Float32Array of top-edge fractions (1 = column empty)
+// Per-column topmost opaque row, as a fraction of the sprite's HEIGHT from its top. The canvas is
+// stretched to (cols x native height) rather than scaled uniformly — squashing the width cannot
+// change a per-column fraction, and keeping the height native is what makes the answer precise
+// enough to stand a 7-unit mushroom on (1/175 of the hill vs 1/25 from `_alphaMask`'s 160px mask).
+function hillTopProfile(img) {
+  if (!img || !img.width || !img.height) return null;
+  const key = img.src || img;
+  let prof = _hillProfCache.get(key);
+  if (prof !== undefined) return prof;
+  const pw = HILL_PROF_COLS, ph = Math.max(8, Math.min(512, img.height | 0));
+  const c = document.createElement('canvas'); c.width = pw; c.height = ph;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  let data;
+  try { g.drawImage(img, 0, 0, pw, ph); data = g.getImageData(0, 0, pw, ph).data; }
+  catch (e) { _hillProfCache.set(key, null); return null; }   // tainted canvas — fall back to the model
+  prof = new Float32Array(pw);
+  for (let x = 0; x < pw; x++) {
+    let top = ph;                                             // no opaque pixel in this column
+    for (let y = 0; y < ph; y++) if (data[(y * pw + x) * 4 + 3] > 24) { top = y; break; }
+    prof[x] = top / ph;
+  }
+  _hillProfCache.set(key, prof);
+  return prof;
+}
+// How far the drawn green rises ABOVE the soil line at world x, in world units. `x0`/`wWorld` are
+// the sprite's own span and `mirrored` matches `drawHomeBackdrop`'s `scale(-1, 1)` — pass what the
+// draw passes and placement cannot drift from the art. Returns 0 off the ends and under the skirt.
+function hillRiseAtX(img, x, x0, wWorld, hWorld, mirrored) {
+  const prof = hillTopProfile(img);
+  if (!prof || wWorld <= 0) return -1;                        // caller falls back to the modelled dome
+  let u = (x - x0) / wWorld;
+  if (mirrored) u = 1 - u;
+  if (!(u >= 0) || u > 1) return 0;
+  const i = Math.max(0, Math.min(prof.length - 1, Math.floor(u * prof.length)));
+  return Math.max(0, hWorld * (1 - HILL_BASE_DROP - prof[i]));
+}
+
 // Shared fruiting celebration: little mushrooms pop up across a green hill and puff spores
 // that drift right on the wind. side 'goal' = the RIGHT goal meadow (a WIN); side 'home' =
 // the LEFT home hill over the colony's start (a DEATH — "forced to fruit and spore").
@@ -26655,6 +26751,15 @@ function startCelebration(side, onFinish) {
   // the slope: ones set higher read as further away (smaller = depth).
   const hillRise = hill ? wWorld * (hill.height / hill.width) : span * cs * 0.4;
   const riseMax = hillRise * 0.42;                           // keep them on the green, not up in the sky
+  // The sprite's own span, as the two backdrop draws lay it out — `drawHomeBackdrop` mirrors a
+  // hill running -halfW..+halfW (peak at world x=0, only the right slope on screen);
+  // `drawGoalBackdrop` runs it unmirrored from the goal column to the map's right edge.
+  const hillX0 = home ? -span * cs : colLo * cs;
+  // 0.75 of the local hill top at the far end of the depth range: high enough to read as "up
+  // the slope", low enough that the cap still sits inside the green rather than perched on its
+  // outline. It COLLAPSES WITH THE HILL, which is the whole fix — where the art has descended
+  // to a sliver, so has the tallest placement.
+  const RISE_OF_TOP = 0.75;
   // Keep mushrooms off the trees (goal hill has two bushes; home hill has one small tree).
   const bush = asset('goalbush'), bAsp = bush ? bush.width / bush.height : 1;
   const treeCols = home ? [[Math.max(1, Math.round(span * 0.5)), 1.7]] : [[colLo + 4, 3.0], [colLo + 9, 2.2]];
@@ -26665,17 +26770,27 @@ function startCelebration(side, onFinish) {
     let fx = 0.03 + Math.random() * 0.94, x = (colLo + 1 + fx * (span - 1)) * cs;   // horizontal fraction across the hill
     for (let tries = 0; tries < 6 && underTree(x); tries++) { fx = 0.03 + Math.random() * 0.94; x = (colLo + 1 + fx * (span - 1)) * cs; }
     if (underTree(x)) continue;                              // landed on a tree every try — skip this one
-    // Goal hill peaks in the MIDDLE (dome); the home hill peaks at the LEFT edge (descending slope).
-    const prof = home ? Math.pow(1 - fx, 0.9) : Math.pow(Math.sin(Math.PI * fx), 0.7);
-    const dome = 0.28 + 0.72 * prof;                         // local mound height fraction
     const d = Math.random();                                // depth: 0 = foreground (low + big), 1 = far (high + small)
-    const rise = riseMax * dome * d;
+    // WHERE IS THE GROUND AT THIS x? Off the sprite's alpha, so it is the drawn silhouette and
+    // not an approximation of it. -1 means the asset hasn't decoded yet, in which case the old
+    // modelled dome stands in: goal hill peaks in the MIDDLE, home hill at the LEFT edge.
+    const topRise = hillRiseAtX(hill, x, hillX0, wWorld, hillRise, home);
+    let rise;
+    if (topRise >= 0) rise = topRise * RISE_OF_TOP * d;
+    else {
+      const prof = home ? Math.pow(1 - fx, 0.9) : Math.pow(Math.sin(Math.PI * fx), 0.7);
+      rise = riseMax * (0.28 + 0.72 * prof) * d;             // local mound height fraction
+    }
     const depthS = 1 - 0.62 * d;                            // higher up the slope → smaller
     const spots = [];
     for (let k = 0, ns = 1 + (Math.random() * 3 | 0); k < ns; k++)
       spots.push([(Math.random() - 0.5) * 1.1, 0.15 + Math.random() * 0.5, 0.05 + Math.random() * 0.07]);
     mushrooms.push({
-      x, y: surfY - rise - Math.random() * 1.2,
+      // THE SCATTER SINKS THEM, IT DOES NOT LIFT THEM. It used to subtract (i.e. raise by up to
+      // 1.2 units), which is invisible up the slope and is exactly a float at the hill's toe,
+      // where the green the mushroom is standing on is barely a unit tall. Bedding a foot
+      // slightly into the ground reads as planted; lifting it reads as the bug this fixes.
+      x, y: surfY - rise + Math.random() * 1.2,
       h: (7 + Math.random() * 7) * depthS, capR: (2.6 + Math.random() * 2.6) * depthS,
       delay: 120 + Math.random() * 1200, grow: 520 + Math.random() * 320,
       sway: Math.random() * Math.PI * 2, spots, lastEmit: 0, depth: d,
@@ -28220,7 +28335,12 @@ function begin(newState) {
       decline: () => dismissRate(),
       mult: () => runSporeMultiplier(),
       press: () => markRated(),
-      forget: () => { const p = loadProgress(); delete p.rated; delete p.rateBonus; delete p.rateNo; saveProgress(p); },
+      // The "have they played yet?" gate, and a way to set it — a check cannot afford to play a
+      // whole run just to see the banner appear, and `runs(n)` is the same field `runEndThen`
+      // writes rather than a second switch that could disagree with it.
+      runs: (n) => { if (n == null) return runsFinished(); const p = loadProgress(); p.runsDone = Math.max(0, n | 0); saveProgress(p); return p.runsDone; },
+      ready: () => rateAskReady(),
+      forget: () => { const p = loadProgress(); delete p.rated; delete p.rateBonus; delete p.rateNo; delete p.runsDone; saveProgress(p); },
     },
     store: {
       upgrades: STORE_UPGRADES,
@@ -28402,6 +28522,25 @@ function begin(newState) {
       previewFruit: !!previewFruit, tutorial: !!(tutorial && tutorial.active),
       revealing: (() => { try { return !!anyRevealing(lastTime); } catch (_) { return null; } })(),
     }),
+    // THE FRUITING CELEBRATION, so "are the mushrooms standing on the hill?" can be MEASURED.
+    // It is the class of bug that only ever showed in a rendered frame — the owner reported it
+    // from a screenshot — and the model is where the answer actually lives: each mushroom's
+    // world y against the drawn sprite's own alpha silhouette at that x.
+    cele: {
+      start: (side, done) => startCelebration(side, done || (() => {})),
+      mushrooms: () => (winCele ? winCele.mushrooms.map((m) => ({ x: m.x, y: m.y, h: m.h, capR: m.capR, depth: m.depth })) : null),
+      // The drawn hill's top edge above the soil line at world x — the SAME call the placement
+      // makes, so a check reads the art rather than re-deriving the geometry a third time.
+      hillTop: (side, x) => {
+        const sub = state.substrate, cs = sub.cellSize, hill = asset('goalhill');
+        if (side === 'home') { const halfW = homeHillCols() * cs, w = halfW * 2; return hillRiseAtX(hill, x, -halfW, w, w * (hill.height / hill.width), true); }
+        const g0 = goalCol0(); if (g0 < 0) return -1;
+        const x0 = g0 * cs, w = sub.worldWidth - x0;
+        return hillRiseAtX(hill, x, x0, w, w * (hill.height / hill.width), false);
+      },
+      surfaceY: () => state.substrate.surfaceY,
+      stop: () => { winCele = null; },
+    },
     // Aim-drag hooks (invisible): arm a directional grow, and read the live drag state, so
     // the press-drag rules (what counts as aimed / cancelled) are testable.
     armAim: (name) => {

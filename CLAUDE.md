@@ -597,7 +597,7 @@ passes the cascade half** just as "claims everything" passes the forgiveness hal
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**33 checks registered in `run.mjs`**, roughly 1900 assertions, of which `traced` is 818 (one map's
+**34 checks registered in `run.mjs`**, roughly 1920 assertions, of which `traced` is 818 (one map's
 worth each). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -617,6 +617,7 @@ change, which is the recommended gear — the most recent runs, each 0 failed:
 | species · pill · review · ingame · hover · boot · hs · store · campaign · water · surface · edit · core · mode | **448 passed** (the screens/store/campaign set, ~6 min) |
 | threat · harvest · mould · core · mode | **217 passed** (the engine set) |
 | campaign · surface · level · ctreats · ants · challenge · sky | **252 passed** (the maps/threat-placement set) |
+| store · campaign · rate · cele · hover · tutscript | **-** (the rating-gate / celebration set) |
 
 Per-check, measured: traced 818 · edit 118 · threat 114 · rt 69 · campaign 66 · enemy 52 ·
 challenge 50 · sky 45 · mode 39 · species 38 · ctreats 31 · harvest 28 · level 27 · scale 26 ·
@@ -1816,6 +1817,75 @@ tier rows** — retired on the owner's call, along with `mysteryCard`, `startTag
   with `position:absolute; bottom:9px`, so a section header using it stacked every hint at the
   foot of the console. Both those rules are gone; the name isn't coming back. Only a rendered
   frame showed it.
+
+### The itch rating ask, and the boon for it
+
+At the very foot of the screen: *"Are you enjoying Mycelium? …we'll double the spores you get
+from your next run!"*, a white **Rate** button to `RATE_URL`, and a quiet **No thanks**. itch
+tells the game nothing back, so **pressing the button IS the promise being kept** and it can only
+be kept once.
+
+**TWO persisted fields, not one, and the second is why a reload cannot cost the player the boon:**
+`p.rated` (permanent — the banner never asks again) and `p.rateBonus` — `'armed'` (owed, no run
+started), `'active'` (the run IN PROGRESS is the doubled one), `null` (spent or never earned).
+Collapsing them into one boolean consumed at run start means a player who pressed Rate, began a
+run and closed the tab comes back to neither the bonus nor the offer. `beginRunSpores()` arms →
+active at every run-start site; **`endRunSpores()` releases it in BOTH `runEndThen` and
+`showPicker`** — the funnel where it belongs, and the place it cannot be routed around.
+
+- **`p.runsDone` gates the ask** (owner: *"it's weird to have it there when they have not even
+  tried the game"*). It counts **ENDINGS, not starts** — a player who began a run and came back
+  has formed no opinion — and is incremented in **`runEndThen`**, deliberately not in
+  `showPicker`, which also fires at boot with no run behind it. `rateAskReady()` lets the
+  *thank-you* line through unconditionally, so rating can never be un-said by the gate. A retry
+  never reaches `runEndThen`, so it cannot inflate the count. Existing saves default to 0 and
+  meet the ask after their next ending.
+- **`hidden` DOES NOT HIDE `.ss-rate` on its own.** The rule carries `display:flex`, and any
+  author rule outranks the UA stylesheet's `[hidden] { display:none }` — so all three hiding
+  states left an empty **970×38 bordered rectangle** at the foot of the screen. Invisible while
+  only "No thanks" could trigger it (that player has already read the box); the play-first gate
+  makes it the first thing every new player sees. `.ss-rate[hidden] { display:none }` fixes it,
+  and `rate-check` asserts `hidden` **and** `display:none` **and** a zero-height box — the
+  original assertion was an OR and passed on the broken build.
+- `tests/rate-check.cjs` (32) drives the real screen through `__game.showPicker` and the model
+  through `__game.rate` (`runs(n)`, `ready()`, `press()`, `decline()`, `forget()`). Its gate
+  block runs FIRST — it is the only one wanting a save with no finished run — and drives a real
+  run through **`handlers.onMainMenu`**, not `__game.showTitle`: the latter calls `backToTitle`
+  directly and skips the funnel, so a check using it would prove nothing about `runEndThen`.
+  `openPicker` waits for `#ssRate` **attached**, not visible, or it hangs on exactly the states
+  the check exists to cover.
+
+### The fruiting celebration stands on the DRAWN hill
+
+`startCelebration(side)` scatters 46 mushrooms over a green hill — the RIGHT goal meadow on a
+win, the LEFT home hill on a death. **The hill is a SPRITE (`goalhill.png`, 1108×175, mirrored
+for home) and the mushrooms used to be placed by a FORMULA**, so where the two disagreed the
+mushrooms hung in mid-air. Reported by the owner from a screenshot: `pow(1 - fx, 0.9)` floored at
+0.28 decays far more slowly than the art's slope, so past the little tree at the halfway column
+the model asked for **0.156 of the hill's height where the art offers 0.029**.
+
+- **`hillTopProfile(img)` reads the per-column top edge off the sprite's ALPHA** (256 columns ×
+  the sprite's native height, cached per `img.src`), and **`hillRiseAtX`** turns a world x into
+  the green's rise above the soil line using the same `x0` / `wWorld` / `mirrored` the two
+  backdrop draws use. Pass what the draw passes and the placement cannot drift from the art.
+  Vertical resolution is why this is not `_alphaMask`: its 160 px mask gives 25 rows on this
+  sprite, ~3.6 world units, against ~0.5 here.
+- Applied to **both** hills. The goal side's `sin` profile has the same 0.28 floor and the same
+  divergence at the meadow's edges; leaving one side modelled would be two answers to "where is
+  the ground?".
+- **The scatter now SINKS rather than lifts** (`+ Math.random() * 1.2`). It subtracted before,
+  which is invisible up the slope and is exactly a float at the toe, where the green is barely a
+  unit tall. That alone accounted for three of the floaters.
+- The modelled dome survives only as the fallback for a frame drawn before the asset decodes (or
+  a tainted canvas), and `HILL_BASE_DROP` 0.04 is the base offset **both** draws use.
+- `tests/cele-check.cjs` (16) measures each mushroom's world y against the silhouette at its x,
+  through `__game.cele` (`start`/`mushrooms`/`hillTop`/`surfaceY`/`stop`). **Verified negative
+  control**: force the old placement and 9 of 23 home mushrooms float, worst +5.4 units, all of
+  them in the far half of the slope — exactly the reported region. Its own controls matter more
+  than usual: "never above the green" passes trivially on a build that lays them flat, so it also
+  insists they climb, that the far ones sit higher than the near ones, and that an **unmeasured**
+  column counts as a FAILURE rather than a skip (otherwise a fallback to the model passes
+  vacuously — the first version did).
 
 ### Retries
 

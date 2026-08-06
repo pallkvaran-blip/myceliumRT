@@ -47,7 +47,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       document.querySelectorAll('#speciesSelect, #levelIntro, #tutorial').forEach((n) => n.remove());
       window.__game.showPicker();
     });
-    await page.waitForSelector('#ssRate', { timeout: 10000 });
+    // ATTACHED, not visible: the box is in the DOM in every state and DISPLAYED in only some of
+    // them, so waiting for visibility hangs on exactly the cases this check exists to cover.
+    await page.waitForSelector('#ssRate', { state: 'attached', timeout: 10000 });
     await sleep(250);
   };
   const readBanner = () => page.evaluate(() => {
@@ -67,7 +69,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
              no: (() => { const n = box.querySelector('#ssRateNo'); return n ? n.textContent.trim() : null; })(),
              noSize: (() => { const n = box.querySelector('#ssRateNo');
                return n ? parseFloat(getComputedStyle(n).fontSize) : null; })(),
-             hidden: box.hidden || getComputedStyle(box).display === 'none',
+             // `hidden` ALONE IS NOT HIDDEN HERE. `.ss-rate` carries `display:flex`, and an author
+             // rule outranks the UA stylesheet's `[hidden] { display:none }` — so the attribute
+             // was set, the box read as hidden, and a 970x38 empty bordered rectangle sat at the
+             // foot of the screen anyway. Both, and the box must take no space.
+             hidden: box.hidden && getComputedStyle(box).display === 'none'
+                     && box.getBoundingClientRect().height === 0,
              link: link ? link.textContent.trim() : null,
              linkHref: link ? link.getAttribute('href') : null,
              // It must be the LAST thing on the screen (owner: "the bottom of the species
@@ -75,8 +82,50 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
              last: console_ ? console_.lastElementChild === box : null };
   });
 
+  // ---- the gate: nothing is asked of a player who has not played ----------------
+  // Owner: "it's weird to have it there when they have not even tried the game." Asserted FIRST,
+  // because it is the only block that wants a save with no finished run in it and everything
+  // below deliberately stocks one. The negative control is two lines down: the same screen, the
+  // same code, one more finished run, and the ask appears.
+  await page.evaluate(() => { window.__game.rate.forget(); window.__game.rate.runs(0); });
+  await openPicker();
+  let g0 = await readBanner();
+  ok('a player who has finished no run is not asked to rate',
+     g0.hidden === true && g0.text === null, `hidden=${g0.hidden} text=${g0.text}`);
+  ok('...and nothing is owed to them either',
+     await page.evaluate(() => window.__game.rate.state()) === null
+     && await page.evaluate(() => window.__game.rate.ready()) === false);
+  // NEGATIVE CONTROL — without it the assertion above passes on a banner that never renders.
+  await page.evaluate(() => window.__game.rate.runs(1));
+  await openPicker();
+  g0 = await readBanner();
+  ok('...but one finished run is enough to be asked',
+     g0.hidden === false && /Are you enjoying Mycelium\?/.test(g0.text || ''), g0.text);
+  // THE COUNT COMES FROM THE RUN ENDING, NOT FROM THE SETTER. `rate.runs(n)` is a convenience;
+  // if `runEndThen` stopped recording, every assertion above would still pass on it. So drive a
+  // real run to its end and watch the number move.
+  const counted = await page.evaluate(async () => {
+    const g = window.__game;
+    g.rate.forget(); g.rate.runs(0);
+    document.querySelectorAll('#speciesSelect, #levelIntro, #tutorial, #ssLevelComplete, #ssGameWon')
+      .forEach((n) => n.remove());
+    const before = g.rate.runs();
+    g.campaign.play('marasmius', 1);
+    await new Promise((r) => setTimeout(r, 300));
+    const during = g.rate.runs();          // a run in PROGRESS must not count
+    // THE REAL ENDING PATH, not `showTitle` — that one calls `backToTitle` directly and skips
+    // the funnel entirely, so a check driving it would prove nothing about `runEndThen`.
+    g.handlers.onMainMenu();
+    await new Promise((r) => setTimeout(r, 400));
+    return { before, during, after: g.rate.runs() };
+  });
+  ok('a run in progress does not count as one played',
+     counted.before === 0 && counted.during === 0, JSON.stringify(counted));
+  ok('...but ending it does', counted.after === 1, JSON.stringify(counted));
+  await page.evaluate(() => { document.querySelectorAll('#titleScreen').forEach((n) => n.remove()); });
+
   // ---- state A: never rated ---------------------------------------------------
-  await page.evaluate(() => window.__game.rate.forget());
+  await page.evaluate(() => { window.__game.rate.forget(); window.__game.rate.runs(1); });
   await openPicker();
   let b = await readBanner();
   ok('the ask is at the foot of the selection screen', b && b.last === true, b && `last child = ${b.last}`);
@@ -106,7 +155,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // Asserted BEFORE the accept path, and on a fresh state, because "No thanks" and "Rate" are
   // mutually exclusive answers and testing one after the other would be testing the second one's
   // effect on the first.
-  await page.evaluate(() => window.__game.rate.forget());
+  await page.evaluate(() => { window.__game.rate.forget(); window.__game.rate.runs(1); });
   await openPicker();
   await page.click('#ssRateNo');
   await sleep(250);
@@ -119,7 +168,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('...and it never comes back', d.hidden === true, `hidden=${d.hidden}`);
   ok('...having cost the player no boon they had already earned',
      await page.evaluate(() => window.__game.rate.state()) === null);
-  await page.evaluate(() => window.__game.rate.forget());
+  await page.evaluate(() => { window.__game.rate.forget(); window.__game.rate.runs(1); });
   await openPicker();
 
   // ---- state B: pressed, this visit -------------------------------------------
@@ -214,7 +263,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // say so.
   await page.evaluate(async () => {
     const g = window.__game;
-    g.rate.forget(); g.rate.press();
+    g.rate.forget(); g.rate.runs(1); g.rate.press();
     g.campaign.play('marasmius', 1);
     await new Promise((r) => setTimeout(r, 300));
   });
