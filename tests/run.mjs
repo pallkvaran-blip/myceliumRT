@@ -31,6 +31,7 @@ const CHECKS = [
   ['boot',      'boot-check.cjs',    60,  false],
   ['hs',        'hs-check.cjs',      35,  false],
   ['store',     'store-check.cjs',   35,  false],
+  ['rate',      'rate-check.cjs',    40,  false],
   ['campaign',  'campaign-check.cjs', 45, false],
   ['water',     'water-check.cjs',   30,  false],
   ['surface',   'surface-edit-check.cjs', 30, false],

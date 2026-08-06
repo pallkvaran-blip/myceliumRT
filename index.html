@@ -1089,6 +1089,24 @@
 
     .ss-body { padding:6px clamp(20px,4vw,44px) clamp(28px,4vw,44px); }
     .ss-section { margin-top:clamp(22px,3vw,34px); }
+    /* ---- the rating ask, at the foot of the selection screen ------------------
+       Names checked free before adding — this sheet is one unscoped block and has silently
+       shadowed a rule three times (.li-count, .ss-hint, .li-of--foot). Deliberately QUIET: it sits
+       below everything the player came here to do, and an ask that shouts is an ask that gets
+       dismissed. Boxed rather than bare so it reads as an aside rather than as another section. */
+    .ss-rate { margin-top:clamp(26px,3.4vw,40px); padding:clamp(12px,1.6vw,18px) clamp(14px,2vw,22px);
+      border:1px solid rgba(127,230,163,0.18); border-radius:12px; background:rgba(12,22,17,0.5);
+      display:flex; align-items:center; justify-content:center; gap:clamp(10px,1.6vw,20px);
+      flex-wrap:wrap; text-align:center; }
+    .ss-rate-msg { margin:0; font-size:13px; line-height:1.5; color:var(--ss-ink-dim); max-width:62ch; }
+    .ss-rate-thanks { color:var(--ss-mint); font-weight:600; }
+    .ss-rate-link { color:var(--ss-mint); text-decoration:underline; text-underline-offset:2px; }
+    .ss-rate-link:hover { color:var(--ss-mint-hi); }
+    .ss-rate-btn { flex:0 0 auto; display:inline-block; text-decoration:none; cursor:pointer;
+      font:inherit; font-size:13px; font-weight:700; letter-spacing:.04em;
+      padding:8px 22px; border-radius:10px; color:#06231a; background:var(--ss-mint);
+      border:1px solid var(--ss-mint); transition:background .12s, color .12s; }
+    .ss-rate-btn:hover { background:var(--ss-mint-hi); border-color:var(--ss-mint-hi); }
     .ss-section:first-child { margin-top:8px; }
     .ss-rowlabel { display:flex; align-items:baseline; gap:12px; margin-bottom:14px; }
     .ss-lk { font-size:12px; letter-spacing:0.2em; text-transform:uppercase; font-weight:700; color:var(--ss-ink); }
@@ -1457,6 +1475,11 @@
       font-size:clamp(22px,3.4vw,34px); color:#eaf7ff; line-height:1;
       text-shadow:0 1px 4px rgba(0,0,0,0.85), 0 0 26px rgba(127,230,163,0.28); }
     .ss-win-earned .spore-ic { width:0.95em; height:0.95em; vertical-align:-0.11em; margin-left:6px; }
+    /* "+100 × 2 = 200" — the working, shown only while the rating boon is being spent. The
+       operator is smaller and dimmer than the two numbers because it is punctuation between them,
+       not part of the reward. */
+    .ss-win-earned .ss-win-x { font-size:0.62em; font-weight:600; color:var(--ss-mint);
+      margin:0 0.34em; letter-spacing:.02em; }
     /* .ss-win-unlock styled the "New species available for purchase!" line, retired with it
        (owner) — kept because showSpeciesUnlocked's sibling markup shares this family and the
        line comes back the moment a tier species moves into STORE_SPECIES_IDS. */
@@ -11379,6 +11402,46 @@ function sporesBalance(progress) {
   const p = progress || loadProgress();
   return (typeof p.spores === 'number' && isFinite(p.spores)) ? p.spores : 0;
 }
+// ===================== rating the game, and the boon for it =====================
+// The species-selection screen asks the player to rate Mycelium on itch, and doubles the Spores
+// from their NEXT run if they do. We cannot know whether they actually rated — itch tells us
+// nothing — so pressing the button IS the promise being kept, and it can only ever be kept once.
+//
+// TWO FIELDS, not one, and the second is why a page reload cannot cost the player their boon:
+//   p.rated      they pressed the button. Permanent; the banner never asks again.
+//   p.rateBonus  'armed'  — owed a doubled run, none started yet
+//                'active' — the run IN PROGRESS is the doubled one
+//                null     — spent, or never earned
+// Collapsing those into a single boolean consumed at run start would mean a player who pressed
+// Rate, began a run and then closed the tab came back to neither the bonus nor the offer.
+const RATE_URL = 'https://pallkvaran.itch.io/mycelium/rate?source=game';
+const hasRated = (progress) => !!(progress || loadProgress()).rated;
+// Arm the boon. Returns true only the FIRST time — pressing the link again on a later visit is
+// a second trip to the rating page, not a second doubling.
+function markRated() {
+  const p = loadProgress();
+  if (p.rated) return false;
+  p.rated = true;
+  p.rateBonus = 'armed';
+  saveProgress(p);
+  return true;
+}
+// Called where a run BEGINS. Moves an armed boon onto the run, so the multiplier survives a
+// reload-and-resume, and returns the multiplier that run pays at.
+function beginRunSpores() {
+  const p = loadProgress();
+  if (p.rateBonus === 'armed') { p.rateBonus = 'active'; saveProgress(p); return 2; }
+  return p.rateBonus === 'active' ? 2 : 1;
+}
+// The multiplier a run in progress pays at — the value a RESUMED run reads, since nothing else
+// remembers it across a reload.
+const runSporeMultiplier = (progress) => ((progress || loadProgress()).rateBonus === 'active' ? 2 : 1);
+// Called where a run ENDS, however it ends. The boon is one run, win or lose.
+function endRunSpores() {
+  const p = loadProgress();
+  if (p.rateBonus === 'active') { p.rateBonus = null; saveProgress(p); }
+}
+
 // Credit the wallet (e.g. for clearing a level); persists and returns new balance.
 function addSpores(amount) {
   const p = loadProgress();
@@ -11797,7 +11860,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -22978,7 +23041,7 @@ function growMyceliumTitle(container, opts = {}) {
 
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
-  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, loadDeck, deckBucketFor, deckBuckets, deckSize,
+  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, loadDeck, deckBucketFor, deckBuckets, deckSize,
     STORE_UPGRADES, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
@@ -23493,6 +23556,8 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
           '<div class="ss-rowlabel"><span class="ss-lk">Upgrades</span><span class="ss-rule"></span></div>' +
           '<div class="ss-upgrades" id="ssUpg"></div>' +
         '</section>' +
+        // The rating ask, at the very bottom — below everything the player came here to do.
+        '<div class="ss-rate" id="ssRate"></div>' +
       '</div>' +
     '</div>';
   document.body.appendChild(root);
@@ -23507,6 +23572,38 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   const saleGrid = root.querySelector('#ssForSale');
   const saleSec = root.querySelector('#ssForSaleSec');
   const upgGrid = root.querySelector('#ssUpg');
+  const rateBox = root.querySelector('#ssRate');
+  // THREE STATES, and the middle one lives only for this visit to the screen. Pressing Rate swaps
+  // the copy in place — the promise should be acknowledged where it was made, not one screen
+  // later — but a later visit says "Thank you for rating" whether or not the doubled run has
+  // been played yet. So it is a local flag rather than anything persisted: the persisted answer
+  // to "have they rated?" is one bit, and this is a different question.
+  let rateThanksNow = false;
+  function renderRate() {
+    if (hasRated(progress) && !rateThanksNow) {
+      // The link stays live — some players will want to go back and change a rating — but
+      // `markRated` refuses to arm a second boon, so this cannot be farmed.
+      rateBox.innerHTML = '<p class="ss-rate-msg">Thank you for '
+        + '<a class="ss-rate-link" id="ssRateLink" href="' + RATE_URL + '" target="_blank" rel="noopener noreferrer">rating</a></p>';
+      return;
+    }
+    if (rateThanksNow) {
+      rateBox.innerHTML = '<p class="ss-rate-msg ss-rate-thanks">Thank you! Your spores will be doubled.</p>';
+      return;
+    }
+    rateBox.innerHTML =
+      '<p class="ss-rate-msg">Are you enjoying Mycelium? Please consider rating us on itch.io'
+        + ' — we\'ll double the spores you get from your next run!</p>'
+      + '<a class="ss-rate-btn" id="ssRateBtn" href="' + RATE_URL + '" target="_blank" rel="noopener noreferrer">Rate</a>';
+    rateBox.querySelector('#ssRateBtn').addEventListener('click', () => {
+      // The anchor still opens the page; this only records the promise. Pressing IS the rating as
+      // far as the game can tell — itch tells us nothing back.
+      markRated();
+      progress = loadProgress();
+      rateThanksNow = true;
+      renderRate();
+    });
+  }
 
   const read = (s) => openSpeciesDetail(s);
   // Every colony opens on level 1 (CAMPAIGN_START_LEVEL). `defaultStartLevel` — which let a
@@ -23515,6 +23612,7 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   const select = (s) => { hide(); onPick && onPick(s, CAMPAIGN_START_LEVEL); };
 
   function render() {
+    renderRate();
     const bal = sporesBalance(progress);
     wallet.innerHTML = SPORE_ICON + '<span class="ss-sp-n">' + bal + '</span>';
     // The count is COPIES, not distinct names — "how big is my deck?" has one answer. Rendered
@@ -23576,7 +23674,7 @@ const WIN_WORDS = ['Success', 'You made it'];
 // `unlocked` is still in the signature and main still computes it: the REVEAL is recorded either
 // way, so moving one of the tier species into STORE_SPECIES_IDS brings the whole moment back
 // rather than needing it rebuilt.
-function showLevelComplete({ level, maxLevel, unlocked, earned, balance, onNext }) {
+function showLevelComplete({ level, maxLevel, unlocked, earned, base, mult, balance, onNext }) {
   const root = el('div', 'ss-win'); root.id = 'ssLevelComplete';
   const word = WIN_WORDS[(Math.random() * WIN_WORDS.length) | 0];
   // No container — the win headline is grown in mycelium (with lighting behind), then a
@@ -23585,7 +23683,15 @@ function showLevelComplete({ level, maxLevel, unlocked, earned, balance, onNext 
   root.innerHTML =
     '<div class="ss-win-title" role="img" aria-label="' + esc(word) + '"></div>' +
     '<p class="ss-win-sub">You fruited and spored</p>' +
-    (earned ? '<p class="ss-win-earned"><b>+' + earned + '</b>' + SPORE_ICON + '</p>' : '') +
+    // WITH THE RATING BOON, SHOW THE ARITHMETIC (owner: "+x * 2 = 200"). A doubled number that
+    // just appears is indistinguishable from the game having always paid that; the working is what
+    // makes the reward land as a reward.
+    (earned
+      ? (mult > 1
+          ? '<p class="ss-win-earned"><b>+' + base + '</b><span class="ss-win-x">&times;&nbsp;' + mult
+            + '&nbsp;=</span><b>' + earned + '</b>' + SPORE_ICON + '</p>'
+          : '<p class="ss-win-earned"><b>+' + earned + '</b>' + SPORE_ICON + '</p>')
+      : '') +
     '<button class="ss-win-btn" id="ssWinProceed" type="button">Proceed</button>';
   document.body.appendChild(root);
   const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: word.toUpperCase(), stepRate: 3.2 });
@@ -25704,7 +25810,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, loadProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -25745,6 +25851,10 @@ let runStartLevel = 1;                // the level THIS run began on — death-c
 let carryOver = null;                  // deck+resources snapshot transplanted onto the next level (null = seed fresh)
 let resumeSnapshot = null;             // set by title "Old" → continue: rebuild the saved level's deck in begin()
 let runSpores = 0;                      // Spores earned across the current run (levels finished) — shown on death
+// What this run pays per level: 2 while the rating boon is being spent, else 1. Held here for the
+// frame-to-frame reads, but the AUTHORITY is `p.rateBonus === 'active'` in the save — so a run
+// resumed after a reload still pays double, which is the whole reason the boon is two fields.
+let runSporeMult = 1;
 let _runOverPresented = false;         // guard: show the end-of-level / death overlay once per run
 let _runOverAt = 0;                    // when the run first flagged over — used to let the last grow finish animating before the win/lose sequence
 const REVEAL_END_WAIT = 2800;          // hard cap (ms) so a stuck reveal can never hang the ending
@@ -26046,6 +26156,13 @@ function showCampaignOpening(next) {
 
 // Show the start-of-run picker (also used on death → back to picker).
 function showPicker() {
+  // THE RATING BOON IS RELEASED HERE TOO, and this is the belt to `runEndThen`'s braces. Being at
+  // the species picker means no run is in progress — that is true by construction in the shipped
+  // game — so it is the one place that cannot be routed around. `runEndThen` is where the release
+  // BELONGS semantically; this is where it cannot be missed. Idempotent: it only acts on 'active',
+  // so a boon merely 'armed' (pressed Rate, no run yet) survives every visit to this screen.
+  endRunSpores();
+  runSporeMult = 1;
   hideCanvas();      // never let a finished run's map show behind the picker
   playMenuMusic();   // vol29 keeps playing (or starts) across the title → picker
   showSpeciesSelect({
@@ -26053,8 +26170,8 @@ function showPicker() {
     // hash, which skips the picker — now the dev map buttons below set it from inside the
     // picker, and levelDefFor() prefers it over every campaign slot, so leaving it set
     // would silently serve the authored map for the rest of the session.
-    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; runTips = new Set(); stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
-    onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; runTips = new Set(); startRun(); },
+    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores(); stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel }); startRunWithLoadout(sp); },
+    onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores(); startRun(); },
     // DEV: play an authored map with the dev loadout — the same thing `#level,<id>` does,
     // reachable without retyping the URL.
     onLevel: (id) => {
@@ -26146,6 +26263,12 @@ let runDeck = [];
 // this species is picked. No UI here — the curation happens at run start now. Then
 // continue via `next`.
 function runEndThen(next) {
+  // THE RATING BOON IS ONE RUN, win or lose, and this is the single funnel every ending goes
+  // through — the death card's "back to the picker", the keep screen, and finishing the campaign
+  // all arrive here. Releasing it at each of those instead would be three chances to leave a
+  // player permanently on double.
+  endRunSpores();
+  runSporeMult = 1;
   // The per-species record of last run's drafts is GONE with the picker that read it — the deck is
   // the one carry now, and `state.cards.runDrafted` still feeds the keep screen's pool directly.
   next();
@@ -26394,7 +26517,8 @@ function presentRunOver() {
       // without money moving in and out of the wallet behind them.
       if (r.died && !r._sporesAwarded) {
         r._sporesAwarded = true;
-        r._pendingSpores = Math.max(0, Math.floor(sporesForLevel(currentLevel) / 2));
+        r._pendingSpores = Math.max(0, Math.floor(sporesForLevel(currentLevel)
+          * Math.max(runSporeMult, runSporeMultiplier()) / 2));
       }
       // What the death screen reports: everything banked from levels cleared, PLUS the pending
       // half this death is worth. "Collected so far" is the honest word for a figure the player
@@ -26648,7 +26772,11 @@ function onLevelWon() {
   recordLevelCleared(cleared);
   // Finishing a level pays Spores (100 × level) into the persistent wallet; also
   // tallied into this run's total for the death card.
-  const earned = sporesForLevel(cleared);
+  // THE RATING BOON DOUBLES THIS. `runSporeMult` is the live value; the save is the authority, so
+  // a run resumed after a reload still pays double even though nothing in memory remembered it.
+  const base = sporesForLevel(cleared);
+  const mult = Math.max(runSporeMult, runSporeMultiplier());
+  const earned = base * mult;
   const balance = addSpores(earned);
   runSpores += earned;
   ui.hideOverlay();
@@ -26664,7 +26792,8 @@ function onLevelWon() {
   } else {
     const snap = snapshotCarry();
     showLevelComplete({
-      level: cleared, maxLevel: campaignRun() ? CAMPAIGN_LEVELS : MAX_LEVEL, unlocked: newlyRevealed, earned, balance,
+      level: cleared, maxLevel: campaignRun() ? CAMPAIGN_LEVELS : MAX_LEVEL, unlocked: newlyRevealed,
+      earned, base, mult, balance,
       onNext: () => { currentLevel = cleared + 1; carryOver = snap; startRun(); },
     });
   }
@@ -26720,7 +26849,8 @@ function showMainMenu() {
         // ago. Empty is the honest answer: whatever the player owned is already INSIDE the
         // snapshot's deck, and reaches the pool through what they play or draft from here.
         runDeck = [];
-        runSpores = 0; for (let l = runStartLevel; l < currentLevel; l++) runSpores += sporesForLevel(l);
+        runSporeMult = runSporeMultiplier();
+        runSpores = 0; for (let l = runStartLevel; l < currentLevel; l++) runSpores += sporesForLevel(l) * runSporeMult;
         stockRun();   // a resumed run gets its retries too — they are bought, not earned in-run
         startRun();   // → begin() rebuilds the saved deck via rebuildCardsFromSnapshot
       } else {
@@ -28047,6 +28177,16 @@ function begin(newState) {
     // own content and shape can be checked without four clicks in front of them.
     showOpening: (next) => showCampaignOpening(next),
     resumeKey: () => resumeKey(),
+    // The itch rating ask and the boon it pays. `rate.press()` is the button's own path minus the
+    // new tab, so a check can exercise the promise without a popup it cannot close.
+    rate: {
+      url: RATE_URL,
+      rated: () => hasRated(),
+      state: () => (loadProgress().rateBonus || null),
+      mult: () => runSporeMultiplier(),
+      press: () => markRated(),
+      forget: () => { const p = loadProgress(); delete p.rated; delete p.rateBonus; saveProgress(p); },
+    },
     store: {
       upgrades: STORE_UPGRADES,
       level: upgradeLevel, value: upgradeValue, nextCost: upgradeNextCost, buy: buyUpgrade,
@@ -28103,7 +28243,7 @@ function begin(newState) {
         setGame('campaign');   // the title screen's Campaign row does this; without it the run is Survival
         playtestLevel = null; chosenSpecies = sp;
         currentLevel = Math.max(1, (level | 0) || CAMPAIGN_START_LEVEL); runStartLevel = currentLevel;
-        carryOver = null; runSpores = 0; runTips = new Set();
+        carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores();
         stockRun();   // same as the picker's Select — a run without this has no retries to spend
         startRun();
         return true;
