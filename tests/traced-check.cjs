@@ -142,7 +142,19 @@ const TRACED = ALL.filter((l) => l && l.traced)
 
       const root = window.__game.state.active.nodes[0];
       const f = flood(root.x, root.y);
-      const goalX = sub.worldWidth - cs * 2;
+      // CAN THE COLONY WIN? Ask the question `checkGoalReached` asks, not a proxy for it: is any
+      // column flagged `surface[c].goal` reachable within `goalSurfaceDepth` of the soil line?
+      //
+      // This used to probe ONE POINT — `worldWidth - cs*2` at three fixed depths — which is a bet
+      // that the far corner is open. Every tracer-sized map wins that bet because the goal CHANNEL
+      // is dug there; a map with `clearChannels: false` has ordinary rock in the corner and the
+      // probe reads "sealed" on a map that is perfectly winnable. `0-survival-veined-40-main`
+      // failed exactly that way: its corner is under a 667-wide boulder, and 7 of its 13 goal
+      // columns are reachable at win depth. The goal is 13 columns wide (goalCols 6 + summerCols
+      // 7, and buildLevel flags the summer approach `goal` too) — fruiting in any of them wins.
+      const goalDepth = window.__game.state.config.cards.goalSurfaceDepth != null
+        ? window.__game.state.config.cards.goalSurfaceDepth
+        : window.__game.state.config.actions.fruit.reachDepth;
       const piles = [];
       for (let c = 0; c < sub.cols; c++) for (let r = 0; r < sub.rows; r++) {
         const cell = sub.cellAt(c, r);
@@ -179,10 +191,22 @@ const TRACED = ALL.filter((l) => l && l.traced)
       for (let fr = 0; fr < artRows; fr++)
         for (let fc = 0; fc < FC; fc++) if (mask[fr * FC + fc]) solidN++;
 
+      let goalCols = 0, reachableGoalCols = 0;
+      for (let c = 0; c < sub.cols; c++) {
+        const surf = sub.surface[c];
+        if (!surf || !surf.goal) continue;
+        goalCols++;
+        if (!f) continue;
+        for (let d = 2; d <= goalDepth; d += fsz / 2) {
+          if (f.reaches(c * cs + cs / 2, surfaceY + d)) { reachableGoalCols++; break; }
+        }
+      }
+
       return {
         digsChannels,
         floods: !!f, size: f ? f.n : 0, total: FC * FR,
-        reachesGoal: f ? [60, 300, 700].some((dy) => f.reaches(goalX, surfaceY + dy)) : false,
+        goalCols, reachableGoalCols,
+        reachesGoal: reachableGoalCols > 0,
         piles: piles.length, unreachable, overlap,
         gapL: Math.round(gapL), gapR: Math.round(gapR), cs,
         rockPct: Math.round(1000 * solidN / artN) / 10,
@@ -190,8 +214,9 @@ const TRACED = ALL.filter((l) => l && l.traced)
     });
 
     ok(`${ID}: the colony sits in open soil`, res.floods);
-    ok(`${ID}: open space runs colony → goal channel`, res.reachesGoal,
-      `reachable region is ${Math.round(100 * res.size / res.total)}% of the underground`);
+    ok(`${ID}: the colony can reach the goal surface and fruit`, res.reachesGoal,
+      `${res.reachableGoalCols} of ${res.goalCols} goal column(s) reachable at win depth` +
+      ` — reachable region is ${Math.round(100 * res.size / res.total)}% of the underground`);
     ok(`${ID}: every food cell is reachable`, res.unreachable === 0, `${res.unreachable} of ${res.piles} sealed off`);
     // ONLY WHERE THERE IS A pathClear CHANNEL TO OVERLAP. buildLevel digs the entry and goal
     // channels and flags them pathClear, which solidifyRock honours as "never solid" — so a

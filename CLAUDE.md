@@ -2401,6 +2401,15 @@ through untouched and are re-runnable.
   ones where the first and last few columns are ordinary ground rather than a guaranteed lane.
   A future survival map added by hand needs the flag too, or its edge rock goes see-through —
   `survival-check` asserts it.
+- **AND THAT BROKE `traced-check`'S GOAL PROBE, which was measuring a proxy.** It sampled ONE
+  POINT — `worldWidth - cs*2` at three fixed depths — which is a bet that the far corner is open,
+  and every tracer-sized map wins that bet *because the goal channel is dug there*. With the
+  channels off, `0-survival-veined-40-main`'s corner is ordinary rock under a 667-wide boulder and
+  the probe read "sealed" on a map that is fine. It asks `checkGoalReached`'s own question now:
+  is any column flagged `surface[c].goal` reachable within `goalSurfaceDepth`? The goal is **13
+  columns wide** (goalCols 6 + summerCols 7 — `buildLevel` flags the summer approach `goal` too),
+  and fruiting in any of them wins. Measured across the 17: **7 to 13 of 13 reachable**, every map
+  winnable, veined-40 the tightest at 7.
 - The **tutorial still works**: it injects its own orange starter pile (`injectFoodPile`), which
   already tests `cell.rock` and keeps a 1.5-cell clearance, and by the time it runs the mask exists.
 - `tests/survival-check.cjs` (35) covers all of it, with `__game.survival`

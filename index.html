@@ -27920,10 +27920,23 @@ function survivalRun() { return !!chosenSpecies && !playtestLevel && !isCampaign
 // (__m_levels_data, GENERATED from docs/levels/*.json), else null → the procedural generator.
 function levelDefFor(n) {
   if (playtestLevel) return playtestLevel;
-  if (survivalRun()) {
-    const id = survivalMapIdFor(n);
+  // SURVIVAL NEVER SERVES A CAMPAIGN MAP, and the fall-through that let it is the whole reason
+  // this reads as a branch on the GAME rather than a chain of fallbacks. `levelForNumber(n)`
+  // answers "which map claims campaign slot n", and it does not care which game is being played
+  // — so on survival level 1 it handed back `campaign-01-magnetite-c40`. Reported as *"I'm trying
+  // to start a run in survival mode, but it's sending me to campaign maps"*, and it was true of
+  // every survival run with no chosen species: the picker's Dev quick-start and the `#dev` boot.
+  //
+  // It also PREDATES the survival pool. Survival levels 1-10 have been serving the campaign's ten
+  // authored maps ever since those maps claimed their slots — the "a fresh procedural roll every
+  // level" in the notes stopped being true then and nothing noticed, because the maps are good
+  // and a survival player has no way to know which map they were owed.
+  if (!isCampaignGame()) {
+    const id = survivalRun() ? survivalMapIdFor(n) : null;
     const def = id ? levelById(id) : null;
-    if (def) return def;
+    // No pool, or a dev run with no species: null → the procedural generator, which is what the
+    // sandbox has always been and what `core-check`'s no-core case needs.
+    return def || null;
   }
   return levelForNumber(n);
 }
