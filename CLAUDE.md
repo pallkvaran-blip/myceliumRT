@@ -2523,6 +2523,17 @@ death was firing; the screen was lying about it.
   DATA, not engine: the maps want re-tracing at a different count or dropping from the
   shortlist, and `rust` only ever converted at c90 (see Generated maps). Every sweep reports
   them; nothing else in `traced`'s 818 fails.
+  - **A SEVENTH turned up and was the HARNESS RACING THE WORLD CLOCK.**
+    `campaign-10-ember-c30-5: every food cell is reachable — 2 of 61 sealed off` looked like map
+    data and was not: **`#level,<id>` boots REAL TIME**, so the sim starts ticking the moment the
+    map loads and the threats begin eating. Measured on that map, food went **105 cells → 94 → 83
+    → 61 → 41 → 10 over two and a half seconds**, and the assertion reported 2 or 4 sealed
+    depending on which tick it landed on — the same build answering differently five runs in a
+    row. `traced-check` boots `#level,<id>,turn` now; nothing advances without a player action, so
+    a map is counted as AUTHORED. Three boots read a flat 105.
+    **The trap generalises**: any check that boots a map and then measures anything a threat can
+    touch is on a clock unless it says `,turn`. And the diagnosis is worth copying — before
+    blaming a map, boot it twice and see whether it answers the same way.
 - Five checks are unreliable and all five are harness-side, not game-side. Re-run before
   believing any of them. (`turn-play` was a sixth and is fixed — see below.)
   - **`tut`'s real-time assertions fail on some runs** — the starter pile hasn't finished

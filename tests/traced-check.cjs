@@ -79,7 +79,13 @@ const TRACED = ALL.filter((l) => l && l.traced)
     page.on('pageerror', (e) => errs.push(String(e && e.message)));
     page.on('console', (m) => { if (m.type() === 'error') errs.push('console:' + m.text()); });
     await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
-    await page.goto(base + '/index.html#level,' + ID, { waitUntil: 'domcontentloaded' });
+    // TURN-BASED, or this check races the world clock. `#level,<id>` alone boots REAL TIME, so
+    // the sim starts ticking the moment the map loads and the threats begin eating — measured on
+    // campaign-10-ember-c30-5, the food went 105 cells -> 94 -> 83 -> 61 -> 41 -> 10 over two and
+    // a half seconds, and "every food cell is reachable" then reported 2 or 4 sealed depending on
+    // which tick it happened to land on. It read as map data and was the harness. In turn-based
+    // nothing advances without a player action, so the map is counted as AUTHORED.
+    await page.goto(base + '/index.html#level,' + ID + ',turn', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
     await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
     await page.waitForFunction(() => window.__game && window.__game.state && window.__game.state.active, null, { timeout: 30000 }).catch(() => {});
