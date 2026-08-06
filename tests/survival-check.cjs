@@ -210,6 +210,62 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
   ok('a run with a chosen species is a survival run', dev.isRun);
 
   await page.screenshot({ path: path.join(__dirname, '.artifacts', 'survival-level.png'), animations: 'disabled', timeout: 15000 }).catch(() => {});
+
+  // ---- "Old" comes back to the SAME map --------------------------------------------------
+  // The rotation is a run-long shuffle held in memory. It is written into the resume snapshot and
+  // restored AFTER `stockRun()` (which resets it) — get that ordering wrong, or drop the field,
+  // and the player resumes onto a different map for the level they left off on. Neither half is
+  // visible from the model alone, so this drives the real screens: New → picker → Start Run, then
+  // a genuine page RELOAD, then Old. Its own context, because the point is that localStorage
+  // survives and the module state does not.
+  console.log('\n-- the title screen\'s "Old" returns to the same map --');
+  const ctx2 = await browser.newContext({ viewport: { width: 1300, height: 820 } });
+  const p2 = await ctx2.newPage();
+  await p2.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+  const boot = async () => {
+    await p2.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 }).catch(() => {});
+    await p2.click('#loadscreen', { timeout: 5000 }).catch(() => {});
+  };
+  await p2.goto(base + '/index.html', { waitUntil: 'domcontentloaded' }); await boot();
+  await p2.waitForSelector('#tsNew', { timeout: 30000 }); await p2.click('#tsNew');
+  await p2.waitForSelector('#tsNameStart', { timeout: 30000 }); await sleep(700); await p2.click('#tsNameStart');
+  await p2.waitForSelector('#speciesSelect', { timeout: 30000 });
+  const startBtn = await p2.$('#speciesSelect button:has-text("Start Run")');
+  if (startBtn) await startBtn.click();
+  const ran = await p2.waitForFunction(() => !!(window.__game && window.__game.state && window.__game.state.levelDef),
+    { timeout: 40000 }).then(() => true).catch(() => false);
+  ok('the title → picker → Start Run path reaches a survival map', ran);
+  if (ran) {
+    await sleep(3000);
+    const b4 = await p2.evaluate(() => {
+      const g = window.__game;
+      try { g.saveResume && g.saveResume(); } catch (_) {}   // as a tab-close would
+      return { id: g.state.levelDef.id, order: g.survival.order().join('|') };
+    });
+    ok('a real survival run serves a survival map', /^0-survival-/.test(b4.id) || inGame.includes(b4.id), b4.id);
+    const slot = await p2.evaluate(() => {
+      for (const k of ['mycelium.resume.v1', 'mycelium.resume.rt.v1']) {
+        try { const r = JSON.parse(localStorage.getItem(k) || 'null'); if (r) return (r.survivalOrder || []).join('|'); } catch (_) {}
+      }
+      return null;
+    });
+    ok('the rotation is written into the resume slot', slot === b4.order && !!slot,
+      slot === null ? 'no survivalOrder saved' : `${(slot || '').split('|').length} map(s)`);
+    await p2.goto(base + '/index.html', { waitUntil: 'domcontentloaded' }); await boot();
+    await p2.waitForSelector('#tsCont', { timeout: 30000 }); await p2.click('#tsCont');
+    const back = await p2.waitForFunction(() => !!(window.__game && window.__game.state && window.__game.state.levelDef),
+      { timeout: 40000 }).then(() => true).catch(() => false);
+    ok('"Old" resumes into a level', back);
+    if (back) {
+      await sleep(3000);
+      const af = await p2.evaluate(() => ({ id: window.__game.state.levelDef.id, order: window.__game.survival.order().join('|') }));
+      ok('...on the SAME map it left off on', af.id === b4.id, `${b4.id} → ${af.id}`);
+      ok('...with the rotation restored, not reshuffled', af.order === b4.order,
+        af.order === b4.order ? 'identical' : 'differs');
+    }
+  }
+  await ctx2.close();
+
   ok('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   await browser.close(); srv.close();

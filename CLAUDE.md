@@ -597,7 +597,7 @@ passes the cascade half** just as "claims everything" passes the forgiveness hal
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**44 checks registered in `run.mjs`**, roughly 2465 assertions, of which `traced` is 818 (one map's
+**44 checks registered in `run.mjs`**, roughly 2470 assertions, of which `traced` is 818 (one map's
 worth each). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -2412,7 +2412,7 @@ through untouched and are re-runnable.
   winnable, veined-40 the tightest at 7.
 - The **tutorial still works**: it injects its own orange starter pile (`injectFoodPile`), which
   already tests `cell.rock` and keeps a 1.5-cell clearance, and by the time it runs the mask exists.
-- `tests/survival-check.cjs` (35) covers all of it, with `__game.survival`
+- `tests/survival-check.cjs` (42) covers all of it, with `__game.survival`
   (`maps`/`order`/`mapFor`/`reset`/`isRun`/`defFor`/`play`).
 
 ## The campaign itself
