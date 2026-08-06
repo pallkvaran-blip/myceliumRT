@@ -52,7 +52,16 @@ const ROOT = path.resolve(__dirname, '..');   // the repo root — served as-is
   ok('the "Decided" filter shows only decided cards', shownDone===1, `${shownDone} shown`);
   await page.click('.chip[data-f="cooldown"]');
   const shownCd=await page.$$eval('.card:not(.hidden)', c=>c.length);
-  ok('the "Cooldowns" filter narrows to cooldown cards', shownCd===21, `${shownCd} shown`);
+  // DERIVED, NOT PINNED. This was `=== 21`, and the first card-text edit that moved a card off a
+  // cooldown broke it with nothing wrong — Sinker Rhizomorph and Melanized Wall became "once per
+  // level", so 21 became 19 and the check reported a regression it had invented. What has to hold
+  // is that the filter shows the cooldown cards and only those; the COUNT is card data. The floor
+  // is what stops "shows nothing" passing, which is the failure a bare equality was really for.
+  // ROWS is the page's own data (a top-level const in a classic script, so a bare reference
+  // resolves where `window.ROWS` would not) — the same list the filter itself reads.
+  const wantCd=await page.evaluate(()=>ROWS.filter(r=>r.kind==='cooldown').length);
+  ok('the "Cooldowns" filter narrows to cooldown cards',
+     shownCd===wantCd && wantCd>=10, `${shownCd} shown of ${wantCd} cooldown cards`);
   await page.click('.chip[data-f="all"]');
   await page.fill('#q','aquaporin');
   const shownQ=await page.$$eval('.card:not(.hidden)', c=>c.length);

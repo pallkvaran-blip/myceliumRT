@@ -597,7 +597,7 @@ passes the cascade half** just as "claims everything" passes the forgiveness hal
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**35 checks registered in `run.mjs`**, roughly 1955 assertions, of which `traced` is 818 (one map's
+**36 checks registered in `run.mjs`**, roughly 2000 assertions, of which `traced` is 818 (one map's
 worth each). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -1724,6 +1724,45 @@ copies. Don't hand-edit the page.
   hand fix rather than leaving a knob whose comment argues for the value it no longer holds.
 - Art is inlined as 96px data URIs (224 KB page) because the Artifact CSP blocks every external
   request — a relative `assets/cards/x.jpg` renders as nothing. `--no-art` skips it.
+
+### ...and what a text edit actually cost (the first batch through it)
+
+**A card's promise lives in `CARD_DATA` and its behaviour lives in `EFFECTS`, and NOTHING joins
+them but a reader.** The tool's own check cannot see the gap — it compares the page against
+CARD_DATA and both can agree while the code does something else. **`tests/card-rules-check.cjs`
+(45) is the join**, and it asserts every number against the card's own TEXT as well as through the
+sim, because a retune that moves the code and leaves the text is exactly as wrong as the reverse.
+Verified negative control: revert the behaviour and keep the text, and 22 of its 45 fail.
+
+The owner's first batch moved eight rules. Two are worth knowing beyond their own cards:
+
+- **"ONCE PER LEVEL" IS `perLevel`, NEVER `per`** (Sinker Rhizomorph, Melanized Wall — both were
+  cooldowns). `produceCardEngines` zeroes `used` on every round boundary, so `per: 1` comes back
+  every round and is worth roughly ten times what the card says. The machinery already existed for
+  the species specials; the cards just set `perLevel: 1` and drop `every`.
+  - **AND IT NEEDED THE RESUME HALF, which the specials had and cards did not.** Installed actions
+    are saved BY NAME and rebuilt by replaying the install (`reinstallByName`), which restores
+    `used` and `cd` and knows nothing about `usedLevel` — so a tab-close handed the use back. The
+    snapshot carries **`actionsUsedLevel`**, a side map keyed by name rather than turning `actions`
+    into objects, so an older save (a plain list of strings) still loads. `buildResumeSnapshot` is
+    split out of `saveResumeSnapshot` for this: the SAVE gate (a real campaign run with a chosen
+    species) stays on the save, or a dev boot would write over the player's run.
+  - A once-per-level ability has no cadence, so the tempo cards (Quickened Reflex and friends)
+    refuse it with **"there is no wait to shorten"** rather than "already at its minimum wait".
+- **AN INSTALLED ACTION'S `costW`/`costP` ON THE CARD FACE *IS* ITS PER-USE PRICE**, and the number
+  charged lives in the EFFECTS `action({ cost, res })` spec — a different file, with nothing
+  checking they agree. Constricting Ring moved from 3 P to 2 W and both halves had to move.
+  `card-rules-check` asserts the spec against the face for exactly this reason.
+
+Three new `CONFIG.cards` knobs came out of the batch, so the tool surfaces them next to the cards
+that read them: **`trapCharges`** 5 (Constricting Ring digests five worms at +1 P each; it was one
+for +2 P — a trap holds CHARGES now and eats everything standing in it on the step it resolves,
+because a swarm arriving together is the case the card is for), **`snapTargets`** 3 (Constricting
+Snap takes the nearest three for +1 P each, and fewer than three in range is still a legal play),
+and **`toxocystCapP`** 5 (Toxocyst Burst still KILLS everything in radius — only the Phosphorus
+caps). **Blue Bonnet's Toxic Burst special does NOT read `toxocystCapP`**: its own cap is 7, which
+used to sit below the card's 10 and now sits above the card's 5, so a shared constant would have
+silently changed the special.
 
 ## The roster tool: colonies, starting hands, prices and the opening three
 

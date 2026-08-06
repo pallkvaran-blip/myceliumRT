@@ -2302,7 +2302,14 @@ const CONFIG = {
     fanBudget: 700,              // hard cap on total segments grown by one fan
     amputateRadius: 50,          // Amputate / Severing Cords: remove mycelium within this world radius
     snapRadius: 55,              // Constricting Snap: catch the nearest nematode within this radius
+    snapTargets: 3,              // ...and how many of them, nearest first (owner: was 1 worm for +3 P;
+                                 //   now 3 for +1 P each — the same ceiling, but it wants a cluster)
     toxocystRadius: 65,          // Toxocyst Burst / Array: paralyse every nematode within this radius
+    toxocystCapP: 5,             // Burst: EVERY worm in range dies, but the Phosphorus it pays caps here
+                                 //   (owner, 10 -> 5). Blue Bonnet's Toxic Burst special has its own
+                                 //   lower cap of 7 and does NOT read this — see specialAction.
+    trapCharges: 5,              // Constricting Ring: how many worms one trap digests before it is spent
+                                 //   (owner, 1 -> 5, at +1 P each; it used to be one worm for +2 P)
     // defense durations / radii
     immuneRounds: 10,            // harden/immune cards (Sclerotial Crust/Rind, Crust Reserve, Melanized Wall)
                                  //   grant infection/eating immunity for this many rounds (was permanent)
@@ -3212,8 +3219,8 @@ const CARD_DATA = [
   "displayCategory": "event",
   "buyCostEnergy": 1,
   "buyP": 0,
-  "costW": 1,
-  "costP": 1,
+  "costW": 3,
+  "costP": 3,
   "timing": "any",
   "repay": 0,
   "threat": "none",
@@ -3231,7 +3238,7 @@ const CARD_DATA = [
   "buyCostEnergy": 1,
   "buyP": 0,
   "costW": 0,
-  "costP": 3,
+  "costP": 2,
   "timing": "mid",
   "repay": 0,
   "threat": "all",
@@ -3397,8 +3404,8 @@ const CARD_DATA = [
   "timing": "mid",
   "repay": 4,
   "threat": "none",
-  "produces": "grow through 1 in-range rock per use (every 10 rounds, 2 P)",
-  "effect": "Once per 10 rounds: Pay 2 P to grow through an in-range rock.",
+  "produces": "grow through 1 in-range rock per use (once per level, 2 P)",
+  "effect": "Once per level: Pay 2 P to grow through an in-range rock.",
   "family": "growth",
   "tutorial": false,
   "startCopies": 0
@@ -3409,14 +3416,14 @@ const CARD_DATA = [
   "category": "anti-worm",
   "displayCategory": "engine",
   "buyCostEnergy": 16,
-  "buyP": 4,
-  "costW": 0,
-  "costP": 3,
+  "buyP": 2,
+  "costW": 2,
+  "costP": 0,
   "timing": "any",
   "repay": 0,
   "threat": "worm",
   "produces": "",
-  "effect": "Once per 6 rounds: tap a point where no nematode is within range; the first to enter is digested for +2 P.",
+  "effect": "Once per 6 rounds: tap a point where no nematode is within range; the first 5 to enter are digested for +1 P each.",
   "family": "phosphorus",
   "tutorial": false,
   "startCopies": 0
@@ -3427,9 +3434,9 @@ const CARD_DATA = [
   "category": "water-repair",
   "displayCategory": "event",
   "buyCostEnergy": 15,
-  "buyP": 0,
+  "buyP": 3,
   "costW": 3,
-  "costP": 3,
+  "costP": 0,
   "timing": "any",
   "repay": 0,
   "threat": "all",
@@ -3614,7 +3621,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "none",
   "produces": "",
-  "effect": "Once per 6 rounds: pay 2 P to harden a patch, clearing mold and making it immune to infection for 10 rounds.",
+  "effect": "Once per 8 rounds: pay 2 P to harden a patch, clearing mold and making it immune to infection for 10 rounds.",
   "family": "installs",
   "tutorial": true,
   "startCopies": 0
@@ -3632,7 +3639,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "none",
   "produces": "",
-  "effect": "Gain +3 Water every 6 rounds.",
+  "effect": "Gain +3 Water every 8 rounds.",
   "family": "installs",
   "tutorial": true,
   "startCopies": 0
@@ -3668,7 +3675,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "none",
   "produces": "+2 Water / 3 rounds",
-  "effect": "Gain +2 Water every 6 rounds.",
+  "effect": "Gain +2 Water every 7 rounds.",
   "family": "installs",
   "tutorial": true,
   "startCopies": 0
@@ -3758,7 +3765,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "mould",
   "produces": "",
-  "effect": "Once per 8 rounds: Pay 3 P to tap a point to clear all infection and protect from reinfection for 10 rounds.",
+  "effect": "Once per level: Pay 3 P to tap a point to clear all infection and protect from reinfection for 10 rounds.",
   "family": "defense",
   "tutorial": false,
   "startCopies": 0
@@ -3776,7 +3783,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "none",
   "produces": "",
-  "effect": "Permanently speed up one installed \"use\" card: it becomes ready 1 round faster. Max 1 per card.",
+  "effect": "Permanently speed up one installed \"use\" engine card: it becomes ready 1 round faster. Max 1 per card.",
   "family": "tempo",
   "tutorial": true,
   "startCopies": 0
@@ -3794,7 +3801,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "none",
   "produces": "",
-  "effect": "Permanently speed up one installed \"use\" card: it becomes ready 2 rounds faster. Max 1 per card.",
+  "effect": "Permanently speed up one installed \"use\" engine card: it becomes ready 2 rounds faster. Max 1 per card.",
   "family": "tempo",
   "tutorial": true,
   "startCopies": 0
@@ -3812,7 +3819,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "none",
   "produces": "",
-  "effect": "Permanently speed up one installed \"use\" card: it becomes ready 3 rounds faster. Max 1 per card.",
+  "effect": "Permanently speed up one installed \"use\" engine card: it becomes ready 3 rounds faster. Max 1 per card.",
   "family": "tempo",
   "tutorial": true,
   "startCopies": 0
@@ -3915,7 +3922,7 @@ const CARD_DATA = [
   "buyCostEnergy": 0,
   "buyP": 0,
   "costW": 0,
-  "costP": 10,
+  "costP": 12,
   "timing": "any",
   "repay": 0,
   "threat": "none",
@@ -3933,7 +3940,7 @@ const CARD_DATA = [
   "buyCostEnergy": 0,
   "buyP": 0,
   "costW": 0,
-  "costP": 14,
+  "costP": 16,
   "timing": "any",
   "repay": 0,
   "threat": "none",
@@ -3992,7 +3999,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "none",
   "produces": "",
-  "effect": "Tap a point: remove all mycelium within a radius — cut off infection.",
+  "effect": "Tap a point: amputate all mycelium within a small radius.",
   "family": "defense",
   "tutorial": false,
   "startCopies": 4
@@ -4010,7 +4017,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "none",
   "produces": "",
-  "effect": "Once per 8 rounds: Pay 2P to tap to remove all mycelium within a radius.",
+  "effect": "Once per 8 rounds: Pay 2P to tap to amputate all mycelium within a radius.",
   "family": "defense",
   "tutorial": true,
   "startCopies": 0
@@ -4046,7 +4053,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "worm",
   "produces": "",
-  "effect": "Tap a point: the nearest nematode within range is digested for +3 P.",
+  "effect": "Tap a point: the nearest 3 nematodes within range are digested for +1 P each.",
   "family": "phosphorus",
   "tutorial": false,
   "startCopies": 0
@@ -4064,7 +4071,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "worm",
   "produces": "",
-  "effect": "Tap a point: every nematode within a radius is digested (+1 P each, max 10 P).",
+  "effect": "Tap a point: every nematode within a radius is digested (+1 P each, max 5 P).",
   "family": "defense",
   "tutorial": false,
   "startCopies": 0
@@ -4298,7 +4305,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "all",
   "produces": "",
-  "effect": "Drop a 1⚡ food cache anywhere in sight.",
+  "effect": "Drop a 1⚡ food cache anywhere in direct line of sight.",
   "family": "defense",
   "tutorial": false,
   "startCopies": 0
@@ -4316,7 +4323,7 @@ const CARD_DATA = [
   "repay": 0,
   "threat": "all",
   "produces": "",
-  "effect": "Once per 8 rounds: pay 1 W to drop a 1⚡ leaf-litter cache anywhere in sight.",
+  "effect": "Once per 8 rounds: pay 1 W to drop a 1⚡ leaf-litter cache anywhere in direct line of sight.",
   "family": "defense",
   "tutorial": false,
   "startCopies": 0
@@ -17139,7 +17146,15 @@ function rebuildCardsFromSnapshot(state, snap) {
     }
   }
   for (const name of (c.engines || [])) { const r = reinstallByName(state, name); if (r && r.kind === 'engine') state.cards.engines.push(r.obj); }
-  for (const name of (c.actions || [])) { const r = reinstallByName(state, name); if (r && r.kind === 'action') state.cards.actions.push(r.obj); }
+  {
+    const spent = c.actionsUsedLevel || {};   // see saveResumeSnapshot: absent on older saves → 0
+    for (const name of (c.actions || [])) {
+      const r = reinstallByName(state, name);
+      if (!r || r.kind !== 'action') continue;
+      if (r.obj.perLevel) r.obj.usedLevel = spent[name] || 0;
+      state.cards.actions.push(r.obj);
+    }
+  }
   const res = (snap && snap.res) || {}, net = state.active;
   if (res.energy != null) net.energy = res.energy;
   if (res.water != null) net.water = res.water;
@@ -17876,6 +17891,9 @@ const abilityUpgrade = (scope, n) => ({
     // "Max 1 speed up per card": each installed ability can be sped up by exactly
     // ONE tempo card, of any kind, ever.
     if (t.tempoUsed) return { ok: false, message: `${t.name} has already been sped up — max 1 speed up per card.` };
+    // A ONCE-PER-LEVEL ABILITY HAS NO CADENCE TO SHORTEN, and "already at its minimum wait" is a
+    // confusing thing to say about a card that never waits. Checked before the generic message.
+    if (t.perLevel && !t.every) return { ok: false, message: `${t.name} is once per level — there is no wait to shorten.` };
     if (!(t.every > 1)) return { ok: false, message: `${t.name} is already at its minimum wait.` };
     const before = t.every;
     t.every = Math.max(1, t.every - n);
@@ -18045,9 +18063,13 @@ const EFFECTS = {
   'Phosphatase Reserve': engine({ phosphorus: 2, every: 8 }, 'Installed: +2 Phosphorus every 8 rounds.'),
   'Mineralizing Saprobe': engine({ phosphorus: 1, every: 5 }, 'Installed: +1 Phosphorus every 5 rounds.'),
 
-  // --- installed ACTION: bore through an in-range rock on a cooldown ---
-  // (Was an auto dig-engine; now a player-triggered ability per the card text.)
-  'Sinker Rhizomorph': action({ effect: 'grow through an in-range rock', every: 10, cost: 2, res: 'phosphorus', target: true, aim: 'drag', reachFn: (s) => s.config.cards.reachSegments }, (s, ctx) => {
+  // --- installed ACTION: bore through an in-range rock, ONCE PER LEVEL ---
+  // (Was an auto dig-engine, then a 10-round cooldown; the owner made it once per level.)
+  // `perLevel` rather than `per`, and that distinction is the whole thing: `per` is per ROUND —
+  // produceCardEngines zeroes `used` on every round boundary — so `per: 1` would hand this back
+  // every round and be worth roughly ten times what the card says. `usedLevel` is cleared only by
+  // applyCarry, on the step onto a new map. No `every`, so it carries no cooldown at all.
+  'Sinker Rhizomorph': action({ effect: 'grow through an in-range rock', perLevel: 1, cost: 2, res: 'phosphorus', target: true, aim: 'drag', reachFn: (s) => s.config.cards.reachSegments }, (s, ctx) => {
     const n = punchAt(s, ctx);
     if (n > 0) return { ok: true, message: `Bored through the rock — threaded ${n} hyphae.` };
     if (n < 0) return { ok: false, message: 'That rock is out of range — grow closer first.' };
@@ -18086,16 +18108,23 @@ const EFFECTS = {
     return { ok: true, message: h ? `Rehydrated ${h} strands.` : 'Rehydrated the area.' };
   }),
   // --- installed ACTIONS (→ Actions menu, right) ---
-  // Melanized Wall: every 8 rounds, tap a point → cure all infection in radius AND
-  // ward the cells there against reinfection for immuneRounds rounds (cell.mouldProof).
-  'Melanized Wall': action({ effect: 'clear mould + ward (immune)', every: 8, cost: 3, res: 'phosphorus', target: true }, (s, ctx) => {
+  // Melanized Wall: ONCE PER LEVEL (owner; was every 8 rounds), tap a point → cure all infection
+  // in radius AND ward the cells there against reinfection for immuneRounds rounds
+  // (cell.mouldProof). `perLevel`, not `per` — see Sinker Rhizomorph above for why.
+  'Melanized Wall': action({ effect: 'clear mould + ward (immune)', perLevel: 1, cost: 3, res: 'phosphorus', target: true }, (s, ctx) => {
     const R = s.config.cards;
     const h = hardenPatch(s, ctx, R.suberinRadius, R.immuneRounds, false);
     return { ok: true, message: h ? `Cured ${h} strands; warded for ${roundsToTime(R.immuneRounds)}.` : `Warded the area against mould for ${roundsToTime(R.immuneRounds)}.` };
   }),
-  // Constricting Ring: every 6 rounds, pay 3 P, tap empty ground → lay a trap; the first
-  // nematode to enter its radius is digested for +2 Phosphorus (resolved in tickWorld).
-  'Constricting Ring': action({ effect: 'trap a nematode → +2✦', every: 6, cost: 3, res: 'phosphorus', target: true }, (s, ctx) => {
+  // Constricting Ring: every 6 rounds, pay 2 W, tap empty ground → lay a trap; the first FIVE
+  // nematodes to enter its radius are each digested for +1 Phosphorus (resolved in tickWorld).
+  // It was one worm for +2 P — same total at two worms, but it keeps paying, which is what makes
+  // it a trap you place ahead of a swarm rather than a single-target removal with a delay.
+  // The per-use price is WATER now and the card face is the source of that: an installed action's
+  // costW/costP in CARD_DATA IS its per-activation cost, so `cost`/`res` here has to say the same
+  // thing or the card lies about what it charges. `card-tool-check` does not catch that — the two
+  // live in different places — so `special-check`'s sibling assertions do.
+  'Constricting Ring': action({ effect: 'trap nematodes → +1✦ each', every: 6, cost: 2, res: 'water', target: true }, (s, ctx) => {
     const r = s.substrate.cellSize * 2.5;
     const cell = s.substrate.cellAtWorld(ctx.x, ctx.y);
     if (!cell || cell.rock) return { ok: false, message: 'Set the trap on open ground (not rock).' };
@@ -18103,8 +18132,8 @@ const EFFECTS = {
     if (worms.some((w) => (w.x - ctx.x) ** 2 + (w.y - ctx.y) ** 2 <= r * r)) {
       return { ok: false, message: 'A nematode is already there — set the trap on empty ground.' };
     }
-    (s.traps || (s.traps = [])).push({ x: ctx.x, y: ctx.y, r, reward: 2 });
-    return { ok: true, message: 'Set a constricting trap — the next worm to enter is digested.' };
+    (s.traps || (s.traps = [])).push({ x: ctx.x, y: ctx.y, r, reward: 1, charges: s.config.cards.trapCharges });
+    return { ok: true, message: `Set a constricting trap — the next ${s.config.cards.trapCharges} worms to enter are digested.` };
   }),
   // Sclerotial Seal: once per 10 rounds, pay 1 P, tap near a food pile → seal the
   // WHOLE pile against ants. FORGIVING — it seals the nearest pile within a generous
@@ -18180,13 +18209,13 @@ EFFECTS['Acorn Fall'] = action({ effect: 'bury a small nut cache', every: 6, cos
 // drop a 1⚡ cache anywhere in colony line of sight (same dropDecoyCache() gate + losHint).
 // Places a YELLOW LEAF-LITTER pile ('duff') to match its Leaf-Litter-Cache card art.
 EFFECTS['Perennial Decoy'] = action({ effect: 'drop a 1⚡ leaf-litter cache in sight', every: 8, cost: 1, res: 'water', target: true }, (s, ctx) => dropDecoyCache(s, ctx, 'duff'));
-EFFECTS['Crust Reserve'] = action({ effect: 'harden + clear mould (immune)', every: 6, cost: 2, res: 'phosphorus', target: true }, (s, ctx) => {
+EFFECTS['Crust Reserve'] = action({ effect: 'harden + clear mould (immune)', every: 8, cost: 2, res: 'phosphorus', target: true }, (s, ctx) => {
   const R = s.config.cards;
   const h = hardenPatch(s, ctx, R.reserveRadius, R.immuneRounds, false);   // infection immunity only, for immuneRounds rounds
   return { ok: true, message: h ? `Hardened & cleared ${h} strands — immune to infection for ${R.immuneRounds} rounds.` : `Hardened the patch — immune to infection for ${R.immuneRounds} rounds.` };
 });
-EFFECTS['Capillary Runners'] = engine({ water: 3, every: 6 }, 'Installed: +3 Water every 6 rounds.');
-EFFECTS['Dew Traps'] = engine({ water: 2, every: 6 }, 'Installed: +2 Water every 6 rounds.');
+EFFECTS['Capillary Runners'] = engine({ water: 3, every: 8 }, 'Installed: +3 Water every 8 rounds.');
+EFFECTS['Dew Traps'] = engine({ water: 2, every: 7 }, 'Installed: +2 Water every 7 rounds.');
 EFFECTS['Prospecting Cords'] = engine({ phosphorus: 1, every: 8 }, 'Installed: +1 Phosphorus every 8 rounds.');
 
 // --- tempo upgrades (one-shot, pick ONE installed ability) ----------------
@@ -18271,25 +18300,35 @@ function eruptNearestNest(state) {
   return { ok: true, message: 'Cordyceps erupted through the nest — the raiding column is gone.' };
 }
 
-// 1. Constricting Snap — EVENT version of Constricting Ring: throttle the nearest worm now.
+// 1. Constricting Snap — EVENT version of Constricting Ring: throttle the nearest worms now.
+// THE NEAREST `snapTargets`, NOT THE NEAREST ONE (owner: 1 worm for +3 P -> 3 worms for +1 P each).
+// Same ceiling, different question: it now wants a cluster rather than a single worm, which is what
+// makes it read as a snare and not a sniper shot. Sorted by distance and taken from the front, so
+// with fewer than `snapTargets` in range it takes what is there and still pays — a card that
+// refused unless three were in range would be dead most of the time.
 EFFECTS['Constricting Snap'] = targeted((s, c, ctx) => {
   const worms = s.nematodes || [], r2 = s.config.cards.snapRadius ** 2;
-  let wi = -1, bd = r2;
+  const near = [];
   for (let i = 0; i < worms.length; i++) {
     const d = (worms[i].x - ctx.x) ** 2 + (worms[i].y - ctx.y) ** 2;
-    if (d <= bd) { bd = d; wi = i; }
+    if (d <= r2) near.push({ i, d });
   }
-  if (wi < 0) return { ok: false, message: 'No nematode within reach of the ring.' };
-  worms.splice(wi, 1);
-  gainPhos(s.active, 3, s.config.cards.softCapPhosphorus);
-  return { ok: true, message: 'Digested a nematode: +3 Phosphorus.' };
+  if (!near.length) return { ok: false, message: 'No nematode within reach of the ring.' };
+  near.sort((a, b) => a.d - b.d);
+  const take = near.slice(0, Math.max(1, s.config.cards.snapTargets | 0));
+  // Splice from the HIGHEST index down, or removing the first shifts every later one.
+  for (const { i } of take.slice().sort((a, b) => b.i - a.i)) worms.splice(i, 1);
+  gainPhos(s.active, take.length, s.config.cards.softCapPhosphorus);
+  return { ok: true, message: `Digested ${take.length} nematode${take.length > 1 ? 's' : ''}: +${take.length} Phosphorus.` };
 });
 
-// 2a. Toxocyst Burst — EVENT: digest EVERY worm in a radius (+1 P each, reward capped at 10 P).
+// 2a. Toxocyst Burst — EVENT: digest EVERY worm in a radius (+1 P each, reward capped at
+// `toxocystCapP`, which the owner took 10 -> 5). The KILL is uncapped and always was: the cap is
+// on what it pays, so a big swarm still clears — it just stops being a Phosphorus mine.
 EFFECTS['Toxocyst Burst'] = targeted((s, c, ctx) => {
   const n = killWormsInRadius(s, ctx.x, ctx.y, s.config.cards.toxocystRadius);
   if (!n) return { ok: false, message: 'No nematodes in range.' };
-  const gain = Math.min(n, 10);   // all in-range worms die; Phosphorus income caps at 10
+  const gain = Math.min(n, s.config.cards.toxocystCapP);   // all in-range worms die; income caps here
   gainPhos(s.active, gain, s.config.cards.softCapPhosphorus);
   return { ok: true, message: `Digested ${n} nematode${n > 1 ? 's' : ''}: +${gain} Phosphorus.` };
 });
@@ -18540,13 +18579,26 @@ function resolveTraps(state, wormPrev) {
   };
   for (let i = traps.length - 1; i >= 0; i--) {
     const tr = traps[i];
-    const wi = worms.findIndex((w) => sweptD2(w, tr) <= tr.r * tr.r);
-    if (wi < 0) continue;
-    worms.splice(wi, 1);
-    const r = tr.reward || 2;
-    if (net) net.phosphorus = Math.max(net.phosphorus, Math.min(cap, net.phosphorus + r));   // never drop below current
-    traps.splice(i, 1);
-    state.log(`A constricting trap digested a nematode: +${r} Phosphorus.`, 'good');
+    // A TRAP HOLDS CHARGES, NOT ONE WORM (owner: "the first 5 to enter"). It eats every worm
+    // standing in it on the step it resolves, up to whatever it has left — a swarm arriving
+    // together is the case the card is for, and taking one a step would let the rest walk over a
+    // trap that is visibly still there. `charges` defaults to 1 so a trap restored from an older
+    // save (or any future caller that forgets it) behaves exactly as it used to.
+    let left = tr.charges != null ? tr.charges : 1;
+    const r = tr.reward || 1;
+    let ate = 0;
+    while (left > 0) {
+      const wi = worms.findIndex((w) => sweptD2(w, tr) <= tr.r * tr.r);
+      if (wi < 0) break;
+      worms.splice(wi, 1);
+      left--; ate++;
+      if (net) net.phosphorus = Math.max(net.phosphorus, Math.min(cap, net.phosphorus + r));   // never drop below current
+    }
+    tr.charges = left;
+    if (!ate) continue;
+    if (left <= 0) traps.splice(i, 1);
+    state.log(`A constricting trap digested ${ate} nematode${ate > 1 ? 's' : ''}: +${ate * r} Phosphorus.`
+      + (left > 0 ? ` (${left} left in the ring.)` : ''), 'good');
   }
 }
 
@@ -26376,7 +26428,20 @@ function applyCarry(st, carry) {
 // start of every campaign level (begin()); reflects the level as ENTERED, so resuming
 // simply restarts it on a fresh map. Species runs only (dev/testall runs aren't saved).
 function saveResumeSnapshot() {
-  if (!chosenSpecies || !cardsCampaign() || !state.cards) return;
+  // THE GATE STAYS HERE, not in the builder: only a real campaign run with a chosen species is
+  // resumable, and a dev/testall boot must not write over the player's saved run. Splitting the
+  // builder out is a testability change and must not become a behaviour one.
+  if (!chosenSpecies || !cardsCampaign()) return;
+  const snap = buildResumeSnapshot();
+  if (!snap) return;
+  levelEntry = snap;
+  saveResume(snap);
+}
+// The snapshot itself, split out from the SAVE so a check can round-trip it (`__game.snapshot`)
+// without writing to localStorage or needing a real campaign run behind it. Returns null when
+// there is nothing worth saving, which is the guard `saveResumeSnapshot` used to carry inline.
+function buildResumeSnapshot() {
+  if (!state.cards) return null;
   const C = state.cards, net = state.active;
   // Built once and kept in TWO places: localStorage (the title screen's "Old") and `levelEntry`
   // (a RETRY). The retry can't read the stored copy, because `presentRunOver` clears the resume
@@ -26384,7 +26449,9 @@ function saveResumeSnapshot() {
   // continue. The in-memory copy is the level as ENTERED, which is exactly what a retry restores.
   const snap = {
     v: 1, level: currentLevel, runStartLevel,
-    speciesId: chosenSpecies.id,
+    // The SAVE gate guarantees a species; the BUILDER must not, or a dev boot cannot round-trip
+    // its own snapshot to check what the deck layer persists.
+    speciesId: chosenSpecies ? chosenSpecies.id : null,
     res: { energy: net.energy, water: net.water, phosphorus: net.phosphorus },
     cards: {
       drawDeck: [...(C.drawDeck || [])],
@@ -26394,6 +26461,14 @@ function saveResumeSnapshot() {
       // synthetic Aquifer-Tap water engine is re-earned by growing into water, so drop it).
       engines: (C.engines || []).filter((e) => !e._waterSource).map((e) => e.name),
       actions: (C.actions || []).map((a) => a.name),
+      // ...AND WHETHER A ONCE-PER-LEVEL ONE HAS BEEN SPENT. Installed actions are stored by NAME
+      // and rebuilt through `reinstallByName`, which replays the install effect — so it restores
+      // `used` and `cd` and knows nothing about `usedLevel`. Without this line a tab-close hands
+      // back Sinker Rhizomorph's and Melanized Wall's single use, which is the same defect the
+      // species specials had and the reason they carry `specialUsed`. A side map keyed by name,
+      // rather than turning `actions` into objects, so an older save (a plain list of strings)
+      // still loads and a newer save read by older code simply ignores the extra key.
+      actionsUsedLevel: (C.actions || []).reduce((o, a) => { if (a.perLevel && a.usedLevel) o[a.name] = a.usedLevel; return o; }, {}),
       round: C.round, seq: C.seq, drawDiscount: C.drawDiscount || 0,
       draftable: [...(C.draftable || [])],
       runDrafted: { ...(C.runDrafted || {}) }, runDraftedEngines: { ...(C.runDraftedEngines || {}) }, runPlayed: { ...(C.runPlayed || {}) },
@@ -26405,8 +26480,7 @@ function saveResumeSnapshot() {
       specialUsed: ((C.actions || []).find((a) => a.special) || {}).usedLevel || 0,
     },
   };
-  levelEntry = snap;
-  saveResume(snap);
+  return snap;
 }
 // The current level's opening state, and the retries left in this run. Both module-scoped
 // because both must survive a level transition, which rebuilds `state`.
@@ -28529,9 +28603,28 @@ function begin(newState) {
     // failing assertion rather than a page quietly missing a card.
     cards: {
       active: () => CARD_DATA.filter((c) => !isArchived(c.name) && !!EFFECTS[c.name]).map((c) => c.name),
+      // The per-card cadence/cost SPEC, which is the half `card-tool-check` cannot see: the card
+      // face's promise lives in CARD_DATA and the behaviour behind it lives here, with nothing
+      // joining them but a reader. `card-rules-check` reads both and compares.
+      spec: (n) => {
+        const e = EFFECTS[n]; if (!e || !e.apply) return null;
+        let r; try { r = e.apply(state, CARD_BY_NAME[n], {}); } catch (_) { return null; }
+        const o = (r && (r.installAction || r.install)) || null;
+        return o ? { every: o.every || null, per: o.per || null, perLevel: o.perLevel || null,
+                     cost: o.cost || 0, res: o.res || null, water: o.water != null ? o.water : null,
+                     phosphorus: o.phosphorus != null ? o.phosphorus : null } : null;
+      },
       archived: () => CARD_DATA.filter((c) => isArchived(c.name)).map((c) => c.name),
       data: () => CARD_DATA.map((c) => ({ ...c })),
     },
+    // The card effect table itself, so a rules check can fire one card in isolation instead of
+    // arranging a hand, the resources and a legal target for it. Ungated on purpose — `play()`
+    // beside it is the player's path and stays the thing the UI checks drive.
+    effects: EFFECTS,
+    // The resume round trip, so "does a tab-close hand a once-per-level card its use back?" can be
+    // asked without closing a tab. `snapshot()` is the same builder the title screen's "Old" uses.
+    snapshot: () => JSON.parse(JSON.stringify(buildResumeSnapshot())),
+    rebuildCards: (st, snap) => rebuildCardsFromSnapshot(st || state, snap),
     // THE FRUITING CELEBRATION, so "are the mushrooms standing on the hill?" can be MEASURED.
     // It is the class of bug that only ever showed in a rendered frame — the owner reported it
     // from a screenshot — and the model is where the answer actually lives: each mushroom's
