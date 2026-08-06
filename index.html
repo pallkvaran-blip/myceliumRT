@@ -18357,7 +18357,7 @@ const __m_engine_state = (function () {
   const { makeRng } = __m_engine_rng;
   const { generateSubstrate, Substrate } = __m_engine_substrate;
   const { Network } = __m_engine_network;
-  const { seedTrichoderma, placeClouds } = __m_engine_threats;
+  const { seedTrichoderma, placeClouds, stampCloudField } = __m_engine_threats;
   const { seedAnts, placeAntNests } = __m_engine_ants;
   const { seedNematodes, placeNematodes } = __m_engine_nematodes;
   const { buildPuzzle } = __m_engine_puzzle;
@@ -18453,6 +18453,14 @@ function seedLevelThreats(state) {
   state.clouds = state.clouds.concat(seedTrichoderma(sub, cfg, rng, net));
   state.ants = state.ants.concat(seedAnts(sub, cfg, rng, net));
   state.nematodes = state.nematodes.concat(seedNematodes(sub, cfg, rng, net));
+  // ...AND PROJECT THE NEW CLOUDS INTO THE FIELD, or they are INVISIBLE until the first world
+  // step. A cloud has no sprite — it IS `cell.trich` — and the renderer only re-stamps that
+  // while the clouds are known to be MOVING (`_cloudsSliding`), which in turn-based is the enemy
+  // turn's hold phase. `placeClouds`/`seedTrichoderma` each stamp once at build time, but this
+  // runs a frame later and adds to the list afterwards, so nothing had stamped these.
+  // Reported as "Survival: the trychs are not appearing until round 2. I can't see any of them
+  // until I make a move."
+  stampCloudField(sub, state.clouds);
   return true;
 }
 
@@ -21975,17 +21983,31 @@ class NetworkRenderer {
       if (n._infAt == null) (pending || (pending = [])).push(n);
     }
     if (!pending) return;
-    // The moment a neighbouring strand turns, or Infinity if it has no turn scheduled yet.
-    const turnOf = (id) => { const p = byId.get(id); return (p && p.infected && p._infAt != null) ? p._infAt : Infinity; };
+    // (base, ring) PER STRAND, KEPT APART FROM THE CLOCK. `base` is the moment the rot reached the
+    // strand this one came from; `ring` is how many steps further along the filaments it sits.
+    // Resolving them to milliseconds is deferred to the end, because the ms-per-ring can only be
+    // chosen once the wave's full DEPTH is known — see the note below.
+    const B = new Map(), K = new Map();
+    const known = (id) => {
+      const p = byId.get(id); if (!p || !p.infected) return null;
+      if (B.has(id)) return { b: B.get(id), k: K.get(id) };
+      if (p._infAt != null) return { b: p._infAt, k: 0 };     // already-scheduled rot: this wave's ring 0
+      return null;
+    };
     const left = new Set(pending);
     for (let pass = 0; left.size && pass < 400; pass++) {
       let progressed = false;
       for (const n of left) {
-        let src = Infinity;
-        if (n.parentId != null) { const t = turnOf(n.parentId); if (t < src) src = t; }
-        for (const cid of n.children) { const t = turnOf(cid); if (t < src) src = t; }
-        if (src === Infinity) continue;                       // no scheduled rot adjacent (yet)
-        n._infAt = Math.min(ceiling, Math.max(now, src + creep));
+        let best = null;
+        const consider = (id) => {
+          const s = known(id); if (!s) return;
+          const t = s.b + (s.k + 1) * creep;                  // order by the AUTHORED pace; uniform, so the ranking holds
+          if (!best || t < best.t) best = { t, b: s.b, k: s.k + 1 };
+        };
+        if (n.parentId != null) consider(n.parentId);
+        for (const cid of n.children) consider(cid);
+        if (!best) continue;                                  // no scheduled rot adjacent (yet)
+        B.set(n.id, best.b); K.set(n.id, best.k);
         left.delete(n); progressed = true;
       }
       if (!progressed) {
@@ -22004,15 +22026,33 @@ class NetworkRenderer {
         // there is no marked strand left anywhere does the lowest-id fallback run, one strand
         // per pass as before.
         let marked = 0;
-        for (const n of left) if (n._infSeed) { n._infAt = now; marked++; }
-        if (marked) { for (const n of [...left]) if (n._infAt != null) left.delete(n); continue; }
+        for (const n of left) if (n._infSeed) { B.set(n.id, now); K.set(n.id, 0); marked++; }
+        if (marked) { for (const n of [...left]) if (B.has(n.id)) left.delete(n); continue; }
         let seed = null;
         for (const n of left) if (!seed || n.id < seed.id) seed = n;
         if (!seed) break;
-        seed._infAt = now; left.delete(seed);
+        B.set(seed.id, now); K.set(seed.id, 0); left.delete(seed);
       }
     }
-    for (const n of left) n._infAt = now;   // safety: never leave rotten tissue unscheduled
+    // THE MS-PER-RING IS CHOSEN FOR THE WHOLE WAVE, so ALL of it creeps from the point of contact
+    // (owner: "it needs to animate from the point of contact - all of it").
+    //
+    // At a FIXED `infectCreepMs` a first touch cannot animate: one breach claims
+    // `firstTouchRings` (12) plus everything within `freshGrowthRings` (80) in a single step, and
+    // 90-odd rings at 100 ms is nine seconds — so `infectMaxLagMs` (2500) clamped everything past
+    // ring 25 to the same moment and a whole limb turned green at once. The near quarter crept and
+    // the rest popped, which is exactly the artefact the creep exists to remove.
+    //
+    // So the step SHRINKS to fit a deep wave into the lag budget instead of the budget truncating
+    // it. A shallow wave (the ordinary per-step race, a dozen rings) is unaffected and still creeps
+    // at the authored pace; only a wave that could not have been drawn at all is compressed.
+    let maxK = 0;
+    for (const k of K.values()) if (k > maxK) maxK = k;
+    const step = maxK > 0 ? Math.min(creep, (ceiling - now) / maxK) : creep;
+    for (const n of pending) {
+      if (!B.has(n.id)) { n._infAt = now; continue; }   // safety: never leave rotten tissue unscheduled
+      n._infAt = Math.min(ceiling, Math.max(now, B.get(n.id) + K.get(n.id) * step));
+    }
   }
 
   _strokeStructure(ctx, brightness, cull, detailAmt) {
@@ -24428,7 +24468,7 @@ function specialRowHTML(C) {
   const left = Math.max(0, (C.magicCountdown != null) ? C.magicCountdown : every);
   const title = `Special: every ${every} turns a random basic or event card magically appears in your hand. Cannot be sped up.`;
   return `<div class="erow magic" title="${escapeHtml(title)}">`
-    + `<span class="enm">Magic</span>`
+    + `<span class="enm">Hallucinate</span>`
     + cadenceLightsHTML(every, every - left, 'p', title, 'magic') + `</div>`;   // countdown → rounds charged
 }
 
@@ -27709,7 +27749,13 @@ function revealMap() {
   // them on my phone", and the checks could not catch it because `campaign-check` has to turn the
   // dev flag OFF to make the screen appear at all. The skip was written for MAP PLAYTESTING, which
   // is the case it still covers: a playtest is not a campaign run.
-  const devSkip = pendingLevelIntro && !pendingLevelIntro.campaign;
+  // ...AND NEVER ON A SURVIVAL RUN EITHER, for the same reason and reported the same way:
+  // "Survival: we're missing the level screens with the threat counts." A survival run is a
+  // real run — the player needs to be told what is down there — and the skip was written for
+  // MAP PLAYTESTING, which is the case it still covers. So the test is "is this a playtest?",
+  // not "is this the campaign?". Getting that wrong once hid the card from every campaign
+  // player; getting it wrong the same way again hid it from every survival player.
+  const devSkip = pendingLevelIntro && !pendingLevelIntro.campaign && !pendingLevelIntro.realRun;
   if (devSkip && state && state.config && state.config.dev && state.config.dev.enabled) {
     const info = pendingLevelIntro; pendingLevelIntro = null;
     // onDismiss IS called now. Its only job is `ui.setHandOpen(true)`, and skipping it was what
@@ -28167,17 +28213,24 @@ function withDeathCarry(sp) {
   // otherwise fatten the deck that every other colony opens with.
   const bucket = deckBucketFor(sp);
   const carry = loadDeck(null, bucket);
-  runDeck = carry;   // ...and REMEMBERED, so the end-of-run screen can offer it back — see below
+  const opening = [...((sp && sp.hand) || []), ...carry];
+  // THE WHOLE OPENING HAND IS REMEMBERED, not just the carried part. Owner's rule for what the
+  // end-of-run screen may offer: *"any card you had in your card carousel at any point during
+  // this last run — cards you drafted, cards you started with from your species starting hands
+  // or carried over from your last run."* The colony's OWN hand is two thirds of that and it used
+  // to be missing here, so a starting card the player never happened to CAST could not be kept —
+  // the same defect that once applied to carried cards, one source further back.
+  runDeck = opening;
   if (!carry.length) return sp;
   clearDeck(bucket);
-  return { ...(sp || {}), hand: [...((sp && sp.hand) || []), ...carry] };
+  return { ...(sp || {}), hand: opening };
 }
 
-// What the player OWNED when this run seeded — the deck they brought in. `withDeathCarry`
-// consumes the stored copy (a one-shot, so it can't double-apply across a level transition),
-// so without holding it here an owned card the player never happened to CAST this run would
-// silently fall out of the deck at the end of it. Module-scoped rather than on `state` because
-// it has to survive every level transition inside one run, which rebuilds state.
+// What the run OPENED with — the colony's own starting hand PLUS the deck the player brought in.
+// `withDeathCarry` consumes the stored copy (a one-shot, so it can't double-apply across a level
+// transition), so without holding it here a card the player owned coming in and never happened to
+// CAST would silently fall out of the deck at the end of the run. Module-scoped rather than on
+// `state` because it has to survive every level transition inside one run, which rebuilds state.
 let runDeck = [];
 
 // At RUN END with a memory species, REMEMBER this run's NON-ENGINE drafts
@@ -28373,13 +28426,19 @@ function showDeathCarry(r) {
   // The split is made HERE, against the card data's own display category (the same rule as the
   // drafter's `dcatOf`), because the tally above is one flat list.
   //
-  // WITH NO ENGINE TRACK BOUGHT, ENGINES STAY IN THE MAIN POOL — which is where they have
-  // always been, spending an ordinary slot. A store must only ever ADD: pulling them out at
-  // zero upgrades would quietly take away something every existing save can do today, and
-  // "I bought nothing and lost a card" is the one thing a shop can't do. Buying the track
-  // moves them to their own metered slots, which is strictly more.
-  const pool = keepEng > 0 ? all.filter((e) => !isEngineCard(e.name)) : all;
-  const enginePool = keepEng > 0 ? all.filter((e) => isEngineCard(e.name)) : [];
+  // AN ENGINE ALWAYS COUNTS AGAINST THE ENGINE ALLOWANCE, INCLUDING WHEN THAT ALLOWANCE IS ZERO
+  // (owner: "I was able to carry over an engine card from my first run - that should not be
+  // possible. The player starts with 0 engine card allowance.").
+  //
+  // This REVERSES an earlier decision, deliberately. Engines used to fall into the main pool
+  // while the track was unbought, on the reasoning that a store must only ever ADD and that
+  // pulling them out would take away something every save could already do. The owner's design
+  // is the other one: the engine track is what BUYS the ability to carry an engine at all, and
+  // leaving them in the general pool at zero made the first rung of that track worth nothing.
+  // `showLoadoutSelect` already drops the engine pool entirely when `maxEngines` is 0, so an
+  // unbought track simply means engines are not on the screen.
+  const pool = all.filter((e) => !isEngineCard(e.name));
+  const enginePool = all.filter((e) => isEngineCard(e.name));
   const { title, sub } = deathText(r && r.cause);
   const sporeLine = (r && r.runSpores != null)
     ? `<p class="lo-h-spores">${SPORE_ICON}<b>${r.runSpores}</b> earned this run</p>` : '';
@@ -28471,18 +28530,20 @@ function presentRunOver() {
     clearResume();   // the run is over (death / non-campaign end) — nothing to continue
     const r = state.runResult || {};
     if (cardsCampaign()) {
-      // A campaign DEATH still fruits at the last, worth HALF the level's win-Spores — but it is
-      // not PAID here any more. The player only gets it by ENDING the run; taking the retry
-      // instead means the death did not stand, so it never earned anything.
+      // A DEATH PAYS NOTHING (owner: "Let's not give players extra spores when they die on a
+      // level. Right now they get half of that level - let's just not do that."). You bank the
+      // Spores for levels you CLEARED and nothing for the one that killed you.
       //
-      // This replaces a claw-back. The half used to be banked on the spot and `retryLevel` handed
-      // it back (`_deathSpores` → takeSpores), because without that a three-retry run banked the
-      // bonus four times on one level. Not paying until the player commits is the same guarantee
-      // without money moving in and out of the wallet behind them.
+      // The machinery below is kept rather than torn out, because `_pendingSpores` is what the
+      // death screen reports and what `keepAndEnd` pays, and a death is not the only thing that
+      // reaches them. Setting it to 0 is the whole change; everything downstream adds 0 and the
+      // screen shows the run's real total. Two earlier shapes of this are worth not re-deriving:
+      // paying the half ON DEATH let a three-retry run bank it four times on one level, and the
+      // claw-back that fixed it (`_deathSpores` → `takeSpores`) moved money in and out of the
+      // wallet behind the player.
       if (r.died && !r._sporesAwarded) {
         r._sporesAwarded = true;
-        r._pendingSpores = Math.max(0, Math.floor(sporesForLevel(currentLevel)
-          * Math.max(runSporeMult, runSporeMultiplier()) / 2));
+        r._pendingSpores = 0;
       }
       // What the death screen reports: everything banked from levels cleared, PLUS the pending
       // half this death is worth. "Collected so far" is the honest word for a figure the player
@@ -30631,6 +30692,9 @@ function begin(newState) {
       // The campaign card is its own screen (no portraits, position at the foot, rock named,
       // staged reveal). One flag, so the two layouts never have to be inferred from each other.
       campaign: campaignRun(),
+      // A REAL RUN of either game, as opposed to a playtest or the `#dev` sandbox. Only this
+      // decides whether the dev flag may skip the card — see revealMap.
+      realRun: campaignRun() || survivalRun(),
       rock: campaignRun() ? rockNameForLevel() : null,
       threats: levelThreatList(),
       // THE STORY LINE REPLACES THE ESCALATION TAUNT INSIDE THE CAMPAIGN, and only inside it. The

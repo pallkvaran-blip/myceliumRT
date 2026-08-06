@@ -488,6 +488,19 @@ CONFIG literal only.
   both. Measured on the probe's 440-strand colony with the ring spread off, a cloud landing on
   the trunk near the base took **242 strands at 18 and 176 at 12**. One-off, so ONE value for
   both modes and CONFIG-only.
+- **THE MS-PER-RING IS CHOSEN PER WAVE, so ALL of a breach creeps from the point of contact**
+  (owner: *"it needs to animate from the point of contact - all of it"*). At a FIXED
+  `infectCreepMs` a first touch cannot animate: one breach claims `firstTouchRings` (12) plus
+  everything inside `freshGrowthRings` (80) in a SINGLE step, and 90-odd rings at 100 ms is nine
+  seconds — so `infectMaxLagMs` (2500) clamped everything past ring 25 to one moment and a whole
+  limb turned green at once. Measured on a 220-strand chain rotted end to end from one marked
+  contact point: **26 distinct arrival moments with 195 strands sharing one of them, against 220
+  moments and a largest group of 1** after. `_scheduleInfection` now assigns each strand a (base,
+  ring) pair and only converts to milliseconds at the end, with `step = min(creep, lagBudget /
+  maxRing)` — a shallow wave (the ordinary per-step race) is untouched and still creeps at the
+  authored pace; only a wave that could not have been drawn at all is compressed. `threat-check`
+  asserts the CLUSTERING, not the timing: headless can barely measure an animation, but "how many
+  strands turn at the same instant" is in the model.
 - **Raising the spread forces `render.infectCreepMs` down with it**: 300 → 100 → **50**. The
   creep is the renderer's ms-per-ring, and at 10 rings/tick × 2 ticks/sec the sim advances 20
   rings a second against 3.3 at 300 ms. The green would fall behind until `infectMaxLagMs`
@@ -2082,9 +2095,14 @@ per RUN by `stockRun()` and spent by `retryLevel()`.
   nothing to continue.
 - **The MAP comes back identical too**, because a campaign level's seed is fixed. That is where
   the fixed seed actually pays off for a player rather than for a tidy design.
-- **A retry HANDS BACK the half-Spores the death paid** (`r._deathSpores` → `takeSpores`).
-  Without it a three-retry run banks the death bonus four times on one level, which is a farm.
-  `takeSpores` exists for this one caller — `addSpores` clamps negatives away.
+- **A DEATH PAYS NOTHING** (owner: *"Let's not give players extra spores when they die on a
+  level. Right now they get half of that level - let's just not do that."*). You bank the Spores
+  for levels you CLEARED and nothing for the one that killed you. `_pendingSpores` is set to 0
+  rather than the machinery being torn out — it is what the death screen reports and what
+  `keepAndEnd` pays, and everything downstream simply adds 0. Two earlier shapes are worth not
+  re-deriving: paying half ON DEATH let a three-retry run bank it four times on one level, and the
+  claw-back that fixed it (`_deathSpores` → `takeSpores`) moved money in and out of the wallet
+  behind the player.
 - **The high score is recorded in `afterDeath`, not when the check resolves.** This screen no
   longer means the run is over: recording on resolve filed a score for a run the player then
   continued, and filed it again at the real end from a level they had already beaten.
@@ -2118,8 +2136,12 @@ sit BETWEEN the two carousel frames and the gap it held open. Measured after: **
 - **THE KEEP POOL IS PLAYED ∪ DRAFTED ∪ OWNED.** It used to be what you CAST, which made the deck
   impossible to hold on to: an owned card you never happened to draw was gone at the end of the
   run, so the deck reset itself every time instead of being a thing you build.
-  - **`runDeck` is the module-scoped memory of what the run OPENED with**, set in
-    `withDeathCarry`. That function CONSUMES the stored deck at seed time (a one-shot, so it can't
+  - **`runDeck` is the module-scoped memory of what the run OPENED with — the colony's OWN
+    starting hand PLUS the carry**, set in `withDeathCarry`. The species hand used to be missing,
+    so a starting card the player never happened to CAST could not be kept; that is the same defect
+    the carried cards once had, one source further back. The owner's rule: *"any card you had in
+    your card carousel at any point during this last run — cards you drafted, cards you started
+    with from your species starting hands or carried over from your last run."* That function CONSUMES the stored deck at seed time (a one-shot, so it can't
     double-apply across a level transition), so without holding a copy the owned-but-never-drawn
     case has no record anywhere. It is module-scoped because it must survive every level
     transition inside one run, which rebuilds `state`. The RESUME path rebuilds from a snapshot
@@ -2205,12 +2227,15 @@ a real detail sheet.
   The detail sheet adds the same bonus to its pills with a note saying where it came from, so the
   number on the tile is the number the run opens with. **Two places read `storeBonuses()` for the
   same sum and they have to stay in step.**
-- **ADDITIVE ONLY, and the engine pool is the case that needed thinking about.** With no engine
-  track bought, engines stay in the MAIN death-carry pool, where they have always been, spending
-  an ordinary slot; buying the track moves them to their own metered slots. Pulling them out at
-  zero upgrades would quietly take away something every existing save can do, and "I bought
-  nothing and lost a card" is the one thing a shop can't do. `store-check` keeps the zero-upgrade
-  reading as its negative control.
+- **AN ENGINE ALWAYS COUNTS AGAINST THE ENGINE ALLOWANCE, INCLUDING AT ZERO — and this REVERSED
+  an earlier decision.** Engines used to fall into the MAIN death-carry pool while `carryEngines`
+  was unbought, on the reasoning that a store must only ever ADD and that pulling them out would
+  take away something every save could already do. The owner's design is the other one (*"I was
+  able to carry over an engine card from my first run - that should not be possible. The player
+  starts with 0 engine card allowance."*): that track is what BUYS the ability to carry an engine
+  at all, so leaving them in the general pool made its first rung worth nothing. `showLoadoutSelect`
+  already drops the engine pool when `maxEngines` is 0, so an unbought track simply means engines
+  are not on the screen. `store-check` asserts it with the bought track as the control.
 - Persisted in the existing `mycelium.progress.v2` under **`p.upgrades`** (`{ water: 3, … }`),
   additive and defaulting safely for older saves. Levels are **clamped** on read, so a
   hand-edited save (or a track that lost steps in a retune) can't report a bonus with no price
@@ -2345,6 +2370,12 @@ and clouds land inside boulders, silently. Same trap as the ants' opening trail
 (`replanAntTrailsForFineMask`), one step further on; it is hooked in `advanceSim` right beside it,
 and the nests seeded here get their road right first time because the mask already exists.
 
+- **It must RE-STAMP the cloud field.** A cloud has no sprite — it IS `cell.trich` — and the
+  renderer only re-projects that while the clouds are known to be MOVING (`_cloudsSliding`), which
+  in turn-based is the enemy turn's hold phase. `placeClouds` / `seedTrichoderma` each stamp once
+  at build time; this runs a frame later and appends, so nothing had stamped these. Reported as
+  *"Survival: the trychs are not appearing until round 2. I can't see any of them until I make a
+  move."*
 - One-shot (`state._needLevelThreats`), so it is a null check on every other frame.
 - Additive: whatever the JSON placed stays, so a survival map *could* carry a scripted encounter
   and still get its level's share on top.
@@ -2473,7 +2504,13 @@ Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
 - **The level intro counts: "4 of 10"** (`.li-count`, quiet mint above the red escalation taunt) —
   a finite campaign has to say it is finite, and the grown wordmark can't carry the total ("LEVEL
   THREE OF TEN" is a different shape every level). Passed as `of`, null off the ladder.
-  - **The dev build SKIPS the level intro**, so a check that just looks for the counter passes on a
+  - **The dev build SKIPS the level intro — but only on a PLAYTEST now.** The skip was written for
+    map playtesting and its test was "is this the campaign?", which hid the card from every
+    SURVIVAL player once survival became a real ladder of authored maps (owner: *"Survival: we're
+    missing the level screens with the threat counts."*). It reads `pendingLevelIntro.realRun`
+    (`campaignRun() || survivalRun()`) as well, so the question is the right one: a playtest is not
+    a run. The same mistake in the same line once hid it from every campaign player.
+    A check that just looks for the counter passes on a
     screen that was never built. `campaign-check` turns `__cfg.dev.enabled` off before starting the
     level — `state.config` is a deep clone taken at run start, so the live flag is what decides.
   - **It is `.li-of`, NOT `.li-count` — that name was already taken** by the "×3" tally under each

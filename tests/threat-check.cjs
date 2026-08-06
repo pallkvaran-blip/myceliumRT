@@ -1270,6 +1270,39 @@ ok('the render creep is at least as fast as the real-time spread', drawRings >= 
    `draws ${drawRings.toFixed(1)} rings/s vs sim ${simRings.toFixed(1)} rings/s ` +
    `(infectCreepMs ${pace.creepMs}, stepMs ${pace.stepMs})`);
 
+// ...AND A DEEP WAVE STILL CREEPS, ALL OF IT (owner: "it needs to animate from the point of
+// contact - all of it"). Keeping pace with the ONGOING race is not enough: one first touch claims
+// firstTouchRings (12) plus everything inside freshGrowthRings (80) in a SINGLE step, and 90-odd
+// rings at the authored ms-per-ring is far past infectMaxLagMs — so the far part of the wave used
+// to be clamped to the ceiling and a whole limb turned green at once. Measured on a 220-strand
+// chain rotted end to end from one marked contact point: 26 distinct arrival moments with 195
+// strands sharing one of them, against 220 moments and a largest group of 1 after. The assertion
+// is on the CLUSTERING, not on the timing — a headless page can barely measure an animation, but
+// "how many strands turn at the same instant" is in the model.
+const wave = await p.evaluate(() => {
+  const g = window.__game, s = g.state, net = s.networks[0];
+  s.clouds.length = 0; s.nematodes.length = 0;
+  let prev = net.nodes[0];
+  for (let i = 0; i < 220; i++) { const n = net.addNode(prev.x + 4, prev.y + 4, prev); if (!n) break; prev = n; }
+  const chain = net.nodes.slice(-220);
+  for (const n of chain) { n.infected = true; n._infAt = null; n._infSeed = false; }
+  chain[0]._infSeed = true;                                   // the point of contact
+  const now = performance.now();
+  if (g.renderFrame) g.renderFrame();                         // draw() runs _scheduleInfection
+  const offs = chain.filter((n) => n._infAt != null).map((n) => n._infAt - now);
+  const buckets = {};
+  for (const o of offs) buckets[Math.round(o / 5)] = (buckets[Math.round(o / 5)] || 0) + 1;
+  return { n: chain.length, scheduled: offs.length,
+    moments: Object.keys(buckets).length,
+    biggest: Math.max(0, ...Object.values(buckets)),
+    span: Math.round(Math.max(0, ...offs)), lag: s.config.render.infectMaxLagMs };
+});
+ok('a deep rot wave is scheduled strand by strand, not clamped into one chunk',
+   wave.scheduled === wave.n && wave.biggest <= Math.max(3, wave.n * 0.05),
+   `${wave.moments} distinct moments over ${wave.n} strands, largest simultaneous group ${wave.biggest}`);
+ok('...and it still finishes inside the lag budget', wave.span <= wave.lag + 1,
+   `${wave.span}ms vs infectMaxLagMs ${wave.lag}`);
+
 
 // ---- A CONTACT BREACH DOES NOT CLAIM THE SUBTREE ---------------------------
 // The regression guard for "I got infected and it immediately spread to almost all of my very

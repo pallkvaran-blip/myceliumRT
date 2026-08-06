@@ -621,7 +621,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   });
   ok('cards you PLAYED are offered to keep', keepPool.names.includes('Turgor Thrust'), keepPool.names.join(', '));
   ok('cards you DRAFTED are offered to keep', keepPool.names.includes('Foraging Fan'), keepPool.names.join(', '));
-  ok('engines you drafted are offered too', keepPool.names.includes('Cord Capillary'), keepPool.names.join(', '));
+  // AN ENGINE IS NOT OFFERED AT A ZERO ENGINE ALLOWANCE (owner: "I was able to carry over an
+  // engine card from my first run - that should not be possible. The player starts with 0 engine
+  // card allowance."). This REVERSES the old rule, which put engines in the main pool while the
+  // `carryEngines` track was unbought, on the reasoning that a store must only ever ADD. The
+  // owner's design is the other one: that track is what buys the ability to carry an engine at
+  // all, so leaving them in the general pool made its first rung worth nothing.
+  ok('an engine is NOT offered while the engine allowance is 0',
+     !keepPool.names.includes('Cord Capillary'), keepPool.names.join(', '));
   // The label over the pool is "Cards from this run: click to add" now (owner) — the old one
   // spelled out the three sources ("Played, drafted and already owned"), which is accurate and
   // is not what a label is for. The three sources are still asserted where it matters: by the
@@ -649,13 +656,21 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const faces = lower ? [...lower.querySelectorAll('[data-name]')] : [];
     const acorn = faces.find((n) => n.getAttribute('data-name') === 'Acorn Cache');
     const out = { storedAfterSeed, offered: !!acorn, names: faces.map((n) => n.getAttribute('data-name')),
-                  remembered: g.deck.owned().length };
+                  remembered: g.deck.owned().length,
+                  rememberedNames: g.deck.owned().map((e) => e.name) };
     document.getElementById('loadoutSelect').remove();
     g.deck.clear();
     return out;
   });
   ok('seeding a run consumes the stored deck', ownedKept.storedAfterSeed === 0, String(ownedKept.storedAfterSeed));
-  ok('but the run REMEMBERS what it opened with', ownedKept.remembered === 1, String(ownedKept.remembered));
+  // THE WHOLE OPENING HAND, not just the carried part (owner: the keep pool is "any card you had
+  // in your card carousel at any point during this last run — cards you drafted, cards you started
+  // with from your species starting hands or carried over from your last run"). So this is the
+  // colony's own hand PLUS the one carried card, and the assertion is that the carry is IN it
+  // rather than that it is the whole of it.
+  ok('but the run REMEMBERS what it opened with — its own hand AND the carry',
+     ownedKept.remembered > 1 && ownedKept.rememberedNames.includes('Acorn Cache'),
+     `${ownedKept.remembered} card(s): ${ownedKept.rememberedNames.join(', ')}`);
   ok('a card you owned and never drew is still offered to keep',
      ownedKept.offered === true, ownedKept.names.join(', '));
 
