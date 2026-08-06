@@ -105,11 +105,14 @@ punch a hole in a rock, which is what a see-through wall on a Chapter 1 map actu
 the runner — 59 maps is ~20 minutes. `__game.auditRocks()` is the in-page version, and the only
 way to reach a saved map that exists solely in one browser's localStorage.
 
-`shot.cjs`, `hs-shot.cjs`, `lure-shot.cjs`, `core-shot.cjs`, `mould-shot.cjs` and
-`level-shots.cjs` aren't checks — they capture frames for eyeballing: the title screen, the
-leaderboard, the pointer lure, the whole-world core view, the mould/rot fades, and every authored
-map. Every depth and colour decision in the core was
-made by looking at `core-shot`'s frame, not by reading a number.
+`shot.cjs`, `hs-shot.cjs`, `lure-shot.cjs`, `core-shot.cjs`, `mould-shot.cjs`,
+`handoff-shot.cjs` and `level-shots.cjs` aren't checks — they capture frames for eyeballing: the
+title screen, the leaderboard, the pointer lure, the whole-world core view, the mould/rot fades,
+one frame from inside the menu→run handoff, and every authored map. Every depth and colour
+decision in the core was made by looking at `core-shot`'s frame, not by reading a number.
+`handoff-shot` takes `NOFIX=1` for its negative control (it serves a patched copy of
+`index.html`, so the two frames come from one working tree) and prints the title's opacity with
+each shot — `tOp: null` means the capture landed after the handover and proves nothing.
 
 ## Writing another one
 

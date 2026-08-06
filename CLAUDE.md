@@ -623,6 +623,7 @@ change, which is the recommended gear — the most recent runs, each 0 failed:
 | threat · harvest · mould · core · mode | **217 passed** (the engine set) |
 | campaign · surface · level · ctreats · ants · challenge · sky | **252 passed** (the maps/threat-placement set) |
 | store · campaign · rate · cele · hover · tutscript | **-** (the rating-gate / celebration set) |
+| handoff · lure · boot · hs · store · campaign · tut · ingame · hover · tutscript | **309 passed** (the menu → run handoff set, ~5 min) |
 
 Per-check, measured: traced 818 · edit 118 · threat 114 · rt 69 · campaign 66 · enemy 52 ·
 challenge 50 · sky 45 · mode 39 · species 38 · ctreats 31 · harvest 28 · level 27 · scale 26 ·
@@ -926,6 +927,13 @@ Already in place before any of that, and worth not re-deriving: `RENDER_DPR_CAP`
   - Safe because the picker, the title and every other menu mount on **`document.body`**, not
     inside `#ui`. `tests/handoff-check.cjs` (19) asserts that too, since hiding the picker would
     be a far louder bug than the one being fixed.
+  - **`node tests/handoff-shot.cjs` is the picture** (and `NOFIX=1` the negative control) —
+    without the curtain that frame carries the previous run's resource pills, dev buttons and
+    card-filter strip; with it, flat black. Its wait is 2150 ms because the word grows before the
+    fade starts, and **do not widen the window by overriding `#titleScreen`'s CSS transition**:
+    the removal is a fixed 560 ms `setTimeout` in `consume()`, not a `transitionend`, so a longer
+    transition just deletes the element while it is still opaque. A shot printing `tOp: null`
+    landed after the handover and proves nothing.
 - **Level sprites are NOT preloaded at boot.** `loadAssets` waits for every manifest entry to
   settle, so with 59 traced maps it was decoding ~2250 sprites and ~98 MB to play one, and
   never finished. Entries tagged `kind: 'level'` are held back and `loadLevelAssets(id)` picks
