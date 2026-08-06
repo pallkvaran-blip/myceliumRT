@@ -68,6 +68,42 @@ The release cut, adapted to this repo (no build step):
    Upstream had two scripted gates for this (`verify-nodev.mjs`, `boot-itchzip.mjs`); the
    equivalent here is `node tests/run.mjs boot` plus eyeballing a screenshot.
 
+### The GitHub Pages deploy, and how it fails
+
+The repo also publishes to **GitHub Pages** (`https://pallkvaran-blip.github.io/myceliumRT/`), by
+the automatic `dynamic/pages/pages-build-deployment` workflow — there is no Pages workflow file to
+edit. **A push is not a deploy**, and on a bad day the gap is hours.
+
+**THE FAILURE MODE IS A RUNNER THE BUILD NEVER GETS, killed at exactly 15 minutes.** Measured
+across four consecutive runs in one afternoon:
+
+```
+build   created 17:17:11  started 17:17:11  CANCELLED 17:32:13
+        runner_id: 0, runner_name: ""          ← never assigned
+deploy  SKIPPED
+```
+
+The sibling `report-build-status` job in the SAME run gets a runner immediately, so "no runners
+available" is not the whole story — it is the BUILD job specifically, and `assets/` at ~108 MB is
+the obvious suspect. One run in four got a runner after **9 minutes 18 seconds** and built fine, so
+it is a lottery against a 15-minute deadline rather than a hard block.
+
+- **A zombie run can sit in `queued` for hours and CANNOT be cancelled** — the API answers
+  `409 Cannot cancel a workflow re-run that has not yet queued`, and the UI's Cancel button maps to
+  the same endpoint, so the owner gets an unexplained error too. The documented escape hatch is
+  **force-cancel**, which the UI does not expose:
+  `gh api -X POST repos/<owner>/<repo>/actions/runs/<id>/force-cancel`.
+- **Do not diagnose this from the repo.** Check what is actually being served, and compare it to
+  the commit rather than trusting the workflow list:
+  ```bash
+  curl -s https://pallkvaran-blip.github.io/myceliumRT/ | wc -c     # vs `git show HEAD:index.html | wc -c`
+  curl -sI https://pallkvaran-blip.github.io/myceliumRT/ | grep -i last-modified
+  ```
+  Byte counts identify the commit exactly, and `last-modified` is when the live file last changed.
+- **`index.html` is served with `cache-control: max-age=600`** and there is NO service worker, so a
+  browser can hold a stale copy for ten minutes after a deploy lands. `?v=<anything>` bypasses it.
+- **Pushing again starts a fresh 15-minute window**, which is the only lever available from here.
+
 ### Secrets (unchanged, and non-negotiable)
 
 - **`REPLICATE_API_TOKEN`** (asset generation) comes from the environment only — the token file is
