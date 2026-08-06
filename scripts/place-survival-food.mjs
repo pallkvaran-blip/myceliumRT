@@ -94,9 +94,10 @@ function chooseSpots({ nCache, nDuff, seedStr }) {
     return false;
   };
 
-  // The bands a pile may not sit in: the entry channel the colony roots in and the goal
-  // channel, both flagged pathClear (rock loses to them, so a pile there is free food), plus a
-  // margin so the diamond footprint cannot reach either.
+  // The bands a pile may not sit in: the strip the colony roots in and the goal approach, plus a
+  // margin so the diamond footprint cannot reach either. These maps set `clearChannels: false`
+  // so nothing there is pathClear any more — the exclusion is now a design choice (don't hand the
+  // player free food on the doorstep, don't put any at the finish line) rather than a rule.
   const lay = st.levelDef && st.levelDef.layout || {};
   const xLo = ((lay.startCols || 2) + 2) * cs;
   const xHi = sub.worldWidth - ((lay.goalCols || 6) + (lay.summerCols || 7) + 2) * cs;

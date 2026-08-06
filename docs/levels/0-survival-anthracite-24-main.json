@@ -1,531 +1,531 @@
 {
-  "format": "mycelium-level",
-  "version": 1,
-  "id": "0-survival-anthracite-24-main",
-  "name": "0 survival Anthracite 24 Main",
-  "campaignLevel": null,
-  "survival": true,
-  "assetsFrom": "anthracite-c24",
-  "world": {
-    "width": 2952,
-    "height": 1431.4,
-    "surfaceY": 380,
-    "cellSize": 36
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "0-survival-anthracite-24-main",
+ "name": "0 survival Anthracite 24 Main",
+ "campaignLevel": null,
+ "survival": true,
+ "assetsFrom": "anthracite-c24",
+ "world": {
+  "width": 2952,
+  "height": 1431.4,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": false
+ },
+ "traced": {
+  "image": "docs/maps/top-anthracite-scatter-c24-1@4x.webp",
+  "threshold": 128,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R017",
+   "x": 2295.8,
+   "y": 659.3,
+   "w": 237.9,
+   "h": 251.9,
+   "rot": 0
   },
-  "layout": {
-    "startCols": 2,
-    "goalCols": 6,
-    "summerCols": 7,
-    "clearChannels": true
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R018",
+   "x": 1837.9,
+   "y": 582.1,
+   "w": 218.9,
+   "h": 227.4,
+   "rot": 0
   },
-  "traced": {
-    "image": "docs/maps/top-anthracite-scatter-c24-1@4x.webp",
-    "threshold": 128,
-    "minArea": 9600
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R001",
+   "x": 1249.4,
+   "y": 606.2,
+   "w": 505.1,
+   "h": 559.4,
+   "rot": 0
   },
-  "objects": [
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R017",
-      "x": 2295.8,
-      "y": 659.3,
-      "w": 237.9,
-      "h": 251.9,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R018",
-      "x": 1837.9,
-      "y": 582.1,
-      "w": 218.9,
-      "h": 227.4,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R001",
-      "x": 1249.4,
-      "y": 606.2,
-      "w": 505.1,
-      "h": 559.4,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R002",
-      "x": 2157.9,
-      "y": 1651.7,
-      "w": 610.4,
-      "h": 322.4,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R003",
-      "x": 1972.7,
-      "y": 787.3,
-      "w": 534,
-      "h": 405.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R004",
-      "x": 940.2,
-      "y": 988.9,
-      "w": 256.8,
-      "h": 426.9,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R005",
-      "x": 272.5,
-      "y": 1451,
-      "w": 326,
-      "h": 277.7,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R006",
-      "x": 2591.7,
-      "y": 554.4,
-      "w": 324.2,
-      "h": 288.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R007",
-      "x": 162.6,
-      "y": 573.1,
-      "w": 280.4,
-      "h": 256.4,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R008",
-      "x": 142.9,
-      "y": 1057.5,
-      "w": 189.9,
-      "h": 353.6,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R009",
-      "x": 501.5,
-      "y": 1141.1,
-      "w": 386.7,
-      "h": 235.6,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R010",
-      "x": 2794,
-      "y": 1342.6,
-      "w": 267.2,
-      "h": 258.2,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R011",
-      "x": 1701.2,
-      "y": 461.8,
-      "w": 274,
-      "h": 219.4,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R012",
-      "x": 1405.6,
-      "y": 1628,
-      "w": 247.8,
-      "h": 277.6,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R013",
-      "x": 2482.6,
-      "y": 1209.2,
-      "w": 266.3,
-      "h": 211.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R014",
-      "x": 546.6,
-      "y": 748.8,
-      "w": 257.3,
-      "h": 261,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R015",
-      "x": 1337.2,
-      "y": 1394.2,
-      "w": 260.5,
-      "h": 244.7,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R016",
-      "x": 1701.8,
-      "y": 1388.6,
-      "w": 230.2,
-      "h": 265,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R019",
-      "x": 565.6,
-      "y": 1709.3,
-      "w": 229.3,
-      "h": 243.8,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R020",
-      "x": 2388.4,
-      "y": 879.5,
-      "w": 214.3,
-      "h": 192.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R021",
-      "x": 882.8,
-      "y": 489.8,
-      "w": 226.1,
-      "h": 184.5,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R022",
-      "x": 1200.4,
-      "y": 1052.1,
-      "w": 176.4,
-      "h": 239.7,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R023",
-      "x": 1458.5,
-      "y": 1028.5,
-      "w": 199.9,
-      "h": 194.5,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R024",
-      "x": 628.1,
-      "y": 514,
-      "w": 209.4,
-      "h": 203.9,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R025",
-      "x": 2601.8,
-      "y": 807.5,
-      "w": 174.5,
-      "h": 202.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R026",
-      "x": 1001.1,
-      "y": 1537.3,
-      "w": 210.7,
-      "h": 187.6,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R027",
-      "x": 2832.6,
-      "y": 765.3,
-      "w": 183.6,
-      "h": 208.4,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R028",
-      "x": 786.5,
-      "y": 1297.4,
-      "w": 202.1,
-      "h": 191.7,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R029",
-      "x": 2572.4,
-      "y": 1021.2,
-      "w": 224.3,
-      "h": 140.2,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R030",
-      "x": 1959.9,
-      "y": 1227.9,
-      "w": 150.1,
-      "h": 165,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R031",
-      "x": 1502.3,
-      "y": 790.8,
-      "w": 150.5,
-      "h": 167.8,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R032",
-      "x": 2209.6,
-      "y": 1125.3,
-      "w": 158.7,
-      "h": 147,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R033",
-      "x": 2150.8,
-      "y": 493.7,
-      "w": 147.8,
-      "h": 152.4,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R034",
-      "x": 1608.6,
-      "y": 688.7,
-      "w": 129.8,
-      "h": 147.9,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R035",
-      "x": 1717.2,
-      "y": 1099.9,
-      "w": 158.7,
-      "h": 144.2,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R037",
-      "x": 329.1,
-      "y": 960.4,
-      "w": 149.2,
-      "h": 123.9,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R038",
-      "x": 2295.1,
-      "y": 468.9,
-      "w": 108.9,
-      "h": 140.7,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R039",
-      "x": 775.7,
-      "y": 704.1,
-      "w": 134.3,
-      "h": 119.8,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R040",
-      "x": 353.5,
-      "y": 502.8,
-      "w": 109.4,
-      "h": 136.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R041",
-      "x": 712.7,
-      "y": 893,
-      "w": 100,
-      "h": 91.8,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R042",
-      "x": 329.6,
-      "y": 704,
-      "w": 114.9,
-      "h": 72.8,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R045",
-      "x": 1899.6,
-      "y": 997.9,
-      "w": 77.3,
-      "h": 75.6,
-      "rot": 0
-    },
-    {
-      "t": "reservoir",
-      "key": "reservoir2",
-      "x": 607,
-      "y": 1433,
-      "r": 72
-    },
-    {
-      "t": "food",
-      "kind": "cache-engine",
-      "x": 1498,
-      "y": 657,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 144,
-      "y": 1928,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 2412,
-      "y": 1928,
-      "r": 1,
-      "energy": 2
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 252,
-      "y": 740,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 1296,
-      "y": 1748,
-      "r": 1,
-      "energy": 2
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 2376,
-      "y": 992,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 648,
-      "y": 1352,
-      "r": 1,
-      "energy": 2
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 1728,
-      "y": 1244,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 864,
-      "y": 596,
-      "r": 1,
-      "energy": 2
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 2052,
-      "y": 452,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 720,
-      "y": 1928,
-      "r": 1,
-      "energy": 2
-    },
-    {
-      "t": "mountain",
-      "key": "mountain1",
-      "x": 774,
-      "w": 612
-    },
-    {
-      "t": "mountain",
-      "key": "mountain3",
-      "x": 1584,
-      "w": 504
-    },
-    {
-      "t": "city",
-      "key": "skyline1",
-      "x": 342,
-      "w": 252
-    },
-    {
-      "t": "city",
-      "key": "skyline5",
-      "x": 1206,
-      "w": 252
-    },
-    {
-      "t": "city",
-      "key": "skyline3",
-      "x": 2160,
-      "w": 288
-    }
-  ]
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R002",
+   "x": 2157.9,
+   "y": 1651.7,
+   "w": 610.4,
+   "h": 322.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R003",
+   "x": 1972.7,
+   "y": 787.3,
+   "w": 534,
+   "h": 405.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R004",
+   "x": 940.2,
+   "y": 988.9,
+   "w": 256.8,
+   "h": 426.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R005",
+   "x": 272.5,
+   "y": 1451,
+   "w": 326,
+   "h": 277.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R006",
+   "x": 2591.7,
+   "y": 554.4,
+   "w": 324.2,
+   "h": 288.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R007",
+   "x": 162.6,
+   "y": 573.1,
+   "w": 280.4,
+   "h": 256.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R008",
+   "x": 142.9,
+   "y": 1057.5,
+   "w": 189.9,
+   "h": 353.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R009",
+   "x": 501.5,
+   "y": 1141.1,
+   "w": 386.7,
+   "h": 235.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R010",
+   "x": 2794,
+   "y": 1342.6,
+   "w": 267.2,
+   "h": 258.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R011",
+   "x": 1701.2,
+   "y": 461.8,
+   "w": 274,
+   "h": 219.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R012",
+   "x": 1405.6,
+   "y": 1628,
+   "w": 247.8,
+   "h": 277.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R013",
+   "x": 2482.6,
+   "y": 1209.2,
+   "w": 266.3,
+   "h": 211.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R014",
+   "x": 546.6,
+   "y": 748.8,
+   "w": 257.3,
+   "h": 261,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R015",
+   "x": 1337.2,
+   "y": 1394.2,
+   "w": 260.5,
+   "h": 244.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R016",
+   "x": 1701.8,
+   "y": 1388.6,
+   "w": 230.2,
+   "h": 265,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R019",
+   "x": 565.6,
+   "y": 1709.3,
+   "w": 229.3,
+   "h": 243.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R020",
+   "x": 2388.4,
+   "y": 879.5,
+   "w": 214.3,
+   "h": 192.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R021",
+   "x": 882.8,
+   "y": 489.8,
+   "w": 226.1,
+   "h": 184.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R022",
+   "x": 1200.4,
+   "y": 1052.1,
+   "w": 176.4,
+   "h": 239.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R023",
+   "x": 1458.5,
+   "y": 1028.5,
+   "w": 199.9,
+   "h": 194.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R024",
+   "x": 628.1,
+   "y": 514,
+   "w": 209.4,
+   "h": 203.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R025",
+   "x": 2601.8,
+   "y": 807.5,
+   "w": 174.5,
+   "h": 202.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R026",
+   "x": 1001.1,
+   "y": 1537.3,
+   "w": 210.7,
+   "h": 187.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R027",
+   "x": 2832.6,
+   "y": 765.3,
+   "w": 183.6,
+   "h": 208.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R028",
+   "x": 786.5,
+   "y": 1297.4,
+   "w": 202.1,
+   "h": 191.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R029",
+   "x": 2572.4,
+   "y": 1021.2,
+   "w": 224.3,
+   "h": 140.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R030",
+   "x": 1959.9,
+   "y": 1227.9,
+   "w": 150.1,
+   "h": 165,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R031",
+   "x": 1502.3,
+   "y": 790.8,
+   "w": 150.5,
+   "h": 167.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R032",
+   "x": 2209.6,
+   "y": 1125.3,
+   "w": 158.7,
+   "h": 147,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R033",
+   "x": 2150.8,
+   "y": 493.7,
+   "w": 147.8,
+   "h": 152.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R034",
+   "x": 1608.6,
+   "y": 688.7,
+   "w": 129.8,
+   "h": 147.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R035",
+   "x": 1717.2,
+   "y": 1099.9,
+   "w": 158.7,
+   "h": 144.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R037",
+   "x": 329.1,
+   "y": 960.4,
+   "w": 149.2,
+   "h": 123.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R038",
+   "x": 2295.1,
+   "y": 468.9,
+   "w": 108.9,
+   "h": 140.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R039",
+   "x": 775.7,
+   "y": 704.1,
+   "w": 134.3,
+   "h": 119.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R040",
+   "x": 353.5,
+   "y": 502.8,
+   "w": 109.4,
+   "h": 136.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R041",
+   "x": 712.7,
+   "y": 893,
+   "w": 100,
+   "h": 91.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R042",
+   "x": 329.6,
+   "y": 704,
+   "w": 114.9,
+   "h": 72.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "anthracite-c24R045",
+   "x": 1899.6,
+   "y": 997.9,
+   "w": 77.3,
+   "h": 75.6,
+   "rot": 0
+  },
+  {
+   "t": "reservoir",
+   "key": "reservoir2",
+   "x": 607,
+   "y": 1433,
+   "r": 72
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 1498,
+   "y": 657,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 144,
+   "y": 1928,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2412,
+   "y": 1928,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 252,
+   "y": 740,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1296,
+   "y": 1748,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2376,
+   "y": 992,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 648,
+   "y": 1352,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 1728,
+   "y": 1244,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 864,
+   "y": 596,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2052,
+   "y": 452,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 720,
+   "y": 1928,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "mountain",
+   "key": "mountain1",
+   "x": 774,
+   "w": 612
+  },
+  {
+   "t": "mountain",
+   "key": "mountain3",
+   "x": 1584,
+   "w": 504
+  },
+  {
+   "t": "city",
+   "key": "skyline1",
+   "x": 342,
+   "w": 252
+  },
+  {
+   "t": "city",
+   "key": "skyline5",
+   "x": 1206,
+   "w": 252
+  },
+  {
+   "t": "city",
+   "key": "skyline3",
+   "x": 2160,
+   "w": 288
+  }
+ ]
 }

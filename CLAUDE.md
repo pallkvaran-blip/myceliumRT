@@ -2328,24 +2328,29 @@ and the nests seeded here get their road right first time because the mask alrea
   the respawn ceilings still top worms and clouds up over time, so it degrades to "they arrive
   late" rather than to an empty map.
 
-### THE ROCK ART IS NOW CLIPPED TO THE ENTRY/GOAL CHANNELS
+### THE EDGE ROCK IS SOLID — these maps dig NO channels
 
-`buildLevel` digs the two channels clear and flags them `pathClear`, which beats rock outright —
-so **a sprite reaching into one is rock you can see and grow straight through**, at the two places
-every run begins and ends. The tracer guarantees this cannot happen by sizing each world so its
-sprites do not reach a channel; a map EDITED afterwards has no such guarantee, and the owner's 17
-carry **3-15 such sprites each, up to 590 units deep into the goal channel**.
+`buildLevel` normally digs an entry and a goal channel clear and flags them `pathClear`, which
+beats rock outright. The tracer sizes each world so no sprite reaches one; a map EDITED afterwards
+has no such guarantee, and the owner's 17 carry **3-15 such sprites each, up to 590 units deep**
+into the goal channel. Left alone that is rock you can see and grow straight through, at the two
+places every run begins and ends.
 
-`drawLevelRocks` clips to `sub.channelX0` / `channelX1` — the same answer the soil line and the
-core line already get, in a third direction. It keeps the owner's composition and makes
-what-you-see-is-what-blocks true again. Null bounds (`clearChannels: false`) mean the rock there is
-real, so no clip. `three-ways` is the only other map affected (12 of 175 sprites).
+**The answer is `clearChannels: false`, on all 17.** Owner: *"make those rocks solid. I placed
+them all in such a way that the goal line is easily accessible."* With the channels off nothing is
+flagged `pathClear` and every sprite's alpha is stamped solid like any other — the rock they
+placed at both edges is real rock, and the route is whatever they left open. Verified rather than
+assumed: `traced-check` floods the real fine mask on every one and asserts the colony sits in open
+soil, the open space runs entry → goal, and every food cell is reachable.
 
-- **`traced-check`'s assertion moved from the overlap to the CLIP.** Demanding no sprite reach a
-  channel is a property of the TRACER, not of a playable map, and every edited map loses it —
-  nudging 130 boulders out to satisfy a check would rewrite the owner's compositions. What can
-  actually drift is whether the clip bounds are the bounds that were dug, so that is what it
-  asserts now, reporting the overlap count as context.
+- **Clipping the ART to the channel bounds was tried and REJECTED**, and it is worth knowing why
+  it looked right: it is the same gesture `drawLevelRocks` already makes at the soil line and the
+  core line, it needs no map data, and it fixes every map at once. But it *deletes boulders the
+  author placed on purpose*. A map that wants edge rock has a flag for saying so.
+- Consequence: **`three-ways` still digs its channels** and still has 12 of 175 sprites reaching
+  into one. It is the one remaining map where that art is walk-through.
+- `traced-check`'s overlap assertion is gated on `digsChannels`, so these 17 take its other branch
+  ("edge rock is solid") — which is the truth for them.
 
 ### What the two scripts do (and what they must never touch)
 
@@ -2392,6 +2397,10 @@ through untouched and are re-runnable.
 - **Survival maps get the CORE and lose the soil pebbles.** `configForLevelDef` turns the molten
   floor on for every authored map and forces `render.soilPebbles: false`. Survival looks like the
   campaign now, not like the old procedural roll. Both are deliberate for traced art.
+- **They are the only maps in the repo with `clearChannels: false`**, so they are also the only
+  ones where the first and last few columns are ordinary ground rather than a guaranteed lane.
+  A future survival map added by hand needs the flag too, or its edge rock goes see-through —
+  `survival-check` asserts it.
 - The **tutorial still works**: it injects its own orange starter pile (`injectFoodPile`), which
   already tests `cell.rock` and keeps a 1.5-cell clearance, and by the time it runs the mask exists.
 - `tests/survival-check.cjs` (35) covers all of it, with `__game.survival`

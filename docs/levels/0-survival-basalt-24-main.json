@@ -1,484 +1,484 @@
 {
-  "format": "mycelium-level",
-  "version": 1,
-  "id": "0-survival-basalt-24-main",
-  "name": "0 survival Basalt 24 main",
-  "campaignLevel": null,
-  "survival": true,
-  "assetsFrom": "basalt-c24",
-  "world": {
-    "width": 2952,
-    "height": 1467.1,
-    "surfaceY": 380,
-    "cellSize": 36
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "0-survival-basalt-24-main",
+ "name": "0 survival Basalt 24 main",
+ "campaignLevel": null,
+ "survival": true,
+ "assetsFrom": "basalt-c24",
+ "world": {
+  "width": 2952,
+  "height": 1467.1,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": false
+ },
+ "traced": {
+  "image": "docs/maps/top-basalt-scatter-c24-1@4x.webp",
+  "threshold": 128,
+  "minArea": 9600
+ },
+ "render": {
+  "rockFilter": {
+   "brightness": 0.9,
+   "contrast": 1.12,
+   "saturate": 0.5
+  }
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "basalt-c24R001",
+   "x": 1064.5,
+   "y": 890,
+   "w": 804.9,
+   "h": 840.6,
+   "rot": 0
   },
-  "layout": {
-    "startCols": 2,
-    "goalCols": 6,
-    "summerCols": 7,
-    "clearChannels": true
+  {
+   "t": "boulder",
+   "key": "basalt-c24R002",
+   "x": 30.2,
+   "y": 896.5,
+   "w": 705.4,
+   "h": 719.4,
+   "rot": 0
   },
-  "traced": {
-    "image": "docs/maps/top-basalt-scatter-c24-1@4x.webp",
-    "threshold": 128,
-    "minArea": 9600
+  {
+   "t": "boulder",
+   "key": "basalt-c24R003",
+   "x": 2056.5,
+   "y": 757.3,
+   "w": 528.6,
+   "h": 506.5,
+   "rot": 0
   },
-  "render": {
-    "rockFilter": {
-      "brightness": 0.9,
-      "contrast": 1.12,
-      "saturate": 0.5
-    }
+  {
+   "t": "boulder",
+   "key": "basalt-c24R004",
+   "x": 1923.7,
+   "y": 506.1,
+   "w": 595.1,
+   "h": 301.2,
+   "rot": 0
   },
-  "objects": [
-    {
-      "t": "boulder",
-      "key": "basalt-c24R001",
-      "x": 1064.5,
-      "y": 890,
-      "w": 804.9,
-      "h": 840.6,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R002",
-      "x": 30.2,
-      "y": 896.5,
-      "w": 705.4,
-      "h": 719.4,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R003",
-      "x": 2056.5,
-      "y": 757.3,
-      "w": 528.6,
-      "h": 506.5,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R004",
-      "x": 1923.7,
-      "y": 506.1,
-      "w": 595.1,
-      "h": 301.2,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R006",
-      "x": 131.8,
-      "y": 1488.6,
-      "w": 361.3,
-      "h": 307.5,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R007",
-      "x": 941.1,
-      "y": 466.2,
-      "w": 546.7,
-      "h": 204.4,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R009",
-      "x": 661.4,
-      "y": 1373.9,
-      "w": 223.4,
-      "h": 281.3,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R010",
-      "x": 2866.9,
-      "y": 1146.1,
-      "w": 216.6,
-      "h": 246.9,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R011",
-      "x": 1736.4,
-      "y": 1149.2,
-      "w": 244.2,
-      "h": 234.2,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R012",
-      "x": 2383.2,
-      "y": 593.6,
-      "w": 273.6,
-      "h": 208.5,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R013",
-      "x": 2858.2,
-      "y": 466,
-      "w": 246.4,
-      "h": 175,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R014",
-      "x": 2883.8,
-      "y": 830,
-      "w": 170.5,
-      "h": 248.7,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R016",
-      "x": 2910.1,
-      "y": 1489.1,
-      "w": 130.2,
-      "h": 245.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R017",
-      "x": 1641.4,
-      "y": 778.6,
-      "w": 177.2,
-      "h": 164.2,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R018",
-      "x": 2506,
-      "y": 830.6,
-      "w": 142,
-      "h": 131.6,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R019",
-      "x": 1499.7,
-      "y": 437.6,
-      "w": 127.1,
-      "h": 115.3,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R020",
-      "x": 505.8,
-      "y": 1004.3,
-      "w": 119.3,
-      "h": 118.4,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R021",
-      "x": 1402,
-      "y": 536.5,
-      "w": 104.5,
-      "h": 112.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R022",
-      "x": 1586.9,
-      "y": 654.9,
-      "w": 100.8,
-      "h": 102.2,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R023",
-      "x": 1521.6,
-      "y": 548.6,
-      "w": 110.3,
-      "h": 101.3,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R024",
-      "x": 1667.2,
-      "y": 917,
-      "w": 99.5,
-      "h": 89.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R025",
-      "x": 2025.1,
-      "y": 1203,
-      "w": 100.8,
-      "h": 99.4,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R026",
-      "x": 1351.8,
-      "y": 419.8,
-      "w": 99.9,
-      "h": 79.6,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R027",
-      "x": 1625.6,
-      "y": 1249.8,
-      "w": 76,
-      "h": 113.5,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R028",
-      "x": 384.4,
-      "y": 1288.9,
-      "w": 97.2,
-      "h": 87.3,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R029",
-      "x": 1509.4,
-      "y": 712.1,
-      "w": 81.4,
-      "h": 97.3,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R030",
-      "x": 2277,
-      "y": 484.2,
-      "w": 95.4,
-      "h": 74.6,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R031",
-      "x": 524,
-      "y": 788.6,
-      "w": 81.3,
-      "h": 82.3,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R032",
-      "x": 2330.6,
-      "y": 404.9,
-      "w": 123.9,
-      "h": 49.7,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R033",
-      "x": 2068.6,
-      "y": 1282.3,
-      "w": 73.7,
-      "h": 90.9,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R034",
-      "x": 569,
-      "y": 1146,
-      "w": 72.8,
-      "h": 88.6,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R035",
-      "x": 1524,
-      "y": 992.8,
-      "w": 85.5,
-      "h": 75.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R036",
-      "x": 742.9,
-      "y": 1076.8,
-      "w": 72.4,
-      "h": 80.5,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R037",
-      "x": 707.8,
-      "y": 661.6,
-      "w": 78.6,
-      "h": 76.9,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R038",
-      "x": 1581.9,
-      "y": 934.2,
-      "w": 77.3,
-      "h": 80.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "basalt-c24R039",
-      "x": 2435.4,
-      "y": 1010.1,
-      "w": 76.9,
-      "h": 73.7,
-      "rot": 0
-    },
-    {
-      "t": "food",
-      "kind": "cache-engine",
-      "x": 1612,
-      "y": 449,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 144,
-      "y": 1928,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 2412,
-      "y": 1928,
-      "r": 1,
-      "energy": 2
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 144,
-      "y": 452,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 1260,
-      "y": 1532,
-      "r": 1,
-      "energy": 2
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 2412,
-      "y": 920,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 504,
-      "y": 1208,
-      "r": 1,
-      "energy": 2
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 828,
-      "y": 560,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 1944,
-      "y": 1424,
-      "r": 1,
-      "energy": 2
-    },
-    {
-      "t": "food",
-      "kind": "cache",
-      "x": 756,
-      "y": 1892,
-      "r": 1,
-      "energy": 4
-    },
-    {
-      "t": "food",
-      "kind": "duff",
-      "x": 1404,
-      "y": 956,
-      "r": 1,
-      "energy": 2
-    },
-    {
-      "t": "reservoir",
-      "key": "reservoir3",
-      "x": 1023,
-      "y": 1420,
-      "r": 72
-    },
-    {
-      "t": "mountain",
-      "key": "mountain1",
-      "x": 954,
-      "w": 540
-    },
-    {
-      "t": "mountain",
-      "key": "mountain5",
-      "x": 1980,
-      "w": 504
-    },
-    {
-      "t": "city",
-      "key": "skyline4",
-      "x": 432,
-      "w": 360
-    },
-    {
-      "t": "city",
-      "key": "skyline1",
-      "x": 1458,
-      "w": 252
-    },
-    {
-      "t": "city",
-      "key": "skyline5",
-      "x": 2358,
-      "w": 252
-    }
-  ]
+  {
+   "t": "boulder",
+   "key": "basalt-c24R006",
+   "x": 131.8,
+   "y": 1488.6,
+   "w": 361.3,
+   "h": 307.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R007",
+   "x": 941.1,
+   "y": 466.2,
+   "w": 546.7,
+   "h": 204.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R009",
+   "x": 661.4,
+   "y": 1373.9,
+   "w": 223.4,
+   "h": 281.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R010",
+   "x": 2866.9,
+   "y": 1146.1,
+   "w": 216.6,
+   "h": 246.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R011",
+   "x": 1736.4,
+   "y": 1149.2,
+   "w": 244.2,
+   "h": 234.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R012",
+   "x": 2383.2,
+   "y": 593.6,
+   "w": 273.6,
+   "h": 208.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R013",
+   "x": 2858.2,
+   "y": 466,
+   "w": 246.4,
+   "h": 175,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R014",
+   "x": 2883.8,
+   "y": 830,
+   "w": 170.5,
+   "h": 248.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R016",
+   "x": 2910.1,
+   "y": 1489.1,
+   "w": 130.2,
+   "h": 245.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R017",
+   "x": 1641.4,
+   "y": 778.6,
+   "w": 177.2,
+   "h": 164.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R018",
+   "x": 2506,
+   "y": 830.6,
+   "w": 142,
+   "h": 131.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R019",
+   "x": 1499.7,
+   "y": 437.6,
+   "w": 127.1,
+   "h": 115.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R020",
+   "x": 505.8,
+   "y": 1004.3,
+   "w": 119.3,
+   "h": 118.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R021",
+   "x": 1402,
+   "y": 536.5,
+   "w": 104.5,
+   "h": 112.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R022",
+   "x": 1586.9,
+   "y": 654.9,
+   "w": 100.8,
+   "h": 102.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R023",
+   "x": 1521.6,
+   "y": 548.6,
+   "w": 110.3,
+   "h": 101.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R024",
+   "x": 1667.2,
+   "y": 917,
+   "w": 99.5,
+   "h": 89.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R025",
+   "x": 2025.1,
+   "y": 1203,
+   "w": 100.8,
+   "h": 99.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R026",
+   "x": 1351.8,
+   "y": 419.8,
+   "w": 99.9,
+   "h": 79.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R027",
+   "x": 1625.6,
+   "y": 1249.8,
+   "w": 76,
+   "h": 113.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R028",
+   "x": 384.4,
+   "y": 1288.9,
+   "w": 97.2,
+   "h": 87.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R029",
+   "x": 1509.4,
+   "y": 712.1,
+   "w": 81.4,
+   "h": 97.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R030",
+   "x": 2277,
+   "y": 484.2,
+   "w": 95.4,
+   "h": 74.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R031",
+   "x": 524,
+   "y": 788.6,
+   "w": 81.3,
+   "h": 82.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R032",
+   "x": 2330.6,
+   "y": 404.9,
+   "w": 123.9,
+   "h": 49.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R033",
+   "x": 2068.6,
+   "y": 1282.3,
+   "w": 73.7,
+   "h": 90.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R034",
+   "x": 569,
+   "y": 1146,
+   "w": 72.8,
+   "h": 88.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R035",
+   "x": 1524,
+   "y": 992.8,
+   "w": 85.5,
+   "h": 75.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R036",
+   "x": 742.9,
+   "y": 1076.8,
+   "w": 72.4,
+   "h": 80.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R037",
+   "x": 707.8,
+   "y": 661.6,
+   "w": 78.6,
+   "h": 76.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R038",
+   "x": 1581.9,
+   "y": 934.2,
+   "w": 77.3,
+   "h": 80.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "basalt-c24R039",
+   "x": 2435.4,
+   "y": 1010.1,
+   "w": 76.9,
+   "h": 73.7,
+   "rot": 0
+  },
+  {
+   "t": "food",
+   "kind": "cache-engine",
+   "x": 1612,
+   "y": 449,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 144,
+   "y": 1928,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 2412,
+   "y": 1928,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 144,
+   "y": 452,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1260,
+   "y": 1532,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 2412,
+   "y": 920,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 504,
+   "y": 1208,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 828,
+   "y": 560,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1944,
+   "y": 1424,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "food",
+   "kind": "cache",
+   "x": 756,
+   "y": 1892,
+   "r": 1,
+   "energy": 4
+  },
+  {
+   "t": "food",
+   "kind": "duff",
+   "x": 1404,
+   "y": 956,
+   "r": 1,
+   "energy": 2
+  },
+  {
+   "t": "reservoir",
+   "key": "reservoir3",
+   "x": 1023,
+   "y": 1420,
+   "r": 72
+  },
+  {
+   "t": "mountain",
+   "key": "mountain1",
+   "x": 954,
+   "w": 540
+  },
+  {
+   "t": "mountain",
+   "key": "mountain5",
+   "x": 1980,
+   "w": 504
+  },
+  {
+   "t": "city",
+   "key": "skyline4",
+   "x": 432,
+   "w": 360
+  },
+  {
+   "t": "city",
+   "key": "skyline1",
+   "x": 1458,
+   "w": 252
+  },
+  {
+   "t": "city",
+   "key": "skyline5",
+   "x": 2358,
+   "w": 252
+  }
+ ]
 }

@@ -94,6 +94,14 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
   ok('every map points at an asset folder that exists', noAssets.length === 0, noAssets.map((d) => d.id).join(', '));
   const slotted = DISK.filter((d) => d.campaignLevel != null);
   ok('no survival map claims a campaign slot', slotted.length === 0, slotted.map((d) => d.id).join(', '));
+  // THE EDGE ROCK IS SOLID. The owner placed rock at both edges on purpose ("I placed them all in
+  // such a way that the goal line is easily accessible"), and the only thing that makes it real is
+  // this flag: with the channels dug, `pathClear` beats rock and those boulders are art you grow
+  // straight through. The reachability that makes it SAFE is asserted by `traced-check`, which
+  // floods the real fine mask; this is the setting that has to stay set.
+  const dug = DISK.filter((d) => (d.layout || {}).clearChannels !== false);
+  ok('no survival map digs entry/goal channels (its edge rock collides)', dug.length === 0,
+    dug.length ? dug.map((d) => d.id).join(', ') : `${DISK.length} maps`);
 
   // ---- the ROTATION ------------------------------------------------------------------------
   console.log('\n-- the shuffled bag --');
@@ -150,6 +158,13 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
         piles: sub.foodPiles.reduce((o, p) => { o[p.kind] = (o[p.kind] || 0) + 1; return o; }, {}),
         mountains: (sub.authoredMountains || []).length, cities: (sub.authoredCities || []).length,
         chX0: sub.channelX0, chX1: sub.channelX1,
+        edgeSolid: (() => {
+          const cs = sub.cellSize; let n = 0;
+          for (let c = sub.cols - 7; c < sub.cols; c++)
+            for (let rr = 0; rr < sub.rows; rr++)
+              if (sub.solidAtWorld(c * cs + cs / 2, sub.surfaceY + rr * cs + cs / 2)) n++;
+          return n;
+        })(),
         audit: g.auditRocks ? g.auditRocks().holing : null,
       };
     });
@@ -159,8 +174,12 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
     ok(`L${lvl}: its surface backdrop reached the world`, r.mountains + r.cities > 0,
       `${r.mountains} mountain(s), ${r.cities} city/cities`);
     ok(`L${lvl}: no pile holes the rock`, r.audit === 0, `${r.audit} holing`);
-    ok(`L${lvl}: the rock art is clipped to the channels`, r.chX0 === 108 && r.chX1 != null,
-      `${r.chX0} / ${r.chX1}`);
+    // No channels dug — so the rock the owner placed at both edges is REAL rock, and the last
+    // few columns are ordinary ground rather than a guaranteed lane. Measured on the substrate
+    // rather than read off the JSON: this is the half that could silently stop being true.
+    ok(`L${lvl}: no pathClear lane was dug (the edge rock collides)`,
+      r.chX0 === null && r.chX1 === null && r.edgeSolid > 0,
+      `channels ${r.chX0}/${r.chX1}, ${r.edgeSolid} solid cell(s) in the last 7 columns`);
 
     // THE ESCALATION. Read the expected counts out of the game's own curve rather than writing
     // them down here, or a deliberate retune of LEVEL_THREATS shows up as a failure in a check
