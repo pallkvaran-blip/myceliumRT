@@ -1926,14 +1926,59 @@
       letter-spacing:.16em; text-transform:uppercase; color:rgba(255,255,255,0.42);
       animation:liHint 2.2s ease-in-out infinite; }
     @keyframes liHint { 0%,100%{ opacity:.3 } 50%{ opacity:.62 } }
+    /* ---- the campaign card's own furniture ---------------------------------
+       PLACED AFTER `.li-of` AND `.li-hint` ON PURPOSE. Both of those are single-class rules, so a
+       single-class override sitting ABOVE them loses on source order — which is exactly what
+       happened on the first version: "7/10" came out in the counter's mint instead of white, and
+       "click" came out UPPERCASE from `.li-hint`'s text-transform. Third time this stylesheet has
+       done this (`.li-count`, `.ss-hint`), and the third time nothing but a rendered frame caught
+       it — the text assertions passed throughout. It is one unscoped block: check where a rule
+       LANDS, not just that its name is free. */
+    /* The rock this level is cut from, under the title. Dark red caps (owner) — the same blood red
+       as the escalation taunt, because a rock name is a warning about the place, not narration.
+       Wide tracking and a small size so it reads as a subtitle rather than as a second headline
+       competing with the grown wordmark directly above it. */
+    .li-rock { font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+      font-weight:700; letter-spacing:0.34em; text-transform:uppercase; text-indent:0.34em;
+      font-size:clamp(11px,1.5vw,15px); color:#a3201a; text-shadow:0 0 16px rgba(163,32,26,0.34); }
+    /* Each part of the campaign card fades up after the wordmark has grown, one at a time. The
+       transform is tiny on purpose: at more than a few pixels four staggered slides read as the
+       page assembling itself rather than as the card settling. */
+    .li-stage { opacity:0; transform:translateY(6px);
+      transition:opacity var(--li-fade,700ms) ease, transform var(--li-fade,700ms) ease; }
+    .li-stage.li-stage-in { opacity:1; transform:none; }
+    /* The position, at the foot of the campaign card: small and white, "3/10". Tabular figures so
+       it does not jitter between levels; well down in opacity because it is a page number. */
+    .li-of--foot { color:rgba(255,255,255,0.66); text-shadow:none;
+      letter-spacing:0.14em; font-size:clamp(9.5px,1.1vw,11.5px); }
+    /* Just "click". Smaller and quieter than the ladder's full sentence, and lower case — it is a
+       nudge, not an instruction. Keeps the slow pulse, which is what makes it read as interactive
+       at this size. */
+    .li-hint--tiny { font-size:11px; letter-spacing:.22em; text-transform:lowercase;
+      color:rgba(255,255,255,0.3); }
+    /* THE PULSE HAS TO WAIT ITS TURN. `liHint` animates opacity, and an animation beats the
+       staged `opacity:0` outright — so the hint sat there pulsing from the first frame while
+       everything above it was still hidden, which is precisely the one element that must arrive
+       LAST. Delaying by the fade length rather than suppressing it lets the transition finish
+       first and the pulse pick up from there. Measured as `shown: 4` of 5 with the hint counted
+       out, because a pulsing element never reads as fully opaque. */
+    .li-hint.li-stage { animation-delay:var(--li-fade,700ms); }
+    .li-hint.li-stage:not(.li-stage-in) { animation:none; }
     @media (max-width:720px) {
       .li-threat { gap:9px; }
       .li-hint { font-size:11px; letter-spacing:.12em; }
+      .li-hint--tiny { font-size:10px; letter-spacing:.18em; }
+      .li-rock { letter-spacing:0.26em; text-indent:0.26em; }
     }
     @media (prefers-reduced-motion: reduce) {
       .li-inner { transition-duration:.01ms; }
       #levelIntro { transition-duration:.01ms; }
       .li-hint { animation:none; }
+      /* The staged reveal still RUNS under reduced motion — the wordmark reports at once, so the
+         parts arrive on the same schedule — but each lands rather than slides. Suppressing the
+         transition, not the sequence: the sequence is the information (title, then place, then
+         story), and it is also what stops all four appearing on one frame. */
+      .li-stage { transition-duration:.01ms; transform:none; }
     }
 
     /* HUD campaign level chip (top-centre, non-interactive) */
@@ -22746,6 +22791,15 @@ function growMyceliumTitle(container, opts = {}) {
     ctx.filter = 'none'; ctx.globalAlpha = 1; ctx.drawImage(ink, 0, 0);                              // sharp
     ctx.restore();
   }
+  // `onGrown` fires ONCE, the moment the word has finished blooming — the hook the level card's
+  // staged reveal hangs off, so the subtitle and the rest arrive after the title rather than with
+  // it. Latched (`grownFired`) because `layout()` re-seeds on resize and would otherwise fire it
+  // again mid-card, and called out of a try/catch so a throwing consumer cannot kill the RAF loop.
+  let grownFired = false;
+  function fireGrown() {
+    if (grownFired) return; grownFired = true;
+    try { opts.onGrown && opts.onGrown(); } catch (e) { console.error('[myceliumTitle] onGrown failed:', e); }
+  }
   function frame() {
     if (!alive) return;
     const before = g.nodes.length;
@@ -22754,6 +22808,7 @@ function growMyceliumTitle(container, opts = {}) {
     flushInk(); composite();
     playGrowSfx(g.nodes.length - before);
     if (!g.done) raf = requestAnimationFrame(frame);   // stop compositing once fully grown
+    else fireGrown();
   }
   // Layered "growing" swell that tracks the visible bloom: size each burst by the strands
   // added since the last one, throttled so it reads as one organic swell. It fires ONLY
@@ -22786,7 +22841,9 @@ function growMyceliumTitle(container, opts = {}) {
   }
 
   layout();
-  if (!reduce) raf = requestAnimationFrame(frame);
+  // Under reduced motion the word is drawn seeded and the loop never runs, so there is no frame to
+  // notice it finishing — the reveal has to be told at once or it waits forever.
+  if (!reduce) raf = requestAnimationFrame(frame); else fireGrown();
 
   let rt = 0;
   const onResize = () => { clearTimeout(rt); rt = setTimeout(() => { if (!alive) return; cancelAnimationFrame(raf); layout(); if (!reduce) raf = requestAnimationFrame(frame); }, 200); };
@@ -24888,13 +24945,32 @@ function levelWord(n) {
   return String(n);
 }
 
+// How long between one staged element arriving and the next, and how long each takes to fade.
+// Slow enough to read as a sequence rather than as one block with a stutter; fast enough that the
+// whole card is up well inside the time it takes to read the story line.
+const LI_STAGE_GAP = 520, LI_STAGE_FADE = 700;
+// Backstop: if the wordmark never reports (it is drawn on a canvas and can fail on a context
+// error), the card must still assemble itself. A screen that stays blank because an ANIMATION
+// hook did not fire is the worst failure available here.
+const LI_STAGE_FALLBACK = 3200;
+
 function showLevelIntro(opts) {
   const level = (opts && opts.level) || 1;
   const threats = (opts && opts.threats) || [];
+  // THE CAMPAIGN CARD IS A DIFFERENT SCREEN, not the ladder's with bits hidden (owner). No threat
+  // portraits, the position moved to the foot as "3/10", the rock named under the title, and every
+  // part after the wordmark arriving one at a time. Flagged explicitly rather than inferred from
+  // `of` being set: the two screens now differ in four ways and reading one of them off another
+  // field would tie them together again.
+  const campaign = !!(opts && opts.campaign);
   const onDismiss = opts && opts.onDismiss;
   const onDone = opts && opts.onDone;
 
   const root = el('div'); root.id = 'levelIntro';
+  // The stagger and the fade are one constant each, read by the CSS through a variable rather than
+  // written down twice — the JS schedules the reveal and the CSS animates it, and the two drifting
+  // apart is invisible until the card looks subtly wrong.
+  root.style.setProperty('--li-fade', LI_STAGE_FADE + 'ms');
   const inner = el('div', 'li-inner');
   // The level title is the procedural mycelium wordmark ("LEVEL ONE", …), grown
   // once when the card appears (mirrors the title screen / high-scores heading).
@@ -24908,15 +24984,29 @@ function showLevelIntro(opts) {
   titleWrap.setAttribute('role', 'img');
   titleWrap.setAttribute('aria-label', 'Level ' + level + (of ? ' of ' + of : ''));
   head.appendChild(titleWrap);
+  // Everything after the wordmark arrives one at a time, on the campaign card only — the ladder's
+  // card is untouched, so `stage` is the identity function there and those nodes are simply
+  // visible. Registering rather than scheduling here: the delays are handed out in DOM order once
+  // the title reports in, which keeps the order of the reveal identical to the order of the markup.
+  const staged = [];
+  const stage = campaign ? ((n) => { n.classList.add('li-stage'); staged.push(n); return n; })
+                         : ((n) => n);
+  // The rock this level is cut from, named under the title in dark red caps (owner). It is the
+  // level's own identity — the ten campaign maps are named for their geology — and it does the job
+  // the threat portraits used to: telling you what kind of place this is before you see it.
+  if (campaign && opts && opts.rock) {
+    head.appendChild(stage(el('div', 'li-rock', String(opts.rock).toUpperCase())));
+  }
   // "3 of 10" — small, above the escalation taunt. A campaign has an end and the screen that
   // names each level is where the player counts toward it; the wordmark itself can't carry the
   // total (it is grown from the word LEVEL THREE, and "LEVEL THREE OF TEN" is a different shape
-  // every level and unreadable at the small end).
-  if (of) head.appendChild(el('div', 'li-of', level + ' of ' + of));
+  // every level and unreadable at the small end). On the CAMPAIGN card it moves to the foot as
+  // "3/10" (owner) — see below; here it is the ladder's placement, unchanged.
+  if (of && !campaign) head.appendChild(el('div', 'li-of', level + ' of ' + of));
   if (opts && opts.note) {
     const sub = el('div', 'li-sub', String(opts.note));
     if (opts.storyNote) sub.classList.add('li-story-line');   // prose, not the red taunt
-    head.appendChild(sub);
+    head.appendChild(stage(sub));
   }
   // A quote under the story line, when one was drawn. Quieter and a size down from the story it
   // sits under — the story is what this level IS, the quote is only flavour, and the two reading as
@@ -24927,33 +25017,64 @@ function showLevelIntro(opts) {
     const q = el('div', 'li-quote');
     q.appendChild(el('div', 'li-quote-t', '“' + opts.quote.text + '”'));
     if (opts.quote.by) q.appendChild(el('div', 'li-quote-by', '— ' + opts.quote.by));
-    head.appendChild(q);
+    head.appendChild(stage(q));
   }
   inner.appendChild(head);
 
-  const row = el('div', 'li-threats');
-  for (const th of threats) {
-    const cell = el('div', 'li-threat');
-    const pic = el('div', 'li-pic li-pic--' + th.slug);
-    const img = el('img');
-    img.src = 'assets/tutorial/' + th.slug + '.jpg' + VER;
-    img.alt = th.label || th.slug;
-    img.draggable = false;
-    img.onerror = () => { pic.classList.add('li-pic--noimg'); };   // keep the count if art is missing
-    pic.appendChild(img);
-    cell.appendChild(pic);
-    cell.appendChild(el('div', 'li-count', '&times;' + th.count));
-    row.appendChild(cell);
+  // THE THREAT PORTRAITS ARE THE LADDER'S, NOT THE CAMPAIGN'S (owner). They are still the right
+  // thing on a procedural run, where the creature mix is the only warning you get about a map you
+  // have never seen; a campaign level is a fixed map with a story line and a name, so the portraits
+  // were the third thing on the card saying "this one has worms in it".
+  if (!campaign) {
+    const row = el('div', 'li-threats');
+    for (const th of threats) {
+      const cell = el('div', 'li-threat');
+      const pic = el('div', 'li-pic li-pic--' + th.slug);
+      const img = el('img');
+      img.src = 'assets/tutorial/' + th.slug + '.jpg' + VER;
+      img.alt = th.label || th.slug;
+      img.draggable = false;
+      img.onerror = () => { pic.classList.add('li-pic--noimg'); };   // keep the count if art is missing
+      pic.appendChild(img);
+      cell.appendChild(pic);
+      cell.appendChild(el('div', 'li-count', '&times;' + th.count));
+      row.appendChild(cell);
+    }
+    inner.appendChild(row);
   }
-  inner.appendChild(row);
-  inner.appendChild(el('div', 'li-hint', 'Click anywhere to begin'));
+  // The position, at the foot: small, white, "3/10" (owner). Down here it reads as a page number
+  // rather than as a headline, which is what it is.
+  if (of && campaign) inner.appendChild(stage(el('div', 'li-of li-of--foot', level + '/' + of)));
+  // "click" rather than "Click anywhere to begin" on the campaign card (owner) — by the time the
+  // staged reveal has finished, a sentence of instruction is the loudest thing left on a screen
+  // whose whole job was the three quiet lines above it.
+  inner.appendChild(stage(el('div', 'li-hint' + (campaign ? ' li-hint--tiny' : ''),
+                             campaign ? 'click' : 'Click anywhere to begin')));
   root.appendChild(inner);
   document.body.appendChild(root);
 
+  // Reveal the staged elements in DOM order, one gap apart, once the wordmark has finished
+  // growing. `revealStaged` is idempotent and the fallback timer is never cleared, so the card
+  // assembles itself even if the title never reports.
+  let stageTimers = [];
+  function revealStaged() {
+    if (!staged.length) return;
+    const list = staged.splice(0, staged.length);
+    list.forEach((n, i) => {
+      stageTimers.push(setTimeout(() => n.classList.add('li-stage-in'), i * LI_STAGE_GAP));
+    });
+  }
+  if (campaign) stageTimers.push(setTimeout(revealStaged, LI_STAGE_FALLBACK));
+
   // Grow the "LEVEL <word>" wordmark now the container is in the DOM and sized.
   let myc = null;
-  try { myc = growMyceliumTitle(titleWrap, { word: 'LEVEL ' + levelWord(level) }); } catch (_) {}
-  const killMyc = () => { try { myc && myc.destroy(); } catch (_) {} myc = null; };
+  try { myc = growMyceliumTitle(titleWrap, { word: 'LEVEL ' + levelWord(level), onGrown: revealStaged }); }
+  catch (_) { revealStaged(); }   // no title, no hook — the rest of the card must still arrive
+  const killMyc = () => {
+    for (const t of stageTimers) clearTimeout(t);
+    stageTimers = [];
+    try { myc && myc.destroy(); } catch (_) {} myc = null;
+  };
 
   let alive = true;
   function unbind() {
@@ -25492,6 +25613,8 @@ function revealMap() {
         note: info.note,
         storyNote: info.storyNote,
         quote: info.quote,
+        campaign: info.campaign,
+        rock: info.rock,
         onDismiss: info.onDismiss,
         onDone: () => { levelIntro = null; if (info.onContinue) info.onContinue(); },
       });
@@ -27072,6 +27195,24 @@ function syncEditFilterToLevel() {
 //                so this changes the live def only. That flows into Copy JSON and Save as…,
 //                and shows in the map list, but is gone on reload. Honest rather than
 //                clever: the JSON is still the thing that persists a generated map.
+// The rock this level is cut from, for the campaign card's subtitle. Read off the level's NAME,
+// which the owner writes as "4 — Rust", because that is the one place the geology is stated in
+// their own words — the id ("campaign-07-garnet-c40") carries the generator's count suffix and the
+// theme keys are internal. Falls back to the id's theme token for a map named some other way, and
+// to null rather than a guess when neither shape fits: no subtitle is better than a wrong one.
+function rockNameForLevel() {
+  const def = state && state.levelDef;
+  if (!def) return null;
+  const nm = String(def.name || '');
+  const dash = nm.match(/[—–-]\s*(.+)$/);          // "4 — Rust" -> "Rust"
+  if (dash && dash[1].trim()) return dash[1].trim();
+  const id = String(def.id || '');
+  // "campaign-05-anthracite-c24" -> "anthracite"; "3-veined" -> "veined". The count suffix (cNN)
+  // and the leading slot number are the generator's, not the player's.
+  const parts = id.split('-').filter((p) => p && !/^\d+$/.test(p) && p !== 'campaign' && !/^c\d+$/.test(p));
+  return parts.length ? parts[0] : null;
+}
+
 function editRename(name) {
   const def = state && state.levelDef;
   const nm = String(name || '').trim();
@@ -27574,6 +27715,9 @@ function begin(newState) {
     // can PIN one instead of taking whatever the bag hands out.
     showLevelIntro: (opts) => showLevelIntro(opts),
     levelQuotes: LEVEL_QUOTES, randomLevelQuote,
+    // The rock name the campaign card puts under the title, derived from the live level. Exposed so
+    // a check can assert what it resolved to without re-implementing the parse it is testing.
+    rockName: () => rockNameForLevel(),
     // The phased enemy turn (turn-based). `enemyTurn` is the live machine — null between
     // turns, else {phase:'wait'|'hold'}; `settleEnemyTurn` resolves whatever is owed right
     // now, which is how a test written as a synchronous loop of actions gets a settled world
@@ -27897,6 +28041,10 @@ function begin(newState) {
       // reads "LEVEL THREE" and the counter under it reads "3 of 10". Omitted off the ladder
       // (dev quick-start, playtest), where there is no total to be part of.
       level: currentLevel, of: campaignRun() ? CAMPAIGN_LEVELS : null,
+      // The campaign card is its own screen (no portraits, position at the foot, rock named,
+      // staged reveal). One flag, so the two layouts never have to be inferred from each other.
+      campaign: campaignRun(),
+      rock: campaignRun() ? rockNameForLevel() : null,
       threats: levelThreatList(),
       // THE STORY LINE REPLACES THE ESCALATION TAUNT INSIDE THE CAMPAIGN, and only inside it. The
       // taunts ("You're doing well. Time to die.") are the survival ladder's voice — a running joke

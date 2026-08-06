@@ -266,7 +266,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      `${openIntro.paras.length} paragraph(s)`);
   ok('...ending on the question', /Will you persist\?/.test(openIntro.ask || ''), openIntro.ask || '(none)');
   ok('...and the button answers it', (openIntro.btn || '').trim() === 'Persist', openIntro.btn);
-  ok('dismissing it reveals the level card behind', openIntro.thenLevel === '1 of 10',
+  ok('dismissing it reveals the level card behind', openIntro.thenLevel === '1/10',
      openIntro.thenLevel || '(no level card)');
   // Once per RUN and only at the start level: a run that begins deeper is already past the opening.
   ok('it does not reappear on a level that is not the start', openIntro.midRun === false);
@@ -285,12 +285,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     for (let i = 0; i < 60 && !document.getElementById('levelIntro'); i++) await new Promise((r) => setTimeout(r, 150));
     const box = document.querySelector('#levelIntro .li-level');
     const el = document.querySelector('#levelIntro .li-of');
-    // The threat tallies ("×3" under each creature portrait) live on the same screen. The
-    // counter was first written with THEIR class name, which already existed further down the
-    // stylesheet — the later rule won and the campaign position came out in the tally's white
-    // bold serif, reading as one more creature count. The text assertion passed throughout.
-    const tally = document.querySelector('#levelIntro .li-threat .li-count');
-    const cs = el ? getComputedStyle(el) : null, ts = tally ? getComputedStyle(tally) : null;
+    const cs = el ? getComputedStyle(el) : null;
+    const rockEl = document.querySelector('#levelIntro .li-rock');
+    const rs = rockEl ? getComputedStyle(rockEl) : null;
+    const hintEl = document.querySelector('#levelIntro .li-hint');
     // The story line shares the taunt's SLOT (.li-sub) and must not share its voice: that slot is a
     // red mono shout built to alarm, and "The calm before the storm." in it reads as a klaxon.
     const sub = document.querySelector('#levelIntro .li-sub');
@@ -298,9 +296,29 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const out = { shown: !!document.getElementById('levelIntro'),
                   text: el ? el.textContent.trim() : null,
                   aria: box ? box.getAttribute('aria-label') : null,
-                  tallies: !!tally,
-                  distinct: !!(cs && ts && (cs.fontFamily !== ts.fontFamily || cs.color !== ts.color)),
+                  // The campaign card carries NO threat portraits (owner). Counted rather than
+                  // sampled: "the first one is gone" would pass on a row that still had two.
+                  portraits: document.querySelectorAll('#levelIntro .li-threat').length,
+                  // The counter sits at the FOOT now, so it must be outside `.li-head` — the block
+                  // that holds the title, the rock and the story. Asserting the CLASS alone would
+                  // pass on a foot-styled counter still sitting under the wordmark.
+                  ofInHead: !!document.querySelector('#levelIntro .li-head .li-of'),
+                  ofFooter: !!(el && el.classList.contains('li-of--foot')),
+                  ofRGB: cs ? (cs.color.match(/\d+/g) || []).slice(0, 3).map(Number) : null,
+                  ofSize: cs ? parseFloat(cs.fontSize) : null,
                   font: cs ? cs.fontFamily.split(',')[0] : null, color: cs ? cs.color : null,
+                  // The rock name, in dark red caps under the title.
+                  rock: rockEl ? rockEl.textContent.trim() : null,
+                  rockFromModel: window.__game.rockName(),
+                  rockRGB: rs ? (rs.color.match(/\d+/g) || []).slice(0, 3).map(Number) : null,
+                  rockCaps: rs ? rs.textTransform : null,
+                  hint: hintEl ? hintEl.textContent.trim() : null,
+                  // Every part after the wordmark is staged, and starts hidden. Sampled right after
+                  // the card is built, which is before the title can have finished growing — the
+                  // one moment at which "did the reveal actually wait?" has an answer.
+                  stagedCount: document.querySelectorAll('#levelIntro .li-stage').length,
+                  stagedHidden: [...document.querySelectorAll('#levelIntro .li-stage')]
+                    .filter((n) => +getComputedStyle(n).opacity < 0.1).length,
                   story: sub ? sub.textContent.trim() : null,
                   storyTagged: !!(sub && sub.classList.contains('li-story-line')),
                   storyColor: ss ? ss.color : null, storyFont: ss ? ss.fontFamily.split(',')[0] : null,
@@ -324,14 +342,42 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     return out;
   });
   ok('the level intro appears with the dev flag off', intro.shown === true);
-  ok('the intro counts the level out of the campaign length', intro.text === '4 of 10',
+  ok('the intro counts the level out of the campaign length', intro.text === '4/10',
      intro.text || '(no counter)');
-  ok('...and a screen reader hears the same', intro.aria === 'Level 4 of 10', intro.aria);
-  ok('the intro still shows its threat tallies', intro.tallies === true);
-  // A position is not a threat. This is the assertion that would have caught the class collision
-  // the text assertion sailed straight through.
-  ok('the campaign counter does not look like a threat tally', intro.distinct === true,
-     `${intro.font} ${intro.color}`);
+  // Screen readers keep the long form: "4/10" is a page number to look at, "Level 4 of 10" is the
+  // sentence you would say out loud, and the wordmark's aria-label is the only place it is said.
+  ok('...and a screen reader still hears it as a sentence', intro.aria === 'Level 4 of 10', intro.aria);
+  // ---- the campaign card's own shape (owner) ---------------------------------
+  ok('the campaign card drops the threat portraits', intro.portraits === 0, String(intro.portraits));
+  ok('...and moves the counter out of the title block to the foot',
+     intro.ofFooter === true && intro.ofInHead === false,
+     `footClass=${intro.ofFooter} stillInHead=${intro.ofInHead}`);
+  // WHITE, not the counter's old mint — and this is the assertion that caught the real bug. The
+  // foot rule was written ABOVE `.li-of` in the stylesheet, same specificity, so source order won
+  // and "4/10" came out mint. Third collision of this kind in this sheet, and the third that only
+  // a rendered frame showed; measuring the channels is how it becomes a check instead.
+  const orgb = intro.ofRGB || [0, 0, 0];
+  ok('...in white, not the mint it used to be',
+     Math.abs(orgb[0] - orgb[1]) < 12 && Math.abs(orgb[1] - orgb[2]) < 12 && orgb[0] > 180,
+     intro.color);
+  ok('...and smaller than the story line above it', intro.ofSize > 0 && intro.ofSize < intro.storySize,
+     `${intro.ofSize}px vs story ${intro.storySize}px`);
+  // The rock the level is cut from. Asserted against the MODEL's answer rather than a literal, so
+  // renaming a map or re-slotting the campaign does not fail this for the wrong reason.
+  ok('the card names the rock under the title',
+     !!intro.rock && intro.rock === String(intro.rockFromModel || '').toUpperCase(),
+     `${intro.rock} vs model ${intro.rockFromModel}`);
+  ok('...in caps, and in dark red', intro.rockCaps === 'uppercase'
+     && (intro.rockRGB || [0])[0] - (intro.rockRGB || [0, 0])[1] > 60
+     && (intro.rockRGB || [0, 0, 0])[0] < 200,
+     `${intro.rockCaps} ${JSON.stringify(intro.rockRGB)}`);
+  ok('the prompt is just "click"', intro.hint === 'click', intro.hint || '(none)');
+  // The staged reveal. Sampled the instant the card is built — before the wordmark can have
+  // finished — so this measures that the parts WAIT, which is the whole of the owner's ask. A
+  // reveal that fired immediately would look identical in a settled screenshot.
+  ok('everything after the wordmark is staged', intro.stagedCount === 5, String(intro.stagedCount));
+  ok('...and none of it is showing while the title is still growing',
+     intro.stagedHidden === intro.stagedCount, `${intro.stagedHidden} of ${intro.stagedCount} hidden`);
   // ---- the story ------------------------------------------------------------
   // Level 4's line, on level 4's card. Asserted by CONTENT, because the slot it uses also carries
   // the survival ladder's escalation taunt and "a line is present" would pass on either.
@@ -383,17 +429,32 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // survival ladder's voice is the taunt, and Rilke under "How are you still alive?" is two jokes.
   const laddered = await page.evaluate(async () => {
     document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
-    window.__game.showLevelIntro({ level: 10, of: null, threats: [],
+    window.__game.showLevelIntro({ level: 10, of: null, campaign: false,
+                                   threats: [{ slug: 'nematode', label: 'Nematodes', count: 3 },
+                                             { slug: 'trichoderma', label: 'Trichoderma', count: 2 }],
                                    note: "You're doing well. Time to die.", storyNote: false, quote: null });
     await new Promise((r) => setTimeout(r, 200));
     const out = { sub: (document.querySelector('#levelIntro .li-sub') || {}).textContent || null,
-                  quote: !!document.querySelector('#levelIntro .li-quote') };
+                  quote: !!document.querySelector('#levelIntro .li-quote'),
+                  portraits: document.querySelectorAll('#levelIntro .li-threat').length,
+                  tally: (document.querySelector('#levelIntro .li-count') || {}).textContent || null,
+                  hint: (document.querySelector('#levelIntro .li-hint') || {}).textContent || null,
+                  rock: !!document.querySelector('#levelIntro .li-rock'),
+                  staged: document.querySelectorAll('#levelIntro .li-stage').length };
     document.querySelectorAll('#levelIntro').forEach((n) => n.remove());
     return out;
   });
   ok('off the campaign the card keeps the taunt and takes no quote',
      laddered.quote === false && /Time to die/.test(laddered.sub || ''),
      `quote=${laddered.quote} sub=${laddered.sub}`);
+  // THE NEGATIVE CONTROL FOR THE WHOLE CAMPAIGN-CARD BLOCK ABOVE. Without it, "the campaign card
+  // has no portraits / says click / stages its parts" would every one of them pass on a build that
+  // had done those things to BOTH screens — which is not what was asked for. The ladder's card is
+  // the one that must be untouched.
+  ok('...and the ladder card is untouched: portraits, tallies, the full prompt, no staging',
+     laddered.portraits === 2 && /2|3/.test(laddered.tally || '') && laddered.rock === false
+     && /Click anywhere/.test(laddered.hint || '') && laddered.staged === 0,
+     `portraits=${laddered.portraits} tally=${laddered.tally} rock=${laddered.rock} hint=${laddered.hint} staged=${laddered.staged}`);
 
   // ---- the selection screen sends you to level 1 ----------------------------
   const start = await page.evaluate(async () => {
