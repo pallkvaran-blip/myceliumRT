@@ -2304,6 +2304,16 @@ that would repeat across the seam**.
   that call, which is the ordering that matters. An older save has no order and simply reshuffles.
 - **A saved editor draft with `survival: true` joins the pool**, because the pool reads
   `allLevels()`. That is deliberate — it is how you playtest a new survival map in rotation.
+- **AND A STALE DRAFT MUST NOT EMPTY IT — this shipped as "survival still gives me procedural
+  maps".** The owner AUTHORED the 17 in the in-game editor, so their browser holds a saved draft
+  of every one, saved BEFORE the flag existed and therefore without it. `allLevels()` lets a draft
+  SHADOW the committed file, `survivalMaps()` filters on the flag, and the pool came out **0** —
+  after which `levelDefFor` falls through to the procedural generator, silently. It worked on
+  their PHONE, which is the tell: no drafts there. `allLevels()` now inherits `survival` from the
+  committed map, exactly as it already inherits `campaignLevel`, and for the same reason.
+  **An empty pool must never be reachable by a field a stale draft happens not to carry.**
+  Reproduced and asserted with a verified negative control (17 flagless drafts: `pool 17 → 0` and
+  a procedural map before, `17 → 17` after).
 - **`survivalRun()` DOES NOT REQUIRE A CHOSEN SPECIES, and gating it on one cost two rounds.**
   `chosenSpecies` looks like "is this a real run?" and is really "did the player click a species
   tile?" — which the picker's own **Dev quick-start** does not. First that dropped through to
@@ -2426,7 +2436,7 @@ through untouched and are re-runnable.
   winnable, veined-40 the tightest at 7.
 - The **tutorial still works**: it injects its own orange starter pile (`injectFoodPile`), which
   already tests `cell.rock` and keeps a 1.5-cell clearance, and by the time it runs the mask exists.
-- `tests/survival-check.cjs` (44) covers all of it, with `__game.survival`
+- `tests/survival-check.cjs` (46) covers all of it, with `__game.survival`
   (`maps`/`order`/`mapFor`/`reset`/`isRun`/`defFor`/`play`).
 
 ## The campaign itself

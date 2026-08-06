@@ -12168,9 +12168,19 @@ function allLevels() {
   const bySlug = new Map(LEVELS.filter((l) => l && l.id).map((l) => [slugId(l.id), l]));
   const merged = saved.map((l) => {
     const src = l && l.id ? bySlug.get(slugId(l.id)) : null;
-    return (src && l.campaignLevel == null && src.campaignLevel != null)
-      ? { ...l, campaignLevel: src.campaignLevel }
-      : l;
+    if (!src) return l;
+    const out = { ...l };
+    if (out.campaignLevel == null && src.campaignLevel != null) out.campaignLevel = src.campaignLevel;
+    // ...AND ITS `survival` FLAG, for exactly the same reason, found the same way. The owner
+    // AUTHORED the 17 survival maps in the in-game editor, so their browser holds a saved draft
+    // of every one — saved BEFORE the flag existed, and therefore without it. Those drafts shadow
+    // the committed files here, `survivalMaps()` filters on the flag, and the pool came out
+    // EMPTY: `levelDefFor` then falls through to the procedural generator. Reported as survival
+    // still serving procedural maps on their desktop while working on their phone, which is the
+    // tell — the phone has no drafts. An empty pool must never be reachable by a field a stale
+    // draft happens not to carry.
+    if (out.survival == null && src.survival != null) out.survival = src.survival;
+    return out;
   });
   return merged.concat(LEVELS.filter((l) => l && l.id && !ids.has(slugId(l.id))));
 }

@@ -241,6 +241,34 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
 
   await page.screenshot({ path: path.join(__dirname, '.artifacts', 'survival-level.png'), animations: 'disabled', timeout: 15000 }).catch(() => {});
 
+  // ---- A STALE SAVED DRAFT MUST NOT EMPTY THE POOL ------------------------------------------
+  // The owner AUTHORED these 17 in the in-game editor, so their browser holds a saved draft of
+  // every one — saved BEFORE `survival: true` existed, and therefore without it. `allLevels()`
+  // lets a draft SHADOW the committed file, `survivalMaps()` filters on the flag, and the pool
+  // came out EMPTY; `levelDefFor` then falls through to the procedural generator. Reported as
+  // survival still rolling procedural maps on their desktop while working on their phone — the
+  // phone has no drafts, which is the tell. `allLevels()` inherits `survival` from the committed
+  // map now, exactly as it already inherits `campaignLevel` for the same reason.
+  //
+  // Asserted through localStorage rather than the model, because the shadowing is the mechanism.
+  console.log('\n-- a stale saved draft must not empty the pool --');
+  const shadow = await page.evaluate((ids) => {
+    const g = window.__game;
+    const before = g.survival.maps().length;
+    // Exactly what Save as… writes, minus the flag those drafts predate.
+    const drafts = ids.map((id) => ({ format: 'mycelium-level', version: 1, id, name: id,
+      chapter: 'Chapter 1', campaignLevel: null, assetsFrom: id,
+      world: { width: 2952, height: 1400, surfaceY: 380, cellSize: 36 }, layout: {}, objects: [] }));
+    try { localStorage.setItem('mycelium.savedLevels.v1', JSON.stringify(drafts)); } catch (_) { return { err: 'localStorage' }; }
+    const after = g.survival.maps().length;
+    try { localStorage.removeItem('mycelium.savedLevels.v1'); } catch (_) {}
+    return { before, after, restored: g.survival.maps().length };
+  }, inGame);
+  ok('a draft of every survival map does not empty the pool', shadow.after === shadow.before,
+    shadow.err || `${shadow.before} → ${shadow.after} with 17 flagless drafts shadowing them`);
+  ok('...and clearing the drafts leaves it intact', shadow.restored === shadow.before,
+    `${shadow.restored}`);
+
   // ---- "Old" comes back to the SAME map --------------------------------------------------
   // The rotation is a run-long shuffle held in memory. It is written into the resume snapshot and
   // restored AFTER `stockRun()` (which resets it) — get that ordering wrong, or drop the field,
