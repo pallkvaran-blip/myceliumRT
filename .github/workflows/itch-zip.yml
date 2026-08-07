@@ -40,9 +40,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # v5/v6 RUN ON NODE 24. v4 targets Node 20, which GitHub deprecated on 2025-09-19 and now
+      # force-runs on 24 anyway — a warning rather than a failure, but the warning is noise on
+      # every run and Node 20 leaves the runners entirely on 2026-09-16. They need a runner at
+      # 2.327.1+, which GitHub-hosted runners are.
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
 
@@ -72,10 +76,10 @@ jobs:
       # rejects with "Failed to find index.html" because the html is one level down. Reported.
       # Uploading the stage instead means the artifact GitHub builds has index.html at ITS root, so
       # the download is itself a valid itch zip and both routes out of this workflow work.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: mycelium-${{ inputs.platform }}
-          path: dist/stage
+          path: dist/stage-${{ inputs.platform }}
           retention-days: 30
 
       - name: Attach it to a release

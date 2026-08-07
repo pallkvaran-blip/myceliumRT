@@ -42,7 +42,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT_DIR = path.join(ROOT, 'dist');
-const STAGE = path.join(OUT_DIR, 'stage');
+let STAGE = path.join(OUT_DIR, 'stage');   // per-platform; reassigned once PLATFORM is known
 const argAt = (flag) => { const i = process.argv.indexOf(flag); return i >= 0 ? process.argv[i + 1] : null; };
 const PLATFORM = (argAt('--platform') || 'itch').toLowerCase();
 if (PLATFORM !== 'itch' && PLATFORM !== 'crazygames') {
@@ -54,6 +54,11 @@ if (PLATFORM !== 'itch' && PLATFORM !== 'crazygames') {
 // CrazyGames-only map cannot be blocked by a cap that does not apply to it.
 const LIMITS = { itch: { entries: 1000, bytes: null }, crazygames: { entries: 1500, bytes: 250 * 1048576 } }[PLATFORM];
 const ZIP = path.join(OUT_DIR, `mycelium-${PLATFORM}.zip`);
+// PER-PLATFORM STAGING. It was a single `dist/stage` when there was one target, and with two it is
+// a footgun: running both builds at once had the second `rmSync(STAGE)` delete the first's tree
+// mid-re-encode, which surfaced as `FileNotFoundError` on a .webp that had existed a moment
+// earlier. Two directories cost nothing and make the builds independent.
+STAGE = path.join(OUT_DIR, `stage-${PLATFORM}`);
 const keepDev = process.argv.includes('--keep-dev');
 // Leave `dist/stage/` behind. Only CI wants this: GitHub zips an artifact's CONTENTS, so uploading
 // the STAGE gives a downloaded artifact that is itself a valid itch zip — see the workflow.
@@ -275,5 +280,5 @@ if (LIMITS.bytes && size > LIMITS.bytes) {
   process.exit(1);
 }
 if (!keepStage) fs.rmSync(STAGE, { recursive: true, force: true });
-else say(`stage kept at ${path.relative(ROOT, STAGE)} (its CONTENTS are a valid itch zip on their own)`);
+else say(`stage kept at ${path.relative(ROOT, STAGE)} (its CONTENTS are a valid ${PLATFORM} zip on their own)`);
 if (!rootHtml || strays.length) process.exit(1);
