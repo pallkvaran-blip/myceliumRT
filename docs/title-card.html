@@ -181,6 +181,11 @@
     let W = 0, H = 0, dpr = 1, ink = null, ictx = null;
     let titleSize = 0, cx = 0, cy = 0, g = null, raf = 0, stepAcc = 0, alive = true;
     const STEP_RATE = opts.stepRate || 2.4;
+    // The bloom's backstop, DERIVED from the rate rather than written down. It is a wall-clock cap
+    // on "the word has finished arriving", so halving the rate doubles how long that takes and a
+    // fixed 1800ms would fire the cap MID-GROWTH — the chapter line fading in over a half-drawn
+    // wordmark, with nothing in the code to say why. 1800ms is the figure at the original 2.4.
+    const GROWN_CAP_MS = 1800 * (2.4 / STEP_RATE);
 
     // An INTEGER grid key, not "gx,gy". nearestNode probes nine buckets per attractor per step;
     // with ~28,000 attractors that was ~590,000 string builds a frame. Unique while |gy| < 32768,
@@ -320,7 +325,7 @@
         if (!t0) t0 = performance.now();
         if (peak >= 20 && grew < Math.max(4, peak * 0.06)) { if (++quiet >= 10) fireGrown(); }
         else quiet = 0;
-        if (performance.now() - t0 > 1800) fireGrown();
+        if (performance.now() - t0 > GROWN_CAP_MS) fireGrown();
       }
       if (!g.done) raf = requestAnimationFrame(frame);
       else fireGrown();
@@ -353,15 +358,30 @@
   const hint = document.getElementById('hint');
   let title = null;
 
+  // A BEAT OF BLACK BEFORE ANYTHING HAPPENS. The card is recorded as a loop, so opening on the
+  // first frame of growth gives it no lead-in — on the wrap the word is already half drawn and the
+  // start of the sequence is lost. Two seconds of empty frame is what makes the loop read as
+  // beginning. Nothing is drawn during it: `destroy()` has removed the canvas and `.lines` is back
+  // to opacity 0, so #stage holds an empty box and the frame is the background gradient alone.
+  const LEAD_IN_MS = 2000;
+  let leadTimer = 0;
+
   function play() {
-    if (title) title.destroy();
+    if (title) { title.destroy(); title = null; }
+    clearTimeout(leadTimer);              // a replay during the hold restarts the hold
     lines.classList.remove('in');
     // Reflow between removing and re-adding the class, or the browser coalesces the two and the
     // fade never runs on a replay — the lines would simply be there.
     void lines.offsetWidth;
-    title = growMyceliumTitle(wordBox, {
+    leadTimer = setTimeout(() => { title = grow(); }, LEAD_IN_MS);
+  }
+
+  function grow() {
+    return growMyceliumTitle(wordBox, {
       word: 'MYCELIUM',
-      stepRate: 2.4,
+      // HALF THE ORIGINAL 2.4 — growth steps per frame, so this is the sequence's speed directly.
+      // `GROWN_CAP_MS` scales itself off it; nothing else needs touching.
+      stepRate: 1.2,
       // Close the gap BEFORE the fade starts, so the line arrives where it belongs rather than
       // sliding into place — `.lines` transitions opacity only, and a margin change is a jump.
       onGrown: () => { tightenToInk(); lines.classList.add('in'); },

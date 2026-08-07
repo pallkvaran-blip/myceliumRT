@@ -22,7 +22,7 @@ const CHECKS = [
   ['review',    'review-check.cjs',  15,  false],
   ['quotes',    'quote-review-check.cjs', 15, false],
   ['sptool',    'species-tool-check.cjs', 25, false],
-  ['titlecard', 'title-card-check.cjs', 45, false],
+  ['titlecard', 'title-card-check.cjs', 110, false],
   ['mapmenu',   'mapmenu-check.cjs', 40, false],
   ['special',   'special-check.cjs', 60, false],
   ['ingame',    'ingame-text.cjs',   25,  false],

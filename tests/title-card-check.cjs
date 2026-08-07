@@ -43,6 +43,18 @@ async function boot(browser, w, h, css) {
                                          reducedMotion: 'no-preference' });
   const page = await ctx.newPage();
   page.on('pageerror', (e) => { fail++; console.log('  FAIL  page error — ' + e.message); });
+  // Stamp when the growth canvas first appears, so the lead-in hold can be measured without
+  // polling for it. Installed before navigation; costs nothing to the boots that ignore it.
+  await page.addInitScript(() => {
+    window.__tc = { nav: performance.now() };
+    addEventListener('DOMContentLoaded', () => {
+      new MutationObserver(() => {
+        if (!window.__tc.canvas && document.querySelector('#word canvas')) {
+          window.__tc.canvas = performance.now();
+        }
+      }).observe(document.body, { subtree: true, childList: true });
+    });
+  });
   await page.goto(boot.base + '/', { waitUntil: 'domcontentloaded' });
   if (css) await page.addStyleTag({ content: css });
   // The line fades in on the wordmark's BLOOM, not on g.done — wait for the class, not a delay.
@@ -187,7 +199,52 @@ async function lineStats(page) {
       await ctx.close();
     }
 
-    // ---- 2. the chapter line's fill actually paints ----------------------------------------
+    // ---- 2. the card opens on a beat of black ---------------------------------------------
+    // A creative choice with no other trace in the code, and the loop reads wrong without it, so
+    // it is pinned. Asserted as EMPTY FRAME rather than "no canvas element": what matters is that
+    // nothing is on screen, and a future version might mount the canvas early and hold it blank.
+    console.log('\nthe card opens on a beat of black');
+    {
+      const ctx = await browser.newContext({ viewport: { width: 630, height: 500 },
+                                             deviceScaleFactor: 1, reducedMotion: 'no-preference' });
+      const page = await ctx.newPage();
+      await page.addInitScript(() => {
+        window.__tc = { nav: performance.now() };
+        addEventListener('DOMContentLoaded', () => {
+          new MutationObserver(() => {
+            if (!window.__tc.canvas && document.querySelector('#word canvas')) {
+              window.__tc.canvas = performance.now();
+            }
+          }).observe(document.body, { subtree: true, childList: true });
+        });
+      });
+      await page.goto(boot.base + '/', { waitUntil: 'domcontentloaded' });
+      await page.evaluate(() => document.getElementById('hint').remove());   // not part of the art
+      await sleep(1200);
+      const png = await page.screenshot({ animations: 'disabled', timeout: 15000 });
+      const bright = await page.evaluate(async (b64) => {
+        const img = new Image();
+        await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = b64; });
+        const c = document.createElement('canvas');
+        c.width = img.width; c.height = img.height;
+        const x = c.getContext('2d'); x.drawImage(img, 0, 0);
+        const d = x.getImageData(0, 0, c.width, c.height).data;
+        let m = 0;
+        for (let i = 0; i < d.length; i += 4) m = Math.max(m, d[i], d[i + 1], d[i + 2]);
+        return m;
+      }, 'data:image/png;base64,' + png.toString('base64'));
+      // The background gradient's own lightest channel is 19. Ink lands at 245+ on its first frame.
+      ok(bright < 40, 'nothing is drawn 1.2s in — the frame is still the bare gradient',
+         `brightest channel ${bright} (gradient tops out at 19, ink arrives at 245+)`);
+
+      await page.waitForFunction(() => window.__tc && window.__tc.canvas, { timeout: 20000 });
+      const lead = await page.evaluate(() => Math.round(window.__tc.canvas - window.__tc.nav));
+      ok(lead > 1700 && lead < 3200, 'and the growth starts about two seconds in',
+         `first canvas at ${lead}ms after navigation`);
+      await ctx.close();
+    }
+
+    // ---- 3. the chapter line's fill actually paints ----------------------------------------
     // MEASURED AT THE TYPE'S FULL SIZE, not at the export's. `font-size` is
     // clamp(26px, 6.2vw, 92px), so 630x500 gives 39px type with ~5px stems — at that width almost
     // every pixel of a letter is an antialiased edge, and both the mottle and the stroke measure as
@@ -218,7 +275,7 @@ async function lineStats(page) {
     ok(shipped.lit > noFill.lit * 3, 'NEGATIVE CONTROL: suppressing the fill copy collapses it',
        `${shipped.lit} lit px shipped vs ${noFill.lit} with .soon::after removed`);
 
-    // ---- 3. the fill is textured, not flat --------------------------------------------------
+    // ---- 4. the fill is textured, not flat --------------------------------------------------
     console.log('\nthe fill is textured');
     const noTex = await (async () => {
       const { ctx, page } = await boot(browser, LW, LH, ':root { --soon-tex: none !important; }');
@@ -228,7 +285,7 @@ async function lineStats(page) {
     ok(shipped.hf > noTex.hf * 1.6, 'the mottle puts high-frequency variation into the fill',
        `horizontal deviation ${shipped.hf} shipped vs ${noTex.hf} with --soon-tex off`);
 
-    // ---- 4. the dark edge is drawn ----------------------------------------------------------
+    // ---- 5. the dark edge is drawn ----------------------------------------------------------
     console.log('\nthe letters carry a dark edge');
     const noStroke = await (async () => {
       const { ctx, page } = await boot(browser, LW, LH, '.soon { -webkit-text-stroke-width: 0 !important; }');
