@@ -53,6 +53,41 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      'otherwise itch serves a directory listing instead of the game');
   ok('...and the zip holds nothing but index.html and assets/',
      top.length === 2 && top[0] === 'assets' && top[1] === 'index.html', top.join(', '));
+  // NOT A ZIP OF A ZIP. itch reports this as "Failed to find index.html" and says nothing about
+  // the cause, and the way you get one is not by building it wrong: GitHub Actions zips an
+  // artifact's CONTENTS on download, so an artifact holding the .zip comes back double-wrapped.
+  // Reported from a real upload. The build is uploaded as the STAGE now so both routes are flat,
+  // and this refuses anything nested whatever produced it.
+  ok('...and is not a zip of a zip', !entries.some((e) => /\.zip$/i.test(e)),
+     entries.filter((e) => /\.zip$/i.test(e)).join(', ') || 'no nested archives');
+
+  // ---- 1b. THE PRUNE DID NOT CUT ANYTHING THE GAME CAN REACH ----------------
+  // The build ships only the asset folders a public build can load, because itch caps an HTML5 zip
+  // at 1,000 entries and the full tree is 2,450. That prune is the one step here that can silently
+  // break a map the player CAN open — and playing two levels below would never see it, since a
+  // missing sprite on level 14 is invisible from level 1. So it is checked statically, over every
+  // level the build claims to ship: the folder is present, it has sprites in it, and every manifest
+  // entry points at a file that is actually in the zip.
+  {
+    const inZip = new Set(entries);
+    const levelsDir = path.join(ROOT, 'docs', 'levels');
+    const want = [];
+    for (const f of fs.readdirSync(levelsDir).filter((n) => n.endsWith('.json'))) {
+      const def = JSON.parse(fs.readFileSync(path.join(levelsDir, f), 'utf8'));
+      if (def.campaignLevel || def.survival) want.push({ id: def.id, from: def.assetsFrom || def.id });
+    }
+    const missing = want.filter((w) => !entries.some((e) => e.startsWith('assets/' + w.from + '/')));
+    ok(`every reachable level's art is in the zip (${want.length} levels)`,
+       missing.length === 0, missing.map((m) => m.id).join(', '));
+    // ...and the manifest agrees with it. A `kind: 'level'` entry whose file is absent 404s the
+    // moment that map is opened — the exact failure the manifest note in CLAUDE.md is about.
+    const mf = JSON.parse(fs.readFileSync(path.join(dir, 'assets', 'manifest.json'), 'utf8'));
+    const dangling = mf.assets.filter((a) => !inZip.has('assets/' + a.file));
+    ok('every manifest entry points at a file that is in the zip',
+       dangling.length === 0,
+       `${mf.assets.length} entries, ${dangling.length} dangling` +
+       (dangling.length ? ': ' + dangling.slice(0, 3).map((d) => d.file).join(', ') : ''));
+  }
 
   // ---- serve the UNZIPPED tree, so this is the uploaded bytes ---------------
   const srv = await new Promise((res) => {

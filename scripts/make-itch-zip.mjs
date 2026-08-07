@@ -31,6 +31,9 @@ const OUT_DIR = path.join(ROOT, 'dist');
 const STAGE = path.join(OUT_DIR, 'stage');
 const ZIP = path.join(OUT_DIR, 'mycelium-itch.zip');
 const keepDev = process.argv.includes('--keep-dev');
+// Leave `dist/stage/` behind. Only CI wants this: GitHub zips an artifact's CONTENTS, so uploading
+// the STAGE gives a downloaded artifact that is itself a valid itch zip — see the workflow.
+const keepStage = process.argv.includes('--keep-stage');
 
 const say = (...a) => console.log(...a);
 const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
@@ -61,17 +64,62 @@ if (!keepDev) {
   say('dev buttons: ON  — --keep-dev was passed. DO NOT UPLOAD THIS.');
 }
 
-// ---- 2. stage index.html + assets at the zip root ---------------------------
+// ---- 2. stage index.html + ONLY THE ASSETS A PUBLIC BUILD CAN REACH ---------
+//
+// ITCH CAPS AN HTML5 ZIP AT 1,000 ENTRIES. The whole `assets/` tree is 2,383 files across 65
+// folders and the upload was rejected with "Too many files in zip (2450 > 1000)". Most of that is
+// dead weight in a PUBLIC build: there are 58 traced map folders in the manifest and only the
+// CAMPAIGN and SURVIVAL maps can ever be loaded once the dev flag is off — the map switcher, the
+// rock editor and `#level,<id>` are all gated on it. So the build ships the reachable levels and
+// nothing else: 1,493 files for maps nobody can open, gone.
+//
+// It is a BUILD-TIME prune, never a deletion. Every one of those maps is still in the repo and
+// still reachable in development; CLAUDE.md's "deleting a level is three deletions" does not apply
+// because nothing is being deleted.
+const levelsDir = path.join(ROOT, 'docs', 'levels');
+const reachable = new Set();
+for (const f of fs.readdirSync(levelsDir).filter((n) => n.endsWith('.json'))) {
+  const def = JSON.parse(fs.readFileSync(path.join(levelsDir, f), 'utf8'));
+  if (def.campaignLevel || def.survival) reachable.add(def.assetsFrom || def.id);
+}
+say(`levels a public build can reach: ${reachable.size} folders`);
+
 fs.rmSync(STAGE, { recursive: true, force: true });
-fs.mkdirSync(STAGE, { recursive: true });
+fs.mkdirSync(path.join(STAGE, 'assets'), { recursive: true });
 fs.writeFileSync(path.join(STAGE, 'index.html'), html);
-// cp -a rather than a hand-rolled walk: `assets/` is ~2,500 files and this is not the interesting
-// part of the build.
-execFileSync('cp', ['-a', path.join(ROOT, 'assets'), path.join(STAGE, 'assets')]);
+
+const SRC = path.join(ROOT, 'assets');
+let copied = 0, skipped = 0;
+for (const name of fs.readdirSync(SRC)) {
+  const from = path.join(SRC, name);
+  if (!fs.statSync(from).isDirectory()) { fs.copyFileSync(from, path.join(STAGE, 'assets', name)); copied++; continue; }
+  // A folder is either SHARED ART (cards, species, music, …) or one map's sprites. Shared art has
+  // no level of that name, so "is there a level with this id?" is the whole test — and it is
+  // derived rather than listed, so a new shared folder needs no edit here.
+  const isLevelFolder = fs.existsSync(path.join(levelsDir, name + '.json'))
+    || fs.readdirSync(from).some((f) => /^r\d+\.webp$/.test(f));
+  if (isLevelFolder && !reachable.has(name)) { skipped++; continue; }
+  execFileSync('cp', ['-a', from, path.join(STAGE, 'assets', name)]);
+  copied++;
+}
+say(`assets: ${copied} folders/files staged, ${skipped} unreachable map folders skipped`);
+
+// ...AND THE MANIFEST HAS TO AGREE. `loadAssets` holds `kind: 'level'` entries back from the boot
+// preload, so a stale one would not hang the boot — but it would 404 the moment anything asked for
+// it, and leaving 2,215 entries describing files that are not in the zip is a trap for the next
+// person. Filtered to the folders actually staged.
+const mfPath = path.join(STAGE, 'assets', 'manifest.json');
+const mf = JSON.parse(fs.readFileSync(mfPath, 'utf8'));
+const before = mf.assets.length;
+mf.assets = mf.assets.filter((a) => a.kind !== 'level' || reachable.has(String(a.file).split('/')[0]));
+fs.writeFileSync(mfPath, JSON.stringify(mf, null, 2));
+say(`manifest: ${before} entries -> ${mf.assets.length}`);
 
 // ---- 3. zip, from INSIDE the stage so paths are root-relative ---------------
+// `-D` = NO DIRECTORY ENTRIES. itch counts them against the 1,000 cap (2,383 files reported as
+// 2,450), and they carry nothing a browser needs.
 fs.rmSync(ZIP, { force: true });
-execFileSync('zip', ['-q', '-r', '-9', ZIP, 'index.html', 'assets'], { cwd: STAGE });
+execFileSync('zip', ['-q', '-r', '-9', '-D', ZIP, 'index.html', 'assets'], { cwd: STAGE });
 
 // ---- 4. report, and check the shape ----------------------------------------
 const size = fs.statSync(ZIP).size;
@@ -88,5 +136,13 @@ say(`zip: ${path.relative(ROOT, ZIP)}  ${mb(size)}  (${entries.filter((e) => !e.
 say(`index.html at the zip ROOT: ${rootHtml ? 'yes' : 'NO — itch will serve a directory listing'}`);
 if (strays.length) say(`unexpected top-level entries: ${strays.join(', ')}`);
 if (size > 200 * 1048576) say('WARNING: over 200 MB — itch caps a single file at 1 GB, but this is a browser download.');
-fs.rmSync(STAGE, { recursive: true, force: true });
+// The cap that actually bit. Reported as an upload failure with no way to see it coming.
+const ITCH_MAX_ENTRIES = 1000;
+say(`entries: ${entries.length} / ${ITCH_MAX_ENTRIES} (itch's HTML5 cap)`);
+if (entries.length > ITCH_MAX_ENTRIES) {
+  console.error(`FAILED: ${entries.length} entries — itch rejects an HTML5 zip over ${ITCH_MAX_ENTRIES}.`);
+  process.exit(1);
+}
+if (!keepStage) fs.rmSync(STAGE, { recursive: true, force: true });
+else say(`stage kept at ${path.relative(ROOT, STAGE)} (its CONTENTS are a valid itch zip on their own)`);
 if (!rootHtml || strays.length) process.exit(1);
