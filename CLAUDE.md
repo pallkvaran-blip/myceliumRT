@@ -3016,6 +3016,14 @@ git fetch origin <branch> && git log --oneline origin/<branch> -1
 git reset --hard origin/<branch>
 ```
 
+**THE `git fetch` IS NOT OPTIONAL, AND SKIPPING IT INVERTS THE FIX.** `origin/<branch>` is a LOCAL
+ref inside `.git`, so the rollback takes it too — and then any test of "does the remote have my
+work?" answers about the stale copy. Measured: `git show origin/<branch>:index.html | grep -c
+AUTO_ARM_MS` returned **0** on a remote that had it 13 times, and the `reset --hard` that followed
+moved the tree BACKWARDS onto the rolled-back ref, throwing away the session a second time. It was
+recoverable — one `git fetch` and the same reset — but the lesson is that the pre-flight check is
+worthless before the fetch. Fetch FIRST, then check, then reset.
+
 Then VERIFY a few specific things came back (`grep -c rockEdit index.html`, `ls
 tests/edit-check.cjs`) before doing anything else — the failure is silent, and the first
 symptom is usually an edit that "doesn't apply" because the text it targets is gone. Push
