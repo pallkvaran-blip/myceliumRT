@@ -45,9 +45,59 @@
      "-CHAPTER ONE-" is thirteen characters against nine: at 8vw with this tracking it runs to 95%
      of the frame width and reads as a bar rather than a line. 6.2vw puts it at about 74%.
      Tracking stays at .3em rather than CAMPAIGN's .4em for the same reason. */
+  /* THE LETTERS ARE TWO COPIES, and neither one can do both jobs.
+     BACK is the element itself: the dark edge and the glow. The edge is a STROKE UNDER A SECOND
+     COPY, not a stroke on the visible letter — `-webkit-text-stroke` is centred on the outline, so
+     stroking the letter you can see eats half its width back out of the fill and thickens the
+     counters shut at this tracking. Under the fill, only the outer half shows and the letterform is
+     untouched. #2b0906 rather than black: a near-black oxblood reads as ink pooling at the edge,
+     where true black reads as a cartoon outline against a ground this dark.
+     FRONT (::after, same glyphs via data-text) is the fill, and it is a BACKGROUND clipped to the
+     glyphs rather than a flat colour — a vertical ramp (lit at the top, deep at the foot) multiplied
+     by a mottle, so the red is textured and slightly eroded instead of a solid web red. The texture
+     is a canvas painted at load into `--soon-tex` (see `mottleTexture` below), not an SVG
+     `feTurbulence` filter: turbulence writes NOISE INTO THE ALPHA CHANNEL as well as the colour, and
+     forcing alpha back to 1 afterwards un-premultiplies the dark pixels into much darker ones — the
+     first version rendered the whole line as a near-black bevel. A canvas also lets the range be
+     stated outright (mostly light, so multiply mottles rather than dims) and the tile be made
+     seamless.
+     THE RAMP IS WRITTEN IN hsl AND IT IS A BALANCE, NOT A DESCENT. It holds #c0281f's hue and runs
+     56% -> 45% -> 33% lightness, which averages 44% against that red's own 41% — so once the texture
+     has taken its ~10% off, the line still weighs what the game's flat red weighs and only its
+     modelling has changed. The first version ran #e04a3c -> #7a1610, i.e. away from the red rather
+     than around it: the top edge was the only bright part and every letter read as a dark shape
+     with a red rim, which at thumbnail size is an outline font, not a lit one. Judge a change here
+     by the MEAN, not by the stop colours.
+     ORDER IS WHY THE FILL IS ::after AND NOT ::before. A negative-z-index child paints ABOVE its
+     parent's background (the parent's background is step 1 of the stacking order, negative children
+     step 3), so the obvious arrangement — textured background on the element, dark copy behind at
+     z-index -1 — puts the dark copy ON TOP and the line renders as a near-black silhouette. A
+     POSITIONED child paints above the parent's inline content, which is the ordering wanted here. */
   .soon { font-size: clamp(26px, 6.2vw, 92px); letter-spacing: .3em; text-indent: .3em; line-height: 1;
-          text-transform: uppercase; font-weight: 700;
-          color: #c0281f; text-shadow: 0 0 30px rgba(190, 30, 22, 0.5); }
+          text-transform: uppercase; font-weight: 700; position: relative;
+          -webkit-text-stroke: 0.055em #2b0906; color: #2b0906;
+          text-shadow: 0 0.03em 0.02em rgba(0, 0, 0, 0.85), 0 0 30px rgba(190, 30, 22, 0.5); }
+  .soon::after { content: attr(data-text); position: absolute; inset: 0;
+          /* THE LONGHAND, because `-webkit-text-stroke: 0` is an invalid shorthand and is dropped —
+             after which the fill copy INHERITS the parent's 0.055em dark stroke and paints it over
+             its own texture, leaving a sliver of red down the middle of every letter. */
+          -webkit-text-stroke-width: 0; color: transparent;
+          /* AND `text-shadow: none`, WHICH IS THE ONE THAT LOOKS LIKE IT CANNOT MATTER. The fill is
+             a BACKGROUND, and a background paints BEFORE the element's inline content — so the dark
+             drop this copy inherits from the parent lands on top of its own fill, offset down by
+             0.03em, and every letter comes out near-black with a red rim along its top edge only.
+             It reads exactly like the ramp being too dark, which is what it was misdiagnosed as. */
+          text-shadow: none;
+          -webkit-background-clip: text; background-clip: text;
+          background-blend-mode: multiply;
+          background-image: var(--soon-tex, none),
+            linear-gradient(180deg, hsl(6 78% 56%) 0%, hsl(4 74% 45%) 45%, hsl(2 72% 33%) 100%);
+          background-size: 220px 220px, 100% 100%; }
+  /* If the clip is unsupported the fill copy would be invisible and only the dark edge would show. */
+  @supports not ((-webkit-background-clip: text) or (background-clip: text)) {
+    .soon { color: #c0281f; }
+    .soon::after { content: none; }
+  }
   /* Only visible before the first click, and never once recording has started. */
   #hint { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
           font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
@@ -59,7 +109,7 @@
 <div id="stage">
   <div id="word"></div>
   <div class="lines" id="lines">
-    <div class="soon">-chapter one-</div>
+    <div class="soon" data-text="-chapter one-">-chapter one-</div>
   </div>
 </div>
 <div id="hint">click or press R to replay</div>
@@ -68,6 +118,50 @@
 (function () {
   'use strict';
   const rnd = (a, b) => a + Math.random() * (b - a);
+
+  // ------------------------------------------------------------------------
+  // The chapter line's fill texture: a mottled light grey tile, multiplied over the red ramp by
+  // `.soon::after` so the letters read as stamped ink rather than flat colour.
+  //
+  // TWO SCALES, because one alone does nothing at the size this card is watched at. The blotches
+  // (4-22% of the tile) are what survives a thumbnail and a GIF's palette; the per-pixel grain is
+  // what stops the blotches looking like an airbrush up close, and on its own it would dither away
+  // to an even tone the moment the recording is downscaled.
+  //
+  // IT IS A MULTIPLY MASK, SO IT LIVES IN THE TOP OF THE RANGE. White base, mostly-dark blotches at
+  // 5-20% alpha and grain at +/-17/255: the darkest pixel takes about a third off the red beneath
+  // and the median takes almost nothing. A texture centred on mid-grey would halve the line's
+  // brightness and read as "the red went muddy", which is not texture.
+  //
+  // EACH BLOTCH IS DRAWN NINE TIMES, at every combination of -/0/+ one tile. The tile is 220px
+  // against a line 506px wide at 630x500, so it repeats two and a bit times across the word and a
+  // hard seam would fall inside a letter. Grain is per-pixel and wraps for free.
+  function mottleTexture(size) {
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const x = c.getContext('2d');
+    x.fillStyle = '#fff'; x.fillRect(0, 0, size, size);
+    for (let i = 0; i < 90; i++) {
+      const bx = Math.random() * size, by = Math.random() * size;
+      const r = rnd(size * 0.04, size * 0.22);
+      const col = Math.random() < 0.62 ? '0,0,0' : '255,255,255';
+      const a = rnd(0.05, 0.20);
+      for (const dx of [-size, 0, size]) for (const dy of [-size, 0, size]) {
+        const g = x.createRadialGradient(bx + dx, by + dy, 0, bx + dx, by + dy, r);
+        g.addColorStop(0, 'rgba(' + col + ',' + a + ')');
+        g.addColorStop(1, 'rgba(' + col + ',0)');
+        x.fillStyle = g;
+        x.beginPath(); x.arc(bx + dx, by + dy, r, 0, Math.PI * 2); x.fill();
+      }
+    }
+    const im = x.getImageData(0, 0, size, size), d = im.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const n = (Math.random() - 0.5) * 34;
+      d[i] += n; d[i + 1] += n; d[i + 2] += n;
+    }
+    x.putImageData(im, 0, 0);
+    return c.toDataURL('image/png');
+  }
+  document.documentElement.style.setProperty('--soon-tex', 'url(' + mottleTexture(220) + ')');
 
   // ------------------------------------------------------------------------
   // growMyceliumTitle, lifted from index.html with the game's audio hooks removed.
