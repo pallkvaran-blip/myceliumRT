@@ -297,9 +297,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const out = { cleanStart: !root() };
     let done = false;
     g.victory(() => { done = true; });
-    // POLL FOR THE ASSEMBLED CARD. However long the starved page takes, it gets there — and
-    // `openCard` is armed off a plain timer with a hard ceiling precisely so that is guaranteed.
-    for (let i = 0; i < 150 && !document.querySelector('.li-vict-quote .li-quote-by'); i++) {
+    // POLL FOR THE WORDMARK CANVAS, which is the one thing created when the card OPENS. Polling
+    // for the quote's attribution returned instantly and read the card before it had opened: every
+    // staged element is in the DOM from creation and only its `li-stage-in` class arrives later.
+    // However long the starved page takes it gets there, because `openCard` is armed off a plain
+    // timer with a hard ceiling precisely so that is guaranteed.
+    for (let i = 0; i < 200 && !document.querySelector('#levelIntro.li-vict .li-level canvas'); i++) {
       await new Promise((r) => setTimeout(r, 200));
     }
     out.word = !!document.querySelector('#levelIntro.li-vict .li-level canvas');
