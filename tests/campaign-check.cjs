@@ -220,12 +220,24 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     window.__game.campaign.play('marasmius', lv);
     await new Promise((r) => setTimeout(r, 200));
     window.__game.winLevel();
+    // THE VICTORY SCREEN NOW COMES FIRST on the final level, and `#ssGameWon` is built only when it
+    // is dismissed — so waiting for that card alone hangs here, and the whole block would report
+    // "clearing the last level does not finish the campaign". Recorded as `viaVictory`, which is
+    // itself the assertion that the two screens are in the right order.
+    let viaVictory = false;
     // presentRunOver waits on the celebration; poll rather than guess a duration.
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 90; i++) {
+      const vict = document.querySelector('#levelIntro.li-vict');
+      if (vict) {
+        viaVictory = true;
+        // It is deliberately deaf until the fade lands (see showVictory), so click until it goes.
+        vict.click();
+      }
       if (document.getElementById('ssLevelComplete') || document.getElementById('ssGameWon')) break;
       await new Promise((r) => setTimeout(r, 200));
     }
-    return { complete: !!document.getElementById('ssLevelComplete'), won: !!document.getElementById('ssGameWon') };
+    return { complete: !!document.getElementById('ssLevelComplete'),
+             won: !!document.getElementById('ssGameWon'), viaVictory };
   }, level);
 
   const penult = await clear(shape.levels - 1);
@@ -234,7 +246,91 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   const last = await clear(shape.levels);
   ok(`clearing level ${shape.levels} finishes the campaign`,
      last.won === true && last.complete === false, JSON.stringify(last));
-  await page.evaluate(() => document.querySelectorAll('#ssLevelComplete, #ssGameWon').forEach((n) => n.remove()));
+  // THE VICTORY SCREEN IS ON THE REAL WIN PATH, not only on the debug hook the block below drives.
+  // Two screens in order: the story ending, then the run-complete card that banks the Spores and
+  // offers the way back. Asserted against the penultimate level as a control — without it this
+  // passes on a build that shows the victory screen on EVERY level clear.
+  ok('the final level shows the victory screen before the run-complete card',
+     last.viaVictory === true && penult.viaVictory === false,
+     `final ${last.viaVictory}, level ${shape.levels - 1} ${penult.viaVictory}`);
+  await page.evaluate(() => document.querySelectorAll('#ssLevelComplete, #ssGameWon, #levelIntro').forEach((n) => n.remove()));
+
+  // ---- the victory screen ---------------------------------------------------
+  // Driven through `__game.victory()` so the screen's own behaviour can be measured without
+  // replaying nine levels; that it is REACHED is asserted above, on the real path.
+  //
+  // MEASURED FROM THE DOM, NOT FROM A SCREENSHOT. `page.screenshot({animations:'disabled'})` jumps
+  // every transition to its end state AND fires `transitionend` — so a captured frame cannot show
+  // a fade, and capturing one actually OPENS the card early. Cost a frame that looked like the
+  // fade was instant.
+  const vict = await page.evaluate(async () => {
+    const g = window.__game;
+    document.querySelectorAll('#levelIntro, #speciesSelect, #ssGameWon, #tutorial').forEach((n) => n.remove());
+    let done = false;
+    g.victory(() => { done = true; });
+    const root = () => document.querySelector('#levelIntro.li-vict');
+    const op = () => { const r = root(); return r ? +getComputedStyle(r).opacity : null; };
+    const open = () => { const r = root(); return !!(r && r.classList.contains('li-in')); };
+    const out = { fadeMs: g.ending().fadeMs, samples: [] };
+    // Sample across the fade. A click goes in on the FIRST sample — the player who has just won is
+    // mid-click, and this screen must not be skippable by it.
+    for (let i = 0; i < 9; i++) {
+      await new Promise((r) => setTimeout(r, 260));
+      if (i === 0 && root()) root().click();
+      out.samples.push({ ms: (i + 1) * 260, op: op(), open: open() });
+    }
+    out.survivedEarlyClick = !!root();
+    // Now let it finish and assemble.
+    for (let i = 0; i < 40 && !(open() && document.querySelector('.li-vict-story .li-stage-in')); i++) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    out.word = !!document.querySelector('#levelIntro.li-vict .li-level canvas');
+    out.red = (document.querySelector('.li-vict-line') || {}).textContent || null;
+    out.paras = [...document.querySelectorAll('.li-vict-story .li-story-p')].map((n) => n.textContent);
+    out.ending = g.ending();
+    // ...and it leaves, into the run-complete card.
+    for (let i = 0; i < 40 && root(); i++) { root().click(); await new Promise((r) => setTimeout(r, 200)); }
+    for (let i = 0; i < 30 && !done; i++) await new Promise((r) => setTimeout(r, 200));
+    out.done = done;
+    out.card = !!document.getElementById('ssGameWon');
+    document.querySelectorAll('#ssGameWon, #levelIntro').forEach((n) => n.remove());
+    return out;
+  });
+  // IT FADES UP FROM THE MAP rather than cutting to black — the one thing this screen does that no
+  // other #levelIntro does, and the owner's actual ask ("everything slowly fade to black").
+  const mid = vict.samples.filter((s) => s.op != null && s.op > 0.02 && s.op < 0.95).length;
+  ok('the victory screen fades up from the map instead of cutting to black',
+     mid >= 3, `opacity over time: ${vict.samples.map((s) => s.op).join(', ')}`);
+  // ...and the card waits for the black. Growing the wordmark under a half-transparent overlay
+  // would spend the one animation this screen is built around while the map is still showing.
+  ok('...and the card only opens once the black has landed',
+     vict.samples.every((s) => !s.open || s.op === 1),
+     vict.samples.map((s) => `${s.ms}:${s.op}${s.open ? '+open' : ''}`).join(' '));
+  ok('a click during the fade does NOT skip it',
+     vict.survivedEarlyClick === true);
+  ok('VICTORY is grown as a mycelium wordmark', vict.word === true);
+  ok('"You persisted" sits under it in red', vict.red === 'You persisted', JSON.stringify(vict.red));
+  ok('the ending is shown, in the opening\'s paragraph style',
+     vict.paras.length === vict.ending.lines.length
+       && vict.paras.every((p, i) => p === vict.ending.lines[i]),
+     `${vict.paras.length} paragraph(s)`);
+  // THE ENDING ANSWERS THE OPENING, line for line — that is what makes it an ending rather than a
+  // congratulation, and it is exactly the relationship a later copy edit to either half would
+  // quietly break. Asserted as the mirror pair, against both shipped strings.
+  ok('...and it answers the opening ("nothing left" -> "something left")',
+     vict.ending.opening.some((l) => /There is nothing left where you are/.test(l))
+       && vict.ending.lines.some((l) => /There is something left where you are now/.test(l)),
+     vict.ending.lines[1] || '(none)');
+  ok('...and the red line answers the opening\'s ask ("must persist" -> "persisted")',
+     /must persist/i.test(vict.ending.ask) && /persisted/i.test(vict.ending.red),
+     `${vict.ending.ask} -> ${vict.ending.red}`);
+  // It HANDS OVER — i.e. `onDone` fires on dismiss, which is what carries the real path into
+  // `showGameWon`. Asserted as the callback and not as `#ssGameWon`, because the debug hook's
+  // onDone is the probe's own function: through it there is no card to find, and asserting one
+  // fails on a screen that is working perfectly. That the handover LANDS on the card is asserted
+  // on the real win path above (`last.viaVictory && last.won`).
+  ok('dismissing it hands over (onDone fires)', vict.done === true,
+     JSON.stringify({ done: vict.done }));
 
   // ---- the final level's goal band ------------------------------------------
   // "Almost twice as big", with things floating over it (owner) — the map that ENDS the campaign,

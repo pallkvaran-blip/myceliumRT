@@ -40,7 +40,7 @@ const CHECKS = [
   ['cardrules', 'card-rules-check.cjs', 40, false],
   ['telem',     'telemetry-check.cjs', 60, false],
   ['analytics', 'analytics-check.cjs', 30, false],
-  ['campaign',  'campaign-check.cjs', 45, false],
+  ['campaign',  'campaign-check.cjs', 110, false],
   ['water',     'water-check.cjs',   30,  false],
   ['surface',   'surface-edit-check.cjs', 30, false],
   ['level',     'level-check.cjs',   50,  false],

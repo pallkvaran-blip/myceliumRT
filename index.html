@@ -2027,6 +2027,31 @@
        out, because a pulsing element never reads as fully opaque. */
     .li-hint.li-stage { animation-delay:var(--li-fade,700ms); }
     .li-hint.li-stage:not(.li-stage-in) { animation:none; }
+    /* ---- the VICTORY screen ------------------------------------------------
+       The one overlay that FADES UP FROM THE MAP instead of cutting to black (owner: "let's have
+       everything slowly fade to black"). Every other #levelIntro is opaque from its first frame,
+       because it exists to hide a map that is still being built; this one is shown over a map the
+       player has just won on and has to let them watch it go.
+       So `li-vict` starts the root transparent and `li-vict-black` runs it up. NO SPECIFICITY
+       FIGHT WITH `.li-out`: dismissing REMOVES `li-vict-black` rather than trying to override it
+       (`#levelIntro.li-vict.li-vict-black` would beat `#levelIntro.li-out` on class count), which
+       leaves `.li-vict`'s own opacity:0 to fade it out on the same slow curve, and `.li-out` still
+       supplies the pointer-events:none. Grep before adding to this sheet — three rules have been
+       silently shadowed here (.li-count, .ss-hint, .li-of--foot). */
+    #levelIntro.li-vict { opacity:0; transition:opacity var(--li-vict-ms,2600ms) ease; }
+    #levelIntro.li-vict.li-vict-black { opacity:1; }
+    /* "You persisted", in the game's red under the wordmark. It answers the opening's closing
+       line, so it takes the SERIF that line is set in rather than `.li-sub`'s mono — the mono is
+       the survival ladder's escalation taunt and reads as a system message, which is the wrong
+       register for the last thing the campaign says to you. The red is `.li-sub`'s exactly. */
+    .li-vict-line { font-family:var(--ss-serif, Georgia, 'Times New Roman', serif);
+      font-size:clamp(19px,3vw,33px); line-height:1.3; letter-spacing:.015em; margin:0;
+      color:#c0281f; text-shadow:0 0 26px rgba(190,30,22,0.42); }
+    /* The ending sits in the OPENING's paragraph style (`.li-story-p` / `.li-story-body`), so the
+       two halves of the story are visibly one piece of writing. Centred here though: the opening
+       is a wall of text and reads left-aligned, while this is three short lines under a wordmark. */
+    .li-vict-story { text-align:center; }
+    .li-vict-story .li-story-p:last-child { margin-bottom:0; }
     @media (max-width:720px) {
       .li-threat { gap:9px; }
       .li-hint { font-size:11px; letter-spacing:.12em; }
@@ -12615,6 +12640,23 @@ const CAMPAIGN_OPENING = [
   'Nine geologies stand between and you will die in the dark and fruit, and the spores will fall, and what grows from them will be stronger.',
 ];
 const CAMPAIGN_OPENING_ASK = '-You must persist-';
+// THE ENDING, shown on the victory screen after the last level falls. Written to ANSWER the
+// opening line for line, because that is what makes it an ending rather than a congratulation:
+//   "There is nothing left where you are."  ->  "There is something left where you are now."
+//   "Nine geologies stand between and you will die in the dark and fruit, and the spores will
+//    fall, and what grows from them will be stronger."
+//                                          ->  the same sentence in the past tense, arrived.
+// The red line under the wordmark answers `CAMPAIGN_OPENING_ASK` the same way.
+//
+// "Nine" tracks `CAMPAIGN_LEVELS` and is written out in both places, as the opening does — the
+// campaign's length is a word in a sentence here, not a number to interpolate. If the ladder ever
+// changes length, both lines change with it.
+const CAMPAIGN_ENDING_RED = 'You persisted';
+const CAMPAIGN_ENDING = [
+  'You broke the surface and the rain found you.',
+  'There is something left where you are now.',
+  'Nine geologies are behind you. You died in the dark and fruited, and the spores fell, and what grew from them was stronger, and it is standing in the green.',
+];
 // THE PER-LEVEL STORY LINES ARE GONE (owner). `CAMPAIGN_STORY` held one sentence per level and the
 // level card printed it under the title; it is deleted rather than left unrendered, and it is in
 // git if it is ever wanted back. What names the level now is the ROCK — one word, in the card's
@@ -13417,7 +13459,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING, CAMPAIGN_ENDING_RED, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -27158,6 +27200,10 @@ const LI_STAGE_GAP = 430, LI_STAGE_FADE = 620;
 // error), the card must still assemble itself. A screen that stays blank because an ANIMATION
 // hook did not fire is the worst failure available here.
 const LI_STAGE_FALLBACK = 2200;
+// The victory screen's fade-up from the map. Kept HERE rather than only in the CSS because the
+// script needs the same number for its `transitionend` backstop, and two copies would drift —
+// it is pushed into `--li-vict-ms` at build time so the stylesheet reads it back.
+const VICT_FADE_MS = 2600;
 
 function showLevelIntro(opts) {
   const level = (opts && opts.level) || 1;
@@ -27387,7 +27433,128 @@ function showStoryIntro(opts) {
   return { destroy, get active() { return alive; } };
 }
 
-  return { showLevelIntro, showStoryIntro };
+// =============================================================================
+// THE VICTORY SCREEN — the last campaign level has fallen.
+//
+//   showVictory({ lines, onDone }) → { destroy(), active }
+//
+// The level card's shell again (same overlay, same wordmark, same staged reveal, same click to
+// leave), with one thing no other screen here does: it FADES UP FROM THE MAP. Every other
+// `#levelIntro` is opaque on its first frame because it exists to hide a map still being built;
+// this one is shown over a map the player has just won on, and the ask was to let them watch it
+// go — "everything slowly fade to black".
+//
+// THE ORDER IS THE POINT, and it is the whole reason this is not just `showStoryIntro` with a
+// wordmark bolted on:
+//   1. the root fades 0 → 1 over `li-vict-ms` (2.6 s), so the map dims away under it;
+//   2. only THEN does the content fade in and the wordmark start growing — grown during the fade
+//      it would be half-drawn by the time anyone could see it, which throws away the one animation
+//      the screen is built around;
+//   3. `onGrown` releases the staged reveal: the red line, then the ending, then the hint.
+//
+// AND IT IS DEAF UNTIL THE BLACK LANDS. A player who has just won is mid-click — the same defect
+// the tutorial's catcher had, where a step that arrived on its own was dismissed by a click aimed
+// at something else. Here it would skip the entire ending.
+function showVictory(opts) {
+  const lines = (opts && opts.lines) || [];
+  const red = (opts && opts.red) || '';
+  const onDone = opts && opts.onDone;
+
+  const root = el('div'); root.id = 'levelIntro';
+  root.classList.add('li-camp', 'li-vict');
+  root.style.setProperty('--li-vict-ms', VICT_FADE_MS + 'ms');   // one number, not two — see above
+  const inner = el('div', 'li-inner');
+  const head = el('div', 'li-head');
+  const titleWrap = el('div', 'li-level');
+  titleWrap.setAttribute('role', 'img');
+  titleWrap.setAttribute('aria-label', 'Victory');
+  head.appendChild(titleWrap);
+
+  // Everything except the wordmark arrives one at a time, exactly as the campaign card does.
+  const staged = [];
+  const stage = (n) => { n.classList.add('li-stage'); staged.push(n); return n; };
+  if (red) head.appendChild(stage(el('div', 'li-vict-line', String(red))));
+  inner.appendChild(head);
+  if (lines.length) {
+    const body = el('div', 'li-story-body li-vict-story');
+    for (const line of lines) body.appendChild(stage(el('p', 'li-story-p', String(line))));
+    inner.appendChild(body);
+  }
+  inner.appendChild(stage(el('div', 'li-hint li-hint--tiny', 'click')));
+  root.appendChild(inner);
+  document.body.appendChild(root);
+
+  let alive = true, myc = null, armed = false;
+  let timers = [];
+  const later = (fn, ms) => { timers.push(setTimeout(fn, ms)); };
+
+  function revealStaged() {
+    if (!staged.length) return;
+    const list = staged.splice(0, staged.length);
+    list.forEach((n, i) => later(() => n.classList.add('li-stage-in'), i * LI_STAGE_GAP));
+  }
+
+  // Step 2: the black has landed. Idempotent — it is reached by `transitionend` OR by the
+  // fallback timer, because a headless page throttles rAF and can swallow the event entirely
+  // (the same reason every dismiss in this module carries one).
+  let opened = false;
+  function openCard() {
+    if (opened || !alive) return;
+    opened = true;
+    armed = true;                       // clicks count from here, not before
+    root.classList.add('li-in');
+    try { myc = growMyceliumTitle(titleWrap, { word: 'VICTORY', onGrown: revealStaged }); }
+    catch (_) { revealStaged(); }       // no title, no hook — the ending must still arrive
+    later(revealStaged, LI_STAGE_FALLBACK);
+  }
+
+  function kill() {
+    for (const t of timers) clearTimeout(t);
+    timers = [];
+    try { myc && myc.destroy(); } catch (_) {} myc = null;
+  }
+
+  let removed = false;
+  function finishOut() {
+    if (removed) return; removed = true;
+    kill(); root.remove();
+    if (onDone) { try { onDone(); } catch (e) { console.error('[victory] onDone failed:', e); } }
+  }
+  function dismiss() {
+    if (!alive || !armed) return;
+    alive = false;
+    unbind();
+    // Remove the black rather than fight it — see the CSS note. `.li-vict`'s own opacity:0 fades
+    // it back out on the same slow curve, which is the right exit for this screen anyway.
+    root.classList.remove('li-vict-black');
+    root.classList.add('li-out');
+    root.addEventListener('transitionend', (e) => { if (e.target === root && e.propertyName === 'opacity') finishOut(); });
+    later(finishOut, 2900);
+  }
+  function destroy() {
+    if (!alive && !root.isConnected) return;
+    alive = false; unbind(); kill(); root.remove();
+  }
+  const onKey = (e) => { if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') dismiss(); };
+  function unbind() {
+    root.removeEventListener('click', dismiss);
+    document.removeEventListener('keydown', onKey);
+  }
+  root.addEventListener('click', dismiss);
+  document.addEventListener('keydown', onKey);
+
+  // Step 1: run the black up on the next frame, and open the card when it gets there.
+  requestAnimationFrame(() => {
+    if (!alive) return;
+    root.classList.add('li-vict-black');
+    root.addEventListener('transitionend', (e) => { if (e.target === root && e.propertyName === 'opacity') openCard(); });
+    later(openCard, VICT_FADE_MS + 300);
+  });
+
+  return { destroy, get active() { return alive; }, get armed() { return armed; } };
+}
+
+  return { showLevelIntro, showStoryIntro, showVictory, VICT_FADE_MS };
 })();
 
 // ===================== src/render/loading.js =====================
@@ -27702,8 +27869,8 @@ const __m_main = (function () {
   const { showLoadoutSelect } = __m_render_loadout_select;
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
-  const { showLevelIntro, showStoryIntro } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { showLevelIntro, showStoryIntro, showVictory, VICT_FADE_MS } = __m_render_level_intro;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING, CAMPAIGN_ENDING_RED, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -27782,6 +27949,9 @@ let pendingLevelIntro = null;         // {level, threats, onContinue} — black 
 // begins, cleared as it is shown.
 let storyIntro = null;
 let levelIntro = null;                // active level-intro overlay controller
+// The victory screen (campaign only). Held so `begin()` can tear it down like the others — a run
+// started from behind it would otherwise leave a full-screen black overlay over the new map.
+let victoryScreen = null;
 let draftIntro = null;                // sequenced food-pile → card-draft animation (see updateDraftIntro)
 
 // Fade the whole map in from black. Fired by the render loop after the FIRST fully
@@ -29001,7 +29171,21 @@ function onLevelWon() {
     _sessionRuns++;
     logEvent('run_end', { species: chosenSpecies && chosenSpecies.id, level: cleared, cause: 'won',
       turns: state && state.turn, n: Math.round(runSpores || 0) });
-    showGameWon({ spores: runSpores, balance, onNewRun: () => runEndThen(backToPicker) });
+    // THE VICTORY SCREEN FIRST, THEN THE RUN-COMPLETE CARD. Two screens on purpose, and the split
+    // is the same one the campaign already makes between the OPENING and the picker: the victory
+    // screen is the story ending — it fades the map away, grows VICTORY and answers the opening —
+    // and `showGameWon` is the bookkeeping that follows it (what you banked, and the way back to
+    // the picker). Folding the tally onto the ending would put a number in the middle of the last
+    // sentence of the story.
+    //
+    // Only a CAMPAIGN run gets it: the ending answers the campaign's opening, and the survival
+    // ladder has neither. Survival reaching MAX_LEVEL keeps the card it has always had.
+    const won = () => showGameWon({ spores: runSpores, balance, onNewRun: () => runEndThen(backToPicker) });
+    if (campaignRun()) victoryScreen = showVictory({
+      lines: CAMPAIGN_ENDING, red: CAMPAIGN_ENDING_RED,
+      onDone: () => { victoryScreen = null; won(); },
+    });
+    else won();
   } else {
     const snap = snapshotCarry();
     showLevelComplete({
@@ -30335,6 +30519,9 @@ function begin(newState) {
   if (tutorial) { tutorial.destroy(); tutorial = null; }   // never carry a tutorial across levels/runs
   pendingLevelIntro = null;       // drop an unshown intro from a superseded begin()
   if (levelIntro) { try { levelIntro.destroy(); } catch (_) {} levelIntro = null; }   // clear a lingering intro overlay
+  // ...and the victory screen, for the same reason: it is a full-screen black overlay, so one left
+  // standing over a freshly-started run hides the map completely with nothing on screen saying why.
+  if (victoryScreen) { try { victoryScreen.destroy(); } catch (_) {} victoryScreen = null; }
   // Card layer online for procedural (non-puzzle) runs. Priority:
   //   carryOver  → transplant the deck+reserves from the previous level (campaign)
   //   chosenSpecies → that species' exact starting hand + resources
@@ -30701,6 +30888,12 @@ function begin(newState) {
     traceAnts: (on) => { _antTrace = !!on; if (!_antTrace) _antMarks = []; return _antTrace; },
     antMarks: () => _antMarks.slice(),
     // Tutorial hooks (used by the future "replay tutorial" button + tests).
+    // The victory screen, without playing nine levels to reach it. `ending` is the copy it shows,
+    // so a check can assert the shipped text rather than restate it.
+    victory: (fn) => (victoryScreen = showVictory({ lines: CAMPAIGN_ENDING, red: CAMPAIGN_ENDING_RED,
+      onDone: () => { victoryScreen = null; if (fn) fn(); } })),
+    ending: () => ({ lines: CAMPAIGN_ENDING.slice(), red: CAMPAIGN_ENDING_RED,
+      opening: CAMPAIGN_OPENING.slice(), ask: CAMPAIGN_OPENING_ASK, fadeMs: VICT_FADE_MS }),
     startTutorial: () => beginTutorial(),
     // The script the live tutorial is running — see the `script` getter on the controller.
     tutorialScript: () => (tutorial ? tutorial.script : null),
@@ -31773,7 +31966,7 @@ function simPaused() {
   const c = state.cards;
   if (c && c.pendingOffers && c.pendingOffers.length && draftSequenceStarted(c.pendingOffers[0])) return true;
   // Non-gameplay overlays: the "Level N" intro, the scripted tutorial, full-screen menus.
-  if (pendingLevelIntro || levelIntro) return true;
+  if (pendingLevelIntro || levelIntro || victoryScreen) return true;
   // The tutorial freezes the clock so the player can read — except on a step marked `live`,
   // which needs the world actually running (the "grow into the orange leaves" step waits for
   // the pile to be digested, and only world ticks do that).

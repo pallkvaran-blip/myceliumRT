@@ -2647,7 +2647,7 @@ Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
     through both times — what catches it is asserting the two elements look DIFFERENT
     (`campaign-check` compares computed font-family/colour against the threat tally), and before
     that, looking at a rendered frame.
-- `tests/campaign-check.cjs` (53, ~65s, in the runner) boots once and replays levels through
+- `tests/campaign-check.cjs` (105, ~110s, in the runner) boots once and replays levels through
   `__game.campaign.play`. What it actually guards: the ladder ENDS at 10 and not at 9; level 3
   builds **the same map twice** (if a `Math.random()` gets into the generation path the seeds
   silently stop meaning anything and nothing else notices); and **every level's goal is reachable**
@@ -2655,6 +2655,52 @@ Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
   unwinnable for everyone, forever, where a random roll would be gone next run. It floods the
   COARSE mask deliberately: the fine one is stamped from authored sprites and is empty on a
   generated map, so flooding it would pass every level vacuously.
+
+### The victory screen
+
+The campaign ends on one (`showVictory`, in `__m_render_level_intro` beside `showStoryIntro`), and
+`showGameWon`'s run-complete card follows it. **Two screens on purpose**, the same split the
+campaign already makes between the opening and the picker: the victory screen is the STORY ENDING
+and the card is the bookkeeping. Folding the Spore tally onto the ending would put a number in the
+middle of the last sentence of the story.
+
+- **IT IS THE ONE `#levelIntro` THAT FADES UP FROM THE MAP.** Every other one is opaque on its first
+  frame because it exists to hide a map still being built; this is shown over a map the player just
+  won on, and the ask was to let them watch it go ("everything slowly fade to black"). `li-vict`
+  starts the root transparent, `li-vict-black` runs it up over `VICT_FADE_MS` (2600).
+- **NO SPECIFICITY FIGHT WITH `.li-out`**: dismissing REMOVES `li-vict-black` rather than trying to
+  override it — `#levelIntro.li-vict.li-vict-black` beats `#levelIntro.li-out` on class count — which
+  leaves `.li-vict`'s own `opacity:0` to fade it back out on the same slow curve, and `.li-out` still
+  supplies the `pointer-events:none`.
+- **THE ORDER IS THE POINT**, and it is why this is not `showStoryIntro` with a wordmark bolted on:
+  the black lands FIRST, and only then does the content fade in and the wordmark start growing.
+  Grown during the fade it would be half-drawn by the time anyone could see it — spending the one
+  animation the screen is built around on a frame nobody is looking at.
+- **Deaf until the black lands.** A player who has just won is mid-click; the same defect the
+  tutorial's catcher had, and here it would skip the whole ending.
+- **`VICT_FADE_MS` is pushed into `--li-vict-ms` at build time** rather than written in both the CSS
+  and the script — the script needs the same number for its `transitionend` backstop.
+
+**The ending ANSWERS the opening, line for line** (`CAMPAIGN_ENDING` / `CAMPAIGN_ENDING_RED`, beside
+`CAMPAIGN_OPENING`), and that is what makes it an ending rather than a congratulation:
+*"There is nothing left where you are"* → *"There is something left where you are now"*, the third
+sentence returns in the past tense arrived, and *"-You must persist-"* → *"You persisted"*.
+`campaign-check` asserts the MIRROR PAIRS against both shipped strings, so a copy edit to either
+half shows up. "Nine" is written out in both, tracking `CAMPAIGN_LEVELS` — the campaign's length is
+a word in a sentence here, not a number to interpolate.
+
+- **A SCREENSHOT CANNOT MEASURE THIS FADE, AND TAKING ONE BREAKS IT.**
+  `page.screenshot({animations:'disabled'})` jumps every transition to its end state *and fires
+  `transitionend`* — so the "mid-fade" frame came out fully black AND the capture itself opened the
+  card early. Sample `getComputedStyle(root).opacity` over time instead; the assertion is that
+  several samples land strictly between 0 and 1.
+- `campaign-check` (105) covers it, with the penultimate level as the control on "the victory screen
+  comes first" — without that it passes on a build that shows it on every level clear. Note the
+  `clear()` helper has to CLICK the victory screen away, or waiting for `#ssGameWon` hangs and the
+  whole block reports that clearing the last level does not finish the campaign.
+- **The debug hook's `onDone` is the caller's own function**, so through `__game.victory(fn)` there
+  is no run-complete card to find — asserting one fails on a screen that works. The handover landing
+  on the card is asserted on the real win path instead.
 
 ### The old ladder, for context
 
