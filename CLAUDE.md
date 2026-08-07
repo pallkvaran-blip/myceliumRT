@@ -2659,10 +2659,21 @@ Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
 ### The victory screen
 
 The campaign ends on one (`showVictory`, in `__m_render_level_intro` beside `showStoryIntro`), and
-`showGameWon`'s run-complete card follows it. **Two screens on purpose**, the same split the
-campaign already makes between the opening and the picker: the victory screen is the STORY ENDING
-and the card is the bookkeeping. Folding the Spore tally onto the ending would put a number in the
-middle of the last sentence of the story.
+**it REPLACES `showGameWon`'s run-complete card on that path** rather than preceding it — its click
+goes straight to the title screen (owner). The card's job was the Spore tally and a way back to the
+picker; the Spores are banked by `addSpores` in `presentRunOver` whether or not anything prints
+them, so nothing is lost, and a number in the middle of the last sentence of the story was the wrong
+ending anyway. Survival reaching `MAX_LEVEL` keeps the card it has always had.
+
+**Its click does two things, and one of them has a hard constraint.** Back to the title (through
+`runEndThen`, never straight to `backToTitle` — that is the single funnel that releases the rating
+boon and counts the run, and skipping it leaves a player permanently on double Spores for having
+won), AND `window.open(RATE_URL, '_blank')` for the itch rating page. **The `window.open` must fire
+inside the click handler**: deferred to `onDone`, after the 2.9 s fade-out, it is no longer a user
+gesture and every popup blocker eats it silently. `RATE_URL` is PASSED IN, because it lives in the
+species module and that is declared after this one. It deliberately does NOT call `markRated` —
+that is tied to the double-Spore boon, so recording a rating nobody gave would hand out an economic
+reward for winning.
 
 - **IT IS THE ONE `#levelIntro` THAT FADES UP FROM THE MAP.** Every other one is opaque on its first
   frame because it exists to hide a map still being built; this is shown over a map the player just
@@ -2681,13 +2692,16 @@ middle of the last sentence of the story.
 - **`VICT_FADE_MS` is pushed into `--li-vict-ms` at build time** rather than written in both the CSS
   and the script — the script needs the same number for its `transitionend` backstop.
 
-**The ending is a QUOTED PASSAGE, not written copy** (`CAMPAIGN_ENDING_QUOTE`, beside
-`CAMPAIGN_OPENING`). Three drafts of original prose were rejected before the owner asked for a
-quotation instead, with the brief: *a long journey with many tragedies, you are stronger, the road
-ahead is not that different, and the cycles of death and rebirth go on.* Currently the close of
-Tennyson's **Ulysses** — Odysseus home from twenty years, old and diminished, announcing that he is
-setting out again — which carries all four halves of that in six lines. The red line above it still
-answers the opening's ask: *"-You must persist-"* → *"You persisted"*.
+**The ending is the owner's sign-off (`CAMPAIGN_ENDING_SAY`) and then a QUOTED PASSAGE**
+(`CAMPAIGN_ENDING_QUOTE`), not written copy. Three drafts of original prose were rejected before the
+brief became "find a fitting passage": *a long journey with many tragedies, you are stronger, the
+road ahead is not that different, and the cycles of death and rebirth go on.* It is Whitman's
+**"Song of Myself" §6** — the answer to the child's question about the grass, which is that the
+grass is growing out of graves and that this is good news. The most mycological passage in English,
+and a description of this game's own mechanic as much as a consolation; `docs/quotes.json` already
+carries two single lines from it as approved flavour (ids 2 and 3), so the voice was settled before
+it was chosen. Tennyson's **Ulysses** was the first pick and is the alternative on file. The red
+line above still answers the opening's ask: *"-You must persist-"* → *"You persisted"*.
 
 - **PUBLIC DOMAIN, AND THAT IS A REQUIREMENT RATHER THAN A CONVENIENCE.** `docs/quotes.json`
   records that **21 of the 47 shipped flavour quotes are still in copyright** and 13 more carry an
@@ -2718,8 +2732,16 @@ answers the opening's ask: *"-You must persist-"* → *"You persisted"*.
   `clear()` helper has to CLICK the victory screen away, or waiting for `#ssGameWon` hangs and the
   whole block reports that clearing the last level does not finish the campaign.
 - **The debug hook's `onDone` is the caller's own function**, so through `__game.victory(fn)` there
-  is no run-complete card to find — asserting one fails on a screen that works. The handover landing
-  on the card is asserted on the real win path instead.
+  is nothing downstream to find — asserting the title screen there fails on a screen that works.
+  The exit (rating tab + title screen) is asserted on the REAL win path instead, with `window.open`
+  stubbed so no tab is actually opened.
+- **A DISMISSED VICTORY SCREEN LIVES ON FOR ITS OWN 2.9 s FADE-OUT, and the next probe measures
+  it.** `campaign-check` drives the real win path first (which ends by dismissing one) and then
+  `__game.victory()` — and the second block sampled the FIRST screen: opacity 1 and already open on
+  its first sample, then gone. **Nine assertions failed on a build that was working perfectly**, and
+  every one of them named a different feature. The block now waits for `#levelIntro.li-vict` to
+  leave the DOM and ASSERTS that it started clean, so that failure can never present as nine
+  unrelated ones again. General rule for this file: a screen that fades out is still in the DOM.
 
 ### The old ladder, for context
 

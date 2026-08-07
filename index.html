@@ -2057,6 +2057,10 @@
        `pre-line` because it is VERSE — the line breaks are the poem's, and reflowed to the
        container's width it reads as prose that has been justified badly. `text-wrap:balance` is
        cleared for the same reason: it re-breaks lines that are already broken. */
+    /* The sign-off. The opening's paragraph style, centred and given a little air under it — it is
+       the game's own voice and the quotation below is what it hands over to. */
+    .li-vict-say { text-align:center; max-width:min(56ch,88vw); }
+    .li-vict-say .li-story-p { margin-bottom:0; }
     .li-vict-quote { margin-top:0; max-width:min(720px,90vw); text-align:center; }
     .li-vict-quote .li-quote-t { white-space:pre-line; text-wrap:initial;
       font-size:clamp(15px,2.15vw,21px); line-height:1.62; color:rgba(226,238,232,0.88); }
@@ -12650,34 +12654,38 @@ const CAMPAIGN_OPENING = [
   'Nine geologies stand between and you will die in the dark and fruit, and the spores will fall, and what grows from them will be stronger.',
 ];
 const CAMPAIGN_OPENING_ASK = '-You must persist-';
-// THE ENDING, shown on the victory screen after the last level falls. A QUOTED PASSAGE rather
-// than written copy (owner), and the brief was its subject: a long journey with many tragedies,
-// you are stronger for it, the road ahead is not that different, and the cycles of death and
-// rebirth go on.
+// THE ENDING, shown on the victory screen after the last level falls: the owner's sign-off, then
+// a QUOTED PASSAGE rather than written copy. Three drafts of original prose were rejected before
+// the brief became "find a fitting passage" — a long journey with many tragedies, you are stronger,
+// the road ahead is not that different, and the cycles of death and rebirth go on.
 //
-// Tennyson's Ulysses, the closing of the last verse paragraph — Odysseus home from ten years of
-// war and ten of sea, old and diminished, announcing that he is setting out again. It carries all
-// four halves of the brief in six lines, and its last line is the strongest closing line in
-// English for a game about not stopping.
+// Whitman, "Song of Myself" §6, the lines that follow the child's question about the grass — the
+// answer being that the grass is growing out of graves and that this is good news. It is the most
+// mycological passage in English: the colony in this game eats the dead and fruits from them, so
+// "the smallest sprout shows there is really no death" is a description of the mechanic as much as
+// a consolation. `docs/quotes.json` already carries two single lines from this same passage as
+// approved flavour (ids 2 and 3), so the voice was settled before it was chosen for the ending.
 //
-// PUBLIC DOMAIN, and that is not incidental. `docs/quotes.json` records that 21 of the 47 shipped
-// flavour quotes are still in copyright and the owner is clearing them; the campaign's ENDING is
-// the worst possible place to add another debt, since it cannot be swapped out quietly later.
-// Published 1842, author died 1892 — clear everywhere, no attribution obligation beyond courtesy.
+// PUBLIC DOMAIN, and that is a requirement rather than a convenience. `docs/quotes.json` records
+// that 21 of the 47 shipped flavour quotes are still in copyright and the owner is clearing them;
+// the campaign's ENDING is the worst place to add another debt, since it is the last screen, cannot
+// be swapped quietly, and is the one quotation a reviewer would name. 1855, Whitman died 1892 —
+// clear everywhere. A replacement wants the same test, AND a public-domain TRANSLATION if it is not
+// originally English: the translation is its own copyrighted work.
 // NOT added to `docs/quotes.json`: that pool is the level cards' random flavour, and this passage
 // must never turn up as a one-liner over level 4.
 //
-// The line breaks are the poem's own and `white-space: pre-line` keeps them — it is verse, and
+// The line breaks are Whitman's own and `white-space: pre-line` keeps them — it is verse, and
 // reflowed to the container's width it reads as prose that has been justified badly.
 const CAMPAIGN_ENDING_RED = 'You persisted';
+const CAMPAIGN_ENDING_SAY = 'This chapter has ended, and while you have suffered, you are stronger for it. I hope we meet again.';
 const CAMPAIGN_ENDING_QUOTE = {
-  text: 'Though much is taken, much abides; and though\n'
-      + 'We are not now that strength which in old days\n'
-      + 'Moved earth and heaven, that which we are, we are;\n'
-      + 'One equal temper of heroic hearts,\n'
-      + 'Made weak by time and fate, but strong in will\n'
-      + 'To strive, to seek, to find, and not to yield.',
-  by: 'Tennyson, Ulysses',
+  text: 'The smallest sprout shows there is really no death,\n'
+      + 'And if ever there was it led forward life, and does not wait at the end to arrest it,\n'
+      + 'And ceas\u2019d the moment life appear\u2019d.\n'
+      + 'All goes onward and outward, nothing collapses,\n'
+      + 'And to die is different from what any one supposed, and luckier.',
+  by: 'Walt Whitman, Song of Myself',
 };
 
 // THE PER-LEVEL STORY LINES ARE GONE (owner). `CAMPAIGN_STORY` held one sentence per level and the
@@ -13482,7 +13490,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -27481,6 +27489,10 @@ function showStoryIntro(opts) {
 function showVictory(opts) {
   const quote = (opts && opts.quote) || null;
   const red = (opts && opts.red) || '';
+  const say = (opts && opts.say) || '';
+  // Passed in rather than read from a constant: `RATE_URL` lives in the species module, which is
+  // declared AFTER this one — declaration order is dependency order here.
+  const rateUrl = (opts && opts.rateUrl) || '';
   const onDone = opts && opts.onDone;
 
   const root = el('div'); root.id = 'levelIntro';
@@ -27498,6 +27510,14 @@ function showVictory(opts) {
   const stage = (n) => { n.classList.add('li-stage'); staged.push(n); return n; };
   if (red) head.appendChild(stage(el('div', 'li-vict-line', String(red))));
   inner.appendChild(head);
+  // The owner's sign-off, in the opening's paragraph style so the game's own voice is the same
+  // object at both ends of the campaign. Above the quotation, because it is the game speaking and
+  // the quotation is what it leaves you with.
+  if (say) {
+    const body = el('div', 'li-story-body li-vict-say');
+    body.appendChild(stage(el('p', 'li-story-p', String(say))));
+    inner.appendChild(body);
+  }
   // THE ENDING IS A QUOTED PASSAGE, and it is set as one — the level card's own `.li-quote`
   // furniture (italic, dimmed, attribution on its own line), sized up here because on that card it
   // is flavour under a story line and here it IS the ending. `.li-vict-quote` keeps the poem's line
@@ -27553,6 +27573,17 @@ function showVictory(opts) {
     if (!alive || !armed) return;
     alive = false;
     unbind();
+    // THE RATING PAGE, OPENED FROM INSIDE THE CLICK HANDLER (owner: the click "takes you to the
+    // main title screen again, as well as opening a new tab that sends the player to the game
+    // rating page"). Synchronous and inside the gesture is the whole requirement — a `window.open`
+    // deferred to `onDone`, after the 2.9 s fade, is not a user gesture any more and every popup
+    // blocker eats it silently. `opener = null` so the new tab cannot reach back into the game.
+    //
+    // It does NOT touch the rating state (`markRated`): that is tied to the double-Spores boon, so
+    // recording a rating nobody has given would hand out an economic reward for winning.
+    if (rateUrl) {
+      try { const w = window.open(rateUrl, '_blank'); if (w) w.opener = null; } catch (_) {}
+    }
     // Remove the black rather than fight it — see the CSS note. `.li-vict`'s own opacity:0 fades
     // it back out on the same slow curve, which is the right exit for this screen anyway.
     root.classList.remove('li-vict-black');
@@ -27899,7 +27930,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro, showVictory, VICT_FADE_MS } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -29200,21 +29231,24 @@ function onLevelWon() {
     _sessionRuns++;
     logEvent('run_end', { species: chosenSpecies && chosenSpecies.id, level: cleared, cause: 'won',
       turns: state && state.turn, n: Math.round(runSpores || 0) });
-    // THE VICTORY SCREEN FIRST, THEN THE RUN-COMPLETE CARD. Two screens on purpose, and the split
-    // is the same one the campaign already makes between the OPENING and the picker: the victory
-    // screen is the story ending — it fades the map away, grows VICTORY and answers the opening —
-    // and `showGameWon` is the bookkeeping that follows it (what you banked, and the way back to
-    // the picker). Folding the tally onto the ending would put a number in the middle of the last
-    // sentence of the story.
+    // THE VICTORY SCREEN IS THE LAST SCREEN OF THE CAMPAIGN, and it replaces the run-complete card
+    // rather than preceding it (owner: its click "takes you to the main title screen again"). The
+    // card's job was the Spore tally and a way back to the picker; the Spores are already banked by
+    // `addSpores` above whether or not anything prints them, and a number in the middle of the last
+    // sentence of the story was the wrong ending anyway.
     //
-    // Only a CAMPAIGN run gets it: the ending answers the campaign's opening, and the survival
-    // ladder has neither. Survival reaching MAX_LEVEL keeps the card it has always had.
-    const won = () => showGameWon({ spores: runSpores, balance, onNewRun: () => runEndThen(backToPicker) });
+    // Only a CAMPAIGN run gets it: the ending is the campaign's, and the survival ladder has no
+    // story to end. Survival reaching MAX_LEVEL keeps the card it has always had.
     if (campaignRun()) victoryScreen = showVictory({
-      quote: CAMPAIGN_ENDING_QUOTE, red: CAMPAIGN_ENDING_RED,
-      onDone: () => { victoryScreen = null; won(); },
+      quote: CAMPAIGN_ENDING_QUOTE, red: CAMPAIGN_ENDING_RED, say: CAMPAIGN_ENDING_SAY,
+      rateUrl: RATE_URL,
+      // Through `runEndThen`, not straight to `backToTitle` — that is the single funnel every
+      // ending passes through, and it is what releases the rating boon and counts the run for the
+      // "have they played yet?" gate. Skipping it would leave a player permanently on double
+      // Spores for having won.
+      onDone: () => { victoryScreen = null; runEndThen(backToTitle); },
     });
-    else won();
+    else showGameWon({ spores: runSpores, balance, onNewRun: () => runEndThen(backToPicker) });
   } else {
     const snap = snapshotCarry();
     showLevelComplete({
@@ -30920,8 +30954,10 @@ function begin(newState) {
     // The victory screen, without playing nine levels to reach it. `ending` is the copy it shows,
     // so a check can assert the shipped text rather than restate it.
     victory: (fn) => (victoryScreen = showVictory({ quote: CAMPAIGN_ENDING_QUOTE, red: CAMPAIGN_ENDING_RED,
+      say: CAMPAIGN_ENDING_SAY, rateUrl: RATE_URL,
       onDone: () => { victoryScreen = null; if (fn) fn(); } })),
     ending: () => ({ quote: { ...CAMPAIGN_ENDING_QUOTE }, red: CAMPAIGN_ENDING_RED,
+      say: CAMPAIGN_ENDING_SAY, rateUrl: RATE_URL,
       opening: CAMPAIGN_OPENING.slice(), ask: CAMPAIGN_OPENING_ASK, fadeMs: VICT_FADE_MS }),
     startTutorial: () => beginTutorial(),
     // The script the live tutorial is running — see the `script` getter on the controller.

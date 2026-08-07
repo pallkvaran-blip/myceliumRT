@@ -220,40 +220,64 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     window.__game.campaign.play('marasmius', lv);
     await new Promise((r) => setTimeout(r, 200));
     window.__game.winLevel();
-    // THE VICTORY SCREEN NOW COMES FIRST on the final level, and `#ssGameWon` is built only when it
-    // is dismissed — so waiting for that card alone hangs here, and the whole block would report
-    // "clearing the last level does not finish the campaign". Recorded as `viaVictory`, which is
-    // itself the assertion that the two screens are in the right order.
-    let viaVictory = false;
+    // THE VICTORY SCREEN IS THE CAMPAIGN'S LAST SCREEN — it REPLACED `#ssGameWon` on this path
+    // (its click goes to the title screen), so waiting for that card hangs here and the whole
+    // block would report "clearing the last level does not finish the campaign". Left STANDING
+    // rather than dismissed: the block below drives it, and dismissing it here would take the
+    // page to the title screen behind the next assertion's back.
+    let victory = false;
     // presentRunOver waits on the celebration; poll rather than guess a duration.
     for (let i = 0; i < 90; i++) {
-      const vict = document.querySelector('#levelIntro.li-vict');
-      if (vict) {
-        viaVictory = true;
-        // It is deliberately deaf until the fade lands (see showVictory), so click until it goes.
-        vict.click();
-      }
+      if (document.querySelector('#levelIntro.li-vict')) { victory = true; break; }
       if (document.getElementById('ssLevelComplete') || document.getElementById('ssGameWon')) break;
       await new Promise((r) => setTimeout(r, 200));
     }
     return { complete: !!document.getElementById('ssLevelComplete'),
-             won: !!document.getElementById('ssGameWon'), viaVictory };
+             card: !!document.getElementById('ssGameWon'), victory };
   }, level);
 
   const penult = await clear(shape.levels - 1);
   ok(`clearing level ${shape.levels - 1} does not end the campaign`,
-     penult.complete === true && penult.won === false, JSON.stringify(penult));
+     penult.complete === true && penult.victory === false, JSON.stringify(penult));
   const last = await clear(shape.levels);
-  ok(`clearing level ${shape.levels} finishes the campaign`,
-     last.won === true && last.complete === false, JSON.stringify(last));
-  // THE VICTORY SCREEN IS ON THE REAL WIN PATH, not only on the debug hook the block below drives.
-  // Two screens in order: the story ending, then the run-complete card that banks the Spores and
-  // offers the way back. Asserted against the penultimate level as a control — without it this
-  // passes on a build that shows the victory screen on EVERY level clear.
-  ok('the final level shows the victory screen before the run-complete card',
-     last.viaVictory === true && penult.viaVictory === false,
-     `final ${last.viaVictory}, level ${shape.levels - 1} ${penult.viaVictory}`);
-  await page.evaluate(() => document.querySelectorAll('#ssLevelComplete, #ssGameWon, #levelIntro').forEach((n) => n.remove()));
+  // THE VICTORY SCREEN IS THE ENDING NOW, on the real win path — not the run-complete card, and
+  // not only the debug hook the block further down drives. The penultimate level is the control:
+  // without it this passes on a build that shows the victory screen on EVERY level clear.
+  ok(`clearing level ${shape.levels} finishes the campaign, on the victory screen`,
+     last.victory === true && last.complete === false && last.card === false,
+     `final ${JSON.stringify(last)}, level ${shape.levels - 1} victory=${penult.victory}`);
+
+  // ...AND ITS CLICK DOES BOTH THINGS (owner): back to the title screen, and a new tab to the
+  // rating page. `window.open` is stubbed rather than allowed — a real popup would open a tab the
+  // harness then has to chase, and what is being asserted is that the call happens AT ALL and with
+  // the right URL. It must fire from inside the click handler: deferred to `onDone`, after the
+  // 2.9 s fade, it is no longer a user gesture and every popup blocker eats it silently.
+  const exit = await page.evaluate(async () => {
+    const opened = [];
+    const real = window.open;
+    window.open = (u, t) => { opened.push({ url: u, target: t }); return null; };
+    try {
+      // Deaf until the fade lands, so click until it goes rather than once.
+      for (let i = 0; i < 60 && document.querySelector('#levelIntro.li-vict'); i++) {
+        document.querySelector('#levelIntro.li-vict').click();
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      for (let i = 0; i < 40 && !document.getElementById('titleScreen'); i++) {
+        await new Promise((r) => setTimeout(r, 200));
+      }
+    } finally { window.open = real; }
+    return { opened, title: !!document.getElementById('titleScreen'),
+             card: !!document.getElementById('ssGameWon'),
+             picker: !!document.getElementById('speciesSelect'),
+             rateUrl: window.__game.ending().rateUrl };
+  });
+  ok('...and its click opens the rating page in a new tab',
+     exit.opened.length === 1 && exit.opened[0].url === exit.rateUrl && exit.opened[0].target === '_blank',
+     JSON.stringify(exit.opened));
+  ok('...and lands on the title screen, not the picker or the run-complete card',
+     exit.title === true && exit.card === false && exit.picker === false,
+     JSON.stringify({ title: exit.title, card: exit.card, picker: exit.picker }));
+  await page.evaluate(() => document.querySelectorAll('#ssLevelComplete, #ssGameWon, #levelIntro, #titleScreen').forEach((n) => n.remove()));
 
   // ---- the victory screen ---------------------------------------------------
   // Driven through `__game.victory()` so the screen's own behaviour can be measured without
@@ -265,7 +289,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // fade was instant.
   const vict = await page.evaluate(async () => {
     const g = window.__game;
-    document.querySelectorAll('#levelIntro, #speciesSelect, #ssGameWon, #tutorial').forEach((n) => n.remove());
+    document.querySelectorAll('#levelIntro, #speciesSelect, #ssGameWon, #tutorial, #titleScreen').forEach((n) => n.remove());
+    // WAIT FOR A CLEAN PAGE FIRST. The block above ends by dismissing a victory screen, and a
+    // dismissed one lives on for the length of its own 2.9 s fade-out — so measuring straight away
+    // sampled THAT screen: opacity 1 and already open on the first sample, then gone. Every
+    // assertion here failed on a build that was working perfectly.
+    const stale = () => document.querySelector('#levelIntro.li-vict');
+    for (let i = 0; i < 40 && stale(); i++) await new Promise((r) => setTimeout(r, 200));
+    const before = !!stale();
     let done = false;
     g.victory(() => { done = true; });
     const root = () => document.querySelector('#levelIntro.li-vict');
@@ -280,12 +311,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       out.samples.push({ ms: (i + 1) * 260, op: op(), open: open() });
     }
     out.survivedEarlyClick = !!root();
+    out.cleanStart = !before;
     // Now let it finish and assemble.
     for (let i = 0; i < 40 && !(open() && document.querySelector('.li-vict-story .li-stage-in')); i++) {
       await new Promise((r) => setTimeout(r, 200));
     }
     out.word = !!document.querySelector('#levelIntro.li-vict .li-level canvas');
     out.red = (document.querySelector('.li-vict-line') || {}).textContent || null;
+    out.say = (document.querySelector('.li-vict-say .li-story-p') || {}).textContent || null;
     const qt = document.querySelector('.li-vict-quote .li-quote-t');
     out.quoteText = qt ? qt.textContent : null;
     out.quoteWrap = qt ? getComputedStyle(qt).whiteSpace : null;
@@ -301,6 +334,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   });
   // IT FADES UP FROM THE MAP rather than cutting to black — the one thing this screen does that no
   // other #levelIntro does, and the owner's actual ask ("everything slowly fade to black").
+  // A stale screen from the block above would make every assertion here measure the wrong node —
+  // asserted rather than merely waited for, so that failure can never present as nine unrelated ones.
+  ok('the probe starts on a clean page', vict.cleanStart === true);
   const mid = vict.samples.filter((s) => s.op != null && s.op > 0.02 && s.op < 0.95).length;
   ok('the victory screen fades up from the map instead of cutting to black',
      mid >= 3, `opacity over time: ${vict.samples.map((s) => s.op).join(', ')}`);
@@ -313,6 +349,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      vict.survivedEarlyClick === true);
   ok('VICTORY is grown as a mycelium wordmark', vict.word === true);
   ok('"You persisted" sits under it in red', vict.red === 'You persisted', JSON.stringify(vict.red));
+  // The owner's sign-off, above the quotation — the game's own voice, in the opening's paragraph
+  // style, so it is the same object at both ends of the campaign.
+  ok('the sign-off is shown above the passage', vict.say === vict.ending.say, JSON.stringify(vict.say));
   // THE ENDING IS A QUOTED PASSAGE (owner), so what is asserted is that the shipped text reaches
   // the screen intact and is attributed. Compared against `__game.ending()` rather than restated
   // here — a check that hard-codes the passage is just a second copy to keep in step.
@@ -329,7 +368,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // here, but an unattributed quotation on the campaign's last screen is the kind of thing that
   // gets noticed — and `docs/quotes.json` records that this game already carries 21 uncleared
   // quotes, so the ending is the last place to be careless.
-  ok('...and attributed', !!vict.quoteBy && /Tennyson/.test(vict.quoteBy), JSON.stringify(vict.quoteBy));
+  ok('...and attributed', !!vict.quoteBy && /Whitman/.test(vict.quoteBy), JSON.stringify(vict.quoteBy));
   ok('...and the red line answers the opening\'s ask ("must persist" -> "persisted")',
      /must persist/i.test(vict.ending.ask) && /persisted/i.test(vict.ending.red),
      `${vict.ending.ask} -> ${vict.ending.red}`);
