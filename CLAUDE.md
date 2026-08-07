@@ -57,16 +57,94 @@ uploads a zip.** From the old notes, kept because it's the thing most easily for
 not "shipped" when it's pushed; it's shipped when the zip goes up.* Say "pushed", not "shipped",
 unless a zip went up.
 
-The release cut, adapted to this repo (no build step):
+**THE CUT IS SCRIPTED NOW — don't do it by hand.**
 
-1. `CONFIG.dev.enabled = false` — the visible dev buttons must not be in a public build. The
-   invisible `window.__game` hook stays.
-2. Zip **`index.html` + `assets/`** at the **zip root** (not inside a folder, or itch serves a
-   directory listing). No `docs/`, no `tests/`. ~25 MB.
-3. itch settings: HTML5, fullscreen button ON, mobile-friendly ON, viewport 1280×720.
-4. Before uploading, boot the exact zipped file and click through: title → both modes → a level.
-   Upstream had two scripted gates for this (`verify-nodev.mjs`, `boot-itchzip.mjs`); the
-   equivalent here is `node tests/run.mjs boot` plus eyeballing a screenshot.
+```bash
+node scripts/make-itch-zip.mjs      # -> dist/mycelium-itch.zip
+node tests/itchzip-check.cjs        # 20 assertions, against the ARTEFACT
+```
+
+or, in CI, **Actions → "Build itch zip" → Run workflow** with a tag
+(`.github/workflows/itch-zip.yml`), which does the same build and attaches the zip to a **draft**
+release. itch settings the script cannot set: HTML5, fullscreen button ON, mobile-friendly ON,
+viewport 1280×720.
+
+**`CONFIG.dev.enabled` STAYS `true` ON THE BRANCH and is patched in a COPY at build time.** It
+gates the dev buttons, the map switcher, the rock editor, the minimised carousel and the skipped
+level intro, and `edit-check` / `mapmenu-check` drive those directly — so flipping it in the tree
+means either committing a change that breaks the suite or remembering to flip it back, and
+remembering is the step that gets skipped. The patch is anchored on the comment above the flag and
+the build **fails** if that anchor moves, rather than quietly shipping the buttons. The invisible
+`window.__game` / `window.__cfg` hooks stay in a public build on purpose.
+
+**ITCH CAPS AN HTML5 ZIP AT 1,000 ENTRIES, AND COUNTS DIRECTORIES.** Rejected on upload with
+*"Too many files in zip (2450 > 1000)"* — the full `assets/` tree is 2,383 files across 65 folders.
+Two things bring it under:
+
+- **Only the levels a PUBLIC build can reach are staged.** The manifest carries 58 traced map
+  folders; with the dev flag off the map switcher, the rock editor and `#level,<id>` are all gone,
+  so the only loadable maps are the 9 campaign and 17 survival ones — 21 distinct `assetsFrom`
+  folders. The other 37 (1,493 files) are skipped. **A BUILD-TIME PRUNE, NEVER A DELETION**: every
+  map stays in the repo and stays reachable in development, so the "deleting a level is THREE
+  deletions" rule does not apply. The **manifest is filtered to match** — a stale `kind: 'level'`
+  entry would not hang the boot (those are held back from the preload) but would 404 the moment
+  that map opened.
+- **`zip -D`**, no directory entries. itch counts them; a browser does not need them.
+
+**995 entries, 53.5 MB** (from 2,450 and 103.5). **Five entries of headroom** — one more survival
+map is ~40 sprites and goes over, and the script now FAILS the build above 1,000 rather than
+letting itch be the one to say so. Levers when that day comes, cheapest first: drop
+`assets/rockface` (only `placeRockface` uses it, and it skips any level with a `levelDef` — i.e.
+all of them in a public build), then the procedural rock/tree sprites at the assets root, then
+pack each map's sprites into an atlas, which is the only one that scales.
+
+**A GITHUB ACTIONS ARTIFACT IS DOUBLE-ZIPPED.** GitHub zips an artifact's CONTENTS on download, so
+an artifact holding `mycelium-itch.zip` comes back as `mycelium-itch-zip.zip` wrapping it — upload
+that and itch says *"Failed to find index.html"*, which sounds like a build error and is not.
+Reported from a real upload. The workflow uploads the **stage directory** instead, so the artifact
+GitHub builds has `index.html` at its own root and is itself a valid itch zip; the release asset
+was always fine either way. `itchzip-check` refuses any nested archive whatever produced it.
+
+**`tests/itchzip-check.cjs` (20) IS THE GATE, and it is the only check here that runs against the
+ARTEFACT rather than the working tree** — which is the only way to catch a build-step mistake. It
+unzips, serves the result and plays it: title → campaign → a live colony, then survival from a cold
+reload, with no dev button on any screen that carries one and no failed requests. Plus the two
+static assertions that guard the prune, because **playing two levels would never see a sprite
+missing from level 14**: every one of the 26 reachable levels has its folder with sprites in it,
+and all 888 manifest entries point at files that are in the zip. Not in the runner — it needs a zip
+to exist.
+
+### The title card (`docs/title-card.html`)
+
+A standalone page for the itch listing GIF: the MYCELIUM wordmark growing in over `-CHAPTER ONE-`
+in red, on the game's own background. Two seconds of black first, then the growth at half the
+game's rate, so a loop has a lead-in instead of opening mid-draw. Exported by
+`node tests/title-card-shot.cjs docs/title-card-630x500.png 1` (the DSF is the second argument; the
+viewport is always 630x500, since sizing it up would re-run the `clamp()`/`vw` type and change the
+LAYOUT). `tests/title-card-check.cjs` (16) covers it.
+
+Four things about it, each of which cost a render:
+
+- **THE WORDMARK IS WIDER THAN ITS TEXT BOX.** `seed()` sprays 150 chains of attractors OUTWARD
+  from each glyph and the mat follows them, so the drawn ink overruns the box the font size was
+  picked from. The game's canvas is full-viewport and absorbs it; this page's box does not, and at
+  the game's 0.9 width factor both M's lost their outer strokes. **0.78** here. Measured
+  ink-to-edge: 0.9 and 0.86 touch both edges, 0.82 is marginal, 0.78 clears. 1280x720 resolves
+  height-limited and never showed it.
+- **THE GAP UNDER THE WORDMARK IS NOT THE CSS GAP, and no CSS value can set it.** `#word` is sized
+  so the type lands width-limited, which leaves the box taller than the ink inside it — 49–107px of
+  empty box depending on the shape. `tightenToInk()` measures the drawn pixels at bloom and closes
+  the gap to a quarter of the ink's own height, then re-centres the union (flex centres the CONTENT
+  BOX, dead slack included, so shortening the column slid everything down by half of what was
+  gained).
+- **The red is three layers, and the ORDER is the trap.** A dark oxblood stroke on a copy behind,
+  a top-lit hsl ramp balanced around `#c0281f`, and a canvas-generated mottle multiplied over it,
+  clipped to the glyphs. The fill must be `::after`, because a negative-z-index child paints ABOVE
+  its parent's background; it must set `text-shadow: none`, because a background paints BEFORE
+  inline content so the inherited drop lands on its own fill; and `-webkit-text-stroke: 0` is an
+  invalid shorthand that gets dropped, after which the fill inherits the parent's stroke.
+- The mottle is a CANVAS, not SVG `feTurbulence` — turbulence writes noise into the ALPHA channel
+  too, and forcing alpha back to 1 un-premultiplies the dark pixels into much darker ones.
 
 ### The GitHub Pages deploy, and how it fails
 
@@ -696,12 +774,14 @@ change, which is the recommended gear — the most recent runs, each 0 failed:
 | handoff · lure · boot · hs · store · campaign · tut · ingame · hover · tutscript | **309 passed** (the menu → run handoff set, ~5 min) |
 | survival · level · core · mode · campaign · hs · store · handoff · sky · ants · ctreats · challenge | see the survival section (the authored-survival set) |
 
-Per-check, measured: traced 1190 (76 maps) · edit 118 · threat 114 · rt 69 · campaign 66 · enemy 52 ·
-challenge 50 · sky 45 · mode 39 · species 38 · ctreats 31 · harvest 28 · level 27 · scale 26 ·
-ants 22 · fixes 27 · mould 20 · hs 19 · boot 16 · core 16 · cascade 16 · review 13 · tut 24 ·
-water 11 · surface 11 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 87**, measured on its own run. Note `aim` contributes **0 of its 9** inside a full
-sweep, because it bails to a zero-coverage pass there, so a sweep's arithmetic never adds up.
+Per-check, measured: traced 1190 (76 maps) · edit 118 · threat 114 · campaign 106 · rt 69 ·
+enemy 52 · survival 53 · challenge 50 · sky 45 · mode 39 · species 38 · ctreats 31 · harvest 28 ·
+level 27 · fixes 27 · scale 26 · tut 24 · ants 22 · mould 20 · hs 19 · titlecard 16 · boot 16 ·
+core 16 · cascade 16 · victory 13 · review 13 · water 11 · surface 11 · aim 9 · lure 8 · hover 6 ·
+turn-play 5 · ingame 4 · pill 4 —
+plus **store 97** and **itchzip 20**, measured on their own runs (`itchzip` is not in the runner at
+all — it needs a built zip). Note `aim` contributes **0 of its 9** inside a full sweep, because it
+bails to a zero-coverage pass there, so a sweep's arithmetic never adds up.
 
 **`node tests/campaign-shot.cjs`** is not a check — it writes nine frames to `tests/.artifacts/`
 covering every campaign screen (title, the selection screen top and bottom, the deck sheet, a
@@ -1980,8 +2060,8 @@ speaking the picker's vocabulary). `showSpeciesSelect` renders three sections:
 
 | section | what | the button under each tile |
 |---|---|---|
-| **Available species** | `STARTER_SPECIES_IDS` (3) + anything bought | **Start Run** |
-| **Buy new species** | `STORE_SPECIES_IDS` (4), minus what's bought | **Unlock ⟨price⟩** |
+| **Available species** | `STARTER_SPECIES_IDS` (**1**) + anything bought | **Start Run** |
+| **Buy new species** | `STORE_SPECIES_IDS` (**5**), minus what's bought | **Unlock ⟨price⟩** |
 | **Upgrades** | the six permanent tracks | Buy the next step |
 
 **The screen carries no explanatory prose at all** (owner): no blurb under "Select your species"
@@ -1989,8 +2069,8 @@ speaking the picker's vocabulary). `showSpeciesSelect` renders three sections:
 stylesheet with nothing using it). The header is the title plus two chips. The button reads
 **"Deck N"** and the sheet behind it is titled **"Your Deck"**; empty, it says "No cards." over one
 line about where cards come from.
-  - Nothing on this screen says the campaign is ten levels any more. The **title screen's "Chapter
-    1"** and the **level intro's "4 of 10"** are what carry that now.
+  - Nothing on this screen says how long the campaign is any more. The **title screen's "Chapter
+    1"** and the **level intro's "4 of 9"** are what carry that now.
 
 **`Dev: +10,000 spores`** is the third dev button (`#ssDevSpores`, gated with the others). It
 credits the wallet WITHOUT unlocking anything, which is the point — "unlock all" hands you every
@@ -2022,11 +2102,22 @@ remaining eight are in the roster and unobtainable, by the owner's explicit choi
   Magic Mushroom) and Violet Webcap's Turgor Thrusts became **Toxocyst Bursts**, which is a pin against
   a card type rather than a count.
 
-The older 3 + 4 arrangement, whose reasoning still applies to the shape of the screen (owner,
-verbatim: *"the campaign mode only has a total of 3 species at start and then 4 more available
-for purchase (viewable from the start)"*). So there are **no "?" tiles and no "Complete level N"
-tier rows** — retired on the owner's call, along with `mysteryCard`, `startTag`,
-`tierStartRange`, and their CSS.
+**THE ROSTER IS 1 + 5 NOW, NOT THE 3 + 4 THIS SCREEN WAS DESIGNED AROUND** — one starter
+(`pleurotus`, the Oyster Mushroom) and five for sale (`schizophyllum` 1000, `hydnellum`, `amanita`,
+`pruinomycena`, `psilocybe` at 350 each). The shape's reasoning is unchanged and is the owner's
+(*"the campaign mode only has a total of 3 species at start and then 4 more available for purchase
+(viewable from the start)"*), so there are still **no "?" tiles and no "Complete level N" tier
+rows** — retired along with `mysteryCard`, `startTag`, `tierStartRange` and their CSS.
+
+- **SIX OF THE FOURTEEN COLONIES CAN BE REACHED AT ALL, and this catches people out.** `SPECIES`
+  has **14** entries; `isObtainable` admits a starter, a store entry, or something already owned —
+  so the other eight (Fairy Ring Champignon, Honey Fungus, Artist's Conk, Slippery Jack, Wine Cap,
+  Violet Webcap, Dry Rot, Earthball) are **in the game and unreachable on a fresh save**. This is
+  the accepted cost of the small roster, not a bug, and `store-check` asserts the dead end stays
+  closed. But it is a fact about the SHIPPED GAME, so anything player-facing has to use SIX:
+  the itch description claimed twelve and name-dropped three colonies nobody can play (see
+  `docs/itch-description.md`, which now carries a table of where every number comes from).
+  Moving one back into reach is one entry in `STORE_SPECIES_IDS`.
 
 - **The tier MACHINERY still exists** in the species module (`LOCKED_TIERS`, `tierSpecies`,
   `newlyRevealedByClear`, `unlockCost`, `TIER_COST`) and a level clear still walks it. A colony
@@ -2362,7 +2453,7 @@ has to know.
   is shared, so it goes whichever game you start. Only the resume clearing is per-game, and
   `clearResume` reads `CONFIG.game`, so **`setGame` must be called before it**.
 - **THE CAMPAIGN RECORDS NO HIGH SCORE** (owner, confirmed). The board ranks how DEEP you got,
-  which is the whole point of a ladder that turns unwinnable; over ten levels it would rank
+  which is the whole point of a ladder that turns unwinnable; over nine levels it would rank
   everyone who finished at 10 and pollute it with runs that were never trying to go deep. A
   campaign board wants a different measure and its own table — the leaderboard's two-mode split is
   already an open migration, so this is a third column for whoever writes it.
@@ -2463,7 +2554,7 @@ and the nests seeded here get their road right first time because the mask alrea
 
 Campaign puts the ant tip on level 2 and the mould tip on 3 (`LEVEL_TIPS`, fired by
 `beginLevelTip`); **survival folds both into the level-1 walkthrough** (owner). Not a preference —
-the campaign's ten levels arrive in a fixed order, so "the level that introduces the ants" is a real
+the campaign's nine levels arrive in a fixed order, so "the level that introduces the ants" is a real
 place; survival draws its map at random from seventeen, so level 2 is a different map every run and
 cannot be relied on to have anything on it. Level 1 is the authored table's 1/1/1, so it is the one
 level guaranteed to have all three to point at.
@@ -2598,16 +2689,20 @@ through untouched and are re-runnable.
 
 ## The campaign itself
 
-**Ten levels, and each one is a specific map.** `CAMPAIGN_LEVELS = 10` in the species module.
-Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
+**NINE levels, and each one is a specific authored map.** `CAMPAIGN_LEVELS = 9` in the species
+module — it was 10; **do not trust a hard-coded 10 anywhere, derive it.** Clearing level 9 finishes
+the campaign (the VICTORY screen, see below); clearing 8 does not. `campaign-check` derives both
+from `shape.levels` for exactly this reason: hard-coded 9 and 10 would have started asserting "the
+ladder ends at 10" on a 9-level campaign, which is the off-by-one that block exists to catch.
 
-- **PLACEHOLDER maps: procedural, with a FIXED SEED each** (`CAMPAIGN_SEEDS`, ten arbitrary
-  31-bit constants). The fixed seed is the whole point — `createState` derives every generator
-  decision from `makeRng(seed)`, so **level 3 is the same shape every time you play it**, which is
-  the difference between a campaign and a ladder. Reroll a slot by editing its number.
-  - **Swapping in an authored map needs no code**: `levelForNumber` already prefers a map whose
-    JSON claims that `campaignLevel`, and `levelDefFor` prefers that over the procedural path. The
-    seed simply stops being consulted for that level.
+- **THE MAPS ARE AUTHORED NOW, one per slot, named for their rock**: Magnetite, Obsidian, Rust,
+  Anthracite, Glass, Garnet, Hematite, Serpentine, Ember. A level def claiming a `campaignLevel` is
+  what fills a slot, and `levelForNumber` prefers it over everything else — swapping one in needed
+  no code, exactly as the placeholder note below predicted.
+- **`CAMPAIGN_SEEDS` is now the FALLBACK, not the plan.** It still holds fixed 31-bit constants and
+  `startRun()` still uses them for a campaign run, so a slot with no authored map rolls the same
+  procedural shape every time rather than a fresh one. That path is unused today; leave it, because
+  it is what makes an empty slot deterministic instead of broken.
   - `startRun()` uses the fixed seed only for a **campaign run** — `campaignRun()` = a chosen
     species and no playtest map. The dev quick-start and authored-map playtests keep the old clock
     seed and roll fresh worlds.
@@ -2618,18 +2713,19 @@ Clearing level 10 finishes the campaign (`showGameWon`); clearing 9 does not.
   for a campaign run and `MAX_LEVEL` otherwise.
 - **Every colony opens on level 1** (`CAMPAIGN_START_LEVEL`). `startLevelRange` /
   `defaultStartLevel` — which let a higher tier skip the early grind — are still in the species
-  module but the picker no longer consults them: over ten levels that hands away half the campaign,
+  module but the picker no longer consults them: over nine levels that hands away half the campaign,
   and the owner settled it when the start-level stepper was dropped from the detail sheet.
-- **A full clear pays 5500 Spores** (`campaignPayout()`, the sum of `sporesForLevel(1..10)`; a
-  death pays half the current level). Measure the store against that number, not against a guess —
-  it is derived rather than written down twice. For scale: the cheapest colony is 3000 and the
-  dearest 8000, so one full clear is most of one colony.
+- **A full clear pays `campaignPayout()`** — the sum of `sporesForLevel(1..CAMPAIGN_LEVELS)`, and
+  `sporesForLevel` is `level * 100`, so **4500** at nine levels. A death pays half the current
+  level. Measure the store against the FUNCTION, never against a number written here: it moved from
+  5500 the moment the ladder went from ten levels to nine, and the colonies are 350–1000 now (they
+  were 3000–8000), so any remembered ratio is wrong twice over.
 - **Ending a run is a normal campaign move, not a rage-quit.** The settings menu's
   `set-forcefruit` is **"End run & keep cards"** now (it was "Force Fruiting (abandon run)") and
   routes through `forceFruitAbandon` → `presentRunOver` → the keep screen, same as a death.
-- **The level intro counts: "4 of 10"** (`.li-count`, quiet mint above the red escalation taunt) —
+- **The level intro counts: "4 of 9"** (`.li-count`, quiet mint above the red escalation taunt) —
   a finite campaign has to say it is finite, and the grown wordmark can't carry the total ("LEVEL
-  THREE OF TEN" is a different shape every level). Passed as `of`, null off the ladder.
+  THREE OF NINE" is a different shape every level). Passed as `of`, null off the ladder.
   - **The dev build SKIPS the level intro — but only on a PLAYTEST now.** The skip was written for
     map playtesting and its test was "is this the campaign?", which hid the card from every
     SURVIVAL player once survival became a real ladder of authored maps (owner: *"Survival: we're

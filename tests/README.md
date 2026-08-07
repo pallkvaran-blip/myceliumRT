@@ -366,3 +366,20 @@ Three traps it walked into, all general:
 - **A media request ABORTED by navigation is not a missing asset.** The audio streams, so reloading
   between the two games kills whichever was in flight; the menu track read as a 404 on a build that
   has it. Filter on `failure().errorText`.
+
+## victory — the campaign's ending screen
+
+`node tests/victory-check.cjs` (13). The screen's ANIMATION, on a page that can measure it: the
+fade up from the map, that the card only opens once the black has landed, that a click landing
+during the fade cannot skip it, and — the one that matters — that the SECOND victory screen of a
+session behaves like the first. It used to not: the fade was started from a `requestAnimationFrame`
+that never ran the second time, with `openCard` scheduled inside it, so the screen never faded,
+never opened and never armed its dismiss — a full-screen invisible overlay swallowing every click.
+
+**Its CONTENT is `campaign-check`'s**, and that split is deliberate. `campaign-check` plays nine
+levels before reaching this screen and by then the page is starved — one `await setTimeout(0)`
+there measured **9,275 ms** — so a 2.6 s fade cannot be sampled in it at all. Three rounds of false
+failures came out of trying. On a loaded page assert ORDER and END STATE; measure timing only where
+nothing else is running.
+
+`node tests/victory-shot.cjs` writes a mid-fade and a settled frame to `.artifacts/`.
