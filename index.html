@@ -27603,13 +27603,27 @@ function showVictory(opts) {
   root.addEventListener('click', dismiss);
   document.addEventListener('keydown', onKey);
 
-  // Step 1: run the black up on the next frame, and open the card when it gets there.
-  requestAnimationFrame(() => {
-    if (!alive) return;
-    root.classList.add('li-vict-black');
-    root.addEventListener('transitionend', (e) => { if (e.target === root && e.propertyName === 'opacity') openCard(); });
-    later(openCard, VICT_FADE_MS + 300);
-  });
+  // Step 1: run the black up, and open the card when it gets there.
+  //
+  // A FORCED STYLE FLUSH, NOT `requestAnimationFrame`, AND THE DIFFERENCE WAS A SOFTLOCK. The rAF
+  // version worked on the first victory screen of a session and did not run at all on the second —
+  // measured: a plain rAF registered on the line above it fired, this one never did, `alive` was
+  // true, the element was in the DOM, and `li-vict-black` was simply never added. Whatever the
+  // scheduler was doing, the consequence was severe, because `openCard` was scheduled INSIDE that
+  // callback: no rAF meant no fade, no card, and `armed` never set — a full-screen overlay at
+  // opacity 0 that swallows every click and can never be dismissed. Reachable by winning the
+  // campaign twice in one session.
+  //
+  // Reading `offsetWidth` forces the pending `opacity:0` to be computed before the class lands, so
+  // the browser sees a change to transition rather than an element that was always opaque — the
+  // standard trick, and it needs no frame to be scheduled. `openCard` now hangs off a plain timer
+  // that is armed unconditionally, so even a build where the transition never runs at all still
+  // opens the card and can still be clicked away.
+  root.classList.remove('li-vict-black');
+  void root.offsetWidth;
+  root.classList.add('li-vict-black');
+  root.addEventListener('transitionend', (e) => { if (e.target === root && e.propertyName === 'opacity') openCard(); });
+  later(openCard, VICT_FADE_MS + 300);
 
   return { destroy, get active() { return alive; }, get armed() { return armed; } };
 }
