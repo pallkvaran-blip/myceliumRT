@@ -1,0 +1,273 @@
+<title>Mycelium — Campaign, Chapter One</title>
+<style>
+  /* THE GAME'S OWN VALUES, not an approximation. Every number below is lifted from index.html so
+     the recorded frames match the real title screen:
+       background   #titleScreen's radial-gradient
+       type stack   the title screen's font-family
+       "CAMPAIGN"   .ts-mode's metrics (.44em tracking, 700, uppercase) in .li-sub's red #c0281f
+                    with its glow — the game's own answer to "red text on this black", chosen at
+                    the light end of dark red because a true dark red loses contrast on it
+       "chapter one" .ts-soon's metrics (.3em tracking, uppercase) and its muted green #5f7a68
+       the wordmark growMyceliumTitle, unchanged: space colonization, ink rgba(233,255,247,0.9)
+                    at 0.7px, composited 'lighter' with a 2.5px blur bloom at alpha 0.55
+     No external requests of any kind — this is a strict-CSP page, and it is also what makes it
+     safe to record offline. */
+  :root { color-scheme: dark; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; overflow: hidden; cursor: pointer; user-select: none;
+    background: radial-gradient(125% 95% at 50% 40%, #0a1013 0%, #05080b 46%, #010203 100%);
+    font-family: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  }
+  /* Full bleed and nothing else in frame: a GIF wants the art edge to edge with no chrome. */
+  #stage { position: fixed; inset: 0; display: flex; flex-direction: column;
+           align-items: center; justify-content: center; gap: clamp(10px, 2.4vh, 26px); }
+  /* The wordmark's canvas takes its size from this box — growMyceliumTitle reads the container's
+     rect and picks a font size from it, so the box IS the layout. */
+  /* Sized so `titleSize` lands WIDTH-limited, as it does on the real title screen where the
+     canvas is full-viewport: min(H*0.72, (W*0.9)/(8*0.62)). A shorter box makes it height-limited
+     and the word comes out two-thirds the size (155px against the game's 232 at 1280x720). */
+  #word { width: min(1240px, 94vw); height: clamp(200px, 46vh, 440px); }
+  .lines { display: flex; flex-direction: column; align-items: center; gap: clamp(6px, 1.4vh, 14px);
+           opacity: 0; transition: opacity 900ms ease; }
+  .lines.in { opacity: 1; }
+  .mode { font-size: clamp(20px, 3.4vw, 40px); letter-spacing: .44em; text-indent: .44em; line-height: 1;
+          text-transform: uppercase; font-weight: 700;
+          color: #c0281f; text-shadow: 0 0 22px rgba(190, 30, 22, 0.45); }
+  .soon { font-size: clamp(11px, 1.5vw, 15px); letter-spacing: .3em; text-indent: .3em; line-height: 1;
+          text-transform: uppercase; color: #5f7a68; }
+  /* Only visible before the first click, and never once recording has started. */
+  #hint { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+          font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
+          color: rgba(219, 233, 223, 0.22); transition: opacity .4s ease; }
+  #hint.gone { opacity: 0; }
+  @media (prefers-reduced-motion: reduce) { .lines { transition: none; } }
+</style>
+
+<div id="stage">
+  <div id="word"></div>
+  <div class="lines" id="lines">
+    <div class="mode">Campaign</div>
+    <div class="soon">-chapter one-</div>
+  </div>
+</div>
+<div id="hint">click or press R to replay</div>
+
+<script>
+(function () {
+  'use strict';
+  const rnd = (a, b) => a + Math.random() * (b - a);
+
+  // ------------------------------------------------------------------------
+  // growMyceliumTitle, lifted from index.html with the game's audio hooks removed.
+  // Space colonization: scatter attractors over the rendered word, grow a mat toward them,
+  // kill each attractor once a node reaches it. The look is entirely in the compositing —
+  // a blurred copy under a sharp one, both in 'lighter'.
+  // ------------------------------------------------------------------------
+  function growMyceliumTitle(container, opts) {
+    opts = opts || {};
+    const WORD = opts.word || 'MYCELIUM';
+    const reduce = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const canvas = document.createElement('canvas');
+    canvas.style.cssText = 'display:block;width:100%;height:100%;';
+    container.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+
+    let W = 0, H = 0, dpr = 1, ink = null, ictx = null;
+    let titleSize = 0, cx = 0, cy = 0, g = null, raf = 0, stepAcc = 0, alive = true;
+    const STEP_RATE = opts.stepRate || 2.4;
+
+    // An INTEGER grid key, not "gx,gy". nearestNode probes nine buckets per attractor per step;
+    // with ~28,000 attractors that was ~590,000 string builds a frame. Unique while |gy| < 32768,
+    // which holds because gy is a grid ROW at a cell of titleSize * 0.05.
+    const GK = (gx, gy) => gx * 65536 + gy;
+    function grid(gr, x, y) { return GK((x / gr.cell) | 0, (y / gr.cell) | 0); }
+    function addNode(gr, x, y, parent) {
+      const i = gr.nodes.length; gr.nodes.push({ x: x, y: y, parent: parent });
+      const k = grid(gr, x, y); let a = gr.map.get(k); if (!a) { a = []; gr.map.set(k, a); } a.push(i);
+      return i;
+    }
+    function nearestNode(gr, x, y) {
+      const cxg = (x / gr.cell) | 0, cyg = (y / gr.cell) | 0; let best = -1, bd = gr.attract2;
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+        const a = gr.map.get(GK(cxg + dx, cyg + dy)); if (!a) continue;
+        for (const i of a) { const n = gr.nodes[i]; const d = (n.x - x) * (n.x - x) + (n.y - y) * (n.y - y); if (d < bd) { bd = d; best = i; } }
+      }
+      return best < 0 ? -1 : (gr._bd = bd, best);
+    }
+    function newGrowth() {
+      const seg = Math.max(0.5, titleSize * 0.010), attract = titleSize * 0.05;
+      return { nodes: [], segs: [], attractors: [], map: new Map(), seg: seg, attract: attract,
+               attract2: attract * attract, kill2: seg * seg, cell: attract, _bd: 0, done: false };
+    }
+    function step(gr) {
+      if (!gr.attractors.length || gr.nodes.length > 90000) { gr.done = true; return; }
+      const infl = new Map(), survivors = [];
+      for (const at of gr.attractors) {
+        const ni = nearestNode(gr, at.x, at.y);
+        if (ni < 0) { survivors.push(at); continue; }
+        if (gr._bd <= gr.kill2) continue;
+        survivors.push(at);
+        const n = gr.nodes[ni]; let e = infl.get(ni); if (!e) { e = [0, 0]; infl.set(ni, e); }
+        const dx = at.x - n.x, dy = at.y - n.y, L = Math.sqrt(dx * dx + dy * dy) || 1;
+        e[0] += dx / L; e[1] += dy / L;
+      }
+      gr.attractors = survivors;
+      for (const pair of infl) {
+        const ni = pair[0], e = pair[1];
+        const n = gr.nodes[ni]; let dx = e[0], dy = e[1];
+        const L = Math.sqrt(dx * dx + dy * dy) || 1; dx /= L; dy /= L;
+        const ja = rnd(-0.45, 0.45), c = Math.cos(ja), s = Math.sin(ja);
+        const rx = dx * c - dy * s, ry = dx * s + dy * c;
+        const nx = n.x + rx * gr.seg, ny = n.y + ry * gr.seg;
+        addNode(gr, nx, ny, ni); gr.segs.push([n.x, n.y, nx, ny]);
+      }
+    }
+    // Supersample small wordmarks so strand density tracks the font size rather than the canvas.
+    function attractorsFromText(drawFn, stepPx, aMin, aMax, scale) {
+      aMin = aMin == null ? 70 : aMin; aMax = aMax == null ? 256 : aMax; scale = scale || 1;
+      const st = Math.max(2, Math.round(stepPx));
+      const cw = Math.max(1, Math.round(W * scale)), ch = Math.max(1, Math.round(H * scale));
+      const off = document.createElement('canvas'); off.width = cw; off.height = ch;
+      const o = off.getContext('2d'); if (scale !== 1) o.scale(scale, scale); drawFn(o);
+      const d = o.getImageData(0, 0, cw, ch).data, pts = [];
+      for (let y = 0; y < ch; y += st) for (let x = 0; x < cw; x += st) {
+        const a = d[(y * cw + x) * 4 + 3];
+        if (a >= aMin && a < aMax) pts.push({ x: (x + rnd(-st / 2, st / 2)) / scale, y: (y + rnd(-st / 2, st / 2)) / scale });
+      }
+      return pts;
+    }
+    const font = (size) => '800 ' + size + 'px "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif';
+
+    function seed() {
+      g = newGrowth();
+      const S = Math.max(1, Math.min(4, Math.round(200 / titleSize)));
+      const draw = (o, blur) => {
+        if (blur) o.filter = 'blur(' + blur + 'px)';
+        o.fillStyle = '#fff'; o.font = font(titleSize); o.textAlign = 'center'; o.textBaseline = 'middle';
+        o.fillText(WORD, cx, cy);
+      };
+      const pts = attractorsFromText((o) => draw(o, 0), Math.max(2, Math.round(g.seg * 0.9)), 70, 256, S);
+      g.attractors = pts;
+      // ONE SEED PER LETTER, so the word grows across its whole width at once rather than
+      // creeping in from one end.
+      ctx.font = font(titleSize);
+      const total = ctx.measureText(WORD).width, x0 = cx - total / 2; let prevW = 0;
+      for (let i = 0; i < WORD.length; i++) {
+        const w = ctx.measureText(WORD.slice(0, i + 1)).width; const lo = x0 + prevW, hi = x0 + w; prevW = w;
+        const inL = pts.filter((pt) => pt.x >= lo && pt.x < hi);
+        if (inL.length) { const s = inL[(Math.random() * inL.length) | 0]; addNode(g, s.x, s.y, -1); }
+      }
+      // A blurred pass at a LOW alpha window gives the fringe just outside the glyphs — the
+      // cottony halo that stops the word reading as a solid stencil.
+      const fringe = attractorsFromText((o) => draw(o, titleSize * 0.028), Math.max(4, g.seg * 3.5), 12, 100, S);
+      for (const f of fringe) g.attractors.push(f);
+      const edge = fringe.length ? fringe : pts, sp = g.attract * 0.6;
+      for (let i = 0; i < 150; i++) {
+        const s = edge[(Math.random() * edge.length) | 0]; if (!s) break;
+        const ang = Math.atan2(s.y - cy, s.x - cx) + rnd(-0.7, 0.7), len = 1 + ((Math.random() * 2) | 0);
+        let ex = s.x, ey = s.y;
+        for (let k = 1; k <= len; k++) { ex = s.x + Math.cos(ang) * sp * k; ey = s.y + Math.sin(ang) * sp * k; g.attractors.push({ x: ex, y: ey }); }
+        const br = 3 + ((Math.random() * 4) | 0);
+        for (let bi = 0; bi < br; bi++) {
+          const ba = ang + rnd(-1, 1), bl = g.attract * rnd(0.4, 0.95);
+          g.attractors.push({ x: ex + Math.cos(ba) * bl, y: ey + Math.sin(ba) * bl });
+          if (Math.random() < 0.35) g.attractors.push({ x: ex + Math.cos(ba) * bl * 1.6, y: ey + Math.sin(ba) * bl * 1.6 });
+        }
+      }
+      if (reduce) { let guard = 0; while (!g.done && guard++ < 40000) step(g); flushInk(); }
+    }
+
+    function flushInk() {
+      if (!g.segs.length) return;
+      ictx.strokeStyle = 'rgba(233,255,247,0.9)'; ictx.lineWidth = 0.7 * dpr; ictx.lineCap = 'round';
+      ictx.beginPath();
+      for (const s of g.segs) { ictx.moveTo(s[0] * dpr, s[1] * dpr); ictx.lineTo(s[2] * dpr, s[3] * dpr); }
+      ictx.stroke(); g.segs.length = 0;
+    }
+    function composite() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      ctx.filter = 'blur(' + (2.5 * dpr) + 'px)'; ctx.globalAlpha = 0.55; ctx.drawImage(ink, 0, 0);   // bloom
+      ctx.filter = 'none'; ctx.globalAlpha = 1; ctx.drawImage(ink, 0, 0);                              // sharp
+      ctx.restore();
+    }
+
+    // `onGrown` fires ONCE, when the word has BLOOMED — not when the graph is done. Space
+    // colonization trickles a few nodes ~forever as the mat wanders into scattered unreachable
+    // attractors, so `g.done` is about a second late and the two lines would arrive after the
+    // moment they belong to. Watching activity fall to a trickle relative to its peak is what the
+    // game does, with a hard time cap as the backstop.
+    let grownFired = false, peak = 0, quiet = 0, t0 = 0;
+    function fireGrown() {
+      if (grownFired) return; grownFired = true;
+      try { opts.onGrown && opts.onGrown(); } catch (e) {}
+    }
+    function frame() {
+      if (!alive) return;
+      const before = g.nodes.length;
+      stepAcc += STEP_RATE;
+      while (stepAcc >= 1) { step(g); stepAcc -= 1; }
+      flushInk(); composite();
+      const grew = g.nodes.length - before;
+      if (!grownFired) {
+        if (grew > peak) peak = grew;
+        if (!t0) t0 = performance.now();
+        if (peak >= 20 && grew < Math.max(4, peak * 0.06)) { if (++quiet >= 10) fireGrown(); }
+        else quiet = 0;
+        if (performance.now() - t0 > 1800) fireGrown();
+      }
+      if (!g.done) raf = requestAnimationFrame(frame);
+      else fireGrown();
+    }
+    function layout() {
+      dpr = Math.min(2.5, window.devicePixelRatio || 1);
+      const r = container.getBoundingClientRect();
+      W = Math.max(1, Math.round(r.width)); H = Math.max(1, Math.round(r.height));
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+      ink = document.createElement('canvas'); ink.width = canvas.width; ink.height = canvas.height;
+      ictx = ink.getContext('2d');
+      titleSize = Math.min(H * 0.72, (W * 0.9) / (WORD.length * 0.62));
+      cx = W / 2; cy = H * 0.52;
+      seed(); composite();
+    }
+
+    layout();
+    if (!reduce) raf = requestAnimationFrame(frame); else fireGrown();
+    let rt = 0;
+    const onResize = () => { clearTimeout(rt); rt = setTimeout(() => {
+      if (!alive) return; cancelAnimationFrame(raf); layout(); if (!reduce) raf = requestAnimationFrame(frame);
+    }, 200); };
+    window.addEventListener('resize', onResize);
+    return { destroy() { alive = false; cancelAnimationFrame(raf); window.removeEventListener('resize', onResize); canvas.remove(); } };
+  }
+
+  // ------------------------------------------------------------------------
+  const wordBox = document.getElementById('word');
+  const lines = document.getElementById('lines');
+  const hint = document.getElementById('hint');
+  let title = null;
+
+  function play() {
+    if (title) title.destroy();
+    lines.classList.remove('in');
+    // Reflow between removing and re-adding the class, or the browser coalesces the two and the
+    // fade never runs on a replay — the lines would simply be there.
+    void lines.offsetWidth;
+    title = growMyceliumTitle(wordBox, {
+      word: 'MYCELIUM',
+      stepRate: 2.4,
+      onGrown: () => { lines.classList.add('in'); },
+    });
+  }
+
+  // REPLAY on click or R, because a GIF is recorded in several takes and reloading the page
+  // costs a beat of white flash that ends up in the capture.
+  const replay = () => { hint.classList.add('gone'); play(); };
+  // Self-hide, so a capture started and left alone never has the hint in frame.
+  setTimeout(() => hint.classList.add('gone'), 4000);
+  addEventListener('pointerdown', replay);
+  addEventListener('keydown', (e) => { if (e.key === 'r' || e.key === 'R') replay(); });
+  play();
+})();
+</script>
