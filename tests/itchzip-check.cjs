@@ -27,7 +27,12 @@ const { execFileSync } = require('child_process');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
-const ZIP = path.join(ROOT, 'dist', 'mycelium-itch.zip');
+// Which artefact to check. There are two targets now (itch and crazygames), and a gate that can
+// only ever look at one of them is a gate the other ships around.
+//   node tests/itchzip-check.cjs                     -> dist/mycelium-itch.zip
+//   node tests/itchzip-check.cjs crazygames          -> dist/mycelium-crazygames.zip
+const PLATFORM = (process.argv[2] || 'itch').toLowerCase();
+const ZIP = path.join(ROOT, 'dist', `mycelium-${PLATFORM}.zip`);
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml',
   '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.css': 'text/css' };
@@ -60,6 +65,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // and this refuses anything nested whatever produced it.
   ok('...and is not a zip of a zip', !entries.some((e) => /\.zip$/i.test(e)),
      entries.filter((e) => /\.zip$/i.test(e)).join(', ') || 'no nested archives');
+  // THE ONE THING THE TWO ZIPS MUST DIFFER ON, asserted in both directions. An itch build that
+  // loads the SDK makes a cross-origin request that can only fail there; a CrazyGames build
+  // WITHOUT it is the exact submission failure this target exists to fix, and both look identical
+  // from outside.
+  const builtHtml = fs.readFileSync(path.join(dir, 'index.html'), 'utf8');
+  const loadsSdk = /<script[^>]*sdk\.crazygames\.com/.test(builtHtml);
+  ok(PLATFORM === 'crazygames' ? 'the CrazyGames build LOADS the SDK'
+                               : 'the itch build does NOT load the SDK',
+     loadsSdk === (PLATFORM === 'crazygames'), `script tag present: ${loadsSdk}`);
 
   // ---- 1b. THE PRUNE DID NOT CUT ANYTHING THE GAME CAN REACH ----------------
   // The build ships only the asset folders a public build can load, because itch caps an HTML5 zip
@@ -108,14 +122,28 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });   // itch's viewport
   const errs = [];
   page.on('pageerror', (e) => errs.push('pageerror:' + String(e && e.message)));
-  page.on('console', (m) => { if (m.type() === 'error') errs.push('console:' + m.text()); });
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    // The browser logs the blocked SDK fetch as a console error too. Its TEXT is only
+    // "Failed to load resource: net::ERR_CONNECTION_RESET" — no URL — so the filter has to read
+    // `location().url`. Matching on the text was the obvious version and let it through.
+    const at = (m.location() && m.location().url) || '';
+    if (/sdk\.crazygames\.com/.test(at)) return;
+    errs.push('console:' + m.text() + (at ? ' @ ' + at.slice(-40) : ''));
+  });
   // A request ABORTED by navigation is not a missing asset. The audio tracks stream, so reloading
   // between the two games kills whichever one was still in flight and Chromium reports it as a
   // failure — `backrooms-vol29.mp3` read as a missing file on a build that has it. Anything else
   // still counts, since a genuinely absent asset is the defect only the artefact can show.
+  // THE SDK'S OWN REQUEST IS EXPECTED TO FAIL HERE, and its failing is the point. The CrazyGames
+  // build loads the SDK from their CDN, which this sandbox cannot reach — and everything below
+  // still passes, which is the whole design: the game must not care whether the SDK is there.
+  // Counted separately so it can be ASSERTED rather than merely tolerated.
+  let sdkBlocked = 0;
   page.on('requestfailed', (r) => {
     const why = (r.failure() && r.failure().errorText) || '';
-    if (/ERR_ABORTED/.test(why)) return;
+    if (/ERR_ABORTED/.test(why)) return;                    // aborted by navigation, not missing
+    if (/sdk\.crazygames\.com/.test(r.url())) { sdkBlocked++; return; }
     errs.push('reqfail:' + why + ':' + r.url().slice(-50));
   });
   page.on('response', (r) => { if (r.status() >= 400) errs.push('http' + r.status() + ':' + r.url().slice(-60)); });
@@ -223,6 +251,16 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     // missing one only ever shows up in the artefact.
     ok('no page errors or failed requests in the whole run', errs.length === 0,
        errs.slice(0, 4).join(' | '));
+    // ...AND, ON THE CRAZYGAMES BUILD, THAT IT SURVIVED THE SDK BEING UNREACHABLE. Everything
+    // above — booting, both games, a live colony — happened with the SDK script failing to load
+    // outright, which is the strongest available evidence that the guards hold. It is also a real
+    // scenario: their CDN can be blocked by an extension or a corporate network, and the game
+    // going down with it would be a far worse bug than the one the SDK was added to fix.
+    if (PLATFORM === 'crazygames') {
+      ok('...and the build played through with the SDK unreachable', sdkBlocked > 0,
+         `${sdkBlocked} blocked SDK request(s) — if this is 0 the CDN was reachable and the ` +
+         'resilience was not exercised, which is fine but proves less');
+    }
   } catch (e) {
     fail++; console.log('  HARNESS ERROR — ' + (e && e.stack || e));
   }
