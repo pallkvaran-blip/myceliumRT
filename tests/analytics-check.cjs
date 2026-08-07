@@ -78,7 +78,8 @@ function fixture() {
       const sid = 'old' + d + '-' + p;
       const t = now - d * day - Math.round(rnd() * day * 0.5);
       const base = { client_id: cid, session_id: sid, device: null, game: null, mode: null };
-      push(t, Object.assign({ kind: 'boot', ms: 3000 }, base)); boots++;
+      // NO `boot`, faithfully: the pre-v2 build did not send one, which is what left the live
+      // itch view with 44 sessions behind a single boot and a funnel reading 6900%.
       push(t + 6000, Object.assign({ kind: 'run_start', species: 'pleurotus', level: 1, cause: 'new' }, base)); starts++;
       push(t + 9000, Object.assign({ kind: 'level_start', species: 'pleurotus', level: 1 }, base));
       push(t + 12000, Object.assign({ kind: 'level_clear', species: 'pleurotus', level: 1, turns: 30, ms: 200000 }, base)); clears1++;
@@ -88,11 +89,28 @@ function fixture() {
     }
   }
 
+  // THE OLDEST ERA: no `source` EITHER. The two column sets landed at different times on the real
+  // table — source tagging first, the game/mode/device columns days later — so there are three
+  // eras, not two, and the untagged one is the launch week. It reuses existing client_ids so the
+  // player count under the default itch filter is unmoved by rows that filter cannot see.
+  let untagged = 0;
+  for (let d = 20; d >= 18; d--) {
+    for (let p = 0; p < 5; p++) {
+      const t = now - d * day - Math.round(rnd() * day * 0.5);
+      const base = { client_id: 'c' + (p % 5), session_id: 'raw' + d + '-' + p,
+        source: null, device: null, game: null, mode: null };
+      push(t, Object.assign({ kind: 'boot', ms: 3000 }, base));
+      push(t + 6000, Object.assign({ kind: 'run_start', species: 'pleurotus', level: 1, cause: 'new' }, base));
+      push(t + 15000, Object.assign({ kind: 'run_end', species: 'pleurotus', level: 1, cause: 'devoured', turns: 40 }, base));
+      untagged++;
+    }
+  }
+
   rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   // Counted, not assumed: the first version of this hard-coded 40 because that is the modulus in
   // the id, and the loop only ever produces 27 of them.
   const devices = new Set(rows.map((r) => r.client_id)).size;
-  return { rows, boots, starts, clears1, devices, oldSessions, campStarts, campClears1 };
+  return { rows, boots, starts, clears1, devices, oldSessions, campStarts, campClears1, untagged };
 }
 
 (async () => {
@@ -261,6 +279,56 @@ function fixture() {
   });
   ok('...and it narrows a fortnight of events to the last day', r1d > 0 && r1d < rAll,
      `${r1d} runs in 1d vs ${rAll} all-time`);
+
+  // ---- the era before `source` existed ----------------------------------------
+  // A SOURCE FILTER DROPS IT SILENTLY, and on the real table that era IS the launch week — the
+  // itch all-time figure was wrong by a bigger population than the one it showed. The banner is
+  // the fix; asserted with Source `all` as the control, or "it warns" would pass on a page that
+  // warns unconditionally.
+  await page.click('.chip[data-f="days"][data-v="0"]');
+  await sleep(350);
+  const caveatOnItch = await page.$eval('#body', (b) => {
+    const c = b.querySelector('.caveat');
+    return c ? c.textContent.replace(/\s+/g, ' ').trim() : null;
+  });
+  ok('an untagged era is called out rather than silently dropped', !!caveatOnItch,
+     caveatOnItch ? caveatOnItch.slice(0, 96) + '…' : '(no banner on Source: itch)');
+  ok('...and it counts the events it is excluding',
+     !!caveatOnItch && caveatOnItch.includes(String(F.untagged * 3)),
+     `${F.untagged * 3} expected in: ${String(caveatOnItch).slice(0, 60)}…`);
+
+  // ---- a denominator smaller than its population is not a denominator ---------
+  // The pre-v2 sessions in the fixture send no `boot`, exactly as the shipped one did not. Before
+  // the guard the funnel divided 44 sessions by 1 boot and printed rows in the thousands of
+  // percent, which reads as a bug in the game rather than in the page's own arithmetic.
+  const funnel = await page.$$eval('#body table tr', (trs) => trs.map((tr) =>
+    [...tr.children].map((td) => td.textContent.trim()).join(' | ')).filter((t) => /reach|%/.test(t)).slice(0, 5));
+  const overHundred = funnel.filter((t) => {
+    const m = /(\d+(?:\.\d+)?)%/.exec(t);
+    return m && +m[1] > 100;
+  });
+  ok('no funnel row exceeds 100% when boots are missing', overHundred.length === 0,
+     overHundred.length ? overHundred.join(' ;; ') : `${funnel.length} rows, all <= 100%`);
+  const bootNote = await page.$$eval('#body .empty', (ps) => ps.map((p) => p.textContent).find((t) => /sent a `boot`/.test(t)) || null);
+  ok('...and the funnel says it is over sessions instead, and why', !!bootNote,
+     bootNote ? bootNote.slice(0, 88) + '…' : '(no note)');
+
+  const hasNone = await page.$('.chip[data-f="source"][data-v="__none"]');
+  ok('...and the era has a chip of its own, so it is reachable', !!hasNone);
+  if (hasNone) {
+    await page.click('.chip[data-f="source"][data-v="__none"]');
+    await sleep(350);
+    const rUn = await page.$$eval('.kpi', (ks) => {
+      const k = ks.find((x) => x.querySelector('.k').textContent === 'runs started');
+      return k ? +k.querySelector('.v').textContent : -1;
+    });
+    ok('...and selecting it shows exactly that era', rUn === F.untagged, `${rUn} of ${F.untagged}`);
+  }
+  await page.click('.chip[data-f="source"][data-v=""]');
+  await sleep(350);
+  const caveatOnAll = await page.$('#body .caveat');
+  ok('...and Source: all excludes nothing, so it carries no warning', !caveatOnAll,
+     caveatOnAll ? 'banner shown on Source: all' : 'no banner, correctly');
 
   // ---- an empty table says so rather than breaking -----------------------------
   const ctx2 = await browser.newContext({ viewport: { width: 1100, height: 800 } });

@@ -1924,6 +1924,22 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
   - **A PRE-v2 ROW NAMES NO GAME, so "How far people get" is legitimately smaller than "runs
     started" above it** — that table filters `game === "campaign"` and cannot attribute an old row.
     `analytics-check` pins the gap so the two can't silently converge.
+- **`source` WAS ADDED LATE TOO, AND ON ITS OWN TIMELINE — SO THERE ARE THREE ERAS, NOT TWO.**
+  Measured on the live table: source tagging starts **2026-07-27**, the v2 columns **2026-08-07**,
+  and everything before the first is untagged — **1439 events, 255 devices, 2026-07-23 → 07-28**,
+  which is the game's whole first week on itch and by far the biggest block of real play in the
+  table (252 of those devices started a run; level_clear falls 243 → 3 across levels 1-12, the
+  shape of a real player population, not of dev traffic). So **`source: itch` UNDERSTATES all-time
+  by more players than it shows** — 39 against 255 — and did it silently, because `uniq` drops
+  nulls and an untagged row therefore had no chip at all. There is an **`untagged`** chip now, and
+  a banner whenever a source filter is excluding that era. For comparison `pages` has **4 devices
+  ever**, so it is a rounding error and "all" is very close to "everything real".
+- **`boot` IS THE DENOMINATOR ONLY IF THE BUILD SENT ONE, and the old itch build did not** — 1
+  boot behind 44 sessions, which printed **"6900% of boots"** and funnel rows at 4200%. The old
+  guard was `bootSessions || sessions.length`, which only caught ZERO; one boot passed it and
+  became the denominator for forty-four sessions. It falls back to sessions whenever the boots do
+  not cover them, and says so under the funnel. A denominator smaller than its own population is
+  not a denominator — the same shape as the `rate` flag that stopped bars printing percentages.
   - **The device table needed an explicit `unknown` bucket** the moment both builds coexisted:
     `uniq` drops nulls, so the listed devices covered fewer sessions than the denominator and the
     share column quietly summed to under 100 — the same defect as the player-vs-session fix, from a
