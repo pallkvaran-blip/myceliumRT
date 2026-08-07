@@ -1,13 +1,12 @@
-<title>Mycelium — Campaign, Chapter One</title>
+<title>Mycelium — Chapter One</title>
 <style>
   /* THE GAME'S OWN VALUES, not an approximation. Every number below is lifted from index.html so
      the recorded frames match the real title screen:
        background   #titleScreen's radial-gradient
        type stack   the title screen's font-family
-       "CAMPAIGN"   .ts-mode's metrics (.44em tracking, 700, uppercase) in .li-sub's red #c0281f
-                    with its glow — the game's own answer to "red text on this black", chosen at
+       "chapter one" .ts-mode's metrics (tracking, 700, uppercase) in .li-sub's red #c0281f with
+                    its glow — the game's own answer to "red text on this black", chosen there at
                     the light end of dark red because a true dark red loses contrast on it
-       "chapter one" .ts-soon's metrics (.3em tracking, uppercase) and its muted green #5f7a68
        the wordmark growMyceliumTitle, unchanged: space colonization, ink rgba(233,255,247,0.9)
                     at 0.7px, composited 'lighter' with a 2.5px blur bloom at alpha 0.55
      No external requests of any kind — this is a strict-CSP page, and it is also what makes it
@@ -31,21 +30,18 @@
   .lines { display: flex; flex-direction: column; align-items: center; gap: clamp(6px, 1.4vh, 14px);
            opacity: 0; transition: opacity 900ms ease; }
   .lines.in { opacity: 1; }
-  /* SIZED FOR A SMALL BOX, not for this window. The card is going on itch's game list, where a
-     recording is shown at a fraction of the size it was captured at — so the type is set in `vw`
-     with a big multiplier and a generous floor, and the whole composition scales as one. The
-     title screen's own .ts-mode / .ts-soon sizes are far too small here: they were drawn to sit
-     BETWEEN two buttons on a full-screen menu, not to carry a thumbnail. */
-  .mode { font-size: clamp(34px, 8vw, 120px); letter-spacing: .4em; text-indent: .4em; line-height: 1;
+  /* ONE LINE UNDER THE WORDMARK, in the game's red (owner: CAMPAIGN dropped, the chapter line
+     carries it). Two stacked labels under a thumbnail-sized wordmark were competing for the same
+     glance; one is stronger and leaves the mycelium the whole top of the frame.
+     SIZED FOR A SMALL BOX, not for this window — the card goes on itch's game list, where a
+     recording shows at a fraction of the size it was captured at, so it is set in `vw` with a
+     generous floor and the whole composition scales as one. Not as large as CAMPAIGN was, because
+     "-CHAPTER ONE-" is thirteen characters against nine: at 8vw with this tracking it runs to 95%
+     of the frame width and reads as a bar rather than a line. 6.2vw puts it at about 74%.
+     Tracking stays at .3em rather than CAMPAIGN's .4em for the same reason. */
+  .soon { font-size: clamp(26px, 6.2vw, 92px); letter-spacing: .3em; text-indent: .3em; line-height: 1;
           text-transform: uppercase; font-weight: 700;
           color: #c0281f; text-shadow: 0 0 30px rgba(190, 30, 22, 0.5); }
-  /* WHITE (owner). Not #fff but the wordmark's own ink, `rgba(233,255,247,...)` — the strands
-     above are stroked in exactly that, so the line reads as the same organism rather than as a
-     second, colder white sitting next to it. Held a little under full strength so CAMPAIGN stays
-     the louder of the two. */
-  .soon { font-size: clamp(15px, 3.2vw, 46px); letter-spacing: .3em; text-indent: .3em; line-height: 1;
-          text-transform: uppercase; color: rgba(233, 255, 247, 0.88);
-          text-shadow: 0 0 18px rgba(190, 240, 220, 0.22); }
   /* Only visible before the first click, and never once recording has started. */
   #hint { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
           font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
@@ -57,7 +53,6 @@
 <div id="stage">
   <div id="word"></div>
   <div class="lines" id="lines">
-    <div class="mode">Campaign</div>
     <div class="soon">-chapter one-</div>
   </div>
 </div>
