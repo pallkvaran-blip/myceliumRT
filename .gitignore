@@ -1,0 +1,7 @@
+# The itch build. `dist/mycelium-itch.zip` is ~104 MB of assets that are already in the repo one
+# directory up — committing it would double the clone for a file `node scripts/make-itch-zip.mjs`
+# rebuilds in a minute. `dist/stage/` is the staging copy the script deletes on its way out.
+dist/
+
+# Screenshots the checks drop for eyeballing. Regenerated on every run; several are megabytes.
+tests/.artifacts/
