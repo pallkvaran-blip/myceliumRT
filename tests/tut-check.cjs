@@ -194,11 +194,57 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       }
       return s.cards.pendingOffers.length;
     });
+    // A STEP THAT ARRIVED ON ITS OWN SURVIVES THE NEXT STRAY CLICK. Reported as *"the tip after
+    // the orange pile disappear before I was able to read it"*: the pile step hands over on its
+    // GATE, while the draft is still on screen and the player is about to click again — and the
+    // incoming step's full-screen catcher used to go live immediately, so that click dismissed a
+    // tip nobody had read.
+    //
+    // FIRED THE INSTANT THE DRAFT CLOSES, which is the whole point: the first version of this
+    // clicked after the 1200ms wait below and passed on the broken build, because by then the tip
+    // is legitimately dismissible. The moment is the assertion.
+    //
+    // Clicking whatever is under the cursor rather than the catcher element: a build that merely
+    // hid the catcher while something else advanced the step would pass an assertion on the
+    // element itself.
+    const stray = await page.evaluate(async () => {
+      const txt = () => { const b = document.getElementById('tutBody'); return b ? b.innerText : null; };
+      const hit = () => {
+        const el = document.elementFromPoint(40, 40) || document.body;
+        for (const t of ['mousedown', 'mouseup', 'click']) {
+          el.dispatchEvent(new MouseEvent(t, { bubbles: true, clientX: 40, clientY: 40 }));
+        }
+      };
+      const before = txt();
+      hit();
+      await new Promise((r) => setTimeout(r, 250));
+      return { before, after: txt() };
+    });
+    ok(`${label}: a click as the step arrives does NOT dismiss it`,
+       !!stray.before && stray.after === stray.before,
+       `was ${JSON.stringify((stray.before || '').slice(0, 34))}, became ${JSON.stringify((stray.after || '').slice(0, 34))}`);
+
     await sleep(1200);
     const redTxt = await page.evaluate(() => { const b = document.getElementById('tutBody'); return b ? b.innerText : null; });
     ok(`${label}: the following prompt is about RED piles only`,
        /Red leaves are rare and give you engine cards/i.test(redTxt || '') && !/Orange/i.test(redTxt || ''),
        JSON.stringify(redTxt));
+
+    // ...AND IT IS NOT FROZEN. Without this the assertion above passes on a tutorial nobody can
+    // click out of, which is a worse bug than the one being fixed.
+    const released = await page.evaluate(async () => {
+      const txt = () => { const b = document.getElementById('tutBody'); return b ? b.innerText : null; };
+      const before = txt();
+      const el = document.elementFromPoint(40, 40) || document.body;
+      for (const t of ['mousedown', 'mouseup', 'click']) {
+        el.dispatchEvent(new MouseEvent(t, { bubbles: true, clientX: 40, clientY: 40 }));
+      }
+      await new Promise((r) => setTimeout(r, 300));
+      return { before, after: txt() };
+    });
+    ok(`${label}: ...and a click a moment later still advances it`,
+       released.after !== released.before,
+       `${JSON.stringify((released.before || '').slice(0, 30))} -> ${JSON.stringify((released.after || '').slice(0, 30))}`);
 
     ok(`${label}: no page errors`, errs.length === 0, errs.slice(0, 2).join(' | '));
     await page.close();

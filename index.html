@@ -26893,11 +26893,36 @@ function startTutorial(deps) {
   // rule has to hold for whatever step happens to be showing when the offer arrives. Re-evaluated
   // every frame from `tick`, because a draft can appear at any moment on a `live` step.
   let wantCatcher = false;
+  // A STEP THE PLAYER DID NOT CLICK INTO MUST BE READABLE BEFORE A CLICK CAN DISMISS IT.
+  //
+  // Reported as *"the tip after the orange pile disappear before I was able to read it"*. The
+  // catcher is a full-screen click target that advances the step, and it used to go live on the
+  // frame the step appeared. That is right for a step the player reached BY clicking Next — they
+  // asked for the next thing — and wrong for one that arrives on its own, which is what the pile
+  // step's gate does: it hands over when the pile is claimed or the draft lands, at a moment when
+  // the player is mid-play and about to click again. That next click — the impatient second tap
+  // after taking a draft, a grow aimed at the pile, an ant finishing the pile off while the player
+  // is still growing (`starterPileGone`, and survival level 1 seeds a nest) — landed on a catcher
+  // that had existed for a few milliseconds, and the tip was gone before it could be read.
+  //
+  // So an AUTO-ADVANCED step is deaf for `AUTO_ARM_MS`. The Next button stays live throughout, so
+  // a player who does want to move on immediately still can — it just has to be the deliberate
+  // action rather than any click anywhere.
+  const AUTO_ARM_MS = 1200;
+  let catcherArmAt = 0;
   function draftUp() {
     const s = deps.getState();
     return !!(s && s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length);
   }
-  function syncCatcher() { catcher.style.display = (wantCatcher && !draftUp()) ? '' : 'none'; }
+  function syncCatcher() {
+    // ...AND THE WINDOW RESTARTS WHEN A DRAFT CLOSES, not only when the step is entered. The
+    // catcher is already suppressed while an offer is up (see below), so without this it would
+    // arrive the instant the player clicks a draft card — which is exactly the click that was
+    // eating the tip, since the pile step hands over WHILE the draft is still on screen.
+    const now = performance.now();
+    if (draftUp()) { catcherArmAt = Math.max(catcherArmAt, now + AUTO_ARM_MS); catcher.style.display = 'none'; return; }
+    catcher.style.display = (wantCatcher && now >= catcherArmAt) ? '' : 'none';
+  }
 
   function clearGlow() { if (glowed) { glowed.classList.remove('tut-glow'); glowed = null; } }
   function applyGlow(name) {
@@ -26907,15 +26932,18 @@ function startTutorial(deps) {
     if (e) { e.classList.add('tut-glow'); glowed = e; }
   }
 
-  function enter(i) {
+  // `auto` = this step was reached by the previous one's GATE rather than by a click, so its
+  // catcher is deaf for a moment — see AUTO_ARM_MS.
+  function enter(i, auto) {
     // A step can opt OUT on maps where its subject is absent (e.g. no reservoir) —
     // jump straight past it so the walkthrough never frames an empty spot.
     const cand = steps[i];
     if (cand && cand.skip && cand.skip(deps.getState())) {
       if (i >= steps.length - 1) { finish(); return; }
-      return enter(i + 1);
+      return enter(i + 1, auto);   // a skipped step passes the reason on: still not a click
     }
     idx = i;
+    catcherArmAt = auto ? performance.now() + AUTO_ARM_MS : 0;
     mem = {};
     const step = steps[i];
     const s = deps.getState();
@@ -26982,10 +27010,10 @@ function startTutorial(deps) {
     layout();
   }
 
-  function next() {
+  function next(auto) {
     if (!alive) return;
     if (idx >= steps.length - 1) { finish('done'); return; }
-    enter(idx + 1);
+    enter(idx + 1, auto);
   }
 
   // `why` is 'done' (walked to the end) or 'skip' (the End button). Telemetry needs the two
@@ -27037,11 +27065,11 @@ function startTutorial(deps) {
       // So the step it taught vanished mid-animation and the player never saw their own grow
       // finish (owner). Waits for the reveal to end, with a floor so an instant grow still gets a
       // beat, and a ceiling so nothing can strand the walkthrough on an animation that never ends.
-      if (!step.hold) { next(); return; }
+      if (!step.hold) { next(true); return; }
       if (mem._gateAt == null) mem._gateAt = performance.now();
       const held = performance.now() - mem._gateAt;
       const revealing = deps.growthRevealing && deps.growthRevealing();
-      if (held >= step.hold.max || (!revealing && held >= step.hold.min)) { next(); return; }
+      if (held >= step.hold.max || (!revealing && held >= step.hold.min)) { next(true); return; }
     }
     syncCatcher();
     layout();

@@ -698,7 +698,7 @@ change, which is the recommended gear — the most recent runs, each 0 failed:
 
 Per-check, measured: traced 1190 (76 maps) · edit 118 · threat 114 · rt 69 · campaign 66 · enemy 52 ·
 challenge 50 · sky 45 · mode 39 · species 38 · ctreats 31 · harvest 28 · level 27 · scale 26 ·
-ants 22 · fixes 27 · mould 20 · hs 19 · tut 19 · boot 16 · core 16 · cascade 16 · review 13 ·
+ants 22 · fixes 27 · mould 20 · hs 19 · boot 16 · core 16 · cascade 16 · review 13 · tut 24 ·
 water 11 · surface 11 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
 plus **store 87**, measured on its own run. Note `aim` contributes **0 of its 9** inside a full
 sweep, because it bails to a zero-coverage pass there, so a sweep's arithmetic never adds up.
@@ -2478,6 +2478,33 @@ level guaranteed to have all three to point at.
   card, digesting a pile), which a headless probe cannot supply. `survival-check` keeps the campaign
   run as a control on the same page — without it, "all the tips are on level 1" passes on a build
   that simply always inlines them.
+
+**A STEP THE PLAYER DID NOT CLICK INTO MUST BE READABLE BEFORE A CLICK CAN DISMISS IT.** The
+`tut-catcher` is a full-screen click target that advances the step, and it used to go live on the
+frame the step appeared. Right for a step reached by pressing Next — the player asked for the next
+thing — and wrong for one that arrives on its own, which is what the pile step's `gate` does: it
+hands over when the pile is claimed or the draft lands, at a moment when the player is mid-play and
+about to click again. Reported as *"the tip after the orange pile disappear before I was able to
+read it"*.
+
+- `enter(i, auto)` / `next(auto)` — `auto` is set only by the two gate-driven advances in `tick`,
+  and a `skip` passes it on (a skipped step is still not a click). An auto-advanced step is deaf
+  for **`AUTO_ARM_MS` (1200)**. The **Next button stays live throughout**, so a player who does want
+  to move on immediately still can; it just has to be the deliberate action.
+- **The window RESTARTS WHEN A DRAFT CLOSES, not only on entry**, and that is the half that matters
+  here: the catcher is already suppressed while an offer is up, so without it the catcher arrived
+  the instant the player clicked a draft card — and the pile step hands over WHILE the draft is
+  still on screen, so that click is the likeliest culprit of all.
+- Candidate clicks, all of which this covers and none of which could be told apart from the report:
+  the impatient second tap after taking a draft, a grow aimed at the pile, and an **ant finishing
+  the pile off** while the player is still growing (`starterPileGone` fires the gate with no draft
+  at all — and survival level 1 seeds a nest).
+- **`tut-check` fires the stray click THE INSTANT THE DRAFT CLOSES, and the moment IS the
+  assertion.** The first version clicked after the existing 1200 ms settle and passed on the broken
+  build, because by then the tip is legitimately dismissible. Verified by setting `AUTO_ARM_MS` to
+  0: 4 fail in both modes, the click skipping the red tip and landing on the water one. It is
+  paired with "…and a click a moment later still advances it", or it would pass on a tutorial
+  nobody can click out of — a worse bug than the one being fixed.
 - If a map's sprites never decode the flag never clears and the map plays with no seeded threats —
   the respawn ceilings still top worms and clouds up over time, so it degrades to "they arrive
   late" rather than to an empty map.
@@ -2900,7 +2927,14 @@ death was firing; the screen was lying about it.
   believing any of them. (`turn-play` was a sixth and is fixed — see below.)
   - **`tut`'s real-time assertions fail on some runs** — the starter pile hasn't finished
     digesting when the assertion fires, so it reads "0 offer(s), 50 nutrient left" or a bare
-    `null`. Three of its 19 failed on the last sweep, five on an earlier one.
+    `null`. Three of its 19 failed on the last sweep, five on an earlier one. **`tutscript` has the
+    same flake** and it is the same pile: its stall probe waits 10 s with no ticking for the claim
+    to land, and on a slow container that is not always enough (`left the step after nullms`).
+    Measured 6 of 8 green in a row. **When one of these two fails, check whether the OTHER path is
+    even involved before believing it caught you**: the catcher-arming change was suspected off a
+    1-of-3 sample, and `tutscript` walks the script with the **Next button only** — it never clicks
+    the catcher, so that change could not reach it. A cheap "does this check even touch what I
+    changed?" beat five more sampling runs.
   - **`aim` reports `0/0` ONLY INSIDE A FULL SWEEP**, and that is now measured rather than
     guessed: standalone it is **9/9 in 6s**, and `node tests/run.mjs aim` on its own is 9/9 too.
     It goes to zero only when the whole suite has run ahead of it — most likely the boot waits
