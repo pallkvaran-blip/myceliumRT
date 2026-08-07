@@ -310,7 +310,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      onNew.pickerBefore === false && onNew.pickerAfter === true,
      `picker before=${onNew.pickerBefore} after=${onNew.pickerAfter}`);
   ok('...all three paragraphs of it', onNew.paras.length === 3, `${onNew.paras.length} paragraph(s)`);
-  ok('...closing on "You must persist."', /You must persist\./.test(onNew.ask || ''),
+  // Dashes, not a full stop (owner) — the same bracketing the title card's "-chapter one-" uses,
+  // so the closing line reads as a caption rather than as a fourth sentence of the story.
+  ok('...closing on "-You must persist-"', /^-You must persist-$/.test((onNew.ask || '').trim()),
      onNew.ask || '(none)');
   ok('...naming nine geologies, not ten', /Nine geologies/.test(onNew.paras.join(' ')),
      onNew.paras[2] ? onNew.paras[2].slice(0, 40) : '(none)');

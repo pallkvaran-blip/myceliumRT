@@ -629,10 +629,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // all, so leaving them in the general pool made its first rung worth nothing.
   ok('an engine is NOT offered while the engine allowance is 0',
      !keepPool.names.includes('Cord Capillary'), keepPool.names.join(', '));
-  // The label over the pool is "Cards from this run: click to add" now (owner) — the old one
-  // spelled out the three sources ("Played, drafted and already owned"), which is accurate and
-  // is not what a label is for. The three sources are still asserted where it matters: by the
-  // three assertions directly above, which check each one is actually IN the pool.
+
   ok('the pool label says these are this run\'s cards, and that clicking adds them',
      /this run/i.test(keepPool.label) && /add/i.test(keepPool.label), keepPool.label);
   // Against the HEADER. There is ONE heading now (owner) — the instruction is the title, and
@@ -746,6 +743,50 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('unlocking a colony moves it into Your colonies with a Select button',
      moved.has === true && moved.owned === N_START + 1 && moved.forSale === N_SALE - 1,
      `${moved.nameBefore}: owned ${moved.owned} (want ${N_START + 1}), for sale ${moved.forSale} (want ${N_SALE - 1})`);
+
+  // LAST, AND DELIBERATELY SO: this block calls `store.reset()` and buys a track, and every
+  // assertion above it reads a wallet or a purchase that some earlier step made. Run in place
+  // it broke two of them (the Buy tile read a zeroed balance, and Split Gill's unlock had been
+  // wiped) — a harness state leak that reads exactly like two unrelated regressions.
+  // ...AND THE ALLOWANCE IS ENFORCED WHERE THE DECK IS USED, WHICH IS THE HALF THAT WAS MISSING.
+  // The assertion above only governs decks written AFTER the fix. A deck banked under the old rule
+  // (engines fell into the main pool while the track was unbought) still holds an engine, and it is
+  // `withDeathCarry` reading it back that puts the card in the player's hand — the screen is never
+  // consulted. That is why the owner reported the same bug twice: the first fix was real and could
+  // not reach the save that already had the card in it. Seeded by writing the deck DIRECTLY, which
+  // is exactly what such a save looks like.
+  const staleDeck = await page.evaluate(() => {
+    const g = window.__game, S = g.store;
+    S.reset();                                        // zero upgrades: engine allowance 0
+    const sp = S.speciesById('marasmius');
+    const own = (h) => (h || []).map((e) => e.name);
+    g.deck.clear();
+    g.deck.set([{ name: 'Cord Capillary', count: 1 }, { name: 'Acorn Cache', count: 2 }]);
+    const atZero = g.deck.seed(sp);
+    const zeroStored = g.deck.size();                 // consumed even though the engine was dropped
+    // Positive control: buy the track and the same deck DOES bring the engine through, so the
+    // assertion above is measuring the allowance and not simply "engines never carry".
+    S.credit(1e6); S.buy('carryEngines');
+    g.deck.set([{ name: 'Cord Capillary', count: 1 }, { name: 'Acorn Cache', count: 2 }]);
+    const bought = g.deck.seed(sp);
+    g.deck.clear(); S.reset();
+    return { zeroHand: own(atZero && atZero.hand), zeroStored,
+             boughtHand: own(bought && bought.hand), spHand: own(sp.hand) };
+  });
+  ok('a deck banked under the OLD rule cannot smuggle an engine into the next run',
+     !staleDeck.zeroHand.includes('Cord Capillary') && staleDeck.zeroHand.includes('Acorn Cache'),
+     `opening hand: ${staleDeck.zeroHand.join(', ')}`);
+  // A cap that returned early without consuming would drop the card again on EVERY future run —
+  // the same report, permanent instead of once.
+  ok('...and the stored deck is consumed anyway, so it cannot come back next run',
+     staleDeck.zeroStored === 0, `${staleDeck.zeroStored} card(s) still stored after seeding`);
+  ok('POSITIVE CONTROL: with the engine track bought, the same deck carries the engine',
+     staleDeck.boughtHand.includes('Cord Capillary'),
+     `opening hand: ${staleDeck.boughtHand.join(', ')}`);
+  // The label over the pool is "Cards from this run: click to add" now (owner) — the old one
+  // spelled out the three sources ("Played, drafted and already owned"), which is accurate and
+  // is not what a label is for. The three sources are still asserted where it matters: by the
+  // three assertions directly above, which check each one is actually IN the pool.
 
   await page.screenshot({ path: path.join(__dirname, '.artifacts', 'store.png'),
     animations: 'disabled', timeout: 8000 }).catch(() => {});

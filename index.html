@@ -12611,10 +12611,10 @@ function threatBonusForLevel(level) {
 // after you have already chosen one.
 const CAMPAIGN_OPENING = [
   'The world got warm and the ground went dry.\nThere is nothing left where you are.',
-  'The land to the east is green and the rain still comes.',
+  'To the east, the rain still comes and the land is green.',
   'Nine geologies stand between and you will die in the dark and fruit, and the spores will fall, and what grows from them will be stronger.',
 ];
-const CAMPAIGN_OPENING_ASK = 'You must persist.';
+const CAMPAIGN_OPENING_ASK = '-You must persist-';
 // THE PER-LEVEL STORY LINES ARE GONE (owner). `CAMPAIGN_STORY` held one sentence per level and the
 // level card printed it under the title; it is deleted rather than left unrendered, and it is in
 // git if it is ever wanted back. What names the level now is the ROCK — one word, in the card's
@@ -26815,8 +26815,28 @@ function startTutorial(deps) {
       },
     ],
   };
+  // SURVIVAL SAYS EVERYTHING ON LEVEL 1 (owner), and the reason is the rotation. The campaign's
+  // ten levels arrive in a fixed order, so introducing the ants on 2 and the mould on 3 is a
+  // reliable teaching sequence tied to the maps that show them. Survival draws its map at random
+  // from seventeen, so "level 2" is a different map every run and there is nothing dependable to
+  // introduce a creature ON — level 1 has one of each (LEVEL_THREATS), so it is the one level that
+  // can carry all three. `beginLevelTip` stands down for survival to match.
+  //
+  // SPLICED BEFORE THE CLOSING "Good luck…" rather than appended, so the walkthrough still ends on
+  // its sign-off. `last` is RE-DERIVED rather than trusted: it drives the Next button's label
+  // ("Begin" vs "Next"), and every tip carries `last: true` of its own because each is normally a
+  // script of one — concatenated as-is, the button would read "Begin" three steps early.
+  function stepsWithTipsInline() {
+    const tips = [].concat(LEVEL_TIPS[2] || [], LEVEL_TIPS[3] || []);
+    const out = MAIN_STEPS.slice(0, -1).concat(tips, MAIN_STEPS.slice(-1));
+    return out.map((st, i) => {
+      const want = (i === out.length - 1);
+      return (!!st.last === want) ? st : Object.assign({}, st, { last: want });
+    });
+  }
   // `tipLevel` picks a tip script; without it this is the full walkthrough.
-  const steps = (deps.tipLevel && LEVEL_TIPS[deps.tipLevel]) || MAIN_STEPS;
+  const steps = (deps.tipLevel && LEVEL_TIPS[deps.tipLevel])
+    || (deps.inlineTips ? stepsWithTipsInline() : MAIN_STEPS);
   // A tip whose subject is absent has nothing to show, and `enter()`'s skip path would finish the
   // walkthrough — which is right, but it should never have been started. Reported by the caller.
   const empty = steps.every((st) => st.skip && st.skip(deps.getState()));
@@ -27037,6 +27057,12 @@ function startTutorial(deps) {
     tick,
     destroy: finish,
     get active() { return alive; },
+    // THE SCRIPT THIS INSTANCE IS RUNNING, so a check can assert its SHAPE without walking it.
+    // Walking is not an option: several steps are `gate`d on a real player action (arming a card,
+    // digesting a pile), so clicking Next through the whole thing is not something a headless
+    // probe can do. What wants asserting is which steps are in the list — survival folds the ant
+    // and mould tips into level 1 and the campaign keeps them on levels 2 and 3.
+    get script() { return steps.map((st) => ({ text: String(st.text || ''), last: !!st.last })); },
     // The tutorial freezes the real-time clock while it runs, EXCEPT on steps marked
     // `live` — those need the world moving (see the "grow into the orange leaves" step,
     // which waits on the pile actually being digested). main.js simPaused reads this.
@@ -27814,12 +27840,30 @@ function hideCanvas() { if (canvas) { canvas.style.transition = 'none'; canvas.s
 // The threats seeded into the CURRENT map, as the intro's roster (count > 0 only).
 // Counts come from the live state (== the per-level LEVEL_THREATS seed, before any
 // tick), so it always reflects what's actually on the map — incl. a trich-free run.
+// The roster the level card prints — a portrait and a "×N" per creature.
+//
+// A SURVIVAL MAP'S THREATS DO NOT EXIST YET WHEN THIS RUNS, and counting the live arrays is
+// therefore how the card came out with no portraits at all on every survival level. `begin()`
+// builds the intro payload, and `seedLevelThreats` does not run until the first frame the rock
+// mask lands — it has to, since every seeder steers around `cell.rock` and on an authored map
+// that is stamped from the sprites' alpha at RENDER time. So the arrays are empty here and the
+// `count > 0` filter dropped all three.
+//
+// What is PENDING is exactly what `configForLevel` wrote into the config from
+// `threatsForLevel(currentLevel)`, so the config is the answer and no second source of truth is
+// introduced. Added to the live counts rather than replacing them, because seeding is additive:
+// a map may carry its own scripted spawns and still get its level's share on top.
 function levelThreatList() {
   const s = state; if (!s) return [];
+  const cfg = s._needLevelThreats ? s.config : null;
+  const pend = (path, fallback) => (cfg ? (path || 0) : 0) + fallback;
   return [
-    { slug: 'ant',         label: 'Ants',        count: (s.ants || []).length },
-    { slug: 'trichoderma', label: 'Trichoderma', count: (s.clouds || []).length },
-    { slug: 'nematode',    label: 'Nematodes',   count: (s.nematodes || []).length },
+    { slug: 'ant',         label: 'Ants',
+      count: pend(cfg && cfg.ants && cfg.ants.nestCount, (s.ants || []).length) },
+    { slug: 'trichoderma', label: 'Trichoderma',
+      count: pend(cfg && cfg.trichoderma && cfg.trichoderma.initialPatches, (s.clouds || []).length) },
+    { slug: 'nematode',    label: 'Nematodes',
+      count: pend(cfg && cfg.nematodes && cfg.nematodes.initialCount, (s.nematodes || []).length) },
   ].filter((t) => t.count > 0);
 }
 
@@ -28207,12 +28251,38 @@ function effectiveSpecies(sp) {
 // species — see showDeathCarry). Merge that universal carry into the seeded hand ON TOP of
 // any memory loadout, then CONSUME it (one-shot). Only a FRESH run seeds through here; a
 // level-transition reuses the live deck (applyCarry), so the carry never double-applies.
+// Drop every engine past `cap`, keeping everything else. Order is the deck's own, so the engines
+// that survive a partial cap are the ones stored first.
+function capCarriedEngines(list, cap) {
+  let left = Math.max(0, cap | 0);
+  const out = [];
+  for (const e of (list || [])) {
+    if (!e || !e.name || !(e.count > 0)) continue;
+    if (!isEngineCard(e.name)) { out.push(e); continue; }
+    const take = Math.min(e.count, left);
+    left -= take;
+    if (take > 0) out.push({ ...e, count: take });
+  }
+  return out;
+}
+
 function withDeathCarry(sp) {
   // A MEMORY COLONY DRAWS FROM ITS OWN DECK, everyone else from the shared one (owner). Reading the
   // wrong bucket here is the whole bug this split exists to prevent: playing Split Gill once would
   // otherwise fatten the deck that every other colony opens with.
   const bucket = deckBucketFor(sp);
-  const carry = loadDeck(null, bucket);
+  const stored = loadDeck(null, bucket);
+  // THE ENGINE ALLOWANCE IS ENFORCED WHERE THE DECK IS USED, not only on the screen that fills it.
+  // `showDeathCarry` already refuses to OFFER an engine at a zero allowance, and that is the fix
+  // the owner asked for — but it only governs decks written after it. A deck banked under the
+  // previous rule (engines fell into the main pool while the track was unbought) still holds one,
+  // and it is `loadDeck` that puts it back in the player's hand, not the screen. Reported twice:
+  // "I am still able to carry over an engine card from my first run… I thought we already fixed
+  // this?" — the first fix was real and did not reach the save that already had the card in it.
+  //
+  // A CAP RATHER THAN A PURGE, so a bought allowance still carries what it paid for, and so this
+  // is the same rule as the screen's rather than a second one that has to be kept in step.
+  const carry = capCarriedEngines(stored, storeBonuses().carryEngines + ((sp && sp.memEngines) || 0));
   const opening = [...((sp && sp.hand) || []), ...carry];
   // THE WHOLE OPENING HAND IS REMEMBERED, not just the carried part. Owner's rule for what the
   // end-of-run screen may offer: *"any card you had in your card carousel at any point during
@@ -28221,8 +28291,13 @@ function withDeathCarry(sp) {
   // to be missing here, so a starting card the player never happened to CAST could not be kept —
   // the same defect that once applied to carried cards, one source further back.
   runDeck = opening;
-  if (!carry.length) return sp;
+  // CONSUMED ON WHAT WAS STORED, NOT ON WHAT SURVIVED THE CAP. A deck holding nothing but an
+  // over-cap engine caps to empty, and returning here without clearing would leave that card in
+  // storage to be dropped again on every future run — the report ("still able to carry one") wearing
+  // a new face, and permanent rather than once.
+  if (!stored.length) return sp;
   clearDeck(bucket);
+  if (!carry.length) return sp;                 // all of it was over the engine allowance
   return { ...(sp || {}), hand: opening };
 }
 
@@ -30185,7 +30260,8 @@ function beginTutorial() {
   if (tutorial) { tutorial.destroy(); tutorial = null; }
   injectTutorialHelpers();
   uiDirty = true;
-  tutorial = startTutorial(tutorialDeps());
+  // Survival gets the ant and mould tips folded into this one script — see stepsWithTipsInline.
+  tutorial = startTutorial(Object.assign(tutorialDeps(), { inlineTips: survivalRun() }));
 }
 
 // One-step tips on later campaign levels — ants on 2, Trichoderma on 3 (owner). Same machinery as
@@ -30202,6 +30278,9 @@ function beginLevelTip(level) {
   // NO SCRIPT, NO TIP. Without this an unknown level fell through to `LEVEL_TIPS[n] || MAIN_STEPS`
   // and started the whole level-1 walkthrough — on level 4, mid-run.
   if (!TIP_LEVELS.includes(level)) return;
+  // ...AND NOT IN SURVIVAL, which said all of this on level 1 (owner) — its maps rotate, so
+  // level 2 is a different map every run and cannot be relied on to introduce anything.
+  if (survivalRun()) return;
   if (tutorial && tutorial.active) return;            // never on top of the walkthrough
   if (runTips.has(level)) return;
   runTips.add(level);
@@ -30595,6 +30674,8 @@ function begin(newState) {
     antMarks: () => _antMarks.slice(),
     // Tutorial hooks (used by the future "replay tutorial" button + tests).
     startTutorial: () => beginTutorial(),
+    // The script the live tutorial is running — see the `script` getter on the controller.
+    tutorialScript: () => (tutorial ? tutorial.script : null),
     // The later-level tips (ants on 2, Trichoderma on 3). Their real trigger is entering that
     // level of a campaign run, which a check would otherwise have to play through.
     levelTip: (n) => { runTips.delete(n); beginLevelTip(n); },

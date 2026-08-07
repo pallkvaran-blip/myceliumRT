@@ -205,6 +205,102 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
   // really "did they click a species tile?", so the picker's own Dev quick-start fell through —
   // first to a campaign map, then (once that was closed) to a procedural roll. Both halves are
   // asserted, because either one alone passes on a build that gets the other wrong.
+  // ---- the level card, and the tutorial ------------------------------------------------------
+  // Both were reported missing on survival, and both have the same root: survival does its own
+  // thing at a point the campaign had already passed.
+  console.log('\n-- the level card and the tutorial --');
+  {
+    // THE CARD IS BUILT BEFORE THE THREATS EXIST. `begin()` fills the intro payload, and
+    // `seedLevelThreats` does not run until the first frame the rock mask lands — so counting the
+    // live arrays (which is what `levelThreatList` did) reported 0 of everything and the card's
+    // `count > 0` filter dropped all three portraits. Reported as "Survival: we're missing the
+    // level screens with the threat counts."
+    //
+    // Asserted on the CARD, not on the payload: the payload was never the thing the player saw,
+    // and a future change could restore the counts and still not render them.
+    const card = await page.evaluate(async () => {
+      const g = window.__game;
+      document.querySelectorAll('#speciesSelect,#levelIntro,#tutorial').forEach((n) => n.remove());
+      // The dev build SKIPS the level card, so a probe that just looks for it passes on a screen
+      // that was never built. `state.config` is a deep clone taken at run start, so the LIVE flag
+      // is what decides — same trap campaign-check documents.
+      const wasDev = window.__cfg.dev.enabled;
+      window.__cfg.dev.enabled = false;
+      g.survival.play('marasmius', 5);
+      for (let i = 0; i < 120 && !document.getElementById('levelIntro'); i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      const root = document.getElementById('levelIntro');
+      const out = {
+        built: !!root,
+        // One tile per creature: the portrait img and the "×N" beside it.
+        imgs: root ? [...root.querySelectorAll('img')].map((i) => (i.getAttribute('src') || '').split('/').pop()) : [],
+        counts: root ? [...root.querySelectorAll('.li-count')].map((n) => n.textContent.trim()) : [],
+        // What the curve says level 5 should hold, read off the live config like the block above.
+        want: (() => { const c = g.state.config;
+          return { ants: c.ants.nestCount, worms: c.nematodes.initialCount, clouds: c.trichoderma.initialPatches }; })(),
+      };
+      window.__cfg.dev.enabled = wasDev;
+      return out;
+    });
+    ok('the survival level card is built', card.built);
+    // Three creatures, three portraits. Level 5 is 3 ants / 5 worms / 5 clouds — all non-zero, so
+    // a card missing one is missing it wrongly rather than filtering an absent creature.
+    ok('it shows a portrait for each of the three threats', card.imgs.length === 3,
+       `${card.imgs.length}: ${card.imgs.join(', ')}`);
+    // The numbers are the CURVE's, which is the half that was actually broken — an empty array
+    // and an array of "×0" both render as "no portraits", so the count has to be read.
+    const wantCounts = ['×' + card.want.ants, '×' + card.want.clouds, '×' + card.want.worms];
+    ok('...and the counts are the level\'s own, not zero',
+       card.counts.join(',') === wantCounts.join(','),
+       `card says ${card.counts.join(', ')} — curve says ${wantCounts.join(', ')}`);
+  }
+  {
+    // ALL THE TIPS ON LEVEL 1 (owner). The campaign introduces the ants on 2 and the mould on 3,
+    // which works because its ten levels arrive in a fixed order; survival draws its map at random
+    // from seventeen, so level 2 is a different map every run and cannot be relied on to show a
+    // creature. Asserted on the SCRIPT rather than by clicking through — several steps are gated
+    // on a real player action, which a headless probe cannot supply.
+    const tut = await page.evaluate(async () => {
+      const g = window.__game;
+      document.querySelectorAll('#levelIntro,#tutorial').forEach((n) => n.remove());
+      const read = () => (g.tutorialScript() || []).map((s) => s.text);
+      g.survival.play('marasmius', 1);
+      await new Promise((r) => setTimeout(r, 400));
+      g.startTutorial();
+      const surv = read();
+      // The CONTROL, on the same page: a campaign run must keep the split, or "all the tips are
+      // on level 1" passes on a build that simply always inlines them.
+      g.campaign.play('marasmius', 1);
+      await new Promise((r) => setTimeout(r, 400));
+      g.startTutorial();
+      const camp = read();
+      const campLasts = (g.tutorialScript() || []).filter((s) => s.last).length;
+      // PUT THE GAME BACK. `campaign.play` calls `setGame('campaign')` and CONFIG.game is global,
+      // so left set the very next section asked for a survival map and got
+      // campaign-01-magnetite-c40 — a harness state leak that reads exactly like a real regression
+      // in the thing that section is about.
+      g.survival.play('marasmius', 1);
+      await new Promise((r) => setTimeout(r, 400));
+      document.querySelectorAll('#tutorial,#levelIntro').forEach((n) => n.remove());
+      return { surv, camp, campLasts };
+    }).catch((e) => ({ err: String(e && e.message) }));
+    if (tut.err) {
+      ok('the survival tutorial script can be read', false, tut.err);
+    } else {
+      const has = (l, re) => l.some((t) => re.test(t));
+      ok('survival puts the ANT tip in the level-1 walkthrough', has(tut.surv, /Ants are/i),
+         `${tut.surv.length} steps`);
+      ok('...and the TRICHODERMA tip too', has(tut.surv, /green mould/i), `${tut.surv.length} steps`);
+      ok('CONTROL: the campaign walkthrough still has neither',
+         !has(tut.camp, /Ants are/i) && !has(tut.camp, /green mould/i), `${tut.camp.length} steps`);
+      // The tips each carry `last: true` of their own (each is normally a script of one), so
+      // concatenated as-is the Next button reads "Begin" three steps early.
+      ok('exactly one step is marked last, so the button says Begin once',
+         tut.campLasts === 1, `${tut.campLasts} step(s) marked last`);
+    }
+  }
+
   console.log('\n-- which ways in play the pool --');
   const devQuick = await page.evaluate(async () => {
     const g = window.__game;
