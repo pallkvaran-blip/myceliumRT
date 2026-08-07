@@ -2681,13 +2681,32 @@ middle of the last sentence of the story.
 - **`VICT_FADE_MS` is pushed into `--li-vict-ms` at build time** rather than written in both the CSS
   and the script — the script needs the same number for its `transitionend` backstop.
 
-**The ending ANSWERS the opening, line for line** (`CAMPAIGN_ENDING` / `CAMPAIGN_ENDING_RED`, beside
-`CAMPAIGN_OPENING`), and that is what makes it an ending rather than a congratulation:
-*"There is nothing left where you are"* → *"There is something left where you are now"*, the third
-sentence returns in the past tense arrived, and *"-You must persist-"* → *"You persisted"*.
-`campaign-check` asserts the MIRROR PAIRS against both shipped strings, so a copy edit to either
-half shows up. "Nine" is written out in both, tracking `CAMPAIGN_LEVELS` — the campaign's length is
-a word in a sentence here, not a number to interpolate.
+**The ending is a QUOTED PASSAGE, not written copy** (`CAMPAIGN_ENDING_QUOTE`, beside
+`CAMPAIGN_OPENING`). Three drafts of original prose were rejected before the owner asked for a
+quotation instead, with the brief: *a long journey with many tragedies, you are stronger, the road
+ahead is not that different, and the cycles of death and rebirth go on.* Currently the close of
+Tennyson's **Ulysses** — Odysseus home from twenty years, old and diminished, announcing that he is
+setting out again — which carries all four halves of that in six lines. The red line above it still
+answers the opening's ask: *"-You must persist-"* → *"You persisted"*.
+
+- **PUBLIC DOMAIN, AND THAT IS A REQUIREMENT RATHER THAN A CONVENIENCE.** `docs/quotes.json`
+  records that **21 of the 47 shipped flavour quotes are still in copyright** and 13 more carry an
+  attribution nobody could verify; the owner is clearing them. The campaign's ENDING is the worst
+  place in the game to add to that debt — it is the last screen, it cannot be swapped quietly, and
+  it is the one quotation a reviewer would actually name. Any replacement wants the same check:
+  published before 1930, or the author dead long enough, **and a public-domain TRANSLATION** if it
+  is not originally English (that is the trap — the translation is its own copyrighted work, which
+  is why two entries in `quotes.json` read "trans. …").
+- **NOT added to `docs/quotes.json`.** That pool is the level cards' random flavour; the ending
+  must never turn up as a one-liner over level 4.
+- **It is set as VERSE.** The line breaks are the poem's own and `white-space: pre-line` keeps them
+  (`text-wrap` is cleared too, or `balance` re-breaks lines that are already broken). Reflowed to
+  the container's width it reads as prose that has been justified badly — invisible in a text
+  comparison, obvious in a frame, which is why `campaign-check` asserts the computed `white-space`
+  rather than only the text.
+- It reuses the level card's `.li-quote` furniture (italic serif, attribution on its own line),
+  sized up and brought forward: there it is dimmed flavour under a story line, here it IS the
+  ending.
 
 - **A SCREENSHOT CANNOT MEASURE THIS FADE, AND TAKING ONE BREAKS IT.**
   `page.screenshot({animations:'disabled'})` jumps every transition to its end state *and fires

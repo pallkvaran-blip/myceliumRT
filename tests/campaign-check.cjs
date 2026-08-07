@@ -286,7 +286,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     }
     out.word = !!document.querySelector('#levelIntro.li-vict .li-level canvas');
     out.red = (document.querySelector('.li-vict-line') || {}).textContent || null;
-    out.paras = [...document.querySelectorAll('.li-vict-story .li-story-p')].map((n) => n.textContent);
+    const qt = document.querySelector('.li-vict-quote .li-quote-t');
+    out.quoteText = qt ? qt.textContent : null;
+    out.quoteWrap = qt ? getComputedStyle(qt).whiteSpace : null;
+    out.quoteBy = (document.querySelector('.li-vict-quote .li-quote-by') || {}).textContent || null;
     out.ending = g.ending();
     // ...and it leaves, into the run-complete card.
     for (let i = 0; i < 40 && root(); i++) { root().click(); await new Promise((r) => setTimeout(r, 200)); }
@@ -310,17 +313,23 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      vict.survivedEarlyClick === true);
   ok('VICTORY is grown as a mycelium wordmark', vict.word === true);
   ok('"You persisted" sits under it in red', vict.red === 'You persisted', JSON.stringify(vict.red));
-  ok('the ending is shown, in the opening\'s paragraph style',
-     vict.paras.length === vict.ending.lines.length
-       && vict.paras.every((p, i) => p === vict.ending.lines[i]),
-     `${vict.paras.length} paragraph(s)`);
-  // THE ENDING ANSWERS THE OPENING, line for line — that is what makes it an ending rather than a
-  // congratulation, and it is exactly the relationship a later copy edit to either half would
-  // quietly break. Asserted as the mirror pair, against both shipped strings.
-  ok('...and it answers the opening ("nothing left" -> "something left")',
-     vict.ending.opening.some((l) => /There is nothing left where you are/.test(l))
-       && vict.ending.lines.some((l) => /There is something left where you are now/.test(l)),
-     vict.ending.lines[1] || '(none)');
+  // THE ENDING IS A QUOTED PASSAGE (owner), so what is asserted is that the shipped text reaches
+  // the screen intact and is attributed. Compared against `__game.ending()` rather than restated
+  // here — a check that hard-codes the passage is just a second copy to keep in step.
+  ok('the ending passage is shown, whole',
+     !!vict.quoteText && vict.quoteText.includes(vict.ending.quote.text),
+     `${(vict.quoteText || '').length} chars on screen vs ${vict.ending.quote.text.length} shipped`);
+  // IT IS VERSE. The line breaks are the poem's own and only `pre-line` keeps them; reflowed to
+  // the container's width it reads as prose that has been justified badly, which is invisible in a
+  // text comparison and obvious in a frame.
+  ok('...as verse, with the poem\'s own line breaks',
+     vict.quoteWrap === 'pre-line' && /\n/.test(vict.ending.quote.text),
+     `white-space: ${vict.quoteWrap}, ${(vict.ending.quote.text.match(/\n/g) || []).length} break(s)`);
+  // ATTRIBUTED. The passage is public domain (Tennyson, 1842) so there is no legal obligation
+  // here, but an unattributed quotation on the campaign's last screen is the kind of thing that
+  // gets noticed — and `docs/quotes.json` records that this game already carries 21 uncleared
+  // quotes, so the ending is the last place to be careless.
+  ok('...and attributed', !!vict.quoteBy && /Tennyson/.test(vict.quoteBy), JSON.stringify(vict.quoteBy));
   ok('...and the red line answers the opening\'s ask ("must persist" -> "persisted")',
      /must persist/i.test(vict.ending.ask) && /persisted/i.test(vict.ending.red),
      `${vict.ending.ask} -> ${vict.ending.red}`);
