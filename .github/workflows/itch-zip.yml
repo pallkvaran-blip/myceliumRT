@@ -50,6 +50,17 @@ jobs:
         with:
           node-version: '22'
 
+      # THE BUILD RE-ENCODES THE ART, and that needs Pillow — which the runner does not have and
+      # this container did, so it passed locally and failed only in CI. imageio-ffmpeg is the same
+      # story for the music: the build carries on without it, at full bitrate, so it is installed
+      # here rather than left to chance.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.x'
+
+      - name: Install the re-encoder's dependencies
+        run: python3 -m pip install --upgrade Pillow imageio-ffmpeg
+
       - name: Build the zip
         run: node scripts/make-web-zip.mjs --platform ${{ inputs.platform }} --keep-stage
 

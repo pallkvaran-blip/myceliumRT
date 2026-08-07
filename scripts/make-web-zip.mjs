@@ -228,6 +228,19 @@ say(`manifest: ${before} entries -> ${mf.assets.length}`);
 // change, and there is no ceiling here worth paying it for. Music drops 182 -> 128 kb/s, still a
 // transparent bitrate for ambient pads, and no track is cut.
 if (!process.argv.includes('--no-shrink')) {
+  // PILLOW IS A HARD DEPENDENCY OF THIS STEP AND CI DOES NOT HAVE IT BY DEFAULT. It failed only on
+  // the GitHub runner — this container has it — and did so as a Node stack trace ending in
+  // `Error: Command failed: python3 …`, which says nothing about the cause. Checked up front so
+  // the message names the fix instead. `--no-shrink` is the escape hatch, and it is honest about
+  // what it costs: the zip comes out roughly twice the size, which may then trip the entry/size
+  // caps below — better a build that fails on a number than one that silently ships heavy.
+  try {
+    execFileSync('python3', ['-c', 'import PIL'], { stdio: 'ignore' });
+  } catch (_) {
+    console.error('FAILED: the re-encode needs Pillow.  python3 -m pip install --upgrade Pillow\n' +
+                  '        (or pass --no-shrink to skip it — the zip will be about twice the size)');
+    process.exit(2);
+  }
   say('re-encoding at high quality (a few minutes — libwebp method=6):');
   execFileSync('python3', [path.join(ROOT, 'scripts', 'shrink-assets.py'), path.join(STAGE, 'assets'),
     '--rock', '85', '--card', '85', '--species', '85', '--png', '0'], { stdio: 'inherit' });
