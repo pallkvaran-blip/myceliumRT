@@ -1915,6 +1915,19 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
 - `node scripts/gen-analytics.mjs --snapshot rows.json` bakes rows in, which needs no network and
   IS publishable. It says on the page that it is a snapshot.
 
+- **"BEFORE vs AFTER THE UPDATE" IS THE COLUMN SET, NOT A DATE.** The `Build` filter (all / after
+  update / before update) keys on `game`/`device` being PRESENT, because those are attached
+  centrally in `buildEventRow` and exist only in the v2 build. A date cut would be wrong on itch
+  specifically: itch serves whatever zip was last uploaded and a browser can hold the old one for
+  days, so old-build sessions keep arriving after a launch. Pair it with Window `all` — a 30d
+  window clips whichever side of the launch falls outside it. Windows are 1d / 7d / 30d / 90d / all.
+  - **A PRE-v2 ROW NAMES NO GAME, so "How far people get" is legitimately smaller than "runs
+    started" above it** — that table filters `game === "campaign"` and cannot attribute an old row.
+    `analytics-check` pins the gap so the two can't silently converge.
+  - **The device table needed an explicit `unknown` bucket** the moment both builds coexisted:
+    `uniq` drops nulls, so the listed devices covered fewer sessions than the denominator and the
+    share column quietly summed to under 100 — the same defect as the player-vs-session fix, from a
+    new cause.
 - **PostgREST caps a GET at 1000 rows and says nothing**, so the page pages with `Range` headers.
   This is the most dangerous bug the file can have: without it every number stays plausible and
   describes the first thousand events. `analytics-check` feeds it 2198 rows over 3 requests.

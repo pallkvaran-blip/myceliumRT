@@ -63,11 +63,36 @@ function fixture() {
       if (p % 5 === 0) push(t + 21000, Object.assign({ kind: 'upgrade', detail: 'water', level: 1, n: 25 }, base));
     }
   }
+  // PRE-v2 SESSIONS, i.e. the build that shipped before `game`/`mode`/`device` existed. itch
+  // serves whatever zip was last uploaded and browsers cache it, so the two builds genuinely
+  // coexist in one table for days after a launch — which is the case the Build filter is for,
+  // and the case that made the device table's share column stop summing to 100.
+  // Snapshotted BEFORE the pre-v2 loop: the campaign table filters on `game === "campaign"`, which
+  // a pre-v2 row cannot satisfy, so its counts are legitimately the new-build ones alone while the
+  // run KPIs above it count every build.
+  const campStarts = starts, campClears1 = clears1;
+  let oldSessions = 0;
+  for (let d = 3; d >= 1; d--) {
+    for (let p = 0; p < 4; p++) {
+      const cid = 'c' + (p % 5);                 // reuses existing devices: the player count holds
+      const sid = 'old' + d + '-' + p;
+      const t = now - d * day - Math.round(rnd() * day * 0.5);
+      const base = { client_id: cid, session_id: sid, device: null, game: null, mode: null };
+      push(t, Object.assign({ kind: 'boot', ms: 3000 }, base)); boots++;
+      push(t + 6000, Object.assign({ kind: 'run_start', species: 'pleurotus', level: 1, cause: 'new' }, base)); starts++;
+      push(t + 9000, Object.assign({ kind: 'level_start', species: 'pleurotus', level: 1 }, base));
+      push(t + 12000, Object.assign({ kind: 'level_clear', species: 'pleurotus', level: 1, turns: 30, ms: 200000 }, base)); clears1++;
+      push(t + 15000, Object.assign({ kind: 'run_end', species: 'pleurotus', level: 1, cause: 'devoured', turns: 40, n: 100 }, base));
+      push(t + 17000, Object.assign({ kind: 'session_end', ms: 600000, n: 1 }, base));
+      oldSessions++;
+    }
+  }
+
   rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   // Counted, not assumed: the first version of this hard-coded 40 because that is the modulus in
   // the id, and the loop only ever produces 27 of them.
   const devices = new Set(rows.map((r) => r.client_id)).size;
-  return { rows, boots, starts, clears1, devices };
+  return { rows, boots, starts, clears1, devices, oldSessions, campStarts, campClears1 };
 }
 
 (async () => {
@@ -143,9 +168,14 @@ function fixture() {
       return [...tr.children].map((td) => td.textContent.trim());
     return null;
   });
+  // A PRE-v2 ROW IS NOT ATTRIBUTABLE TO A GAME, so this table is smaller than "runs started" above
+  // it and that is correct rather than a leak. Asserted against the campaign-only counters, with
+  // the gap itself pinned below so the two can never silently converge.
   ok('the campaign table reports level 1 attempts and clears',
-     lvl1 && lvl1[1] === String(F.starts) && lvl1[2] === String(F.clears1),
+     lvl1 && lvl1[1] === String(F.campStarts) && lvl1[2] === String(F.campClears1),
      lvl1 ? lvl1.slice(0, 4).join(' | ') : '(no Level 1 row)');
+  ok('...and it excludes pre-v2 rows, which name no game',
+     F.starts - F.campStarts === F.oldSessions, `${F.starts} runs, ${F.campStarts} attributable`);
   // Scoped to the CAMPAIGN table — the retries table also has "Level N" rows, so a loose count
   // over the whole page passed at 10 for a 9-level campaign and would have kept passing at 20.
   const levelRows = await page.evaluate(() => {
@@ -190,6 +220,47 @@ function fixture() {
   ok('a device filter narrows the numbers', +after < +before, `${before} players → ${after} on phone`);
   const srcOn = await page.$eval('.chip[data-f="source"].on', (b) => b.textContent);
   ok('...and Source defaults to itch, so dev boots stay out of a launch number', srcOn === 'itch', srcOn);
+
+  // ---- before vs after the update ---------------------------------------------
+  // THE TWO SIDES MUST PARTITION THE TABLE. Asserting only that "after update" narrows would pass
+  // on a filter that drops rows it should keep — the sum is what says every row landed on exactly
+  // one side of the launch. Window goes to `all` first: a 30d window would clip whichever side of
+  // the launch happens to fall outside it and the sum would be a coincidence.
+  const runsWith = async (build) => {
+    await page.click(`.chip[data-f="build"][data-v="${build}"]`);
+    await sleep(300);
+    return +(await page.$$eval('.kpi', (ks) => {
+      const k = ks.find((x) => x.querySelector('.k').textContent === 'runs started');
+      return k ? k.querySelector('.v').textContent : '0';
+    }));
+  };
+  await page.click('.chip[data-f="device"][data-v=""]');           // undo the phone filter above
+  await page.click('.chip[data-f="days"][data-v="0"]');
+  await sleep(300);
+  const rAll = await runsWith('');
+  const rNew = await runsWith('new');
+  const rOld = await runsWith('old');
+  ok('before/after the update partition the table', rNew + rOld === rAll && rAll > 0,
+     `${rNew} after + ${rOld} before = ${rNew + rOld}, all = ${rAll}`);
+  ok('...and each side is non-empty, so neither chip is a no-op', rNew > 0 && rOld > 0,
+     `after ${rNew}, before ${rOld}`);
+  // The build stamp is the COLUMN SET, not a date — a pre-v2 row is exactly one with no `game`.
+  ok('...and "before update" is the pre-v2 sessions, counted from the fixture',
+     rOld === F.oldSessions, `${rOld} of ${F.oldSessions}`);
+  await page.click('.chip[data-f="build"][data-v=""]');
+  await sleep(300);
+
+  // A 1d window, and it has to actually cut: the fixture spans a fortnight.
+  const has1d = await page.$('.chip[data-f="days"][data-v="1"]');
+  ok('there is a 1-day window', !!has1d);
+  await page.click('.chip[data-f="days"][data-v="1"]');
+  await sleep(300);
+  const r1d = await page.$$eval('.kpi', (ks) => {
+    const k = ks.find((x) => x.querySelector('.k').textContent === 'runs started');
+    return k ? +k.querySelector('.v').textContent : -1;
+  });
+  ok('...and it narrows a fortnight of events to the last day', r1d > 0 && r1d < rAll,
+     `${r1d} runs in 1d vs ${rAll} all-time`);
 
   // ---- an empty table says so rather than breaking -----------------------------
   const ctx2 = await browser.newContext({ viewport: { width: 1100, height: 800 } });

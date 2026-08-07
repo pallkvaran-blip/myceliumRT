@@ -67,7 +67,7 @@ var SNAPSHOT = null;
 var SNAPSHOT_AT = null;
 
 var ROWS = [];
-var FILTER = { days: 30, source: "itch", game: "", mode: "", device: "" };
+var FILTER = { days: 30, build: "", source: "itch", game: "", mode: "", device: "" };
 
 // PostgREST CAPS A GET AT 1000 ROWS and says nothing about it, so a naive fetch silently
 // analyses the first thousand events and reports them as the whole story. Paged with
@@ -107,7 +107,17 @@ function fmtMs(ms) {
 }
 function median(a) { if (!a.length) return null; var s = a.slice().sort(function (x, y) { return x - y; }); var m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
 
+// WHICH BUILD A ROW CAME FROM IS NOT A TIMESTAMP, IT IS THE COLUMN SET. itch serves whatever
+// zip was last uploaded and a browser can hold a cached copy of the old one for days, so a
+// date cut would file an old-build session under "after" purely because it was played late.
+// `game`/`mode`/`device` are attached centrally in `buildEventRow` and exist only in the new
+// build, so their PRESENCE is the build stamp. (`_slimEvents` would strip them after a 400 on
+// an un-migrated table — that would misfile a new row as old, and the table is migrated.)
+function isNewBuild(r) { return r.device != null && r.game != null; }
+
 function inFilter(r) {
+  if (FILTER.build === "new" && !isNewBuild(r)) return false;
+  if (FILTER.build === "old" && isNewBuild(r)) return false;
   if (FILTER.source && r.source !== FILTER.source) return false;
   if (FILTER.game && r.game !== FILTER.game) return false;
   if (FILTER.mode && r.mode !== FILTER.mode) return false;
@@ -263,6 +273,11 @@ function render() {
   section("Devices");
   var pdv = panel();
   var devs = uniq(rows.map(function (r) { return r.device; })).sort();
+  // AN EXPLICIT UNKNOWN BUCKET, because `uniq` drops nulls and a PRE-v2 row carries no `device`.
+  // Without it the listed devices covered fewer sessions than `allSessions` and the share column
+  // quietly summed to under 100 — the same defect the player-vs-session fix below was for, and it
+  // arrives on its own the moment an old build and a new one are both in the table.
+  if (rows.some(function (r) { return r.device == null; })) devs.push(null);
   var dt = table(pdv, ["device", { t: "players", n: 1 }, { t: "sessions", n: 1 }, { t: "runs", n: 1 },
     { t: "levels cleared", n: 1 }, { t: "median frame", n: 1 }, "share of sessions"]);
   // SHARE OF SESSIONS, not of players. A device id is a browser, and a browser whose window is
@@ -271,7 +286,7 @@ function render() {
   // unit, and it is also the one a per-device rate should be against.
   var allSessions = sessions.length;
   devs.forEach(function (d) {
-    var sub = rows.filter(function (r) { return r.device === d; });
+    var sub = rows.filter(function (r) { return d == null ? r.device == null : r.device === d; });
     var pl = uniq(sub.map(function (r) { return r.client_id; })).length;
     var perfs = sub.filter(function (r) { return r.kind === "perf" && r.ms != null; }).map(function (r) { return r.ms / 10; });
     var tr = el("tr");
@@ -466,7 +481,10 @@ function buildBar() {
     });
     bar.appendChild(g);
   }
-  group("Window", "days", [{ t: "7d", v: 7 }, { t: "30d", v: 30 }, { t: "90d", v: 90 }, { t: "all", v: 0 }]);
+  group("Window", "days", [{ t: "1d", v: 1 }, { t: "7d", v: 7 }, { t: "30d", v: 30 }, { t: "90d", v: 90 }, { t: "all", v: 0 }]);
+  // BUILD IS NOT A DATE — see isNewBuild. Pair "after update" with Window "all", or a 30d
+  // window silently clips the comparison to whichever side of the launch fits in 30 days.
+  group("Build", "build", [{ t: "all", v: "" }, { t: "after update", v: "new" }, { t: "before update", v: "old" }]);
   // SOURCE DEFAULTS TO `itch`, and that is deliberate: the same table carries dev boots and
   // Playwright runs, and mixing them into a launch number is how you convince yourself the game
   // has ten times the players it has.
