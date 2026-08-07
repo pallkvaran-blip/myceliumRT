@@ -84,9 +84,27 @@ deploy  SKIPPED
 ```
 
 The sibling `report-build-status` job in the SAME run gets a runner immediately, so "no runners
-available" is not the whole story — it is the BUILD job specifically, and `assets/` at ~108 MB is
-the obvious suspect. One run in four got a runner after **9 minutes 18 seconds** and built fine, so
-it is a lottery against a 15-minute deadline rather than a hard block.
+available" is not the whole story — it is the BUILD job specifically. One run in four got a runner
+after **9 minutes 18 seconds** and built fine, so it is a lottery against a 15-minute deadline
+rather than a hard block.
+
+**IT IS NOT THE REPO, AND `assets/` AT ~108 MB IS NOT THE CAUSE — that was my first guess and the
+run history refutes it.** Measured across all 30 runs of the day it started:
+
+| window (UTC) | runs | success | median duration |
+|---|---|---|---|
+| 08:02 – 11:08 | 10 | **10** | 4.6 min |
+| 11:20 – 19:44 | 20 | 6 | — |
+
+The repo did not change size across that boundary (the survival maps reuse existing `assets/`
+folders through `assetsFrom`), and the SAME sha that failed at 11:20 succeeded at 11:41. Successful
+runs stayed fast all day — min 1.1 min, median 3.9, max 9.2, and the last one of the night took
+1.2. So this is a GitHub-side degradation with a start time, not a property of the project, and
+**rebuilding the repo would not have helped**. The zombie run is not the cause either: it appeared
+at 13:27, two hours after the trouble began.
+
+If it recurs, that table is the evidence a support ticket wants — a clean before/after with the
+repo unchanged, plus a run id whose build job shows `runner_id: 0` and a 15-minute cancel.
 
 - **A zombie run can sit in `queued` for hours and CANNOT be cancelled** — the API answers
   `409 Cannot cancel a workflow re-run that has not yet queued`, and the UI's Cancel button maps to
