@@ -2734,6 +2734,22 @@ line above still answers the opening's ask: *"-You must persist-"* → *"You per
   a plain timer armed unconditionally, so the worst case is "it appears without a fade" rather than
   "the game is over". **Anything here that gates dismissal must be armed outside the animation
   path.**
+- **THE ANIMATION AND THE CONTENT ARE ASSERTED IN DIFFERENT FILES, and that split is the fix for
+  three rounds of false failures.** `campaign-check` plays nine levels before it reaches this
+  screen and by then the page is STARVED — one `await setTimeout(0)` there measured **9,275 ms** —
+  so a 2.6 s fade cannot be sampled in it at all. It owns "the screen is reached, and says the
+  right things" (end state, survives any load). **`tests/victory-check.cjs` (13)** owns the fade,
+  the deaf window and the second-screen softlock, and boots a fresh page that goes straight to the
+  screen. This is CLAUDE.md's own standing rule about headless animation, learnt again the
+  expensive way: on a loaded page assert ORDER and END STATE; measure timing only where nothing
+  else is running.
+- **`openCard` ASKS THE ELEMENT WHERE IT IS, not the clock.** Its fallback timer can land before
+  the fade has run — a transition only advances while frames are produced — measured on the second
+  screen of a session, which sat at opacity 0 for 1.6 s and then had the card opened on top of it
+  at **0.77**, wordmark growing over a still-visible map. It now re-checks computed opacity every
+  200 ms until the black has landed (>= 0.98) **or a hard ceiling of 3x the fade**, because opening
+  late is a blemish and not opening is the softlock. Assertions about it must use the same 0.98,
+  not `=== 1`: a transition sampled mid-flight reports 0.999.
 - **A SCREENSHOT CANNOT MEASURE THIS FADE, AND TAKING ONE BREAKS IT.**
   `page.screenshot({animations:'disabled'})` jumps every transition to its end state *and fires
   `transitionend`* — so the "mid-fade" frame came out fully black AND the capture itself opened the

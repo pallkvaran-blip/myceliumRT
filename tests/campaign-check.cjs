@@ -279,55 +279,27 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      JSON.stringify({ title: exit.title, card: exit.card, picker: exit.picker }));
   await page.evaluate(() => document.querySelectorAll('#ssLevelComplete, #ssGameWon, #levelIntro, #titleScreen').forEach((n) => n.remove()));
 
-  // ---- the victory screen ---------------------------------------------------
-  // Driven through `__game.victory()` so the screen's own behaviour can be measured without
-  // replaying nine levels; that it is REACHED is asserted above, on the real path.
-  //
-  // MEASURED FROM THE DOM, NOT FROM A SCREENSHOT. `page.screenshot({animations:'disabled'})` jumps
-  // every transition to its end state AND fires `transitionend` — so a captured frame cannot show
-  // a fade, and capturing one actually OPENS the card early. Cost a frame that looked like the
-  // fade was instant.
+  // ---- the victory screen's CONTENT -----------------------------------------
+  // THE ANIMATION IS NOT MEASURED HERE, and that split is the whole lesson of this block. This page
+  // has played nine levels by now and is starved: one `await setTimeout(0)` was measured at
+  // 9,275 ms, so a 2.6 s fade cannot be sampled at all. Two rounds of false failures came out of
+  // trying — nine assertions naming nine different features, on a build that was correct. The fade,
+  // the deaf window and the second-screen softlock live in `victory-check`, which boots a fresh
+  // page and goes straight to the screen. What belongs HERE is that the screen is REACHED (asserted
+  // on the real win path above) and that it says the right things, which is end state and survives
+  // any amount of load.
   const vict = await page.evaluate(async () => {
     const g = window.__game;
     document.querySelectorAll('#levelIntro, #speciesSelect, #ssGameWon, #tutorial, #titleScreen').forEach((n) => n.remove());
-    // WAIT FOR A CLEAN PAGE FIRST. The block above ends by dismissing a victory screen, and a
-    // dismissed one lives on for the length of its own 2.9 s fade-out — so measuring straight away
-    // sampled THAT screen: opacity 1 and already open on the first sample, then gone. Every
-    // assertion here failed on a build that was working perfectly.
-    const stale = () => document.querySelector('#levelIntro.li-vict');
-    for (let i = 0; i < 40 && stale(); i++) await new Promise((r) => setTimeout(r, 200));
-    const before = !!stale();
+    // A dismissed screen lives on for its own fade-out; wait it out rather than reading it.
+    const root = () => document.querySelector('#levelIntro.li-vict');
+    for (let i = 0; i < 60 && root(); i++) await new Promise((r) => setTimeout(r, 200));
+    const out = { cleanStart: !root() };
     let done = false;
     g.victory(() => { done = true; });
-    const root = () => document.querySelector('#levelIntro.li-vict');
-    const op = () => { const r = root(); return r ? +getComputedStyle(r).opacity : null; };
-    const open = () => { const r = root(); return !!(r && r.classList.contains('li-in')); };
-    // SAMPLED ON THE REAL CLOCK, AND POLLED RATHER THAN SLEPT. The first version slept 260 ms
-    // nine times and LABELLED the samples 260, 520, ... — which is a bet that a timer fires when
-    // it says it will. This page has just played nine levels; the first "260 ms" sample actually
-    // landed past 2.6 s, by which time the fade was over and the card open. It read as
-    // `opacity: 1` on arrival and failed nine assertions describing nine different features, on a
-    // build whose fade the diagnostic in the same breath measured at a correct `2.6s` with
-    // `prefers-reduced-motion: false`. Yielding with `setTimeout(0)` gets samples as fast as the
-    // event loop allows and every one carries the elapsed time it was actually taken at.
-    const out = { fadeMs: g.ending().fadeMs, samples: [] };
-    const t0 = performance.now();
-    let clickAt = null;
-    while (performance.now() - t0 < out.fadeMs + 1600) {
-      await new Promise((r) => setTimeout(r, 0));
-      const ms = performance.now() - t0;
-      const r = root();
-      out.samples.push({ ms: Math.round(ms), op: r ? +(+getComputedStyle(r).opacity).toFixed(3) : null,
-                         open: r ? r.classList.contains('li-in') : null });
-      // The stray click goes in EARLY BY MEASUREMENT, not by sample index — the whole point is that
-      // it lands while the screen is still fading.
-      if (clickAt == null && r && ms > 80) { r.click(); clickAt = Math.round(ms); }
-    }
-    out.clickAt = clickAt;
-    out.survivedEarlyClick = !!root();
-    out.cleanStart = !before;
-    // Now let it finish and assemble.
-    for (let i = 0; i < 40 && !(open() && document.querySelector('.li-vict-story .li-stage-in')); i++) {
+    // POLL FOR THE ASSEMBLED CARD. However long the starved page takes, it gets there — and
+    // `openCard` is armed off a plain timer with a hard ceiling precisely so that is guaranteed.
+    for (let i = 0; i < 150 && !document.querySelector('.li-vict-quote .li-quote-by'); i++) {
       await new Promise((r) => setTimeout(r, 200));
     }
     out.word = !!document.querySelector('#levelIntro.li-vict .li-level canvas');
@@ -338,33 +310,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     out.quoteWrap = qt ? getComputedStyle(qt).whiteSpace : null;
     out.quoteBy = (document.querySelector('.li-vict-quote .li-quote-by') || {}).textContent || null;
     out.ending = g.ending();
-    // ...and it leaves, into the run-complete card.
-    for (let i = 0; i < 40 && root(); i++) { root().click(); await new Promise((r) => setTimeout(r, 200)); }
+    for (let i = 0; i < 60 && root(); i++) { root().click(); await new Promise((r) => setTimeout(r, 200)); }
     for (let i = 0; i < 30 && !done; i++) await new Promise((r) => setTimeout(r, 200));
     out.done = done;
-    out.card = !!document.getElementById('ssGameWon');
-    document.querySelectorAll('#ssGameWon, #levelIntro').forEach((n) => n.remove());
+    document.querySelectorAll('#ssGameWon, #levelIntro, #titleScreen').forEach((n) => n.remove());
     return out;
   });
-  // IT FADES UP FROM THE MAP rather than cutting to black — the one thing this screen does that no
-  // other #levelIntro does, and the owner's actual ask ("everything slowly fade to black").
-  // A stale screen from the block above would make every assertion here measure the wrong node —
-  // asserted rather than merely waited for, so that failure can never present as nine unrelated ones.
   ok('the probe starts on a clean page', vict.cleanStart === true);
-  // A compact trace: first sample, and every ~400 ms after.
-  const trace = vict.samples.filter((s, i) => i === 0 || s.ms - (vict.samples[i - 1] || {}).ms > 0)
-    .filter((s, i, a) => i === 0 || s.ms - a[Math.max(0, i - 1)].ms >= 0)
-    .filter((s) => s.ms % 400 < 60).slice(0, 12)
-    .map((s) => `${s.ms}:${s.op}${s.open ? '+open' : ''}`).join(' ');
-  const mid = vict.samples.filter((s) => s.op != null && s.op > 0.02 && s.op < 0.95).length;
-  ok('the victory screen fades up from the map instead of cutting to black',
-     mid >= 3, `${vict.samples.length} samples over ${vict.samples[vict.samples.length - 1].ms}ms | ${trace}`);
-  // ...and the card waits for the black. Growing the wordmark under a half-transparent overlay
-  // would spend the one animation this screen is built around while the map is still showing.
-  ok('...and the card only opens once the black has landed',
-     vict.samples.every((s) => !s.open || s.op === 1 || s.op == null), trace);
-  ok('a click during the fade does NOT skip it',
-     vict.survivedEarlyClick === true, `clicked at ${vict.clickAt}ms of a ${vict.fadeMs}ms fade`);
   ok('VICTORY is grown as a mycelium wordmark', vict.word === true);
   ok('"You persisted" sits under it in red', vict.red === 'You persisted', JSON.stringify(vict.red));
   // The owner's sign-off, above the quotation — the game's own voice, in the opening's paragraph
@@ -397,6 +349,8 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // on the real win path above (`last.viaVictory && last.won`).
   ok('dismissing it hands over (onDone fires)', vict.done === true,
      JSON.stringify({ done: vict.done }));
+  // The fade, the deaf window and the softlock: tests/victory-check.cjs, on a page that can
+  // actually measure them.
 
   // ---- the final level's goal band ------------------------------------------
   // "Almost twice as big", with things floating over it (owner) — the map that ENDS the campaign,

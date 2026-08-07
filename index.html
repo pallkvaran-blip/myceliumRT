@@ -27547,8 +27547,21 @@ function showVictory(opts) {
   // fallback timer, because a headless page throttles rAF and can swallow the event entirely
   // (the same reason every dismiss in this module carries one).
   let opened = false;
+  // The hard ceiling on waiting for the black. Opening late is a blemish; not opening is the
+  // softlock this whole path was rebuilt to make impossible, so there is always an end to it.
+  const hardOpenAt = performance.now() + VICT_FADE_MS * 3;
   function openCard() {
     if (opened || !alive) return;
+    // THE FALLBACK TIMER CAN LAND BEFORE THE FADE HAS ACTUALLY RUN. A transition only advances
+    // while frames are produced, and a busy page does not produce them on schedule — measured on
+    // the SECOND victory screen of a session, which sat at opacity 0 for 1.6 s and then had the
+    // card opened on top of it at 0.77, wordmark growing over a still-visible map. So the timer
+    // asks the element where it actually is rather than trusting the clock, and re-checks until
+    // the black has landed or the ceiling above is reached.
+    if (performance.now() < hardOpenAt) {
+      const op = parseFloat(getComputedStyle(root).opacity);
+      if (op === op && op < 0.98) { later(openCard, 200); return; }
+    }
     opened = true;
     armed = true;                       // clicks count from here, not before
     root.classList.add('li-in');
