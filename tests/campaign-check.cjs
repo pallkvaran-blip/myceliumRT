@@ -302,20 +302,28 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const root = () => document.querySelector('#levelIntro.li-vict');
     const op = () => { const r = root(); return r ? +getComputedStyle(r).opacity : null; };
     const open = () => { const r = root(); return !!(r && r.classList.contains('li-in')); };
+    // SAMPLED ON THE REAL CLOCK, AND POLLED RATHER THAN SLEPT. The first version slept 260 ms
+    // nine times and LABELLED the samples 260, 520, ... — which is a bet that a timer fires when
+    // it says it will. This page has just played nine levels; the first "260 ms" sample actually
+    // landed past 2.6 s, by which time the fade was over and the card open. It read as
+    // `opacity: 1` on arrival and failed nine assertions describing nine different features, on a
+    // build whose fade the diagnostic in the same breath measured at a correct `2.6s` with
+    // `prefers-reduced-motion: false`. Yielding with `setTimeout(0)` gets samples as fast as the
+    // event loop allows and every one carries the elapsed time it was actually taken at.
     const out = { fadeMs: g.ending().fadeMs, samples: [] };
-    // Sample across the fade. A click goes in on the FIRST sample — the player who has just won is
-    // mid-click, and this screen must not be skippable by it.
-    for (let i = 0; i < 9; i++) {
-      await new Promise((r) => setTimeout(r, 260));
-      if (i === 0 && root()) {
-        const r0 = root(), cs = getComputedStyle(r0);
-        out.diag = { dur: cs.transitionDuration, prop: cs.transitionProperty,
-                     varMs: r0.style.getPropertyValue('--li-vict-ms'), cls: r0.className,
-                     reduce: matchMedia('(prefers-reduced-motion: reduce)').matches };
-        r0.click();
-      }
-      out.samples.push({ ms: (i + 1) * 260, op: op(), open: open() });
+    const t0 = performance.now();
+    let clickAt = null;
+    while (performance.now() - t0 < out.fadeMs + 1600) {
+      await new Promise((r) => setTimeout(r, 0));
+      const ms = performance.now() - t0;
+      const r = root();
+      out.samples.push({ ms: Math.round(ms), op: r ? +(+getComputedStyle(r).opacity).toFixed(3) : null,
+                         open: r ? r.classList.contains('li-in') : null });
+      // The stray click goes in EARLY BY MEASUREMENT, not by sample index — the whole point is that
+      // it lands while the screen is still fading.
+      if (clickAt == null && r && ms > 80) { r.click(); clickAt = Math.round(ms); }
     }
+    out.clickAt = clickAt;
     out.survivedEarlyClick = !!root();
     out.cleanStart = !before;
     // Now let it finish and assemble.
@@ -343,17 +351,20 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // A stale screen from the block above would make every assertion here measure the wrong node —
   // asserted rather than merely waited for, so that failure can never present as nine unrelated ones.
   ok('the probe starts on a clean page', vict.cleanStart === true);
+  // A compact trace: first sample, and every ~400 ms after.
+  const trace = vict.samples.filter((s, i) => i === 0 || s.ms - (vict.samples[i - 1] || {}).ms > 0)
+    .filter((s, i, a) => i === 0 || s.ms - a[Math.max(0, i - 1)].ms >= 0)
+    .filter((s) => s.ms % 400 < 60).slice(0, 12)
+    .map((s) => `${s.ms}:${s.op}${s.open ? '+open' : ''}`).join(' ');
   const mid = vict.samples.filter((s) => s.op != null && s.op > 0.02 && s.op < 0.95).length;
   ok('the victory screen fades up from the map instead of cutting to black',
-     mid >= 3, `opacity over time: ${vict.samples.map((s) => s.op).join(', ')}` +
-       ` | ${JSON.stringify(vict.diag)}`);
+     mid >= 3, `${vict.samples.length} samples over ${vict.samples[vict.samples.length - 1].ms}ms | ${trace}`);
   // ...and the card waits for the black. Growing the wordmark under a half-transparent overlay
   // would spend the one animation this screen is built around while the map is still showing.
   ok('...and the card only opens once the black has landed',
-     vict.samples.every((s) => !s.open || s.op === 1),
-     vict.samples.map((s) => `${s.ms}:${s.op}${s.open ? '+open' : ''}`).join(' '));
+     vict.samples.every((s) => !s.open || s.op === 1 || s.op == null), trace);
   ok('a click during the fade does NOT skip it',
-     vict.survivedEarlyClick === true);
+     vict.survivedEarlyClick === true, `clicked at ${vict.clickAt}ms of a ${vict.fadeMs}ms fade`);
   ok('VICTORY is grown as a mycelium wordmark', vict.word === true);
   ok('"You persisted" sits under it in red', vict.red === 'You persisted', JSON.stringify(vict.red));
   // The owner's sign-off, above the quotation — the game's own voice, in the opening's paragraph

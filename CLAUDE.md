@@ -2722,6 +2722,18 @@ line above still answers the opening's ask: *"-You must persist-"* → *"You per
   sized up and brought forward: there it is dimmed flavour under a story line, here it IS the
   ending.
 
+- **THE FADE IS STARTED BY A FORCED STYLE FLUSH, NOT `requestAnimationFrame`, AND THAT WAS A
+  SOFTLOCK.** The rAF version worked on the FIRST victory screen of a session and did not run at
+  all on the second — measured: a plain rAF registered on the line above it fired, this one never
+  did, `alive` was true, the element was in the DOM, and `li-vict-black` was simply never added.
+  The consequence was not cosmetic, because `openCard` was scheduled INSIDE that callback: no rAF
+  meant no fade, no card, and `armed` never set — **a full-screen overlay at opacity 0 that
+  swallows every click and can never be dismissed**, reachable by winning the campaign twice in one
+  session. Reading `offsetWidth` forces the pending `opacity:0` to be computed before the class
+  lands, so there is a change to transition and no frame needs scheduling; `openCard` now hangs off
+  a plain timer armed unconditionally, so the worst case is "it appears without a fade" rather than
+  "the game is over". **Anything here that gates dismissal must be armed outside the animation
+  path.**
 - **A SCREENSHOT CANNOT MEASURE THIS FADE, AND TAKING ONE BREAKS IT.**
   `page.screenshot({animations:'disabled'})` jumps every transition to its end state *and fires
   `transitionend`* — so the "mid-fade" frame came out fully black AND the capture itself opened the
@@ -2735,6 +2747,14 @@ line above still answers the opening's ask: *"-You must persist-"* → *"You per
   is nothing downstream to find — asserting the title screen there fails on a screen that works.
   The exit (rating tab + title screen) is asserted on the REAL win path instead, with `window.open`
   stubbed so no tab is actually opened.
+- **A SLEEP IS NOT A CLOCK, AND LABELLING SAMPLES BY SLEEP COUNT IS A BET ABOUT THE MACHINE.** The
+  victory probe slept 260 ms nine times and LABELLED the samples 260, 520, … — on a page that has
+  just played nine levels the first one actually landed past 2.6 s, by which time the fade was over
+  and the card open. It read `opacity: 1` on arrival and **failed nine assertions naming nine
+  different features**, on a build whose fade a diagnostic in the same output measured at a correct
+  `2.6s` with `prefers-reduced-motion: false`. Two sessions were spent suspecting the feature. Poll
+  with `setTimeout(0)` and stamp every sample with `performance.now()`; drive anything time-critical
+  (here, the stray click) off the MEASURED elapsed time, never off a sample index.
 - **A DISMISSED VICTORY SCREEN LIVES ON FOR ITS OWN 2.9 s FADE-OUT, and the next probe measures
   it.** `campaign-check` drives the real win path first (which ends by dismissing one) and then
   `__game.victory()` — and the second block sampled the FIRST screen: opacity 1 and already open on

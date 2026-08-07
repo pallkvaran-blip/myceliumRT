@@ -339,3 +339,30 @@ theme-relative (each sprite against itself, so pale `glacier` is not judged agai
 `obsidian`). It is the number behind "the rocks have a halo", which was reported by eye twice
 before anything measured it. Median across the 58 levels is -0.1 with 47 under +10; if a
 re-trace pushes that above +10, `--trim` is the first thing to look at.
+
+## itchzip — the release gate
+
+`node scripts/make-itch-zip.mjs && node tests/itchzip-check.cjs`
+
+The only check here that runs against the **artefact** rather than the working tree, which is the
+only way to catch a build-step mistake: the dev flag not patched, an asset the copy missed, the
+html one folder down (itch then serves a directory listing instead of the game). It unzips, serves
+the result, and plays it — title → campaign → a live colony, then survival from a cold reload —
+asserting no dev button on any screen that carries one, `window.__cfg` still present (that hook is
+deliberately kept in a public cut), and no page errors or failed requests.
+
+**Not in the runner**: it needs a zip to exist, and building one copies ~2,400 files. Run it by
+hand as part of a release cut. `.github/workflows/itch-zip.yml` does the same build in CI and
+attaches the result to a draft release.
+
+Three traps it walked into, all general:
+- **Playwright refuses a click the full-screen `<canvas id="game">` "intercepts"**, then the node
+  detaches mid-retry and throws out of the whole block. Dispatch the click instead — the overlay's
+  own listener receives it either way.
+- **The campaign puts its opening between New and the picker.** Clicking `.li-story` immediately
+  finds nothing (the screen is not built yet), gives up, and then waits for a picker sitting behind
+  an overlay — reported as "campaign never reaches the selection screen", a real-sounding bug that
+  did not exist. Wait for EITHER and click whichever turned up.
+- **A media request ABORTED by navigation is not a missing asset.** The audio streams, so reloading
+  between the two games kills whichever was in flight; the menu track read as a 404 on a build that
+  has it. Filter on `failure().errorText`.
