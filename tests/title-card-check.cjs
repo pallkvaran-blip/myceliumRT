@@ -52,24 +52,36 @@ async function boot(browser, w, h, css) {
   return { ctx, page };
 }
 
-/* The wordmark's ink bounding box, and its gaps to the canvas edges. Read off the canvas the
- * growth draws into, at alpha >= 24 so the bloom's faintest haze doesn't count as ink. */
+/* The wordmark's ink bounding box — its gaps to the canvas edges, and where it sits against the
+ * chapter line. Read off the canvas the growth draws into, at alpha >= 24 so the bloom's faintest
+ * haze doesn't count as ink. */
 async function inkGaps(page) {
   return page.evaluate(() => {
     const c = document.querySelector('#word canvas');
     if (!c) return null;
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
-    let lo = c.width, hi = -1;
+    let lo = c.width, hi = -1, top = c.height, bot = -1;
     for (let y = 0; y < c.height; y++) {
       const row = y * c.width * 4;
       for (let x = 0; x < c.width; x++) {
-        if (d[row + x * 4 + 3] >= 24) { if (x < lo) lo = x; if (x > hi) hi = x; }
+        if (d[row + x * 4 + 3] >= 24) {
+          if (x < lo) lo = x; if (x > hi) hi = x;
+          if (y < top) top = y; if (y > bot) bot = y;
+        }
       }
     }
     if (hi < 0) return null;
-    const s = c.width / c.getBoundingClientRect().width;     // device px -> css px
-    return { left: Math.round(lo / s), right: Math.round((c.width - 1 - hi) / s),
-             canvas: c.width + 'x' + c.height };
+    const wb = document.getElementById('word').getBoundingClientRect();
+    const sx = c.width / wb.width, sy = c.height / wb.height;    // device px -> css px
+    const inkTop = wb.top + top / sy, inkBot = wb.top + bot / sy;
+    const soon = document.querySelector('.soon').getBoundingClientRect();
+    return { left: Math.round(lo / sx), right: Math.round((c.width - 1 - hi) / sx),
+             canvas: c.width + 'x' + c.height,
+             inkH: Math.round(inkBot - inkTop),
+             // The OPTICAL gap: ink to type, not box to box. #word is taller than the ink in it.
+             gap: Math.round(soon.top - inkBot),
+             // How far the whole lockup's centre sits off the frame's, in px.
+             offCentre: Math.round((inkTop + soon.bottom) / 2 - innerHeight / 2) };
   });
 }
 
@@ -157,12 +169,21 @@ async function lineStats(page) {
     // ---- 1. the wordmark clears the frame -------------------------------------------------
     // Three shapes, because the failure only appears where `titleSize` resolves WIDTH-limited:
     // 1280x720 is height-limited and had 37/41px of headroom on the build that clipped.
-    console.log('\nthe wordmark clears the frame');
+    console.log('\nthe wordmark clears the frame, and the lockup holds together');
     for (const [w, h] of [[630, 500], [900, 900], [1280, 720]]) {
       const { ctx, page } = await boot(browser, w, h);
       const g = await inkGaps(page);
       ok(g && g.left > 4 && g.right > 4, `${w}x${h}: ink clears both edges`,
          g ? `left ${g.left}px, right ${g.right}px (canvas ${g.canvas})` : 'no ink found');
+      // `tightenToInk` closes the gap to a quarter of the ink's own height and re-centres the
+      // union. Both are COMPUTED at run time, from the drawn pixels — the CSS `gap` cannot express
+      // them, because #word carries 49-107px of empty box below the ink depending on the shape.
+      // Asserted as a RATIO: a px figure here would just be re-stating one viewport's answer.
+      const ratio = g ? g.gap / g.inkH : 0;
+      ok(g && ratio > 0.17 && ratio < 0.34, `${w}x${h}: the chapter line sits close under the ink`,
+         g ? `gap ${g.gap}px against ${g.inkH}px of ink (${ratio.toFixed(2)}x)` : 'no ink found');
+      ok(g && Math.abs(g.offCentre) <= 3, `${w}x${h}: the lockup is centred on the frame`,
+         g ? `centre is ${g.offCentre}px off` : 'no ink found');
       await ctx.close();
     }
 

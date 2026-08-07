@@ -362,8 +362,55 @@
     title = growMyceliumTitle(wordBox, {
       word: 'MYCELIUM',
       stepRate: 2.4,
-      onGrown: () => { lines.classList.add('in'); },
+      // Close the gap BEFORE the fade starts, so the line arrives where it belongs rather than
+      // sliding into place — `.lines` transitions opacity only, and a margin change is a jump.
+      onGrown: () => { tightenToInk(); lines.classList.add('in'); },
     });
+  }
+
+  // ------------------------------------------------------------------------
+  // THE GAP UNDER THE WORDMARK IS NOT THE CSS GAP, AND NO CSS VALUE CAN SET IT. `#word` is sized so
+  // `titleSize` lands width-limited, which leaves the box TALLER than the ink inside it — measured
+  // at 51px of empty box below the drawn ink at 630x500, 49 at 1280x720 and 107 at 900x900. So the
+  // 12px `gap` on #stage was reading as 63, 66 and 129: not a constant, and not a fraction of the
+  // box either, since how much slack there is depends on whether `titleSize` came out width- or
+  // height-limited at that shape.
+  //
+  // The only thing that knows is the ink itself, so this measures the canvas and pulls `.lines` up
+  // to leave a gap of a QUARTER OF THE INK'S OWN HEIGHT — a proportion, so the composition holds
+  // together at any frame the card is recorded at.
+  //
+  // AND THEN RE-CENTRES, because #stage centres its CONTENT BOX and the content box includes that
+  // dead slack. Pulling the line up shortens the column and flex obligingly slides everything down
+  // by half of what was gained, which put the whole composition low in the frame. The transform
+  // centres the union of (drawn ink, chapter line) — the thing actually on screen.
+  function tightenToInk() {
+    const canvas = wordBox.querySelector('canvas');
+    if (!canvas) return;
+    const px = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+    let top = canvas.height, bot = -1;
+    for (let y = 0; y < canvas.height; y++) {
+      const row = y * canvas.width * 4;
+      for (let x = 0; x < canvas.width; x++) {
+        if (px[row + x * 4 + 3] >= 24) { if (y < top) top = y; if (y > bot) bot = y; break; }
+      }
+    }
+    if (bot < 0) return;                                  // nothing grown yet — leave the CSS alone
+
+    const stage = document.getElementById('stage');
+    stage.style.transform = '';
+    lines.style.marginTop = '';
+    const inkAt = () => {
+      const wb = wordBox.getBoundingClientRect(), s = canvas.height / wb.height;
+      return { top: wb.top + top / s, bot: wb.top + bot / s };
+    };
+    let ink = inkAt();
+    const want = Math.max(10, (ink.bot - ink.top) * 0.25);
+    lines.style.marginTop = (want - (lines.getBoundingClientRect().top - ink.bot)) + 'px';
+
+    ink = inkAt();                                        // the pull moved #word: re-read, don't infer
+    const mid = (ink.top + lines.getBoundingClientRect().bottom) / 2;
+    stage.style.transform = 'translateY(' + (innerHeight / 2 - mid) + 'px)';
   }
 
   // REPLAY on click or R, because a GIF is recorded in several takes and reloading the page
