@@ -39,8 +39,13 @@
   .mode { font-size: clamp(34px, 8vw, 120px); letter-spacing: .4em; text-indent: .4em; line-height: 1;
           text-transform: uppercase; font-weight: 700;
           color: #c0281f; text-shadow: 0 0 30px rgba(190, 30, 22, 0.5); }
+  /* WHITE (owner). Not #fff but the wordmark's own ink, `rgba(233,255,247,...)` — the strands
+     above are stroked in exactly that, so the line reads as the same organism rather than as a
+     second, colder white sitting next to it. Held a little under full strength so CAMPAIGN stays
+     the louder of the two. */
   .soon { font-size: clamp(15px, 3.2vw, 46px); letter-spacing: .3em; text-indent: .3em; line-height: 1;
-          text-transform: uppercase; color: #7ea88c; }
+          text-transform: uppercase; color: rgba(233, 255, 247, 0.88);
+          text-shadow: 0 0 18px rgba(190, 240, 220, 0.22); }
   /* Only visible before the first click, and never once recording has started. */
   #hint { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
           font-size: 11px; letter-spacing: .18em; text-transform: uppercase;
