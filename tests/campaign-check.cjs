@@ -307,7 +307,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     // mid-click, and this screen must not be skippable by it.
     for (let i = 0; i < 9; i++) {
       await new Promise((r) => setTimeout(r, 260));
-      if (i === 0 && root()) root().click();
+      if (i === 0 && root()) {
+        const r0 = root(), cs = getComputedStyle(r0);
+        out.diag = { dur: cs.transitionDuration, prop: cs.transitionProperty,
+                     varMs: r0.style.getPropertyValue('--li-vict-ms'), cls: r0.className,
+                     reduce: matchMedia('(prefers-reduced-motion: reduce)').matches };
+        r0.click();
+      }
       out.samples.push({ ms: (i + 1) * 260, op: op(), open: open() });
     }
     out.survivedEarlyClick = !!root();
@@ -339,7 +345,8 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('the probe starts on a clean page', vict.cleanStart === true);
   const mid = vict.samples.filter((s) => s.op != null && s.op > 0.02 && s.op < 0.95).length;
   ok('the victory screen fades up from the map instead of cutting to black',
-     mid >= 3, `opacity over time: ${vict.samples.map((s) => s.op).join(', ')}`);
+     mid >= 3, `opacity over time: ${vict.samples.map((s) => s.op).join(', ')}` +
+       ` | ${JSON.stringify(vict.diag)}`);
   // ...and the card waits for the black. Growing the wordmark under a half-transparent overlay
   // would spend the one animation this screen is built around while the map is still showing.
   ok('...and the card only opens once the black has landed',
