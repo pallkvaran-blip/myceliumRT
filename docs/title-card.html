@@ -24,8 +24,14 @@
   /* The wordmark's canvas takes its size from this box — growMyceliumTitle reads the container's
      rect and picks a font size from it, so the box IS the layout. */
   /* Sized so `titleSize` lands WIDTH-limited, as it does on the real title screen where the
-     canvas is full-viewport: min(H*0.72, (W*0.9)/(8*0.62)). A shorter box makes it height-limited
-     and the word comes out two-thirds the size (155px against the game's 232 at 1280x720). */
+     canvas is full-viewport: min(H*0.72, (W*0.78)/(8*0.62)). A shorter box makes it height-limited
+     and the word comes out two-thirds the size (155px against the game's 232 at 1280x720).
+     THE WIDTH FACTOR IS 0.78, NOT THE GAME'S 0.9, AND THAT IS THE M-CLIPPING FIX. `seed()`
+     sprays 150 chains of attractors OUTWARD from the glyph edge and the mat follows them, so the
+     DRAWN ink is wider than the text box — the factor has to leave room for the overspill, which
+     the game's full-viewport canvas has and this box does not. Measured ink-to-edge gaps at
+     630x500 / 900x900: 0.9 and 0.86 both touch both edges (0px), 0.82 is marginal (1px left),
+     0.78 clears at 17/15 and 22/28. Raising it back is how the M's lose their outer strokes. */
   #word { width: min(1240px, 94vw); height: clamp(150px, 36vh, 360px); }
   .lines { display: flex; flex-direction: column; align-items: center; gap: clamp(6px, 1.4vh, 14px);
            opacity: 0; transition: opacity 900ms ease; }
@@ -232,7 +238,7 @@
       canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
       ink = document.createElement('canvas'); ink.width = canvas.width; ink.height = canvas.height;
       ictx = ink.getContext('2d');
-      titleSize = Math.min(H * 0.72, (W * 0.9) / (WORD.length * 0.62));
+      titleSize = Math.min(H * 0.72, (W * 0.78) / (WORD.length * 0.62));
       cx = W / 2; cy = H * 0.52;
       seed(); composite();
     }
