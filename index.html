@@ -30991,6 +30991,9 @@ function begin(newState) {
     ending: () => ({ quote: { ...CAMPAIGN_ENDING_QUOTE }, red: CAMPAIGN_ENDING_RED,
       say: CAMPAIGN_ENDING_SAY, rateUrl: RATE_URL,
       opening: CAMPAIGN_OPENING.slice(), ask: CAMPAIGN_OPENING_ASK, fadeMs: VICT_FADE_MS }),
+    // The CrazyGames SDK bridge, for `crazygames-check` — `live` is false without the SDK, which
+    // is every environment except a build made with `--platform crazygames` served from their site.
+    crazy: () => ({ live: CRAZY.live, playing: CRAZY.playing, playable: crazyPlayable() }),
     startTutorial: () => beginTutorial(),
     // The script the live tutorial is running — see the `script` getter on the controller.
     tutorialScript: () => (tutorial ? tutorial.script : null),
@@ -32341,6 +32344,76 @@ function stampMouldInterp() {
 // so it is a no-op on all but two frames per turn — a classList write every frame would be exactly
 // the HUD churn the rest of the render path goes out of its way to avoid.
 let _busyCursor = null;
+// =============================================================================
+// THE CRAZYGAMES SDK, and it is ENTIRELY OPTIONAL.
+//
+// `scripts/make-web-zip.mjs --platform crazygames` injects
+// a script tag for their CDN's crazygames-sdk-v3.js ahead of the game. (Not written out in full
+// here: the build refuses an itch zip that LOADS the SDK, and a literal tag in a comment tripped
+// that guard.) The ITCH
+// build and the repo have no reference to it at all. So everything here is written to be a
+// no-op when `window.CrazyGames` is absent — which is the normal case, including every check in
+// `tests/` and every local boot.
+//
+// WHY IT EXISTS: CrazyGames measures a game's initial download as the bytes between load start and
+// the FIRST `gameplayStart` event, and rejects a submission that never fires one. There is nothing
+// wrong with a game that has no SDK — it simply has no endpoint for the measurement, which is what
+// the "first gameplay start" test failed on. Measured for the record: this build is playable at
+// 16.9 MB against their 50 MB cap (20 MB for mobile homepage eligibility).
+//
+// TWO THINGS MAKE THIS SAFE, and both are load-bearing:
+//   1. OFF-PLATFORM, EVERY SDK CALL THROWS. Their docs are explicit: outside crazygames.com the
+//      environment reports `"disabled"` and the methods raise. So `init()` decides once whether
+//      anything is live, and every call after it is wrapped anyway — a build served from itch, a
+//      local file, or a checked-out repo must behave exactly as it does today.
+//   2. `gameplayStart` / `gameplayStop` ARE EDGE-TRIGGERED. `syncCrazyGameplay` runs on the frame
+//      loop, so a level-triggered call would fire sixty times a second; the SDK wants one start
+//      per playable stretch and one stop per break.
+const CRAZY = (function () {
+  const sdk = () => (typeof window !== 'undefined' && window.CrazyGames && window.CrazyGames.SDK) || null;
+  let live = false, playing = false;
+  const call = (fn) => { const s = sdk(); if (!live || !s) return; try { fn(s); } catch (_) {} };
+  return {
+    // Resolves either way. `live` stays false unless the SDK is both present AND initialised, so
+    // an aborted init cannot leave later calls throwing on every frame.
+    async init() {
+      const s = sdk(); if (!s) return false;
+      try { await s.init(); live = true; } catch (_) { live = false; }
+      return live;
+    },
+    get live() { return live; },
+    get playing() { return playing; },
+    loadingStart: () => call((s) => s.game.loadingStart()),
+    loadingStop: () => call((s) => s.game.loadingStop()),
+    gameplayStart() { if (playing) return; playing = true; call((s) => s.game.gameplayStart()); },
+    gameplayStop() { if (!playing) return; playing = false; call((s) => s.game.gameplayStop()); },
+  };
+})();
+
+// IS THE PLAYER ACTUALLY PLAYING RIGHT NOW? Their docs: the event "should be triggered when the
+// user enters in a playable state, so excludes menus and additional loading steps" — so this is
+// deliberately strict about what counts. A run must exist and be live, the colony must have been
+// built, and NOTHING full-screen may be over the map: not the loader, the title, the picker, the
+// keep screen, the level card or the victory screen.
+//
+// Derived from the DOM and the run state on the frame loop rather than fired at each screen's own
+// entry point, because there are eleven of those and a new one would be missed. `simPaused()` was
+// the obvious existing predicate and is WRONG here: it is also true during a tutorial step and a
+// card draft, and a player reading a tutorial popup on the map is playing.
+function crazyPlayable() {
+  if (!state || state.runOver || !state.active || !state.active.nodes.length) return false;
+  if (pendingLevelIntro || levelIntro || victoryScreen) return false;
+  return !document.getElementById('loadscreen')
+      && !document.getElementById('titleScreen')
+      && !document.getElementById('speciesSelect')
+      && !document.getElementById('loadoutSelect')
+      && !document.getElementById('ssGameWon')
+      && !document.getElementById('ssLevelComplete');
+}
+function syncCrazyGameplay() {
+  if (crazyPlayable()) CRAZY.gameplayStart(); else CRAZY.gameplayStop();
+}
+
 function syncBusyCursor() {
   const busy = !!playerBlockedReason();
   if (busy === _busyCursor) return;
@@ -32357,6 +32430,7 @@ function frame(time) {
   // fresh across menus and never fast-forwards on resume.
   advanceSim(time);
   syncBusyCursor();
+  syncCrazyGameplay();   // no-op without the SDK; edge-triggered, so this is two comparisons
   // A full-screen menu (title / species picker / loadout / death-carry) fully covers the
   // canvas. Don't render the (possibly finished) run behind it: it's invisible anyway, and
   // with a stale post-run camera a backdrop drawImage can balloon to millions of px and
@@ -35066,6 +35140,11 @@ try {
 
 function _bootReady() {
   if (_bootEntered) return; _bootEntered = true;
+  // HERE, NOT ON THE PRELOAD'S `then`, because the 12 s safety net below reaches this function
+  // WITHOUT going through it — a hung fetch would otherwise leave the SDK's loading window open
+  // forever, which is the one state it must never be left in. Idempotent by the `_bootEntered`
+  // latch above.
+  CRAZY.loadingStop();
   uiDirty = true; _rockState = null; _formState = null; _propState = null; _mtnState = null; _cityState = null; _lakeState = null;
   if (substrateRenderer) substrateRenderer.rebake();
   assetsReady = true;
@@ -35077,6 +35156,10 @@ function _bootReady() {
   logEvent('boot', { ms: Date.now() - _sessionStart });
   _load.ready(() => { initMusic(); initSfx(); _load.destroy(); enterGame(); });
 }
+// The SDK's own loading window. `init()` is not awaited before the preload starts — the assets
+// are the slow part and there is no reason to serialise a CDN handshake in front of them; the
+// calls simply no-op until it resolves, which is the same behaviour as having no SDK at all.
+CRAZY.init().then((ok) => { if (ok) CRAZY.loadingStart(); });
 Promise.all([
   loadAssets('assets/', (d, t) => { _aDone = d; _aTot = t; _bootProgress(); }),
   preloadImages(_bootImgs, (d, t) => { _iDone = d; _iTot = t; _bootProgress(); }),

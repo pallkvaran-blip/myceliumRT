@@ -12,7 +12,7 @@
 # What it produces is exactly what `node scripts/make-itch-zip.mjs` produces locally —
 # index.html + assets/ at the zip root, with CONFIG.dev.enabled patched to false. The script
 # fails the build rather than shipping the dev buttons if it cannot find the flag.
-name: Build itch zip
+name: Build web zip
 
 on:
   workflow_dispatch:
@@ -26,6 +26,12 @@ on:
         required: false
         default: true
         type: boolean
+      platform:
+        description: 'Which store this build is for. CrazyGames gets the SDK injected; itch must not have it.'
+        required: false
+        default: itch
+        type: choice
+        options: [itch, crazygames]
 
 permissions:
   contents: write        # needed to create the release and upload the asset
@@ -41,14 +47,14 @@ jobs:
           node-version: '22'
 
       - name: Build the zip
-        run: node scripts/make-itch-zip.mjs --keep-stage
+        run: node scripts/make-web-zip.mjs --platform ${{ inputs.platform }} --keep-stage
 
       # Belt to the script's own brace. The one thing that must never ship is the dev build, so it
       # is checked again here against the bytes in the archive rather than against the tree.
       - name: Confirm the dev buttons are off in the archive
         run: |
           set -euo pipefail
-          unzip -p dist/mycelium-itch.zip index.html > /tmp/built.html
+          unzip -p dist/mycelium-${{ inputs.platform }}.zip index.html > /tmp/built.html
           if grep -q 'itch zip, and confirm with scratchpad/verify-nodev.mjs' /tmp/built.html \
              && grep -A1 'itch zip, and confirm with scratchpad/verify-nodev.mjs' /tmp/built.html | grep -q 'enabled: false,'; then
             echo "dev.enabled is false in the archive"
@@ -56,9 +62,9 @@ jobs:
             echo "REFUSING: could not confirm dev.enabled is false in the built index.html" >&2
             exit 1
           fi
-          unzip -Z1 dist/mycelium-itch.zip | head -1 | grep -qx 'index.html' \
+          unzip -Z1 dist/mycelium-${{ inputs.platform }}.zip | head -1 | grep -qx 'index.html' \
             || { echo "REFUSING: index.html is not at the zip root" >&2; exit 1; }
-          ls -la dist/mycelium-itch.zip
+          ls -la dist/mycelium-${{ inputs.platform }}.zip
 
       # ALSO A WORKFLOW ARTIFACT — but of the STAGE DIRECTORY, not of the zip, and that distinction
       # is the whole point. GitHub zips an artifact's contents on download, so uploading the .zip
@@ -68,7 +74,7 @@ jobs:
       # the download is itself a valid itch zip and both routes out of this workflow work.
       - uses: actions/upload-artifact@v4
         with:
-          name: mycelium-itch
+          name: mycelium-${{ inputs.platform }}
           path: dist/stage
           retention-days: 30
 
@@ -77,9 +83,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          gh release create "${{ inputs.tag }}" dist/mycelium-itch.zip \
+          gh release create "${{ inputs.tag }}" dist/mycelium-${{ inputs.platform }}.zip \
             --title "Mycelium — ${{ inputs.tag }}" \
-            --notes "itch.io HTML5 build. **Upload the \`mycelium-itch.zip\` attached here** — as an HTML5 project, fullscreen button ON, mobile-friendly ON, viewport 1280x720. \`index.html\` is at the zip root and \`CONFIG.dev.enabled\` is false." \
+            --notes "itch.io HTML5 build. **Upload the \`mycelium-${{ inputs.platform }}.zip\` attached here** — as an HTML5 project, fullscreen button ON, mobile-friendly ON, viewport 1280x720. \`index.html\` is at the zip root and \`CONFIG.dev.enabled\` is false." \
             ${{ inputs.draft && '--draft' || '' }} \
             --target "${{ github.sha }}"
           echo "Release: $(gh release view "${{ inputs.tag }}" --json url --jq .url)"

@@ -40,6 +40,7 @@ const CHECKS = [
   ['cardrules', 'card-rules-check.cjs', 40, false],
   ['telem',     'telemetry-check.cjs', 60, false],
   ['analytics', 'analytics-check.cjs', 30, false],
+  ['crazy',     'crazygames-check.cjs', 90, false],
   ['victory',   'victory-check.cjs',  60, false],
   ['campaign',  'campaign-check.cjs', 110, false],
   ['water',     'water-check.cjs',   30,  false],
