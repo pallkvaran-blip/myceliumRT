@@ -134,7 +134,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      && /rating us on itch\.io/.test(b.text || '')
      && /double the spores you get from your next run/.test(b.text || ''), b.text);
   ok('...with a Rate button', b.btn === 'Rate', b.btn || '(none)');
-  const URL_WANT = 'https://pallkvaran.itch.io/mycelium/rate?source=game';
+  const URL_WANT = 'https://pallkvaran.itch.io/myceliumc1/rate?source=game';
   ok('...pointing at the rate page', b.btnHref === URL_WANT, b.btnHref || '(none)');
   // A new tab, and `noopener` — the linked page must not get a handle on the game's window.
   ok('...opening in a new tab, safely',

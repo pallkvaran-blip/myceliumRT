@@ -10,7 +10,7 @@ previous version had gone wrong as the game changed, which is the reason this fi
 
 ---
 
-Like Mycelium? Please [rate it](https://pallkvaran.itch.io/mycelium/rate?source=game) on itch!
+Like Mycelium? Please [rate it](https://pallkvaran.itch.io/myceliumc1/rate?source=game) on itch!
 
 Mycelium is a side-on roguelike engine-builder where you get to experience what life is like as
 mycelium. You are a living, pulsating, semi-autonomous mycelial network. Your job is to shape your

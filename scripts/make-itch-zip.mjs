@@ -37,6 +37,7 @@ const keepStage = process.argv.includes('--keep-stage');
 
 const say = (...a) => console.log(...a);
 const mb = (n) => (n / 1048576).toFixed(1) + ' MB';
+const die = (m) => { console.error('\nmake-itch-zip: ' + m); process.exit(2); };
 
 // ---- 1. the html, with the dev flag off ------------------------------------
 let html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
@@ -88,21 +89,64 @@ fs.rmSync(STAGE, { recursive: true, force: true });
 fs.mkdirSync(path.join(STAGE, 'assets'), { recursive: true });
 fs.writeFileSync(path.join(STAGE, 'index.html'), html);
 
+// ---- ...AND THE ART A PUBLIC BUILD CANNOT REACH EITHER ----------------------
+//
+// The level prune above is about MAPS. This is the rest of the dead weight, and it is dead for the
+// same reason: with the dev flag off every reachable level is AUTHORED, so the procedural drawing
+// paths never run.
+//
+//   rockform1-14     drawn only by `drawRockFormations` / `drawBoulder`, the PROCEDURAL rock. An
+//                    authored map's rock is `sub.levelSprites` through `drawLevelRocks`.
+//   rockface/troll   `placeRockface()` returns early for any level with a `levelDef` — i.e. all of
+//                    them — so the Magic Mushroom rock cannot appear in a public build at all.
+//
+// Measured: 1.06 MB and 15 entries. Small next to the maps, but it is waste with no upside, and the
+// entry count is what itch actually caps. Derived from the MANIFEST rather than listed here, so a
+// new procedural sprite needs no edit in this file.
+//
+// ARCHIVED CARD ART WAS THE THIRD CANDIDATE AND IT IS NOT SAFE — 468 KB, and both halves of the
+// reasoning were wrong. `isArchived` keeps a card out of the DRAFT POOL, but the deck sheet and the
+// card-face hover build faces straight from `CARD_DATA`, which still holds all 71 — so the art is
+// requested and `itchzip-check` caught `leaf-litter-cache.jpg` 404ing in a real run. Worse, reading
+// the names out of the `ARCHIVED` set by regex over-matched the PROSE COMMENTS inside it and
+// pruned `tropic-lunge.jpg`, art for a card that is still in the game. Two 404s for 468 KB. If
+// this is ever wanted, the names have to come from the module at runtime (`__game.cards.active()`)
+// and every screen that can render a card face has to be checked first.
+const DEAD_FILES = new Set(['rockface/troll.png']);
+for (const a of JSON.parse(fs.readFileSync(path.join(ROOT, 'assets', 'manifest.json'), 'utf8')).assets) {
+  if (/^rockform\d+$/.test(a.key)) DEAD_FILES.add(String(a.file));
+}
+say(`unreachable art: ${DEAD_FILES.size} files (the procedural boulders, the troll rock)`);
+
 const SRC = path.join(ROOT, 'assets');
-let copied = 0, skipped = 0;
+let copied = 0, skipped = 0, dead = 0;
+const stageFile = (rel) => {
+  if (DEAD_FILES.has(rel)) { dead++; return false; }
+  const to = path.join(STAGE, 'assets', rel);
+  fs.mkdirSync(path.dirname(to), { recursive: true });
+  fs.copyFileSync(path.join(SRC, rel), to);
+  return true;
+};
 for (const name of fs.readdirSync(SRC)) {
   const from = path.join(SRC, name);
-  if (!fs.statSync(from).isDirectory()) { fs.copyFileSync(from, path.join(STAGE, 'assets', name)); copied++; continue; }
+  if (!fs.statSync(from).isDirectory()) { stageFile(name); copied++; continue; }
   // A folder is either SHARED ART (cards, species, music, …) or one map's sprites. Shared art has
   // no level of that name, so "is there a level with this id?" is the whole test — and it is
   // derived rather than listed, so a new shared folder needs no edit here.
   const isLevelFolder = fs.existsSync(path.join(levelsDir, name + '.json'))
     || fs.readdirSync(from).some((f) => /^r\d+\.webp$/.test(f));
   if (isLevelFolder && !reachable.has(name)) { skipped++; continue; }
-  execFileSync('cp', ['-a', from, path.join(STAGE, 'assets', name)]);
+  // Copied file by file rather than `cp -a` so the dead-art filter reaches inside a folder —
+  // the archived card art and the troll rock both live in one.
+  for (const f of fs.readdirSync(from)) stageFile(name + '/' + f);
   copied++;
 }
-say(`assets: ${copied} folders/files staged, ${skipped} unreachable map folders skipped`);
+say(`assets: ${copied} folders/files staged, ${skipped} unreachable map folders skipped, ${dead} unreachable art files skipped`);
+// A path that matched nothing means the derivation has gone stale. Note this guard is NOT enough on
+// its own — it only proves the file existed, not that the game had stopped asking for it, which is
+// how the archived-card attempt above passed here and still shipped two 404s. `itchzip-check`'s
+// "no failed requests" assertion is the one that actually covers this.
+if (dead !== DEAD_FILES.size) die(`${DEAD_FILES.size - dead} of the unreachable-art paths matched no file — the derivation is stale, fix it rather than shipping a prune that silently does nothing`);
 
 // ...AND THE MANIFEST HAS TO AGREE. `loadAssets` holds `kind: 'level'` entries back from the boot
 // preload, so a stale one would not hang the boot — but it would 404 the moment anything asked for
@@ -111,9 +155,47 @@ say(`assets: ${copied} folders/files staged, ${skipped} unreachable map folders 
 const mfPath = path.join(STAGE, 'assets', 'manifest.json');
 const mf = JSON.parse(fs.readFileSync(mfPath, 'utf8'));
 const before = mf.assets.length;
-mf.assets = mf.assets.filter((a) => a.kind !== 'level' || reachable.has(String(a.file).split('/')[0]));
+mf.assets = mf.assets
+  .filter((a) => a.kind !== 'level' || reachable.has(String(a.file).split('/')[0]))
+  // The procedural boulders are EAGER entries, so a stale one here is worse than a stale level
+  // entry: `loadAssets` waits for every non-level entry to settle, and one that 404s never does.
+  .filter((a) => !DEAD_FILES.has(String(a.file)));
 fs.writeFileSync(mfPath, JSON.stringify(mf, null, 2));
 say(`manifest: ${before} entries -> ${mf.assets.length}`);
+
+// ---- 2c. re-encode, in the stage only ---------------------------------------
+//
+// HIGH QUALITY ON PURPOSE — this is not the CrazyGames pass. That build has a 20 MB ceiling to
+// clear and spends real picture quality doing it; itch has no ceiling, so the only thing taken
+// here is what cannot be seen. Measured on the largest garnet-c40 sprites: webp q85 is 80% of the
+// original at PSNR 39.6 dB, against 53% and 34.9 dB for the q75 the CrazyGames build uses.
+//
+// ALPHA IS BIT-IDENTICAL AT EVERY QUALITY (measured, max delta 0) and alpha is what `solidifyRock`
+// and `_alphaMask` sample — so no wall can move, whatever these are set to.
+//
+// PNGs are left ALONE (`--png 0`): quantising them is 31% of the size but it is a real colour
+// change, and there is no ceiling here worth paying it for. Music drops 182 -> 128 kb/s, still a
+// transparent bitrate for ambient pads, and no track is cut.
+if (!process.argv.includes('--no-shrink')) {
+  say('re-encoding at high quality (a few minutes — libwebp method=6):');
+  execFileSync('python3', [path.join(ROOT, 'scripts', 'shrink-assets.py'), path.join(STAGE, 'assets'),
+    '--rock', '85', '--card', '85', '--species', '85', '--png', '0'], { stdio: 'inherit' });
+  let ff = null;
+  try { ff = execFileSync('python3', ['-c', 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())'], { encoding: 'utf8' }).trim(); }
+  catch (e) { say('  ! no ffmpeg (pip install imageio-ffmpeg) — music left at full bitrate'); }
+  if (ff) {
+    const dir = path.join(STAGE, 'assets', 'music');
+    let o = 0, n = 0;
+    for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.mp3'))) {
+      const p = path.join(dir, f), tmp = p + '.tmp.mp3';
+      o += fs.statSync(p).size;
+      execFileSync(ff, ['-v', 'error', '-y', '-i', p, '-c:a', 'libmp3lame', '-b:a', '128k', '-ar', '44100', tmp]);
+      if (fs.statSync(tmp).size < fs.statSync(p).size) fs.renameSync(tmp, p); else fs.rmSync(tmp);
+      n += fs.statSync(p).size;
+    }
+    say(`  mp3   ${fs.readdirSync(dir).length} files  ${mb(o)} -> ${mb(n)}  (128 kb/s, no track cut)`);
+  }
+}
 
 // ---- 3. zip, from INSIDE the stage so paths are root-relative ---------------
 // `-D` = NO DIRECTORY ENTRIES. itch counts them against the 1,000 cap (2,383 files reported as

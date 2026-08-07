@@ -91,12 +91,34 @@ Two things bring it under:
   that map opened.
 - **`zip -D`**, no directory entries. itch counts them; a browser does not need them.
 
-**995 entries, 53.5 MB** (from 2,450 and 103.5). **Five entries of headroom** — one more survival
-map is ~40 sprites and goes over, and the script now FAILS the build above 1,000 rather than
-letting itch be the one to say so. Levers when that day comes, cheapest first: drop
-`assets/rockface` (only `placeRockface` uses it, and it skips any level with a `levelDef` — i.e.
-all of them in a public build), then the procedural rock/tree sprites at the assets root, then
-pack each map's sprites into an atlas, which is the only one that scales.
+**980 entries, 42.8 MB** (from 2,450 and 103.5). **Twenty entries of headroom**, and the script
+FAILS the build above 1,000 rather than letting itch be the one to say so.
+
+Two more things now come out of the build, on top of the level prune:
+
+- **THE PROCEDURAL ART, because a public build has no procedural map.** `rockform1-14` are drawn
+  only by `drawRockFormations` / `drawBoulder`, and `rockface/troll.png` only by `placeRockface`,
+  which returns early for any level with a `levelDef` — i.e. all of them once the dev flag is off.
+  15 files, 1.06 MB, derived from the MANIFEST rather than listed, and the entries are dropped
+  with the files (an eager entry that 404s is worse than a stale level entry: `loadAssets` waits
+  for every non-level entry to settle and one that 404s never does).
+- **A HIGH-QUALITY RE-ENCODE** (`scripts/shrink-assets.py`, shared with the CrazyGames build):
+  webp/jpeg **q85**, PNGs left alone, music 182 → 128 kb/s with no track cut. 36.05 → 29.05 MB of
+  images (81%) and 11.7 → 9.0 MB of music. q85 measures **PSNR 39.6 dB** on the largest garnet
+  sprites — perceptually free, against the 34.9 dB of the q75 the CrazyGames cut spends.
+  **Alpha is bit-identical at every quality** (measured, max delta 0), and alpha is what
+  `solidifyRock` and `_alphaMask` sample, so no wall can move. `--no-shrink` skips it.
+
+**ARCHIVED CARD ART IS NOT A LEVER — it was tried and it shipped two 404s.** `isArchived` keeps a
+card out of the DRAFT POOL, but the deck sheet and the card-face hover build faces straight from
+`CARD_DATA`, which still holds all 71, so the art is genuinely requested — `itchzip-check` caught
+`leaf-litter-cache.jpg` 404ing in a real run. And reading the names out of the `ARCHIVED` set by
+regex over-matched the PROSE COMMENTS inside it and pruned `tropic-lunge.jpg`, art for a live card.
+Two 404s for 468 KB. If it is ever wanted, the names have to come from `__game.cards.active()` at
+runtime and every screen that can render a card face has to be checked first.
+
+The remaining lever, when that day comes, is packing each map's sprites into an atlas — the only
+one that scales.
 
 **A GITHUB ACTIONS ARTIFACT IS DOUBLE-ZIPPED.** GitHub zips an artifact's CONTENTS on download, so
 an artifact holding `mycelium-itch.zip` comes back as `mycelium-itch-zip.zip` wrapping it — upload
@@ -2188,6 +2210,16 @@ rows** — retired along with `mysteryCard`, `startTag`, `tierStartRange` and th
   frame showed it.
 
 ### The itch rating ask, and the boon for it
+
+**`RATE_URL` IS ONE CONSTANT AND THREE LINKS**, and the itch slug lives only there: the species
+screen renders it twice (`#ssRateLink` in the thank-you line, `#ssRateBtn` the button) and the
+victory screen opens it in a new tab. It is **`myceliumc1`** now, not `mycelium` — the listing
+moved. Two other places carry the same URL as text and were changed with it: `tests/rate-check.cjs`
+pins the exact string (deliberately — a silently redirected rating link is worth failing on), and
+`docs/itch-description.md` has it in the listing copy. **The CrazyGames build inherits this
+constant**, so once that branch merges it will be sending its players to itch; it wants its own
+URL or the ask removed.
+
 
 At the very foot of the screen: *"Are you enjoying Mycelium? …we'll double the spores you get
 from your next run!"*, a white **Rate** button to `RATE_URL`, and a quiet **No thanks**. itch

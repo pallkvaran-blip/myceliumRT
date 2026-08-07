@@ -13009,7 +13009,12 @@ function sporesBalance(progress) {
 //                null     — spent, or never earned
 // Collapsing those into a single boolean consumed at run start would mean a player who pressed
 // Rate, began a run and then closed the tab came back to neither the bonus nor the offer.
-const RATE_URL = 'https://pallkvaran.itch.io/mycelium/rate?source=game';
+// ONE CONSTANT, THREE LINKS. The species screen renders it twice (`#ssRateLink` in the
+// thank-you line and the `#ssRateBtn` button) and the victory screen opens it in a new tab, so
+// the itch project slug lives here and nowhere else. It moved from `mycelium` to `myceliumc1`
+// when the listing did; `tests/rate-check.cjs` pins the string, and `docs/itch-description.md`
+// carries the same link in the listing copy.
+const RATE_URL = 'https://pallkvaran.itch.io/myceliumc1/rate?source=game';
 const hasRated = (progress) => !!(progress || loadProgress()).rated;
 // THE ASK WAITS FOR A FINISHED RUN (owner: "it's weird to have it there when they have not even
 // tried the game"). `p.runsDone` counts ENDINGS, not starts — a player who opened the picker,
