@@ -2290,6 +2290,21 @@ a real detail sheet.
   at all, so leaving them in the general pool made its first rung worth nothing. `showLoadoutSelect`
   already drops the engine pool when `maxEngines` is 0, so an unbought track simply means engines
   are not on the screen. `store-check` asserts it with the bought track as the control.
+  - **AND THE SAME RULE HAS TO HOLD WHERE THE DECK IS USED, WHICH IS WHY THIS WAS REPORTED TWICE.**
+    Filtering the keep screen only governs decks written AFTER the fix; a deck banked under the old
+    rule still holds an engine, and it is **`withDeathCarry` reading it back** that puts the card in
+    the player's hand — the screen is never consulted. Owner: *"I am still able to carry over an
+    engine card from my first run… I thought we already fixed this?"* — the first fix was real and
+    could not reach the save that already had the card in it. `capCarriedEngines` caps the loaded
+    deck at `storeBonuses().carryEngines + sp.memEngines`. **A CAP, NOT A PURGE**, so a bought
+    allowance still carries what it paid for and there is one rule rather than two to keep in step.
+  - **CONSUME ON WHAT WAS STORED, NOT ON WHAT SURVIVED THE CAP.** A deck holding nothing but an
+    over-cap engine caps to empty, and returning before `clearDeck` would leave that card in storage
+    to be dropped again on EVERY future run — the same report, permanent instead of once.
+  - The lesson generalises: **a rule enforced only at the screen that WRITES a persisted value is
+    not enforced for saves that already exist.** Anything gated at write time wants the same gate at
+    read time, and `store-check`'s new block asserts the read path with the write path's assertion
+    kept beside it.
 - Persisted in the existing `mycelium.progress.v2` under **`p.upgrades`** (`{ water: 3, … }`),
   additive and defaulting safely for older saves. Levels are **clamped** on read, so a
   hand-edited save (or a track that lost steps in a retune) can't report a bonus with no price
@@ -2307,7 +2322,7 @@ a real detail sheet.
   `balance`/`credit`/`reset`/`speciesById`/`playable`, and `effectiveSpecies`/`deathCarry` so a
   check reads the EFFECT rather than the setting — every track here is capped by something
   downstream.
-- `tests/store-check.cjs` (86, ~40s, in the runner) covers the money, the effects, the negative
+- `tests/store-check.cjs` (97, ~40s, in the runner) covers the money, the effects, the negative
   control at zero upgrades, and the screen's shape — 3 owned and 4 for sale, the Select button's
   geometry BELOW its card, no "?" tiles, no tier rows, a detail sheet with exactly one button, and
   that unlocking a colony MOVES it up a section. It also fails on any 4xx or page error.
@@ -2433,6 +2448,36 @@ and the nests seeded here get their road right first time because the mask alrea
 - One-shot (`state._needLevelThreats`), so it is a null check on every other frame.
 - Additive: whatever the JSON placed stays, so a survival map *could* carry a scripted encounter
   and still get its level's share on top.
+- **AND THE LATENESS COSTS THE LEVEL CARD ITS PORTRAITS, WHICH IS A SECOND BUG WITH THE SAME
+  CAUSE.** `begin()` builds `pendingLevelIntro` — including `threats: levelThreatList()` — *before*
+  the first frame, so the creature arrays are still empty, all three counts read 0, and the card's
+  own `count > 0` filter dropped every tile. Reported as *"Survival: we're missing the level screens
+  with the threat counts."* `levelThreatList` now ADDS the pending counts off `state.config`
+  (`ants.nestCount`, `nematodes.initialCount`, `trichoderma.initialPatches`) while
+  `_needLevelThreats` is set — which is exactly what `configForLevel` wrote, so there is no second
+  source of truth, and adding rather than replacing keeps the additive rule above. Verified with the
+  fix reverted: **0 portraits, no counts**; with it, three portraits reading ×3 ×5 ×5 on level 5.
+  **Anything else that reads the creature arrays before the first rendered frame has this bug too.**
+
+### The tutorial says everything on level 1
+
+Campaign puts the ant tip on level 2 and the mould tip on 3 (`LEVEL_TIPS`, fired by
+`beginLevelTip`); **survival folds both into the level-1 walkthrough** (owner). Not a preference —
+the campaign's ten levels arrive in a fixed order, so "the level that introduces the ants" is a real
+place; survival draws its map at random from seventeen, so level 2 is a different map every run and
+cannot be relied on to have anything on it. Level 1 is the authored table's 1/1/1, so it is the one
+level guaranteed to have all three to point at.
+
+- `deps.inlineTips` (= `survivalRun()`) selects `stepsWithTipsInline()`, and `beginLevelTip` returns
+  early for survival so the tips cannot also fire on 2 and 3.
+- **Spliced BEFORE the closing "Good luck…", and `last` is RE-DERIVED.** Each tip carries
+  `last: true` of its own because each is normally a script of one — concatenated as-is, the Next
+  button reads **"Begin" three steps early**.
+- Asserted on the SCRIPT (`__game.tutorialScript()`, backed by a `script` getter on the tutorial
+  controller), not by clicking through: several steps are `gate`d on a real player action (arming a
+  card, digesting a pile), which a headless probe cannot supply. `survival-check` keeps the campaign
+  run as a control on the same page — without it, "all the tips are on level 1" passes on a build
+  that simply always inlines them.
 - If a map's sprites never decode the flag never clears and the map plays with no seeded threats —
   the respawn ceilings still top worms and clouds up over time, so it degrades to "they arrive
   late" rather than to an empty map.
@@ -2521,7 +2566,7 @@ through untouched and are re-runnable.
   winnable, veined-40 the tightest at 7.
 - The **tutorial still works**: it injects its own orange starter pile (`injectFoodPile`), which
   already tests `cell.rock` and keeps a 1.5-cell clearance, and by the time it runs the mask exists.
-- `tests/survival-check.cjs` (46) covers all of it, with `__game.survival`
+- `tests/survival-check.cjs` (53) covers all of it, with `__game.survival`
   (`maps`/`order`/`mapFor`/`reset`/`isRun`/`defFor`/`play`).
 
 ## The campaign itself
