@@ -105,6 +105,24 @@ look tiny at whatever scale the player pinches back to. Now gated on `pointer: c
   project's mobile settings from here, since Chromium in this container cannot reach itch.io
   (`ERR_CONNECTION_RESET`) even though `curl` can.
 
+**EMBED SIZE IS 1280x720 ON EVERY STORE THAT ASKS FOR ONE, AND THE HEIGHT IS THE HALF THAT SURPRISES
+PEOPLE.** Same rule as above — an iframe is its own viewport, so whatever the store's "Embed Width /
+Height" says becomes the game's layout viewport and therefore picks its stylesheet. There are three
+sheets and TWO ways to fall out of the desktop one: `max-width: 760px`, and
+`(orientation: landscape) and (max-height: 520px)` — **the second has no width term**, so a
+wide-but-short embed gets the COMPACT PHONE layout on a desktop purely for being short. Measured
+with `tests/embed-probe.cjs` (a tool; prints, never asserts):
+
+| embed | layout the game gets | card |
+|---|---|---|
+| **1280x720** | desktop | **166px** |
+| 960x540 | desktop | 115px |
+| 800x450 | compact phone (landscape) | 132px |
+| 640x360 | compact phone (landscape) | 132px |
+
+640x360 is what the **itch project currently declares**, so itch's DESKTOP embed is on the phone
+sheet too — a separate defect from the mobile one above, and the same one-line fix.
+
 **`CONFIG.dev.enabled` STAYS `true` ON THE BRANCH and is patched in a COPY at build time.** It
 gates the dev buttons, the map switcher, the rock editor, the minimised carousel and the skipped
 level intro, and `edit-check` / `mapmenu-check` drive those directly — so flipping it in the tree
