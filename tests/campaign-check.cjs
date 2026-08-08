@@ -845,20 +845,42 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // The map has to come back identical, or "the same level" is only half true. Fixed seeds are
   // what make that so, and this is where it pays off for a player.
   //
-  // Both digests are taken a beat AFTER the level starts, deliberately: the rock mask settles
-  // over the first frames, so a digest read synchronously (as `__probe` does) and one read after
-  // a pause disagree on the same map. Comparing across that gap is a false failure — which is
-  // exactly what this assertion did first time round.
+  // Both digests are taken once the mask has SETTLED, and that is the whole difficulty: the rock
+  // mask fills in over the first frames, so a digest read synchronously (as `__probe` does) and one
+  // read after a pause disagree on the same map. Comparing across that gap is a false failure —
+  // which is exactly what this assertion did first time round.
+  //
+  // IT USED TO WAIT A FLAT 400ms, AND THAT IS A BET ABOUT THE MACHINE. Under sweep load the fresh
+  // build had not finished settling inside the window, so the read landed mid-fill and the check
+  // reported `retried 826625157 vs fresh 2921590830` — i.e. "the campaign's fixed seeds don't
+  // work", which is the most alarming thing it could say and was not true. 106/106 standalone on
+  // the same build, three runs. Third failure in this family after `core` and `scale`.
+  //
+  // THREE agreeing samples, not two: a mask still filling in can hold the same value across one
+  // pair and then move again, and `core-check`'s hue probe was fixed for exactly that reason.
   const sameMap = await page.evaluate(async () => {
     const g = window.__game;
     const dig = () => { let h = 2166136261 >>> 0;
       for (const c of g.state.substrate.cells) { h ^= c.rock ? 1 : 0; h = Math.imul(h, 16777619) >>> 0; }
       return h; };
-    const retried = dig();
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    // Bounded, so a mask that genuinely never settles still trips the assertion rather than hanging.
+    const settled = async () => {
+      let last = null, runLen = 0;
+      for (let i = 0; i < 60; i++) {
+        const h = dig();
+        runLen = (h === last) ? runLen + 1 : 0;
+        last = h;
+        if (runLen >= 2) return h;                // this read plus two before it agreed
+        await sleep(60);
+      }
+      return last;
+    };
+    const retried = await settled();
     const level = g.campaign.level();
-    g.campaign.play('marasmius', level);          // a FRESH build of the same level, same wait
-    await new Promise((r) => setTimeout(r, 400));
-    return { retried, fresh: dig(), level, seed: g.state.seed };
+    g.campaign.play('marasmius', level);          // a FRESH build of the same level
+    const fresh = await settled();
+    return { retried, fresh, level, seed: g.state.seed };
   });
   ok('the retried level is the same map as a fresh build of it',
      sameMap.retried === sameMap.fresh,

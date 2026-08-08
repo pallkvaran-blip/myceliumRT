@@ -989,6 +989,15 @@ Harness traps that have cost real time:
   and sampled 19 fresh strands against a floor of 20 on a rockier map (39 on another boot — the
   seed is `Date.now()`). Wait for `paceInfo().renders` to advance, and loop until the coverage
   the guard demands actually exists, bounded so a real break still trips it.
+  - **THIRD IN THE FAMILY, and it accused the game of its worst possible bug.** `campaign-check`'s
+    "the retried level is the same map as a fresh build of it" digested the rock mask after a flat
+    `sleep(400)`, and the mask FILLS IN over the first frames — so under sweep load the fresh read
+    landed mid-fill and the check reported `retried 826625157 vs fresh 2921590830`, which says *the
+    campaign's fixed seeds don't work*. They do: 106/106 standalone, three runs, same build, and
+    the retried digest was identical every time — only the fresh one moved. Both digests now poll
+    until **three consecutive reads agree** (two is not enough; a mask still filling can repeat a
+    value once, which is the `core-check` lesson), bounded so a mask that truly never settles still
+    fails. When a check calls the ENGINE a liar, suspect its own clock first.
 - **`turn-play`'s "a long session plays out" (`acts >= 30`) IS STILL FLAKY, and the perf pass
   made it flakier** — 4/4 full 120-action sessions on the pre-perf build, 13 / 120 / 37 after.
   Diagnosed but NOT fixed, so start here rather than from scratch. A turn-based action QUEUES
