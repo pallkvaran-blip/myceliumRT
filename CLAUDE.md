@@ -181,6 +181,25 @@ game's rate, so a loop has a lead-in instead of opening mid-draw. Exported by
 viewport is always 630x500, since sizing it up would re-run the `clamp()`/`vw` type and change the
 LAYOUT). `tests/title-card-check.cjs` (16) covers it.
 
+**The store covers come off the same page**, via `tests/cover-shot.cjs <out> <W> <H>` — CrazyGames
+wants three (`docs/cover-1920x1080.png` 16:9, `docs/cover-800x1200.png` 2:3, `docs/cover-800x800.png`
+1:1). It renders at the target's CSS size with dsf 2 and **downsamples with Pillow**, and that is
+not fussiness:
+- **THE GROWTH SIM'S DETAIL IS SET BY CANVAS BACKING PIXELS.** Rendering 800x1200 the obvious way
+  (viewport 400x600, dsf 2) gives the wordmark a glyph **118 backing px** tall, and at that height
+  the filaments MERGE — "MYCELIUM" comes out a faintly furry stencil font with none of the mycelium
+  in it, while the 16:9 at the same settings gets 284 and looks like the game. Supersampling fixes
+  it: 237 px and visibly filamentous at the same output size. The tool prints the number and warns
+  under 200, because the defect is invisible in a diff and obvious in a frame.
+- **The render width is capped at 1280** — past about 1320 CSS px `#word` hits its `1240px` cap
+  while `.soon` keeps growing on `vw`, so the tuned balance closes up. Capped, the word:line ratio
+  holds at 15.0-15.2 : 1 across all three shapes.
+- **dsf 3 is wrong here**: the wordmark's canvas caps its own dpr at 2.5, so the screenshot would
+  upscale the mycelium in a cover that is mostly mycelium.
+- The aspect ratio genuinely RE-FLOWS (16:9 and 2:3 are different pictures, not one stretched); what
+  has to survive it is the ink clearing the frame, which the tool measures off the canvas alpha.
+  Measured on the shipped set: centred to within 0.9% vertically and 4px horizontally in all three.
+
 Four things about it, each of which cost a render:
 
 - **THE WORDMARK IS WIDER THAN ITS TEXT BOX.** `seed()` sprays 150 chains of attractors OUTWARD
