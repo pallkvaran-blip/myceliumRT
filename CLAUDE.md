@@ -69,6 +69,42 @@ or, in CI, **Actions → "Build itch zip" → Run workflow** with a tag
 release. itch settings the script cannot set: HTML5, fullscreen button ON, mobile-friendly ON,
 viewport 1280×720.
 
+**NEVER FOCUS A NATIVE `<input>` THE PLAYER DID NOT TAP — ON ITCH THAT ZOOM IS UNRECOVERABLE.**
+Reported as four bugs and it was one: *"when the enter your name pops up, the browser zooms in on
+that and after that the zoom is all wrong... cards are tiny, they zoom in and out along with the
+map"*. `newGameDialog` ended with an unconditional `setTimeout(() => input.focus(), 60)`, so on a
+phone the game handed focus to a text field nobody had touched; iOS Safari answers a focused control
+by zooming to it, and **our viewport meta governs only our iframe — the scale belongs to itch's
+page**, whose own meta is `width=device-width, initial-scale=1` with no `maximum-scale`. So nothing
+in here can put it back. Everything after that is the one stuck scale seen from different angles: the
+map and the HUD magnify *together* because the whole page is a single scaled surface, and the cards
+look tiny at whatever scale the player pinches back to. Now gated on `pointer: coarse`.
+- **`pointer: coarse`, not a UA sniff and not a width test** — a tablet is wide and still has no
+  keyboard. Desktop keeps the autofocus; dropping it everywhere is the obvious over-correction and
+  `mobile-check` asserts the desktop half too.
+- **The field being 16px is the other half of the rule, not a substitute for it.** 16px is the size
+  at and above which iOS does not zoom to a control the player CHOSE to tap — so a tap is safe, and
+  what was unsafe was focusing for them. Don't drop it below 16 to fit a narrower dialog.
+- **`user-scalable=no` HAS BEEN IGNORED BY iOS SINCE iOS 10**, so the meta at the top of the file is
+  not the guard it looks like. It is also scoped to the iframe, which is the whole problem.
+- Measured, serving the real game inside a replica of itch's embed at three frame sizes (the probe
+  is `/tmp`-only; the shipped assertions are `mobile-check`). **An iframe is its own viewport**, so
+  `width=device-width` resolves to the FRAME's width, not the phone's — which is why frame size
+  decides the entire layout:
+
+  | itch frame | game sees | which phone CSS | card, as the phone shows it | name field, as shown |
+  |---|---|---|---|---|
+  | 640×360 (what the project declares today) | 640×360 | landscape-phone (both match; later rule wins) | 80 px | 9.8 px |
+  | 1280×720 | 1280×720 | **desktop** | 51 px | 4.9 px |
+  | device-width | 390×844 | portrait-phone | **172 px** | **16 px** |
+
+  So *raising* the declared viewport makes it worse, not better — the lever is the frame matching
+  the device, not a bigger number. itch does handle this: under a desktop UA it serves
+  `<div class="game_frame" style="width: 640px; height: 360px">` and under a mobile UA it serves the
+  same div with **no inline size**. Diffing those two fetches is the cheapest way to check the
+  project's mobile settings from here, since Chromium in this container cannot reach itch.io
+  (`ERR_CONNECTION_RESET`) even though `curl` can.
+
 **`CONFIG.dev.enabled` STAYS `true` ON THE BRANCH and is patched in a COPY at build time.** It
 gates the dev buttons, the map switcher, the rock editor, the minimised carousel and the skipped
 level intro, and `edit-check` / `mapmenu-check` drive those directly — so flipping it in the tree
@@ -764,7 +800,7 @@ passes the cascade half** just as "claims everything" passes the forgiveness hal
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**44 checks registered in `run.mjs`**, roughly 2840 assertions, of which `traced` is 1190 (one map's
+**45 checks registered in `run.mjs`**, roughly 2850 assertions, of which `traced` is 1190 (one map's
 worth each, 76 maps). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 

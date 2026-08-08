@@ -26630,7 +26630,18 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') start(); });
     back.addEventListener('click', (e) => { if (e.target === back) close(); });
     document.addEventListener('keydown', onKey);
-    setTimeout(() => { try { input.focus(); input.select(); } catch (_) {} }, 60);
+    // AUTOFOCUS ONLY WHERE THERE IS A KEYBOARD ALREADY. Focusing a native <input> on a phone
+    // summons the on-screen keyboard AND makes the browser zoom to the focused control — and on
+    // itch that zoom is unrecoverable from in here, because the scale belongs to itch's page and
+    // our own viewport meta governs only this iframe. The player never asked for it: the dialog
+    // opened and the browser was suddenly zoomed in, with the map and the whole HUD magnified with
+    // it for the rest of the session. `pointer: coarse` rather than a UA sniff, and rather than a
+    // width test — a tablet is wide and still has no keyboard. A deliberate TAP on the field is
+    // still fine: `.ts-name-input` is 16px, which is the size at (and above) which iOS Safari does
+    // not zoom to a focused control, so the player who wants to type gets the keyboard and no zoom.
+    let coarse = false;
+    try { coarse = window.matchMedia('(pointer: coarse)').matches; } catch (_) {}
+    if (!coarse) setTimeout(() => { try { input.focus(); input.select(); } catch (_) {} }, 60);
   }
 
   // Two entries while OFFER_REALTIME is off, three with it on. The campaign is turn-based only,

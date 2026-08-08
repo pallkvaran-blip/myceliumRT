@@ -41,6 +41,7 @@ const CHECKS = [
   ['telem',     'telemetry-check.cjs', 60, false],
   ['analytics', 'analytics-check.cjs', 30, false],
   ['crazy',     'crazygames-check.cjs', 90, false],
+  ['mobile',    'mobile-check.cjs',  150, false],
   ['victory',   'victory-check.cjs',  60, false],
   ['campaign',  'campaign-check.cjs', 110, false],
   ['water',     'water-check.cjs',   30,  false],
