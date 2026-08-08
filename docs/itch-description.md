@@ -90,3 +90,38 @@ admits a starter, a store entry, or something already owned — so on a fresh sa
 Webcap, Dry Rot, Earthball) **cannot be reached at all**. The previous description name-dropped four
 of them. If they are meant to be playable, adding them to `STORE_SPECIES_IDS` is a one-line change
 and this copy should go back up to match.
+
+---
+
+## Store tags
+
+Kept here for the same reason as the copy above: so the next store starts from what went up rather
+than from memory. The game is on itch, CrazyGames and Newgrounds now, and each asks for tags in its
+own vocabulary.
+
+**In priority order — take as many as the field allows:**
+
+```
+roguelike, deckbuilder, strategy, survival, cards, mushroom,
+nature, underground, turn-based, engine-builder
+```
+
+- The first five are the DISCOVERY terms — how someone who wants this game searches, and all
+  established tags with real traffic on every store.
+- The next four are what make it findable by the RIGHT people. Nothing else on any of these stores
+  is a mycelium sim, and "mushroom" is the word a player remembers it by.
+- `engine-builder` is last because it is the most accurate description of the actual play and the
+  least likely to exist in a store's vocabulary already. **A store's own autocomplete beats this
+  list** — a tag nobody else uses is a tag nobody browses.
+
+Two judgement calls, recorded so they are not re-litigated blind:
+
+- **`deckbuilder` is a slight stretch and is kept anyway.** Cards are DRAFTED from digested food and
+  a deck carries between runs, but there is no shuffle-and-cycle. It is the single best discovery
+  term the game has; `cards` alongside it covers the expectation gap.
+- **`real-time` is true but left out.** Survival plays either way, but listing it next to
+  `turn-based` reads as indecision. Swap it in for `underground` if signalling the dual mode matters
+  more than the setting.
+
+Spares, for a store with a larger cap: `management`, `atmospheric`, `singleplayer`, `upgrades`,
+`biology`, `fungus`.
