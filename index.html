@@ -21770,6 +21770,7 @@ function toggleSfx() {
   try { localStorage.setItem('mycSfxMuted', muted ? '1' : '0'); } catch (e) {}
   return muted;
 }
+let CLICK = null;             // the card select/deselect sample (assets/sfx/click.mp3)
 const STRANDS_PER_HIT = 10;   // one sample trigger per this many new strands
 const MAX_LAYERS = 6;         // cap for a single grow
 const MAX_VOICES = 8;         // global concurrent-voice cap
@@ -21791,6 +21792,12 @@ function initSfx() {
   const a = ctx();
   fetch('assets/sfx/grow.wav').then((r) => r.arrayBuffer()).then((b) => a.decodeAudioData(b))
     .then((buf) => { BUF = buf; ready = true; }).catch(() => {});
+  // The card click. Its own buffer rather than a manifest entry, exactly like the grow sample —
+  // `loadAssets` would make the boot WAIT on it, and a UI sound is not worth holding the loading
+  // screen for. If the fetch fails the clicks are simply silent, which is the same way a missing
+  // grow sample behaves.
+  fetch('assets/sfx/click.mp3').then((r) => r.arrayBuffer()).then((b) => a.decodeAudioData(b))
+    .then((buf) => { CLICK = buf; }).catch(() => {});
   const kick = () => { if (a.state === 'suspended') a.resume(); };   // browsers need a gesture to start audio
   window.addEventListener('pointerdown', kick, true);
   window.addEventListener('keydown', kick, true);
@@ -21863,42 +21870,36 @@ function playGrowBurst(count, spreadMs) {
 // Deliberately NOT routed through `master()`: that chain exists to keep six overlapping grow
 // samples from clipping, and a 40ms click has nothing to duck. It also means a click never pumps
 // the compressor and ducks the growth sound under it.
-// A CLICK IS AN ENVELOPE BEFORE IT IS A PITCH. The first version was 620-900Hz over 55ms with a
-// 6ms attack, and the owner heard it exactly right: "more like a blip than a click". At 55ms the
-// ear has time to TRACK the frequency, so the sweep is heard as a little tone with a direction —
-// which is a blip. Three changes make it a click, and the durations do most of the work:
-//   - MUCH SHORTER (16-20ms, from 55-70). Under about 25ms there is no pitch to follow, only an
-//     event, which is what "click" means.
-//   - MUCH HIGHER (2-3kHz, from 500-900). Clicks live where the ear is most sensitive and where a
-//     sound reads as a contact rather than as a note.
-//   - A 1.2ms ATTACK, from 6. The attack is what is actually heard at these lengths; a slow one
-//     rounds the leading edge into a "bloop" no matter what the frequency is.
-// `square` rather than `triangle` for the same reason — the harmonics are the brightness, and at
-// 16ms and this gain they never get the chance to sound harsh.
-function click(f0, f1, peak, ms) {
-  if (muted || !AC) return;                  // no AudioContext yet = nothing has made a sound yet
+// CARD SELECT / DESELECT — the owner's own sample (`assets/sfx/click.mp3`). It replaced a
+// synthesised click: v1 was a 55ms tone sweep and read as a "blip", v2 was 16ms of square at 2-3kHz
+// and was closer, but a recorded click has a noise transient that an oscillator cannot fake.
+//
+// ONE SAMPLE, TWO SOUNDS. Deselect is the same buffer at a LOWER playback rate, which drops its
+// pitch — up for picking a card up, down for putting it down. That is the distinction the owner
+// asked for originally, kept without a second asset to load, cache-bust or ship.
+//
+// Prepared, not pasted: the upload opened with 25ms OF SILENCE, which on a UI sound is 25ms of lag
+// between the tap and the click. Trimmed to start 1ms in, and folded to mono — the two channels
+// differed by -47dB, i.e. not at all — which also took it from 7.5KB to 4.6KB.
+//
+// Deliberately NOT routed through `master()`: that compressor exists to stop six overlapping grow
+// samples clipping, and a click has nothing to duck. It also means a click never pumps the
+// compressor and ducks the growth sound under it.
+const CLICK_GAIN = 0.3;        // the one knob — "very low volume" (owner), under the music
+function click(rate) {
+  if (muted || !CLICK || !AC) return;
   const a = ctx();
-  if (a.state === 'suspended') return;       // pre-gesture: starting one here would be a no-op anyway
-  const t = a.currentTime;
-  const dur = ms / 1000;
-  const osc = a.createOscillator();
-  osc.type = 'square';
-  osc.frequency.setValueAtTime(f0, t);
-  osc.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  if (a.state === 'suspended') return;   // pre-gesture: nothing would come out anyway
+  const src = a.createBufferSource();
+  src.buffer = CLICK;
+  src.playbackRate.value = rate;
   const g = a.createGain();
-  // Exponential decay to a floor, never to 0 — `exponentialRamp` to zero is illegal and silently
-  // does nothing in some browsers, which reads as "the sound doesn't stop".
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(peak, t + 0.0012);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  osc.connect(g); g.connect(a.destination);
-  osc.start(t); osc.stop(t + dur + 0.02);
+  g.gain.value = CLICK_GAIN;
+  src.connect(g); g.connect(a.destination);
+  src.start(a.currentTime);
 }
-// Still told apart by DIRECTION — up for picking a card up, down for putting it down — because at
-// this length that is all there is room to distinguish. The gains stay low: this should sit under
-// the music, not announce itself.
-function playCardSelect()   { click(2600, 3300, 0.030, 16); }
-function playCardDeselect() { click(2100, 1500, 0.024, 20); }
+function playCardSelect()   { click(1); }
+function playCardDeselect() { click(0.78); }
 
   return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect };
 })();

@@ -904,20 +904,27 @@ reading as a dead button.
   at the canvas CENTRE (`beginAim` ignores a press further than `aimNearPx` from a strand and lets
   it pan). Arm a card `cardUsesDragAim` accepts, press ON the colony, and assert the left button
   does NOT pan as the control. `__game.cardUsesDragAim` exists for this.
-- **A CLICK IS AN ENVELOPE BEFORE IT IS A PITCH.** v1 was 620-900Hz over 55ms with a 6ms attack and
-  the owner heard it exactly right: *"more like a blip than a click"*. At 55ms the ear has time to
-  TRACK the sweep, so it is heard as a little tone with a direction — which is a blip. Three changes,
-  and the duration does most of the work: **16-20ms** (under ~25ms there is no pitch to follow, only
-  an event), **2-3kHz** (where a sound reads as a contact rather than a note), and a **1.2ms
-  attack** (the attack is what is actually heard at this length; a slow one rounds the leading edge
-  into a bloop whatever the frequency). `square` over `triangle` for the brightness — at 16ms and
-  this gain it never gets the chance to sound harsh.
-- **SYNTHESISED, NOT SAMPLED.** The card clicks are oscillators, so they add nothing to the
-  CrazyGames initial download (16.4 MB of a 20 MB mobile threshold) and cannot 404. Select RISES in
-  pitch and deselect FALLS — direction is what tells them apart at a volume you are not consciously
-  hearing. The sound is on the **transition**, not in the function body: `clearPendingCard` has
-  fourteen callers and most fire unconditionally, so a click in the body would fire several times a
-  second at nothing.
+- **THE CARD CLICK IS THE OWNER'S OWN SAMPLE** (`assets/sfx/click.mp3`), after two synthesised
+  attempts. v1 (620-900Hz over 55ms) came back as *"more like a blip than a click"* — at 55ms the
+  ear TRACKS the sweep and hears a little tone with a direction, which is what a blip is. v2 (16ms
+  of square at 2-3kHz, 1.2ms attack) was much closer, and the lesson stands if anything is ever
+  synthesised again: **a click is an ENVELOPE before it is a pitch** — under ~25ms there is no pitch
+  to follow, only an event, and the attack is most of what is heard. But a recorded click has a
+  noise transient an oscillator cannot fake, so the sample won.
+  - **ONE SAMPLE, TWO SOUNDS.** Deselect is the same buffer at `playbackRate` 0.78, i.e. pitched
+    down — up for picking a card up, down for putting it down. That keeps the distinction the owner
+    asked for with no second asset to load, cache-bust or ship.
+  - **PREPARE AN UPLOADED SOUND, DON'T PASTE IT.** This one opened with **25ms of silence**, which on
+    a UI sound is 25ms of lag between the tap and the click — inaudible as a sound, obvious as
+    sluggishness. Trimmed to start 1ms in and folded to mono (the channels differed by **-47dB**),
+    which also took it 7.5KB → 4.6KB. Measure a new one the same way before wiring it up.
+  - **`CLICK_GAIN` (0.3) is the one knob.** Not routed through `master()`: that compressor exists to
+    stop overlapping grow samples clipping, and a click has nothing to duck — through it, every
+    click would pump the compressor and duck the growth sound under it.
+  - Fetched in `initSfx` like `grow.wav`, NOT via the manifest: `loadAssets` would make the boot
+    WAIT on it. A failed fetch means silent clicks, same as a missing grow sample. `assets/sfx/` is
+    a shared folder, so `make-web-zip` stages it with no edit — the rule is "is there a level with
+    this name?", and there is not.
 
 ## Testing
 

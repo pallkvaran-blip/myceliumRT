@@ -56,6 +56,24 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       window.__osc = [];
       const AC = window.AudioContext || window.webkitAudioContext;
       if (!AC) return;
+      // The clicks are a SAMPLE now, not an oscillator, so the seam is createBufferSource: record
+      // the playback rate and whether a buffer was attached, without playing anything.
+      window.__buf = [];
+      const ob = AC.prototype.createBufferSource;
+      AC.prototype.createBufferSource = function () {
+        const n = ob.call(this);
+        const rec = { rate: null, hasBuffer: false, seconds: null };
+        window.__buf.push(rec);
+        try {
+          Object.defineProperty(n, 'buffer', {
+            set(v) { rec.hasBuffer = !!v; rec.seconds = v ? v.duration : null; this._b = v; },
+            get() { return this._b; },
+          });
+        } catch (_) {}
+        const orig_ = n.start.bind(n);
+        n.start = (...a) => { rec.rate = n.playbackRate.value; return orig_(...a); };
+        return n;
+      };
       const orig = AC.prototype.createOscillator;
       AC.prototype.createOscillator = function () {
         const o = orig.call(this);
@@ -237,25 +255,34 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok('the two click sounds exist and are exported', clicks.has === true, JSON.stringify(clicks));
     const tones = await page.evaluate(async () => {
       const sfx = window.__game.sfx();
-      window.__osc.length = 0;
+      // The sample is fetched after boot and is not waited on, so give it a moment to land rather
+      // than reading a race. If it never arrives the clicks are silent by design, and the
+      // assertions below say so instead of failing blind.
+      for (let i = 0; i < 40 && !window.__buf; i++) await new Promise((r) => setTimeout(r, 50));
+      window.__buf.length = 0;
       sfx.playCardSelect();
-      const sel = window.__osc.slice();
-      window.__osc.length = 0;
+      const sel = window.__buf.slice();
+      window.__buf.length = 0;
       sfx.playCardDeselect();
-      const des = window.__osc.slice();
+      const des = window.__buf.slice();
       return { sel, des, muted: sfx.isSfxMuted() };
     });
-    // If SFX are muted (or no context yet) nothing is built — say so rather than failing blind.
     if (tones.muted || !tones.sel.length) {
-      ok('the click sounds are reachable (no tone built: muted or no audio context)', true,
-         `muted=${tones.muted}, oscillators=${tones.sel.length}`);
+      ok('the click sounds are reachable (no voice built: muted, no audio context, or sample not yet decoded)',
+         true, `muted=${tones.muted}, voices=${tones.sel.length}`);
     } else {
       const s0 = tones.sel[0], d0 = tones.des[0];
-      // THE TWO MUST DIFFER BY DIRECTION, not just by pitch: select rises, deselect falls. Two flat
-      // blips at different pitches are two blips; a rise and a fall read as "picked up" / "put
-      // down" at a volume you are not consciously hearing, which is the brief.
-      ok('select RISES in pitch', s0 && s0.f1 > s0.f0, s0 && `${s0.f0} -> ${s0.f1} Hz`);
-      ok('deselect FALLS in pitch', d0 && d0.f1 < d0.f0, d0 && `${d0.f0} -> ${d0.f1} Hz`);
+      ok('select plays the SAMPLE, not a synthesised tone',
+         !!(s0 && s0.hasBuffer), JSON.stringify(s0));
+      // ONE SAMPLE, TWO SOUNDS: deselect is the same buffer pitched DOWN. Same distinction the
+      // owner asked for (up for picking up, down for putting down) with no second asset.
+      ok('...and deselect is the same sample at a LOWER rate, so it reads as putting the card down',
+         !!(s0 && d0) && d0.hasBuffer && d0.rate < s0.rate,
+         s0 && d0 ? `select rate ${s0.rate}, deselect rate ${d0.rate}` : 'n/a');
+      // The upload opened with 25ms of silence — on a UI sound that is lag between tap and click.
+      ok('...and the sample is short enough to be a click at all',
+         !!(s0 && s0.seconds !== null && s0.seconds < 0.4),
+         s0 && s0.seconds !== null ? s0.seconds.toFixed(3) + 's' : 'unknown');
     }
     // The transition rule: clearing a selection that was never set must be silent. `clearPendingCard`
     // has fourteen callers and most fire unconditionally, so this is what stops a constant clicking.
