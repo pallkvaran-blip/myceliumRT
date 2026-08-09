@@ -21885,7 +21885,7 @@ function playGrowBurst(count, spreadMs) {
 // Deliberately NOT routed through `master()`: that compressor exists to stop six overlapping grow
 // samples clipping, and a click has nothing to duck. It also means a click never pumps the
 // compressor and ducks the growth sound under it.
-const CLICK_GAIN = 0.3;        // the one knob — "very low volume" (owner), under the music
+const CLICK_GAIN = 0.15;       // the one knob — 0.3 halved (owner). "Very low volume", under the music
 function click(rate) {
   if (muted || !CLICK || !AC) return;
   const a = ctx();
