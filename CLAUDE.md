@@ -918,7 +918,7 @@ reading as a dead button.
     a UI sound is 25ms of lag between the tap and the click — inaudible as a sound, obvious as
     sluggishness. Trimmed to start 1ms in and folded to mono (the channels differed by **-47dB**),
     which also took it 7.5KB → 4.6KB. Measure a new one the same way before wiring it up.
-  - **`CLICK_GAIN` (0.15) is the one knob.** Not routed through `master()`: that compressor exists to
+  - **`CLICK_GAIN` (0.06 after 0.3 and 0.15) is the one knob, and `setClickGain` makes it live** — `__game.sfx().setClickGain(0.03)` in the console, so it can be settled by ear in one sitting rather than one value per build. Each halving is about -6dB and sounds like rather LESS than half, which is why two cuts were needed where one looked sufficient. Not routed through `master()`: that compressor exists to
     stop overlapping grow samples clipping, and a click has nothing to duck — through it, every
     click would pump the compressor and duck the growth sound under it.
   - Fetched in `initSfx` like `grow.wav`, NOT via the manifest: `loadAssets` would make the boot
