@@ -125,3 +125,37 @@ Two judgement calls, recorded so they are not re-litigated blind:
 
 Spares, for a store with a larger cap: `management`, `atmospheric`, `singleplayer`, `upgrades`,
 `biology`, `fungus`.
+
+---
+
+## Devlogs
+
+Kept for the same reason as the copy and the tags: so the next one starts from what went up. Newest
+first.
+
+### Sharper controls, clearer cards  (2026-08-09)
+
+Shipped from `32183b8` (phone autofocus), `002b34e` (the feel pass) and `192fc37` (the aim fix).
+
+- **Phones: the zoom bug is fixed.** Entering your name no longer makes the browser zoom in — and
+  stay there for the rest of the run.
+- **Aiming is more forgiving.** Short flicks now register a direction, and the "drag back to where
+  you started to cancel" area is 25% larger.
+- **Enemy turns are twice as fast.** Same moves, half the waiting.
+- **You can tell which card is selected.** The armed card is ringed and lit; the rest of the hand
+  steps back.
+- **Resources react.** The pill in the top corner pulses when you gain or spend.
+- **Hold the right mouse button to drag the map** — including while a card is armed, where dragging
+  used to aim instead of pan.
+- **Quiet clicks** when you pick a card up and put it down.
+- **Skip Round greys out while the enemies are moving**, instead of silently refusing the click.
+- The tutorial now covers zoom and drag.
+
+Two things deliberately NOT in it, recorded so they are not "restored" later:
+
+- **The removed "Aiming ⟨card⟩" chip is not listed.** It is a subtraction that the louder card
+  highlight replaces; naming it reads as a loss rather than a tidy-up.
+- **The aim bullet is phrased against the LIVE build, not against the branch.** Drags between about
+  12 and 26px did nothing in the shipped version too (the dead band predates the retune), so "short
+  flicks now register" is true for a player. Describing it as a fix to the 32.5px change would be
+  describing a regression that never reached anyone.
