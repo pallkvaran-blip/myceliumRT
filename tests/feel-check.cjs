@@ -363,6 +363,119 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
        !!camStep && /scroll or pinch/i.test(camStep) && /right mouse button/i.test(camStep),
        camStep);
     await page.close();
+
+    // ---- 8. TOUCH: the drag-aim must still fire, at any usable length ---------------------------
+    // THE REGRESSION THIS EXISTS FOR. Raising AIM_CANCEL_BACK_PX to 32.5 broke aiming on a phone,
+    // and the mechanism is a DEAD BAND rather than the constant: `updateAim` used to cancel on
+    // `dragged && d <= AIM_CANCEL_BACK_PX`, so every drag ending between AIM_MIN_PX (12) and the
+    // cancel radius was aimed AND cancelled at once and did nothing. Measured on a 390px viewport:
+    // a 30px drag fired at 26 and did NOT at 32.5, while 40px fired at both — which is why it
+    // looked like "aiming is broken" rather than "short aims are broken".
+    //
+    // A TOUCH page, deliberately: the pointer path branches on button/pointerType, and the desktop
+    // page above cannot see a phone-only break.
+    console.log('\n8. touch drag-aim');
+    const touch = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3,
+                                          isMobile: true, hasTouch: true });
+    touch.on('pageerror', (e) => { fail++; console.log('  FAIL  page error — ' + e.message); });
+    await touch.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+    await touch.goto(base + '/index.html#dev,turn', { waitUntil: 'domcontentloaded' });
+    await touch.waitForSelector('#loadscreen.ld-ready', { timeout: 120000 }).catch(() => {});
+    await touch.click('#loadscreen', { timeout: 8000 }).catch(() => {});
+    await touch.waitForFunction(() => {
+      const g = window.__game; return !!(g && g.state && g.state.active && g.state.active.nodes.length);
+    }, null, { timeout: 60000 });
+    await sleep(1200);
+
+    const aims = await touch.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      const c = document.getElementById('game') || document.querySelector('canvas');
+      c.setPointerCapture = () => {}; c.releasePointerCapture = () => {};
+      const ev = (type, x, y) => c.dispatchEvent(new PointerEvent(type, {
+        pointerId: 3, clientX: x, clientY: y, button: 0, buttons: 1,
+        isPrimary: true, pointerType: 'touch', bubbles: true, cancelable: true }));
+      // A fired aim CONSUMES the card, so each round has to re-arm — drawing more if the hand has
+      // run out of drag-aimed ones. Without this the later rows run with nothing armed and
+      // silently measure nothing, which reads as a failure at those distances.
+      const arm = async () => {
+        for (let t = 0; t < 25 && !g.ui().pendingCard; t++) {
+          const h = s.cards.hand; let found = false;
+          for (let i = 0; i < h.length; i++) {
+            if (!g.cardUsesDragAim(h[i].name)) continue;
+            g.handlers.onPlayCard(i);
+            if (g.ui().pendingCard) { found = true; break; }
+          }
+          if (!found) { s.active.energy = 999; g.draw(); await new Promise((r) => setTimeout(r, 60)); }
+        }
+        return !!g.ui().pendingCard;
+      };
+      // OUT AND BACK FIRST, while a drag-aimed card is still guaranteed to be in the opening hand.
+      // Run after the sweep it returned null on some hands: six plays plus the draws to replace
+      // them can empty the hand of drag-aimed cards entirely, and a null there reads as "cancelling
+      // is broken" when nothing was ever armed to cancel.
+      s.active.energy = 999; s.active.water = 999; s.active.phosphorus = 999;
+      let cancelled = null;
+      if (await arm()) {
+        const r = c.getBoundingClientRect();
+        const n = s.active.nodes[0];
+        const ss = g.camera.worldToScreen(n.x, n.y);
+        const px = r.x + ss.x, py = r.y + ss.y;
+        const h0 = s.cards.hand.length;
+        ev('pointerdown', px, py);
+        ev('pointermove', px + 200, py + 30);
+        ev('pointermove', px + 80, py + 10);
+        ev('pointermove', px + 6, py + 2);      // back inside the cancel radius
+        ev('pointerup', px + 6, py + 2);
+        await new Promise((r2) => setTimeout(r2, 400));
+        cancelled = { played: s.cards.hand.length < h0, stillArmed: !!g.ui().pendingCard };
+        g.handlers.onCancelCard && g.handlers.onCancelCard();   // disarm before the sweep
+      }
+      const out = [];
+      for (const dist of [15, 20, 30, 40, 60, 120]) {
+        s.active.energy = 999; s.active.water = 999; s.active.phosphorus = 999;
+        if (!await arm()) { out.push({ dist, armed: false }); continue; }
+        const r = c.getBoundingClientRect();
+        const n = s.active.nodes[0];
+        const ss = g.camera.worldToScreen(n.x, n.y);
+        const px = r.x + ss.x, py = r.y + ss.y;
+        const h0 = s.cards.hand.length;
+        ev('pointerdown', px, py);
+        ev('pointermove', px + dist * 0.5, py + 2);
+        ev('pointermove', px + dist, py + 4);
+        ev('pointerup', px + dist, py + 4);
+        await new Promise((r2) => setTimeout(r2, 400));
+        out.push({ dist, armed: true, played: s.cards.hand.length < h0 });
+      }
+      return { out, cancelled };
+    });
+    const measured = aims.out.filter((r) => r.armed);
+    ok('every touch aim round actually had a card armed', measured.length === aims.out.length,
+       `${measured.length} of ${aims.out.length}`);
+    const fired = measured.filter((r) => r.played).map((r) => r.dist);
+    ok('a touch drag-aim fires at EVERY usable length, short ones included',
+       measured.length > 0 && measured.every((r) => r.played),
+       `fired at ${fired.join(', ')}px of ${measured.map((r) => r.dist).join(', ')}`);
+    // The short end is the whole point — 15px fired at neither 26 nor 32.5 before the rule changed.
+    ok('...including a 15px flick, which the old rule swallowed at any radius',
+       !!(measured.find((r) => r.dist === 15) || {}).played);
+    ok('dragging OUT and BACK still cancels, and keeps the card armed',
+       !!aims.cancelled && aims.cancelled.played === false && aims.cancelled.stillArmed === true,
+       JSON.stringify(aims.cancelled));
+
+    // ---- 9. the "Aiming <card>" chip is gone ---------------------------------------------------
+    console.log('\n9. no aiming chip');
+    const chip = await touch.evaluate(() => ({
+      handsel: !!document.getElementById('handsel'),
+      handhead: !!document.querySelector('.handhead'),
+      // SCOPED TO THE HUD, not to `document.body`: the entire game is ONE INLINE <script> inside
+      // the body, so `body.textContent` contains the source code and matches every comment that
+      // happens to say "Aiming". It read as a failure on a build with no chip in it.
+      aimingText: /Aiming/.test((document.getElementById('ui') || {}).textContent || ''),
+    }));
+    ok('the phone "Aiming <card>" chip is gone', chip.handsel === false && chip.handhead === false,
+       JSON.stringify(chip));
+    ok('...and nothing else says "Aiming"', chip.aimingText === false, JSON.stringify(chip));
+    await touch.close();
   } catch (e) {
     fail++; console.log('  HARNESS ERROR — ' + (e && e.stack || e));
   }

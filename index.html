@@ -600,8 +600,6 @@
       border: 1.5px solid rgba(130,230,166,0.45); border-radius: 14px;
       box-shadow: 0 0 14px -3px rgba(130,230,166,0.45), inset 0 0 0 1px rgba(130,230,166,0.12), 0 8px 22px -9px rgba(0,0,0,0.7);
       backdrop-filter: blur(6px); }
-    /* hand header: just the selected/aiming chip (phone only) */
-    .handhead { display: none; align-items: center; gap: 8px; width: 100%; }
     .handbody { display: flex; flex-direction: column; gap: 8px; align-items: stretch; width: 100%; }
     /* control row: arrow (left) · filters (fill/centre) · skip chip (right) */
     .handrow { display: flex; align-items: center; gap: 8px; width: 100%; }
@@ -640,17 +638,6 @@
     .skipchip .skn { font-size: 11px; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
     .skipchip .ske { display: inline-flex; align-items: center; }
     .skipchip .ske svg { width: 13px; height: 13px; display: block; margin: 0 -2px; }
-    .handsel { display: inline-flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0;
-      padding: 5px 6px 5px 11px; border-radius: 11px; background: rgba(127,230,163,0.12);
-      border: 1px solid rgba(130,230,166,0.55); color: var(--ink);
-      box-shadow: 0 0 10px -3px rgba(130,230,166,0.5); }
-    .handsel.hidden { display: none; }
-    .handsel .hslabel { font-size: 8.5px; text-transform: uppercase; letter-spacing: 0.13em; color: var(--accent); flex: 0 0 auto; }
-    .handsel .hsname { font-family: var(--serif); font-size: 14px; font-weight: 600; white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis; flex: 1 1 auto; min-width: 0; }
-    .handsel .hscancel { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--panel-border);
-      background: rgba(0,0,0,0.32); color: var(--ink-dim); cursor: pointer; font-size: 12px; line-height: 1; }
-    .handsel .hscancel:active { background: rgba(224,106,106,0.35); color: #fff; }
     /* filter chips */
     /* Single scrollable row (never wraps) with a soft fade at both ends so the chips
        melt out near the ▾ minimize and » Skip buttons instead of ending abruptly.
@@ -913,7 +900,6 @@
       .actionbar .abtn .blabel { font-size: 12px; }
       .actionbar .abtn .bcost { font-size: 10.5px; }
       .handbar { bottom: calc(12px + env(safe-area-inset-bottom, 0px)); left: 6px; right: 6px; transform: none; max-width: none; padding: 6px; gap: 6px; }
-      .handhead { display: flex; }              /* selected/aiming chip visible on phone */
       .handfilter { flex-wrap: nowrap; overflow-x: auto; justify-content: safe center; max-width: none;
         align-self: stretch; scrollbar-width: none; padding-bottom: 1px; }
       .handfilter::-webkit-scrollbar { display: none; }
@@ -953,7 +939,6 @@
       .actionbar .abtn .blabel { font-size: 11.5px; }
       .actionbar .abtn .bcost { font-size: 10px; }
       .handbar { bottom: 6px; left: 6px; right: 6px; transform: none; max-width: none; padding: 4px 6px; gap: 4px; }
-      .handhead { display: flex; }
       .handfilter { flex-wrap: nowrap; overflow-x: auto; justify-content: safe center; align-self: stretch; scrollbar-width: none; }
       .handfilter::-webkit-scrollbar { display: none; }
       .fchip { font-size: 10px; padding: 2px 7px; }
@@ -23245,11 +23230,12 @@ class UI {
     if (cardsOn) {
       const hand = div('panel handbar' + (this.handOpen ? ' open' : ''));
       hand.innerHTML =
-        // Header (phone only): a chip showing which card is selected/aiming.
-        `<div class="handhead">`
-        + `<div class="handsel hidden" id="handsel"></div>`
-        + `</div>`
-        + `<div class="handbody" id="handbody">`
+        // NO "AIMING <card>" CHIP (owner: "bit too much. the card highlight is enough"). It was a
+        // phone-only header naming the armed card with a ✕ to cancel — a second, wordier copy of
+        // what the card's own highlight already says, and the highlight got much louder in the same
+        // pass that removed this. Nothing is stranded by losing the ✕: TAPPING THE ARMED CARD AGAIN
+        // deselects it (see onCardTap), and dragging back to the press point cancels the aim.
+        `<div class="handbody" id="handbody">`
         // Drag-to-scroll carousel (hidden when collapsed). Phones swipe; browsers also
         // get ‹ › nav arrows (hidden by CSS on phones + when the hand doesn't overflow).
         + `<div class="handcarousel">`
@@ -23272,7 +23258,6 @@ class UI {
       this.el.handbar = hand;
       this.el.handlist = hand.querySelector('#handlist');
       this.el.handfilter = hand.querySelector('#handfilter');
-      this.el.handsel = hand.querySelector('#handsel');
       this.el.handpreview = hand.querySelector('#handpreview');
       this.el.handhint = hand.querySelector('#handhint');
       this.el.handprev = hand.querySelector('#handprev');
@@ -23411,7 +23396,6 @@ class UI {
     if (after !== before) {
       try { (after ? playCardSelect : playCardDeselect)(); } catch (_) {}
     }
-    this._renderHandSelection();
   }
   setPendingCard(index) {
     const h = this.state.cards && this.state.cards.hand[index];
@@ -23521,9 +23505,8 @@ class UI {
   setPendingAction(i) {
     this.pendingAction = i;
     if (window.innerWidth < 760 && this.actionsOpen) { this.actionsOpen = false; this._renderActions(); this._syncPanelHeights(); }
-    this._renderHandSelection();   // show the "Aiming … ✕" chip (phone) so it can be cancelled
   }
-  clearPendingAction() { this.pendingAction = null; this._renderHandSelection(); }
+  clearPendingAction() { this.pendingAction = null; }
 
   _renderEngines() {
     const led = this.el.engledger; if (!led) return;
@@ -23655,31 +23638,6 @@ class UI {
       if (p.classList.contains('hidden')) { p.style.maxHeight = ''; continue; }
       const top = p.getBoundingClientRect().top;
       p.style.maxHeight = Math.max(120, Math.round(floor - top - 10)) + 'px';
-    }
-  }
-
-  // The "selected card" chip in the hand header — makes it clear which card is
-  // armed while you're aiming on the map.
-  _renderHandSelection() {
-    const el = this.el.handsel;
-    if (!el) return;
-    // A targeted card OR a targeted installed action can be aiming (mutually
-    // exclusive). Show whichever is armed, with a ✕ to cancel it.
-    const act = (!this.pendingCard && this.pendingAction != null && this.state.cards && this.state.cards.actions[this.pendingAction]) || null;
-    const name = this.pendingCard ? this.pendingCard.name : (act ? act.name : null);
-    if (name) {
-      el.classList.remove('hidden');
-      el.innerHTML = `<span class="hslabel">Aiming</span><span class="hsname"></span>`
-        + `<button class="hscancel" aria-label="Cancel selection">✕</button>`;
-      el.querySelector('.hsname').textContent = name;
-      const cancel = this.pendingCard ? this.handlers.onCancelCard : this.handlers.onCancelAction;
-      el.querySelector('.hscancel').onclick = (e) => {
-        e.stopPropagation();
-        if (cancel) cancel();
-      };
-    } else {
-      el.classList.add('hidden');
-      el.innerHTML = '';
     }
   }
 
@@ -23947,7 +23905,6 @@ class UI {
     const list = this.el.handlist;
     if (!list) return;
     const s = this.state, net = s.active;
-    this._renderHandSelection();
 
     // STACK: group identical cards by name; keep the first hand index to play.
     const groups = new Map();
@@ -31793,7 +31750,17 @@ function updateAim(e) {
   const d = Math.hypot(sx - aim.startScreen.x, sy - aim.startScreen.y);
   if (d >= AIM_MIN_PX) aim.dragged = true;
   const offScreen = sx < 0 || sy < 0 || sx > camera.viewW || sy > camera.viewH;
-  aim.cancelled = offScreen || (aim.dragged && d <= AIM_CANCEL_BACK_PX);
+  // CANCELLING IS "OUT AND BACK", NOT "ENDED NEAR THE ORIGIN" — and the difference is a DEAD BAND
+  // that swallowed short aims. The test used to be `dragged && d <= AIM_CANCEL_BACK_PX`, so every
+  // drag finishing between AIM_MIN_PX (12) and the cancel radius counted as aimed AND cancelled at
+  // the same time and simply did nothing. Widening the radius from 26 to 32.5 widened that band
+  // with it, which is how "the aiming drag does not work on my phone" was introduced: measured on
+  // a 390px viewport, a 30px drag fired at 26 and did not at 32.5, while 40px fired at both.
+  // Requiring the finger to have gone PAST the radius before coming back inside it means the
+  // radius can be as generous as you like without ever eating a legitimate short aim — a 15px
+  // flick now fires, which it never did at either value.
+  if (d > AIM_CANCEL_BACK_PX) aim.wentOut = true;
+  aim.cancelled = offScreen || (!!aim.wentOut && d <= AIM_CANCEL_BACK_PX);
   uiDirty = true;
 }
 
@@ -35095,7 +35062,8 @@ function drawTargetingCursor(time) {
   // Card awaiting its FIRST touch: draw NO pre-touch aim line — it would anchor a
   // source before you've decided where to grow. Single-tap targets resolve on tap;
   // directional grows resolve via the press-drag aim above. So targeting mode shows
-  // only the hint text / "Aiming" chip until you act.
+  // only the hint text and the card's own highlight until you act. (There WAS an "Aiming <card>"
+  // chip in the hand header too; the owner dropped it as a second, wordier copy of the highlight.)
   if (ui && ui.pendingCard) return;
 
   const sel = ui && ui.selectedAction;

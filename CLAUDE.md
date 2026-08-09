@@ -859,6 +859,30 @@ The three that carry a trap worth not re-deriving:
   already present does not restart the animation, hence remove / forced reflow / add. In real time
   the HUD repaints at 2 Hz, so the equality test is also the churn guard.
 
+- **CANCELLING AN AIM IS "OUT AND BACK", NOT "ENDED NEAR THE ORIGIN" — and getting that wrong is a
+  DEAD BAND that eats short aims.** `updateAim` used to cancel on `dragged && d <= AIM_CANCEL_BACK_PX`,
+  so any drag finishing between `AIM_MIN_PX` (12) and the cancel radius was aimed AND cancelled at
+  the same instant and simply did nothing. Raising the radius 26 → 32.5 widened that band with it
+  and was reported as **"the aiming drag action does not work on my phone"**. Measured on a 390px
+  touch viewport, same build, one constant changed: a **30px drag fired at 26 and did not at 32.5**,
+  while 40px fired at both — which is why it presented as "aiming is broken" rather than "short aims
+  are broken". The rule now requires the finger to have gone PAST the radius before coming back
+  inside it (`aim.wentOut`), so the radius can be as generous as asked without ever eating a
+  legitimate aim: **a 15px flick fires now, which it did at neither 26 nor 32.5.**
+  `feel-check` sweeps 15/20/30/40/60/120px on a TOUCH page — a desktop page cannot see this — and
+  keeps the out-and-back cancel beside it. Verified negative control: restore the old rule and only
+  40/60/120 fire.
+- **THE "AIMING ⟨card⟩" CHIP IS GONE** (owner: *"bit too much. the card highlight is enough"*), along
+  with `.handhead`, `.handsel` and `_renderHandSelection`. It was a phone-only header naming the
+  armed card with a ✕ to cancel — a second, wordier copy of what the highlight says, and the
+  highlight got much louder in the same pass. Nothing is stranded by losing the ✕: **tapping the
+  armed card again deselects it** (`onCardTap`), and dragging back to the press point cancels the
+  aim. The card highlight is painted by `_paintArmed`, which never had anything to do with the chip.
+- **`document.body.textContent` CONTAINS THE WHOLE GAME.** The build is one inline `<script>` inside
+  the body, so a "no user-facing text says X" assertion written against `body` matches every source
+  COMMENT that says X — the chip assertion failed on a build with no chip in it. Scope such a test
+  to `#ui`.
+
 Also in the batch: `ENEMY_SLIDE_MS` 2000 → 1000, `AIM_CANCEL_BACK_PX` 26 → 32.5, right-button
 panning (below), synthesised card click sounds, and the Skip chip disabling itself for the span of
 `state.enemyTurn` — the engine already refused the click there, so this only stops the refusal
