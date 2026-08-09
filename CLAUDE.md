@@ -839,8 +839,16 @@ passes the cascade half** just as "claims everything" passes the forgiveness hal
 Seven small changes that are all invisible in a diff, so `tests/feel-check.cjs` (29) owns them.
 The three that carry a trap worth not re-deriving:
 
-- **AN OUTER GLOW ON A CARD IS CLIPPED, so "increase the glow" could not be done by increasing the
-  glow.** `.handlist` is a scroll container (`overflow-x: auto`, so `overflow-y` computes to
+- **NOTHING ON A SELECTED CARD MAY PAINT OUTSIDE ITS BORDER BOX. Not "prefer inset" — none.**
+  Reported twice. `.handlist` is a scroll container (`overflow-x: auto`, so `overflow-y` computes to
+  `hidden`) and its padding is `padding-inline` ONLY, so there is room at the sides and none above
+  or below: an outer ring or glow is sliced flat top and bottom, which is what *"the top and bottom
+  are getting cut off"* was. The shipped answer is an **inset** ring, an **inset** glow,
+  `filter: brightness`, and the siblings dimming — none of which needs a pixel outside the card.
+  `.offerrow` hit the same clip first and answered it with vertical padding; that is wrong HERE
+  because the carousel already takes a third of a phone screen. `feel-check` asserts every shadow
+  layer is `inset` rather than counting layers, since the layer count was only ever a proxy.
+- **AND THE FIRST VERSION OF THIS: "increase the glow" could not be done by increasing the glow.** `.handlist` is a scroll container (`overflow-x: auto`, so `overflow-y` computes to
   `hidden`), and widening the selected card's halo from 16px to **72px changed the rendered frame by
   nothing at all** — every extra pixel was cut off. What works is what survives the clip: a solid
   3px ring, an **inset** glow, `brightness(1.1)`, and above all **the other cards dimming**
@@ -896,6 +904,14 @@ reading as a dead button.
   at the canvas CENTRE (`beginAim` ignores a press further than `aimNearPx` from a strand and lets
   it pan). Arm a card `cardUsesDragAim` accepts, press ON the colony, and assert the left button
   does NOT pan as the control. `__game.cardUsesDragAim` exists for this.
+- **A CLICK IS AN ENVELOPE BEFORE IT IS A PITCH.** v1 was 620-900Hz over 55ms with a 6ms attack and
+  the owner heard it exactly right: *"more like a blip than a click"*. At 55ms the ear has time to
+  TRACK the sweep, so it is heard as a little tone with a direction — which is a blip. Three changes,
+  and the duration does most of the work: **16-20ms** (under ~25ms there is no pitch to follow, only
+  an event), **2-3kHz** (where a sound reads as a contact rather than a note), and a **1.2ms
+  attack** (the attack is what is actually heard at this length; a slow one rounds the leading edge
+  into a bloop whatever the frequency). `square` over `triangle` for the brightness — at 16ms and
+  this gain it never gets the chance to sound harsh.
 - **SYNTHESISED, NOT SAMPLED.** The card clicks are oscillators, so they add nothing to the
   CrazyGames initial download (16.4 MB of a 20 MB mobile threshold) and cannot 404. Select RISES in
   pitch and deselect FALLS — direction is what tells them apart at a volume you are not consciously

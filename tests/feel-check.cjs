@@ -162,7 +162,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
                }) };
     });
     ok('a selected card looks different from a plain one at all', glow.plainSame === false);
-    ok('...with several shadow layers', glow.layers >= 3, `${glow.layers} layer(s)`);
+    // THE RULE THAT MATTERS IS "NOTHING PAINTS OUTSIDE THE BORDER BOX", not how many layers there
+    // are. `.handlist` is a scroll container with `padding-inline` only, so an OUTER ring or glow is
+    // cut off top and bottom — reported as "the top and bottom are getting cut off" after a version
+    // that kept one. Every shadow layer must be `inset`; the lift comes from `filter` and the
+    // separation from the siblings dimming, neither of which needs space outside the card.
+    const outer = (glow.shadow || '').split(/,(?![^(]*\))/).filter((L) => L.trim() && !/inset/.test(L));
+    ok('...and NOTHING is painted outside the card, so the carousel cannot clip it',
+       outer.length === 0, outer.length ? 'outer layer(s): ' + outer.join(' | ') : 'all inset');
     // AN OUTER GLOW IS CLIPPED HERE — `.handlist` is a scroll container (overflow-x auto, so
     // overflow-y computes to hidden), which is why widening the halo 16px -> 72px changed the
     // rendered frame by nothing. The signals have to survive that clip: an INSET glow does...

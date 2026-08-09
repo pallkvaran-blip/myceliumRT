@@ -738,20 +738,21 @@
        card's own dark frame, and a wide faint halo that separates it from its neighbours in the
        carousel. Kept as box-shadow only — no transform — because the phone carousel is
        `overflow-y: hidden` and a lifted card would be clipped at the top. */
-    /* AN OUTER GLOW IS THE WRONG TOOL HERE, and only a rendered frame showed why: `.handlist` is a
-       scroll container, so everything painted outside a card's border box is CLIPPED. Widening the
-       halo from 16px to 72px changed the picture by nothing at all — the extra 56px were being cut
-       off. Two signals that survive the clip, then:
-         - an INSET glow, which is inside the box and cannot be clipped away, plus a solid 3px ring;
-         - and the SIBLINGS DIM. That is the one that actually reads, because every card already
-           wears a coloured border for its category (green basic, red engine, gold action), so one
-           more outline among four is not a signal — a card being the only bright one is.
-       `:has()` degrades to "no dimming" on a browser without it, which is the old behaviour rather
-       than a broken one. */
+    /* EVERY PART OF THIS IS INSIDE THE CARD'S BOX, and that is forced rather than chosen.
+       `.handlist` is a scroll container — `overflow-x: auto` makes `overflow-y` compute to
+       `hidden` — and its padding is `padding-inline` only, so there is room at the sides and NONE
+       above or below. An OUTER ring or glow is therefore cut off top and bottom, which is exactly
+       how it looked. (`.offerrow` hit this first and answered it with vertical padding; here that
+       would grow the carousel, which already takes a third of a phone screen.)
+       So: the ring is `inset`, the glow is `inset`, the lift is `brightness`, and the strongest
+       signal of all — THE OTHER CARDS DIMMING — costs no space at all. Nothing extends past the
+       border box, so nothing can be clipped however the carousel is sized.
+       Do not "restore" an outer glow here. It will look right in a wide desktop frame and be
+       sliced flat on a phone. */
     .cardbtn.selected { border-color: #eafff2;
-      box-shadow: 0 0 0 3px rgba(var(--cacc),1), inset 0 0 26px 2px rgba(var(--cacc),0.5),
-                  inset 0 0 0 1px rgba(var(--cacc),0.9), 0 0 30px 4px rgba(var(--cacc),0.95);
-      filter: brightness(1.1); }
+      box-shadow: inset 0 0 0 3px rgba(var(--cacc),1),
+                  inset 0 0 30px 3px rgba(var(--cacc),0.55);
+      filter: brightness(1.12); }
     .handlist:has(.cardbtn.selected) .cardbtn:not(.selected) { opacity: 0.45; filter: saturate(0.7); }
     /* art window — inset so the dark frame shows around it, with an arched bottom.
        Fixed 3:2 aspect so every card's picture is the same size. */
@@ -21862,6 +21863,18 @@ function playGrowBurst(count, spreadMs) {
 // Deliberately NOT routed through `master()`: that chain exists to keep six overlapping grow
 // samples from clipping, and a 40ms click has nothing to duck. It also means a click never pumps
 // the compressor and ducks the growth sound under it.
+// A CLICK IS AN ENVELOPE BEFORE IT IS A PITCH. The first version was 620-900Hz over 55ms with a
+// 6ms attack, and the owner heard it exactly right: "more like a blip than a click". At 55ms the
+// ear has time to TRACK the frequency, so the sweep is heard as a little tone with a direction —
+// which is a blip. Three changes make it a click, and the durations do most of the work:
+//   - MUCH SHORTER (16-20ms, from 55-70). Under about 25ms there is no pitch to follow, only an
+//     event, which is what "click" means.
+//   - MUCH HIGHER (2-3kHz, from 500-900). Clicks live where the ear is most sensitive and where a
+//     sound reads as a contact rather than as a note.
+//   - A 1.2ms ATTACK, from 6. The attack is what is actually heard at these lengths; a slow one
+//     rounds the leading edge into a "bloop" no matter what the frequency is.
+// `square` rather than `triangle` for the same reason — the harmonics are the brightness, and at
+// 16ms and this gain they never get the chance to sound harsh.
 function click(f0, f1, peak, ms) {
   if (muted || !AC) return;                  // no AudioContext yet = nothing has made a sound yet
   const a = ctx();
@@ -21869,21 +21882,23 @@ function click(f0, f1, peak, ms) {
   const t = a.currentTime;
   const dur = ms / 1000;
   const osc = a.createOscillator();
-  osc.type = 'triangle';                     // softer than square, more body than sine at this length
+  osc.type = 'square';
   osc.frequency.setValueAtTime(f0, t);
   osc.frequency.exponentialRampToValueAtTime(f1, t + dur);
   const g = a.createGain();
-  // Attack over 6ms rather than from 0: an instant start on a triangle wave is a tick with a click
-  // of its own. Exponential decay to a floor, never to 0 — `exponentialRamp` to zero is illegal
-  // and silently does nothing in some browsers, which reads as "the sound doesn't stop".
+  // Exponential decay to a floor, never to 0 — `exponentialRamp` to zero is illegal and silently
+  // does nothing in some browsers, which reads as "the sound doesn't stop".
   g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(peak, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.0012);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   osc.connect(g); g.connect(a.destination);
   osc.start(t); osc.stop(t + dur + 0.02);
 }
-function playCardSelect()   { click(620, 900, 0.035, 55); }
-function playCardDeselect() { click(520, 360, 0.028, 70); }
+// Still told apart by DIRECTION — up for picking a card up, down for putting it down — because at
+// this length that is all there is room to distinguish. The gains stay low: this should sit under
+// the music, not announce itself.
+function playCardSelect()   { click(2600, 3300, 0.030, 16); }
+function playCardDeselect() { click(2100, 1500, 0.024, 20); }
 
   return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect };
 })();
