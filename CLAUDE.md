@@ -834,10 +834,55 @@ It reads `dFresh` per claim now: every claimed pile must have had *that action's
 within one `sensingRadius`. And it keeps the opposite assertion beside it, because **"claims nothing"
 passes the cascade half** just as "claims everything" passes the forgiveness half.
 
+## The feel pass (one batch, owner)
+
+Seven small changes that are all invisible in a diff, so `tests/feel-check.cjs` (29) owns them.
+The three that carry a trap worth not re-deriving:
+
+- **AN OUTER GLOW ON A CARD IS CLIPPED, so "increase the glow" could not be done by increasing the
+  glow.** `.handlist` is a scroll container (`overflow-x: auto`, so `overflow-y` computes to
+  `hidden`), and widening the selected card's halo from 16px to **72px changed the rendered frame by
+  nothing at all** — every extra pixel was cut off. What works is what survives the clip: a solid
+  3px ring, an **inset** glow, `brightness(1.1)`, and above all **the other cards dimming**
+  (`.handlist:has(.cardbtn.selected) .cardbtn:not(.selected)`). That last one is the signal that
+  actually reads, because every card ALREADY wears a category-coloured border — green basic, red
+  engine, gold action — so one more outline among four is not a signal; being the only bright card
+  is. Three rendered frames to find this; the first two showed no change and the CSS looked wrong.
+- **A #dev BOOT SHOWS THE 61-CARD DEV CAROUSEL, NOT THE HAND**, so `onPlayCard(i)` arms nothing that
+  is on screen and no card is ever `.selected` in a dev screenshot. Both early frames above were of
+  a carousel with no selection — the styling was never being exercised. To LOOK at a card state in
+  a dev build, add the class by hand; leave the wiring to a check.
+- **THE RESOURCE PULSE MUST NOT FIRE WHEN NOTHING HAPPENED**, and there are three ways it can. The
+  first sight of a value is not a change; a level change is not a change (the memory is keyed on the
+  **state object**, which every level rebuilds, so it re-baselines for free — a module-scoped memory
+  would flash all three stocks on the first frame of level 2); and re-adding a CSS class that is
+  already present does not restart the animation, hence remove / forced reflow / add. In real time
+  the HUD repaints at 2 Hz, so the equality test is also the churn guard.
+
+Also in the batch: `ENEMY_SLIDE_MS` 2000 → 1000, `AIM_CANCEL_BACK_PX` 26 → 32.5, right-button
+panning (below), synthesised card click sounds, and the Skip chip disabling itself for the span of
+`state.enemyTurn` — the engine already refused the click there, so this only stops the refusal
+reading as a dead button.
+
+- **RIGHT-DRAG PANS, AND ITS ONLY REASON IS THE ARMED STATE.** With nothing armed, left-drag has
+  always panned; with a directional card armed, left-drag AIMS, and there was no mouse gesture left
+  for the camera. So **a probe that does not arm a drag-aimed card proves nothing** — the first
+  version of this assertion passed with the feature deliberately disabled, twice, for two separate
+  reasons: it armed Acorn Cache (which is not `aim: 'drag'`, so no aim ever started), and it pressed
+  at the canvas CENTRE (`beginAim` ignores a press further than `aimNearPx` from a strand and lets
+  it pan). Arm a card `cardUsesDragAim` accepts, press ON the colony, and assert the left button
+  does NOT pan as the control. `__game.cardUsesDragAim` exists for this.
+- **SYNTHESISED, NOT SAMPLED.** The card clicks are oscillators, so they add nothing to the
+  CrazyGames initial download (16.4 MB of a 20 MB mobile threshold) and cannot 404. Select RISES in
+  pitch and deselect FALLS — direction is what tells them apart at a volume you are not consciously
+  hearing. The sound is on the **transition**, not in the function body: `clearPendingCard` has
+  fourteen callers and most fire unconditionally, so a click in the body would fire several times a
+  second at nothing.
+
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**45 checks registered in `run.mjs`**, roughly 2850 assertions, of which `traced` is 1190 (one map's
+**46 checks registered in `run.mjs`**, roughly 2880 assertions, of which `traced` is 1190 (one map's
 worth each, 76 maps). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -3114,6 +3159,11 @@ soon as it stands up**, rather than batching — a session that commits five tim
 the last one, and the reset above is then a 30-second interruption instead of a re-derivation.
 
 ## The phased, animated enemy turn (turn-based only)
+
+**`ENEMY_SLIDE_MS` IS 1000, halved from 2000 (owner: "50% faster").** Nothing else keys off it —
+the MOVE and ATTACK passes are separate calls either side of the hold — so it changes how long the
+walk is DRAWN for and not what the creatures do. `feel-check` pins the number.
+
 
 **Built.** The ask, in the owner's words: *"enemies are still moving at the same time I do. I
 want to fully complete my growth, including the animation. Then and only then should the enemies

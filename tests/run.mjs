@@ -28,6 +28,7 @@ const CHECKS = [
   ['ingame',    'ingame-text.cjs',   25,  false],
   ['tutscript', 'tutorial-script-check.cjs', 45, false],
   ['card',      'card-deselect-check.cjs', 20, false],
+  ['feel',      'feel-check.cjs',    70,  false],
   ['hover',     'hover-check.cjs',   30,  false],
   ['boot',      'boot-check.cjs',    60,  false],
   ['hs',        'hs-check.cjs',      35,  false],

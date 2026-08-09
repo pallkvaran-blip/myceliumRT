@@ -153,6 +153,33 @@
     /* per-round income shown next to the stock, e.g. "200 +1–3" */
     .res .rd { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; opacity: 0.82; margin-left: 1px; }
     .res .rd:empty { display: none; }
+    /* A RESOURCE THAT MOVES SAYS SO (owner: "a very quick animation when you get resource income
+       or spend a resource"). Income and spending both used to land as a silent number swap, which
+       is the one moment the pill is worth looking at and the one moment nothing drew the eye.
+       Gain pops UP and brightens, spend dips DOWN and dims — direction carries the meaning, so it
+       reads without knowing the colours, and the HUE IS LEFT ALONE (`currentColor` throughout) so
+       one pair of keyframes serves energy's green, water's blue and phosphorus' violet. No red for
+       spending: red is the threat colour everywhere else in this game and spending is not a
+       warning.
+       `.rv` is a direct child of `.res`, which is `inline-flex`, so it is a flex item and is
+       already blockified — `transform` applies without setting a display. */
+    @keyframes resGain {
+      0%   { transform: none; filter: none; }
+      28%  { transform: translateY(-2px) scale(1.22); filter: brightness(1.85) drop-shadow(0 0 7px currentColor); }
+      100% { transform: none; filter: none; }
+    }
+    @keyframes resSpend {
+      0%   { transform: none; filter: none; }
+      30%  { transform: translateY(1px) scale(0.88); filter: brightness(0.62); }
+      100% { transform: none; filter: none; }
+    }
+    .res.rgain  .rv { animation: resGain 360ms ease-out; }
+    .res.rspend .rv { animation: resSpend 300ms ease-out; }
+    /* The class still lands under reduced motion — it is what the check asserts on, and it is the
+       honest record of "this resource moved" — but nothing animates. */
+    @media (prefers-reduced-motion: reduce) {
+      .res.rgain .rv, .res.rspend .rv { animation: none; }
+    }
     .res.e .rk, .res.e .rv, .res.e .ri, .res.e .rd { color: var(--accent); }
     /* (Energy bolt icon carries its own gold fill in RES_ICON — see ui.js — so it's
        the same yellow here as on card costs + the Skip chip; the number stays green.) */
@@ -717,7 +744,28 @@
       box-shadow: 0 0 14px -1px rgba(var(--cacc),0.7), inset 0 0 0 1px rgba(var(--cacc),0.28), 0 10px 22px -9px rgba(0,0,0,0.85); }
     .offercard:hover { transform: translateY(-3px); }
     .cardbtn.unaff { opacity: 0.5; cursor: not-allowed; }
-    .cardbtn.selected { border-color: #eafff2; box-shadow: 0 0 0 2px rgba(var(--cacc),0.9), 0 0 16px rgba(var(--cacc),0.6); }
+    /* SELECTED IS THE ONE STATE THE PLAYER MUST NEVER MISREAD — it is what says "this card is
+       armed and your next click on the map will spend it". It was a 2px ring and a 16px glow,
+       which at card size sat too close to the ordinary :hover above it (a 14px glow) to be told
+       apart at a glance. Now a solid 3px ring plus TWO glows: a tight bright one that reads on the
+       card's own dark frame, and a wide faint halo that separates it from its neighbours in the
+       carousel. Kept as box-shadow only — no transform — because the phone carousel is
+       `overflow-y: hidden` and a lifted card would be clipped at the top. */
+    /* AN OUTER GLOW IS THE WRONG TOOL HERE, and only a rendered frame showed why: `.handlist` is a
+       scroll container, so everything painted outside a card's border box is CLIPPED. Widening the
+       halo from 16px to 72px changed the picture by nothing at all — the extra 56px were being cut
+       off. Two signals that survive the clip, then:
+         - an INSET glow, which is inside the box and cannot be clipped away, plus a solid 3px ring;
+         - and the SIBLINGS DIM. That is the one that actually reads, because every card already
+           wears a coloured border for its category (green basic, red engine, gold action), so one
+           more outline among four is not a signal — a card being the only bright one is.
+       `:has()` degrades to "no dimming" on a browser without it, which is the old behaviour rather
+       than a broken one. */
+    .cardbtn.selected { border-color: #eafff2;
+      box-shadow: 0 0 0 3px rgba(var(--cacc),1), inset 0 0 26px 2px rgba(var(--cacc),0.5),
+                  inset 0 0 0 1px rgba(var(--cacc),0.9), 0 0 30px 4px rgba(var(--cacc),0.95);
+      filter: brightness(1.1); }
+    .handlist:has(.cardbtn.selected) .cardbtn:not(.selected) { opacity: 0.45; filter: saturate(0.7); }
     /* art window — inset so the dark frame shows around it, with an arched bottom.
        Fixed 3:2 aspect so every card's picture is the same size. */
     .cart { position: relative; margin: 6px 6px 0; aspect-ratio: 3 / 2; flex: 0 0 auto; overflow: hidden;
@@ -21814,7 +21862,45 @@ function playGrowBurst(count, spreadMs) {
   }
 }
 
-  return { isSfxMuted, toggleSfx, initSfx, playGrowBurst };
+// CARD SELECT / DESELECT — SYNTHESISED, NOT SAMPLED, and that is a size decision as much as a
+// sound one. A click is two numbers (a pitch and a decay); shipping it as a .wav would add an
+// asset, a manifest entry and bytes to the CrazyGames INITIAL DOWNLOAD, which is the metric that
+// gates mobile eligibility and currently sits at 16.4 MB of a 20 MB threshold. An oscillator costs
+// nothing and cannot 404.
+//
+// The two have to be told apart WITHOUT being noticed, which is the whole brief ("very low
+// volume"). So they differ in the way ear-cheap sounds differ: select rises (620 -> 900 Hz) and
+// deselect falls (520 -> 360 Hz). Pitch DIRECTION carries "picked up" against "put down" even at a
+// level you are not consciously hearing, where two flat blips at different pitches just sound like
+// two blips.
+//
+// Deliberately NOT routed through `master()`: that chain exists to keep six overlapping grow
+// samples from clipping, and a 40ms click has nothing to duck. It also means a click never pumps
+// the compressor and ducks the growth sound under it.
+function click(f0, f1, peak, ms) {
+  if (muted || !AC) return;                  // no AudioContext yet = nothing has made a sound yet
+  const a = ctx();
+  if (a.state === 'suspended') return;       // pre-gesture: starting one here would be a no-op anyway
+  const t = a.currentTime;
+  const dur = ms / 1000;
+  const osc = a.createOscillator();
+  osc.type = 'triangle';                     // softer than square, more body than sine at this length
+  osc.frequency.setValueAtTime(f0, t);
+  osc.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = a.createGain();
+  // Attack over 6ms rather than from 0: an instant start on a triangle wave is a tick with a click
+  // of its own. Exponential decay to a floor, never to 0 — `exponentialRamp` to zero is illegal
+  // and silently does nothing in some browsers, which reads as "the sound doesn't stop".
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g); g.connect(a.destination);
+  osc.start(t); osc.stop(t + dur + 0.02);
+}
+function playCardSelect()   { click(620, 900, 0.035, 55); }
+function playCardDeselect() { click(520, 360, 0.028, 70); }
+
+  return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect };
 })();
 
 // ===================== src/render/network.js =====================
@@ -22918,7 +23004,7 @@ const __m_render_ui = (function () {
   const { CARD_BY_NAME } = __m_cards_data;
   const { cardDeckAdditions, actionUsable, cardBlockedReason } = __m_engine_cards;
   const { toggleMusic, isMusicMuted } = __m_render_music;
-  const { toggleSfx, isSfxMuted } = __m_render_sfx;
+  const { toggleSfx, isSfxMuted, playCardSelect, playCardDeselect } = __m_render_sfx;
 // =============================================================================
 // UI — HUD, action buttons, event log, dev tools, "what we're testing" panel.
 //
@@ -23312,12 +23398,26 @@ class UI {
     if (name && hints[name]) this.setHint(hints[name]);
   }
 
-  setPendingCard(index) {
-    const h = this.state.cards && this.state.cards.hand[index];
-    this.pendingCard = h ? { id: h.id, name: h.name } : null;
+  // THE CLICK IS ON THE TRANSITION, NOT ON THE CALL, and that distinction is the whole of it.
+  // `clearPendingCard` has fourteen callers and most fire unconditionally — cancelAiming, Escape,
+  // every draft lock, the end of a play — so a sound placed in the function body would click
+  // several times a second at nothing. Comparing the card id means it speaks only when the
+  // selection actually changed: on ARM, on DISARM, and once when swapping straight from one card
+  // to another (a deselect and a select at the same instant would just be a smear).
+  _setPending(next) {
+    const before = this.pendingCard && this.pendingCard.id;
+    const after = next && next.id;
+    this.pendingCard = next;
+    if (after !== before) {
+      try { (after ? playCardSelect : playCardDeselect)(); } catch (_) {}
+    }
     this._renderHandSelection();
   }
-  clearPendingCard() { this.pendingCard = null; this._renderHandSelection(); }
+  setPendingCard(index) {
+    const h = this.state.cards && this.state.cards.hand[index];
+    this._setPending(h ? { id: h.id, name: h.name } : null);
+  }
+  clearPendingCard() { this._setPending(null); }
 
   // Collapsible hand tray. The open/close toggle is the ▾/▴ arrow at the left of
   // the hand bar's filter row; this keeps its chevron + the tray's .open class in
@@ -23750,17 +23850,46 @@ class UI {
     el.classList.remove('hidden');
   }
 
+  // Write a resource number, and flash its pill when the number MOVED. `text()` for everything
+  // else — this is only for the three stocks, where the change is the information.
+  //
+  // Three things it has to get right, all of which are ways to flash when nothing happened:
+  //  - THE FIRST SIGHT OF A VALUE IS NOT A CHANGE. Without this every resource pops on the frame
+  //    the HUD is built, so a run opens with the whole pill flashing at you.
+  //  - THE MEMORY IS PER STATE OBJECT, and that is what makes a level change silent. Every level
+  //    is a full restart that rebuilds `state`, so comparing the identity resets the baseline for
+  //    free — where a module-scoped memory would flash all three on the first frame of level 2 as
+  //    the stocks reset to their starting values.
+  //  - RE-ADDING A CLASS THAT IS ALREADY THERE DOES NOT RESTART A CSS ANIMATION. Hence the
+  //    remove / forced reflow / add, the same shape the victory fade needs.
+  // In real time the HUD refreshes every world tick (2 Hz), so the equality test is also what
+  // keeps this from being churn: an unchanged stock touches no classes at all.
+  _resText(id, v, s) {
+    if (this._resFor !== s) { this._resFor = s; this._resLast = {}; }
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = v;
+    const prev = this._resLast[id];
+    this._resLast[id] = v;
+    if (prev === undefined || prev === v) return;
+    const pill = el.closest('.res');
+    if (!pill) return;
+    pill.classList.remove('rgain', 'rspend');
+    void pill.offsetWidth;
+    pill.classList.add(v > prev ? 'rgain' : 'rspend');
+  }
+
   update() {
     const s = this.state;
     const net = s.active;
     refreshCadenceClock(s);   // phase the cadence bars' fill against the card layer's round clock
-    text('hud-energy', Math.floor(net.energy));
+    this._resText('hud-energy', Math.floor(net.energy), s);
     text('hud-spores', Math.floor(s.spores));
 
     // Card layer: resources, hand, draw/skip.
     if (this.cardsOn && s.cards) {
-      text('hud-water', Math.floor(net.water || 0));
-      text('hud-phosphorus', Math.floor(net.phosphorus || 0));
+      this._resText('hud-water', Math.floor(net.water || 0), s);
+      this._resText('hud-phosphorus', Math.floor(net.phosphorus || 0), s);
       // Per-round income shown on the pill next to each stock (e.g. "200 +1–3"):
       // steady producers set the floor, cadenced ones (every N) add the ceiling.
       const inc = summarizeEngines(s.cards.engines || []);
@@ -23778,8 +23907,18 @@ class UI {
         } else {
           this.el.skipchip.style.display = '';
           this.el.skipchip.innerHTML = `<span class="skgl">${ICON('skip')}</span><span class="skn">${cc.skipCostEnergy}</span><span class="ske">${RES_ICON.energy}</span>`;
-          this.el.skipchip.disabled = s.runOver || !net.alive || net.energy < cc.skipCostEnergy;
-          this.el.skipchip.title = `Skip this round — advance without playing a card (${cc.skipCostEnergy}⚡)`;
+          // ...AND NOT WHILE THE ENEMIES ARE MOVING (owner). `onSkip` has always refused then —
+          // `playerBlockedReason` covers every committing entry point — but the chip still looked
+          // live, so the refusal read as a dead button rather than as "not yet". `s.enemyTurn`
+          // spans the growth reveal, the move, the slide and the attack, which is exactly the
+          // window the click is refused in, so the look and the rule cannot drift apart. This
+          // branch is already the turn-based one, so there is no mode test to add.
+          const enemiesMoving = !!s.enemyTurn;
+          this.el.skipchip.disabled = s.runOver || !net.alive || enemiesMoving
+            || net.energy < cc.skipCostEnergy;
+          this.el.skipchip.title = enemiesMoving
+            ? 'The enemies are still moving — wait for their turn to finish.'
+            : `Skip this round — advance without playing a card (${cc.skipCostEnergy}⚡)`;
         }
       }
       this._renderOffer();
@@ -26777,6 +26916,18 @@ function startTutorial(deps) {
       place: 'bottom',
     },
     {
+      // THE CAMERA CONTROLS, TAUGHT BEFORE ANYTHING ASKS THE PLAYER TO LOOK SOMEWHERE (owner).
+      // It sits third on purpose: the two steps before it have just pointed at the colony and then
+      // at a goal on the far side of the map, so "how do I move the view?" is a question the
+      // player now has, and every step after this one assumes they can. `place: 'center'` and no
+      // `target` because the subject is the whole map rather than a spot on it — a ring would be
+      // pointing at nothing in particular.
+      text: '<b>Scroll or pinch</b> to zoom in and out.'
+        + '<br>Hold <b>right mouse button</b> to drag the map.',
+      focus: (s) => world(deps.colonyRoot(), 1.0),
+      place: 'center',
+    },
+    {
       text: 'This is your deck.<br><b>Click a card to play it.</b>',
       focus: (s) => world(deps.colonyRoot(), 1.1),
       target: () => cardTarget(APICAL),
@@ -28216,7 +28367,7 @@ const aimNearPx = () => Math.max(170, Math.min(420, 260 * camera.zoom));
 // the only two ways out are to drag off the screen entirely, or — having already aimed —
 // to pull back to within this radius of where you pressed. Coming back out past it re-arms
 // the aim, so a stray wobble never costs you the gesture.
-const AIM_CANCEL_BACK_PX = 26;
+const AIM_CANCEL_BACK_PX = 32.5;   // 26 x 1.25 (owner: "25% larger")
 
 // --- setup / restart --------------------------------------------------------
 // Per-level config: procedural map as always, but the number of each threat is
@@ -30644,6 +30795,13 @@ function begin(newState) {
   // even with the dev-tools panel off; remove for a public release.
   window.__game = {
     get state() { return state; }, camera, performAction, tickWorld,
+    // The SFX module and the live UI object. Neither is reachable otherwise — the modules are
+    // `const`s inside one inline script, not properties of `window`, so a check has no route to
+    // either. `sfx` is how the card click sounds are asserted (they are oscillators, so there is
+    // nothing to hear headlessly and nothing to read off the DOM); `ui` is how the
+    // select/deselect TRANSITION rule is exercised on the object that owns it.
+    sfx: () => __m_render_sfx,
+    ui: () => ui,
     // Fire an installed ability by its index in `state.cards.actions`. The only route a check has
     // to a SPECIES SPECIAL (Fly Agaric's Berserk, Blue Bonnet's Toxic Burst): those are actions, not
     // cards, so `play()` cannot reach them, and the real route is a Use button plus a map tap. Two
@@ -30895,6 +31053,10 @@ function begin(newState) {
                where: bad.map((o) => ({ t: o.t, kind: o.kind || null, x: Math.round(+o.x || 0), y: Math.round(+o.y || 0) })) };
     },
     handlers,
+    // Which cards take the press-drag aim. A check that wants to exercise the ARMED camera
+    // gesture has to arm a card that actually claims the left button — anything else leaves
+    // left-drag panning as it always did, and the assertion passes on a build with none of it.
+    cardUsesDragAim,
     draw: () => resolveCardOp(drawCard(state)),
     skip: () => resolveCardOp(skipRound(state)),
     play: (i, ctx) => resolveCardOp(playCard(state, i, ctx)),
@@ -31772,10 +31934,16 @@ function setupInput() {
     pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     canvas.setPointerCapture(e.pointerId);
     if (pointers.size === 1) {
+      // RIGHT BUTTON ALWAYS PANS, and that is the point of adding it (owner). Left-drag is
+      // overloaded: with a directional grow armed it AIMS, so while a card is up there is no
+      // mouse gesture left for moving the camera and the player has to disarm to look around.
+      // The right button is not part of any aim, so it can pan unconditionally — which is also
+      // why `beginAim` is skipped for it rather than being cancelled afterwards.
+      mouse.rightPan = (e.button === 2);
       mouse.down = true; mouse.moved = false;
       mouse.startX = e.clientX; mouse.startY = e.clientY;
       mouse.x = e.clientX; mouse.y = e.clientY;
-      beginAim(e);          // start a directional press-drag aim if one is armed
+      if (!mouse.rightPan) beginAim(e);   // start a directional press-drag aim if one is armed
     } else if (pointers.size === 2) {
       pinchDist = pointerSpread();
       mouse.moved = true;   // a second finger cancels tap/pan…
@@ -31802,12 +31970,15 @@ function setupInput() {
     // targeting preview — e.g. the Amputate cut radius — follows the mouse.
     const dx = e.clientX - mouse.x, dy = e.clientY - mouse.y;
     mouse.x = e.clientX; mouse.y = e.clientY;
-    if (aim && mouse.down) { updateAim(e); return; }   // aiming a directional grow — steer, don't pan
+    if (aim && mouse.down && !mouse.rightPan) { updateAim(e); return; }   // aiming a directional grow — steer, don't pan
     if (mouse.down) {
       if (Math.abs(e.clientX - mouse.startX) + Math.abs(e.clientY - mouse.startY) > 4) mouse.moved = true;
       if (mouse.moved) camera.panByScreen(dx, dy);
     }
   });
+  // A right-drag that panned must not also open the browser menu on release. Suppressed on the
+  // CANVAS only, so a right-click anywhere in the HUD still behaves like an ordinary web page.
+  canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   const endPointer = (e) => {
     noteInput();   // release often starts an animation (grow, play) — stay at full rate
     const had = pointers.has(e.pointerId);
@@ -31815,6 +31986,11 @@ function setupInput() {
     if (pointers.size < 2) pinchDist = 0;
     if (!had || pointers.size !== 0 || !mouse.down) return;
     mouse.down = false;
+    // A RIGHT PRESS IS A CAMERA GESTURE AND NOTHING ELSE — including when it never moved. Falling
+    // through here would let a right-click land on the tap paths below (targeting a card, the dev
+    // placements), so a player who right-clicked to look around and changed their mind would
+    // silently spend the armed card instead.
+    if (mouse.rightPan) { mouse.rightPan = false; return; }
     // A directional aim owns this gesture: fire it, or abort (pointercancel, dragged
     // too far, or too short to point) and stay armed so the player can try again.
     if (aim) {
@@ -32210,7 +32386,11 @@ function advanceSim(time) {
 // too long", exactly as the draft intro does.
 const ENEMY_WAIT_GRACE = 350;    // no reveal started by now → there wasn't one; go
 const ENEMY_WAIT_MAX = 5000;     // hard ceiling so a stuck reveal can't hang the turn
-const ENEMY_SLIDE_MS = 2000;     // the creatures' walk to their new positions
+// Halved from 2000 (owner: "50% faster"). Two seconds was legible the first time and a tax on
+// every turn after it — this is the animation the player watches most often in a run. Nothing else
+// keys off it: the MOVE and ATTACK passes are separate calls either side of the hold, so shortening
+// it changes how long the walk is drawn for and not what the creatures do.
+const ENEMY_SLIDE_MS = 1000;     // the creatures' walk to their new positions
 
 function advanceEnemyTurn(time) {
   const et = state && state.enemyTurn;

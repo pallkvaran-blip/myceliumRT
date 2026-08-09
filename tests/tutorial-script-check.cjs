@@ -119,14 +119,28 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   const has = (re) => texts.some((t) => re.test(t));
   ok('1. "This is your colony. You are mycelium. Mycelium is you."',
      /This is your colony\.\s*You are mycelium\. Mycelium is you\./.test(texts[0] || ''), texts[0] || '(none)');
-  ok('3. "This is your deck. Click a card to play it."',
-     /This is your deck\.\s*Click a card to play it\./.test(texts[2] || ''), texts[2] || '(none)');
-  ok('4. the substrate line names both pile colours',
-     /Grow into substrate to consume it\./.test(texts[3] || '')
-     && /Yellow piles give you energy/.test(texts[3] || '')
-     && /Orange piles give you energy and new cards/.test(texts[3] || ''), texts[3] || '(none)');
-  ok('5. red leaves are engine cards', has(/Red leaves are rare and give you engine cards\.\s*Very valuable\./));
-  ok('6. water harvests 1 per round, and running out kills',
+  // FOUND BY CONTENT, ORDER ASSERTED SEPARATELY. These two were pinned to texts[2] and texts[3],
+  // and inserting the camera step at 3 renamed both failures into something that looked like the
+  // copy had changed ('3. "This is your deck"' reported the camera line). The script is edited
+  // often enough that an absolute index is a booby trap; what actually matters is that each line
+  // is present, correct, and in the right ORDER relative to its neighbours.
+  const idxOf = (re) => texts.findIndex((t) => re.test(t));
+  const iCam = idxOf(/zoom in and out/i);
+  const iDeck = idxOf(/This is your deck/);
+  const iSub = idxOf(/Grow into substrate to consume it/);
+  ok('3. the camera controls, taught before anything asks the player to look around',
+     iCam === 2 && /Scroll or pinch/i.test(texts[iCam] || '')
+     && /right mouse button/i.test(texts[iCam] || ''), texts[2] || '(none)');
+  ok('4. "This is your deck. Click a card to play it."',
+     iDeck > iCam && /This is your deck\.\s*Click a card to play it\./.test(texts[iDeck] || ''),
+     texts[iDeck] || '(none)');
+  ok('5. the substrate line names both pile colours',
+     iSub > iDeck
+     && /Grow into substrate to consume it\./.test(texts[iSub] || '')
+     && /Yellow piles give you energy/.test(texts[iSub] || '')
+     && /Orange piles give you energy and new cards/.test(texts[iSub] || ''), texts[iSub] || '(none)');
+  ok('6. red leaves are engine cards', has(/Red leaves are rare and give you engine cards\.\s*Very valuable\./));
+  ok('7. water harvests 1 per round, and running out kills',
      has(/harvest 1 water per round/) && has(/won.t survive for long without water/));
   // ...ON ONE LINE at a desktop width. The sentence is 486px wide at this font and the popup used
   // to give it 434, so it wrapped — and `text-wrap: balance` then evened the halves and put the
