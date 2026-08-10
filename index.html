@@ -1549,6 +1549,23 @@
     .ss-dth-spores { margin:clamp(4px,1.2vh,12px) 0 0; font-family:var(--ss-serif);
       font-size:clamp(14px,2vw,19px); color:var(--ss-ink); }
     .ss-dth-spores b { color:#eaf7ff; font-weight:700; font-size:1.18em; }
+    /* THE SPORES LINE SAYS WHAT YOU EARNED; THIS SAYS WHAT IT IS FOR (owner). A number with no
+       use attached is just a score, and the store is the one thing a run feeds that the player
+       might never find. `#c0281f` is the game's own red — the level intro's — picked there
+       because a true dark red on a near-black ground loses too much contrast.
+       Uppercase and tracked-out because the owner wrote it that way; the transform is in CSS so
+       the strings stay readable in the source and in a search. */
+    .spore-cta { font-family:var(--ss-sans); font-weight:700; text-transform:uppercase;
+      letter-spacing:0.11em; line-height:1.5; color:#c0281f; text-wrap:balance;
+      font-size:clamp(9.5px,1.25vw,12.5px); margin:6px auto 0; max-width:44ch; }
+    /* The run-over overlay is a black-and-white card with its own scale, so the same class needs
+       a size that belongs there rather than to the campaign screens — AND ITS OWN COLOUR, because
+       `.overlay .card.death p` sets `#dcdcdc` at (0,3,1) and beats a bare `.spore-cta` at (0,1,0).
+       The red simply did not appear, and only a rendered frame showed it: the text was there, in
+       the right place, in the wrong colour. Repeating `.death` here takes it to (0,4,0). */
+    .overlay .card .spore-cta,
+    .overlay .card.death .spore-cta { font-size:10.5px; margin:6px auto 0; max-width:38ch;
+      color:#c0281f; }
     .ss-dth-spores .spore-ic { width:1.05em; height:1.05em; vertical-align:-0.16em; margin-left:3px; }
     /* THE VERB ON THE BUTTON, THE CONSEQUENCE UNDER IT (owner). Sub-lines are what let the retry
        count off the button face. */
@@ -23763,8 +23780,13 @@ class UI {
     const campaignDeath = this.cardsOn && !puzzle && died;
     // Total Spores earned across this run — shown on the death card so the loss still
     // banks progress the player can spend to unlock species at the picker.
+    // ONE SPORES LINE, TWO OUTCOMES. This overlay is the run-over screen for a WIN as well as a
+    // death (the `won` branch above titles it "You reached the goal!"), so the call to action under
+    // it has to follow the outcome — telling someone who just won that dying is part of living
+    // reads as the game not having noticed.
     const sporeLine = (result && result.runSpores != null)
       ? `<p class="death-spores">${SPORE_ICON}<b>${result.runSpores}</b>&nbsp;Spores earned this run</p>`
+        + `<p class="spore-cta">${won ? 'Use Spores to buy powerful upgrades and new species between runs' : 'Dying is a part of living: use your Spores to buy powerful upgrades and new species'}</p>`
       : '';
     // Top-10 badge (only when this run cracked the top 10 — hs supplied). The score was
     // already recorded (using the name entered at New Game); this just flags it and links
@@ -25780,7 +25802,8 @@ function showDeathScreen({ title, sub, spores, retryNote, retryOff, retryTitle, 
     (sub ? '<p class="ss-win-sub">' + esc(sub) + '</p>' : '') +
     // "So far", because it is not theirs yet: ending the run is what banks it, and the retry
     // beside this line is the choice not to.
-    (spores ? '<p class="ss-dth-spores">You have collected <b>' + spores + '</b>' + SPORE_ICON + ' spores so far</p>' : '') +
+    (spores ? '<p class="ss-dth-spores">You have collected <b>' + spores + '</b>' + SPORE_ICON + ' spores so far</p>'
+            + '<p class="spore-cta">Dying is a part of living: use your Spores to buy powerful upgrades and new species</p>' : '') +
     '<div class="ss-dth-actions">' +
       '<div class="ss-dth-act">' +
         '<button class="ss-dth-btn primary" id="ssDeathKeep" type="button">End Run</button>' +
@@ -25810,7 +25833,8 @@ function showGameWon({ spores, balance, onNewRun }) {
       '<div class="ss-lc-badge">Run complete</div>' +
       '<h2 class="ss-lc-title">You carried the colony to the surface — all the way. 🍄✦</h2>' +
       '<p class="ss-lc-sub">Every level cleared. The mycelium has conquered the deep. Start a fresh run with any species you\'ve unlocked.</p>' +
-      (spores ? '<div class="ss-win-spores ss-lc-spores">You fruited and spored <b>+' + spores + '</b>' + SPORE_ICON + '</div>' : '') +
+      (spores ? '<div class="ss-win-spores ss-lc-spores">You fruited and spored <b>+' + spores + '</b>' + SPORE_ICON + '</div>'
+              + '<p class="spore-cta">Use Spores to buy powerful upgrades and new species between runs</p>' : '') +
       '<div class="ss-lc-actions"><button class="ss-btn primary" id="ssGwNew">Begin a new run ↻</button></div>' +
     '</div>';
   document.body.appendChild(root);

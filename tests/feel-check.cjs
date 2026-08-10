@@ -496,6 +496,49 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
        !!aims.cancelled && aims.cancelled.played === false && aims.cancelled.stillArmed === true,
        JSON.stringify(aims.cancelled));
 
+    // ---- 10. the Spores call to action ---------------------------------------------------------
+    // Owner: under the spores count on both outcomes, in red. The three screens that show a spores
+    // total are the campaign death screen, the run-complete screen, and the run-over OVERLAY —
+    // which serves a WIN and a DEATH off one line, so its wording has to follow the outcome.
+    console.log('\n10. the Spores call to action');
+    const cta = await touch.evaluate(() => {
+      const g = window.__game;
+      const read = () => {
+        const n = document.querySelector('.spore-cta');
+        if (!n) return null;
+        const cs = getComputedStyle(n);
+        return { text: n.textContent.trim(), color: cs.color, transform: cs.textTransform };
+      };
+      document.querySelectorAll('#ssDeath, .overlay').forEach(() => {});
+      g.ui().showOverlay({ won: true, died: false, turns: 12, runSpores: 250 }, null);
+      const win = read();
+      g.ui().showOverlay({ won: false, died: true, cause: 'devoured', turns: 12, runSpores: 250 }, null);
+      const died = read();
+      // NO SPORES, NO SUBTITLE: it is a subtitle TO the spores line, so with nothing to sit under
+      // it would be advertising a currency the screen never mentioned.
+      g.ui().showOverlay({ won: false, died: true, cause: 'devoured', turns: 12, runSpores: null }, null);
+      const none = read();
+      return { win, died, none };
+    });
+    ok('a WIN says to spend the Spores between runs',
+       !!cta.win && /use spores to buy powerful upgrades and new species between runs/i.test(cta.win.text),
+       cta.win && cta.win.text);
+    // The overlay is one screen for both outcomes; telling someone who just won that dying is part
+    // of living reads as the game not having noticed.
+    ok('a DEATH gets the death wording instead',
+       !!cta.died && /dying is a part of living/i.test(cta.died.text), cta.died && cta.died.text);
+    ok('...and the two are not the same line', !!cta.win && !!cta.died && cta.win.text !== cta.died.text);
+    // RED, and asserted as a colour rather than as a class: `.overlay .card.death p` sets #dcdcdc at
+    // a higher specificity than a bare `.spore-cta`, so the first version rendered the right words
+    // in the wrong colour and every class-based assertion would have passed.
+    const red = (c) => { const m = /rgba?\((\d+), *(\d+), *(\d+)/.exec(c || ''); if (!m) return false;
+      const [r, g2, b] = [+m[1], +m[2], +m[3]]; return r > 120 && r > g2 * 2.2 && r > b * 2.2; };
+    ok('...and it is actually RED on screen, not merely classed as red',
+       !!cta.win && red(cta.win.color), cta.win && cta.win.color);
+    ok('...and uppercase, as written', !!cta.win && cta.win.transform === 'uppercase',
+       cta.win && cta.win.transform);
+    ok('no spores, no subtitle', cta.none === null, cta.none && cta.none.text);
+
     // ---- 9. the "Aiming <card>" chip is gone ---------------------------------------------------
     console.log('\n9. no aiming chip');
     const chip = await touch.evaluate(() => ({
