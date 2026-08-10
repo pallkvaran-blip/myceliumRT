@@ -13805,6 +13805,18 @@ function classifySource(hostname) {
   if (h.endsWith('github.io')) return 'pages';
   if (h.includes('itch.') || h.endsWith('itch.zone') || h.includes('hwcdn.net') ||
       h.includes('itchusercontent')) return 'itch';
+  // MATCHED ON THE DOMAIN, NOT THE HOST THE GAME HAPPENS TO SIT ON. Both stores serve from a
+  // per-game subdomain (`<slug>.game-files.crazygames.com`, `uploads.ungrounded.net`) and can serve
+  // the same game from more than one — a review build and a live one, a CDN edge, a partner embed.
+  // Under the `web:<host>` fallback each of those is its OWN chip, so one store's traffic arrives
+  // split across rows that nothing marks as related. Named here, every host they own collapses to
+  // one label whatever subdomain it comes from.
+  if (h.includes('crazygames.')) return 'crazygames';
+  if (h.includes('ungrounded.net') || h.includes('newgrounds.')) return 'newgrounds';
+  // Anything else keeps its NAME rather than becoming 'other', so a new host can be SEEN here and
+  // classified later instead of vanishing into a bucket. Truncated because the column is narrow —
+  // note this cuts mid-domain (24 chars is `web:` plus 20), which is why the two above are matched
+  // on a substring rather than on the stored string.
   return ('web:' + h).slice(0, 24);
 }
 function eventSource() {
@@ -13902,7 +13914,9 @@ function logEvent(kind, fields) {
 // A tap that could only be armed after the game object appeared could never see the one event the
 // whole funnel divides by — which is exactly how the first version of this failed, silently, with
 // every other assertion passing.
-try { window.__telemetry = { tap: setEventTap, device: deviceClass, log: logEvent }; } catch (_) {}
+// `classify` is here so a check can ask what a HOSTNAME resolves to without having to be served
+// from it — the store labels are otherwise only observable by actually being on crazygames.com.
+try { window.__telemetry = { tap: setEventTap, device: deviceClass, log: logEvent, classify: classifySource }; } catch (_) {}
 
   return { scoresEnabled, fetchGlobalBoards, submitGlobalScore, classifySource, logEvent, setEventContext, setEventTap, deviceClass };
 })();

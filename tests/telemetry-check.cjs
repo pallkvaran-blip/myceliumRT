@@ -262,6 +262,34 @@ const ALLOWED = new Set(['client_id', 'session_id', 'kind', 'species', 'level', 
      `${slim.length} of 4 probes landed`);
   await ctx2.close();
 
+  // ---- which STORE a hostname belongs to ------------------------------------
+  // The labels the analytics page groups by. Asserted against hostnames rather than by being
+  // served from them, which is the only way to cover a store's domain from here at all.
+  {
+    // ITS OWN PAGE: the first context is closed long before this point, and reusing a dead `page`
+    // fails as "Target page, context or browser has been closed" rather than as a real result.
+    const cpage = await openGame('#dev,turn');
+    const cls = await cpage.evaluate((hosts) => hosts.map((h) => window.__telemetry.classify(h)),
+      ['mycelium.game-files.crazygames.com', 'www.crazygames.com', 'games.crazygames.com',
+       'uploads.ungrounded.net', 'www.newgrounds.com',
+       'html-classic.itch.zone', 'pallkvaran.itch.io',
+       'localhost', 'someone-elses-site.example']);
+    const [cg1, cg2, cg3, ng1, ng2, it1, it2, dev, other] = cls;
+    // EVERY host a store owns must collapse to ONE label. Under the old `web:<host>` fallback each
+    // subdomain was its own chip, so a store serving a review build and a live build from different
+    // hosts arrived as two unrelated rows — which is the failure this is guarding.
+    ok('every CrazyGames host is one label', cg1 === 'crazygames' && cg2 === 'crazygames' && cg3 === 'crazygames',
+       cls.slice(0, 3).join(', '));
+    ok('every Newgrounds host is one label', ng1 === 'newgrounds' && ng2 === 'newgrounds',
+       cls.slice(3, 5).join(', '));
+    ok('itch is unchanged', it1 === 'itch' && it2 === 'itch', cls.slice(5, 7).join(', '));
+    ok('local boots stay out of the store numbers', dev === 'dev', String(dev));
+    // An unknown host keeps its NAME rather than becoming 'other', so it can be seen and classified
+    // later instead of vanishing into a bucket.
+    ok('an unknown host is still named, not bucketed', /^web:/.test(other), String(other));
+    await cpage.context().close();
+  }
+
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   await browser.close(); srv.close();
   process.exit(fail ? 1 : 0);
