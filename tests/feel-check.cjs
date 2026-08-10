@@ -507,7 +507,8 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
         const n = document.querySelector('.spore-cta');
         if (!n) return null;
         const cs = getComputedStyle(n);
-        return { text: n.textContent.trim(), color: cs.color, transform: cs.textTransform };
+        return { text: n.textContent.trim(), color: cs.color, transform: cs.textTransform,
+                 br: !!n.querySelector('br') };
       };
       document.querySelectorAll('#ssDeath, .overlay').forEach(() => {});
       g.ui().showOverlay({ won: true, died: false, turns: 12, runSpores: 250 }, null);
@@ -526,7 +527,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     // The overlay is one screen for both outcomes; telling someone who just won that dying is part
     // of living reads as the game not having noticed.
     ok('a DEATH gets the death wording instead',
-       !!cta.died && /dying is a part of living/i.test(cta.died.text), cta.died && cta.died.text);
+       !!cta.died && /dying is a part of life/i.test(cta.died.text)
+       && /new species and powerful upgrades between runs/i.test(cta.died.text),
+       cta.died && cta.died.text);
+    // The break is authored, not left to the wrap: the owner wrote it as two lines.
+    ok('...on two lines, as written', !!cta.died && cta.died.br === true,
+       cta.died && String(cta.died.br));
     ok('...and the two are not the same line', !!cta.win && !!cta.died && cta.win.text !== cta.died.text);
     // RED, and asserted as a colour rather than as a class: `.overlay .card.death p` sets #dcdcdc at
     // a higher specificity than a bare `.spore-cta`, so the first version rendered the right words
@@ -538,6 +544,30 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok('...and uppercase, as written', !!cta.win && cta.win.transform === 'uppercase',
        cta.win && cta.win.transform);
     ok('no spores, no subtitle', cta.none === null, cta.none && cta.none.text);
+    // THE SCREEN THIS WAS ACTUALLY ASKED FOR. The line first went on `showGameWon`, which is the
+    // WHOLE-CAMPAIGN card — it fires once at level 10, and not even then for a campaign run, which
+    // gets the victory screen instead. So it was effectively invisible and reported as "failing to
+    // appear on my win level screen". `showLevelComplete` is the one a player sees on every clear.
+    const lvl = await touch.evaluate(async () => {
+      document.querySelectorAll('.overlay, #ssLevelComplete').forEach((n) => n.classList && n.classList.add('hidden'));
+      window.__game.winLevel();
+      for (let i = 0; i < 60 && !document.getElementById('ssLevelComplete'); i++) await new Promise((r) => setTimeout(r, 200));
+      const root = document.getElementById('ssLevelComplete');
+      if (!root) return { screen: false };
+      const n = root.querySelector('.spore-cta');
+      return { screen: true, text: n ? n.textContent.trim() : null,
+               color: n ? getComputedStyle(n).color : null,
+               // ...and it must sit BELOW the spores count, not above it.
+               belowSpores: !!(n && root.querySelector('.ss-win-earned')
+                 && (root.querySelector('.ss-win-earned').compareDocumentPosition(n)
+                     & Node.DOCUMENT_POSITION_FOLLOWING)) };
+    });
+    ok('the LEVEL-clear screen is reachable', lvl.screen === true, JSON.stringify(lvl));
+    ok('...and carries the call to action — the screen a player sees on every clear',
+       !!lvl.text && /use spores to buy powerful upgrades and new species between runs/i.test(lvl.text),
+       lvl.text || 'absent');
+    ok('...in red', red(lvl.color), lvl.color);
+    ok('...and below the spores count, not above it', lvl.belowSpores === true, String(lvl.belowSpores));
 
     // ---- 9. the "Aiming <card>" chip is gone ---------------------------------------------------
     console.log('\n9. no aiming chip');

@@ -23786,7 +23786,7 @@ class UI {
     // reads as the game not having noticed.
     const sporeLine = (result && result.runSpores != null)
       ? `<p class="death-spores">${SPORE_ICON}<b>${result.runSpores}</b>&nbsp;Spores earned this run</p>`
-        + `<p class="spore-cta">${won ? 'Use Spores to buy powerful upgrades and new species between runs' : 'Dying is a part of living: use your Spores to buy powerful upgrades and new species'}</p>`
+        + `<p class="spore-cta">${won ? 'Use Spores to buy powerful upgrades and new species between runs' : 'Dying is a part of life:<br>Use your Spores to buy new species and powerful upgrades between runs'}</p>`
       : '';
     // Top-10 badge (only when this run cracked the top 10 — hs supplied). The score was
     // already recorded (using the name entered at New Game); this just flags it and links
@@ -25743,6 +25743,11 @@ function showLevelComplete({ level, maxLevel, unlocked, earned, base, mult, bala
             + '&nbsp;=</span><b>' + earned + '</b>' + SPORE_ICON + '</p>'
           : '<p class="ss-win-earned"><b>+' + earned + '</b>' + SPORE_ICON + '</p>')
       : '') +
+    // THE LEVEL-CLEAR SCREEN IS "THE WIN SCREEN" — this is the one a player sees nine times a
+    // campaign. The call to action first went on `showGameWon`, which is the WHOLE-CAMPAIGN card
+    // and fires once at level 10 (and not even then for a campaign run, which gets the victory
+    // screen instead) — so it was effectively invisible. Reported as "failing to appear".
+    (earned ? '<p class="spore-cta">Use Spores to buy powerful upgrades and new species between runs</p>' : '') +
     '<button class="ss-win-btn" id="ssWinProceed" type="button">Proceed</button>';
   document.body.appendChild(root);
   const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: word.toUpperCase(), stepRate: 3.2 });
@@ -25803,7 +25808,7 @@ function showDeathScreen({ title, sub, spores, retryNote, retryOff, retryTitle, 
     // "So far", because it is not theirs yet: ending the run is what banks it, and the retry
     // beside this line is the choice not to.
     (spores ? '<p class="ss-dth-spores">You have collected <b>' + spores + '</b>' + SPORE_ICON + ' spores so far</p>'
-            + '<p class="spore-cta">Dying is a part of living: use your Spores to buy powerful upgrades and new species</p>' : '') +
+            + '<p class="spore-cta">Dying is a part of life:<br>Use your Spores to buy new species and powerful upgrades between runs</p>' : '') +
     '<div class="ss-dth-actions">' +
       '<div class="ss-dth-act">' +
         '<button class="ss-dth-btn primary" id="ssDeathKeep" type="button">End Run</button>' +
