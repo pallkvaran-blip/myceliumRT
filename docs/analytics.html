@@ -156,6 +156,11 @@ function inFilter(r, skipSource) {
   return true;
 }
 
+// RETENTION HAS TO IGNORE THE DAY WINDOW. Whether someone is a NEW player depends on their
+// first-ever event, and inside a 30-day window a player who arrived 40 days ago looks like a
+// fresh arrival who never came back. Every other filter still applies.
+function inFilterNoDays(r) { var d = FILTER.days; FILTER.days = 0; var k = inFilter(r); FILTER.days = d; return k; }
+
 function kpi(host, value, label, note) {
   var b = el("div", "kpi");
   b.appendChild(el("div", "v", value));
@@ -273,6 +278,97 @@ function render() {
   barRow(ft, "opened the species screen", pickers.length, funnelBase, "", 1);
   barRow(ft, "started a run", uniq(starts.map(function (r) { return r.session_id; })).length, funnelBase, "", 1);
   barRow(ft, "cleared a level", uniq(of("level_clear").map(function (r) { return r.session_id; })).length, funnelBase, "", 1);
+
+  // ---- COMING BACK (does anyone play twice?) ------------------------------
+  // A VISIT, NOT A SESSION. Reloading the page mints a new `session_id`, so counting sessions
+  // answers "how many times did a tab open" rather than "did anybody come back" — and on a launch
+  // day those two differ a lot. A player's events are grouped and split wherever there is a gap of
+  // VISIT_GAP or more, so a reload, a crash-and-retry and an accidental double-open are ONE visit.
+  var VISIT_GAP = 30 * 60000;
+  var DAY = 86400000;
+  section("Coming back");
+  var prA = panel(); prA.style.marginBottom = "10px";
+  var retRows = ROWS.filter(function (r) { return r.client_id && r.created_at && inFilterNoDays(r); });
+  var byPlayer = {};
+  retRows.forEach(function (r) {
+    var t = new Date(r.created_at).getTime();
+    if (!(t > 0)) return;
+    (byPlayer[r.client_id] || (byPlayer[r.client_id] = [])).push(t);
+  });
+  var NOW = Date.now();
+  var people = Object.keys(byPlayer).map(function (id) {
+    var ts = byPlayer[id].sort(function (a, b) { return a - b; });
+    var visits = [ts[0]];
+    for (var i = 1; i < ts.length; i++) if (ts[i] - ts[i - 1] >= VISIT_GAP) visits.push(ts[i]);
+    return { first: ts[0], visits: visits };
+  });
+  // ONLY PLAYERS WHO HAVE HAD THE CHANCE. Somebody who first played an hour ago has not failed to
+  // return — they have not been asked yet. Right after a launch they are MOST of the population, so
+  // including them drags "% who came back" toward zero and makes a healthy game look dead. This is
+  // the single thing that makes a retention number wrong, so the denominator is stated on screen.
+  var mature = people.filter(function (p) { return NOW - p.first >= DAY; });
+  var returned = mature.filter(function (p) { return p.visits.length > 1; });
+  var gaps = returned.map(function (p) { return p.visits[1] - p.visits[0]; });
+  var kr = el("div", "cards"); prA.appendChild(kr);
+  kpi(kr, String(people.length), "players", "all time, this source");
+  kpi(kr, String(mature.length), "asked the question", "first played over a day ago");
+  kpi(kr, mature.length ? pct(returned.length, mature.length) + "%" : "–", "came back",
+      mature.length ? returned.length + " of " + mature.length + " played again" : "nobody is a day old yet");
+  kpi(kr, gaps.length ? fmtMs(median(gaps)) : "–", "median gap", "first visit to second");
+  var vc = returned.map(function (p) { return p.visits.length; });
+  kpi(kr, vc.length ? String(median(vc)) : "–", "visits, returners", "median");
+  if (!mature.length) {
+    prA.appendChild(el("p", "empty", people.length
+      ? "Every player here arrived in the last 24 hours, so none of them has had a chance to come"
+        + " back yet. Retention needs a day to mean anything — check again tomorrow."
+      : "No players in this window."));
+  }
+
+  var prB = panel();
+  prB.appendChild(el("p", "empty", "How many separate visits each player has made"
+    + (mature.length ? " (of the " + mature.length + " who have had a day to come back)" : "")));
+  var vt = table(prB, ["visits", "players"]);
+  var vb = [["1 — never came back", 1, 1], ["2", 2, 2], ["3", 3, 3], ["4–5", 4, 5], ["6+", 6, Infinity]];
+  vb.forEach(function (b) {
+    var n = mature.filter(function (p) { return p.visits.length >= b[1] && p.visits.length <= b[2]; }).length;
+    barRow(vt, b[0], n, mature.length || 1, b[1] === 1 ? "bad" : "", 1);
+  });
+
+  var prC = panel();
+  prC.appendChild(el("p", "empty", "How long the returners left it before their second visit"));
+  var tt = table(prC, ["came back after", "players"]);
+  var tb2 = [["under 2 hours", 0, 2 * 3600000], ["2–12 hours", 2 * 3600000, 12 * 3600000],
+             ["12 hours – 2 days", 12 * 3600000, 2 * DAY], ["2–7 days", 2 * DAY, 7 * DAY],
+             ["over a week", 7 * DAY, Infinity]];
+  if (!gaps.length) prC.appendChild(el("p", "empty", "Nobody has come back a second time yet."));
+  tb2.forEach(function (b) {
+    var n = gaps.filter(function (g) { return g >= b[1] && g < b[2]; }).length;
+    barRow(tt, b[0], n, gaps.length || 1, "", 1);
+  });
+
+  // BY ARRIVAL DAY, because one overall percentage hides a trend. A store feature or a devlog
+  // brings a wave of players whose retention can be quite different from the trickle before it.
+  var prD = panel();
+  prD.appendChild(el("p", "empty", "By the day they first played — each row is that day’s new players and how many of them returned later"));
+  var ct = table(prD, ["first played", "came back"]);
+  var days = {};
+  mature.forEach(function (p) {
+    var d = new Date(p.first).toISOString().slice(0, 10);
+    (days[d] || (days[d] = [])).push(p);
+  });
+  var dk = Object.keys(days).sort().reverse().slice(0, 14);
+  if (!dk.length) prD.appendChild(el("p", "empty", "No arrival day is old enough to judge yet."));
+  dk.forEach(function (d) {
+    var g = days[d], back = g.filter(function (p) { return p.visits.length > 1; }).length;
+    barRow(ct, d + "  ·  " + g.length + " new", back, g.length, "", 1);
+  });
+  // THE FLOOR CAVEAT, ON SCREEN RATHER THAN IN A COMMENT. Anyone reading a retention number needs
+  // to know which direction it is wrong in.
+  prD.appendChild(el("p", "empty", "A player is a browser localStorage id. The same person on a"
+    + " phone and a laptop counts as two, and clearing site data makes a new one — and on"
+    + " CrazyGames and Newgrounds the game runs in an iframe on THEIR domain, where browsers evict"
+    + " third-party storage hard. So every number here is a FLOOR: real return rates are higher by"
+    + " an unknown amount, and comparing sources is comparing storage policies as much as games."));
 
   // ---- HOW FAR PEOPLE GET (the owner's headline question) ------------------
   section("How far people get");

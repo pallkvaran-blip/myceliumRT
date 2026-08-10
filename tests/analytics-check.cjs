@@ -353,6 +353,62 @@ function fixture() {
 
   fs.mkdirSync(path.join(ROOT, 'tests', '.artifacts'), { recursive: true });
   await page.screenshot({ path: path.join(ROOT, 'tests', '.artifacts', 'analytics-check.png'), animations: 'disabled', timeout: 20000 }).catch(() => {});
+  // ---- RETENTION, on a fixture whose answer is known by hand ----------------
+  // Five players, built so every rule the section rests on is exercised by exactly one of them.
+  // A separate page: the main fixture is shaped for the funnel, and reusing it would mean asserting
+  // against numbers nobody worked out on paper.
+  {
+    const DAY = 86400000, H = 3600000, now = Date.now();
+    const rows = []; let id = 0;
+    const ev = (cid, t) => rows.push({ id: ++id, created_at: new Date(t).toISOString(),
+      client_id: cid, session_id: 'x' + (++id), kind: 'boot', ms: 1000,
+      source: 'itch', game: 'campaign', mode: 'turn', device: 'desktop' });
+    // P1 arrived 2 HOURS ago: has not had a chance to return, so must not be in the denominator.
+    ev('P1', now - 2 * H);
+    // P2: one visit, 3 days ago. Mature, did not come back.
+    ev('P2', now - 3 * DAY);
+    // P3: 3 days ago and again 2 days ago. Mature, came back.
+    ev('P3', now - 3 * DAY); ev('P3', now - 2 * DAY);
+    // P4: 5 days ago, three events 5 MINUTES apart — a reload, which is ONE visit, not a return.
+    ev('P4', now - 5 * DAY); ev('P4', now - 5 * DAY + 5 * 60000); ev('P4', now - 5 * DAY + 10 * 60000);
+    // P5: three visits over four days.
+    ev('P5', now - 4 * DAY); ev('P5', now - 3 * DAY); ev('P5', now - 1 * DAY);
+    // Hand-computed: 5 players, 4 mature (all but P1), 2 of those came back (P3, P5) = 50%.
+    const rp = await ctx.newPage();
+    const rerrs = []; rp.on('pageerror', (e) => rerrs.push(String(e && e.message)));
+    await rp.route('**/rest/v1/events*', async (route) => {
+      const rg = route.request().headers()['range'] || '0-999';
+      const [a, z] = rg.split('-').map(Number);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows.slice(a, z + 1)) });
+    });
+    await rp.goto(base + '/docs/analytics.html', { waitUntil: 'domcontentloaded' });
+    await rp.waitForFunction(() => !/Loading/.test(document.getElementById('sub').textContent), { timeout: 25000 });
+    await sleep(400);
+    const kpiOf = (label) => rp.evaluate((l) => {
+      const k = [...document.querySelectorAll('.kpi')].find((n) => (n.querySelector('.k') || {}).textContent === l);
+      return k ? { v: k.querySelector('.v').textContent, note: (k.querySelector('.note') || {}).textContent || '' } : null;
+    }, label);
+    ok('the retention section is on the page',
+       await rp.evaluate(() => [...document.querySelectorAll('h2')].some((h) => /Coming back/.test(h.textContent))));
+    const kPlayers = await kpiOf('players');
+    const kAsked = await kpiOf('asked the question');
+    const kBack = await kpiOf('came back');
+    ok('every player is counted', kPlayers && kPlayers.v === '5', kPlayers && kPlayers.v);
+    // THE DENOMINATOR RULE. P1 arrived two hours ago and has not failed to return — they have not
+    // been asked. Counting them would print 40% where the truth is 50%, and right after a launch
+    // that error is much larger, because almost everyone is brand new.
+    ok('...but only those who have had a day to come back are asked',
+       kAsked && kAsked.v === '4', kAsked && kAsked.v);
+    ok('...and the return rate is over THAT denominator',
+       kBack && kBack.v === '50%', kBack && (kBack.v + ' — ' + kBack.note));
+    // P4's three events five minutes apart are one visit. Counting sessions instead of visits would
+    // call that a returning player and print 75%.
+    ok('...with a reload counted as one visit, not as coming back',
+       kBack && /2 of 4/.test(kBack.note), kBack && kBack.note);
+    ok('no page errors in the retention section', rerrs.length === 0, rerrs.slice(0, 2).join(' | '));
+    await rp.close();
+  }
+
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   await browser.close(); srv.close();
   process.exit(fail ? 1 : 0);
