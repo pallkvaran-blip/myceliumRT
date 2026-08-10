@@ -13922,8 +13922,16 @@ function buildEventRow(kind, fields) {
   // are twenty of them.
   const ctx = (() => { try { return _eventCtx() || {}; } catch (_) { return {}; } })();
   const full = Object.assign({ source: eventSource() }, row);
-  if (ctx.game != null) full.game = String(ctx.game).slice(0, 16);
-  if (ctx.mode != null) full.mode = String(ctx.mode).slice(0, 16);
+  // `boot` CARRIES NO GAME OR MODE, and that is a correctness fix rather than tidiness. It fires
+  // before the player has chosen anything, so the context is still whatever `CONFIG` defaults to —
+  // survival — and every session therefore opened with a survival-tagged row. Any analysis that
+  // grouped rows by `game` then counted every BOUNCE as a survival player, which is what made
+  // survival sessions look far shorter than campaign ones (median 58s against 4.9m on itch; the
+  // real, attributed figures were 3.6m against 5.3m and not distinguishable from chance).
+  // A default is not an observation. Leaving these null says "not chosen yet", which is true.
+  const preChoice = row.kind === 'boot';
+  if (!preChoice && ctx.game != null) full.game = String(ctx.game).slice(0, 16);
+  if (!preChoice && ctx.mode != null) full.mode = String(ctx.mode).slice(0, 16);
   full.device = deviceClass();
   // Three generic carriers rather than a column per feature: `n` counts (steps, spores, cards,
   // retries), `ms` durations, `detail` names the thing (an upgrade track, a card, a step).

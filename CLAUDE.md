@@ -3399,6 +3399,24 @@ death was firing; the screen was lying about it.
     where the name does not exist — referencing it there threw a ReferenceError during boot and
     `window.__game` was never assigned, so the whole game failed to start. Declaration order is
     dependency order here; a constant is not global just because the file is one file.
+- **A DEFAULT IS NOT AN OBSERVATION — `boot` CARRIES NO GAME OR MODE.** It fires before the player
+  has chosen anything, so it used to report `CONFIG`'s defaults, i.e. **survival, on every single
+  session**. Anything grouping rows by `game` therefore counted every BOUNCE as a survival player.
+  Measured on itch: survival sessions looked like a 58s median against campaign's 4.9m — and
+  re-attributed by what people actually STARTED it was 3.6m against 5.3m, **p = 0.44, not
+  distinguishable from chance**. The whole apparent difference was 35% of sessions that never
+  started a run at all (median 17s) being filed under survival by a default.
+  - `telemetry-check` asserts **`boot` is the ONLY row without them**, which is a stronger guard
+    than the old "every event carries game, mode and device" — it also fails if the null leaks.
+- **AND THE PAGE ATTRIBUTES A SESSION BY WHAT IT STARTED, not row-by-row on `r.game`.** The Game
+  filter used to test each row, which was wrong in both directions: Game=survival swept in every
+  bounce's boot, and Game=campaign DROPPED those sessions' boot rows so the funnel lost part of its
+  own denominator. `GAME_OF` maps `session_id → the game of its first `run_start``, and a session
+  that started nothing is its own chip ("started nothing") rather than being filed under a default.
+- **`Build` IS NOW `Era`.** It splits on a COLUMN SET (the era before game/mode/device existed) and
+  sat beside `Release` — which splits on the build stamp — with both labelled "update". Two
+  controls claiming the same words and meaning different things is a trap; each is now named after
+  what it actually divides.
 - **"Did the update change spending?" is the analytics page's headline section**, and it is a
   SIDE-BY-SIDE table rather than a filter you toggle — a filter makes you hold the previous number
   in your head. Per release: players, how many reached the store, **how many SPENT anything**, and

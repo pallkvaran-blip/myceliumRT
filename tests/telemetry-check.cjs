@@ -90,6 +90,12 @@ const ALLOWED = new Set(['client_id', 'session_id', 'kind', 'species', 'level', 
   // ---- the build stamp ------------------------------------------------------
   // It rides on `boot`'s `detail` rather than a new column: `detail` is free on that event, so this
   // needed no Supabase migration — and until a migration ran, PostgREST would 400 every row.
+  // A DEFAULT IS NOT AN OBSERVATION. `boot` fires before the player has chosen a game, so tagging
+  // it from CONFIG's default (survival) filed every bounce under survival and made survival
+  // sessions look far shorter than campaign ones. Null means "not chosen yet", which is true.
+  ok('...and claims NO game or mode, because nothing has been chosen yet',
+     !!boot && boot.game == null && boot.mode == null,
+     boot && `game=${boot.game}, mode=${boot.mode}`);
   ok('...and carries a build stamp, so a release can be told from the one before it',
      !!boot && boot.detail != null, boot && JSON.stringify(boot.detail));
   // In the repo it is the placeholder; make-web-zip patches it and itchzip-check refuses a built
@@ -133,18 +139,24 @@ const ALLOWED = new Set(['client_id', 'session_id', 'kind', 'species', 'level', 
 
   // ---- 2. every row is groupable ----------------------------------------------
   console.log('\n-- context on every row --');
-  const missing = rows.filter((r) => !r.game || !r.mode || !r.device);
-  ok('every event carries game, mode and device', missing.length === 0,
-     missing.length ? `${missing.length} without: ${JSON.stringify(missing[0])}` : `${rows.length} rows`);
+  // EVERY ROW BUT `boot` — and boot's absence is asserted separately above, not waved through here.
+  // It fires before the player has chosen anything, so it used to report CONFIG's DEFAULTS, and a
+  // default is not an observation: it filed every bounce under survival and made survival sessions
+  // look far shorter than campaign ones. Testing "boot is the ONLY exception" is a stronger guard
+  // than the old "every event carries them", because it also fails if the null leaks anywhere else.
+  const tagged = rows.filter((r) => r.kind !== 'boot');
+  const missing = tagged.filter((r) => !r.game || !r.mode || !r.device);
+  ok('every event except `boot` carries game, mode and device', missing.length === 0,
+     missing.length ? `${missing.length} without: ${JSON.stringify(missing[0])}` : `${tagged.length} rows`);
+  ok('...and `boot` is the ONLY row without them',
+     rows.filter((r) => !r.game || !r.mode).every((r) => r.kind === 'boot'),
+     JSON.stringify([...new Set(rows.filter((r) => !r.game).map((r) => r.kind))]));
   ok('...and the mode is always one of the two',
-     rows.every((r) => r.mode === 'turn' || r.mode === 'realtime'),
-     JSON.stringify([...new Set(rows.map((r) => r.mode))]));
-  ok('...and the game is always one of the two', rows.every((r) => r.game === 'campaign' || r.game === 'survival'),
-     JSON.stringify([...new Set(rows.map((r) => r.game))]));
-  // THE ROWS THAT DESCRIBE A RUN carry that run's mode. `boot` is deliberately NOT among them: it
-  // fires before the player has chosen anything, so it reports the config's own defaults — which
-  // is the honest answer to "what was set when the page became playable", and pinning it to the
-  // booted mode would be asserting the boot hash rather than the telemetry.
+     tagged.every((r) => r.mode === 'turn' || r.mode === 'realtime'),
+     JSON.stringify([...new Set(tagged.map((r) => r.mode))]));
+  ok('...and the game is always one of the two', tagged.every((r) => r.game === 'campaign' || r.game === 'survival'),
+     JSON.stringify([...new Set(tagged.map((r) => r.game))]));
+  // THE ROWS THAT DESCRIBE A RUN carry that run's mode. `boot` is not among them — see above.
   const runRows = rows.filter((r) => ['run_start', 'level_start', 'level_clear', 'run_end'].includes(r.kind));
   ok('...and every row describing a run carries that run\'s mode',
      runRows.length > 0 && runRows.every((r) => r.mode === 'turn'),
