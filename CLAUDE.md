@@ -2562,7 +2562,7 @@ numbers by hand is 20 chances to fat-finger one. Read a total through **`upgrade
 | `phosphorus` Phosphorus | **+3** starting phosphorus | 10 | **25**, then 50 → 450 (+50) | — |
 | `carryCards` Basic/Event Memory | +1 basic/event kept | 20 | **25**, then 50 → 950 (+50) | **3** |
 | `carryEngines` Engine Memory | +1 engine kept | 6 | **100**, then 200 → 1000 (+200) | — |
-| `lives` Retries | +1 retry | 4 | 100 · 250 · 400 · 600 | **1** |
+| `lives` Retries | +1 retry | 4 | 100 · 250 · 400 · 600 | — |
 
 **Every number here is the owner's**, set by hand — the names, the sub-lines, the step sizes and
 the ladders. Three readings worth recording because the brief gave a rule rather than a list:
@@ -2582,10 +2582,18 @@ word for word AND asserts the number in each sentence is the track's own `step`:
 2 → 3 in the same breath as the rewording, and a sub-line saying "by 2" over a track that grants 3
 is the one failure this copy can have that still reads as fine.
 
-- **`lives` is the only track with a `base`.** Everyone starts with one retry, bought or not, and
-  it belongs in `upgradeValue` rather than at the run loop — otherwise the tile says "none yet"
-  about something you already have. It also means **zero retries is only reachable by SPENDING
-  one**, which is what `campaign-check` now exercises.
+- **NOBODY STARTS WITH A RETRY (owner).** `lives` had `base: 1`, so every save could repeat a
+  level once without buying anything — which made the first rung of that track buy a SECOND retry
+  rather than the ability to retry at all. It is `base: 0` now, so **zero is the default** rather
+  than something only reachable by spending, and `carryCards` (3) is the only track left with a
+  base. Two consequences worth keeping:
+  - **The disabled Retry button is now how the feature is TAUGHT**, not a rare edge case. It stays
+    on screen rather than being hidden (it always did), and its note reads **"Buy retries at the
+    store"** rather than "none left" — stating the problem and stopping is no use to a player who
+    has never seen a retry and does not know they are purchasable, which is now everybody at the
+    start.
+  - `campaign-check` exercises BOTH halves: nothing bought (0, button shown and disabled), then one
+    bought and spent (1 → 0). The old probe span "spend the only one", which no longer exists.
 - The three resource tracks come **first, in the game's own energy / water / phosphorus order** —
   the order the HUD, `resPills` and the detail sheet all use.
 - **Accents and icons come from the game, not from a palette.** Energy takes `--ss-gold` because

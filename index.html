@@ -13357,7 +13357,12 @@ const STORE_UPGRADES = [
     effect: 'Increase the number of engine cards you carry over between runs by <b>1</b>.',
     costs: OPENER(100, 6) },
   // Retries are the only track with a BASE: everyone starts with one, bought or not.
-  { id: 'lives', name: 'Retries', icon: 'life', accent: 'life', step: 1, base: 1, unit: 'retries', unit1: 'retry',
+  // BASE 0 (owner): nobody gets a free retry any more. It was 1, so a fresh save could always
+  // repeat a level once without having bought anything — which made the first rung of this
+  // track buy a SECOND retry rather than the ability to retry at all. Zero is now the default
+  // rather than something only reachable by spending, and the disabled Retry button on the
+  // death screen is what teaches a new player the option exists.
+  { id: 'lives', name: 'Retries', icon: 'life', accent: 'life', step: 1, base: 0, unit: 'retries', unit1: 'retry',
     effect: 'Increase the number of times you can retry a level by <b>1</b>.',
     costs: [100, 250, 400, 600] },
 ];
@@ -23786,7 +23791,7 @@ class UI {
     // reads as the game not having noticed.
     const sporeLine = (result && result.runSpores != null)
       ? `<p class="death-spores">${SPORE_ICON}<b>${result.runSpores}</b>&nbsp;Spores earned this run</p>`
-        + `<p class="spore-cta">${won ? 'Use Spores to buy powerful upgrades and new species between runs' : 'Dying is a part of life:<br>Use your Spores to buy new species and powerful upgrades between runs'}</p>`
+        + `<p class="spore-cta">${won ? 'Use Spores to buy powerful upgrades and new species between runs' : 'Dying is a part of life:<br>Use your Spores to buy new species and powerful upgrades'}</p>`
       : '';
     // Top-10 badge (only when this run cracked the top 10 — hs supplied). The score was
     // already recorded (using the name entered at New Game); this just flags it and links
@@ -25808,7 +25813,7 @@ function showDeathScreen({ title, sub, spores, retryNote, retryOff, retryTitle, 
     // "So far", because it is not theirs yet: ending the run is what banks it, and the retry
     // beside this line is the choice not to.
     (spores ? '<p class="ss-dth-spores">You have collected <b>' + spores + '</b>' + SPORE_ICON + ' spores so far</p>'
-            + '<p class="spore-cta">Dying is a part of life:<br>Use your Spores to buy new species and powerful upgrades between runs</p>' : '') +
+            + '<p class="spore-cta">Dying is a part of life:<br>Use your Spores to buy new species and powerful upgrades</p>' : '') +
     '<div class="ss-dth-actions">' +
       '<div class="ss-dth-act">' +
         '<button class="ss-dth-btn primary" id="ssDeathKeep" type="button">End Run</button>' +
@@ -29125,7 +29130,11 @@ function presentRunOver() {
       showDeathScreen({
         title, sub, spores: r.runSpores,
         // The COUNT is the sub-line under the button now, not part of its face.
-        retryNote: runLives > 0 ? runLives + ' remaining' : 'none left',
+        // WITH NONE, THE NOTE SAYS WHERE TO GET THEM (owner). "None left" states the problem and
+        // stops; a player who has never bought one — which is now everybody at the start, since
+        // the free retry is gone — has no way to know retries are a thing you can buy. The
+        // disabled button plus this line is the whole of how that is taught.
+        retryNote: runLives > 0 ? runLives + ' remaining' : 'Buy retries at the store',
         retryOff: !canRetry,
         retryTitle: canRetry
           ? 'Play level ' + currentLevel + ' again with the cards and reserves you started it with'

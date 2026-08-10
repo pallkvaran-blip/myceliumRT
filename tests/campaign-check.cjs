@@ -791,11 +791,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 
   // Buying 2 on top of the base 1 → three retries in the run.
   const withLives = await dieAndShow(3, 2);
-  ok('the run stocks the base retry plus what the store sold', withLives.lives === 3, String(withLives.lives));
+  // NO BASE RETRY ANY MORE (owner): the run stocks exactly what the store sold, so two bought
+  // is two. It was `2 + 1` — a free retry every save began with.
+  ok('the run stocks exactly what the store sold, with no free retry',
+     withLives.lives === 2, String(withLives.lives));
   ok('the level records the state it was entered in', !!withLives.entry && withLives.entry.level === 3,
      withLives.entry ? `level ${withLives.entry.level}, ${withLives.entry.hand.length} in hand` : 'no snapshot');
   ok('the death screen offers a retry', withLives.shown === true && withLives.disabled === false, withLives.label);
-  ok('...and says how many are left', /3 remaining/i.test(withLives.note || ''), withLives.note);
+  ok('...and says how many are left', /2 remaining/i.test(withLives.note || ''), withLives.note);
 
   const retried = await page.evaluate(async () => {
     const g = window.__game;
@@ -886,15 +889,17 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      sameMap.retried === sameMap.fresh,
      `level ${sameMap.level} (seed ${sameMap.seed}): retried ${sameMap.retried} vs fresh ${sameMap.fresh}`);
 
-  // RUNNING OUT. Everyone starts with one retry now, so zero is only reachable by SPENDING it —
-  // which makes this the more useful test anyway: buy nothing, die, retry, die again.
+  // STARTING AT ZERO, AND RUNNING OUT. The owner dropped the free retry, so a fresh save has NONE
+  // and the first rung of the track buys the ability to retry at all rather than a second go. Both
+  // halves are exercised here: nothing bought (0, button present but disabled), then one bought and
+  // spent (1 -> 0, button still present, still disabled).
   const spent = await page.evaluate(async () => {
     const g = window.__game;
     document.querySelectorAll('#ssDeath, #loadoutSelect, #levelIntro').forEach((n) => n.remove());
-    g.store.reset();                       // no purchases: the base retry and nothing else
+    g.store.reset();                       // no purchases at all
     g.campaign.play('marasmius', 2);
     await new Promise((r) => setTimeout(r, 350));
-    const stocked = g.campaign.lives();
+    const stockedFresh = g.campaign.lives();
     const toDeath = async () => {
       g.campaign.endRun();
       for (let i = 0; i < 60 && !document.getElementById('ssDeath'); i++) await new Promise((r) => setTimeout(r, 200));
@@ -903,6 +908,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       return { label: b ? b.textContent.trim() : null, note: n ? n.textContent.trim() : null,
                disabled: b ? b.disabled : null, shown: !!b };
     };
+    const fresh = await toDeath();                          // nothing bought: none to spend
+    document.querySelectorAll('#ssDeath, #loadoutSelect').forEach((n) => n.remove());
+    g.state.runOver = false;
+    // ...now buy exactly one and spend it, which is the only way to reach zero from above.
+    g.store.credit(1e6); g.store.buy('lives');
+    g.campaign.play('marasmius', 2);
+    await new Promise((r) => setTimeout(r, 350));
+    const stocked = g.campaign.lives();
     const first = await toDeath();
     document.getElementById('ssDeathRetry').click();        // spend the only one
     for (let i = 0; i < 60; i++) { if (!document.getElementById('ssDeath') && !g.state.runOver) break;
@@ -911,15 +924,26 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const after = g.campaign.lives();
     const second = await toDeath();
     document.querySelectorAll('#ssDeath, #loadoutSelect').forEach((n) => n.remove());
-    return { stocked, first, after, second };
+    return { stockedFresh, fresh, stocked, first, after, second };
   });
-  ok('a run with no purchases still gets the one retry everyone starts with',
+  ok('a run with no purchases gets NO retry', spent.stockedFresh === 0, String(spent.stockedFresh));
+  // ...and the button is still on screen, disabled. A player who has never bought one has to be
+  // able to learn the option exists — which matters more now that zero is the default.
+  ok('...and the option is still shown, disabled, so it can be discovered',
+     spent.fresh.shown === true && spent.fresh.disabled === true,
+     `"${spent.fresh.label}" / "${spent.fresh.note}"`);
+  ok('buying one stocks exactly one',
      spent.stocked === 1 && /1 remaining/i.test(spent.first.note || ''),
      `${spent.stocked} — "${spent.first.label}" / "${spent.first.note}"`);
   ok('spending it leaves none', spent.after === 0, String(spent.after));
   ok('with none left the option is still on screen', spent.second.shown === true, spent.second.label);
   ok('...but not usable', spent.second.disabled === true, `disabled=${spent.second.disabled}`);
-  ok('...and says so', /none left/i.test(spent.second.note || ''), spent.second.note);
+  // ...AND POINTS AT THE STORE (owner). "None left" states the problem and stops — with the free
+  // retry gone, a player who has never bought one has no other way to learn retries are purchasable.
+  ok('...and says where to get more', /buy retries at the store/i.test(spent.second.note || ''),
+     spent.second.note);
+  ok('...including on a fresh save, which now has none',
+     /buy retries at the store/i.test(spent.fresh.note || ''), spent.fresh.note);
   // AND IT IS READABLE WHILE SAYING IT. The disabled retry was `opacity:.42` over a dark map,
   // which took the text down with the control — the owner could not read it. Asserted as
   // CONTRAST against the screen behind it, because "it is styled differently" was already true

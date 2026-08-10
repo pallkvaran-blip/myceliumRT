@@ -528,7 +528,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     // of living reads as the game not having noticed.
     ok('a DEATH gets the death wording instead',
        !!cta.died && /dying is a part of life/i.test(cta.died.text)
-       && /new species and powerful upgrades between runs/i.test(cta.died.text),
+       && /new species and powerful upgrades/i.test(cta.died.text)
+       // ...and NOT "between runs" (owner) — that stays on the win line only.
+       && !/between runs/i.test(cta.died.text),
        cta.died && cta.died.text);
     // The break is authored, not left to the wrap: the owner wrote it as two lines.
     ok('...on two lines, as written', !!cta.died && cta.died.br === true,
