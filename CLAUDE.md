@@ -3382,6 +3382,29 @@ death was firing; the screen was lying about it.
     these two were spotted in the first place. `telemetry-check` asserts that, and covers the store
     domains via `__telemetry.classify(host)` — the only way to test them without being served from
     one.
+- **EVERY BUILD STAMPS ITSELF, and that is what makes a release measurable.** `BUILD_ID` in the
+  telemetry module is `'dev'` in the repo and is rewritten by `make-web-zip.mjs` (date + short sha,
+  anchored, and the build FAILS rather than shipping the placeholder — a build reporting `dev` is
+  indistinguishable from a local run and quietly makes the next before/after impossible).
+  - **It rides on `boot`'s `detail`, NOT a new column.** `detail` was free on that event, so this
+    needed no Supabase migration — and until one ran, PostgREST would 400 every row (see
+    `_slimEvents`). One stamp per SESSION is enough: the analytics page maps `session_id → build`
+    and attributes the session's other events to it.
+  - **THE ABSENCE OF A STAMP IS ITSELF THE LABEL.** Every session on a stamped build carries one, so
+    anything without one predates the change — an exact before/after cut **with no date in it**,
+    which matters because a browser can serve a cached copy of the old build for days after an
+    upload. A date cut files old-build sessions under "after" and flatters the release.
+  - **STAMPED IN `buildEventRow`, NOT AT THE CALL SITE.** `BUILD_ID` is a `const` inside the
+    telemetry module's IIFE and `logEvent('boot', …)` is called from **main**, a different module,
+    where the name does not exist — referencing it there threw a ReferenceError during boot and
+    `window.__game` was never assigned, so the whole game failed to start. Declaration order is
+    dependency order here; a constant is not global just because the file is one file.
+- **"Did the update change spending?" is the analytics page's headline section**, and it is a
+  SIDE-BY-SIDE table rather than a filter you toggle — a filter makes you hold the previous number
+  in your head. Per release: players, how many reached the store, **how many SPENT anything**, and
+  the median spend. Everything is a share of PLAYERS, not of sessions or spores, because one big
+  spender otherwise carries the row. There is a `Release` chip group too, for slicing the rest of
+  the page by build.
 - ~~`logEvent` telemetry doesn't record the mode~~ — **fixed**: every event carries `game`, `mode`
   and `device` now, and `docs/analytics.html` reads them. See "Telemetry" above.
 - **Six `traced` assertions fail on four maps, and have for a while** — `ice-c24` and

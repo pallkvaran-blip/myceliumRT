@@ -87,6 +87,16 @@ const ALLOWED = new Set(['client_id', 'session_id', 'kind', 'species', 'level', 
   const boot = rows.find((r) => r.kind === 'boot');
   ok('...and says how long the load took', boot && typeof boot.ms === 'number' && boot.ms >= 0, boot && `ms ${boot.ms}`);
 
+  // ---- the build stamp ------------------------------------------------------
+  // It rides on `boot`'s `detail` rather than a new column: `detail` is free on that event, so this
+  // needed no Supabase migration — and until a migration ran, PostgREST would 400 every row.
+  ok('...and carries a build stamp, so a release can be told from the one before it',
+     !!boot && boot.detail != null, boot && JSON.stringify(boot.detail));
+  // In the repo it is the placeholder; make-web-zip patches it and itchzip-check refuses a built
+  // archive that still says `dev`. Asserting a real value HERE would fail on every local run.
+  ok('...which is the un-built placeholder in the repo', !!boot && boot.detail === 'dev',
+     boot && String(boot.detail));
+
   // Drive a real run through the PICKER'S OWN BUTTON, not `campaign.play` — that is a test hook
   // which mimics `onPick` and skips the telemetry, so a check driving it would assert nothing
   // about the path a player takes.

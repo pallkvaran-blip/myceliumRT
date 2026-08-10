@@ -13893,6 +13893,23 @@ const setEventTap = (fn) => { _eventTap = (typeof fn === 'function') ? fn : null
 // Build the row one event would post. Split out so the TAP and the POST can never describe
 // different things — a tap that reconstructed the row itself would drift the first time a field
 // was clamped differently, and the tap is what every check reads.
+// WHICH BUILD AN EVENT CAME FROM, so a release can be measured against the one before it.
+//
+// STAMPED AT BUILD TIME by `make-web-zip.mjs`, which rewrites the literal below and FAILS if it
+// cannot find it. A hand-bumped constant is a constant somebody forgets on the release that
+// matters; `dev` is what a local or unbuilt run reports, and that is correct — it is not a build.
+//
+// IT RIDES ON `boot`'s `detail`, NOT ON A NEW COLUMN. `detail` is free on that event, so this
+// needs no Supabase migration — and one stamp per SESSION is enough, because the analytics page
+// maps session_id -> build and attributes the session's other events to it. A column would have
+// meant a migration, and until it ran PostgREST 400s every row (see `_slimEvents`).
+//
+// AND THE ABSENCE OF A STAMP IS ITSELF THE ANSWER: every session on a build that has this carries
+// one, so anything without it predates the change. That is an exact before/after cut with no date
+// in it — which matters because a date cut misattributes, since a browser can serve a cached copy
+// of the old build for days after an upload.
+const BUILD_ID = 'dev';   // patched by make-web-zip.mjs — do not edit by hand
+
 function buildEventRow(kind, fields) {
   const f = fields || {};
   const row = { client_id: clientId(), session_id: sessionId(), kind: String(kind).slice(0, 24) };
@@ -13913,6 +13930,12 @@ function buildEventRow(kind, fields) {
   if (f.n != null && isFinite(f.n)) full.n = Math.max(-2147483647, Math.min(2147483647, Math.round(f.n)));
   if (f.ms != null && isFinite(f.ms)) full.ms = Math.max(0, Math.min(2147483647, Math.round(f.ms)));
   if (f.detail != null) full.detail = String(f.detail).slice(0, 32);
+  // STAMPED HERE, NOT AT THE CALL SITE. `BUILD_ID` is a `const` inside THIS module's IIFE, and
+  // `logEvent('boot', ...)` is called from main — a different one — where the name does not exist.
+  // Referencing it there threw a ReferenceError during boot and `window.__game` was never assigned,
+  // which presents as the whole game failing to start rather than as a telemetry bug. Doing it in
+  // the row builder also means no future call site can forget it.
+  if (row.kind === 'boot' && full.detail == null) full.detail = BUILD_ID;
   if (f.device != null) full.device = String(f.device).slice(0, 16);   // perf reports its own
   return full;
 }
@@ -13938,7 +13961,7 @@ function logEvent(kind, fields) {
 // every other assertion passing.
 // `classify` is here so a check can ask what a HOSTNAME resolves to without having to be served
 // from it — the store labels are otherwise only observable by actually being on crazygames.com.
-try { window.__telemetry = { tap: setEventTap, device: deviceClass, log: logEvent, classify: classifySource }; } catch (_) {}
+try { window.__telemetry = { tap: setEventTap, device: deviceClass, log: logEvent, classify: classifySource, build: () => BUILD_ID }; } catch (_) {}
 
   return { scoresEnabled, fetchGlobalBoards, submitGlobalScore, classifySource, logEvent, setEventContext, setEventTap, deviceClass };
 })();

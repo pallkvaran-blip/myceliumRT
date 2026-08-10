@@ -94,6 +94,27 @@ if (!keepDev) {
   say('dev buttons: ON  — --keep-dev was passed. DO NOT UPLOAD THIS.');
 }
 
+// ---- 1a2. the BUILD STAMP -----------------------------------------------------
+// Every event a built copy sends carries this on its `boot` row, so a release can be measured
+// against the one before it. Anchored and FAIL-FAST for the same reason as the dev flag: a build
+// that silently ships `dev` looks identical from the outside and quietly makes the next
+// before/after comparison impossible.
+const BUILD_ANCHOR = "const BUILD_ID = 'dev';";
+if (!html.includes(BUILD_ANCHOR)) {
+  console.error('FAILED: could not find the BUILD_ID placeholder. Fix this script rather than\n' +
+                'shipping a build that reports itself as `dev` — the analytics cannot tell it from\n' +
+                'a local run, and the release it belongs to becomes unmeasurable.');
+  process.exit(2);
+}
+// date + short sha: the date is what a human reads on a chart, the sha is what makes it exact when
+// two builds go out on one day. 32 chars is the column limit; this is 19.
+let SHA = 'nogit';
+try { SHA = execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { cwd: ROOT }).toString().trim() || 'nogit'; }
+catch (_) {}
+const BUILD_ID = new Date().toISOString().slice(0, 10) + '-' + SHA;
+html = html.replace(BUILD_ANCHOR, "const BUILD_ID = '" + BUILD_ID + "';");
+say('build stamp: ' + BUILD_ID);
+
 // ---- 1b. the CrazyGames SDK, injected only for that target ------------------
 // Ahead of the game's own <script>, so `window.CrazyGames` exists by the time `CRAZY.init()` runs.
 // Anchored on </head>, and the build FAILS if that anchor is missing rather than producing a

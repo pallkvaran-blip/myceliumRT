@@ -163,7 +163,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     // "strip the dev stuff" would remove it along with the buttons.
     ok('...and window.__cfg still exists (the invisible hook is kept on purpose)',
        await page.evaluate(() => !!window.__cfg));
-    ok('...with dev.enabled FALSE', await page.evaluate(() => window.__cfg.dev.enabled === false),
+    // A BUILD THAT REPORTS ITSELF AS `dev` IS UNMEASURABLE. The stamp rides on every `boot` row and
+  // is what lets one release be compared against the last; shipping the placeholder looks identical
+  // from the outside and is only discovered when the comparison turns out to be impossible.
+  ok('the build stamps itself, and not as `dev`',
+     /const BUILD_ID = '(?!dev')[^']{4,32}'/.test(builtHtml),
+     (/const BUILD_ID = '([^']*)'/.exec(builtHtml) || [])[1] || 'absent');
+  ok('...with dev.enabled FALSE', await page.evaluate(() => window.__cfg.dev.enabled === false),
        String(await page.evaluate(() => window.__cfg && window.__cfg.dev.enabled)));
 
     // Every screen that carries a dev control, checked by ID. Asserting the FLAG alone would pass

@@ -409,6 +409,74 @@ function fixture() {
     await rp.close();
   }
 
+  // ---- the before/after SPEND comparison, on a fixture worked out by hand ----
+  // The owner's actual question: did the update make people spend Spores instead of dying and
+  // leaving? Six players across two builds, arranged so each rule is exercised once.
+  {
+    const DAY = 86400000, now = Date.now();
+    const rows = []; let id = 0;
+    // `boot.detail` is the build stamp; a session with none predates the change that added it.
+    const boot = (cid, sid, t, build) => rows.push({ id: ++id, created_at: new Date(t).toISOString(),
+      client_id: cid, session_id: sid, kind: 'boot', ms: 1000, detail: build || null,
+      source: 'itch', game: 'campaign', mode: 'turn', device: 'desktop' });
+    const ev = (cid, sid, t, kind, n) => rows.push({ id: ++id, created_at: new Date(t).toISOString(),
+      client_id: cid, session_id: sid, kind, n: n == null ? null : n,
+      source: 'itch', game: 'campaign', mode: 'turn', device: 'desktop' });
+    // BEFORE (no stamp): 3 players, 1 spends. Two open the store, one never gets there.
+    boot('b1', 's1', now - 5 * DAY);  ev('b1', 's1', now - 5 * DAY, 'picker');
+    boot('b2', 's2', now - 5 * DAY);  ev('b2', 's2', now - 5 * DAY, 'picker');
+    ev('b2', 's2', now - 5 * DAY, 'upgrade', 100);            // the one spender
+    boot('b3', 's3', now - 5 * DAY);                           // never reached the store
+    // AFTER (stamped): 3 players, 2 spend — one across TWO events, which must count as one player.
+    boot('a1', 's4', now - 1 * DAY, '2026-08-09-abc1234'); ev('a1', 's4', now - 1 * DAY, 'picker');
+    ev('a1', 's4', now - 1 * DAY, 'upgrade', 100);
+    ev('a1', 's4', now - 1 * DAY, 'purchase', 3000);           // same player, second spend
+    boot('a2', 's5', now - 1 * DAY, '2026-08-09-abc1234'); ev('a2', 's5', now - 1 * DAY, 'picker');
+    ev('a2', 's5', now - 1 * DAY, 'upgrade', 250);
+    boot('a3', 's6', now - 1 * DAY, '2026-08-09-abc1234'); ev('a3', 's6', now - 1 * DAY, 'picker');
+    // Hand-computed — BEFORE: 3 players, 2 store, 1 spender (33.3%), median spend 100.
+    //                 AFTER:  3 players, 3 store, 2 spenders (66.7%), median spend of [3100, 250] = 1675.
+    const sp = await ctx.newPage();
+    const serrs = []; sp.on('pageerror', (e) => serrs.push(String(e && e.message)));
+    await sp.route('**/rest/v1/events*', async (route) => {
+      const rg = route.request().headers()['range'] || '0-999';
+      const [a, z] = rg.split('-').map(Number);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows.slice(a, z + 1)) });
+    });
+    await sp.goto(base + '/docs/analytics.html', { waitUntil: 'domcontentloaded' });
+    await sp.waitForFunction(() => !/Loading/.test(document.getElementById('sub').textContent), { timeout: 25000 });
+    await sleep(400);
+    const cmp = await sp.evaluate(() => {
+      const h = [...document.querySelectorAll('h2')].find((x) => /Did the update change spending/i.test(x.textContent));
+      if (!h) return null;
+      let n = h.nextElementSibling, t = null;
+      while (n && !t) { t = n.querySelector && n.querySelector('table'); n = n.nextElementSibling; }
+      if (!t) return { rows: [] };
+      return { rows: [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent.trim())) };
+    });
+    ok('the spend comparison section exists', !!cmp, JSON.stringify(cmp));
+    const after = cmp && cmp.rows.find((r) => /abc1234/.test(r[0]));
+    const before = cmp && cmp.rows.find((r) => /before stamps/i.test(r[0]));
+    ok('...with a row per release, newest first, baseline last',
+       !!after && !!before && cmp.rows.indexOf(after) < cmp.rows.indexOf(before),
+       JSON.stringify(cmp && cmp.rows.map((r) => r[0])));
+    // THE HEADLINE. Share of PLAYERS who spent anything — the owner's "most people were just dying
+    // and leaving, barely spending any spores".
+    ok('the BEFORE row reports 1 of 3 players spending', !!before && /1\b/.test(before[3]) && /33\.3%/.test(before[3]),
+       before && before[3]);
+    ok('the AFTER row reports 2 of 3', !!after && /2\b/.test(after[3]) && /66\.7%/.test(after[3]), after && after[3]);
+    // A player who spent TWICE is one spender, not two — a per-event count would read 3 of 3 here
+    // and turn a real 66.7% into a fake 100%.
+    ok('...counting a player who spent twice ONCE', !!after && !/3\s*·\s*100%/.test(after[3]), after && after[3]);
+    // ...and the median is over per-PLAYER totals (3100 and 250), not over the four raw amounts.
+    ok('...and the median spend is per player, not per purchase', !!after && after[4] === '1675', after && after[4]);
+    ok('reaching the store is tracked separately from spending',
+       !!before && /2\b/.test(before[2]) && !!after && /3\b/.test(after[2]),
+       (before && before[2]) + ' vs ' + (after && after[2]));
+    ok('no page errors in the spend comparison', serrs.length === 0, serrs.slice(0, 2).join(' | '));
+    await sp.close();
+  }
+
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   await browser.close(); srv.close();
   process.exit(fail ? 1 : 0);

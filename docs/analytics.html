@@ -87,7 +87,7 @@ function normSource(r) {
   }
   return r;
 }
-var FILTER = { days: 30, build: "", source: "itch", game: "", mode: "", device: "" };
+var FILTER = { days: 30, build: "", source: "itch", game: "", mode: "", device: "", release: "" };
 
 // PostgREST CAPS A GET AT 1000 ROWS and says nothing about it, so a naive fetch silently
 // analyses the first thousand events and reports them as the whole story. Paged with
@@ -149,6 +149,10 @@ function inFilter(r, skipSource) {
   if (FILTER.game && r.game !== FILTER.game) return false;
   if (FILTER.mode && r.mode !== FILTER.mode) return false;
   if (FILTER.device && r.device !== FILTER.device) return false;
+  if (FILTER.release) {
+    if (FILTER.release === BUILD_NONE) { if (buildOf(r) !== BUILD_NONE) return false; }
+    else if (buildOf(r) !== FILTER.release) return false;
+  }
   if (FILTER.days) {
     var cut = Date.now() - FILTER.days * 86400000;
     if (new Date(r.created_at).getTime() < cut) return false;
@@ -160,6 +164,31 @@ function inFilter(r, skipSource) {
 // first-ever event, and inside a 30-day window a player who arrived 40 days ago looks like a
 // fresh arrival who never came back. Every other filter still applies.
 function inFilterNoDays(r) { var d = FILTER.days; FILTER.days = 0; var k = inFilter(r); FILTER.days = d; return k; }
+
+// WHICH BUILD A SESSION WAS PLAYED ON. The game stamps it on the `boot` row's `detail` (see
+// BUILD_ID in index.html), one per session, so everything else the session did is attributed by
+// session_id. NOT A DATE: a browser can serve a cached copy of the old build for days after an
+// upload, so a date cut files old-build sessions under "after" and quietly flatters the release.
+// A session with NO stamp predates the change that added it — which makes "no stamp" an exact
+// label for "before", not a gap.
+var BUILD_OF = {};
+var BUILD_NONE = "__prestamp";
+function indexBuilds(rows) {
+  BUILD_OF = {};
+  rows.forEach(function (r) {
+    if (r.kind === "boot" && r.detail && r.session_id) BUILD_OF[r.session_id] = r.detail;
+  });
+}
+function buildOf(r) { return (r && BUILD_OF[r.session_id]) || BUILD_NONE; }
+// Comparing releases means ignoring the release filter (and the day window, since the builds sit
+// in different weeks by definition). Everything else — source, game, mode, device — still applies.
+function inFilterCrossRelease(r) {
+  var d = FILTER.days, rel = FILTER.release;
+  FILTER.days = 0; FILTER.release = "";
+  var k = inFilter(r);
+  FILTER.days = d; FILTER.release = rel;
+  return k;
+}
 
 function kpi(host, value, label, note) {
   var b = el("div", "kpi");
@@ -555,6 +584,58 @@ function render() {
     }
   }
 
+  // ---- DID THE UPDATE CHANGE SPENDING? --------------------------------------
+  // THE QUESTION THIS PAGE EXISTS TO ANSWER RIGHT NOW (owner): the game is meant to kill you on
+  // level 3 or 4, at which point retrying is pointless — you are too weak — and the answer is to
+  // spend Spores in the store. Most players were dying and leaving without spending, so the
+  // measure of the fix is whether SPENDING went up, not whether deaths went down.
+  //
+  // SIDE BY SIDE rather than behind the Release chips, because a filter you toggle makes you hold
+  // the previous number in your head and compare from memory. Both are on screen at once.
+  section("Did the update change spending?");
+  var pcmp = panel();
+  var cross = ROWS.filter(inFilterCrossRelease);
+  var byBuild = {};
+  cross.forEach(function (r) { (byBuild[buildOf(r)] || (byBuild[buildOf(r)] = [])).push(r); });
+  var order = Object.keys(byBuild).filter(function (b) { return b !== BUILD_NONE; }).sort().reverse();
+  if (byBuild[BUILD_NONE]) order.push(BUILD_NONE);
+  if (order.length < 2) {
+    pcmp.appendChild(el("p", "empty", order.length === 1 && order[0] === BUILD_NONE
+      ? "Only pre-stamp sessions so far. The build that stamps itself has not been played yet —"
+        + " once it has, this compares it against everything before it."
+      : "Only one release in the data. This fills in when a second one has been played."));
+  }
+  var ct2 = table(pcmp, ["release", "players", "reached the store", "SPENT spores", "median spend"]);
+  order.forEach(function (b) {
+    var rs = byBuild[b];
+    var players = uniq(rs.map(function (r) { return r.client_id; }));
+    // "Reached the store" is the selection screen, which IS the store — one screen (see CLAUDE.md).
+    var sawStore = uniq(rs.filter(function (r) { return r.kind === "picker"; })
+                          .map(function (r) { return r.client_id; }));
+    var spendBy = {};
+    rs.forEach(function (r) {
+      if (r.kind !== "upgrade" && r.kind !== "purchase") return;
+      spendBy[r.client_id] = (spendBy[r.client_id] || 0) + (r.n || 0);
+    });
+    var spenders = Object.keys(spendBy);
+    var amounts = spenders.map(function (k) { return spendBy[k]; });
+    var tr = el("tr");
+    tr.appendChild(el("td", "", b === BUILD_NONE ? "before stamps" : b));
+    tr.appendChild(el("td", "n", String(players.length)));
+    tr.appendChild(el("td", "n", sawStore.length + "  ·  " + pct(sawStore.length, players.length) + "%"));
+    // THE HEADLINE NUMBER. Share of PLAYERS who spent anything at all — not total spores, which a
+    // single big spender can carry on their own while everyone else leaves without buying.
+    var td = el("td", "n", spenders.length + "  ·  " + pct(spenders.length, players.length) + "%");
+    td.style.fontWeight = "700";
+    tr.appendChild(td);
+    tr.appendChild(el("td", "n", amounts.length ? String(median(amounts)) : "–"));
+    ct2.appendChild(tr);
+  });
+  pcmp.appendChild(el("p", "empty", "A build stamps itself on its first event, so a session either"
+    + " carries one or predates the change that added it — an exact cut with no date in it, which"
+    + " matters because a browser can serve a cached copy of an old build for days after an upload."
+    + " Percentages are of PLAYERS, not sessions or spores: one big spender cannot carry the row."));
+
   // ---- ECONOMY --------------------------------------------------------------
   section("Spores, the store and the deck");
   var p3 = el("div", "row2"); document.getElementById("body").appendChild(p3);
@@ -646,6 +727,14 @@ function buildBar() {
   // BUILD IS NOT A DATE — see isNewBuild. Pair "after update" with Window "all", or a 30d
   // window silently clips the comparison to whichever side of the launch fits in 30 days.
   group("Build", "build", [{ t: "all", v: "" }, { t: "after update", v: "new" }, { t: "before update", v: "old" }]);
+  // RELEASE is the fine-grained one and the only one that can separate two builds shipped days
+  // apart — "Build" above splits on a COLUMN SET, which was a one-off and cannot tell this
+  // release from the last. Newest first, with the pre-stamp era last because it is the baseline
+  // everything is measured against.
+  var builds = uniq(ROWS.map(function (r) { return BUILD_OF[r.session_id]; }).filter(Boolean)).sort().reverse();
+  var relOpts = [{ t: "all", v: "" }].concat(builds.map(function (b) { return { t: b, v: b }; }));
+  if (ROWS.some(function (r) { return buildOf(r) === BUILD_NONE; })) relOpts.push({ t: "before stamps", v: BUILD_NONE });
+  if (relOpts.length > 1) group("Release", "release", relOpts);
   // SOURCE DEFAULTS TO `itch`, and that is deliberate: the same table carries dev boots and
   // Playwright runs, and mixing them into a launch number is how you convince yourself the game
   // has ten times the players it has.
@@ -665,6 +754,7 @@ sub.textContent = SNAPSHOT ? "Loading snapshot\u2026" : "Loading events\u2026";
 fetchAll(function (n) { sub.textContent = "Loaded " + n + " events\u2026"; })
   .then(function (rows) {
     ROWS = (rows || []).map(normSource);
+    indexBuilds(ROWS);
     // A pre-v2 row has no `source`, so defaulting the filter to `itch` would hide the entire
     // history the moment the table has any. Fall back to "all" when nothing is tagged itch.
     if (!ROWS.some(function (r) { return r.source === "itch"; })) FILTER.source = "";
