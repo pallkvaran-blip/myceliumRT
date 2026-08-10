@@ -3358,6 +3358,22 @@ death was firing; the screen was lying about it.
   `getBoard`). Until then the client falls back to a combined board and says so.
 - The card-timing review decisions in `docs/card-review.html` are still awaiting the user's
   picks; nothing has been converted to N×-per-level yet.
+- **THE STORES ARE NAMED IN `classifySource` — `crazygames` and `newgrounds`, matched on the
+  DOMAIN.** Both serve from a per-game subdomain (`<slug>.game-files.crazygames.com`,
+  `uploads.ungrounded.net`) and can serve one game from more than one of them (a review build and a
+  live one, a CDN edge, a partner embed), so under the `web:<host>` fallback a single store's
+  traffic arrived split across chips with nothing marking them as related. Three things about it:
+  - **The old truncated labels are FOLDED IN AT READ TIME, not migrated.** `gen-analytics.mjs` has
+    `SRC_ALIAS`, mapping the `web:mycelium.game-files.` / `web:uploads.ungrounded.n` prefixes onto
+    the new names. The rows are the record of what happened and are not edited to match a later
+    opinion about naming — and a player on an older build keeps sending the old string for as long
+    as their tab is open, so the alias is PERMANENT rather than a one-off for history.
+  - **A CLASSIFIER CHANGE DOES NOTHING UNTIL A NEW BUILD IS UPLOADED.** The label is written by the
+    game, on the player's machine.
+  - An unknown host still keeps its NAME (`web:<host>`) rather than becoming `other`, which is how
+    these two were spotted in the first place. `telemetry-check` asserts that, and covers the store
+    domains via `__telemetry.classify(host)` — the only way to test them without being served from
+    one.
 - ~~`logEvent` telemetry doesn't record the mode~~ — **fixed**: every event carries `game`, `mode`
   and `device` now, and `docs/analytics.html` reads them. See "Telemetry" above.
 - **Six `traced` assertions fail on four maps, and have for a while** — `ice-c24` and
