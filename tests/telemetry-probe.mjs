@@ -188,6 +188,23 @@ rule('BY DEVICE — the phone gap, which is the biggest single split in this tab
     console.log(`  ${d.padEnd(9)} ${pad(ss.length, 7)}  ${pad(ran + ' (' + pct(ran, ss.length) + ')', 15)}` +
                 `  ${pad(cl + ' (' + pct(cl, st.length) + ')', 13)}  ${pad(clock(med(ends)), 12)}`);
   }
+
+  // ...AND THE PLAY-TIME SPLIT, THE WAY A STORE WOULD COMPUTE IT: a MEAN over visits that
+  // actually played. ONE SESSION DECIDES THE RAW DESKTOP MEAN — a tab left open for 19.6 HOURS
+  // took it to 14:24, where dropping the top 1% gives 5:05. That is not a rounding difference,
+  // it is the difference between "desktop players stay three times as long as phone players" and
+  // "desktop players stay a quarter longer", so the untrimmed mean is printed beside the trimmed
+  // one rather than quietly replaced by it.
+  console.log('\n  visits that PLAYED — a store\'s clock starts at gameplay, so this is the like-for-like');
+  console.log('  device        n   median   mean(raw)   mean(-top 1%)   mean(under 30m)');
+  const trim = (a, frac) => { const q = [...a].sort((x, y) => x - y); return q.slice(0, Math.max(1, Math.ceil(q.length * (1 - frac)))); };
+  for (const d of ['desktop', 'phone', 'tablet', null]) {
+    const v = ids.filter((i) => (d === null || S[i].dev === d) && S[i].kinds.level_start && S[i].end != null)
+                 .map((i) => S[i].end);
+    if (!v.length) continue;
+    console.log(`  ${(d || 'ALL').padEnd(9)} ${pad(v.length, 4)}  ${pad(clock(med(v)), 7)}  ${pad(clock(mean(v)), 10)}` +
+                `  ${pad(clock(mean(trim(v, 0.01))), 14)}  ${pad(clock(mean(v.filter((x) => x <= 30 * 60000))), 16)}`);
+  }
 }
 
 rule('BY DAY — players, spenders, and what they spent');
