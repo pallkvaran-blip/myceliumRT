@@ -594,6 +594,7 @@ function fixture() {
       boot(c, sid, now - 1 * DAY, '2026-08-09-abc1234');
       ev(c, sid, now - 1 * DAY, 'run_start', null, null);
       ev(c, sid, now - 1 * DAY, 'level_clear', null, null);
+      if (c === 'a3') ev(c, sid, now - 1 * DAY, 'level_clear', null, null);   // clears twice: still one player
       ev(c, sid, now - 1 * DAY, 'session_end', 1, ms);
     });
     const sp = await ctx.newPage();
@@ -617,6 +618,7 @@ function fixture() {
       if (!pan) return { rows: [] };
       const t = pan.querySelector('table');
       return { rows: [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent.trim())),
+               head: t.tHead ? t.tHead.textContent : '',
                note: [...pan.querySelectorAll('.empty')].map((p) => p.textContent).join(' ') };
     });
     ok('the before/after release section exists', !!cmp && cmp.rows.length > 0, JSON.stringify(cmp && cmp.rows));
@@ -637,6 +639,18 @@ function fixture() {
     ok('...as is the share of sessions that reached a run',
        !!before && /66\.7%/.test(before[4]) && !!after && /100%/.test(after[4]),
        (before && before[4]) + ' vs ' + (after && after[4]));
+    // AND "CLEARED A LEVEL" IS PER PLAYER, WHICH IS A DIFFERENT DENOMINATOR ON PURPOSE (owner:
+    // "% who cleared at least one level"). Nobody clears before, all three clear after. Asserted
+    // as DISTINCT PLAYERS: a3 clears twice in the fixture, so a per-event count would read 4 of 3
+    // and print 133% — the same defect as counting attempts where the question said people.
+    ok('...and the share of PLAYERS who cleared at least one level',
+       !!before && /^0\b/.test(before[5]) && /0%/.test(before[5])
+         && !!after && /^3\b/.test(after[5]) && /100%/.test(after[5]),
+       (before && before[5]) + ' vs ' + (after && after[5]));
+    ok('...counting a player who cleared twice ONCE', !!after && !/^4\b/.test(after[5]), after && after[5]);
+    ok('...and the two percentage columns name their denominators in the header',
+       !!cmp && /reached a run \(sessions\)/i.test(cmp.head) && /cleared a level \(players\)/i.test(cmp.head),
+       cmp && cmp.head);
     // A SMALL SAMPLE MUST SAY SO. Three sessions on a new build is not a result, and a table that
     // prints it with the same confidence as a month of data invites exactly the wrong conclusion.
     ok('...and a thin newest release warns about itself',

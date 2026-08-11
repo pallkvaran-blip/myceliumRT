@@ -2160,6 +2160,13 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
   it is the closest thing in this table to "did they enjoy it". The section **warns when the newest
   release has under 30 sessions**, because that is the normal state for a day after a release and a
   thin sample printed with the same confidence as a month of data invites the wrong conclusion.
+  - **TWO PERCENTAGE COLUMNS, TWO DENOMINATORS, AND THE HEADER SAYS WHICH.** "Reached a run" is per
+    SESSION (what share of visits become a play); **"cleared a level" is per PLAYER** (owner: *"%
+    who cleared at least one level"*) — the question is how many PEOPLE got anywhere, and someone
+    who cleared on their second visit did clear. Counted as DISTINCT players, so one person who
+    cleared nine levels is one person, not nine. Neither denominator is left implicit: two adjacent
+    percentages over different bases is exactly the trap the level table fell into.
+    Live at the time of writing: **9.6% of pre-stamp players cleared a level at all.**
 - **RETENTION IS ONE SECTION NOW, AND IT OPENS ON A SENTENCE** (owner: *"rethink how you show
   player retention stats - very confusing now"*). There were literally **two** headings called
   "Coming back" — a visits/gap one and a day-1/3/7 cohort one — measuring the same thing several

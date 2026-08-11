@@ -645,8 +645,14 @@ function render() {
   // closest thing here to "did they enjoy it" — a release that makes the game better shows up as
   // people staying longer before it shows up anywhere else. MEDIAN, not mean: one player who left
   // a tab open overnight moves a mean by minutes and a median not at all.
+  // TWO PERCENTAGE COLUMNS, TWO DENOMINATORS, AND THE HEADER SAYS WHICH. "Reached a run" is per
+  // SESSION — what share of visits become a play — and "cleared a level" is per PLAYER, because
+  // the question is how many PEOPLE got anywhere, and someone who cleared on their second visit
+  // did clear. Two adjacent percentages over different denominators is exactly the trap the level
+  // table fell into ("it says only 1 person started lvl 1"), so neither is left implicit.
   var ct2 = table(pcmp, ["release", { t: "players", n: 1 }, { t: "sessions", n: 1 },
-    { t: "median play time", n: 1 }, { t: "reached a run", n: 1 }, { t: "levels cleared", n: 1 }]);
+    { t: "median play time", n: 1 }, { t: "reached a run (sessions)", n: 1 },
+    { t: "cleared a level (players)", n: 1 }, { t: "levels cleared", n: 1 }]);
   order.forEach(function (b) {
     var rs = byBuild[b];
     var players = uniq(rs.map(function (r) { return r.client_id; })).length;
@@ -656,6 +662,11 @@ function render() {
     var ran = uniq(rs.filter(function (r) { return r.kind === "run_start"; })
                      .map(function (r) { return r.session_id; })).length;
     var cleared = rs.filter(function (r) { return r.kind === "level_clear"; }).length;
+    // DISTINCT PLAYERS with at least one clear, not a share of the raw count beside it — one
+    // player who cleared nine levels is one person who got somewhere, and counting clears would
+    // let them carry the column on their own.
+    var clearedBy = uniq(rs.filter(function (r) { return r.kind === "level_clear"; })
+                           .map(function (r) { return r.client_id; })).length;
     var tr = el("tr");
     tr.appendChild(el("td", "", b === BUILD_NONE ? "before stamps" : b));
     tr.appendChild(el("td", "n", String(players)));
@@ -664,6 +675,9 @@ function render() {
     td.style.fontWeight = "700";
     tr.appendChild(td);
     tr.appendChild(el("td", "n", ran + "  ·  " + pct(ran, sess) + "%"));
+    var tdc = el("td", "n", clearedBy + "  ·  " + pct(clearedBy, players) + "%");
+    tdc.style.fontWeight = "700";
+    tr.appendChild(tdc);
     tr.appendChild(el("td", "n", String(cleared)));
     ct2.appendChild(tr);
   });
@@ -673,6 +687,8 @@ function render() {
   var newest = order.length ? byBuild[order[0]] : null;
   var newestSess = newest ? uniq(newest.map(function (r) { return r.session_id; })).length : 0;
   pcmp.appendChild(el("p", "empty", "Play time is one VISIT, from `boot` to `session_end`."
+    + " “Reached a run” is a share of SESSIONS; “cleared a level” is a share of PLAYERS — one"
+    + " person who cleared nine levels is one person who got somewhere."
     + (newestSess && newestSess < 30 ? "  —  The newest release has only " + newestSess + " session(s) so far,"
         + " which is too few to read as a result: give it a day." : "")));
 
