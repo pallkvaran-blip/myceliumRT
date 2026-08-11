@@ -71,6 +71,10 @@ function fixture() {
   // a pre-v2 row cannot satisfy, so its counts are legitimately the new-build ones alone while the
   // run KPIs above it count every build.
   const campStarts = starts, campClears1 = clears1;
+  // Counted, not derived: the pre-v2 and untagged loops REUSE client ids, so "everyone minus the
+  // survival three" is only accidentally right and would go wrong the moment a loop changed.
+  const campPlayers = new Set(rows.filter((r) => r.kind === 'level_start' && r.game === 'campaign'
+    && r.level === 1).map((r) => r.client_id)).size;
   let oldSessions = 0;
   for (let d = 3; d >= 1; d--) {
     for (let p = 0; p < 4; p++) {
@@ -86,6 +90,34 @@ function fixture() {
       push(t + 15000, Object.assign({ kind: 'run_end', species: 'pleurotus', level: 1, cause: 'devoured', turns: 40, n: 100 }, base));
       push(t + 17000, Object.assign({ kind: 'session_end', ms: 600000, n: 1 }, base));
       oldSessions++;
+    }
+  }
+
+  // A SURVIVAL COHORT, deliberately SMALLER than the campaign one and reaching a different depth.
+  // "How far people get" was hard-coded to campaign rows while claiming to cover everything, so
+  // picking Game=survival left it filtering survival sessions for a campaign tag and the table
+  // read a single level-1 attempt against 120 real ones. A fixture with no survival rows at all
+  // cannot see that — every assertion about the table passed on a page that could only ever draw
+  // one game.
+  let survStarts = 0, survClears1 = 0, survL2 = 0, survRuns = 0;
+  const survPlayers = new Set();
+  for (let d = 9; d >= 1; d--) {
+    for (let p = 0; p < 3; p++) {
+      const cid = 'sv' + p;                      // three players, several sessions each
+      const sid = 'sv' + d + '-' + p;
+      const t = now - d * day - Math.round(rnd() * day * 0.5);
+      const base = { client_id: cid, session_id: sid, device: 'desktop', game: 'survival', mode: 'turn' };
+      survPlayers.add(cid);
+      push(t, Object.assign({ kind: 'boot', ms: 3000 }, base)); boots++;
+      push(t + 6000, Object.assign({ kind: 'run_start', species: 'marasmius', level: 1, cause: 'new' }, base));
+      starts++; survRuns++;
+      push(t + 9000, Object.assign({ kind: 'level_start', species: 'marasmius', level: 1 }, base)); survStarts++;
+      if (p === 0) {
+        push(t + 12000, Object.assign({ kind: 'level_clear', species: 'marasmius', level: 1, turns: 30, ms: 200000 }, base)); survClears1++;
+        push(t + 13000, Object.assign({ kind: 'level_start', species: 'marasmius', level: 2 }, base)); survL2++;
+      }
+      push(t + 15000, Object.assign({ kind: 'run_end', species: 'marasmius', level: 1, cause: 'energy', turns: 40, n: 100 }, base));
+      push(t + 17000, Object.assign({ kind: 'session_end', ms: 300000, n: 1 }, base));
     }
   }
 
@@ -110,7 +142,8 @@ function fixture() {
   // Counted, not assumed: the first version of this hard-coded 40 because that is the modulus in
   // the id, and the loop only ever produces 27 of them.
   const devices = new Set(rows.map((r) => r.client_id)).size;
-  return { rows, boots, starts, clears1, devices, oldSessions, campStarts, campClears1, untagged };
+  return { rows, boots, starts, clears1, devices, oldSessions, campStarts, campClears1, untagged,
+    survStarts, survClears1, survL2, survRuns, survPlayers: survPlayers.size, campPlayers };
 }
 
 (async () => {
@@ -180,27 +213,71 @@ function fixture() {
   ok('runs started matches the fixture', kv('runs started') === String(F.starts), `${kv('runs started')} of ${F.starts}`);
   ok('runs ended matches the fixture', kv('runs ended') === String(F.starts), `${kv('runs ended')}`);
 
-  // HOW FAR PEOPLE GET — the headline table.
-  const lvl1 = await page.$$eval('#body table tr', (trs) => {
-    for (const tr of trs) if (tr.children[0] && tr.children[0].textContent === 'Level 1')
-      return [...tr.children].map((td) => td.textContent.trim());
-    return null;
-  });
+  // HOW FAR PEOPLE GET — the headline table, and there is one PER GAME now. Every read below is
+  // scoped to the panel whose lede names the game, because "the first table with a clear rate"
+  // stopped being unambiguous the moment survival got a table of its own.
+  const levelTable = (game) => page.evaluate((g) => {
+    const p = [...document.querySelectorAll('.panel')].find((x) => {
+      const l = x.querySelector('p.empty');
+      return l && l.textContent.toLowerCase().startsWith(g) && x.querySelector('table');
+    });
+    if (!p) return null;
+    const t = p.querySelector('table');
+    return { rows: [...t.tBodies[0].rows].map((r) => [...r.children].map((td) => td.textContent.trim())),
+             head: t.tHead.textContent.toLowerCase() };
+  }, game);
+  const campT = await levelTable('campaign');
+  const campL1 = campT && campT.rows.find((r) => r[0] === 'Level 1');
   // A PRE-v2 ROW IS NOT ATTRIBUTABLE TO A GAME, so this table is smaller than "runs started" above
   // it and that is correct rather than a leak. Asserted against the campaign-only counters, with
   // the gap itself pinned below so the two can never silently converge.
-  ok('the campaign table reports level 1 attempts and clears',
-     lvl1 && lvl1[1] === String(F.campStarts) && lvl1[2] === String(F.campClears1),
-     lvl1 ? lvl1.slice(0, 4).join(' | ') : '(no Level 1 row)');
-  ok('...and it excludes pre-v2 rows, which name no game',
-     F.starts - F.campStarts === F.oldSessions, `${F.starts} runs, ${F.campStarts} attributable`);
-  // Scoped to the CAMPAIGN table — the retries table also has "Level N" rows, so a loose count
-  // over the whole page passed at 10 for a 9-level campaign and would have kept passing at 20.
-  const levelRows = await page.evaluate(() => {
-    const t = [...document.querySelectorAll('#body table')].find((x) => /clear rate/i.test(x.tHead.textContent));
-    return t ? [...t.tBodies[0].rows].filter((r) => /^Level \d+$/.test(r.children[0].textContent)).length : -1;
-  });
-  ok('...with exactly one row per campaign level', levelRows === want, `${levelRows} rows, campaign is ${want}`);
+  ok('the campaign table reports level 1 players, attempts and clears',
+     campL1 && campL1[1] === String(F.campPlayers) && campL1[2] === String(F.campStarts)
+       && campL1[3] === String(F.campClears1),
+     campL1 ? campL1.slice(0, 5).join(' | ') : '(no Level 1 row)');
+  ok('...and it excludes pre-v2 rows, which name no game, and survival rows, which name another',
+     F.starts - F.campStarts === F.oldSessions + F.survRuns,
+     `${F.starts} runs, ${F.campStarts} campaign, ${F.oldSessions} pre-v2, ${F.survRuns} survival`);
+  ok('...with exactly one row per campaign level', campT && campT.rows.length === want,
+     `${campT ? campT.rows.length : -1} rows, campaign is ${want}`);
+
+  // THE SURVIVAL TABLE, which did not exist: the section filtered every row for a campaign tag
+  // whatever the Game chip said, so survival read as a game nobody had ever started.
+  const survT = await levelTable('survival');
+  const survL1 = survT && survT.rows.find((r) => r[0] === 'Level 1');
+  ok('survival gets a level table of its own',
+     survL1 && survL1[2] === String(F.survStarts) && survL1[3] === String(F.survClears1),
+     survL1 ? survL1.slice(0, 5).join(' | ') : '(no survival panel)');
+  ok('...counting PLAYERS separately from attempts, which is the question that was asked',
+     survL1 && survL1[1] === String(F.survPlayers) && survL1[1] !== survL1[2],
+     survL1 ? `${survL1[1]} players over ${survL1[2]} attempts (want ${F.survPlayers} of ${F.survStarts})` : '—');
+  // An open ladder has no fixed length, so the table has to stop where the data does rather than
+  // printing 90 empty rows — and it must not borrow the campaign's length either.
+  ok('...and it stops at the deepest level anyone started, not at the campaign length',
+     survT && survT.rows.length === 2, `${survT ? survT.rows.length : -1} rows (want 2, campaign is ${want})`);
+
+  // THE BUG ITSELF, on the chip that surfaced it. Under Game=survival the campaign panel must go
+  // and the survival numbers must be unchanged — the broken page kept the campaign panel and fed
+  // it survival-attributed rows, which is how 120 attempts by 72 players rendered as 1.
+  await page.click('.chip[data-f="game"][data-v="survival"]');
+  await sleep(300);
+  const survOnly = await levelTable('survival');
+  const campGone = await levelTable('campaign');
+  const survOnlyL1 = survOnly && survOnly.rows.find((r) => r[0] === 'Level 1');
+  ok('picking Game=survival keeps the survival numbers whole',
+     survOnlyL1 && survOnlyL1[1] === String(F.survPlayers) && survOnlyL1[2] === String(F.survStarts),
+     survOnlyL1 ? survOnlyL1.slice(0, 4).join(' | ') : '(no level table under Game=survival)');
+  ok('...and drops the campaign panel rather than filtering it to nothing', !campGone,
+     campGone ? campGone.rows.slice(0, 1).join(' | ') : 'gone');
+  await page.click('.chip[data-f="game"][data-v="campaign"]');
+  await sleep(300);
+  const campOnly = await levelTable('campaign');
+  const campOnlyL1 = campOnly && campOnly.rows.find((r) => r[0] === 'Level 1');
+  ok('...and Game=campaign is the mirror image', campOnlyL1 && !(await levelTable('survival'))
+     && campOnlyL1[2] === String(F.campStarts),
+     campOnlyL1 ? campOnlyL1.slice(0, 4).join(' | ') : '(no campaign table)');
+  await page.click('.chip[data-f="game"][data-v=""]');
+  await sleep(300);
 
   // SHARES MUST SUM. The device table's share column is the one that did not.
   const shares = await page.evaluate(() => {

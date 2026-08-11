@@ -425,21 +425,43 @@ function render() {
     + " an unknown amount, and comparing sources is comparing storage policies as much as games."));
 
   // ---- HOW FAR PEOPLE GET (the owner's headline question) ------------------
+  // ONE TABLE PER GAME, AND THE ROWS ARE SPLIT ON `r.game`, NOT ON `gameOf`. This was hard-coded
+  // to `r.game === "campaign"` and titled as if it covered everything, so selecting Game=survival
+  // left it filtering survival-attributed rows for a campaign tag: the CrazyGames survival table
+  // read ONE level-1 attempt (the single campaign row inside a session that had opened survival)
+  // against 120 real ones by 72 players. The chip is a SESSION filter and a level_start knows
+  // which game it belongs to itself, so the split here is per row and the chip only decides which
+  // tables are worth drawing.
   section("How far people get");
-  var pc = panel();
-  var camp = rows.filter(function (r) { return r.game === "campaign"; });
-  var starts2 = camp.filter(function (r) { return r.kind === "level_start"; });
-  var clears = camp.filter(function (r) { return r.kind === "level_clear"; });
-  if (!starts2.length) pc.appendChild(el("p", "empty", "No campaign levels started in this window."));
-  else {
-    var lt = table(pc, ["level", { t: "attempts", n: 1 }, { t: "cleared", n: 1 }, { t: "clear rate", n: 1 }, "reached (share of runs)"]);
-    var runsSeen = uniq(camp.filter(function (r) { return r.kind === "run_start"; }).map(function (r) { return r.session_id + "|" + r.client_id; })).length;
+  var lvlGames = FILTER.game && FILTER.game !== GAME_NONE ? [FILTER.game] : ["campaign", "survival"];
+  var drewLevels = 0;
+  lvlGames.forEach(function (G) {
+    var camp = rows.filter(function (r) { return r.game === G; });
+    var starts2 = camp.filter(function (r) { return r.kind === "level_start"; });
+    var clears = camp.filter(function (r) { return r.kind === "level_clear"; });
+    if (!starts2.length) return;
+    drewLevels++;
+    var pc = panel();
+    pc.appendChild(el("p", "empty", G === "campaign"
+      ? "Campaign — " + CAMPAIGN_LEVELS + " levels, the same fixed maps every run"
+      : "Survival — an open ladder, so it ends where people stop rather than at a finish"));
+    // PLAYERS IS ITS OWN COLUMN, not folded into the level label. "Only one person started level
+    // 1" is how the bug above was reported, and attempts alone cannot answer that: a level with
+    // 119 attempts can be 72 people or one very stubborn one.
+    var lt = table(pc, ["level", { t: "players", n: 1 }, { t: "attempts", n: 1 }, { t: "cleared", n: 1 }, { t: "clear rate", n: 1 }, "reached (share of runs)"]);
     var lvl1 = starts2.filter(function (r) { return r.level === 1; }).length || starts2.length;
-    for (var L = 1; L <= CAMPAIGN_LEVELS; L++) {
+    // Campaign has a fixed length and empty tail rows are informative (nobody got there).
+    // Survival does not, so it runs to the deepest level anyone actually started.
+    var deepest = 0;
+    starts2.forEach(function (r) { if (r.level > deepest) deepest = r.level; });
+    var last = G === "campaign" ? CAMPAIGN_LEVELS : Math.min(Math.max(deepest, 1), 20);
+    for (var L = 1; L <= last; L++) {
       var att = starts2.filter(function (r) { return r.level === L; }).length;
       var cl = clears.filter(function (r) { return r.level === L; }).length;
+      var pl = uniq(starts2.filter(function (r) { return r.level === L; }).map(function (r) { return r.client_id; })).length;
       var tr = el("tr");
       tr.appendChild(el("td", "", "Level " + L));
+      tr.appendChild(el("td", "n", String(pl)));
       tr.appendChild(el("td", "n", String(att)));
       tr.appendChild(el("td", "n", String(cl)));
       tr.appendChild(el("td", "n", att ? pct(cl, att) + "%" : "–"));
@@ -451,13 +473,19 @@ function render() {
       td.appendChild(tk); tr.appendChild(td);
       lt.appendChild(tr);
     }
-    var finished = camp.filter(function (r) { return r.kind === "run_end" && r.cause === "won" && r.level >= CAMPAIGN_LEVELS; }).length;
-    var campEnds = camp.filter(function (r) { return r.kind === "run_end"; }).length;
-    var note = el("p", "empty", "Campaign finished " + finished + " time(s)"
-      + (campEnds ? " — " + pct(finished, campEnds) + "% of campaign runs that ended" : "")
-      + ". A level whose clear rate is under 35% is red, under 60% amber.");
-    pc.appendChild(note);
-  }
+    var ends2 = camp.filter(function (r) { return r.kind === "run_end"; }).length;
+    if (G === "campaign") {
+      var finished = camp.filter(function (r) { return r.kind === "run_end" && r.cause === "won" && r.level >= CAMPAIGN_LEVELS; }).length;
+      pc.appendChild(el("p", "empty", "Campaign finished " + finished + " time(s)"
+        + (ends2 ? " — " + pct(finished, ends2) + "% of campaign runs that ended" : "")
+        + ". A level whose clear rate is under 35% is red, under 60% amber."));
+    } else {
+      pc.appendChild(el("p", "empty", "Deepest level anyone started: " + deepest
+        + (deepest > last ? " (table stops at " + last + ")" : "")
+        + ". A level whose clear rate is under 35% is red, under 60% amber."));
+    }
+  });
+  if (!drewLevels) panel().appendChild(el("p", "empty", "No levels started in this window."));
 
   // ---- deaths ---------------------------------------------------------------
   var p2 = el("div", "row2"); document.getElementById("body").appendChild(p2);

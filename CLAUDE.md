@@ -2118,8 +2118,28 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
   days, so old-build sessions keep arriving after a launch. Pair it with Window `all` — a 30d
   window clips whichever side of the launch falls outside it. Windows are 1d / 7d / 30d / 90d / all.
   - **A PRE-v2 ROW NAMES NO GAME, so "How far people get" is legitimately smaller than "runs
-    started" above it** — that table filters `game === "campaign"` and cannot attribute an old row.
+    started" above it** — those tables filter on `r.game` and cannot attribute an old row.
     `analytics-check` pins the gap so the two can't silently converge.
+- **"HOW FAR PEOPLE GET" IS ONE TABLE PER GAME, AND IT SPLITS ON `r.game` — NOT ON `gameOf`.** It
+  was hard-coded to `r.game === "campaign"` while its heading claimed to cover everything, so
+  picking **Game=survival** left it filtering survival-attributed rows for a *campaign* tag:
+  CrazyGames survival rendered **1 level-1 attempt** against the 120 real ones by 72 players.
+  Reported as "it says only 1 person started lvl 1 in survival".
+  - The Game chip is a **session** filter (`gameOf` = the session's first `run_start`) but a
+    `level_start` knows its own game, so the split is per ROW and the chip only decides which
+    tables are worth drawing. The two differ only for a session that switched games mid-way — 1
+    row of 220 on the live CrazyGames data — and using `gameOf` here would file that session's
+    survival levels under campaign.
+  - **Campaign runs to `CAMPAIGN_LEVELS` with the empty tail rows kept** (nobody got there is a
+    finding); **survival runs to the deepest level anyone started**, capped at 20, because an open
+    ladder has no length to print.
+  - **PLAYERS IS ITS OWN COLUMN** beside attempts. "Only one person started level 1" is how the bug
+    was reported and attempts alone cannot answer it — 119 attempts is 72 people or one stubborn
+    one. `analytics-check` asserts the two columns DIFFER, so a players column that silently
+    reprinted attempts would fail.
+  - The fixture had **no survival rows at all**, so every assertion about this table passed on a
+    page that could only ever draw one game. It has a survival cohort now, deliberately smaller and
+    two levels deep.
 - **`source` WAS ADDED LATE TOO, AND ON ITS OWN TIMELINE — SO THERE ARE THREE ERAS, NOT TWO.**
   Measured on the live table: source tagging starts **2026-07-27**, the v2 columns **2026-08-07**,
   and everything before the first is untagged — **1439 events, 255 devices, 2026-07-23 → 07-28**,
