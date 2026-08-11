@@ -2152,7 +2152,19 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
   "all" when the default has no rows, or a table read before that build has been played opens
   empty and looks broken. The point of a default at all is that the same table carries dev boots
   and Playwright runs.
-- **"BEFORE AND AFTER THE LAST RELEASE" CUTS ON THE BUILD STAMP, NOT A DATE.** itch and CrazyGames
+- **"BEFORE AND AFTER THE LAST RELEASE" IS TWO ROWS, CUT AT THE LATEST BUILD** (owner: *"the
+  proper cutoff point is now, not earlier today"*). It used to draw one row per stamp, which on a
+  day with TWO uploads split the baseline in half and left the release being judged against
+  whichever fragment happened to be adjacent — the morning's build got 53 sessions and a row of its
+  own. The question is always "this build against everything before it", so older stamps fold into
+  the baseline and are **named in a footnote** rather than dropped (a silent fold is the same trap
+  in reverse). The cut point is printed in words, since "the latest build" is not a date anyone can
+  check.
+  - **THE LATEST IS THE NEWEST STAMP IN THE DATA, and it cannot be a constant here.** `BUILD_ID` is
+    the literal `'dev'` in the repo — `make-web-zip` patches a COPY at build time — so the page has
+    no way to read what was actually uploaded. Off the rows, the cut moves to a new release by
+    itself the first time anyone plays one.
+- **THE CUT IS THE BUILD STAMP, NOT A DATE.** itch and CrazyGames
   serve whatever zip was last uploaded and a browser can hold a cached copy for days, so a date cut
   files old-build sessions under "after" and flatters the release. Every session on a stamped build
   carries one on its `boot` row; a session with none predates stamping, which makes "no stamp" an

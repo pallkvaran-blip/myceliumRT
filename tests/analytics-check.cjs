@@ -592,6 +592,12 @@ function fixture() {
       if (i < 2) ev(c, sid, now - 5 * DAY, 'run_start', null, null);
       ev(c, sid, now - 5 * DAY, 'session_end', 1, ms);
     });
+    // A SECOND, OLDER STAMPED BUILD — the case that made the table wrong. Two uploads in one day
+    // gave the previous build a row of its own, which split the baseline and left the release
+    // being judged against a handful of sessions. It must fold into "everything before it".
+    boot('p1', 's7', now - 2 * DAY, '2026-08-08-old0001');
+    ev('p1', 's7', now - 2 * DAY, 'run_start', null, null);
+    ev('p1', 's7', now - 2 * DAY, 'session_end', 1, 90000);
     // AFTER (stamped): 3 players at 240s / 305s / 370s -> median 305s = "5m 5s", and all three run.
     [['a1', 's4', 240000], ['a2', 's5', 305000], ['a3', 's6', 370000]].forEach(([c, sid, ms]) => {
       boot(c, sid, now - 1 * DAY, '2026-08-09-abc1234');
@@ -622,18 +628,31 @@ function fixture() {
       const t = pan.querySelector('table');
       return { rows: [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent.trim())),
                head: t.tHead ? t.tHead.textContent : '',
-               note: [...pan.querySelectorAll('.empty')].map((p) => p.textContent).join(' ') };
+               note: [...pan.querySelectorAll('.empty, .lead')].map((p) => p.textContent).join(' ') };
     });
     ok('the before/after release section exists', !!cmp && cmp.rows.length > 0, JSON.stringify(cmp && cmp.rows));
     const after = cmp && cmp.rows.find((r) => /abc1234/.test(r[0]));
-    const before = cmp && cmp.rows.find((r) => /before stamps/i.test(r[0]));
-    ok('...with a row per release, newest first, baseline last',
-       !!after && !!before && cmp.rows.indexOf(after) < cmp.rows.indexOf(before),
+    const before = cmp && cmp.rows.find((r) => /everything before/i.test(r[0]));
+    // EXACTLY TWO ROWS (owner: "the proper cutoff point is now, not earlier today"). The fixture
+    // carries a SECOND stamped build from two days before; a row-per-stamp table would draw three
+    // and judge the release against whichever fragment happened to be adjacent.
+    ok('...cut into exactly two rows, the release and one baseline',
+       !!after && !!before && cmp.rows.length === 2 && cmp.rows.indexOf(after) === 0,
        JSON.stringify(cmp && cmp.rows.map((r) => r[0])));
+    // ...and the older stamp is IN the baseline, not missing from the page. A fold that dropped it
+    // would look identical in the two rows above and quietly lose a build's worth of sessions.
+    ok('...with the previous build folded into it, and named',
+       !!before && before[2] === '4' && /old0001/.test(cmp.note) && /1 session\b/.test(cmp.note),
+       `${before && before[2]} baseline sessions · ${(cmp && cmp.note || '').slice(0, 90)}`);
+    // The cut has to say WHERE it is: "the latest build" is not a date anyone can check.
+    ok('...and the section names the build it cuts at',
+       !!cmp && /Cut at 2026-08-09-abc1234/.test(cmp.note), (cmp && cmp.note || '').slice(0, 60));
     // THE HEADLINE COLUMN. Median, not mean: one player who leaves a tab open overnight moves a
     // mean by minutes and a median not at all, and on a table this small it would be the whole
     // result. 60/120/180 -> 2m; 300/360/420 -> 6m.
-    ok('play time is the median session, before', !!before && before[3] === '1m 35s', before && before[3]);
+    // 55 / 90 / 95 / 125 -> median (90+95)/2 = 92.5s, which rounds to 1m 33s. The 90 is the folded
+    // older build's session, so this number is also the fold doing its job.
+    ok('play time is the median session, before', !!before && before[3] === '1m 33s', before && before[3]);
     ok('...and after', !!after && after[3] === '5m 5s', after && after[3]);
     // BOTH UNITS (owner: "need more detail"). Asserted as a shape rather than only as the two
     // exact strings above, so a formatter that went back to one unit fails here under a name that
@@ -641,12 +660,13 @@ function fixture() {
     ok('...and a duration carries minutes AND seconds, not one rounded unit',
        !!before && /^\d+m \d+s$/.test(before[3]) && !!after && /^\d+m \d+s$/.test(after[3]),
        (before && before[3]) + ' / ' + (after && after[3]));
-    ok('players and sessions are counted per release',
-       !!before && before[1] === '3' && before[2] === '3' && !!after && after[1] === '3',
+    // 4 on the baseline: the three pre-stamp players plus the folded older build's one.
+    ok('players and sessions are counted per side',
+       !!before && before[1] === '4' && before[2] === '4' && !!after && after[1] === '3',
        (before && before.slice(1, 3).join('/')) + ' vs ' + (after && after.slice(1, 3).join('/')));
-    // "Reached a run" is per SESSION, so 2 of 3 before and 3 of 3 after.
+    // "Reached a run" is per SESSION: 3 of 4 on the baseline (b1, b2 and the folded p1), 3 of 3 after.
     ok('...as is the share of sessions that reached a run',
-       !!before && /66\.7%/.test(before[4]) && !!after && /100%/.test(after[4]),
+       !!before && /75%/.test(before[4]) && !!after && /100%/.test(after[4]),
        (before && before[4]) + ' vs ' + (after && after[4]));
     // AND "CLEARED A LEVEL" IS PER PLAYER, WHICH IS A DIFFERENT DENOMINATOR ON PURPOSE (owner:
     // "% who cleared at least one level"). Nobody clears before, all three clear after. Asserted

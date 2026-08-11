@@ -637,18 +637,49 @@ function render() {
   // so a date cut files old-build sessions under "after" and flatters the release. Every session
   // on a stamped build carries one; a session with none predates the change that added stamping,
   // which makes "no stamp" an exact label rather than a gap.
+  // TWO ROWS, CUT AT THE LATEST BUILD (owner: "the proper cutoff point is now, not earlier
+  // today"). It used to draw one row per stamp, which on a day with two uploads split the
+  // baseline in half and gave the release five sessions to be judged against — the previous
+  // build had shipped that morning and got a row of its own. The question is always "this build
+  // against everything before it", so the older stamps fold into the baseline and are named in
+  // the footnote rather than given rows.
+  //
+  // THE LATEST IS THE NEWEST STAMP IN THE DATA, not a constant here: `BUILD_ID` is the literal
+  // "dev" in the repo and only becomes a stamp when make-web-zip patches a COPY at build time, so
+  // this page cannot read what was actually uploaded. Reading it off the rows means the cut moves
+  // to a new release on its own, the first time anybody plays one.
   section("Before and after the last release");
   var pcmp = panel();
   var cross = ROWS.filter(inFilterCrossRelease);
+  var stamps = uniq(cross.map(buildOf).filter(function (b) { return b !== BUILD_NONE; })).sort().reverse();
+  var latest = stamps[0] || null;
   var byBuild = {};
-  cross.forEach(function (r) { (byBuild[buildOf(r)] || (byBuild[buildOf(r)] = [])).push(r); });
-  var order = Object.keys(byBuild).filter(function (b) { return b !== BUILD_NONE; }).sort().reverse();
-  if (byBuild[BUILD_NONE]) order.push(BUILD_NONE);
-  if (order.length < 2) {
-    pcmp.appendChild(el("p", "empty", order.length === 1 && order[0] === BUILD_NONE
-      ? "Only pre-stamp sessions so far — the build that stamps itself has not been played yet."
-      : "Only one release in the data. This fills in once a second one has been played."));
+  var LATEST = "__latest", OLDER = "__older";
+  cross.forEach(function (r) {
+    var k = (latest && buildOf(r) === latest) ? LATEST : OLDER;
+    (byBuild[k] || (byBuild[k] = [])).push(r);
+  });
+  var order = [];
+  if (byBuild[LATEST]) order.push(LATEST);
+  if (byBuild[OLDER]) order.push(OLDER);
+  if (!latest) {
+    pcmp.appendChild(el("p", "empty", "No stamped sessions yet — no build that stamps itself has"
+      + " been played. This fills in as soon as one is."));
+  } else if (order.length < 2) {
+    pcmp.appendChild(el("p", "empty", "Only one side so far. This becomes a comparison once there"
+      + " are sessions on both sides of " + latest + "."));
   }
+  // WHEN the cut is, in words, because "the latest build" is not a date anyone can check.
+  var firstSeen = null;
+  if (latest) cross.forEach(function (r) {
+    if (buildOf(r) !== latest) return;
+    var t = new Date(r.created_at).getTime();
+    if (t > 0 && (firstSeen == null || t < firstSeen)) firstSeen = t;
+  });
+  if (latest) pcmp.appendChild(el("p", "lead", "Cut at " + latest
+    + (firstSeen ? ", first played " + new Date(firstSeen).toISOString().replace("T", " ").slice(0, 16) + " UTC" : "")
+    + ". Everything before it is one baseline — the previous build and every older session together."));
+
   // PLAY TIME IS THE HEADLINE (owner). `session_end.ms` is the length of one visit and it is the
   // closest thing here to "did they enjoy it" — a release that makes the game better shows up as
   // people staying longer before it shows up anywhere else. MEDIAN, not mean: one player who left
@@ -676,7 +707,7 @@ function render() {
     var clearedBy = uniq(rs.filter(function (r) { return r.kind === "level_clear"; })
                            .map(function (r) { return r.client_id; })).length;
     var tr = el("tr");
-    tr.appendChild(el("td", "", b === BUILD_NONE ? "before stamps" : b));
+    tr.appendChild(el("td", "", b === LATEST ? latest : "everything before it"));
     tr.appendChild(el("td", "n", String(players)));
     tr.appendChild(el("td", "n", String(sess)));
     var td = el("td", "n", mins.length ? fmtMs(median(mins)) : "–");
@@ -692,8 +723,18 @@ function render() {
   // A SMALL SAMPLE IS THE NORMAL STATE OF THIS TABLE for a day or two after a release, and the
   // page has to say so — otherwise the first reading of a new build is a dozen sessions presented
   // with the same confidence as a month of them.
-  var newest = order.length ? byBuild[order[0]] : null;
+  var newest = byBuild[LATEST] || null;
   var newestSess = newest ? uniq(newest.map(function (r) { return r.session_id; })).length : 0;
+  // THE FOLDED-IN STAMPS, NAMED. The baseline is not only "before stamps" — on a day with two
+  // uploads it holds the previous release too, and a row labelled "everything before it" that
+  // silently contains this morning’s build would be the same trap in reverse.
+  var folded = stamps.slice(1);
+  if (folded.length) pcmp.appendChild(el("p", "empty", "The baseline also contains "
+    + folded.map(function (b) {
+        var n = uniq(cross.filter(function (r) { return buildOf(r) === b; })
+                          .map(function (r) { return r.session_id; })).length;
+        return b + " (" + n + " session" + (n === 1 ? "" : "s") + ")";
+      }).join(", ") + ", plus every session from before builds stamped themselves."));
   pcmp.appendChild(el("p", "empty", "Play time is one VISIT, from `boot` to `session_end`."
     + " “Reached a run” is a share of SESSIONS; “cleared a level” is a share of PLAYERS — one"
     + " person who cleared nine levels is one person who got somewhere."
