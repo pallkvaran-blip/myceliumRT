@@ -616,6 +616,22 @@
       "key": "skyline2",
       "x": 1692,
       "w": 288
+    },
+    {
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 1433,
+      "y": 1878,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 829,
+      "y": 1483,
+      "r": 1,
+      "energy": 4
     }
   ]
 }

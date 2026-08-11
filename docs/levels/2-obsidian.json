@@ -379,6 +379,14 @@
       "energy": 4
     },
     {
+      "t": "food",
+      "kind": "cache",
+      "x": 77,
+      "y": 1599,
+      "r": 1,
+      "energy": 4
+    },
+    {
       "t": "ant",
       "x": 304
     },
@@ -401,8 +409,24 @@
     {
       "t": "food",
       "kind": "cache",
+      "x": 367,
+      "y": 1085,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
       "x": 2485,
       "y": 1506,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2435,
+      "y": 1219,
       "r": 1,
       "energy": 4
     },
@@ -427,6 +451,14 @@
       "kind": "cache",
       "x": 1926,
       "y": 1934,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1434,
+      "y": 1946,
       "r": 1,
       "energy": 4
     },
@@ -499,6 +531,36 @@
       "energy": 2
     },
     {
+      "t": "mountain",
+      "key": "mountain3",
+      "x": 720,
+      "w": 648
+    },
+    {
+      "t": "mountain",
+      "key": "mountain5",
+      "x": 1908,
+      "w": 720
+    },
+    {
+      "t": "city",
+      "key": "skyline3",
+      "x": 306,
+      "w": 180
+    },
+    {
+      "t": "mountain",
+      "key": "mountain1",
+      "x": 1296,
+      "w": 432
+    },
+    {
+      "t": "city",
+      "key": "skyline2",
+      "x": 2376,
+      "w": 216
+    },
+    {
       "t": "reservoir",
       "key": "reservoir3",
       "x": 863,
@@ -553,87 +615,12 @@
       "y": 444
     },
     {
-      "t": "nematode",
-      "x": 172,
-      "y": 1684
-    },
-    {
-      "t": "nematode",
-      "x": 112,
-      "y": 1703
-    },
-    {
-      "t": "nematode",
-      "x": 231,
-      "y": 1718
-    },
-    {
-      "t": "nematode",
-      "x": 2532,
-      "y": 1977
-    },
-    {
-      "t": "nematode",
-      "x": 2486,
-      "y": 1898
-    },
-    {
-      "t": "nematode",
-      "x": 2795,
-      "y": 1437
-    },
-    {
-      "t": "nematode",
-      "x": 2855,
-      "y": 1392
-    },
-    {
-      "t": "nematode",
-      "x": 1505,
-      "y": 1804
-    },
-    {
-      "t": "nematode",
-      "x": 1510,
-      "y": 1738
-    },
-    {
-      "t": "nematode",
-      "x": 1925,
-      "y": 494
-    },
-    {
-      "t": "nematode",
-      "x": 1985,
-      "y": 491
-    },
-    {
-      "t": "nematode",
-      "x": 1551,
-      "y": 839
-    },
-    {
-      "t": "nematode",
-      "x": 1605,
-      "y": 854
-    },
-    {
-      "t": "mountain",
-      "key": "mountain3",
-      "x": 1332,
-      "w": 1872
-    },
-    {
-      "t": "city",
-      "key": "skyline3",
-      "x": 306,
-      "w": 180
-    },
-    {
-      "t": "city",
-      "key": "skyline1",
-      "x": 2376,
-      "w": 216
+      "t": "food",
+      "kind": "cache-engine",
+      "x": 1937,
+      "y": 927,
+      "r": 1,
+      "energy": 4
     }
   ],
   "chapter": "Chapter 1"

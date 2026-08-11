@@ -43,8 +43,12 @@ const parseStart = (src) => {
   };
 };
 
-// What EVERY colony opens with before the store's resource tracks add anything.
-const EXPECT_START = { energy: 20, water: 20, phosphorus: 0 };
+// What EVERY colony opens with before the store's resource tracks add anything. Phosphorus has
+// moved twice: the species table used to give 6-16 of it, then the universal base took over at 0
+// (the store's track being the only opening reserve), and it is 10 now (owner: "let the player
+// start with 10 P") — enough that the P-hungry openers, Cord Capillary at 6P and Aquaporin
+// Channels at 6P, are playable on turn 1 without the upgrade, and not enough to cover both.
+const EXPECT_START = { energy: 20, water: 20, phosphorus: 10 };
 
 // The store bases — what a player has on a track they have never bought a step of. Basic/Event
 // Memory is 3, which used to be a bare `3 +` at the run loop where the store tile could not see it.

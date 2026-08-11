@@ -35,7 +35,6 @@
       "saturate": 1.52
     }
   },
-  "chapter": "Chapter 1",
   "objects": [
     {
       "t": "boulder",
@@ -409,6 +408,13 @@
     },
     {
       "t": "reservoir",
+      "key": "reservoir1",
+      "x": 514,
+      "y": 924,
+      "r": 72
+    },
+    {
+      "t": "reservoir",
       "key": "reservoir3",
       "x": 1279,
       "y": 1683,
@@ -567,33 +573,44 @@
     {
       "t": "food",
       "kind": "cache",
-      "x": 2692,
-      "y": 1164,
+      "x": 2435,
+      "y": 1147,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2668,
+      "y": 1039,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1358,
+      "y": 608,
       "r": 1,
       "energy": 4
     },
     {
       "t": "mountain",
       "key": "mountain2",
-      "x": 1372,
-      "w": 1021.3
+      "x": 1332,
+      "w": 720
     },
     {
       "t": "city",
       "key": "skyline1",
-      "x": 347,
-      "w": 228.5
+      "x": 594,
+      "w": 324
     },
     {
       "t": "city",
       "key": "skyline6",
       "x": 2070,
       "w": 396
-    },
-    {
-      "t": "trichoderma",
-      "x": 1551,
-      "y": 485
     },
     {
       "t": "nematode",
@@ -610,5 +627,6 @@
       "x": 2529,
       "y": 1551
     }
-  ]
+  ],
+  "chapter": "Chapter 1"
 }

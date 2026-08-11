@@ -1523,6 +1523,31 @@ short version:
   came across with the fork), and validates the clearance rules before writing. Re-running it
   overwrites the JSON, so put hand-tweaks in the script.
 
+### Taking a batch of map edits from the owner
+
+They arrive as the in-game editor's **Copy JSON** output, pasted into a document — one object per
+map, ids and all. Four things that batch teaches, all of which cost something to find:
+
+- **DIFF BEFORE WRITING, and diff by OBJECT KIND.** The four maps in the first batch changed only
+  food, threats, water and skyline — **not one boulder moved** — which is what said the collision
+  and reachability risk was confined to the food-holes-rock rule rather than being open-ended.
+- **THE EXPORT'S `name` CAN CONTRADICT ITS OWN SLOT.** `4-rust` came back named *"4 — Rust"* while
+  claiming `campaignLevel: 3`, which would have put two maps called "4" in a nine-level campaign.
+  The in-game rename is per-session (a generated map's new name is not persisted) and the id
+  starts `4-`, so this is the draft's label rather than a re-slot. **The slot decides the name.**
+- **`json.dumps(d, indent=2, ensure_ascii=False)` round-trips a `docs/levels/*.json` BYTE-IDENTICALLY**
+  — verified against an untouched file before writing any of them, so the diff shows the owner's
+  edits and nothing else. The editor's own export is `indent=1` with `\u2014` escapes.
+- **RUN `sky` AFTER ANY SKYLINE EDIT, AND EXPECT IT TO FAIL.** The owner rearranged obsidian's
+  band and put a city over cols 31-40, which the soil line cuts — the rule is invisible in the
+  JSON (it is a property of the sprite's ALPHA) so nothing in the editor could have told them.
+  **Re-running `author-campaign-surface.mjs` is the documented fix and it is too blunt for this**:
+  on that map it would have replaced all five of their surface objects with one mountain spanning
+  cols 11-62 and two edge skylines, erasing the arrangement. The minimal fix keeps their layout —
+  swap the offending city for a mountain at the same x and width — and then **widen it by one
+  column**, because a span ending exactly on a cut column's left edge still leaves it bare
+  (`1 bare: [[41,41]]`).
+
 ## Generated maps
 
 `scripts/gen-map.mjs` asks FLUX for a whole underground as one image;
@@ -2636,6 +2661,13 @@ has been played against nothing. The colonies are four existing roster entries s
 a real detail sheet.
 
 - **`lives` IS SPENT NOW — see "Retries" below.**
+- **`cards.startPhosphorus` IS 10 (owner: *"let the player start with 10 P"*), and it has moved
+  twice.** The species table used to hand out 6-16 P per colony; that was replaced by a universal
+  base of **0**, on the reasoning that the store's Phosphorus track should be the only opening
+  reserve. At 0 the two P-hungry openers — Cord Capillary (4E+2W+6P) and Aquaporin Channels
+  (20E+6P) — could not be played on turn 1 by anyone who had not bought the track. 10 puts either
+  back in reach on the first turn and does not cover both. `species-check`'s `EXPECT_START` pins
+  it; Digest is the other source and is unchanged.
 - **Energy, water and phosphorus land in `effectiveSpecies`, on a COPY at seed time.** Not in
   `SPECIES` — that table is the colony's identity, and a multiply there would compound every run.
   The detail sheet adds the same bonus to its pills with a note saying where it came from, so the

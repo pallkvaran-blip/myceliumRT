@@ -2378,11 +2378,14 @@ const CONFIG = {
     skipCostEnergy: 3,          // energy to SKIP a round (advance the world, draw nothing)
     handStartMax: 12,            // cap on the opening premium hand (tutorial uses fewer)
     startWater: 20,              // starting Water — universal base (covers grow AND substrate)
-    startPhosphorus: 0,          // starting Phosphorus — universal base, and genuinely 0: it is the
-                                 //   store's Phosphorus track (+2 a step) that buys an opening reserve.
-                                 //   Eight species used to open with 6-16 P and spent it on a turn-1
-                                 //   install — Cord Capillary (4E+2W+6P), Aquaporin Channels (20E+6P).
-                                 //   Those openers now wait for rock or for the upgrade.
+    startPhosphorus: 10,         // starting Phosphorus — universal base. 0 -> 10 (owner: "let the
+                                 //   player start with 10 P"), reversing the 0 this carried for one
+                                 //   release. At 0 the store's Phosphorus track (+3 a step) was the
+                                 //   ONLY opening reserve, and the P-hungry openers — Cord Capillary
+                                 //   (4E+2W+6P), Aquaporin Channels (20E+6P) — could not be played
+                                 //   on turn 1 by anyone who had not bought it. 10 puts both back
+                                 //   in reach on the first turn without covering two of them.
+                                 //   Digest is the other source and is unchanged.
     softCapWater: 999,           // per-resource stockpile caps — set high so harvesting/income
     softCapPhosphorus: 999,      //   keeps paying off and you can bank resources for big plays
 
@@ -6036,14 +6039,18 @@ const LEVELS = [
       {"t":"boulder","key":"obsidian-c40R023","x":114,"y":720.2,"w":94,"h":96.7,"rot":0},
       {"t":"food","kind":"cache-engine","x":63,"y":1414,"r":1,"energy":4},
       {"t":"food","kind":"cache","x":121,"y":1505,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":77,"y":1599,"r":1,"energy":4},
       {"t":"ant","x":304},
       {"t":"ant","x":763},
       {"t":"food","kind":"cache","x":289,"y":957,"r":1,"energy":4},
       {"t":"ant","x":1078},
+      {"t":"food","kind":"cache","x":367,"y":1085,"r":1,"energy":4},
       {"t":"food","kind":"cache","x":2485,"y":1506,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":2435,"y":1219,"r":1,"energy":4},
       {"t":"food","kind":"cache","x":2751,"y":991,"r":1,"energy":4},
       {"t":"food","kind":"cache","x":2625,"y":1875,"r":1,"energy":4},
       {"t":"food","kind":"cache","x":1926,"y":1934,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":1434,"y":1946,"r":1,"energy":4},
       {"t":"food","kind":"duff","x":1722,"y":1752,"r":1,"energy":2},
       {"t":"food","kind":"duff","x":2761,"y":1203,"r":1,"energy":2},
       {"t":"food","kind":"duff","x":2654,"y":627,"r":1,"energy":2},
@@ -6054,6 +6061,11 @@ const LEVELS = [
       {"t":"food","kind":"duff","x":2219,"y":604,"r":1,"energy":2},
       {"t":"food","kind":"duff","x":1946,"y":695,"r":1,"energy":2},
       {"t":"food","kind":"duff","x":1513,"y":641,"r":1,"energy":2},
+      {"t":"mountain","key":"mountain3","x":720,"w":648},
+      {"t":"mountain","key":"mountain5","x":1908,"w":720},
+      {"t":"city","key":"skyline3","x":306,"w":180},
+      {"t":"mountain","key":"mountain1","x":1296,"w":432},
+      {"t":"city","key":"skyline2","x":2376,"w":216},
       {"t":"reservoir","key":"reservoir3","x":863,"y":755,"r":72},
       {"t":"nematode","x":258,"y":879},
       {"t":"food","kind":"cache","x":1130,"y":1542,"r":1,"energy":4},
@@ -6062,22 +6074,7 @@ const LEVELS = [
       {"t":"food","kind":"cache","x":929,"y":1882,"r":1,"energy":4},
       {"t":"nematode","x":1573,"y":890},
       {"t":"nematode","x":1945,"y":444},
-      {"t":"nematode","x":172,"y":1684},
-      {"t":"nematode","x":112,"y":1703},
-      {"t":"nematode","x":231,"y":1718},
-      {"t":"nematode","x":2532,"y":1977},
-      {"t":"nematode","x":2486,"y":1898},
-      {"t":"nematode","x":2795,"y":1437},
-      {"t":"nematode","x":2855,"y":1392},
-      {"t":"nematode","x":1505,"y":1804},
-      {"t":"nematode","x":1510,"y":1738},
-      {"t":"nematode","x":1925,"y":494},
-      {"t":"nematode","x":1985,"y":491},
-      {"t":"nematode","x":1551,"y":839},
-      {"t":"nematode","x":1605,"y":854},
-      {"t":"mountain","key":"mountain3","x":1332,"w":1872},
-      {"t":"city","key":"skyline3","x":306,"w":180},
-      {"t":"city","key":"skyline1","x":2376,"w":216}
+      {"t":"food","kind":"cache-engine","x":1937,"y":927,"r":1,"energy":4}
     ]
   },
   {
@@ -6287,6 +6284,7 @@ const LEVELS = [
       {"t":"food","kind":"duff","x":1348,"y":426,"r":1,"energy":2},
       {"t":"trichoderma","x":961,"y":449},
       {"t":"ant","x":1680},
+      {"t":"reservoir","key":"reservoir1","x":514,"y":924,"r":72},
       {"t":"reservoir","key":"reservoir3","x":1279,"y":1683,"r":72},
       {"t":"reservoir","key":"reservoir2","x":2764,"y":1351,"r":72},
       {"t":"food","kind":"cache","x":314,"y":909,"r":1,"energy":4},
@@ -6311,11 +6309,12 @@ const LEVELS = [
       {"t":"nematode","x":1900,"y":1866},
       {"t":"nematode","x":1887,"y":1823},
       {"t":"nematode","x":1865,"y":1876},
-      {"t":"food","kind":"cache","x":2692,"y":1164,"r":1,"energy":4},
-      {"t":"mountain","key":"mountain2","x":1372,"w":1021.3},
-      {"t":"city","key":"skyline1","x":347,"w":228.5},
+      {"t":"food","kind":"cache","x":2435,"y":1147,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":2668,"y":1039,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":1358,"y":608,"r":1,"energy":4},
+      {"t":"mountain","key":"mountain2","x":1332,"w":720},
+      {"t":"city","key":"skyline1","x":594,"w":324},
       {"t":"city","key":"skyline6","x":2070,"w":396},
-      {"t":"trichoderma","x":1551,"y":485},
       {"t":"nematode","x":2563,"y":1603},
       {"t":"nematode","x":2495,"y":1606},
       {"t":"nematode","x":2529,"y":1551}
@@ -7158,7 +7157,9 @@ const LEVELS = [
       {"t":"nematode","x":1465,"y":1190},
       {"t":"mountain","key":"mountain5","x":882,"w":1332},
       {"t":"mountain","key":"mountain3","x":2160,"w":648},
-      {"t":"city","key":"skyline2","x":1692,"w":288}
+      {"t":"city","key":"skyline2","x":1692,"w":288},
+      {"t":"food","kind":"cache-engine","x":1433,"y":1878,"r":1,"energy":4},
+      {"t":"food","kind":"cache","x":829,"y":1483,"r":1,"energy":4}
     ]
   },
   {
@@ -7257,8 +7258,6 @@ const LEVELS = [
       {"t":"ant","x":1817},
       {"t":"ant","x":853},
       {"t":"trichoderma","x":944,"y":805},
-      {"t":"trichoderma","x":955,"y":1175},
-      {"t":"trichoderma","x":1462,"y":868},
       {"t":"trichoderma","x":1894,"y":713},
       {"t":"trichoderma","x":2186,"y":922},
       {"t":"food","kind":"duff","x":987,"y":1090,"r":1,"energy":2},
