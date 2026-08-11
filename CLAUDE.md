@@ -2218,6 +2218,21 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
     "5m 0s"). The check's fixture deliberately lands its medians on non-round values; whole minutes
     would pass either way and prove nothing. It is the same helper everywhere, so the funnel's
     "median session" and retention's "typical gap" gained the detail too.
+- **MEAN vs MEDIAN — THE PAGE NOW REPORTS BOTH, AND THE DIFFERENCE IS NOT A ROUNDING ONE.** The
+  owner could not reconcile this dashboard with CrazyGames' own: *"according to crazygames, our
+  overall average playtime during the first 24h was 4:25"* against a page saying 1m 12s. Both were
+  right. The store publishes an **average of GAMEPLAY time** — a mean, and one whose clock starts
+  when play does, so it never sees a visitor who looked and left. Reproduced on the same 24 hours
+  that is **4:14 against their 4:25 — two independent measurements 4% apart**, which is the best
+  validation this telemetry has.
+  - **The distribution is savagely skewed, which is why everything else is a median.** In that
+    window the longest 10% of visits held **48%** of all the time played; all-time it is 72%, and
+    one tab left open overnight (**19.6 hours**) moves the all-time mean by minutes. A mean answers
+    "how long do people play"; a median is the only one of the two that can be compared between two
+    releases without the tail deciding the result.
+  - The funnel carries **`mean PLAYED visit`** labelled "what a store reports", so the two
+    dashboards can be put side by side without anyone wondering which is broken. `analytics-check`
+    asserts both are present AND that they differ.
 - **RETENTION IS ONE SECTION NOW, AND IT OPENS ON A SENTENCE** (owner: *"rethink how you show
   player retention stats - very confusing now"*). There were literally **two** headings called
   "Coming back" — a visits/gap one and a day-1/3/7 cohort one — measuring the same thing several

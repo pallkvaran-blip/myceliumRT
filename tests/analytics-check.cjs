@@ -250,6 +250,16 @@ function fixture() {
   ok('runs started matches the fixture', kv('runs started') === String(F.startsCG),
      `${kv('runs started')} of ${F.startsCG}`);
   ok('runs ended matches the fixture', kv('runs ended') === String(F.startsCG), `${kv('runs ended')}`);
+  // MEAN AND MEDIAN, SIDE BY SIDE — and they must be different numbers. The owner could not
+  // reconcile this page with CrazyGames' own dashboard ("overall average playtime during the first
+  // 24h was 4:25") because the page reported medians throughout and the store reports a mean over
+  // GAMEPLAY time. Both were right. The mean is on the page now so the two can be compared without
+  // anyone wondering which is broken, labelled as the store's statistic, and it is the PLAYED mean
+  // because a store's clock starts when play does.
+  ok('the funnel reports the store-comparable mean as well as the median',
+     kv('median visit') != null && kv('mean PLAYED visit') != null
+       && kv('median visit') !== kv('mean PLAYED visit'),
+     `median ${kv('median visit')} · mean ${kv('mean PLAYED visit')}`);
 
   // HOW FAR PEOPLE GET — the headline table, and there is one PER GAME now. Every read below is
   // scoped to the panel whose lede names the game, because "the first table with a clear rate"

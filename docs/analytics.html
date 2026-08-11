@@ -149,6 +149,7 @@ function fmtMs(ms) {
   return h + "h" + (rm ? " " + rm + "m" : "");
 }
 function median(a) { if (!a.length) return null; var s = a.slice().sort(function (x, y) { return x - y; }); var m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+function mean(a) { if (!a.length) return null; var t = 0; for (var i = 0; i < a.length; i++) t += a[i]; return t / a.length; }
 
 // `source` WAS ADDED LATE TOO, and unlike the build columns it has its own chip — so an untagged
 // row is invisible rather than merely unattributed. SRC_NONE is the bucket that makes it clickable.
@@ -323,7 +324,22 @@ function render() {
       starts.length ? (ends.length > starts.length ? "more ends than starts — check run_start" : pct(ends.length, starts.length) + "% of starts") : "");
   kpi(kc, fmtMs(median(of("boot").map(function (r) { return r.ms; }).filter(function (v) { return v != null; }))), "median load", "to playable");
   var sess = of("session_end").map(function (r) { return r.ms; }).filter(function (v) { return v != null; });
-  kpi(kc, fmtMs(median(sess)), "median session", sess.length + " measured");
+  kpi(kc, fmtMs(median(sess)), "median visit", sess.length + " measured");
+  // THE NUMBER THE STORE REPORTS, so the two dashboards can be put side by side without anyone
+  // wondering which is broken. CrazyGames publishes an AVERAGE of GAMEPLAY time — a mean, and one
+  // that starts at `gameplayStart` rather than at page load, so it never sees a visitor who looked
+  // and left. Reproduced here it came out at 4:14 against their 4:25 for the same 24 hours: two
+  // independent measurements 4% apart.
+  //
+  // MEDIAN EVERYWHERE ELSE, and deliberately: this distribution is savagely skewed — the longest
+  // 10% of visits hold 48% of all the time played, and one tab left open overnight (19.6 HOURS)
+  // moves the all-time mean by minutes. A mean answers "how long do people play"; a median is the
+  // only one of the two that can be compared between two releases without the tail deciding it.
+  var playedS = {};
+  of("level_start").forEach(function (r) { playedS[r.session_id] = 1; });
+  var sessP = of("session_end").filter(function (r) { return r.ms != null && playedS[r.session_id]; })
+                               .map(function (r) { return r.ms; });
+  kpi(kc, fmtMs(mean(sessP)), "mean PLAYED visit", "what a store reports · " + sessP.length + " measured");
   var pf = panel();
   var ft = table(pf, ["step", "reach"]);
   // AND THE FUNNEL FALLS BACK TO SESSIONS WHEN IT HAS TO. The old `|| sessions.length` only
