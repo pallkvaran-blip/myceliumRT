@@ -36,8 +36,11 @@ function fixture() {
   let seed = 7;
   const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
   let id = 0;
+  // THE DEFAULT SOURCE IS `crazygames` NOW (owner), so the main cohort is tagged that way — a
+  // fixture whose every row is `itch` would leave the page falling back to "all" on load and every
+  // count below would silently be measuring the fallback rather than the default.
   const push = (t, o) => rows.push(Object.assign({ id: ++id, created_at: new Date(t).toISOString(),
-    source: 'itch', game: 'campaign', mode: 'turn' }, o));
+    source: 'crazygames', game: 'campaign', mode: 'turn' }, o));
   let boots = 0, starts = 0, clears1 = 0;
   for (let d = 13; d >= 0; d--) {
     for (let p = 0; p < 14; p++) {
@@ -60,6 +63,15 @@ function fixture() {
       // The two tables whose bars are a SCALE rather than a rate. Without rows here the
       // "prints no percentage" assertion checked nothing and said so as a pass.
       push(t + 20000, Object.assign({ kind: 'draft', level: 1, n: 3, detail: p % 2 ? 'Acorn Cache' : 'Amputate' }, base));
+      // ENGINES: TAKEN vs BUILT. `Dew Traps` is drafted by everyone and installed by a third —
+      // the shape the panel exists to show, a card people want and cannot afford. `n` on an
+      // install is 0 for an engine and 1 for an action, which is how one event kind carries both.
+      push(t + 20500, Object.assign({ kind: 'draft', level: 1, n: 3, detail: 'Dew Traps' }, base));
+      if (p % 3 === 0) push(t + 20600, Object.assign({ kind: 'install', level: 1, n: 0, detail: 'Dew Traps' }, base));
+      // A REAL ACTION CARD. The first version used `Amputate`, which reads like one and is typed
+      // `basic` (its `displayCategory` is `event`) — so it landed in neither panel and the
+      // assertion failed on a page that was filing it correctly. Check `type` before picking one.
+      if (p % 4 === 0) push(t + 20700, Object.assign({ kind: 'install', level: 1, n: 1, detail: 'Constricting Ring' }, base));
       if (p % 5 === 0) push(t + 21000, Object.assign({ kind: 'upgrade', detail: 'water', level: 1, n: 25 }, base));
     }
   }
@@ -121,6 +133,22 @@ function fixture() {
     }
   }
 
+  // A SMALL `itch` COHORT, so the Source chip has a second side and "a source filter narrows"
+  // is a real assertion rather than one that passes because everything is one source.
+  let itchSessions = 0;
+  for (let d = 5; d >= 1; d--) {
+    for (let p = 0; p < 2; p++) {
+      const t = now - d * day - Math.round(rnd() * day * 0.5);
+      const base = { client_id: 'it' + p, session_id: 'it' + d + '-' + p, device: 'desktop',
+        source: 'itch', game: 'campaign', mode: 'turn' };
+      push(t, Object.assign({ kind: 'boot', ms: 3000 }, base)); boots++;
+      push(t + 6000, Object.assign({ kind: 'run_start', species: 'pleurotus', level: 1, cause: 'new' }, base));
+      starts++; itchSessions++;
+      push(t + 15000, Object.assign({ kind: 'run_end', species: 'pleurotus', level: 1, cause: 'devoured', turns: 40, n: 100 }, base));
+      push(t + 17000, Object.assign({ kind: 'session_end', ms: 400000, n: 1 }, base));
+    }
+  }
+
   // THE OLDEST ERA: no `source` EITHER. The two column sets landed at different times on the real
   // table — source tagging first, the game/mode/device columns days later — so there are three
   // eras, not two, and the untagged one is the launch week. It reuses existing client_ids so the
@@ -142,8 +170,13 @@ function fixture() {
   // Counted, not assumed: the first version of this hard-coded 40 because that is the modulus in
   // the id, and the loop only ever produces 27 of them.
   const devices = new Set(rows.map((r) => r.client_id)).size;
+  // ...and the same two counts restricted to the DEFAULT source, which is what the page opens on.
+  const cg = rows.filter((r) => r.source === 'crazygames');
+  const devicesCG = new Set(cg.map((r) => r.client_id)).size;
+  const startsCG = cg.filter((r) => r.kind === 'run_start').length;
   return { rows, boots, starts, clears1, devices, oldSessions, campStarts, campClears1, untagged,
-    survStarts, survClears1, survL2, survRuns, survPlayers: survPlayers.size, campPlayers };
+    survStarts, survClears1, survL2, survRuns, survPlayers: survPlayers.size, campPlayers,
+    itchSessions, devicesCG, startsCG };
 }
 
 (async () => {
@@ -209,19 +242,24 @@ function fixture() {
   // The numbers are arithmetic on the fixture, so a wrong one is wrong rather than surprising.
   const kpis = await page.$$eval('.kpi', (ks) => ks.map((k) => ({ v: k.querySelector('.v').textContent, k: k.querySelector('.k').textContent })));
   const kv = (label) => (kpis.find((x) => x.k === label) || {}).v;
-  ok('players is the distinct-device count', kv('players') === String(F.devices), `${kv('players')} (want ${F.devices})`);
-  ok('runs started matches the fixture', kv('runs started') === String(F.starts), `${kv('runs started')} of ${F.starts}`);
-  ok('runs ended matches the fixture', kv('runs ended') === String(F.starts), `${kv('runs ended')}`);
+  // AGAINST THE DEFAULT SOURCE, not the whole fixture. The page opens on `crazygames`, so the itch
+  // cohort is legitimately outside these numbers — counting the fixture whole would assert that the
+  // default filter does nothing.
+  ok('players is the distinct-device count', kv('players') === String(F.devicesCG),
+     `${kv('players')} (want ${F.devicesCG} on the default source)`);
+  ok('runs started matches the fixture', kv('runs started') === String(F.startsCG),
+     `${kv('runs started')} of ${F.startsCG}`);
+  ok('runs ended matches the fixture', kv('runs ended') === String(F.startsCG), `${kv('runs ended')}`);
 
   // HOW FAR PEOPLE GET — the headline table, and there is one PER GAME now. Every read below is
   // scoped to the panel whose lede names the game, because "the first table with a clear rate"
   // stopped being unambiguous the moment survival got a table of its own.
+  // FOUND BY `data-game`, NOT BY ITS LEDE. The first version matched the panel's explanatory
+  // sentence, which made the assertion hostage to the copy — and it duly broke when the survival
+  // lede was removed, reporting a missing table on a page that drew it perfectly.
   const levelTable = (game) => page.evaluate((g) => {
-    const p = [...document.querySelectorAll('.panel')].find((x) => {
-      const l = x.querySelector('p.empty');
-      return l && l.textContent.toLowerCase().startsWith(g) && x.querySelector('table');
-    });
-    if (!p) return null;
+    const p = document.querySelector('.panel[data-game="' + g + '"]');
+    if (!p || !p.querySelector('table')) return null;
     const t = p.querySelector('table');
     return { rows: [...t.tBodies[0].rows].map((r) => [...r.children].map((td) => td.textContent.trim())),
              head: t.tHead.textContent.toLowerCase() };
@@ -236,8 +274,8 @@ function fixture() {
        && campL1[3] === String(F.campClears1),
      campL1 ? campL1.slice(0, 5).join(' | ') : '(no Level 1 row)');
   ok('...and it excludes pre-v2 rows, which name no game, and survival rows, which name another',
-     F.starts - F.campStarts === F.oldSessions + F.survRuns,
-     `${F.starts} runs, ${F.campStarts} campaign, ${F.oldSessions} pre-v2, ${F.survRuns} survival`);
+     F.starts - F.campStarts === F.oldSessions + F.survRuns + F.itchSessions,
+     `${F.starts} runs, ${F.campStarts} campaign, ${F.oldSessions} pre-v2, ${F.survRuns} survival, ${F.itchSessions} itch`);
   ok('...with exactly one row per campaign level', campT && campT.rows.length === want,
      `${campT ? campT.rows.length : -1} rows, campaign is ${want}`);
 
@@ -307,6 +345,43 @@ function fixture() {
      scaleRows.length < 2 ? `only ${scaleRows.length} scaled row(s) rendered — nothing was checked`
        : (scaleRows.filter((t) => /%/.test(t)).slice(0, 2).join(' | ') || `${scaleRows.length} rows checked`));
 
+  // ---- THE ENGINES: TAKEN vs BUILT ------------------------------------------
+  // Two numbers that are easy to confuse and mean different things: `draft` is what was offered
+  // and taken, `install` is what reached the board. The panel exists for the GAP between them.
+  const eng = await page.evaluate(() => {
+    const h = [...document.querySelectorAll('#body > h2')].find((x) => /engines/i.test(x.textContent));
+    if (!h) return null;
+    let n = h.nextElementSibling, t = null;
+    while (n && n.tagName !== 'H2' && !t) { t = n.querySelector && n.querySelector('table'); n = n.nextElementSibling; }
+    if (!t) return { rows: [] };
+    return { rows: [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent.trim())) };
+  });
+  const dew = eng && eng.rows.find((r) => /Dew Traps/.test(r[0]));
+  ok('the engines panel separates TAKEN from BUILT', !!dew, JSON.stringify(eng && eng.rows.slice(0, 2)));
+  // 14 players x 14 days took it; every third installed it. The exact ratio is the fixture's, but
+  // what matters is that the two columns DIFFER — a panel that reprinted the draft count twice
+  // would pass any "it renders" check and answer nothing.
+  ok('...and they are different numbers', !!dew && dew[1] !== dew[2] && +dew[2] > 0,
+     dew ? `${dew[1]} taken, ${dew[2]} built (${dew[3]})` : '—');
+  // ONLY ENGINES. Constricting Ring is an ACTION and is installed in the fixture — it belongs in
+  // the abilities panel, not this one, and `type` (the badge) is what decides, not
+  // `displayCategory` (the pool it is drafted from), which disagrees per card.
+  ok('...and an installed ACTION is not listed among the engines',
+     !!eng && !eng.rows.some((r) => /Constricting Ring/.test(r[0])), JSON.stringify(eng && eng.rows.map((r) => r[0])));
+  const abil = await page.evaluate(() => {
+    // `.panel h2` is how every sub-panel on this page titles itself, but `querySelector('h2')`
+    // on a panel whose heading is its first child still needs the panel to BE the parent — the
+    // abilities panel is a sibling of the engines one, not a child, so find it by heading text
+    // across the whole body and then walk to its own table.
+    const hs = [...document.querySelectorAll('#body h2')];
+    const h = hs.find((x) => /Installed abilities/.test(x.textContent));
+    if (!h) return null;
+    const t = h.parentElement && h.parentElement.querySelector('table');
+    return t ? [...t.querySelectorAll('tbody tr')].map((tr) => tr.children[0].textContent.trim()) : [];
+  });
+  ok('...and it IS listed under installed abilities', !!abil && abil.includes('Constricting Ring'),
+     JSON.stringify(abil));
+
   // Filters narrow, and the default keeps dev traffic out of a launch number.
   const before = await page.$$eval('.kpi .v', (v) => v[0].textContent);
   await page.click('.chip[data-f="device"][data-v="phone"]');
@@ -314,36 +389,27 @@ function fixture() {
   const after = await page.$$eval('.kpi .v', (v) => v[0].textContent);
   ok('a device filter narrows the numbers', +after < +before, `${before} players → ${after} on phone`);
   const srcOn = await page.$eval('.chip[data-f="source"].on', (b) => b.textContent);
-  ok('...and Source defaults to itch, so dev boots stay out of a launch number', srcOn === 'itch', srcOn);
+  // DEFAULTS TO `crazygames` (owner) — that is where the players are. The point of a default at all
+  // is that the same table carries dev boots and Playwright runs; opening on "all" is how you
+  // convince yourself the game has ten times the players it has.
+  ok('...and Source defaults to crazygames', srcOn === 'crazygames', srcOn);
 
-  // ---- before vs after the update ---------------------------------------------
-  // THE TWO SIDES MUST PARTITION THE TABLE. Asserting only that "after update" narrows would pass
-  // on a filter that drops rows it should keep — the sum is what says every row landed on exactly
-  // one side of the launch. Window goes to `all` first: a 30d window would clip whichever side of
-  // the launch happens to fall outside it and the sum would be a coincidence.
-  const runsWith = async (build) => {
-    await page.click(`.chip[data-f="build"][data-v="${build}"]`);
-    await sleep(300);
-    return +(await page.$$eval('.kpi', (ks) => {
-      const k = ks.find((x) => x.querySelector('.k').textContent === 'runs started');
-      return k ? k.querySelector('.v').textContent : '0';
-    }));
-  };
+  // THE `Era` AND `Release` CHIPS ARE GONE (owner: "this is all useless now"). Era split on a
+  // COLUMN SET — the schema change that added game/mode/device — and Release listed every build
+  // stamp. Both are asserted ABSENT rather than merely untested, since a chip group that comes
+  // back would be a filter nobody asked for silently narrowing every number on the page.
   await page.click('.chip[data-f="device"][data-v=""]');           // undo the phone filter above
   await page.click('.chip[data-f="days"][data-v="0"]');
   await sleep(300);
-  const rAll = await runsWith('');
-  const rNew = await runsWith('new');
-  const rOld = await runsWith('old');
-  ok('before/after the update partition the table', rNew + rOld === rAll && rAll > 0,
-     `${rNew} after + ${rOld} before = ${rNew + rOld}, all = ${rAll}`);
-  ok('...and each side is non-empty, so neither chip is a no-op', rNew > 0 && rOld > 0,
-     `after ${rNew}, before ${rOld}`);
-  // The build stamp is the COLUMN SET, not a date — a pre-v2 row is exactly one with no `game`.
-  ok('...and "before update" is the pre-v2 sessions, counted from the fixture',
-     rOld === F.oldSessions, `${rOld} of ${F.oldSessions}`);
-  await page.click('.chip[data-f="build"][data-v=""]');
-  await sleep(300);
+  const groups = await page.$$eval('#bar .grp b', (bs) => bs.map((b) => b.textContent));
+  ok('the filter bar carries no Era or Release chips',
+     !groups.includes('Era') && !groups.includes('Release'), groups.join(' / '));
+  ok('...and still carries the ones that earn their place',
+     ['Window', 'Source', 'Game', 'Mode', 'Device'].every((g) => groups.includes(g)), groups.join(' / '));
+  const rAll = await page.$$eval('.kpi', (ks) => {
+    const k = ks.find((x) => x.querySelector('.k').textContent === 'runs started');
+    return k ? +k.querySelector('.v').textContent : -1;
+  });
 
   // A 1d window, and it has to actually cut: the fixture spans a fortnight.
   const has1d = await page.$('.chip[data-f="days"][data-v="1"]');
@@ -468,51 +534,68 @@ function fixture() {
     ok('the retention section is on the page',
        await rp.evaluate(() => [...document.querySelectorAll('h2')].some((h) => /Coming back/.test(h.textContent))));
     const kPlayers = await kpiOf('players');
-    const kAsked = await kpiOf('asked the question');
     const kBack = await kpiOf('came back');
     ok('every player is counted', kPlayers && kPlayers.v === '5', kPlayers && kPlayers.v);
+    // IT OPENS ON A SENTENCE (owner: the retention numbers were "very confusing"). Five KPIs and
+    // four tables across two identically-titled sections never said what the answer WAS; the lead
+    // line does, and it carries the denominator rule with it in words a reader cannot misread.
+    const lead = await rp.evaluate(() => {
+      const h = [...document.querySelectorAll('h2')].find((x) => /Coming back/.test(x.textContent));
+      let n = h && h.nextElementSibling, p = null;
+      while (n && !p) { p = n.querySelector && n.querySelector('.lead'); n = n.nextElementSibling; }
+      return p ? p.textContent.replace(/\s+/g, ' ').trim() : null;
+    });
+    ok('...and the section opens by SAYING the answer, not implying it',
+       !!lead && /4 players who first played more than a day ago/.test(lead) && /2 \(50%\) came back/.test(lead),
+       lead || '(no lead sentence)');
     // THE DENOMINATOR RULE. P1 arrived two hours ago and has not failed to return — they have not
     // been asked. Counting them would print 40% where the truth is 50%, and right after a launch
     // that error is much larger, because almost everyone is brand new.
-    ok('...but only those who have had a day to come back are asked',
-       kAsked && kAsked.v === '4', kAsked && kAsked.v);
+    ok('...with the players too new to judge named separately, not folded in',
+       !!lead && /A further 1 arrived too recently/.test(lead), lead || '(no lead sentence)');
     ok('...and the return rate is over THAT denominator',
        kBack && kBack.v === '50%', kBack && (kBack.v + ' — ' + kBack.note));
     // P4's three events five minutes apart are one visit. Counting sessions instead of visits would
     // call that a returning player and print 75%.
     ok('...with a reload counted as one visit, not as coming back',
        kBack && /2 of 4/.test(kBack.note), kBack && kBack.note);
+    // ONE SECTION, NOT TWO. There were two headings called "Coming back" measuring the same thing
+    // several screens apart, which is what made it unreadable — asserted so they cannot drift back.
+    const backHeads = await rp.evaluate(() =>
+      [...document.querySelectorAll('#body > h2')].filter((h) => /Coming back/.test(h.textContent)).length);
+    ok('...and there is exactly ONE retention section', backHeads === 1, `${backHeads} heading(s)`);
     ok('no page errors in the retention section', rerrs.length === 0, rerrs.slice(0, 2).join(' | '));
     await rp.close();
   }
 
-  // ---- the before/after SPEND comparison, on a fixture worked out by hand ----
-  // The owner's actual question: did the update make people spend Spores instead of dying and
-  // leaving? Six players across two builds, arranged so each rule is exercised once.
+  // ---- the before/after RELEASE comparison, on a fixture worked out by hand ----
+  // The owner's question after shipping: did play time move? It replaced "did the update change
+  // spending?", which had answered the question before it. PLAY TIME is `session_end.ms` — one
+  // visit, boot to close — and it is the closest thing in this table to "did they enjoy it".
   {
     const DAY = 86400000, now = Date.now();
     const rows = []; let id = 0;
     // `boot.detail` is the build stamp; a session with none predates the change that added it.
     const boot = (cid, sid, t, build) => rows.push({ id: ++id, created_at: new Date(t).toISOString(),
       client_id: cid, session_id: sid, kind: 'boot', ms: 1000, detail: build || null,
-      source: 'itch', game: 'campaign', mode: 'turn', device: 'desktop' });
-    const ev = (cid, sid, t, kind, n) => rows.push({ id: ++id, created_at: new Date(t).toISOString(),
-      client_id: cid, session_id: sid, kind, n: n == null ? null : n,
-      source: 'itch', game: 'campaign', mode: 'turn', device: 'desktop' });
-    // BEFORE (no stamp): 3 players, 1 spends. Two open the store, one never gets there.
-    boot('b1', 's1', now - 5 * DAY);  ev('b1', 's1', now - 5 * DAY, 'picker');
-    boot('b2', 's2', now - 5 * DAY);  ev('b2', 's2', now - 5 * DAY, 'picker');
-    ev('b2', 's2', now - 5 * DAY, 'upgrade', 100);            // the one spender
-    boot('b3', 's3', now - 5 * DAY);                           // never reached the store
-    // AFTER (stamped): 3 players, 2 spend — one across TWO events, which must count as one player.
-    boot('a1', 's4', now - 1 * DAY, '2026-08-09-abc1234'); ev('a1', 's4', now - 1 * DAY, 'picker');
-    ev('a1', 's4', now - 1 * DAY, 'upgrade', 100);
-    ev('a1', 's4', now - 1 * DAY, 'purchase', 3000);           // same player, second spend
-    boot('a2', 's5', now - 1 * DAY, '2026-08-09-abc1234'); ev('a2', 's5', now - 1 * DAY, 'picker');
-    ev('a2', 's5', now - 1 * DAY, 'upgrade', 250);
-    boot('a3', 's6', now - 1 * DAY, '2026-08-09-abc1234'); ev('a3', 's6', now - 1 * DAY, 'picker');
-    // Hand-computed — BEFORE: 3 players, 2 store, 1 spender (33.3%), median spend 100.
-    //                 AFTER:  3 players, 3 store, 2 spenders (66.7%), median spend of [3100, 250] = 1675.
+      source: 'crazygames', game: 'campaign', mode: 'turn', device: 'desktop' });
+    const ev = (cid, sid, t, kind, n, ms) => rows.push({ id: ++id, created_at: new Date(t).toISOString(),
+      client_id: cid, session_id: sid, kind, n: n == null ? null : n, ms: ms == null ? null : ms,
+      source: 'crazygames', game: 'campaign', mode: 'turn', device: 'desktop' });
+    // BEFORE (no stamp): 3 players, sessions of 60s / 120s / 180s -> median 120s = 2m.
+    //                    2 of 3 start a run.
+    [['b1', 's1', 60000], ['b2', 's2', 120000], ['b3', 's3', 180000]].forEach(([c, sid, ms], i) => {
+      boot(c, sid, now - 5 * DAY);
+      if (i < 2) ev(c, sid, now - 5 * DAY, 'run_start', null, null);
+      ev(c, sid, now - 5 * DAY, 'session_end', 1, ms);
+    });
+    // AFTER (stamped): 3 players at 300s / 360s / 420s -> median 360s = 6m, and all three run.
+    [['a1', 's4', 300000], ['a2', 's5', 360000], ['a3', 's6', 420000]].forEach(([c, sid, ms]) => {
+      boot(c, sid, now - 1 * DAY, '2026-08-09-abc1234');
+      ev(c, sid, now - 1 * DAY, 'run_start', null, null);
+      ev(c, sid, now - 1 * DAY, 'level_clear', null, null);
+      ev(c, sid, now - 1 * DAY, 'session_end', 1, ms);
+    });
     const sp = await ctx.newPage();
     const serrs = []; sp.on('pageerror', (e) => serrs.push(String(e && e.message)));
     await sp.route('**/rest/v1/events*', async (route) => {
@@ -524,33 +607,41 @@ function fixture() {
     await sp.waitForFunction(() => !/Loading/.test(document.getElementById('sub').textContent), { timeout: 25000 });
     await sleep(400);
     const cmp = await sp.evaluate(() => {
-      const h = [...document.querySelectorAll('h2')].find((x) => /Did the update change spending/i.test(x.textContent));
+      const h = [...document.querySelectorAll('h2')].find((x) => /Before and after the last release/i.test(x.textContent));
       if (!h) return null;
-      let n = h.nextElementSibling, t = null;
-      while (n && !t) { t = n.querySelector && n.querySelector('table'); n = n.nextElementSibling; }
-      if (!t) return { rows: [] };
-      return { rows: [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent.trim())) };
+      // The panel this heading owns, not `h.parentElement` — every section lives in the same
+      // #body, so a query from the parent finds the FIRST .empty on the page (which was the
+      // retention section's, several screens up) and the assertion tested the wrong sentence.
+      let n = h.nextElementSibling, pan = null;
+      while (n && n.tagName !== 'H2' && !pan) { if (n.querySelector && n.querySelector('table')) pan = n; n = n.nextElementSibling; }
+      if (!pan) return { rows: [] };
+      const t = pan.querySelector('table');
+      return { rows: [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent.trim())),
+               note: [...pan.querySelectorAll('.empty')].map((p) => p.textContent).join(' ') };
     });
-    ok('the spend comparison section exists', !!cmp, JSON.stringify(cmp));
+    ok('the before/after release section exists', !!cmp && cmp.rows.length > 0, JSON.stringify(cmp && cmp.rows));
     const after = cmp && cmp.rows.find((r) => /abc1234/.test(r[0]));
     const before = cmp && cmp.rows.find((r) => /before stamps/i.test(r[0]));
     ok('...with a row per release, newest first, baseline last',
        !!after && !!before && cmp.rows.indexOf(after) < cmp.rows.indexOf(before),
        JSON.stringify(cmp && cmp.rows.map((r) => r[0])));
-    // THE HEADLINE. Share of PLAYERS who spent anything — the owner's "most people were just dying
-    // and leaving, barely spending any spores".
-    ok('the BEFORE row reports 1 of 3 players spending', !!before && /1\b/.test(before[3]) && /33\.3%/.test(before[3]),
-       before && before[3]);
-    ok('the AFTER row reports 2 of 3', !!after && /2\b/.test(after[3]) && /66\.7%/.test(after[3]), after && after[3]);
-    // A player who spent TWICE is one spender, not two — a per-event count would read 3 of 3 here
-    // and turn a real 66.7% into a fake 100%.
-    ok('...counting a player who spent twice ONCE', !!after && !/3\s*·\s*100%/.test(after[3]), after && after[3]);
-    // ...and the median is over per-PLAYER totals (3100 and 250), not over the four raw amounts.
-    ok('...and the median spend is per player, not per purchase', !!after && after[4] === '1675', after && after[4]);
-    ok('reaching the store is tracked separately from spending',
-       !!before && /2\b/.test(before[2]) && !!after && /3\b/.test(after[2]),
-       (before && before[2]) + ' vs ' + (after && after[2]));
-    ok('no page errors in the spend comparison', serrs.length === 0, serrs.slice(0, 2).join(' | '));
+    // THE HEADLINE COLUMN. Median, not mean: one player who leaves a tab open overnight moves a
+    // mean by minutes and a median not at all, and on a table this small it would be the whole
+    // result. 60/120/180 -> 2m; 300/360/420 -> 6m.
+    ok('play time is the median session, before', !!before && before[3] === '2m', before && before[3]);
+    ok('...and after', !!after && after[3] === '6m', after && after[3]);
+    ok('players and sessions are counted per release',
+       !!before && before[1] === '3' && before[2] === '3' && !!after && after[1] === '3',
+       (before && before.slice(1, 3).join('/')) + ' vs ' + (after && after.slice(1, 3).join('/')));
+    // "Reached a run" is per SESSION, so 2 of 3 before and 3 of 3 after.
+    ok('...as is the share of sessions that reached a run',
+       !!before && /66\.7%/.test(before[4]) && !!after && /100%/.test(after[4]),
+       (before && before[4]) + ' vs ' + (after && after[4]));
+    // A SMALL SAMPLE MUST SAY SO. Three sessions on a new build is not a result, and a table that
+    // prints it with the same confidence as a month of data invites exactly the wrong conclusion.
+    ok('...and a thin newest release warns about itself',
+       !!cmp && /too few to read as a result/.test(cmp.note), (cmp && cmp.note || '').slice(0, 80));
+    ok('no page errors in the release comparison', serrs.length === 0, serrs.slice(0, 2).join(' | '));
     await sp.close();
   }
 

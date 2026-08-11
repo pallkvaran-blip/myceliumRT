@@ -2141,12 +2141,59 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
 - `node scripts/gen-analytics.mjs --snapshot rows.json` bakes rows in, which needs no network and
   IS publishable. It says on the page that it is a snapshot.
 
-- **"BEFORE vs AFTER THE UPDATE" IS THE COLUMN SET, NOT A DATE.** The `Build` filter (all / after
-  update / before update) keys on `game`/`device` being PRESENT, because those are attached
-  centrally in `buildEventRow` and exist only in the v2 build. A date cut would be wrong on itch
-  specifically: itch serves whatever zip was last uploaded and a browser can hold the old one for
-  days, so old-build sessions keep arriving after a launch. Pair it with Window `all` — a 30d
-  window clips whichever side of the launch falls outside it. Windows are 1d / 7d / 30d / 90d / all.
+- **THE FILTER BAR IS Window / Source / Game / Mode / Device, AND `Era` AND `Release` ARE GONE**
+  (owner: *"this is all useless now"*). `Era` split on a COLUMN SET — the schema change that added
+  `game`/`mode`/`device` — which was a one-off long ago and cannot tell one release from the next;
+  `Release` offered every build stamp as a chip, i.e. a filter you toggle while holding the
+  previous number in your head. The **"Before and after the last release"** section answers that
+  side by side instead, and `buildOf` still backs it. `analytics-check` asserts both groups
+  ABSENT, since a chip group coming back would silently narrow every number on the page.
+- **SOURCE DEFAULTS TO `crazygames`** (owner) — that is where the players are. It falls back to
+  "all" when the default has no rows, or a table read before that build has been played opens
+  empty and looks broken. The point of a default at all is that the same table carries dev boots
+  and Playwright runs.
+- **"BEFORE AND AFTER THE LAST RELEASE" CUTS ON THE BUILD STAMP, NOT A DATE.** itch and CrazyGames
+  serve whatever zip was last uploaded and a browser can hold a cached copy for days, so a date cut
+  files old-build sessions under "after" and flatters the release. Every session on a stamped build
+  carries one on its `boot` row; a session with none predates stamping, which makes "no stamp" an
+  exact label rather than a gap. **Play time (`session_end.ms`, median) is the headline column** —
+  it is the closest thing in this table to "did they enjoy it". The section **warns when the newest
+  release has under 30 sessions**, because that is the normal state for a day after a release and a
+  thin sample printed with the same confidence as a month of data invites the wrong conclusion.
+- **RETENTION IS ONE SECTION NOW, AND IT OPENS ON A SENTENCE** (owner: *"rethink how you show
+  player retention stats - very confusing now"*). There were literally **two** headings called
+  "Coming back" — a visits/gap one and a day-1/3/7 cohort one — measuring the same thing several
+  screens apart, with nothing anywhere saying what the answer WAS. Merged, the duplicate cut ("by
+  arrival day, came back later" said what the cohort table says better), and a `.lead` line states
+  the finding in words: *"Of the N players who first played more than a day ago, M (x%) came back
+  at least once, typically after …"*. A dashboard that makes the reader assemble the finding out of
+  five percentages has not reported anything. `analytics-check` asserts the sentence, and that
+  there is **exactly one** such heading.
+- **`install` IS A SEPARATE EVENT FROM `draft`, AND THE GAP IS THE FINDING** (owner: *"add
+  something on which engine cards people go for (choose and also install)"*). `draft` is what was
+  offered and taken; `install` is what reached the board. An engine can sit in hand all run because
+  its buy-in never came together — a card with a high take rate and a low install rate is one
+  people WANT and cannot AFFORD, which is a different problem from one nobody picks.
+  - **Engines carry `n: 0`, actions `n: 1`** — one event kind and one existing column rather than a
+    new one, which would 400 every row until the table was migrated (see `_slimEvents`).
+  - **The type comes from `CARD_DATA`'s `type`, baked into the page at generation time, NOT from
+    `displayCategory`** — the latter is the draft POOL and disagrees per card (Cord Capillary is an
+    engine offered from the event pool). And check the type before picking a card for a fixture:
+    `Amputate` reads like an action and is typed `basic`, so it lands in neither panel.
+  - It ships with the build, so the BUILT column is empty until players are on it — the panel says
+    so rather than showing zeroes with no explanation.
+- **COLONIES ARE PRINTED BY THEIR COMMON NAME.** Telemetry stores the roster key (`pruinomycena`)
+  because that is what identifies a species in the save; the player picked "Blue Bonnet" and the
+  game never shows the key. The pairing is read out of `index.html` at generation time — and the
+  name is single- OR double-quoted, so a single-quote-only pattern silently drops exactly one
+  colony ("Artist's Conk", 13 of 14). The generator now fails rather than shipping a partial map.
+- **A PANEL THE CHECK HAS TO FIND NEEDS A HOOK IN THE MARKUP.** The level tables were identified by
+  their lede sentence, so removing the survival lede (owner) made that panel anonymous and
+  `analytics-check` reported a missing table on a page that drew it correctly. They carry
+  `data-game` now. Never anchor an assertion to copy that exists to be rewritten.
+- Removed on the owner's word, all three because they had answered their question: the **Tutorial**
+  section, **"Did the update change spending?"** (replaced by the release comparison above) and
+  **"The rating ask"**.
   - **A PRE-v2 ROW NAMES NO GAME, so "How far people get" is legitimately smaller than "runs
     started" above it** — those tables filter on `r.game` and cannot attribute an old row.
     `analytics-check` pins the gap so the two can't silently converge.

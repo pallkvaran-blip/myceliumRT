@@ -137,6 +137,38 @@ const ALLOWED = new Set(['client_id', 'session_id', 'kind', 'species', 'level', 
   ok('a level clear is recorded with BOTH clocks', !!clear && typeof clear.turns === 'number' && typeof clear.ms === 'number',
      clear ? `level ${clear.level}, ${clear.turns} turns, ${clear.ms} ms` : '(none)');
 
+  // ---- 1b. INSTALL, which is not the same event as DRAFT -----------------------
+  // `draft` says what was offered and taken; `install` says what reached the board. The analytics
+  // page shows them side by side because the GAP is the finding — a card people want and cannot
+  // afford looks nothing like a card nobody picks. Engines carry `n: 0` and actions `n: 1`, which
+  // is one event kind and one existing column rather than a schema change (a new column would 400
+  // every row until the table was migrated — see _slimEvents).
+  const instDbg = await page.evaluate(() => {
+    const g = window.__game, s = g.state, C = s.cards, net = s.active;
+    // A REAL SPECIES RUN OPENS ON ITS OWN HAND, which is a handful of grow cards — neither of
+    // these is in it, and the first version of this probe searched for them and silently found
+    // nothing. Pushed in instead: a hand entry is `{name}` and playCard looks the rest up in
+    // CARD_BY_NAME, so this is the same code path a drafted card takes.
+    s.runOver = false;
+    net.energy = 999; net.water = 999; net.phosphorus = 999;
+    const out = [];
+    for (const target of ['Dew Traps', 'Constricting Ring']) {
+      C.hand.push({ name: target });
+      const i = C.hand.length - 1;
+      out.push(target + ': ' + JSON.stringify(g.play(i, { x: s.substrate.worldWidth * 0.2, y: s.substrate.surfaceY + 300 }) || null));
+    }
+    return out;
+  });
+  await sleep(300);
+  rows = await evs(page);
+  const insts = rows.filter((r) => r.kind === 'install');
+  ok('installing an ENGINE is recorded', insts.some((r) => r.detail === 'Dew Traps' && r.n === 0),
+     JSON.stringify(insts.map((r) => r.detail + ':' + r.n)) + '  ' + instDbg.join(' | '));
+  // ...and the two are told apart, or the page cannot separate the engines from the abilities.
+  ok('...and an installed ABILITY is marked as one',
+     insts.some((r) => r.detail === 'Constricting Ring' && r.n === 1),
+     JSON.stringify(insts.map((r) => r.detail + ':' + r.n)));
+
   // ---- 2. every row is groupable ----------------------------------------------
   console.log('\n-- context on every row --');
   // EVERY ROW BUT `boot` — and boot's absence is asserted separately above, not waved through here.

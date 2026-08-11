@@ -18749,6 +18749,10 @@ function newRun(config, seed) {
 const __m_engine_cards = (function () {
   const { CARD_DATA, CARD_BY_NAME } = __m_cards_data;
   const { roundsToTime, isRealtime } = __m_config;
+  // `install` telemetry, logged where the card actually reaches the board. A module's imports are
+  // its only route to another one — declaration order is dependency order here, and __m_net_scores
+  // is declared long before this, so the name has to be destructured rather than assumed global.
+  const { logEvent } = __m_net_scores;
   const { attackNest, recalibrateAnts } = __m_engine_ants;
   const { infectStrandsInMould, reachedThroughRot } = __m_engine_threats;
 // =============================================================================
@@ -19261,12 +19265,19 @@ function playCard(state, handIndex, ctx = {}) {
     res.install.name = entry.name;
     C.engines.push(res.install);
     if (res.install.drawDiscount) C.drawDiscount = (C.drawDiscount || 0) + res.install.drawDiscount;
+    // INSTALLED, WHICH IS NOT THE SAME QUESTION AS DRAFTED. `draft` records what the player was
+    // offered and took; this records what they actually got onto the board — an engine can sit in
+    // hand all run because its buy-in never came together, and the two numbers diverging is the
+    // finding. One row per install, so a card installed twice in a run counts twice.
+    logEvent('install', { detail: entry.name, level: state.level, n: 0 });
   } else if (res.installAction) {
     // Action cards graduate to a repeatable ability in the Actions menu (right).
     const a = res.installAction;
     a.name = entry.name;
     a.used = 0; a.cd = 0;   // ready on install (cooldown/uses tick with the world)
     C.actions.push(a);
+    // `n: 1` marks an ACTION rather than an engine — one event kind, one column, no migration.
+    logEvent('install', { detail: entry.name, level: state.level, n: 1 });
   } else {
     C.discard.push(entry.name);
   }
