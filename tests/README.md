@@ -96,6 +96,16 @@ relevant one after any change to those systems, and read `worm-probe`'s header b
 it — its first version reused one colony across every sample and the worms ate it, which
 produced a clean-looking table supporting the wrong conclusion.
 
+**`telemetry-probe.mjs` is the same kind of tool, at PLAYER scale** — and it is the only one that
+reads the live world rather than a headless browser. `node tests/telemetry-probe.mjs
+[--source itch|all] [--cache rows.json]` pulls the `events` table (paged: PostgREST caps a GET at
+1000 rows and says nothing) and prints the cuts `docs/analytics.html` has no control for — device ×
+store, dwell time among the players who failed one specific level, mean vs median on a single
+window. `--cache` writes the fetch to a file and re-reads it, which is what makes iterating on a
+question cheap. Read its header before trusting a number: it lists the four ways this data has
+already produced a wrong answer (the truncated `source` column, the session-vs-row `game`
+attribution, mean vs median, and a player being a browser rather than a person).
+
 **`rock-audit.cjs` is the same kind of tool, at map scale**: `node tests/rock-audit.cjs
 garnet-c40 rust-c90` asks whether each map's collision mask matches its rock ART, re-deriving the
 truth from every sprite's own alpha through `__game.rockArt` instead of reading `markCoverGrid`'s

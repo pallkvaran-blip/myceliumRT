@@ -64,10 +64,22 @@ node scripts/make-itch-zip.mjs      # -> dist/mycelium-itch.zip
 node tests/itchzip-check.cjs        # 20 assertions, against the ARTEFACT
 ```
 
-or, in CI, **Actions → "Build itch zip" → Run workflow** with a tag
+or, in CI, **Actions → "Build web zip" → Run workflow** with a tag and a `platform`
 (`.github/workflows/itch-zip.yml`), which does the same build and attaches the zip to a **draft**
 release. itch settings the script cannot set: HTML5, fullscreen button ON, mobile-friendly ON,
 viewport 1280×720.
+
+- **YOU CANNOT HAND THE ZIP OVER FROM A SESSION. The chat upload cap is 30 MiB and the zip is
+  ~43 MB**, so `SendUserFile` refuses it and the artefact only ever exists inside the container.
+  **CI is the delivery route, not a fallback** — say so in the same breath as "I've built it", or
+  the owner goes looking for a file that was never sent (they did: *"I can't find the crazygames
+  zip you said you built"*). Take the RELEASE ASSET, not the workflow artifact: GitHub re-zips an
+  artifact's contents, and a zip-of-a-zip is rejected with "Failed to find index.html".
+- **THE MUSIC RE-ENCODE IS SKIPPED SILENTLY WITHOUT `imageio-ffmpeg`.** The script warns and
+  carries on at full bitrate — 45.4 MB instead of 42.8. `pip install imageio-ffmpeg` (CI installs
+  it explicitly; a fresh container does not have it).
+- **REBUILD AT HEAD, not from the last build in `dist/`.** A zip cut an hour ago is a different
+  commit; the stamp in the tool output (`build stamp: <date>-<sha>`) is what tells you which.
 
 **NEVER FOCUS A NATIVE `<input>` THE PLAYER DID NOT TAP — ON ITCH THAT ZOOM IS UNRECOVERABLE.**
 Reported as four bugs and it was one: *"when the enter your name pops up, the browser zooms in on
@@ -932,6 +944,7 @@ reading as a dead button.
 **46 checks registered in `run.mjs`**, roughly 2880 assertions, of which `traced` is 1190 (one map's
 worth each, 76 maps). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
+
 
 ```bash
 node tests/run.mjs           # everything, one summary (~27 min)
@@ -2095,6 +2108,45 @@ Available where there should have been 3.
   bonnet is real at the GROUP level (several *Mycena* relatives hunt and digest nematodes) but not for
   this newly-described species specifically, so the blurb keeps it at that level. Worth knowing before
   anyone "corrects" either one.
+
+## What the telemetry actually says (11 Aug 2026, 15.3k events)
+
+Measured with `tests/telemetry-probe.mjs`. Kept here because it is the context every balance and
+UX decision now sits in, and because two of these were believed to be otherwise.
+
+- **LEVEL 1 IS THE WALL, NOT LEVEL 3-4.** CrazyGames campaign, distinct players: **L1 clears at
+  20%**, L2 at 51%, L3 at 55%. 230 players start L1 and 45 reach L2. The campaign was designed to
+  stop a new player on 3 or 4; almost nobody gets that far, so the store, the retries and the deck
+  all sit behind a door four in five players never open.
+  - **These are not the drive-by bounces**, and the dwell time is what proves it: of the 274 who
+    started L1 and did not clear it, only 9.5% left inside 30 s, the median stayed **2:06**, and
+    52% gave it over two minutes. Where a run end was recorded they played a median of **17 turns**.
+    The bounces are counted separately — 42% of arrivals never start a run at all, median 16 s, and
+    that is portal traffic being portal traffic (owner: *"don't think there is anything that can be
+    done about that"*).
+- **THEY QUIT RATHER THAN LOSE.** `abandon` is the settings menu's **End run** button — a
+  deliberate act, not a tab close — and it is the single most common way a run ends (**38%**, ahead
+  of running out of energy). On L1 they press it at a median of **10 turns**; the ones who die last
+  **16**. Giving up halfway to the point where the game would have beaten you is a legibility
+  problem, not a difficulty one.
+- **A PHONE PLAYER IS ~2.5x LESS LIKELY TO CLEAR LEVEL 1.** CrazyGames: desktop 23%, phone **10%**,
+  tablet 30%. Two effects, both real — phone is the weakest surface on BOTH stores, but the gap is
+  2.8x on CrazyGames against only 1.25x on itch (55% desktop vs 44% phone there). CrazyGames is 45%
+  phone; itch is 81% desktop, which is most of the difference between the two stores. The tell that
+  it is controls rather than audience: phone players who fail stop EARLIER (15 turns vs 20) and
+  their played visits are shorter — they get less done per minute rather than staying and losing.
+- **ITCH AND CRAZYGAMES ARE BARELY THE SAME GAME — NEVER AVERAGE THEM.** Reached a run 88% vs 57%,
+  cleared L1 48% vs 10%, median played visit 5:04 vs 2:40, spend rate 14% vs 2.5%. A change judged
+  on blended numbers is being judged on the week's traffic mix.
+- **RETRIES WORK AND NOBODY BUYS THEM.** 72% of the 43 players who used one went on to clear a
+  level, and it is the LEAST-bought of the six upgrade tracks (13 purchases against Phosphorus's
+  74). An argument for the free retry, and possibly for a cheaper first rung.
+- **PERFORMANCE IS DONE.** Median frame 3.4 ms desktop, 3.0 phone, 2.0 tablet; five "bad" sessions
+  in the whole table, and their median visit is barely under the healthy one. The phone gap above
+  is input and layout, not speed — do not spend another day on frame time.
+- **40% PRESS End ON THE TUTORIAL**, and the drop inside it is sharper than that: 701 reach step 1
+  and 400 reach step 2. Finishers clear a level 47% of the time against skippers' 36% — correlation
+  (the same patience produces both), but losing 43% at the first click is a step-1 problem.
 
 ## Telemetry: what the game tells you once it is published
 
@@ -3410,7 +3462,11 @@ threat counts for levels 1-10.
   left in the session scratchpad. The scratchpad is wiped when the container is reclaimed; a
   check written there is a check the next session has to reinvent.
 - **When asked to update memory:** refresh this file, and also sweep the scratchpad for any
-  check or tool worth keeping and commit it. (Standing request from the user.)
+  check or tool worth keeping and commit it. (Standing request from the user.) **Expect the
+  scratchpad to have rolled back too** — it restores a DIFFERENT session's contents, so the sweep
+  usually finds old files that look plausible and none of this session's. That is not a reason to
+  skip it; it is the reason the rule exists. `tests/telemetry-probe.mjs` was written three times
+  before it was committed.
 - **Anything the user is meant to LOOK at gets a clickable link — always.** A path in the repo
   is not a deliverable they can open. Publish the page as an Artifact and hand over the URL;
   the repo copy is the source, the artifact is how it gets read. (Standing request.) Artifacts
@@ -3424,7 +3480,15 @@ The working tree and the local branch roll back to a commit from hours earlier �
 `index.html` with no editor, `trace-map.py` with no `--guide`, files that had been committed
 simply absent. It is not a git operation anyone ran; it appears to be the container restoring
 an older snapshot. **Twice in one session, then FIVE times in another, then again on the
-next** — assume it will happen, not that it might.
+next, and TWICE MORE in the one after that** — assume it will happen, not that it might.
+
+**IT ALSO FIRES ON A CONTAINER RESTART, and the restart notice is the only warning you get.** The
+worst of the recent ones landed mid-conversation: HEAD went back to a commit from DAYS earlier
+(`0d268fa`), `tests/` fell 78 → 51, and `scripts/gen-analytics.mjs` — a file with a dozen commits
+behind it — simply did not exist. What caught it was a `grep` failing with **"No such file or
+directory"** on a script edited twenty minutes before. So: **a tool that was there and now isn't is
+a rollback, not a mistake about the path.** `ls scripts/` is as good a tell as `ls tests/`, and it
+is faster to run than it is to doubt yourself.
 
 **CHECK FOR IT THE MOMENT A SESSION RESUMES, before doing anything else.** The most recent one
 landed on a resume from compaction, and it announced itself in the cheapest way there is:
@@ -3592,6 +3656,14 @@ death was firing; the screen was lying about it.
 
 ## Loose ends
 
+- **`tests/telemetry-probe.mjs` IS HOW YOU ASK THE LIVE TABLE A QUESTION THE DASHBOARD'S CHIPS
+  CANNOT.** `node tests/telemetry-probe.mjs [--source itch|all] [--cache rows.json]`. Prints and
+  never fails; not in the runner. It is the companion to `docs/analytics.html` — the dashboard is
+  what the owner reads, this is for cuts the page has no control for (device × store, dwell time
+  among the players who failed one specific level, mean vs median on a single 24-hour window). It
+  is COMMITTED because every cut in it was written in a scratchpad first and the scratchpad was
+  wiped twice in one session, so it got written a third time from memory. `--cache` writes the
+  fetch to a file and re-reads it, which is what makes iterating on a question cheap.
 - **Measuring PROBES live in `tests/` alongside the checks**, and there are five now:
   `spread-probe.cjs` (what the rot actually advances per step vs the config), `worm-probe.cjs`
   (what share of worms can move, and WHY the stuck ones are stuck), `hop-probe.cjs` (how often a
