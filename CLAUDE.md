@@ -2704,14 +2704,26 @@ is still true of the code — only the title row is gone.
   can ever file a score and the link would open an empty ladder. Withheld at the CALL SITE
   (`onHighScores: OFFER_SURVIVAL ? … : null`) — `showTitleScreen` renders no link without a
   handler, and `__game.showHighScores` is untouched so `hs-check` still drives the board.
-- **THE TITLE SCREEN IS NOW `New / MYCELIUM / Old`** (owner: *"put the 'new' on top of the mycelium
-  title and the 'old' below it. make both a bit bigger"*). With one game there is nothing to
-  label, so the mode titles went with the rows; "Chapter 1" stays, because it names the CONTENT
-  rather than the rules and is the only thing left on the screen saying how much game there is.
-  The two-block geometry is UNCHANGED — `.ts-top` and `.ts-bottom` already straddled the canvas
-  wordmark — so the consume animation is untouched. The size is its own class (`.ts-solo`,
-  clamp 34–64px, ~23% up on the pair size) and **must stay above ~26px**, below which that
-  animation's strand step stalls.
+- **THE TITLE SCREEN IS NOW `New / MYCELIUM / Old` AND NOTHING ELSE** (owner, over two passes:
+  *"put the 'new' on top of the mycelium title and the 'old' below it. make both a bit bigger"*,
+  then *"put the subtitles under the words. remove the chapter 1. move the new and old a bit
+  further away from the mycelium"*). With one game there is nothing to label, so the mode titles
+  went with the rows and "Chapter 1" followed a pass later — the level intro's "4 of 9" is the
+  only place left that says how long the campaign is. The two-block geometry is UNCHANGED —
+  `.ts-top` and `.ts-bottom` already straddled the canvas wordmark — so the consume animation is
+  untouched. Three numbers carry the look:
+  - **`.ts-solo` is clamp 34–64px** (~23% up on the two-row pair) and **must stay above ~26px**,
+    below which the consume animation's strand step stalls.
+  - **THE CAPTION IS IN FLOW UNDER ITS WORD, NOT ABSOLUTELY POSITIONED.** Above the word it sat at
+    `bottom:84%` of the button's own box — a percentage so its baseline tucked against the CAP
+    TOPS and tracked the font across the clamp range. Under the word that has no equivalent: the
+    box carries descender space the caps never use, so any `top:%` that looks right at 64px is
+    wrong at 34px. `.ts-act.ts-solo` is `column-reverse` with a real gap and no number to re-tune.
+    The absolute rule stays for `.ts-sm`, which the withheld two-row layout uses.
+  - **`gapTitle` in `positionMenu` is `max(28, H * 0.085)`**, up from `0.045`. A FRACTION of the
+    viewport height, not a constant — the wordmark is sized off the viewport too, so a fixed gap
+    reads generous on a laptop and cramped on a phone. Measured at 1400x900: New's top 177 → 133,
+    Old's bottom 696 → 754.
 - **`__menu` IS A BOOT-TIME HOOK, and it exists because `window.__game` does not exist on a title
   screen** (begin() installs it). It carries `continueRun` — the title's "Old", the same function
   the button calls — and `playSurvival`, which are the only way to drive the survival start and

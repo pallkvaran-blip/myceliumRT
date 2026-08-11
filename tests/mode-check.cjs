@@ -64,12 +64,24 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok('nothing is left labelling a mode that has no button',
        (await page.$$('#titleScreen .ts-kind')).length === 0
        && (await page.$$('#titleScreen .ts-mode')).length === 0);
-    // "Chapter 1" is NOT a mode label and stays: it names the content, and it is the only place
-    // the title screen says how much game there is.
+    // NOTHING BETWEEN THE WORDMARK AND THE WORDS (owner). "Chapter 1" outlived the CAMPAIGN label
+    // for one pass and has gone too, so the screen carries the wordmark, two words and Credits.
     const soon = await page.$$eval('#titleScreen .ts-soon', (ns) => ns.map((n) => n.textContent.trim()));
-    ok('the chapter line survives the cut', soon.join(',') === 'Chapter 1', soon.join(',') || '(none)');
+    ok('nothing is left between the wordmark and the words', soon.length === 0, soon.join(',') || '(none)');
     const caps = await page.$$eval('#titleScreen .ts-cap', (cs) => cs.map((c) => c.textContent));
     ok('every button keeps its caption', caps.join(' | ') === 'start a new game | continue last game', caps.join(' | '));
+    // UNDER the word now, not above it (owner). Asserted here as well as in fixes-check because
+    // this is the file that owns the screen's shape, and "the caption exists" would pass on
+    // either side of the word.
+    const capSide = await page.evaluate(() => {
+      const mid = (s) => { const n = document.querySelector(s); if (!n) return null;
+        const r = n.getBoundingClientRect(); return r.top + r.height / 2; };
+      return { newCap: mid('#titleScreen .ts-top .ts-cap'), newBtn: mid('#titleScreen .ts-top .ts-btn'),
+               oldCap: mid('#titleScreen .ts-bottom .ts-cap'), oldBtn: mid('#titleScreen .ts-bottom .ts-btn') };
+    });
+    ok('both captions sit UNDER their word',
+       capSide.newCap > capSide.newBtn && capSide.oldCap > capSide.oldBtn,
+       `New ${Math.round(capSide.newCap - capSide.newBtn)}px below, Old ${Math.round(capSide.oldCap - capSide.oldBtn)}px below`);
 
     // BIGGER, and the same size as each other (owner: "make both a bit bigger"). Asserted as a
     // BAND rather than a number — the size is a clamp() and a 1400x900 page lands mid-range — but

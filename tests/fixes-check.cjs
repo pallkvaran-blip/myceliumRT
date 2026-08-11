@@ -213,13 +213,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // screen, so it sat timing out on a selector for markup that had been removed. Now survival is
   // withheld too (OFFER_SURVIVAL) and there is no mode label at all to centre on anything.
   //
-  // What is left of it is the other half of that layout and the half that can still break: the
-  // caption is ABOVE its button and clear of the glyphs. `.ts-cap` is positioned at `bottom:84%`
-  // of the button's own box precisely because `bottom:100%` floated it well clear of the caps —
-  // a percentage so it tracks the font across the clamp range, which is exactly the kind of rule
-  // a size change silently breaks. The size DID change in the same pass (the solo buttons are
-  // ~23% bigger), so this is worth keeping pointed at something real.
-  console.log('\n3 — the New/Old captions sit tight above their buttons');
+  // What is left of it is the other half of that layout and the half that can still break: where
+  // the caption sits relative to its word. It floated ABOVE the button at `bottom:84%` of the
+  // button's own box — a percentage chosen so its baseline tucked against the CAP TOPS and
+  // tracked the font across the clamp range. The owner has since moved it UNDER the word, where
+  // that trick has no equivalent (the box carries descender space the caps never use, so any
+  // `top:%` right at 64px is wrong at 34px), so `.ts-act.ts-solo` lays it out in FLOW with
+  // `column-reverse` — button first, caption after, a real gap and no number to re-tune.
+  console.log('\n3 — the New/Old captions sit under their words');
   {
     const { page, errs } = await open('', { width: 1440, height: 900 });
     await page.waitForSelector('#titleScreen .ts-top .ts-actions', { timeout: 20000 });
@@ -234,14 +235,16 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     });
     ok('the top row is one button', geo.n === 1, `${geo.n} button(s)`);
     ok('...with nothing labelling a mode beside it', geo.labels.length === 0, geo.labels.join(', ') || 'none');
-    ok('its caption is above it', !!geo.cap && !!geo.btn && geo.cap.mid < geo.btn.mid,
+    ok('its caption is below it', !!geo.cap && !!geo.btn && geo.cap.mid > geo.btn.mid,
        geo.cap ? `caption ${Math.round(geo.cap.mid)} vs button ${Math.round(geo.btn.mid)}` : '(no caption)');
-    // TIGHT, not merely above: the caption's baseline tucks against the cap tops. A generous
-    // upper bound rather than a pixel, since both are clamp()d — but it fails the `bottom:100%`
-    // version, which is the regression this inherits.
-    ok('...and tucked against the glyphs, not floating clear of them',
-       !!geo.cap && !!geo.btn && (geo.btn.top - geo.cap.bottom) < geo.size * 0.35,
-       geo.cap ? `${Math.round(geo.btn.top - geo.cap.bottom)}px gap at ${geo.size}px type` : '—');
+    // CLOSE, not merely below: the caption belongs to that word and has to read as its subtitle
+    // rather than as a line of its own. A generous bound rather than a pixel, since both are
+    // clamp()d — but it fails an absolutely-positioned caption, which lands on top of the glyphs
+    // or well clear of them depending on the size.
+    ok('...and close enough to read as its subtitle',
+       !!geo.cap && !!geo.btn && (geo.cap.top - geo.btn.bottom) < geo.size * 0.35
+         && geo.cap.top >= geo.btn.bottom - 1,
+       geo.cap ? `${Math.round(geo.cap.top - geo.btn.bottom)}px gap at ${geo.size}px type` : '—');
     ok('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
     await page.close();
   }

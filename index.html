@@ -1024,7 +1024,16 @@
        animation's strand step stalls (its first attractor lands inside the kill radius). */
     #titleScreen .ts-actions.ts-one { display:flex; justify-content:center; width:min(820px,92vw); }
     #titleScreen .ts-btn.ts-solo { font-size:clamp(34px,5.4vw,64px); padding:3px 8px; }
-    #titleScreen .ts-act.ts-solo > .ts-cap { font-size:clamp(8px,1vw,11px); letter-spacing:.05em; }
+    /* THE CAPTION SITS UNDER ITS WORD (owner), and it is IN FLOW here rather than absolutely
+       positioned. The two-row layout floated it above the button at `bottom:84%` of the button's
+       own box — a percentage chosen so the caption's baseline tucked against the CAP TOPS and
+       tracked the font across the clamp range. Under the word that trick has no equivalent: the
+       box carries descender space the caps never use, so any `top:%` that looks right at 64px is
+       wrong at 34px. `column-reverse` puts the caption after the button with a real gap and no
+       number to re-tune. The absolute rule stays for `.ts-sm`, which the two-row layout uses. */
+    #titleScreen .ts-act.ts-solo { flex-direction:column-reverse; align-items:center; gap:clamp(2px,0.4vh,6px); }
+    #titleScreen .ts-act.ts-solo > .ts-cap { position:static; transform:none; bottom:auto; left:auto;
+      font-size:clamp(8px,1vw,11px); letter-spacing:.05em; }
     /* Narrow screens can't fit four buttons plus SURVIVAL across, so the row STACKS:
        SURVIVAL, then the turn-based pair, then the real-time pair. */
     @media (max-width:720px) {
@@ -26192,12 +26201,11 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
           '<span class="ts-act ts-solo"><span class="ts-cap">start a new game</span><button class="ts-btn ts-solo" id="tsNewCamp" type="button">New</button></span>' +
         '</div>' +
       '</div>' +
+      // NOTHING BETWEEN THE WORDMARK AND "OLD" (owner). "Chapter 1" briefly survived the cut of
+      // the CAMPAIGN label above it — it names the content rather than the rules — and has now
+      // gone too. The level intro's "4 of 9" is the only place left that says how long the
+      // campaign is, which is where a player asks the question anyway.
       '<div class="ts-block ts-bottom">' +
-        // "Chapter 1" stays: what was removed is the MODE title (the word CAMPAIGN), and this
-        // line names the CONTENT rather than the rules. Under the wordmark it reads as the
-        // subtitle it always was, and it is still the only place the title screen says how much
-        // game there is — the level intro's "4 of 9" is the other.
-        '<div class="ts-soon">Chapter 1</div>' +
         '<div class="ts-actions ts-one">' +
           '<span class="ts-act ts-solo"><span class="ts-cap">continue last game</span><button class="ts-btn ts-solo" id="tsContCamp" type="button">Old</button></span>' +
         '</div>' +
@@ -26835,7 +26843,12 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     const topB = root.querySelector('.ts-top'), botB = root.querySelector('.ts-bottom');
     const topH = topB.offsetHeight || 90;
     const halfTitle = titleSize * 0.58;              // effective title half-height (incl. fringe)
-    const gapTitle = Math.max(16, H * 0.045);        // title edge → row
+    // 0.045 -> 0.085 of the viewport height (owner: "move the new and old a bit further away from
+    // the mycelium"). Measured either side at 1400x900: NEW's top 177 -> 133 and OLD's bottom
+    // 696 -> 754, so the words move ~44px out from the wordmark each. It is a FRACTION of the
+    // height rather than a constant because the wordmark is sized off the viewport too — a fixed
+    // gap reads as generous on a laptop and cramped on a phone.
+    const gapTitle = Math.max(28, H * 0.085);        // title edge → row
     topB.style.bottom = 'auto'; topB.style.top = Math.round(titleY - halfTitle - gapTitle - topH) + 'px';
     botB.style.bottom = 'auto'; botB.style.top = Math.round(titleY + halfTitle + gapTitle) + 'px';
   }

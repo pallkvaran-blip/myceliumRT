@@ -1022,10 +1022,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // only thing that can be asserted, and the only thing that changed, is that the DOOR is gone.
   ok('real time is not offered from the title screen', title.rt === false,
      (title.ids || []).join(', '));
-  // "Chapter 1" (owner) — it named the CONTENT rather than the rules even when there was a
-  // CAMPAIGN label above it, which is exactly why it outlived that label: with survival gone it
-  // is the only thing on the screen that says how much game there is.
-  ok('...and the row is named Chapter 1', (title.soon || []).join(' ').trim() === 'Chapter 1',
+  // "Chapter 1" IS GONE TOO (owner: "remove the chapter 1"). It named the CONTENT rather than the
+  // rules, which is why it outlived the CAMPAIGN label above it by one pass — but with nothing
+  // else on the screen it read as a line of its own rather than as a subtitle. The level intro's
+  // "4 of 9" is the only place left that says how long the campaign is, which is where a player
+  // asks the question anyway.
+  ok('...and nothing is left between the wordmark and the words', (title.soon || []).length === 0,
      (title.soon || []).join(' | ') || '(nothing there)');
   // THREE RESUME SLOTS STILL, even though only one is reachable from the title. The survival
   // slots are what a stored survival run comes back through if the door is reopened, and keeping
