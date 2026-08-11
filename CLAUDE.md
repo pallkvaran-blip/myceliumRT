@@ -2720,6 +2720,11 @@ is still true of the code — only the title row is gone.
     box carries descender space the caps never use, so any `top:%` that looks right at 64px is
     wrong at 34px. `.ts-act.ts-solo` is `column-reverse` with a real gap and no number to re-tune.
     The absolute rule stays for `.ts-sm`, which the withheld two-row layout uses.
+  - **AND THE GAP UNDER THE WORD IS MOSTLY THE BUTTON'S OWN BOX, not the flex `gap`.** At `normal`
+    leading a 64px word carries ~13px of descender space plus half-leading below its baseline, and
+    no `gap` value can claw that back — "move the subtitles closer" is `line-height:1` and
+    `padding-bottom:0` on `.ts-btn.ts-solo`, which is a fraction of the font and so holds across
+    the clamp. Measured at 1400x900: 29px → 16px.
   - **`gapTitle` in `positionMenu` is `max(28, H * 0.085)`**, up from `0.045`. A FRACTION of the
     viewport height, not a constant — the wordmark is sized off the viewport too, so a fixed gap
     reads generous on a laptop and cramped on a phone. Measured at 1400x900: New's top 177 → 133,
@@ -2869,6 +2874,23 @@ and the nests seeded here get their road right first time because the mask alrea
   **Anything else that reads the creature arrays before the first rendered frame has this bug too.**
 
 ### The tutorial says everything on level 1
+
+**THE MOULD TIP IS UNSKIPPABLE (`noSkip`), and it was already un-blocked by the tutorial's End.**
+Owner: *"lets show that even if players pressed end on the tutorial. too important to skip."*
+Measured first: ending the level-1 walkthrough has never suppressed the level-3 tip — `beginLevelTip`
+knows nothing about it, and `markTutorialSeen` is written and read by nothing. What WAS skippable is
+the tip itself, two ways, and `noSkip` closes both:
+
+- **The End button is withheld on that step.** On a ONE-STEP tip, End is indistinguishable from
+  never having shown it — and a player who pressed End through the level-1 walkthrough presses it
+  here by reflex. Next ("Begin") still dismisses it, so nothing is trapped; `tutscript` asserts
+  that as the control.
+- **And it is deaf for `AUTO_ARM_MS`**, because it opens the instant the level card is dismissed —
+  the player's finger is already moving and the full-screen catcher would eat that second click.
+  Same mechanism as an auto-advanced walkthrough step. Asserted with its own opposite beside it
+  ("a click a moment later does dismiss it"), or it would pass on a tip nobody can close.
+
+Scoped to the mould. The ant tip keeps its End — it is a courtesy, not a rule the run turns on.
 
 Campaign puts the ant tip on level 2 and the mould tip on 3 (`LEVEL_TIPS`, fired by
 `beginLevelTip`); **survival folds both into the level-1 walkthrough** (owner). Not a preference —

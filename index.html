@@ -1023,7 +1023,12 @@
        23% up on the pair size, and well clear of the ~26px floor below which the consume
        animation's strand step stalls (its first attractor lands inside the kill radius). */
     #titleScreen .ts-actions.ts-one { display:flex; justify-content:center; width:min(820px,92vw); }
-    #titleScreen .ts-btn.ts-solo { font-size:clamp(34px,5.4vw,64px); padding:3px 8px; }
+    /* `line-height:1` and no bottom padding, because the GAP IS MOSTLY THE BUTTON'S OWN BOX, not
+       the flex gap: at `normal` leading a 64px cap-height word carries ~13px of descender space
+       plus half-leading below its baseline, and no `gap` value can claw that back. Tightening the
+       box moves the caption up by a fraction of the font, so it scales across the clamp instead
+       of being right at one size. */
+    #titleScreen .ts-btn.ts-solo { font-size:clamp(34px,5.4vw,64px); padding:3px 8px 0; line-height:1; }
     /* THE CAPTION SITS UNDER ITS WORD (owner), and it is IN FLOW here rather than absolutely
        positioned. The two-row layout floated it above the button at `bottom:84%` of the button's
        own box — a percentage chosen so the caption's baseline tucked against the CAP TOPS and
@@ -1031,7 +1036,7 @@
        box carries descender space the caps never use, so any `top:%` that looks right at 64px is
        wrong at 34px. `column-reverse` puts the caption after the button with a real gap and no
        number to re-tune. The absolute rule stays for `.ts-sm`, which the two-row layout uses. */
-    #titleScreen .ts-act.ts-solo { flex-direction:column-reverse; align-items:center; gap:clamp(2px,0.4vh,6px); }
+    #titleScreen .ts-act.ts-solo { flex-direction:column-reverse; align-items:center; gap:clamp(1px,0.2vh,3px); }
     #titleScreen .ts-act.ts-solo > .ts-cap { position:static; transform:none; bottom:auto; left:auto;
       font-size:clamp(8px,1vw,11px); letter-spacing:.05em; }
     /* Narrow screens can't fit four buttons plus SURVIVAL across, so the row STACKS:
@@ -27184,6 +27189,17 @@ function startTutorial(deps) {
         skip: (s) => !deps.threats().trich,
         place: 'bottom',
         last: true,
+        // NO END BUTTON, AND DEAF FOR A MOMENT (owner: "too important to skip"). The mould is the
+        // one threat a run can be lost to without the player understanding what happened, and this
+        // popup is the only place the game explains it. `End` on a ONE-STEP tip is indistinguishable
+        // from never having shown it — and a player who has been pressing End through the level-1
+        // walkthrough presses it here by reflex. The Next/"Begin" button still dismisses it, so
+        // nothing is trapped; what is withheld is the button that means "skip the tutorial".
+        //
+        // The deaf window is the other half: this tip opens the instant the level card is
+        // dismissed, i.e. while the player's finger is already moving, and the full-screen catcher
+        // would eat that second click. Same mechanism as an auto-advanced walkthrough step.
+        noSkip: true,
       },
     ],
   };
@@ -27367,6 +27383,10 @@ function startTutorial(deps) {
     const interactive = !!step.interactive;
     btnNext.style.display = (forced && !step.showNext) ? 'none' : '';
     btnNext.textContent = step.last ? 'Begin' : 'Next';
+    // `noSkip` withholds the End button and buys the step the same deaf window an auto-advanced
+    // one gets — a step nobody chose to open must be readable before a click can dismiss it.
+    btnEnd.style.display = step.noSkip ? 'none' : '';
+    if (step.noSkip) catcherArmAt = Math.max(catcherArmAt, performance.now() + AUTO_ARM_MS);
     wantCatcher = !(forced || interactive);
     syncCatcher();
     // camera focus: frame the subject at (anchorX, anchorY). focusWorld applies the

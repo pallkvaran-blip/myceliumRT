@@ -316,6 +316,46 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      /takes time for infection to spread/i.test(t3.text || '')
        && /reach the eastern hills in time/i.test(t3.text || ''),
      t3.text || '(none)');
+  // TOO IMPORTANT TO SKIP (owner). The mould is the one threat a run can be lost to without the
+  // player understanding what happened, and this popup is the only place the game explains it.
+  // THREE separate assertions, because each covers a different way it can be missed and no one of
+  // them implies the others.
+  const t3ui = await p2.evaluate(async () => {
+    const t = window.__game.tutorial; if (t) { try { t.destroy(); } catch (_) {} }
+    document.querySelectorAll('#tutorial').forEach((n) => n.remove());
+    window.__game.levelTip(3);
+    await new Promise((r) => setTimeout(r, 400));
+    const shown = (id) => { const n = document.getElementById(id); return !!n && getComputedStyle(n).display !== 'none'; };
+    const cat = document.querySelector('.tut-catcher');
+    const out = { end: shown('tutEnd'), next: shown('tutNext'),
+                  label: (document.getElementById('tutNext') || {}).textContent || null,
+                  catcher: !!(cat && getComputedStyle(cat).display !== 'none') };
+    return out;
+  });
+  // A REAL MOUSE CLICK, NOT `catcher.click()`. The deaf window works by setting the catcher's
+  // `display:none` (see syncCatcher) — and `element.click()` fires a hidden element's listener
+  // just the same, so the DOM call dismissed the tip and reported the feature broken on a build
+  // where a finger cannot reach it. Anything asserting "the player could not have hit this" has
+  // to go through the mouse.
+  const strayAt = [720, 140];                       // top of the page; the tip places itself bottom
+  await p2.mouse.click(strayAt[0], strayAt[1]);
+  await sleep(200);
+  t3ui.survivesStrayClick = await p2.evaluate(() => !!document.getElementById('tutBody'));
+  await sleep(1400);
+  await p2.mouse.click(strayAt[0], strayAt[1]);
+  await sleep(300);
+  t3ui.dismissableAfter = await p2.evaluate(() => !document.getElementById('tutBody'));
+  await p2.evaluate(() => document.querySelectorAll('#tutorial').forEach((n) => n.remove()));
+  ok('the mould tip carries no End button — it is not skippable', t3ui.end === false,
+     `End ${t3ui.end ? 'shown' : 'hidden'}`);
+  // The control: withholding End must not TRAP the player. Begin still dismisses it.
+  ok('...but Begin still dismisses it, so nothing is trapped',
+     t3ui.next === true && /Begin/.test(t3ui.label || ''), `${t3ui.label} (shown=${t3ui.next})`);
+  ok('...and a stray click the instant it opens does not take it away',
+     t3ui.survivesStrayClick === true);
+  // ...paired with its own opposite, or it would pass on a tip nobody can click out of at all.
+  ok('...while a click a moment later does', t3ui.dismissableAfter === true);
+
   // AN UNKNOWN LEVEL MUST DO NOTHING. Without its own guard `LEVEL_TIPS[n] || MAIN_STEPS` fell
   // through and started the entire level-1 walkthrough — on level 4, mid-run.
   const t4 = await tip(4);
