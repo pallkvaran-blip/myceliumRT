@@ -2132,9 +2132,12 @@ UX decision now sits in, and because two of these were believed to be otherwise.
 - **A PHONE PLAYER IS ~2.5x LESS LIKELY TO CLEAR LEVEL 1.** CrazyGames: desktop 23%, phone **10%**,
   tablet 30%. Two effects, both real — phone is the weakest surface on BOTH stores, but the gap is
   2.8x on CrazyGames against only 1.25x on itch (55% desktop vs 44% phone there). CrazyGames is 45%
-  phone; itch is 81% desktop, which is most of the difference between the two stores. The tell that
-  it is controls rather than audience: phone players who fail stop EARLIER (15 turns vs 20) and
-  their played visits are shorter — they get less done per minute rather than staying and losing.
+  phone; itch is 81% desktop, which is most of the difference between the two stores.
+  - **AND PHONE PLAYERS ARE NOT LEAVING EARLY — THEY STAY AND GET LESS DONE.** Played visits,
+    CrazyGames, trimmed of the top 1%: **desktop mean 5:35 / median 2:40 against phone 4:07 /
+    2:15**. So phone is 20-35% shorter on time and **HALF** on clear rate. Whatever is wrong is
+    costing them progress per minute, not attention — which points at input and layout (the aim
+    drag, the carousel, pinch-zoom) rather than at interest.
 - **ITCH AND CRAZYGAMES ARE BARELY THE SAME GAME — NEVER AVERAGE THEM.** Reached a run 88% vs 57%,
   cleared L1 48% vs 10%, median played visit 5:04 vs 2:40, spend rate 14% vs 2.5%. A change judged
   on blended numbers is being judged on the week's traffic mix.
@@ -2278,10 +2281,18 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
   that is **4:14 against their 4:25 — two independent measurements 4% apart**, which is the best
   validation this telemetry has.
   - **The distribution is savagely skewed, which is why everything else is a median.** In that
-    window the longest 10% of visits held **48%** of all the time played; all-time it is 72%, and
-    one tab left open overnight (**19.6 hours**) moves the all-time mean by minutes. A mean answers
-    "how long do people play"; a median is the only one of the two that can be compared between two
-    releases without the tail deciding the result.
+    window the longest 10% of visits held **48%** of all the time played; all-time it is 72%. A
+    mean answers "how long do people play"; a median is the only one of the two that can be
+    compared between two releases without the tail deciding the result.
+  - **ONE SESSION CAN DECIDE A MEAN, so print the raw one beside the trimmed one.** A single tab
+    left open for **19 hours 39 minutes** takes the desktop played-visit mean to **15:22**; drop
+    the top 1% and it is **5:35**. That is the difference between "desktop players stay three times
+    as long as phone players" and "a quarter longer" — a trimmed mean shown ALONE would have read
+    as fact. Four trimming methods (top 1%, cap at 30 min, IQR fence, median) all rank the devices
+    the same way, so the method barely matters once that one row is out; what matters is saying it
+    is out. `telemetry-probe` prints raw and trimmed side by side for exactly this reason.
+  - Trimmed the store's way, all devices, the probe reads **4:29** against CrazyGames' published
+    **4:25** — the closest cross-check this telemetry has.
   - The funnel carries **`mean PLAYED visit`** labelled "what a store reports", so the two
     dashboards can be put side by side without anyone wondering which is broken. `analytics-check`
     asserts both are present AND that they differ.
