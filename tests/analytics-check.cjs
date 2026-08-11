@@ -592,6 +592,7 @@ function fixture() {
       // b3 loads and leaves: no run, no level. It is the bouncer the played median must drop —
       // and it is the LONGEST of the three, so a broken filter reads higher, not lower.
       if (i < 2) { ev(c, sid, now - 5 * DAY, 'run_start', null, null); ev(c, sid, now - 5 * DAY, 'level_start', null, null); }
+      if (c === 'b2') ev(c, sid, now - 5 * DAY, 'upgrade', 250);
       ev(c, sid, now - 5 * DAY, 'session_end', 1, ms);
     });
     // A SECOND, OLDER STAMPED BUILD — the case that made the table wrong. Two uploads in one day
@@ -600,6 +601,9 @@ function fixture() {
     boot('p1', 's7', now - 2 * DAY, '2026-08-08-old0001');
     ev('p1', 's7', now - 2 * DAY, 'run_start', null, null);   // a run but no level: not a played visit
     ev('p1', 's7', now - 2 * DAY, 'session_end', 1, 90000);
+    // ONE SPENDER ON EACH SIDE, and on the AFTER side they spend TWICE — a per-event count would
+    // read 2 of 3 as spenders where the truth is 1 of 3, which is the same defect as counting
+    // clears instead of players.
     // AFTER (stamped): 3 players at 240s / 305s / 370s -> median 305s = "5m 5s", and all three run.
     [['a1', 's4', 240000], ['a2', 's5', 305000], ['a3', 's6', 370000]].forEach(([c, sid, ms]) => {
       boot(c, sid, now - 1 * DAY, '2026-08-09-abc1234');
@@ -607,6 +611,7 @@ function fixture() {
       ev(c, sid, now - 1 * DAY, 'level_start', null, null);
       ev(c, sid, now - 1 * DAY, 'level_clear', null, null);
       if (c === 'a3') ev(c, sid, now - 1 * DAY, 'level_clear', null, null);   // clears twice: still one player
+      if (c === 'a1') { ev(c, sid, now - 1 * DAY, 'upgrade', 100); ev(c, sid, now - 1 * DAY, 'purchase', 350); }
       ev(c, sid, now - 1 * DAY, 'session_end', 1, ms);
     });
     const sp = await ctx.newPage();
@@ -694,6 +699,16 @@ function fixture() {
          && !!after && /^3\b/.test(after[6]) && /100%/.test(after[6]),
        (before && before[6]) + ' vs ' + (after && after[6]));
     ok('...counting a player who cleared twice ONCE', !!after && !/^4\b/.test(after[6]), after && after[6]);
+    // SPENDING, in the release table rather than a section of its own — the campaign is built to
+    // stop a new player at level 3 or 4 and the answer is the store, so it is much of what a
+    // release is judged on. One spender of three on each side; the AFTER one spends TWICE.
+    // 1 of 4 on the baseline (the three pre-stamp players plus the folded older build's one),
+    // 1 of 3 on the release.
+    ok('...and the share of PLAYERS who spent anything',
+       !!before && /^1\b/.test(before[7]) && /25%/.test(before[7])
+         && !!after && /^1\b/.test(after[7]) && /33\.3%/.test(after[7]),
+       (before && before[7]) + ' vs ' + (after && after[7]));
+    ok('...counting a player who spent twice ONCE', !!after && !/^2\b/.test(after[7]), after && after[7]);
     ok('...and the two percentage columns name their denominators in the header',
        !!cmp && /reached a run \(sessions\)/i.test(cmp.head) && /cleared a level \(players\)/i.test(cmp.head),
        cmp && cmp.head);
