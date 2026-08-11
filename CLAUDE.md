@@ -2186,6 +2186,23 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
   it is the closest thing in this table to "did they enjoy it". The section **warns when the newest
   release has under 30 sessions**, because that is the normal state for a day after a release and a
   thin sample printed with the same confidence as a month of data invites the wrong conclusion.
+  - **TWO MEDIANS: THE VISIT AND THE *PLAYED* VISIT** (owner: *"double check you are calculating it
+    correctly — not including people who bounce without starting a level"*). About a third of every
+    visit never starts a run — they load, look and leave in **~17 s** — and they sit at the bottom
+    of both sides pulling the medians toward each other. Measured on the live table the two say
+    OPPOSITE things: all visits read 1m 14s after against 1m 12s before (no change), and visits
+    that reached a level read **1m 52s after against 2m 58s before**. The bouncers were hiding it,
+    not causing it. The played column is the headline; both are printed, each with **n in brackets**
+    (a median over 6 visits and one over 44 print identically and mean very different things).
+  - **REMOVING A MODE MOVES THIS NUMBER BY ITSELF, so compare like for like.** Survival visits were
+    the LONGEST in the table (3m 27s against campaign's 2m 43s) and the release withdrew survival —
+    so the all-games baseline is inflated by sessions the new build cannot have. Pick **Game =
+    campaign** before reading the comparison. It does not rescue the result here (campaign-only:
+    1m 52s after against 2m 43s before) but it is the only honest version of it.
+  - **A VISIT STILL OPEN HAS NOT REPORTED AN END**, and long visits close last, so the newest
+    release reads short for a while after a launch. On the reading above 11.6% of its visits had no
+    `session_end` yet against 8.9% of the baseline's — a real bias, small, and in the direction
+    that flatters the OLD build.
   - **TWO PERCENTAGE COLUMNS, TWO DENOMINATORS, AND THE HEADER SAYS WHICH.** "Reached a run" is per
     SESSION (what share of visits become a play); **"cleared a level" is per PLAYER** (owner: *"%
     who cleared at least one level"*) — the question is how many PEOPLE got anywhere, and someone

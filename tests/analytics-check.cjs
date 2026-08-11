@@ -589,19 +589,22 @@ function fixture() {
     // whose medians land on whole minutes would pass either way and prove nothing.
     [['b1', 's1', 55000], ['b2', 's2', 95000], ['b3', 's3', 125000]].forEach(([c, sid, ms], i) => {
       boot(c, sid, now - 5 * DAY);
-      if (i < 2) ev(c, sid, now - 5 * DAY, 'run_start', null, null);
+      // b3 loads and leaves: no run, no level. It is the bouncer the played median must drop —
+      // and it is the LONGEST of the three, so a broken filter reads higher, not lower.
+      if (i < 2) { ev(c, sid, now - 5 * DAY, 'run_start', null, null); ev(c, sid, now - 5 * DAY, 'level_start', null, null); }
       ev(c, sid, now - 5 * DAY, 'session_end', 1, ms);
     });
     // A SECOND, OLDER STAMPED BUILD — the case that made the table wrong. Two uploads in one day
     // gave the previous build a row of its own, which split the baseline and left the release
     // being judged against a handful of sessions. It must fold into "everything before it".
     boot('p1', 's7', now - 2 * DAY, '2026-08-08-old0001');
-    ev('p1', 's7', now - 2 * DAY, 'run_start', null, null);
+    ev('p1', 's7', now - 2 * DAY, 'run_start', null, null);   // a run but no level: not a played visit
     ev('p1', 's7', now - 2 * DAY, 'session_end', 1, 90000);
     // AFTER (stamped): 3 players at 240s / 305s / 370s -> median 305s = "5m 5s", and all three run.
     [['a1', 's4', 240000], ['a2', 's5', 305000], ['a3', 's6', 370000]].forEach(([c, sid, ms]) => {
       boot(c, sid, now - 1 * DAY, '2026-08-09-abc1234');
       ev(c, sid, now - 1 * DAY, 'run_start', null, null);
+      ev(c, sid, now - 1 * DAY, 'level_start', null, null);
       ev(c, sid, now - 1 * DAY, 'level_clear', null, null);
       if (c === 'a3') ev(c, sid, now - 1 * DAY, 'level_clear', null, null);   // clears twice: still one player
       ev(c, sid, now - 1 * DAY, 'session_end', 1, ms);
@@ -652,13 +655,27 @@ function fixture() {
     // result. 60/120/180 -> 2m; 300/360/420 -> 6m.
     // 55 / 90 / 95 / 125 -> median (90+95)/2 = 92.5s, which rounds to 1m 33s. The 90 is the folded
     // older build's session, so this number is also the fold doing its job.
-    ok('play time is the median session, before', !!before && before[3] === '1m 33s', before && before[3]);
-    ok('...and after', !!after && after[3] === '5m 5s', after && after[3]);
-    // BOTH UNITS (owner: "need more detail"). Asserted as a shape rather than only as the two
-    // exact strings above, so a formatter that went back to one unit fails here under a name that
-    // says what it lost — the exact strings alone would just read as two wrong numbers.
+    // TWO MEDIANS NOW (owner: "not including people who bounce without starting a level"), and the
+    // fixture is arranged so they DIFFER — b3 and p1 never start a level, so they are in the
+    // all-visits median and out of the played one. Identical columns would pass any "it renders"
+    // check while the filter did nothing.
+    //   all:    55 / 90 / 95 / 125 -> median 92.5s -> "1m 33s" over 4
+    //   played: 55 / 95            -> median 75s   -> "1m 15s" over 2
+    ok('the median visit includes the bouncers', !!before && /^1m 33s/.test(before[3]), before && before[3]);
+    ok('...and the PLAYED median excludes them', !!before && /^1m 15s/.test(before[4]), before && before[4]);
+    ok('...so the two columns are not the same number',
+       !!before && before[3] !== before[4], `${before && before[3]} vs ${before && before[4]}`);
+    ok('...and the count travels with each median', !!before && /\(4\)/.test(before[3]) && /\(2\)/.test(before[4]),
+       `${before && before[3]} / ${before && before[4]}`);
+    ok('the release side reports both too', !!after && /^5m 5s/.test(after[3]) && /^5m 5s/.test(after[4]),
+       (after && after[3]) + ' / ' + (after && after[4]));
+    // BOTH UNITS (owner: "need more detail"). Asserted as a shape rather than only as the exact
+    // strings above, so a formatter that went back to one unit fails here under a name that says
+    // what it lost. Anchored at the START of the cell, not the whole of it: the cell carries the
+    // visit count in brackets after the duration, and matching to `$` made this a test of the
+    // layout instead of the formatter.
     ok('...and a duration carries minutes AND seconds, not one rounded unit',
-       !!before && /^\d+m \d+s$/.test(before[3]) && !!after && /^\d+m \d+s$/.test(after[3]),
+       !!before && /^\d+m \d+s\b/.test(before[3]) && !!after && /^\d+m \d+s\b/.test(after[3]),
        (before && before[3]) + ' / ' + (after && after[3]));
     // 4 on the baseline: the three pre-stamp players plus the folded older build's one.
     ok('players and sessions are counted per side',
@@ -666,17 +683,17 @@ function fixture() {
        (before && before.slice(1, 3).join('/')) + ' vs ' + (after && after.slice(1, 3).join('/')));
     // "Reached a run" is per SESSION: 3 of 4 on the baseline (b1, b2 and the folded p1), 3 of 3 after.
     ok('...as is the share of sessions that reached a run',
-       !!before && /75%/.test(before[4]) && !!after && /100%/.test(after[4]),
-       (before && before[4]) + ' vs ' + (after && after[4]));
+       !!before && /75%/.test(before[5]) && !!after && /100%/.test(after[5]),
+       (before && before[5]) + ' vs ' + (after && after[5]));
     // AND "CLEARED A LEVEL" IS PER PLAYER, WHICH IS A DIFFERENT DENOMINATOR ON PURPOSE (owner:
     // "% who cleared at least one level"). Nobody clears before, all three clear after. Asserted
     // as DISTINCT PLAYERS: a3 clears twice in the fixture, so a per-event count would read 4 of 3
     // and print 133% — the same defect as counting attempts where the question said people.
     ok('...and the share of PLAYERS who cleared at least one level',
-       !!before && /^0\b/.test(before[5]) && /0%/.test(before[5])
-         && !!after && /^3\b/.test(after[5]) && /100%/.test(after[5]),
-       (before && before[5]) + ' vs ' + (after && after[5]));
-    ok('...counting a player who cleared twice ONCE', !!after && !/^4\b/.test(after[5]), after && after[5]);
+       !!before && /^0\b/.test(before[6]) && /0%/.test(before[6])
+         && !!after && /^3\b/.test(after[6]) && /100%/.test(after[6]),
+       (before && before[6]) + ' vs ' + (after && after[6]));
+    ok('...counting a player who cleared twice ONCE', !!after && !/^4\b/.test(after[6]), after && after[6]);
     ok('...and the two percentage columns name their denominators in the header',
        !!cmp && /reached a run \(sessions\)/i.test(cmp.head) && /cleared a level \(players\)/i.test(cmp.head),
        cmp && cmp.head);
