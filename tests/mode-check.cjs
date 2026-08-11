@@ -38,27 +38,43 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   };
 
   // ---------------------------------------------------------------- TITLE SCREEN
-  console.log('\nTEST 1 — the title screen offers both games');
+  console.log('\nTEST 1 — the title screen offers ONE game');
   //
-  // REAL TIME IS OFF THE TITLE SCREEN for this release (owner: "not this next release"), so the
-  // Survival row is a single New/Old pair like the Campaign row and there is no three-column
-  // split, no Turn-based / Real time kind labels and no tsNewRt / tsContRt. The VARIANT is
-  // untouched — TEST 3 below still drives it, via #dev, which is now its only door. What is
-  // asserted here is the shape of the two rows and that the withdrawn door stays shut.
+  // BOTH doors are withheld for this release and each is one constant in __m_config. Real time
+  // went first (owner: "not this next release"); SURVIVAL followed it (owner: "lets remove
+  // survival mode from the game, the retention rate is too low. we may add it back sometime
+  // later, so lets keep that option"). Neither VARIANT is gone — TEST 3 below still drives real
+  // time via #dev, and survival-check still drives survival through `__game.survival.play`. What
+  // is asserted here is the shape the screen takes with one game, and that both withdrawn doors
+  // stay shut.
+  //
+  // With nothing to choose between there is nothing to label, so the mode titles go with the rows
+  // and the two buttons straddle the wordmark: New above it, Old below (owner).
   {
     const { page, errs } = await openPage('');
     await page.waitForSelector('#titleScreen .ts-top .ts-actions', { timeout: 20000 });
-    const ids = await page.$$eval('#titleScreen .ts-top .ts-btn', (bs) => bs.map((b) => b.id));
-    ok('the Survival row is one New/Old pair', ids.join(',') === 'tsNew,tsCont', ids.join(','));
+    const top = await page.$$eval('#titleScreen .ts-top .ts-btn', (bs) => bs.map((b) => b.id));
+    const bot = await page.$$eval('#titleScreen .ts-bottom .ts-btn', (bs) => bs.map((b) => b.id));
+    ok('New sits above the wordmark, alone', top.join(',') === 'tsNewCamp', top.join(',') || '(none)');
+    ok('...and Old below it, alone', bot.join(',') === 'tsContCamp', bot.join(',') || '(none)');
+    ok('survival is not offered from the title screen',
+       (await page.$('#tsNew')) === null && (await page.$('#tsCont')) === null);
     ok('real time is not offered from the title screen',
        (await page.$('#tsNewRt')) === null && (await page.$('#tsContRt')) === null);
     ok('nothing is left labelling a mode that has no button',
-       (await page.$$('#titleScreen .ts-kind')).length === 0);
-    const caps = await page.$$eval('#titleScreen .ts-top .ts-cap', (cs) => cs.map((c) => c.textContent));
+       (await page.$$('#titleScreen .ts-kind')).length === 0
+       && (await page.$$('#titleScreen .ts-mode')).length === 0);
+    // "Chapter 1" is NOT a mode label and stays: it names the content, and it is the only place
+    // the title screen says how much game there is.
+    const soon = await page.$$eval('#titleScreen .ts-soon', (ns) => ns.map((n) => n.textContent.trim()));
+    ok('the chapter line survives the cut', soon.join(',') === 'Chapter 1', soon.join(',') || '(none)');
+    const caps = await page.$$eval('#titleScreen .ts-cap', (cs) => cs.map((c) => c.textContent));
     ok('every button keeps its caption', caps.join(' | ') === 'start a new game | continue last game', caps.join(' | '));
 
-    // The two rows are the same control at the same size — that is what makes them read as two
-    // entries in one menu rather than a main option and an afterthought.
+    // BIGGER, and the same size as each other (owner: "make both a bit bigger"). Asserted as a
+    // BAND rather than a number — the size is a clamp() and a 1400x900 page lands mid-range — but
+    // the floor matters twice over: past the old pair size (52px, which is what "bigger" means
+    // here) and well clear of ~26px, below which the consume animation's strand step stalls.
     const sizes = await page.evaluate(() => {
       const btn = document.querySelector('#titleScreen .ts-top .ts-btn');
       const cap = document.querySelector('#titleScreen .ts-top .ts-cap');
@@ -66,41 +82,37 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       return { btn: parseFloat(getComputedStyle(btn).fontSize), cap: parseFloat(getComputedStyle(cap).fontSize),
                camp: parseFloat(getComputedStyle(camp).fontSize) };
     });
-    ok('New/Old stay at the small size (was 84px before the split)', sizes.btn > 26 && sizes.btn < 60, `${sizes.btn}px`);
-    ok('captions match it', sizes.cap < 11, `${sizes.cap}px`);
-    ok('the Campaign row is the same size', Math.abs(sizes.camp - sizes.btn) < 0.6, `${sizes.camp}px`);
+    ok('New is bigger than the two-row pair size and still animatable', sizes.btn > 52 && sizes.btn <= 64, `${sizes.btn}px`);
+    ok('Old is the same size', Math.abs(sizes.camp - sizes.btn) < 0.6, `${sizes.camp}px`);
+    ok('captions stay quiet beside it', sizes.cap <= 11, `${sizes.cap}px`);
 
-    // Both rows clear of the title, and nothing runs off the screen.
+    // New above, Old below, and nothing running off the screen.
     const geo = await page.evaluate(() => {
       const t = document.querySelector('#titleScreen .ts-top').getBoundingClientRect();
       const b = document.querySelector('#titleScreen .ts-bottom').getBoundingClientRect();
       return { t: { top: t.top, bottom: t.bottom, left: t.left, right: t.right }, b: { top: b.top, bottom: b.bottom },
                vw: innerWidth, vh: innerHeight };
     });
-    ok('the Survival row sits above the Campaign row', geo.t.bottom < geo.b.top, `${Math.round(geo.t.bottom)} < ${Math.round(geo.b.top)}`);
-    ok('both rows are on screen', geo.t.top > 0 && geo.b.bottom < geo.vh, `top=${Math.round(geo.t.top)} bottom=${Math.round(geo.b.bottom)} vh=${geo.vh}`);
-    ok('the Survival row fits the width', geo.t.left >= 0 && geo.t.right <= geo.vw, `${Math.round(geo.t.left)}..${Math.round(geo.t.right)} of ${geo.vw}`);
+    ok('New sits above Old', geo.t.bottom < geo.b.top, `${Math.round(geo.t.bottom)} < ${Math.round(geo.b.top)}`);
+    ok('both are on screen', geo.t.top > 0 && geo.b.bottom < geo.vh, `top=${Math.round(geo.t.top)} bottom=${Math.round(geo.b.bottom)} vh=${geo.vh}`);
+    ok('the New row fits the width', geo.t.left >= 0 && geo.t.right <= geo.vw, `${Math.round(geo.t.left)}..${Math.round(geo.t.right)} of ${geo.vw}`);
 
-    // HIGH SCORES top-centre, CREDITS bottom-centre (owner). They used to sit side by side at
-    // the foot. Asserted as GEOMETRY, not as "the element exists": both are the same .ts-foot-btn
-    // in the same kind of centred bar, so only where they land tells them apart — and the header
-    // has to clear the Survival row, which starts ~180px down.
+    // HIGH SCORES IS GONE WITH SURVIVAL (owner: "remove the high scores as that is not relevant
+    // anymore"), and it had to be: the board ranks how DEEP a run got and a campaign run files no
+    // score at all, so the link could only ever open an empty ladder. CREDITS stays where it was,
+    // bottom-centre, which is the control — "the link is missing" would also pass on a title
+    // screen that had lost its whole footer.
     const links = await page.evaluate(() => {
       const box = (s) => { const n = document.querySelector(s); if (!n) return null;
         const r = n.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, mid: (r.left + r.right) / 2 }; };
-      return { hs: box('#tsHighScores'), cr: box('#tsCredits'),
-               rowTop: document.querySelector('#titleScreen .ts-top').getBoundingClientRect().top,
+      return { hs: box('#tsHighScores'), cr: box('#tsCredits'), header: !!document.querySelector('#titleScreen .ts-header'),
                vw: innerWidth, vh: innerHeight };
     });
-    ok('High Scores sits at the TOP', !!links.hs && links.hs.top < links.vh * 0.15,
-       links.hs ? `top ${Math.round(links.hs.top)} of ${links.vh}` : 'missing');
-    ok('...centred', !!links.hs && Math.abs(links.hs.mid - links.vw / 2) < 2,
-       links.hs ? `mid ${Math.round(links.hs.mid)} vs ${links.vw / 2}` : 'missing');
-    ok('...and clear of the New/Old rows', !!links.hs && links.hs.bottom < links.rowTop,
-       links.hs ? `${Math.round(links.hs.bottom)} < ${Math.round(links.rowTop)}` : 'missing');
+    ok('High Scores is gone from the title screen', !links.hs && !links.header,
+       links.hs ? 'still there' : (links.header ? 'empty header bar left behind' : 'gone'));
     ok('Credits stays at the BOTTOM', !!links.cr && links.cr.bottom > links.vh * 0.9,
        links.cr ? `bottom ${Math.round(links.cr.bottom)} of ${links.vh}` : 'missing');
-    ok('...centred too', !!links.cr && Math.abs(links.cr.mid - links.vw / 2) < 2,
+    ok('...centred', !!links.cr && Math.abs(links.cr.mid - links.vw / 2) < 2,
        links.cr ? `mid ${Math.round(links.cr.mid)} vs ${links.vw / 2}` : 'missing');
     ok('they are no longer a pair (the dash between them is gone)',
        (await page.$$('#titleScreen .ts-foot-sep')).length === 0);
@@ -110,10 +122,18 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   }
   {
     const { page } = await openPage('');
-    await page.waitForSelector('#tsNew', { timeout: 20000 });
-    await page.click('#tsNew');
+    await page.waitForSelector('#tsNewCamp', { timeout: 20000 });
+    await page.click('#tsNewCamp');
     await page.waitForSelector('#tsNameStart', { timeout: 5000 });
     await page.click('#tsNameStart');
+    // THE CAMPAIGN OPENING SITS BETWEEN NEW AND THE PICKER (survival never had it), so this block
+    // has one more screen to get through than it did when it entered by the Survival row. Clicked
+    // away rather than removed: it owns the handover to `showPicker`, and deleting the node would
+    // leave nothing to hand over.
+    for (let i = 0; i < 20 && !(await page.$('#speciesSelect')); i++) {
+      await page.evaluate(() => { const st = document.querySelector('.li-story'); if (st) st.click(); });
+      await new Promise((r) => setTimeout(r, 400));
+    }
     await page.waitForFunction(() => document.getElementById('speciesSelect'), null, { timeout: 20000 });
     // Compared against MODE_TUNING itself, not against pinned numbers. This assertion used to
     // hard-code worm=3 ants=40 rot=6, so every balance retune broke it under a name describing

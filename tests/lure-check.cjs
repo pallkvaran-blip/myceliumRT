@@ -28,9 +28,11 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // `.ts-split` ONLY EXISTS WHEN `OFFER_REALTIME` IS ON, and real time was taken off the title
   // screen — so this waited for a layout that no longer ships and the whole check died on the
   // wait, reporting nothing. `--fast` skips `lure`, which is why it sat broken unnoticed.
-  // `#tsNew` is in BOTH branches: it is the New button, and a title screen without one is a
+  // `.ts-btn` IS THE CLASS EVERY LAYOUT'S New/Old CARRY, whichever games the build offers — the
+  // id moved once already when survival was withdrawn (`#tsNew` stopped existing), and this wait
+  // is only asking whether the title screen is up at all. A title screen with no button is a
   // failure worth hanging on.
-  await page.waitForSelector('#titleScreen #tsNew', { timeout: 20000 });
+  await page.waitForSelector('#titleScreen .ts-btn', { timeout: 20000 });
   await sleep(6000);   // let the title finish blooming
 
   // Ink coverage inside a probe box, as a proxy for "strands are here".

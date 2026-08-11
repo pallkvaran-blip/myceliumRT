@@ -179,8 +179,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const devOnTitle = await page.evaluate((ids) => ids.filter((i) => !!document.querySelector(i)), DEV_IDS);
     ok('no dev buttons on the title screen', devOnTitle.length === 0, devOnTitle.join(', '));
 
-    // ---- 4. it PLAYS: campaign, then survival ------------------------------
-    for (const [row, label] of [['#tsNewCamp', 'campaign'], ['#tsNew', 'survival']]) {
+    // ---- 4. it PLAYS: the campaign, twice — once from this boot and once from a cold one -----
+    // IT USED TO PLAY BOTH GAMES HERE. Survival is withheld from the title screen now (owner), so
+    // there is one door, and the second pass is what it was always really worth: the same artefact
+    // played from a COLD RELOAD, which is how a player arrives at it. The loop shape is kept
+    // deliberately — reopening survival is one constant, and this is where its row goes back.
+    for (const [row, label] of [['#tsNewCamp', 'campaign'], ['#tsNewCamp', 'campaign, cold boot']]) {
       await page.evaluate(() => {
         document.querySelectorAll('#levelIntro, #speciesSelect, #tutorial, #ssGameWon').forEach((n) => n.remove());
       });

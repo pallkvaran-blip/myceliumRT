@@ -740,6 +740,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('...and closes the sheet behind it', ended.stillUp === false);
 
   // ---- retries --------------------------------------------------------------
+  // READ THE BASE OFF THE TRACK. Everyone starts with `lives.base` retries bought or not, and the
+  // number has moved once already (1 -> 0 -> 1). Written out here, every assertion below would
+  // have to be edited by hand the next time it moves, which is how a check ends up asserting last
+  // release's design; derived, they only fail if the BEHAVIOUR stops matching the table.
+  const LIVES_BASE = await page.evaluate(() =>
+    (window.__game.store.upgrades.find((u) => u.id === 'lives') || {}).base || 0);
+
   // "When a player dies they should be given the option of trying the same level again if they
   // have retries left... if they are out of retries, that option should still be visible on the
   // death screen, just not usable." Every clause of that is an assertion below.
@@ -791,14 +798,16 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 
   // Buying 2 on top of the base 1 → three retries in the run.
   const withLives = await dieAndShow(3, 2);
-  // NO BASE RETRY ANY MORE (owner): the run stocks exactly what the store sold, so two bought
-  // is two. It was `2 + 1` — a free retry every save began with.
-  ok('the run stocks exactly what the store sold, with no free retry',
-     withLives.lives === 2, String(withLives.lives));
+  // THE FREE RETRY IS BACK (owner: "let the players start with 1 retry"), so a run stocks the
+  // track's base PLUS whatever the store sold. Derived from the track rather than written as 3:
+  // the base is the thing under test and hard-coding it here would assert the same number twice.
+  ok('the run stocks the base retry plus what the store sold',
+     withLives.lives === LIVES_BASE + 2, `${withLives.lives} (base ${LIVES_BASE} + 2 bought)`);
   ok('the level records the state it was entered in', !!withLives.entry && withLives.entry.level === 3,
      withLives.entry ? `level ${withLives.entry.level}, ${withLives.entry.hand.length} in hand` : 'no snapshot');
   ok('the death screen offers a retry', withLives.shown === true && withLives.disabled === false, withLives.label);
-  ok('...and says how many are left', /2 remaining/i.test(withLives.note || ''), withLives.note);
+  ok('...and says how many are left',
+     new RegExp('^' + (LIVES_BASE + 2) + ' remaining', 'i').test((withLives.note || '').trim()), withLives.note);
 
   const retried = await page.evaluate(async () => {
     const g = window.__game;
@@ -889,10 +898,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      sameMap.retried === sameMap.fresh,
      `level ${sameMap.level} (seed ${sameMap.seed}): retried ${sameMap.retried} vs fresh ${sameMap.fresh}`);
 
-  // STARTING AT ZERO, AND RUNNING OUT. The owner dropped the free retry, so a fresh save has NONE
-  // and the first rung of the track buys the ability to retry at all rather than a second go. Both
-  // halves are exercised here: nothing bought (0, button present but disabled), then one bought and
-  // spent (1 -> 0, button still present, still disabled).
+  // THE FREE RETRY, AND RUNNING OUT OF RETRIES. A fresh save has the track's base (1) and can
+  // repeat a level once having bought nothing — which is the point of it: the campaign is built
+  // to stop a new player on level 3 or 4, and one with no retry and no spores has nothing left to
+  // do but leave. Both halves are exercised, because neither is enough on its own: a fresh save
+  // gets exactly the base and a usable button, and SPENDING it reaches zero, where the button is
+  // still on screen, disabled, and pointing at the store.
   const spent = await page.evaluate(async () => {
     const g = window.__game;
     document.querySelectorAll('#ssDeath, #loadoutSelect, #levelIntro').forEach((n) => n.remove());
@@ -908,11 +919,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       return { label: b ? b.textContent.trim() : null, note: n ? n.textContent.trim() : null,
                disabled: b ? b.disabled : null, shown: !!b };
     };
-    const fresh = await toDeath();                          // nothing bought: none to spend
+    const fresh = await toDeath();                          // nothing bought: the base one
     document.querySelectorAll('#ssDeath, #loadoutSelect').forEach((n) => n.remove());
     g.state.runOver = false;
-    // ...now buy exactly one and spend it, which is the only way to reach zero from above.
-    g.store.credit(1e6); g.store.buy('lives');
+    // ...now spend the free one, which is the only way to reach zero having bought nothing.
     g.campaign.play('marasmius', 2);
     await new Promise((r) => setTimeout(r, 350));
     const stocked = g.campaign.lives();
@@ -926,24 +936,27 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     document.querySelectorAll('#ssDeath, #loadoutSelect').forEach((n) => n.remove());
     return { stockedFresh, fresh, stocked, first, after, second };
   });
-  ok('a run with no purchases gets NO retry', spent.stockedFresh === 0, String(spent.stockedFresh));
-  // ...and the button is still on screen, disabled. A player who has never bought one has to be
-  // able to learn the option exists — which matters more now that zero is the default.
-  ok('...and the option is still shown, disabled, so it can be discovered',
-     spent.fresh.shown === true && spent.fresh.disabled === true,
+  ok('a run with no purchases still gets the free retry',
+     spent.stockedFresh === LIVES_BASE && LIVES_BASE === 1, String(spent.stockedFresh));
+  // ...and it is USABLE on the first death, which is the whole point of giving it away. The
+  // opposite assertion (present but disabled) is below, on the second death.
+  ok('...and it is offered, enabled, on the first death',
+     spent.fresh.shown === true && spent.fresh.disabled === false && /1 remaining/i.test(spent.fresh.note || ''),
      `"${spent.fresh.label}" / "${spent.fresh.note}"`);
-  ok('buying one stocks exactly one',
+  ok('...and a re-entered level still carries exactly one',
      spent.stocked === 1 && /1 remaining/i.test(spent.first.note || ''),
      `${spent.stocked} — "${spent.first.label}" / "${spent.first.note}"`);
   ok('spending it leaves none', spent.after === 0, String(spent.after));
   ok('with none left the option is still on screen', spent.second.shown === true, spent.second.label);
   ok('...but not usable', spent.second.disabled === true, `disabled=${spent.second.disabled}`);
-  // ...AND POINTS AT THE STORE (owner). "None left" states the problem and stops — with the free
-  // retry gone, a player who has never bought one has no other way to learn retries are purchasable.
+  // ...AND POINTS AT THE STORE (owner). "None left" states the problem and stops, which is no use
+  // to a player who has just spent their free retry and does not know more are purchasable.
   ok('...and says where to get more', /buy retries at the store/i.test(spent.second.note || ''),
      spent.second.note);
-  ok('...including on a fresh save, which now has none',
-     /buy retries at the store/i.test(spent.fresh.note || ''), spent.fresh.note);
+  // The control: that copy must NOT be what a player sees while they still have one, or the
+  // sub-line stops being a signal and becomes decoration.
+  ok('...and does not say it while a retry is in hand',
+     !/buy retries at the store/i.test(spent.fresh.note || ''), spent.fresh.note);
   // AND IT IS READABLE WHILE SAYING IT. The disabled retry was `opacity:.42` over a dark map,
   // which took the text down with the control — the owner could not read it. Asserted as
   // CONTRAST against the screen behind it, because "it is styled differently" was already true
@@ -993,9 +1006,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
              ids: ['tsNew', 'tsCont', 'tsNewRt', 'tsContRt', 'tsNewCamp', 'tsContCamp']
                .filter((id) => !!root.querySelector('#' + id)) };
   });
-  ok('the title screen offers both games', !title.missing && title.modes.join('/') === 'Survival/Campaign',
-     (title.modes || []).join(' / '));
+  // ONE GAME NOW (owner: survival withdrawn, "we may add it back sometime later"), so there is
+  // nothing to label and no mode title on the screen at all — New straddles the wordmark above,
+  // Old below. mode-check owns the layout; what matters HERE is that the campaign's own pair is
+  // the pair that survived, since this file's whole subject is the campaign being a real entry.
+  ok('the title screen names no mode, because there is only one game',
+     !title.missing && title.modes.length === 0, (title.modes || []).join(' / ') || '(none)');
   ok('Campaign has its own New and Old', title.hasNew === true && title.hasOld === true,
+     (title.ids || []).join(', '));
+  ok('...and they are the only doors left', (title.ids || []).join(',') === 'tsNewCamp,tsContCamp',
      (title.ids || []).join(', '));
   ok('nothing on the title screen is locked any more', title.locked === 0, String(title.locked));
   // REAL TIME IS OFF THE TITLE SCREEN for this release (owner: "not this next release"). The
@@ -1003,11 +1022,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // only thing that can be asserted, and the only thing that changed, is that the DOOR is gone.
   ok('real time is not offered from the title screen', title.rt === false,
      (title.ids || []).join(', '));
-  // "Chapter 1" (owner), in the slot that used to say "coming soon". It names the CONTENT rather
-  // than the rules — the same word the in-game editor stamps on maps saved from it.
+  // "Chapter 1" (owner) — it named the CONTENT rather than the rules even when there was a
+  // CAMPAIGN label above it, which is exactly why it outlived that label: with survival gone it
+  // is the only thing on the screen that says how much game there is.
   ok('...and the row is named Chapter 1', (title.soon || []).join(' ').trim() === 'Chapter 1',
      (title.soon || []).join(' | ') || '(nothing there)');
-  // Three slots, not two: Survival turn-based, Survival real-time, Campaign.
+  // THREE RESUME SLOTS STILL, even though only one is reachable from the title. The survival
+  // slots are what a stored survival run comes back through if the door is reopened, and keeping
+  // them distinct is what stops a campaign start clobbering one — so they are asserted whether or
+  // not the title offers them.
   const slots = await page.evaluate(() => {
     const g = window.__game, cfg = window.__cfg, was = { m: cfg.mode, g: cfg.game };
     const key = (m, gm) => { cfg.mode = m; cfg.game = gm; return g.resumeKey(); };

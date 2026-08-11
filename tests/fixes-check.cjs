@@ -207,30 +207,41 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   }
 
   // ---- 3) SURVIVAL sits on the New/Old line --------------------------------
-  // THIS WAITED ON `.ts-split`, WHICH NO LONGER EXISTS. Real time came off the title screen
-  // (OFFER_REALTIME), so the Survival row is a single New/Old pair like Campaign's rather than a
-  // three-column split with a kind label over each side — and this check had not been run since,
-  // so it sat timing out on a selector for markup that had been deleted. The QUESTION survives
-  // the layout change: SURVIVAL must sit ON the New/Old line, not floating above or below it.
-  // Asked of `.ts-top` now, which is the row whatever shape it is in.
-  console.log('\n3 — SURVIVAL is centred on the New/Old row');
+  // THIS ASSERTION'S SUBJECT HAS BEEN DELETED TWICE, and each time the QUESTION survived the
+  // markup. Originally: SURVIVAL floated above the New/Old line instead of sitting on it, and the
+  // probe waited on `.ts-split` — a layout that stopped shipping when real time came off the title
+  // screen, so it sat timing out on a selector for markup that had been removed. Now survival is
+  // withheld too (OFFER_SURVIVAL) and there is no mode label at all to centre on anything.
+  //
+  // What is left of it is the other half of that layout and the half that can still break: the
+  // caption is ABOVE its button and clear of the glyphs. `.ts-cap` is positioned at `bottom:84%`
+  // of the button's own box precisely because `bottom:100%` floated it well clear of the caps —
+  // a percentage so it tracks the font across the clamp range, which is exactly the kind of rule
+  // a size change silently breaks. The size DID change in the same pass (the solo buttons are
+  // ~23% bigger), so this is worth keeping pointed at something real.
+  console.log('\n3 — the New/Old captions sit tight above their buttons');
   {
     const { page, errs } = await open('', { width: 1440, height: 900 });
     await page.waitForSelector('#titleScreen .ts-top .ts-actions', { timeout: 20000 });
     const geo = await page.evaluate(() => {
-      const mid = (el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; };
-      const surv = document.querySelector('#titleScreen .ts-top .ts-mode');
+      const box = (el) => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, mid: r.top + r.height / 2 }; };
       const btns = [...document.querySelectorAll('#titleScreen .ts-top .ts-btn')];
       const caps = [...document.querySelectorAll('#titleScreen .ts-top .ts-cap')];
-      return { surv: mid(surv), btn: btns.reduce((a, b) => a + mid(b), 0) / btns.length,
-               cap: caps.reduce((a, k) => a + mid(k), 0) / caps.length, n: btns.length,
-               label: surv ? surv.textContent.trim() : null };
+      return { n: btns.length, caps: caps.length,
+               btn: btns.length ? box(btns[0]) : null, cap: caps.length ? box(caps[0]) : null,
+               labels: [...document.querySelectorAll('#titleScreen .ts-mode')].map((n) => n.textContent.trim()),
+               size: btns.length ? parseFloat(getComputedStyle(btns[0]).fontSize) : 0 };
     });
-    ok('the Survival row is one New/Old pair', geo.n === 2, `${geo.n} button(s)`);
-    ok('...labelled SURVIVAL', geo.label === 'Survival', geo.label);
-    ok('SURVIVAL is on the same line as New/Old', Math.abs(geo.surv - geo.btn) <= 3,
-       `SURVIVAL centre ${Math.round(geo.surv)} vs New/Old ${Math.round(geo.btn)}`);
-    ok('and clearly below the captions', geo.surv - geo.cap > 10, `${Math.round(geo.surv - geo.cap)}px below`);
+    ok('the top row is one button', geo.n === 1, `${geo.n} button(s)`);
+    ok('...with nothing labelling a mode beside it', geo.labels.length === 0, geo.labels.join(', ') || 'none');
+    ok('its caption is above it', !!geo.cap && !!geo.btn && geo.cap.mid < geo.btn.mid,
+       geo.cap ? `caption ${Math.round(geo.cap.mid)} vs button ${Math.round(geo.btn.mid)}` : '(no caption)');
+    // TIGHT, not merely above: the caption's baseline tucks against the cap tops. A generous
+    // upper bound rather than a pixel, since both are clamp()d — but it fails the `bottom:100%`
+    // version, which is the regression this inherits.
+    ok('...and tucked against the glyphs, not floating clear of them',
+       !!geo.cap && !!geo.btn && (geo.btn.top - geo.cap.bottom) < geo.size * 0.35,
+       geo.cap ? `${Math.round(geo.btn.top - geo.cap.bottom)}px gap at ${geo.size}px type` : '—');
     ok('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
     await page.close();
   }

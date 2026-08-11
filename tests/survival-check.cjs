@@ -372,7 +372,7 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
   // visible from the model alone, so this drives the real screens: New → picker → Start Run, then
   // a genuine page RELOAD, then Old. Its own context, because the point is that localStorage
   // survives and the module state does not.
-  console.log('\n-- the title screen\'s "Old" returns to the same map --');
+  console.log('\n-- survival is off the title screen, and "Old" still returns to the same map --');
   const ctx2 = await browser.newContext({ viewport: { width: 1300, height: 820 } });
   const p2 = await ctx2.newPage();
   await p2.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
@@ -381,14 +381,26 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
     await p2.click('#loadscreen', { timeout: 5000 }).catch(() => {});
   };
   await p2.goto(base + '/index.html', { waitUntil: 'domcontentloaded' }); await boot();
-  await p2.waitForSelector('#tsNew', { timeout: 30000 }); await p2.click('#tsNew');
-  await p2.waitForSelector('#tsNameStart', { timeout: 30000 }); await sleep(700); await p2.click('#tsNameStart');
-  await p2.waitForSelector('#speciesSelect', { timeout: 30000 });
-  const startBtn = await p2.$('#speciesSelect button:has-text("Start Run")');
-  if (startBtn) await startBtn.click();
-  const ran = await p2.waitForFunction(() => !!(window.__game && window.__game.state && window.__game.state.levelDef),
-    { timeout: 40000 }).then(() => true).catch(() => false);
-  ok('the title → picker → Start Run path reaches a survival map', ran);
+  await p2.waitForSelector('#titleScreen .ts-btn', { timeout: 30000 });
+  // THE DOOR IS SHUT (owner: "lets remove survival mode from the game... we may add it back
+  // sometime later, so lets keep that option"). This block used to enter through the title's
+  // Survival New; the row is gone, so the first thing asserted is that it is gone — and
+  // everything below it drives the same run through the model instead, which is what makes
+  // "kept, not deleted" a claim with evidence rather than a comment.
+  const doors = await p2.evaluate(() => ['tsNew', 'tsCont', 'tsNewRt', 'tsContRt', 'tsNewCamp', 'tsContCamp']
+    .filter((id) => !!document.getElementById(id)));
+  ok('survival has no row on the title screen', !doors.includes('tsNew') && !doors.includes('tsCont'),
+     doors.join(', '));
+  ok('...and the campaign\'s pair is what is left', doors.join(',') === 'tsNewCamp,tsContCamp', doors.join(', '));
+  const ran = await p2.evaluate(async () => {
+    if (!window.__menu.playSurvival('marasmius', 1, 'turn')) return false;   // the row carried its mode
+    for (let i = 0; i < 80; i++) {
+      if (window.__game.state && window.__game.state.levelDef) return true;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return false;
+  });
+  ok('a survival run still reaches a survival map', ran);
   if (ran) {
     await sleep(3000);
     const b4 = await p2.evaluate(() => {
@@ -406,7 +418,13 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
     ok('the rotation is written into the resume slot', slot === b4.order && !!slot,
       slot === null ? 'no survivalOrder saved' : `${(slot || '').split('|').length} map(s)`);
     await p2.goto(base + '/index.html', { waitUntil: 'domcontentloaded' }); await boot();
-    await p2.waitForSelector('#tsCont', { timeout: 30000 }); await p2.click('#tsCont');
+    await p2.waitForSelector('#titleScreen .ts-btn', { timeout: 30000 });
+    // `__menu.continueRun` IS the title screen's "Old" — the same function the button calls, not
+    // a second implementation of it. Driven directly here because survival's button is withheld;
+    // the campaign's Old still goes through the identical path and campaign-check clicks it.
+    // `__menu` and not `__game`: begin() installs `__game`, so on a title screen it does not
+    // exist yet — which is the whole reason the boot-time hook exists.
+    await p2.evaluate(() => window.__menu.continueRun('turn', 'survival'));
     const back = await p2.waitForFunction(() => !!(window.__game && window.__game.state && window.__game.state.levelDef),
       { timeout: 40000 }).then(() => true).catch(() => false);
     ok('"Old" resumes into a level', back);

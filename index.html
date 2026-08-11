@@ -1017,6 +1017,14 @@
        animation's strand step is scaled off the font size and stalls below that. */
     #titleScreen .ts-btn.ts-sm { font-size:clamp(28px,4.4vw,52px); padding:3px 8px; }
     #titleScreen .ts-act.ts-sm > .ts-cap { font-size:clamp(7px,0.85vw,9px); letter-spacing:.05em; }
+    /* ONE GAME: a single centred button per row, and no three-column grid to keep New and Old
+       aligned across two rows — there is one of each and they are both on the screen's centre
+       line. Sized between .ts-sm and the base .ts-btn (owner: "make both a bit bigger"): about
+       23% up on the pair size, and well clear of the ~26px floor below which the consume
+       animation's strand step stalls (its first attractor lands inside the kill radius). */
+    #titleScreen .ts-actions.ts-one { display:flex; justify-content:center; width:min(820px,92vw); }
+    #titleScreen .ts-btn.ts-solo { font-size:clamp(34px,5.4vw,64px); padding:3px 8px; }
+    #titleScreen .ts-act.ts-solo > .ts-cap { font-size:clamp(8px,1vw,11px); letter-spacing:.05em; }
     /* Narrow screens can't fit four buttons plus SURVIVAL across, so the row STACKS:
        SURVIVAL, then the turn-based pair, then the real-time pair. */
     @media (max-width:720px) {
@@ -3070,6 +3078,21 @@ const MODE_TUNING = {
 // the title screen's Survival row (one New/Old pair instead of the turn/real-time split) and
 // the high-score board's game tabs (one ladder, so no tab row). Turning it on restores both.
 const OFFER_REALTIME = false;
+// DOES THIS BUILD OFFER SURVIVAL AT ALL? False (owner: "lets remove survival mode from the game,
+// the retention rate is too low. we may add it back sometime later, so lets keep that option").
+// Same shape and the same promise as OFFER_REALTIME: it withholds the DOOR, not the room. The 17
+// authored survival maps, `survivalRun()`, `survivalMapIdFor`, the survival resume slots, the
+// level-1 inline tips and every survival-gated rule are untouched, `#dev` still boots straight
+// into one, and `survival-check` still drives the lot. Turning this back on restores the row.
+//
+// TWO screens read it and they have to agree, or the game contradicts itself:
+//   · the title screen — its Survival New/Old row, and with it the whole two-row shape (with one
+//     game there is nothing to label, so New sits above the wordmark and Old below it);
+//   · the HIGH-SCORE BOARD, which goes with it rather than being a separate decision. The board
+//     ranks how DEEP a run got, and `checkHighScore` is already gated on `!isCampaignGame()` —
+//     so with survival withheld nothing can ever file a score and the link would open an empty
+//     ladder. (Owner: "remove the high scores as that is not relevant anymore.")
+const OFFER_SURVIVAL = false;
 // Is the REAL-TIME variant running? Pass a state.config from engine code; defaults to CONFIG.
 function isRealtime(cfg) {
   const c = cfg || CONFIG;
@@ -3142,7 +3165,7 @@ function setByPath(obj, path, value) {
   target[last] = value;
 }
 
-  return { CONFIG, SLIDERS, MODE_TUNING, OFFER_REALTIME, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode, setGame, isCampaignGame };
+  return { CONFIG, SLIDERS, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode, setGame, isCampaignGame };
 })();
 
 // ===================== src/cards-data.js =====================
@@ -13356,13 +13379,16 @@ const STORE_UPGRADES = [
   { id: 'carryEngines', name: 'Engine Carry', icon: 'engine', accent: 'eng', step: 1, unit: 'engines', unit1: 'engine',
     effect: 'Increase the number of engine cards you carry over between runs by <b>1</b>.',
     costs: OPENER(100, 6) },
-  // Retries are the only track with a BASE: everyone starts with one, bought or not.
-  // BASE 0 (owner): nobody gets a free retry any more. It was 1, so a fresh save could always
-  // repeat a level once without having bought anything — which made the first rung of this
-  // track buy a SECOND retry rather than the ability to retry at all. Zero is now the default
-  // rather than something only reachable by spending, and the disabled Retry button on the
-  // death screen is what teaches a new player the option exists.
-  { id: 'lives', name: 'Retries', icon: 'life', accent: 'life', step: 1, base: 0, unit: 'retries', unit1: 'retry',
+  // BASE 1 (owner: "let the players start with 1 retry"), reverting the 0 this carried for one
+  // release. The reasoning for 0 was that a free retry made the track's first rung buy a SECOND
+  // retry rather than the ability to retry at all — true, and outweighed by what the telemetry
+  // showed: the campaign is designed to stop a new player on level 3 or 4, and a player who dies
+  // there with no retry and no spores to spend has nothing to do but leave. One free retry is the
+  // cheapest way to keep them in the run long enough to meet the store. So the first rung is
+  // worth slightly less than it looks, and that is the price of the first-death experience.
+  // The disabled-button copy ("Buy retries at the store") is unchanged and still correct — it is
+  // now what a player sees on their SECOND death rather than their first.
+  { id: 'lives', name: 'Retries', icon: 'life', accent: 'life', step: 1, base: 1, unit: 'retries', unit1: 'retry',
     effect: 'Increase the number of times you can retry a level by <b>1</b>.',
     costs: [100, 250, 400, 600] },
 ];
@@ -26123,7 +26149,7 @@ function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEn
 const __m_render_title_screen = (function () {
   // Whether this build offers the real-time variant at all — see __m_config, where it lives so
   // that this screen and the high-score board cannot disagree about it.
-  const { OFFER_REALTIME } = __m_config;
+  const { OFFER_REALTIME, OFFER_SURVIVAL } = __m_config;
   const { playGrowBurst } = __m_render_sfx;
   const { loadProgress } = __m_species;
 // =============================================================================
@@ -26150,8 +26176,36 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
   const reduce = matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const root = el('div'); root.id = 'titleScreen';
+  // ONE GAME, SO NOTHING IS LABELLED: New sits above the wordmark and Old below it, and the
+  // mode captions go with the row that needed them. Owner: "remove the campaign mode title, put
+  // the 'new' on top of the mycelium title and the 'old' below it. make both a bit bigger."
+  //
+  // The two-block geometry is UNCHANGED — .ts-top and .ts-bottom already straddle the canvas
+  // wordmark, because that is where Survival and Campaign sat. So this is the same screen with
+  // one row removed and the survivor's label dropped, not a new layout: the consume animation
+  // still grows a strand from MYCELIUM up or down into whichever word was pressed, and the two
+  // buttons keep the vertical distances that animation was tuned against.
+  const soloMenu =
+    '<div class="ts-menu">' +
+      '<div class="ts-block ts-top">' +
+        '<div class="ts-actions ts-one">' +
+          '<span class="ts-act ts-solo"><span class="ts-cap">start a new game</span><button class="ts-btn ts-solo" id="tsNewCamp" type="button">New</button></span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="ts-block ts-bottom">' +
+        // "Chapter 1" stays: what was removed is the MODE title (the word CAMPAIGN), and this
+        // line names the CONTENT rather than the rules. Under the wordmark it reads as the
+        // subtitle it always was, and it is still the only place the title screen says how much
+        // game there is — the level intro's "4 of 9" is the other.
+        '<div class="ts-soon">Chapter 1</div>' +
+        '<div class="ts-actions ts-one">' +
+          '<span class="ts-act ts-solo"><span class="ts-cap">continue last game</span><button class="ts-btn ts-solo" id="tsContCamp" type="button">Old</button></span>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
   root.innerHTML =
     '<canvas id="tsCanvas"></canvas>' +
+    (!OFFER_SURVIVAL ? soloMenu :
     '<div class="ts-menu">' +
       // SURVIVAL: New (a fresh run) and Old (continue the saved one). It used to offer both
       // variants side by side, turn-based left and real time right, each with its own pair —
@@ -26210,7 +26264,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
           '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsContCamp" type="button">Old</button></span>' +
         '</div>' +
       '</div>' +
-    '</div>';
+    '</div>');
   document.body.appendChild(root);
 
   // TEMP dev button (bottom-right): jump straight into the tutorial with a random
@@ -27102,7 +27156,15 @@ function startTutorial(deps) {
     ],
     3: [
       {
-        text: '<b>Trichoderma</b> — green mould.<br>Approach at your own risk.',
+        // The owner's own words, verbatim, and the reason they are worth the extra three lines:
+        // the mould is the one threat a player can lose a whole run to without understanding what
+        // happened, because its rot keeps travelling along the filaments AFTER the contact. So the
+        // tip now says the two things that make it playable rather than fatal — the spread takes
+        // time (`spreadDepthPerTurn`, 12 rings = 4 steps, i.e. exactly a grow-4 card), and the
+        // level is won by REACHING THE SURFACE, not by keeping the colony clean.
+        text: '<b>Trichoderma</b> — green mould.<br>Approach at your own risk.'
+          + '<br><br>Tip: it takes time for infection to spread — strategy may be needed to reach'
+          + ' red leaves. All will be well if you reach the eastern hills in time.',
         focus: (s) => world(deps.threats().trich, 1.3),
         target: (s) => worldTarget(deps.threats().trich),
         image: threatImg('trichoderma'),
@@ -28159,7 +28221,7 @@ function showCredits({ onClose } = {}) {
 
 // ===================== src/main.js =====================
 const __m_main = (function () {
-  const { CONFIG, MODE_TUNING, isRealtime, setMode, setGame, isCampaignGame, timeify, roundsToTime } = __m_config;
+  const { CONFIG, MODE_TUNING, OFFER_SURVIVAL, isRealtime, setMode, setGame, isCampaignGame, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState, seedLevelThreats } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
   const { levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
@@ -29552,39 +29614,74 @@ function showMainMenu() {
     // "Old" = continue last game: if a mid-run level was saved (tab closed mid-run),
     // re-enter that level (fresh map, saved deck); otherwise fall back to the picker.
     // Each mode has its OWN continue slot, so "Old" resumes that mode's run.
-    onContinue: (mode, game) => {
-      setMode(mode); setGame(game);
-      const rs = loadResume();
-      const sp = (rs && rs.v === 1 && rs.cards) ? SPECIES.find((s) => s.id === rs.speciesId) : null;
-      if (rs && sp) {
-        chosenSpecies = sp;
-        currentLevel = Math.max(1, rs.level | 0);
-        runStartLevel = Math.max(1, Math.min(currentLevel, (rs.runStartLevel | 0) || currentLevel));
-        carryOver = null; resumeSnapshot = rs;
-        // A resume rebuilds the deck from the snapshot rather than seeding through
-        // `withDeathCarry`, so nothing sets `runDeck` on this path and a previous run's value
-        // would be left standing — the end-of-run screen would then offer cards from a run two
-        // ago. Empty is the honest answer: whatever the player owned is already INSIDE the
-        // snapshot's deck, and reaches the pool through what they play or draft from here.
-        runDeck = [];
-        runSporeMult = runSporeMultiplier();
-        runSpores = 0; for (let l = runStartLevel; l < currentLevel; l++) runSpores += sporesForLevel(l) * runSporeMult;
-        stockRun();   // a resumed run gets its retries too — they are bought, not earned in-run
-        // ...and its map rotation back, AFTER stockRun, which resets it. An older save has no
-        // order and simply re-shuffles, which is the pre-rotation behaviour rather than a bug.
-        survivalOrder = Array.isArray(rs.survivalOrder) ? rs.survivalOrder.slice() : [];
-        // A RESUMED RUN IS A RUN, and it used to end without ever having started — `run_start`
-        // fired only from the picker, so starts and ends never balanced and every funnel built on
-        // the pair silently under-counted continues.
-        logEvent('run_start', { species: sp.id, level: currentLevel, cause: 'resume' });
-        startRun();   // → begin() rebuilds the saved deck via rebuildCardsFromSnapshot
-      } else {
-        showPicker();
-      }
-    },
-    onHighScores: () => showHighScores({}),
+    onContinue: continueRun,
+    // THE BOARD GOES WITH SURVIVAL. It ranks how DEEP a run got, and a campaign run files no
+    // score at all (`checkHighScore` is gated on `!isCampaignGame()`), so with survival withheld
+    // the link can only ever open an empty ladder. Withheld at the CALL SITE rather than inside
+    // the title screen: which games exist is main's business, and `showTitleScreen` already
+    // renders no link when no handler is passed. `__game.showHighScores` is untouched, so the
+    // board itself is still reachable and still tested.
+    onHighScores: OFFER_SURVIVAL ? () => showHighScores({}) : null,
     onCredits: () => showCredits({}),
   });
+}
+
+// START A SURVIVAL RUN, as the withdrawn title row would have. Named rather than inline for the
+// same reason as `continueRun` above: with no survival door on the title screen, `survival-check`
+// has to enter through the model, and it stands on a title screen where `window.__game` does not
+// exist yet — so this hangs off `window.__menu` as well as `__game.survival.play`.
+// `mode` is OPTIONAL and inherits whatever is set when omitted — which is what every existing
+// caller wants (they boot `#dev,turn` first). Pass it and this is the withdrawn title row exactly:
+// that button carried its own mode, and without one a probe standing on a fresh title screen gets
+// CONFIG's default (real time) and writes its resume into the OTHER slot. Cost one failing
+// "Old resumes into a level", with `mycelium.resume.rt.v1` written and the turn slot read.
+function playSurvival(id, level, mode) {
+  const sp = SPECIES.find((x) => x.id === id);
+  if (!sp) return false;
+  if (mode) setMode(mode);
+  setGame('survival');
+  playtestLevel = null; chosenSpecies = sp;
+  currentLevel = Math.max(1, (level | 0) || 1); runStartLevel = currentLevel;
+  carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores();
+  stockRun();
+  startRun();
+  return true;
+}
+
+// "Old" — CONTINUE A SAVED RUN. Its own function rather than an inline handler because the
+// title screen is no longer the only way to reach it: with survival withheld there is no
+// survival "Old" button, and `survival-check` still has to be able to drive the survival resume
+// path end to end (the rotation is persisted in that snapshot). Exposed as `__game.continueRun`.
+// Behaviour is unchanged — mode and game are applied FIRST, since `loadResume` reads CONFIG.
+function continueRun(mode, game) {
+  setMode(mode); setGame(game);
+  const rs = loadResume();
+  const sp = (rs && rs.v === 1 && rs.cards) ? SPECIES.find((s) => s.id === rs.speciesId) : null;
+  if (rs && sp) {
+    chosenSpecies = sp;
+    currentLevel = Math.max(1, rs.level | 0);
+    runStartLevel = Math.max(1, Math.min(currentLevel, (rs.runStartLevel | 0) || currentLevel));
+    carryOver = null; resumeSnapshot = rs;
+    // A resume rebuilds the deck from the snapshot rather than seeding through
+    // `withDeathCarry`, so nothing sets `runDeck` on this path and a previous run's value
+    // would be left standing — the end-of-run screen would then offer cards from a run two
+    // ago. Empty is the honest answer: whatever the player owned is already INSIDE the
+    // snapshot's deck, and reaches the pool through what they play or draft from here.
+    runDeck = [];
+    runSporeMult = runSporeMultiplier();
+    runSpores = 0; for (let l = runStartLevel; l < currentLevel; l++) runSpores += sporesForLevel(l) * runSporeMult;
+    stockRun();   // a resumed run gets its retries too — they are bought, not earned in-run
+    // ...and its map rotation back, AFTER stockRun, which resets it. An older save has no
+    // order and simply re-shuffles, which is the pre-rotation behaviour rather than a bug.
+    survivalOrder = Array.isArray(rs.survivalOrder) ? rs.survivalOrder.slice() : [];
+    // A RESUMED RUN IS A RUN, and it used to end without ever having started — `run_start`
+    // fired only from the picker, so starts and ends never balanced and every funnel built on
+    // the pair silently under-counted continues.
+    logEvent('run_start', { species: sp.id, level: currentLevel, cause: 'resume' });
+    startRun();   // → begin() rebuilds the saved deck via rebuildCardsFromSnapshot
+  } else {
+    showPicker();
+  }
 }
 
 // Run-over card → "Main menu": drop the run and return to the title screen (which
@@ -30924,6 +31021,9 @@ function begin(newState) {
     // to scrape a tile.
     showPicker: () => showPicker(),
     showTitle: () => backToTitle(),
+    // The title screen's "Old", as a function — the only way to drive the SURVIVAL resume path
+    // now that survival has no title row of its own (see OFFER_SURVIVAL).
+    continueRun: (mode, game) => continueRun(mode || 'turn', game || 'campaign'),
     // The campaign opening, reachable without driving the title screen's New dialog. The REAL
     // route is asserted separately (title → New → name → Start); this is here so the screen's
     // own content and shape can be checked without four clicks in front of them.
@@ -31001,17 +31101,7 @@ function begin(newState) {
       reset: () => { resetSurvivalOrder(); return true; },
       isRun: () => survivalRun(),
       defFor: (n) => { const d = levelDefFor(n); return d ? { id: d.id, survival: !!d.survival } : null; },
-      play: (id, level) => {
-        const sp = SPECIES.find((x) => x.id === id);
-        if (!sp) return false;
-        setGame('survival');
-        playtestLevel = null; chosenSpecies = sp;
-        currentLevel = Math.max(1, (level | 0) || 1); runStartLevel = currentLevel;
-        carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores();
-        stockRun();
-        startRun();
-        return true;
-      },
+      play: playSurvival,
     },
     campaign: {
       levels: CAMPAIGN_LEVELS, startLevel: CAMPAIGN_START_LEVEL,
@@ -35328,6 +35418,12 @@ window.__cfg = CONFIG;
 // names describing retunes from several sessions earlier ("nematode map speed halved again").
 // threat-check owns the absolute values; mode-check and rt-test now compare against this.
 window.__modeTuning = MODE_TUNING;
+// THE MENU'S OWN ENTRY POINTS, available BEFORE a run starts — `window.__game` is installed by
+// begin(), so on a title screen it does not exist yet and a check standing there has no route to
+// anything. `continueRun` is the title's "Old" (the same function the button calls, not a second
+// copy of it), and it is the only way to drive the SURVIVAL resume path now that survival has no
+// row of its own — see OFFER_SURVIVAL.
+window.__menu = { continueRun, playSurvival, showPicker: () => showPicker(), showTitle: () => showMainMenu() };
 // Route to the boot destination (menu / picker / a hash shortcut). Deferred behind the
 // loading screen's "Click" so the game always opens on a fully-decoded frame.
 function enterGame() {

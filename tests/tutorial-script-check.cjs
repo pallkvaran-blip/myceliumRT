@@ -308,6 +308,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      /Trichoderma/.test(t3.text || '') && /Approach at your own risk/.test(t3.text || ''),
      t3.text || '(none)');
   ok('...with the Trichoderma portrait', /trichoderma\.jpg/.test(t3.img || ''), t3.img || '(none)');
+  // THE STRATEGY LINE (owner, verbatim). The mould is the one threat a run can be lost to without
+  // the player understanding what happened, because the rot keeps travelling along the filaments
+  // after the contact — so the tip has to say the two things that make it survivable: the spread
+  // takes time, and the level is won by REACHING THE SURFACE rather than by staying clean.
+  ok('...and the strategy tip the owner asked for',
+     /takes time for infection to spread/i.test(t3.text || '')
+       && /reach the eastern hills in time/i.test(t3.text || ''),
+     t3.text || '(none)');
   // AN UNKNOWN LEVEL MUST DO NOTHING. Without its own guard `LEVEL_TIPS[n] || MAIN_STEPS` fell
   // through and started the entire level-1 walkthrough — on level 4, mid-run.
   const t4 = await tip(4);

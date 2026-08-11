@@ -2602,18 +2602,24 @@ word for word AND asserts the number in each sentence is the track's own `step`:
 2 → 3 in the same breath as the rewording, and a sub-line saying "by 2" over a track that grants 3
 is the one failure this copy can have that still reads as fine.
 
-- **NOBODY STARTS WITH A RETRY (owner).** `lives` had `base: 1`, so every save could repeat a
-  level once without buying anything — which made the first rung of that track buy a SECOND retry
-  rather than the ability to retry at all. It is `base: 0` now, so **zero is the default** rather
-  than something only reachable by spending, and `carryCards` (3) is the only track left with a
-  base. Two consequences worth keeping:
-  - **The disabled Retry button is now how the feature is TAUGHT**, not a rare edge case. It stays
-    on screen rather than being hidden (it always did), and its note reads **"Buy retries at the
-    store"** rather than "none left" — stating the problem and stopping is no use to a player who
-    has never seen a retry and does not know they are purchasable, which is now everybody at the
-    start.
-  - `campaign-check` exercises BOTH halves: nothing bought (0, button shown and disabled), then one
-    bought and spent (1 → 0). The old probe span "spend the only one", which no longer exists.
+- **EVERYONE STARTS WITH ONE RETRY, and that number has now moved twice.** `lives.base` was 1,
+  then **0** (a free retry made the first rung of the track buy a SECOND retry rather than the
+  ability to retry at all), and is **1 again** (owner: *"let the players start with 1 retry"*).
+  The telemetry is what settled it: the campaign is built to stop a new player on level 3 or 4,
+  and a player who dies there with no retry and no spores to spend has nothing left to do but
+  leave. So the first rung is worth slightly less than it looks, and that is the price of the
+  first-death experience. `carryCards` (3) and `lives` (1) are the two tracks with a base.
+  - **The disabled Retry button is still how the feature is TAUGHT**, and it is now what a player
+    sees on their SECOND death rather than their first. It stays on screen rather than being
+    hidden, and its note reads **"Buy retries at the store"** rather than "none left" — stating
+    the problem and stopping is no use to someone who does not know retries are purchasable.
+  - **DERIVE THE BASE, DON'T WRITE IT.** `campaign-check` reads it off the track
+    (`__game.store.upgrades`) and asserts `base + 2 bought`, `base` on a fresh save and the
+    sub-line's number against it; `store-check` does the same for the bonus table. Both had it
+    written out and both went red on a change that was correct — which is how a check ends up
+    pinning last release's design. It exercises BOTH halves either way: a fresh save gets the base
+    and a USABLE button, and spending it reaches zero, where the button is present, disabled and
+    pointing at the store (with "does not say that while a retry is in hand" as the control).
 - The three resource tracks come **first, in the game's own energy / water / phosphorus order** —
   the order the HUD, `resPills` and the detail sheet all use.
 - **Accents and icons come from the game, not from a palette.** Energy takes `--ss-gold` because
@@ -2683,16 +2689,53 @@ a real detail sheet.
 
 ## Two games on the title screen: Survival and Campaign
 
+**SURVIVAL IS WITHHELD — `OFFER_SURVIVAL = false` (owner: *"lets remove survival mode from the
+game, the retention rate is too low. we may add it back sometime later, so lets keep that
+option"*).** Same shape and the same promise as `OFFER_REALTIME` beside it: it withholds the
+DOOR, not the room. The 17 authored survival maps, `survivalRun()`, `survivalMapIdFor`, the two
+survival resume slots, the level-1 inline tips and every survival-gated rule are untouched;
+`#dev` still boots one and `survival-check` (55) still drives the lot. Everything in this section
+is still true of the code — only the title row is gone.
+
+- **TWO screens read the flag and they have to agree.** The title screen's Survival New/Old row,
+  and the **HIGH-SCORE BOARD**, which goes with it rather than being a separate decision (owner:
+  *"remove the high scores as that is not relevant anymore"*): the board ranks how DEEP a run got
+  and `checkHighScore` is already gated on `!isCampaignGame()`, so with survival withheld nothing
+  can ever file a score and the link would open an empty ladder. Withheld at the CALL SITE
+  (`onHighScores: OFFER_SURVIVAL ? … : null`) — `showTitleScreen` renders no link without a
+  handler, and `__game.showHighScores` is untouched so `hs-check` still drives the board.
+- **THE TITLE SCREEN IS NOW `New / MYCELIUM / Old`** (owner: *"put the 'new' on top of the mycelium
+  title and the 'old' below it. make both a bit bigger"*). With one game there is nothing to
+  label, so the mode titles went with the rows; "Chapter 1" stays, because it names the CONTENT
+  rather than the rules and is the only thing left on the screen saying how much game there is.
+  The two-block geometry is UNCHANGED — `.ts-top` and `.ts-bottom` already straddled the canvas
+  wordmark — so the consume animation is untouched. The size is its own class (`.ts-solo`,
+  clamp 34–64px, ~23% up on the pair size) and **must stay above ~26px**, below which that
+  animation's strand step stalls.
+- **`__menu` IS A BOOT-TIME HOOK, and it exists because `window.__game` does not exist on a title
+  screen** (begin() installs it). It carries `continueRun` — the title's "Old", the same function
+  the button calls — and `playSurvival`, which are the only way to drive the survival start and
+  resume paths now that survival has no row. `playSurvival(id, level, mode)`'s **mode is
+  optional and inherits when omitted**; pass it or a probe standing on a fresh title gets
+  CONFIG's default (real time) and writes its resume into the OTHER slot.
+- **The tests that entered through the Survival row all had to move**, and the id is the tell:
+  `#tsNew`/`#tsCont` no longer exist. `mode-check`, `traced-check` and `itchzip-check` use
+  `#tsNewCamp`; `lure-check` waits on `#titleScreen .ts-btn` (the class every layout's New/Old
+  carries — that wait has now been broken twice by a layout change). And **the campaign's New has
+  one more screen behind it than Survival's did**: `showCampaignOpening` sits between New and the
+  picker, so a probe that clicked New and waited for `#speciesSelect` times out — click `.li-story`
+  until the picker appears.
+
 **`CONFIG.game` is a SECOND axis, orthogonal to turn/real-time**, applied by `setGame()` and set
 before a run begins (like `setMode` — `state.config` is a deep clone taken at run start):
 
 | | Survival | Campaign |
 |---|---|---|
-| entry | Turn-based New/Old **+** Real time New/Old | one New/Old, **turn-based only** (owner) |
+| entry | **withheld** (`OFFER_SURVIVAL`) — was turn-based New/Old + real time New/Old | one New/Old, **turn-based only** (owner) |
 | levels | 100 (`MAX_LEVEL`), unwinnable past ~35 | **10** (`CAMPAIGN_LEVELS`), and it ends |
 | maps | **17 authored maps in a shuffled bag** — see below | one **fixed seed** per level |
 | threats | from the LEVEL (`threatsForLevel`), seeded procedurally onto the authored map | exactly what the map's JSON places |
-| high scores | yes | **no** — see below |
+| high scores | yes, but the board is withheld with the game | **no** — see below |
 | resume slot | `mycelium.resume.v1` / `.rt.v1` | `mycelium.resume.campaign.v1` |
 
 They share EVERYTHING meta: one Spores wallet, one store, one deck, one species roster, one

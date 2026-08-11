@@ -3,10 +3,11 @@
 The text to paste into the itch project page. Kept here so the next revision starts from what is
 actually up rather than from memory.
 
-**Every number in it is checked against the build** — see the notes at the foot. Two claims in the
-previous version had gone wrong as the game changed, which is the reason this file exists:
-"procedurally generated levels" (survival is 17 hand-drawn maps now) and "12 playable species"
-(the table has 14, but only **6** can be reached on a fresh save).
+**Every number in it is checked against the build** — see the notes at the foot. Three claims in
+earlier versions had gone wrong as the game changed, which is the reason this file exists:
+"procedurally generated levels" (the maps are hand-drawn now), "12 playable species" (the table
+has 14, but only **6** can be reached on a fresh save), and **Survival**, which was withdrawn
+from the build and left advertised on the store page for a release.
 
 ---
 
@@ -22,17 +23,14 @@ Inspired by the interlocking-engine feel of games like Terraforming Mars and the
 modern deckbuilders, but built around the tension between growing fast now and building something
 that survives the onslaught of ever increasing natural threats.
 
-**Two games in one**
+**Chapter One**
 
-* **Campaign — Chapter 1.** Nine hand-built levels with a beginning and an end. The world got warm
-  and the ground went dry, and there is nothing left where you are. To the east, the rain still
-  comes and the land is green. Nine geologies stand between.
-* **Survival.** Seventeen hand-drawn maps in rotation and a threat curve that never stops climbing.
-  Nobody finishes this one — the only question is how deep you got.
+Nine hand-built levels with a beginning and an end. The world got warm and the ground went dry, and
+there is nothing left where you are. To the east, the rain still comes and the land is green. Nine
+geologies stand between.
 
-**Two speeds.** Turn-based, where nothing moves until you do and the enemies take their turn after
-yours. Or real time, where the mould creeps while you think and the round clock never stops.
-Survival plays either way; the Campaign is turn-based.
+Turn-based: nothing moves until you do, and the enemies take their turn after yours — you watch
+them come.
 
 **Life**
 
@@ -62,7 +60,7 @@ Survival plays either way; the Campaign is turn-based.
 
 **Current build**
 
-* 26 hand-drawn underground maps — nine for the Campaign, seventeen in the Survival rotation.
+* Nine hand-drawn underground maps, one per level, the same nine every run.
 * 71 unique cards across basics, events, passive engines, and installed actions.
 * Three currencies to juggle — Energy for cards and actions, Water for growth, Phosphorus for
   digestion and defense.
@@ -77,9 +75,7 @@ Music credits: [Sascha Ende](https://ende.app/en)
 |---|---|---|
 | Campaign is 9 levels | `CAMPAIGN_LEVELS` | 9 |
 | ...on hand-built maps | `campaignLevel` in `docs/levels/*.json` | slots 1–9, all named for their rock |
-| Survival is 17 maps | `survival: true` in `docs/levels/*.json` | 17 |
-| 26 maps total | 9 + 17 | — |
-| Turn-based **and** real time | the title screen's three New/Old pairs | survival ×2, campaign ×1 |
+| turn-based only | `OFFER_REALTIME` / `OFFER_SURVIVAL` | both false — one New/Old pair on the title |
 | 71 cards | `CARD_DATA` | 71 (20 basic, 17 event, 9 engine, 21 action, 4 extender) |
 | **6** colonies | `STARTER_SPECIES_IDS` + `STORE_SPECIES_IDS` | pleurotus + schizophyllum, hydnellum, amanita, pruinomycena, psilocybe |
 | three currencies | `startingResources` | energy / water / phosphorus |
@@ -119,9 +115,11 @@ Two judgement calls, recorded so they are not re-litigated blind:
 - **`deckbuilder` is a slight stretch and is kept anyway.** Cards are DRAFTED from digested food and
   a deck carries between runs, but there is no shuffle-and-cycle. It is the single best discovery
   term the game has; `cards` alongside it covers the expectation gap.
-- **`real-time` is true but left out.** Survival plays either way, but listing it next to
-  `turn-based` reads as indecision. Swap it in for `underground` if signalling the dual mode matters
-  more than the setting.
+- **`real-time` is OUT, and `survival` is now a stretch.** Both variants exist in the build and
+  neither has a door on the title screen (`OFFER_REALTIME` / `OFFER_SURVIVAL`), so `real-time`
+  would be a false claim. `survival` is kept as a GENRE term — the campaign is about surviving —
+  rather than as the name of a mode, which is the reading it had when there was a Survival mode.
+  Both go back in the moment either constant does.
 
 Spares, for a store with a larger cap: `management`, `atmospheric`, `singleplayer`, `upgrades`,
 `biology`, `fungus`.

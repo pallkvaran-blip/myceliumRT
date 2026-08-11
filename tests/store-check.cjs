@@ -136,14 +136,16 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
        .map((id) => `${id}: says ${stepInSub(id)}, grants ${stepOf(id)}`).join(' · '));
   const bases = {};
   for (const t of shape) bases[t.id] = t.base || 0;
-  // ONE track has a base — what you have before buying a step: Basic/Event Memory is 3. That
-  // baseline used to be a bare `3 +` at the run loop, where the store could not see it, so the tile
-  // reported "none yet" about an allowance the player already had. Retries WAS 1 and is now 0
-  // (owner): a free retry made the first rung of that track buy a second one rather than the
-  // ability to retry at all. Asserted per track rather than as "only X has one", because that
-  // phrasing is what silently went stale when a second base arrived.
-  ok('the only track with a base is Basic/Event Memory (3); Retries starts at 0',
-     bases.lives === 0 && bases.carryCards === 3
+  // TWO tracks have a base — what you have before buying a step: Basic/Event Memory is 3 and
+  // Retries is 1. That baseline used to be a bare `3 +` at the run loop, where the store could not
+  // see it, so the tile reported "none yet" about an allowance the player already had. Retries has
+  // now moved twice: 1, then 0 (a free retry made the first rung buy a SECOND one rather than the
+  // ability to retry at all), then back to 1 (owner: "let the players start with 1 retry" — the
+  // campaign is built to stop a new player on level 3 or 4, and one with no retry and no spores
+  // has nothing to do but leave). Asserted per track rather than as "only X has one", because
+  // that phrasing is exactly what went stale when the second base arrived.
+  ok('the tracks with a base are Basic/Event Memory (3) and Retries (1)',
+     bases.lives === 1 && bases.carryCards === 3
        && bases.energy === 0 && bases.water === 0 && bases.phosphorus === 0 && bases.carryEngines === 0,
      Object.entries(bases).map(([k, v]) => k + ':' + v).join(' '));
 
@@ -356,12 +358,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
                    && eff.res.energy === c.energy.start,
              opening: eff.res, bonuses: S.bonuses() };
   });
-  // With nothing bought every track reads 0 except the ONE with a base: Basic/Event Memory 3.
-  // Retries reads 0 too now (owner dropped the free retry), so a fresh save has none until it
-  // buys one — which is the whole point of the track's first rung.
+  // With nothing bought every track reads 0 except the TWO with a base: Basic/Event Memory 3 and
+  // Retries 1 (owner: "let the players start with 1 retry" — that number has been 1, then 0, then
+  // 1 again, so it is asserted here as the track's own base rather than as a literal).
+  const baseOf = (id) => (shape.find((t) => t.id === id) || {}).base || 0;
   ok('with nothing bought a run opens on the universal base',
-     zero.same === true && ['energy', 'water', 'phosphorus', 'carryEngines', 'lives']
-       .every((k) => zero.bonuses[k] === 0) && zero.bonuses.carryCards === 3,
+     zero.same === true && ['energy', 'water', 'phosphorus', 'carryEngines']
+       .every((k) => zero.bonuses[k] === 0)
+       && zero.bonuses.carryCards === baseOf('carryCards') && zero.bonuses.lives === baseOf('lives'),
      JSON.stringify(zero.opening) + ' ' + JSON.stringify(zero.bonuses));
 
   // ---- the death-carry caps ------------------------------------------------

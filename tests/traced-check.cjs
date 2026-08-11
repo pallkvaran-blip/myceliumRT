@@ -282,9 +282,10 @@ const TRACED = ALL.filter((l) => l && l.traced)
   await page2.goto(base + '/index.html', { waitUntil: 'domcontentloaded' });
   await page2.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
   await page2.click('#loadscreen', { timeout: 5000 }).catch(() => {});
-  // Real time is off the title screen for this release, so Survival's single New is the door.
-  await page2.waitForSelector('#tsNew', { timeout: 20000 }).catch(() => {});
-  await page2.click('#tsNew').catch(() => {});
+  // One game on the title screen for this release (survival and real time both withheld), so the
+  // campaign's New is the only door.
+  await page2.waitForSelector('#tsNewCamp', { timeout: 20000 }).catch(() => {});
+  await page2.click('#tsNewCamp').catch(() => {});
   // "New" opens the name prompt first — the picker is behind it, not behind the button.
   await page2.waitForSelector('#tsNameStart', { timeout: 20000 }).catch(() => {});
   await page2.fill('#tsNameInput', 'DEV').catch(() => {});
