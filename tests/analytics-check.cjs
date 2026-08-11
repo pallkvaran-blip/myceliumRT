@@ -684,6 +684,64 @@ function fixture() {
     // prints it with the same confidence as a month of data invites exactly the wrong conclusion.
     ok('...and a thin newest release warns about itself',
        !!cmp && /too few to read as a result/.test(cmp.note), (cmp && cmp.note || '').slice(0, 80));
+
+    // ---- THE CUT POINT MUST NOT MOVE WHEN A FILTER DOES -------------------------
+    // Reported: "I still see 13 players today doing survival after the update". Taken from the
+    // FILTERED rows, the cut moved whenever a filter excluded the newest build — pick Game=survival
+    // and the release (which has no survival in it) contributed nothing, so the newest stamp still
+    // standing was the PREVIOUS build, and the section relabelled that as "the last release" and
+    // showed its survival players as if they were on the new one.
+    //
+    // The fixture's release is CAMPAIGN-ONLY and the baseline carries a survival session, which is
+    // the shape that reproduces it.
+    ev('a1', 's4b', now - 1 * DAY, 'run_start', null, null);
+    rows.filter((r) => r.session_id === 's4b').forEach((r) => { r.game = 'campaign'; });
+    boot('z1', 's8', now - 3 * DAY, '2026-08-08-old0001');
+    rows.push({ id: ++id, created_at: new Date(now - 3 * DAY).toISOString(), client_id: 'z1',
+      session_id: 's8', kind: 'run_start', game: 'survival', mode: 'turn', device: 'desktop',
+      source: 'crazygames', n: null, ms: null });
+    await sp.reload({ waitUntil: 'domcontentloaded' });
+    await sp.waitForFunction(() => !/Loading/.test(document.getElementById('sub').textContent), { timeout: 25000 });
+    await sleep(400);
+    const cutOf = () => sp.evaluate(() => {
+      const h = [...document.querySelectorAll('#body > h2')].find((x) => /Before and after/.test(x.textContent));
+      let n = h && h.nextElementSibling, pan = null;
+      while (n && n.tagName !== 'H2' && !pan) { if (n.querySelector && n.querySelector('table')) pan = n; n = n.nextElementSibling; }
+      if (!pan) return null;
+      return { lead: (pan.querySelector('.lead') || {}).textContent || '',
+               first: [...pan.querySelectorAll('tbody tr')].map((tr) => tr.children[0].textContent.trim()),
+               note: [...pan.querySelectorAll('.empty')].map((p) => p.textContent).join(' ') };
+    });
+    const cutBoth = await cutOf();
+    await sp.click('.chip[data-f="game"][data-v="survival"]');
+    await sleep(500);
+    const cutSurv = await cutOf();
+    ok('the cut point does not move when a filter excludes the release',
+       !!cutBoth && !!cutSurv && /abc1234/.test(cutBoth.lead) && /abc1234/.test(cutSurv.lead),
+       `both: ${(cutBoth && cutBoth.lead || '').slice(0, 40)} · survival: ${(cutSurv && cutSurv.lead || '').slice(0, 40)}`);
+    // ...and the release keeps its row, empty, because an empty row IS the finding here.
+    ok('...and the release row is still drawn, with nothing in it',
+       !!cutSurv && cutSurv.first[0] === '2026-08-09-abc1234' && /No sessions on/.test(cutSurv.note),
+       JSON.stringify(cutSurv && cutSurv.first));
+    await sp.click('.chip[data-f="game"][data-v=""]');
+    await sleep(400);
+
+    // ---- `dev` IS NOT A RELEASE -------------------------------------------------
+    // BUILD_ID is the literal "dev" in the repo, so every local run and Playwright boot posts
+    // `detail: "dev"` — a perfectly good string that sorts AFTER any date. Taken as the newest
+    // stamp it made the section read "Cut at dev" with an empty release row and every real release
+    // folded into the baseline.
+    boot('d1', 's9', now, 'dev');
+    rows.push({ id: ++id, created_at: new Date(now).toISOString(), client_id: 'd1', session_id: 's9',
+      kind: 'run_start', game: 'campaign', mode: 'turn', device: 'desktop', source: 'crazygames', n: null, ms: null });
+    await sp.reload({ waitUntil: 'domcontentloaded' });
+    await sp.waitForFunction(() => !/Loading/.test(document.getElementById('sub').textContent), { timeout: 25000 });
+    await sleep(400);
+    const cutDev = await cutOf();
+    ok('a `dev` stamp is not mistaken for the latest release',
+       !!cutDev && /abc1234/.test(cutDev.lead) && !/Cut at dev/.test(cutDev.lead),
+       (cutDev && cutDev.lead || '').slice(0, 60));
+
     ok('no page errors in the release comparison', serrs.length === 0, serrs.slice(0, 2).join(' | '));
     await sp.close();
   }

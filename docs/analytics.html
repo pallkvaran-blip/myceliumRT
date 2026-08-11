@@ -651,7 +651,25 @@ function render() {
   section("Before and after the last release");
   var pcmp = panel();
   var cross = ROWS.filter(inFilterCrossRelease);
-  var stamps = uniq(cross.map(buildOf).filter(function (b) { return b !== BUILD_NONE; })).sort().reverse();
+  // THE CUT POINT COMES FROM *ALL* ROWS, NOT FROM THE FILTERED ONES — and this is the bug the
+  // owner caught: "I still see 13 players today doing survival after the update". Taken from
+  // `cross`, the cut moves whenever a filter excludes the newest build. Pick Game=survival and
+  // the new release has NO rows (survival is withheld in it), so the newest stamp still standing
+  // was the PREVIOUS build — and the section relabelled that as "the last release" and showed its
+  // 13 survival players as if they were on the new one. Same trap for any filter the new build
+  // has no rows under: a device nobody on it has used, a mode, a source.
+  //
+  // Which release is latest is a fact about the release history, not about what is on screen. It
+  // is read off ROWS, so the cut stays put whatever is filtered — and a filter that empties the
+  // release side then says so, which is itself the finding ("nobody plays survival on it").
+  // A RELEASE STAMP IS `YYYY-MM-DD-<sha>`, AND `dev` IS NOT ONE. `BUILD_ID` is the literal "dev"
+  // in the repo, so every local run and every Playwright boot posts `detail: "dev"` — which is a
+  // perfectly good string that sorts AFTER any date. Taken as the newest stamp it made the whole
+  // section read "Cut at dev" with an empty release row and the real releases folded into the
+  // baseline. Only date-shaped stamps are releases; `dev` falls in with the baseline where it
+  // belongs (and the Source default keeps it out of the numbers anyway).
+  var STAMP_RE = /^\d{4}-\d{2}-\d{2}-/;
+  var stamps = uniq(ROWS.map(buildOf).filter(function (b) { return b !== BUILD_NONE && STAMP_RE.test(b); })).sort().reverse();
   var latest = stamps[0] || null;
   var byBuild = {};
   var LATEST = "__latest", OLDER = "__older";
@@ -659,8 +677,11 @@ function render() {
     var k = (latest && buildOf(r) === latest) ? LATEST : OLDER;
     (byBuild[k] || (byBuild[k] = [])).push(r);
   });
+  // THE RELEASE ROW IS ALWAYS DRAWN when there is a release, even with nothing in it under the
+  // current filter. Omitting it hides the answer: an empty row under Game=survival is exactly how
+  // you SEE that the new build has no survival in it.
   var order = [];
-  if (byBuild[LATEST]) order.push(LATEST);
+  if (latest) order.push(LATEST);
   if (byBuild[OLDER]) order.push(OLDER);
   if (!latest) {
     pcmp.appendChild(el("p", "empty", "No stamped sessions yet — no build that stamps itself has"
@@ -693,7 +714,7 @@ function render() {
     { t: "median play time", n: 1 }, { t: "reached a run (sessions)", n: 1 },
     { t: "cleared a level (players)", n: 1 }, { t: "levels cleared", n: 1 }]);
   order.forEach(function (b) {
-    var rs = byBuild[b];
+    var rs = byBuild[b] || [];
     var players = uniq(rs.map(function (r) { return r.client_id; })).length;
     var sess = uniq(rs.map(function (r) { return r.session_id; })).length;
     var mins = rs.filter(function (r) { return r.kind === "session_end" && r.ms != null; })
@@ -728,6 +749,9 @@ function render() {
   // THE FOLDED-IN STAMPS, NAMED. The baseline is not only "before stamps" — on a day with two
   // uploads it holds the previous release too, and a row labelled "everything before it" that
   // silently contains this morning’s build would be the same trap in reverse.
+  if (latest && !newestSess) pcmp.appendChild(el("p", "empty", "No sessions on " + latest
+    + " match the filters above — which is itself the answer when the filter is a feature the"
+    + " release removed."));
   var folded = stamps.slice(1);
   if (folded.length) pcmp.appendChild(el("p", "empty", "The baseline also contains "
     + folded.map(function (b) {

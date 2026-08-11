@@ -2164,6 +2164,20 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
     the literal `'dev'` in the repo — `make-web-zip` patches a COPY at build time — so the page has
     no way to read what was actually uploaded. Off the rows, the cut moves to a new release by
     itself the first time anyone plays one.
+  - **...AND IT IS TAKEN FROM *ALL* ROWS, NOT THE FILTERED ONES.** Reported as *"I still see 13
+    players today doing survival after the update"*. Taken from the filtered set, the cut MOVED
+    whenever a filter excluded the newest build: pick **Game=survival** and the release contributes
+    nothing (survival is withheld in it), so the newest stamp still standing was the PREVIOUS build
+    — and the section relabelled that as "the last release" and showed its 13 survival players as
+    if they were on the new one. Any filter the release has no rows under does this. Which release
+    is latest is a fact about the release HISTORY, not about what is on screen.
+  - **The release row is drawn even when it is EMPTY under the filter**, because an empty row is
+    the finding: 0 survival sessions on the new build is how you see the feature is gone. The
+    section says so in words rather than leaving a row of zeroes unexplained.
+  - **`dev` IS A VALID `detail` VALUE AND SORTS AFTER EVERY DATE.** Every local run and every
+    Playwright boot posts `detail: 'dev'` (the repo's placeholder), so a plain newest-string wins
+    made the whole section read **"Cut at dev"** with an empty release row and every real release
+    folded into the baseline. A release stamp is `YYYY-MM-DD-<sha>` and nothing else.
 - **THE CUT IS THE BUILD STAMP, NOT A DATE.** itch and CrazyGames
   serve whatever zip was last uploaded and a browser can hold a cached copy for days, so a date cut
   files old-build sessions under "after" and flatters the release. Every session on a stamped build
