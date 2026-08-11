@@ -988,6 +988,11 @@ Two things about running them:
   that check plus `--fast`. Reserve the full sweep for engine or HUD work — and note `--fast`
   is no longer fast: `traced` is ~20 minutes of its ~25, so `node tests/run.mjs edit threat`
   (or whatever the change touches) is usually the right middle gear.
+  - **AND `traced` TAKES MAP FILTERS — USE THEM.** `node tests/traced-check.cjs <id> <id> …`
+    matches on substring. Editing four maps and running all 84 is 20 minutes to re-answer a
+    question about 80 files nobody touched; the four alone are **63 assertions in ~2 minutes**.
+    Owner, watching it grind: *"why do you need to check 76 right now when there are only 9 maps
+    in the game?"* `rock-audit`, `sky` and `campaign-shot` all take the same kind of argument.
 - **Don't poll for the result.** The runner's output is piped, so the file stays EMPTY until
   the process exits — re-reading it tells you nothing. Start it in the background and wait for
   the completion notification, or watch it with a Monitor until-loop. (An entire session's worth
