@@ -2167,6 +2167,14 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
     cleared nine levels is one person, not nine. Neither denominator is left implicit: two adjacent
     percentages over different bases is exactly the trap the level table fell into.
     Live at the time of writing: **9.6% of pre-stamp players cleared a level at all.**
+  - **`fmtMs` PRINTS TWO UNITS** (owner: *"show median session time in both minutes and seconds -
+    need more detail"*). It used to collapse to one and round hard, so 100s and 149s BOTH printed
+    "2m" — the difference between a player leaving after 1m 40s and one staying 2m 29s was
+    invisible, and a release that moved play time by half a minute could not be seen at all. The
+    second unit is dropped when it is zero, so a round number still reads as one ("5m", not
+    "5m 0s"). The check's fixture deliberately lands its medians on non-round values; whole minutes
+    would pass either way and prove nothing. It is the same helper everywhere, so the funnel's
+    "median session" and retention's "typical gap" gained the detail too.
 - **RETENTION IS ONE SECTION NOW, AND IT OPENS ON A SENTENCE** (owner: *"rethink how you show
   player retention stats - very confusing now"*). There were literally **two** headings called
   "Coming back" — a visits/gap one and a day-1/3/7 cohort one — measuring the same thing several

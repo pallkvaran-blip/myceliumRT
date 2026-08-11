@@ -133,12 +133,20 @@ function el(t, cls, txt) { var n = document.createElement(t); if (cls) n.classNa
 function uniq(a) { var s = {}; var o = []; for (var i = 0; i < a.length; i++) if (a[i] != null && !s[a[i]]) { s[a[i]] = 1; o.push(a[i]); } return o; }
 function pct(a, b) { return b ? Math.round((a / b) * 1000) / 10 : 0; }
 function dayOf(r) { return String(r.created_at || "").slice(0, 10); }
+// TWO UNITS, NOT ONE (owner: "show median session time in both minutes and seconds - need more
+// detail"). It used to collapse to a single unit and round hard: 75s printed as "75s" but 100s
+// printed as "2m", so the difference between a player who left after 1m 40s and one who stayed
+// 2m 29s was invisible — both read "2m" — and a release that moved play time by 30 seconds could
+// not be seen at all. The second unit is dropped when it is zero ("5m", not "5m 0s"), so a round
+// number still reads as one.
 function fmtMs(ms) {
   if (ms == null) return "–";
   var s = Math.round(ms / 1000);
-  if (s < 90) return s + "s";
-  var m = Math.round(s / 60);
-  return m < 90 ? m + "m" : (Math.round(m / 6) / 10) + "h";
+  if (s < 60) return s + "s";
+  var m = Math.floor(s / 60), rs = s % 60;
+  if (m < 60) return m + "m" + (rs ? " " + rs + "s" : "");
+  var h = Math.floor(m / 60), rm = m % 60;
+  return h + "h" + (rm ? " " + rm + "m" : "");
 }
 function median(a) { if (!a.length) return null; var s = a.slice().sort(function (x, y) { return x - y; }); var m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
 

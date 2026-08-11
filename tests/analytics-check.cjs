@@ -582,15 +582,18 @@ function fixture() {
     const ev = (cid, sid, t, kind, n, ms) => rows.push({ id: ++id, created_at: new Date(t).toISOString(),
       client_id: cid, session_id: sid, kind, n: n == null ? null : n, ms: ms == null ? null : ms,
       source: 'crazygames', game: 'campaign', mode: 'turn', device: 'desktop' });
-    // BEFORE (no stamp): 3 players, sessions of 60s / 120s / 180s -> median 120s = 2m.
+    // BEFORE (no stamp): 3 players, sessions of 55s / 95s / 125s -> median 95s = "1m 35s".
     //                    2 of 3 start a run.
-    [['b1', 's1', 60000], ['b2', 's2', 120000], ['b3', 's3', 180000]].forEach(([c, sid, ms], i) => {
+    // DELIBERATELY NOT ROUND. The old formatter collapsed to one unit, so 100s and 149s both
+    // printed "2m" and a release that moved play time by half a minute was invisible. A fixture
+    // whose medians land on whole minutes would pass either way and prove nothing.
+    [['b1', 's1', 55000], ['b2', 's2', 95000], ['b3', 's3', 125000]].forEach(([c, sid, ms], i) => {
       boot(c, sid, now - 5 * DAY);
       if (i < 2) ev(c, sid, now - 5 * DAY, 'run_start', null, null);
       ev(c, sid, now - 5 * DAY, 'session_end', 1, ms);
     });
-    // AFTER (stamped): 3 players at 300s / 360s / 420s -> median 360s = 6m, and all three run.
-    [['a1', 's4', 300000], ['a2', 's5', 360000], ['a3', 's6', 420000]].forEach(([c, sid, ms]) => {
+    // AFTER (stamped): 3 players at 240s / 305s / 370s -> median 305s = "5m 5s", and all three run.
+    [['a1', 's4', 240000], ['a2', 's5', 305000], ['a3', 's6', 370000]].forEach(([c, sid, ms]) => {
       boot(c, sid, now - 1 * DAY, '2026-08-09-abc1234');
       ev(c, sid, now - 1 * DAY, 'run_start', null, null);
       ev(c, sid, now - 1 * DAY, 'level_clear', null, null);
@@ -630,8 +633,14 @@ function fixture() {
     // THE HEADLINE COLUMN. Median, not mean: one player who leaves a tab open overnight moves a
     // mean by minutes and a median not at all, and on a table this small it would be the whole
     // result. 60/120/180 -> 2m; 300/360/420 -> 6m.
-    ok('play time is the median session, before', !!before && before[3] === '2m', before && before[3]);
-    ok('...and after', !!after && after[3] === '6m', after && after[3]);
+    ok('play time is the median session, before', !!before && before[3] === '1m 35s', before && before[3]);
+    ok('...and after', !!after && after[3] === '5m 5s', after && after[3]);
+    // BOTH UNITS (owner: "need more detail"). Asserted as a shape rather than only as the two
+    // exact strings above, so a formatter that went back to one unit fails here under a name that
+    // says what it lost — the exact strings alone would just read as two wrong numbers.
+    ok('...and a duration carries minutes AND seconds, not one rounded unit',
+       !!before && /^\d+m \d+s$/.test(before[3]) && !!after && /^\d+m \d+s$/.test(after[3]),
+       (before && before[3]) + ' / ' + (after && after[3]));
     ok('players and sessions are counted per release',
        !!before && before[1] === '3' && before[2] === '3' && !!after && after[1] === '3',
        (before && before.slice(1, 3).join('/')) + ' vs ' + (after && after.slice(1, 3).join('/')));
