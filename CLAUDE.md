@@ -2729,6 +2729,20 @@ is still true of the code — only the title row is gone.
     viewport height, not a constant — the wordmark is sized off the viewport too, so a fixed gap
     reads generous on a laptop and cramped on a phone. Measured at 1400x900: New's top 177 → 133,
     Old's bottom 696 → 754.
+  - **THE WORDMARK IS NOT CENTRED ON `titleY`, AND ONE HALF-HEIGHT CANNOT SAY SO.** `seedTitle`
+    draws with `textBaseline: 'middle'`, which centres the EM box — and MYCELIUM is all caps and
+    uses none of the descender space, so the ink sits high in it. A symmetric `titleSize * 0.58`
+    either side therefore reserved ~45px of empty air UNDER the letters, and the gap below read
+    nearly twice the gap above (63 vs 122 at 1400x900) — reported as "move the old a bit closer".
+    `positionMenu` measures per side now (`measureText`'s `actualBoundingBoxAscent`/`Descent` off
+    the same font at the same size) plus **one** fringe allowance of `titleSize * 0.13` — the
+    ascent/descent split is the whole asymmetry, and the tendril overrun really is symmetric.
+    Solved at three viewports; lands the two gaps within ~10px. **There is no DOM box for the
+    wordmark** — it is drawn, not laid out — so the only way to check this is to read the canvas.
+    `mode-check` does, polling until three reads agree because the letters grow in and a snapshot
+    mid-bloom measures a silhouette that is still arriving, with a ~20px tolerance because the
+    tendrils are random. **Verified negative control**: restore the symmetric model and it reads
+    68 above / 110 below and fails.
 - **`__menu` IS A BOOT-TIME HOOK, and it exists because `window.__game` does not exist on a title
   screen** (begin() installs it). It carries `continueRun` — the title's "Old", the same function
   the button calls — and `playSurvival`, which are the only way to drive the survival start and

@@ -26847,15 +26847,38 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
   function positionMenu() {
     const topB = root.querySelector('.ts-top'), botB = root.querySelector('.ts-bottom');
     const topH = topB.offsetHeight || 90;
-    const halfTitle = titleSize * 0.58;              // effective title half-height (incl. fringe)
+    // THE WORDMARK IS NOT CENTRED ON `titleY`, AND A SINGLE HALF-HEIGHT CANNOT SAY SO. `seedTitle`
+    // draws with `textBaseline: 'middle'`, which centres the EM box — but MYCELIUM is all caps and
+    // uses none of the descender space, so the ink sits high in that box and a symmetric
+    // `titleSize * 0.58` either side reserved ~45px of empty air under the letters. Measured at
+    // 1400x900: model 297..549, actual ink 284..503, so the gap above read 63px and the gap below
+    // 122 — which is exactly what "move the old a bit closer" was describing.
+    //
+    // Measured per side instead, off the same font at the same size, so it holds at every viewport
+    // rather than at the one it was tuned on. `measureText`'s box is the GLYPHS; the drawn word
+    // overruns it because `seedTitle` sprays a fringe and loose tendrils outward — and that
+    // overrun IS symmetric (the asymmetry was all in the em box), so one allowance serves both
+    // sides. 0.13 of the size, solved from the rendered canvas at 1400x900, 1280x720 and 390x844:
+    // it lands the two gaps within ~10px of each other, which is the noise floor here because the
+    // tendrils are random and every boot draws a slightly different silhouette.
+    ctx.save();
+    ctx.font = titleFont(titleSize); ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+    const tm = ctx.measureText(TITLE);
+    ctx.restore();
+    const asc = tm.actualBoundingBoxAscent, desc = tm.actualBoundingBoxDescent;
+    const fringe = titleSize * 0.13;
+    // Fall back to the old symmetric model if the browser gives no glyph box — the numbers are
+    // then what they always were rather than zero, which would put the words on top of the word.
+    const halfUp = (asc > 0 ? asc + fringe : titleSize * 0.58);
+    const halfDown = (desc > 0 ? desc + fringe : titleSize * 0.58);
     // 0.045 -> 0.085 of the viewport height (owner: "move the new and old a bit further away from
-    // the mycelium"). Measured either side at 1400x900: NEW's top 177 -> 133 and OLD's bottom
-    // 696 -> 754, so the words move ~44px out from the wordmark each. It is a FRACTION of the
-    // height rather than a constant because the wordmark is sized off the viewport too — a fixed
-    // gap reads as generous on a laptop and cramped on a phone.
-    const gapTitle = Math.max(28, H * 0.085);        // title edge → row
-    topB.style.bottom = 'auto'; topB.style.top = Math.round(titleY - halfTitle - gapTitle - topH) + 'px';
-    botB.style.bottom = 'auto'; botB.style.top = Math.round(titleY + halfTitle + gapTitle) + 'px';
+    // the mycelium"). A FRACTION of the height rather than a constant because the wordmark is
+    // sized off the viewport too — a fixed gap reads as generous on a laptop and cramped on a
+    // phone. Both rows are the same distance from the INK now, so the gap above is measured to
+    // the caption under NEW and the gap below to the top of OLD.
+    const gapTitle = Math.max(28, H * 0.085);        // ink edge → row
+    topB.style.bottom = 'auto'; topB.style.top = Math.round(titleY - halfUp - gapTitle - topH) + 'px';
+    botB.style.bottom = 'auto'; botB.style.top = Math.round(titleY + halfDown + gapTitle) + 'px';
   }
 
   // True when there's saved unlock progress from an old run — which "New" (Survival) wipes

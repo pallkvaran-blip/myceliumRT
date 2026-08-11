@@ -106,6 +106,50 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
                vw: innerWidth, vh: innerHeight };
     });
     ok('New sits above Old', geo.t.bottom < geo.b.top, `${Math.round(geo.t.bottom)} < ${Math.round(geo.b.top)}`);
+
+    // EQUIDISTANT FROM THE INK, NOT FROM `titleY` (owner: "the top of the old and the bottom of
+    // the 'start a new game' should be roughly equally distance from the title"). `seedTitle`
+    // draws with `textBaseline: 'middle'`, which centres the EM box — and MYCELIUM is all caps and
+    // uses none of the descender space, so a symmetric half-height reserved ~45px of empty air
+    // under the letters and the gap below read nearly twice the gap above (63 vs 122 at 1400x900).
+    //
+    // Measured off the CANVAS, which is the only place the answer lives — the wordmark is drawn,
+    // not laid out, so no DOM box describes it. Polled until three reads agree, because the
+    // letters grow in and a snapshot mid-bloom measures a silhouette that is still arriving.
+    const sym = await page.evaluate(async () => {
+      const inkRows = () => {
+        const c = document.getElementById('tsCanvas'), cx = c.getContext('2d');
+        const dpr = c.width / c.getBoundingClientRect().width;
+        const d = cx.getImageData(0, 0, c.width, c.height).data;
+        let top = -1, bot = -1;
+        for (let y = 0; y < c.height; y++) {
+          let hit = false;
+          for (let x = 0; x < c.width; x += 3) { const i = (y * c.width + x) * 4; if (d[i + 3] > 40 && d[i] > 120) { hit = true; break; } }
+          if (hit) { if (top < 0) top = y; bot = y; }
+        }
+        return { top: Math.round(top / dpr), bot: Math.round(bot / dpr) };
+      };
+      let last = null, agree = 0, r = null;
+      for (let i = 0; i < 60; i++) {
+        await new Promise((res) => setTimeout(res, 400));
+        r = inkRows();
+        if (last && Math.abs(r.top - last.top) <= 2 && Math.abs(r.bot - last.bot) <= 2) { if (++agree >= 2) break; }
+        else agree = 0;
+        last = r;
+      }
+      const b = (s) => { const n = document.querySelector(s); const q = n.getBoundingClientRect(); return { t: q.top, b: q.bottom }; };
+      return { ink: r, cap: b('#titleScreen .ts-top .ts-cap'), old: b('#tsContCamp'), settled: agree >= 2 };
+    });
+    const above = Math.round(sym.ink.top - sym.cap.b);
+    const below = Math.round(sym.old.t - sym.ink.bot);
+    ok('the wordmark was measured, not guessed at mid-bloom', sym.settled && sym.ink.bot > sym.ink.top,
+       `ink ${sym.ink.top}..${sym.ink.bot}${sym.settled ? '' : ' (never settled)'}`);
+    // A generous tolerance on purpose: the fringe tendrils are random, so the silhouette differs
+    // by ~10px between boots of the same build. It still fails the symmetric model, which was out
+    // by 59px in the same measurement.
+    ok('...and New and Old are the same distance from it',
+       above > 0 && below > 0 && Math.abs(above - below) <= Math.max(20, 0.2 * Math.max(above, below)),
+       `${above}px above, ${below}px below`);
     ok('both are on screen', geo.t.top > 0 && geo.b.bottom < geo.vh, `top=${Math.round(geo.t.top)} bottom=${Math.round(geo.b.bottom)} vh=${geo.vh}`);
     ok('the New row fits the width', geo.t.left >= 0 && geo.t.right <= geo.vw, `${Math.round(geo.t.left)}..${Math.round(geo.t.right)} of ${geo.vw}`);
 
