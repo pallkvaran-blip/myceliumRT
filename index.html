@@ -2973,12 +2973,29 @@ const CONFIG = {
   // is what turns it on, exactly like `mode` and `game`.
   simple: {
     enabled: false,
-    growSegments: 12,          // "grow 4" — 4 steps x 3 segments, the same reach as the grow-4 cards
-    growEnergy: 4,             // ...and what it costs, every time, for ever
+    // THE OPENING VERB IS A GROW 2 (owner). One step is 3 segments, so 2 steps is 6. The red-pile
+    // upgrade buys a step at a time and each bought step costs a further energy, which is why
+    // these two are written together rather than as independent numbers.
+    growSegments: 6,           // "grow 2"
+    growEnergy: 2,             // ...for 2 energy, until an upgrade moves both
     zoom: 0.9,                 // "medium": between the survey view (~0.25) and the 4x ceiling
     // Yellow / orange / red, named for what the map SHOWS — drawSubstrateLeaves keys the art off
     // cell.foodKind, so these are the colours the player is looking at.
     pileEnergy: { duff: 10, cache: 15, 'cache-engine': 20 },
+    // GROWING TAKES HALF AGAIN AS LONG (owner: "slow down how long it takes to grow by 50%").
+    // A multiplier over the reveal rather than an edit to REVEAL_SEG, so the real game's timing is
+    // untouched and this stays one number to retune. It scales BOTH halves of the animation — the
+    // per-segment grow-in and the base-to-tip stagger — because together they ARE how long a grow
+    // takes. The red-pile speed upgrade divides into it.
+    growTimeScale: 1.5,
+    // THE RED-PILE OFFER, in the draft's place: growing into a red pile stops the clock and offers
+    // three ways to get better at growing. Not cards — there are none — but the same beat.
+    upgrade: {
+      stepEnergy: 1,           // "+1 step" also adds this much to every future grow
+      speedFactor: 0.15,       // "+15% growth speed", compounding, applied to growTimeScale
+      cheaperBy: 1,            // "-1 energy per grow"...
+      minEnergy: 1,            // ...floored here, so a grow is never free
+    },
   },
 
   dev: {
@@ -19498,7 +19515,13 @@ function finishOccupiedHarvest(state) {
 
 // --- WIN: a strand reaches the goal zone; LOSE: card-dry & broke ------------
 function checkGoalReached(state) {
-  if (state.runOver || state.winPending || !state.cards) return;
+  // THE WIN MUST NOT DEPEND ON THE CARD LAYER EXISTING. `!state.cards` used to return here, so
+  // with the cards off (`CONFIG.cards.enabled` false — the simplified prototype, and the old
+  // no-card action-bar build) the goal could not be won at all: reported as *"I grew to the end
+  // goal, but did not win the level"*. The strand was there; the check was not running. What
+  // genuinely needs cards is the DRAFT half below (a pile can pay out a card as the run ends) and
+  // the stall death, and both are guarded on their own now.
+  if (state.runOver || state.winPending) return;
   const net = state.active; if (!net || !net.alive) return;
   const sub = state.substrate;
   // A strand that grew INTO the Trichoderma gets infected FIRST, so a fruiting body
@@ -19542,7 +19565,7 @@ function checkGoalReached(state) {
         state.log('A fruiting body breaks the surface at the goal — you win the level!', 'good');
         finishOccupiedHarvest(state);
         checkPileRewards(state);
-        if (state.cards.pendingOffers && state.cards.pendingOffers.length) {
+        if (state.cards && state.cards.pendingOffers && state.cards.pendingOffers.length) {
           state.winPending = true;
         } else {
           net.alive = false; state.runOver = true;
@@ -19555,7 +19578,12 @@ function checkGoalReached(state) {
   // You can't afford to DRAW (deck empty OR too little Energy), can't SKIP, have no
   // playable card, no usable ACTION (an action might mint the resource you need), and
   // no free draft pending. If ALL of those are false the colony is out of moves.
+  // THE STALL DEATH IS THE CARD GAME'S, and it is the half that really does need a hand to read:
+  // "no card you can play, no draw you can afford, no action left" is not a question the
+  // simplified prototype can be asked — its one verb is always available and its only cost is
+  // energy, which food restores. No cards, no stall to detect.
   const C = state.cards;
+  if (!C) return;
   const cc = state.config.cards;
   const canDraw = C.drawDeck.length > 0 && net.energy >= drawCost(state);
   const canSkip = net.energy >= cc.skipCostEnergy;
@@ -22352,7 +22380,7 @@ class NetworkRenderer {
     let live = 0;
     for (const e of pend) {
       const n = e.node, p = e.p;
-      const rev = (n._appearAt == null || now == null) ? 1 : (now - n._appearAt) / REVEAL_SEG;
+      const rev = (n._appearAt == null || now == null) ? 1 : (now - n._appearAt) / (REVEAL_SEG * this._revScale());
       if (rev < 1) live++;
       if (rev <= 0) continue;                       // not grown out this far yet
       ctx.strokeStyle = n._protected ? r.warded : (n.infected ? r.infected : r.filament);
@@ -22607,7 +22635,7 @@ class NetworkRenderer {
       // Growth reveal: a freshly-grown strand extends + fades in over REVEAL_SEG,
       // staggered base→tip (see draw()). rev>=1 (or unscheduled) draws normally.
       if (n._appearAt != null) {
-        const rev = (this._now - n._appearAt) / REVEAL_SEG;
+        const rev = (this._now - n._appearAt) / (REVEAL_SEG * this._revScale());
         if (rev <= 0) continue;                       // not grown here yet — skip strand + decoration
         if (rev < 1) {
           const ex = p.x + (n.x - p.x) * rev, ey = p.y + (n.y - p.y) * rev;
@@ -22860,6 +22888,16 @@ class NetworkRenderer {
   // FLAG is what makes it correct across a pause: the reveal runs on the raw frame clock, so
   // a grow committed just as a draft freezes the game would otherwise have "arrived" long
   // before the player picks a card, and its pile would never be claimed.
+  // How much longer than stock a grow takes to draw. 1 in the real game; the simplified
+  // prototype slows it (CONFIG.simple.growTimeScale) and its red-pile upgrade speeds it back up.
+  // Read off `state.config` through the renderer's own config clone, so a run that changes it
+  // mid-level takes effect on the next grow rather than needing a reload.
+  _revScale() {
+    const sc = this.config && this.config.simple;
+    const k = sc && sc.enabled ? +sc.growTimeScale : 1;
+    return k > 0 ? k : 1;
+  }
+
   scheduleReveal(time) {
     const net = this.network;
     net._nowMs = time;
@@ -22872,12 +22910,13 @@ class NetworkRenderer {
     let count = 0;
     for (const n of nodes) if (!n._revSeen) count++;
     if (count === 0) return;
-    const spread = Math.min(REVEAL_SPREAD_MAX, Math.max(REVEAL_SPREAD_MIN, count * 55));
+    const k = this._revScale();
+    const spread = Math.min(REVEAL_SPREAD_MAX, Math.max(REVEAL_SPREAD_MIN, count * 55)) * k;
     let k = 0;
     for (const n of nodes) {                    // array order = base→tip among the new nodes
       if (n._revSeen) continue;
       n._appearAt = time + (k / count) * spread;
-      n._liveAt = n._appearAt + REVEAL_SEG;     // physically there only once it has finished growing in
+      n._liveAt = n._appearAt + REVEAL_SEG * k;   // physically there only once it has finished growing in
       if (n._liveAt > (net._arriveUntil || 0)) net._arriveUntil = n._liveAt;
       net._colonizePending = true;
       n._revSeen = true;
@@ -22900,7 +22939,7 @@ class NetworkRenderer {
   // animates now (see _strokeGrowing), so they answer for the reveal itself at any zoom.
   revealFactor(n, time) {
     if (n._appearAt == null) return 1;
-    const rev = (time - n._appearAt) / REVEAL_SEG;
+    const rev = (time - n._appearAt) / (REVEAL_SEG * this._revScale());
     return rev <= 0 ? 0 : (rev < 1 ? rev : 1);
   }
 
@@ -22909,7 +22948,7 @@ class NetworkRenderer {
   isRevealing(time) {
     const nodes = this.network.nodes;
     for (const n of nodes) {
-      if (n._appearAt != null && (time - n._appearAt) < REVEAL_SEG) return true;
+      if (n._appearAt != null && (time - n._appearAt) < REVEAL_SEG * this._revScale()) return true;
     }
     return false;
   }
@@ -23636,9 +23675,10 @@ class UI {
     // SIMPLE MODE says how to play, because nothing else on screen can: there is no hand to read
     // and no action bar to hover, so the one verb has to introduce itself. The card-mode default
     // is empty and the old action-bar line names actions this mode does not have.
-    const simpleEnergy = (this.state.config.simple && this.state.config.simple.growEnergy) || 4;
+    const sc0 = this.state.config.simple || {};
+    const steps0 = Math.max(1, Math.round((sc0.growSegments || 6) / 3));
     this.defaultHint = simpleOn
-      ? `Drag from your mycelium to grow 4 steps that way — ${simpleEnergy}⚡ each. Right-drag to look around.`
+      ? `Drag from your mycelium to grow ${steps0} step${steps0 === 1 ? '' : 's'} that way — ${sc0.growEnergy || 2}⚡ each. Right-drag to look around.`
       : cardsOn
       ? ''
       : 'Hover an action for details. Grow extends the network toward sensed food.';
@@ -31142,6 +31182,73 @@ function toSurveyView(animate) {
   uiDirty = true;
 }
 
+// SIMPLE MODE: A RED PILE OFFERS AN UPGRADE (owner). It takes the DRAFT'S place — same beat, same
+// stopped clock — but the three choices are about growing rather than about cards, because there
+// are none. Detected exactly the way `checkPileRewards` detects a draft: a pile that is claimed
+// and emptied, paid once (`rewarded`), and only to tissue that is actually still there
+// (`cleanCover` — a claim outlives the mycelium that made it).
+//
+// Red only: yellow and orange pay energy and nothing else, so the colours mean three different
+// things rather than three sizes of the same thing.
+let simpleOffer = null;
+function simpleCheckUpgradeOffer() {
+  if (!SIMPLE() || simpleOffer || !state || state.runOver) return;
+  const sub = state.substrate, net = state.active;
+  if (!sub || !sub.foodPiles || !net || !net.alive) return;
+  let cover = null;
+  for (const pile of sub.foodPiles) {
+    if (pile.rewarded || pile.simpleRewarded) continue;
+    const first = sub.cells[pile.cells && pile.cells[0]];
+    if (!first || first.foodKind !== 'cache-engine') continue;      // red only
+    let total = 0, claimed = false;
+    for (const idx of pile.cells) {
+      const cell = sub.cells[idx]; if (!cell) continue;
+      total += cell.nutrient;
+      if (cell.colonized > 0) claimed = true;
+    }
+    if (!claimed || total > 1e-6) continue;                          // claimed AND eaten out
+    if (!cover) cover = net.cleanCover(sub);
+    if (!pile.cells.some((i) => cover.covers(i))) continue;          // ...by tissue still alive
+    pile.simpleRewarded = true;
+    showSimpleUpgrade();
+    return;
+  }
+}
+
+// The three ways to get better at growing. Each one edits `state.config.simple` — the RUN's clone
+// — so it lasts the run and cannot leak into the next one, and every reader (the aim's reach, the
+// cost, the reveal's scale) already reads from there rather than from a captured number.
+const SIMPLE_UPGRADES = [
+  { id: 'step', title: '+1 step', line: (c) => `Grow ${c.growSegments / 3 + 1} steps instead of ${c.growSegments / 3} — costs ${c.growEnergy + c.upgrade.stepEnergy}\u26a1 instead of ${c.growEnergy}\u26a1`,
+    apply: (c) => { c.growSegments += 3; c.growEnergy += c.upgrade.stepEnergy; } },
+  { id: 'speed', title: '+15% growth speed', line: () => 'Every grow finishes faster',
+    apply: (c) => { c.growTimeScale = c.growTimeScale / (1 + c.upgrade.speedFactor); } },
+  { id: 'cheap', title: '\u22121\u26a1 per grow', line: (c) => `Grow for ${Math.max(c.upgrade.minEnergy, c.growEnergy - c.upgrade.cheaperBy)}\u26a1 instead of ${c.growEnergy}\u26a1`,
+    apply: (c) => { c.growEnergy = Math.max(c.upgrade.minEnergy, c.growEnergy - c.upgrade.cheaperBy); } },
+];
+
+function showSimpleUpgrade() {
+  const c = state.config.simple;
+  const root = document.createElement('div');
+  root.className = 'supick'; root.id = 'simpleUpgrade';
+  root.innerHTML = '<div class="supick-box"><h2>The red cache feeds something new</h2>'
+    + '<div class="supick-row">'
+    + SIMPLE_UPGRADES.map((u, i) =>
+        `<button class="supick-opt" data-i="${i}" type="button"><span class="supick-t">${u.title}</span>`
+        + `<span class="supick-l">${u.line(c)}</span></button>`).join('')
+    + '</div></div>';
+  document.body.appendChild(root);
+  simpleOffer = root;   // the clock is stopped while this is up — see simPaused
+  root.querySelectorAll('.supick-opt').forEach((b) => b.addEventListener('click', () => {
+    const u = SIMPLE_UPGRADES[+b.dataset.i]; if (u) u.apply(state.config.simple);
+    root.remove(); simpleOffer = null;
+    // The hint carries the price, so it has to be re-read after one changes.
+    if (ui && ui.setSimpleHint) ui.setSimpleHint(state.config.simple);
+    uiDirty = true;
+  }));
+  uiDirty = true;
+}
+
 // SIMPLE MODE: FOOD PILES PAY A FLAT AMOUNT BY COLOUR (owner: yellow 10, orange 15, red 20).
 // The map's own values are a 1..8 roll per pile, and a red pile's point in the real game is the
 // ENGINE DRAFT it hands you rather than its energy — with the card layer off that reward does not
@@ -31178,6 +31285,12 @@ function simpleRepriceFood() {
 let simpleFollowId = -1;
 function followNewestGrowth() {
   if (!SIMPLE() || !state || !state.active) return;
+  // ONLY ONCE THE GROWTH HAS FINISHED DRAWING (owner). Retargeting the moment the sim appends the
+  // nodes means the camera and the filament race each other across the screen — the strand is
+  // still extending while the view is already sliding to where it will end up, so neither reads
+  // as the cause of the other. Waiting costs nothing: the reveal is 1-3s and the camera then
+  // moves to a colony that has visibly stopped growing.
+  try { if (anyRevealing(lastTime)) return; } catch (_) {}
   const nodes = state.active.nodes;
   if (!nodes || !nodes.length) return;
   let newest = nodes[0];
@@ -32942,6 +33055,8 @@ function simPaused() {
   // only stops when the cards are actually on screen waiting to be chosen.
   const c = state.cards;
   if (c && c.pendingOffers && c.pendingOffers.length && draftSequenceStarted(c.pendingOffers[0])) return true;
+  // SIMPLE MODE's red-pile offer is that rule's twin: time stops while you choose (owner).
+  if (simpleOffer) return true;
   // Non-gameplay overlays: the "Level N" intro, the scripted tutorial, full-screen menus.
   if (pendingLevelIntro || levelIntro || victoryScreen) return true;
   // The tutorial freezes the clock so the player can read — except on a step marked `live`,
@@ -33375,6 +33490,7 @@ let _renderCount = 0;
 function renderFrame(time, dtFrames = 1) {
   _renderCount++;
   lastTime = time;
+  simpleCheckUpgradeOffer();    // SIMPLE MODE: a finished RED pile offers an upgrade (no-op otherwise)
   followNewestGrowth();         // SIMPLE MODE: retarget onto the newest strand (no-op otherwise)
   updateCamFocus(time);         // advance the tutorial's smooth camera "zoom-in" tween
   updateDraftIntro(time);       // advance the food-pile → card-draft intro (sets ghost/icon alphas)
