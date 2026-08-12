@@ -258,6 +258,8 @@ ok('the control ramps the same way', ramps(detail.out.map((s) => s.drawnNew)) >=
 
 await ctx2.close();
 await b.close(); srv.close();
-console.log(`\n${PASS} passed, ${FAIL} failed`);
+// The `====` matters: run.mjs parses exactly this line, and without the markers a check that
+// passed 17/17 standalone is reported as "did not report ← BROKEN" in every sweep.
+console.log(`\n==== ${PASS} passed, ${FAIL} failed ====`);
 process.exit(FAIL ? 1 : 0);
 })();
