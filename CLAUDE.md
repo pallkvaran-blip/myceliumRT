@@ -3009,8 +3009,8 @@ before a run begins (like `setMode` — `state.config` is a deep clone taken at 
 | | Survival | Campaign |
 |---|---|---|
 | entry | **withheld** (`OFFER_SURVIVAL`) — was turn-based New/Old + real time New/Old | one New/Old, **turn-based only** (owner) |
-| levels | 100 (`MAX_LEVEL`), unwinnable past ~35 | **10** (`CAMPAIGN_LEVELS`), and it ends |
-| maps | **17 authored maps in a shuffled bag** — see below | one **fixed seed** per level |
+| levels | 100 (`MAX_LEVEL`), unwinnable past ~35 | **9** (`CAMPAIGN_LEVELS`), and it ends |
+| maps | **17 authored maps in a shuffled bag** — see below | **an authored map per slot**, all 9 filled — the fixed seed is only the fallback |
 | threats | from the LEVEL (`threatsForLevel`), seeded procedurally onto the authored map | exactly what the map's JSON places |
 | high scores | yes, but the board is withheld with the game | **no** — see below |
 | resume slot | `mycelium.resume.v1` / `.rt.v1` | `mycelium.resume.campaign.v1` |
