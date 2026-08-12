@@ -409,6 +409,21 @@
     .supick-opt:hover { background: rgba(127,230,163,0.16); border-color: rgba(170,255,205,0.8); transform: translateY(-2px); }
     .supick-t { font-weight: 700; font-size: 15px; color: var(--accent); }
     .supick-l { font-size: 12px; line-height: 1.35; color: var(--ink-dim); }
+    /* The price, and the wallet above the row. A line you cannot afford stays READABLE and says
+       why rather than dissolving — the same lesson the death screen's disabled retry taught. */
+    .supick-c { margin-top: 2px; font-weight: 700; font-size: 12px; color: var(--ink);
+      display: inline-flex; align-items: center; gap: 3px; }
+    .supick-c svg, .supick-wallet svg { width: 1em; height: 1em; vertical-align: -0.12em; }
+    .supick-wallet { margin: -6px 0 14px; text-align: center; font-size: 13px; color: var(--ink);
+      display: flex; align-items: center; justify-content: center; gap: 5px; }
+    .supick-opt.off { cursor: not-allowed; opacity: 1; color: #9fb3a8;
+      background: rgba(10,14,12,0.6); border-style: dashed; border-color: rgba(159,179,168,0.5); }
+    .supick-opt.off .supick-t { color: #9fb3a8; }
+    .supick-opt.off:hover { transform: none; background: rgba(10,14,12,0.6); }
+    .supick-done { display: block; margin: 16px auto 0; cursor: pointer; font: inherit; font-weight: 600;
+      font-size: 14px; color: #000; background: #fff; border: 1px solid #fff; border-radius: 10px;
+      padding: 9px 34px; }
+    .supick-done:hover { background: #e6e6e6; border-color: #e6e6e6; }
     @media (max-width: 760px) {
       .supick-box { padding: 14px; }
       .supick-opt { flex: 1 1 100%; max-width: none; padding: 11px 12px 12px; }
@@ -3015,9 +3030,13 @@ const CONFIG = {
     // per-segment grow-in and the base-to-tip stagger — because together they ARE how long a grow
     // takes. The red-pile speed upgrade divides into it.
     growTimeScale: 1.5,
-    // THE RED-PILE OFFER, in the draft's place: growing into a red pile stops the clock and offers
-    // three ways to get better at growing. Not cards — there are none — but the same beat.
+    // RED PILES PAY SPORES, AND SPORES BUY UPGRADES BETWEEN LEVELS (owner). The upgrades used to
+    // be a draft the moment a red pile finished, which put the choice in the middle of the level
+    // it was earned in; as a shop that opens on a win, the reward is a decision about the NEXT
+    // level and several piles add up to one bigger choice.
+    sporesPerRed: 5,
     upgrade: {
+      cost: 5,                 // every line costs this — the shop's whole economy is "5 a pile"
       stepEnergy: 1,           // "+1 step" also adds this much to every future grow
       speedFactor: 0.15,       // "+15% growth speed", compounding, applied to growTimeScale
       cheaperBy: 1,            // "-1 energy per grow"...
@@ -20480,13 +20499,17 @@ function tickWorld(state, phase = 'both') {
     if (cell.reinfectGrace > 0) cell.reinfectGrace -= 1;
   }
 
-  // Card layer (only when active): installed engines produce, then the goal /
-  // card-dry checks run. Guarded on state.cards so the plain sim is untouched.
+  // Card layer (only when active): installed engines produce and a finished pile grants a draft.
   if (state.cards) {
     produceCardEngines(state);
     checkPileRewards(state);     // a finished map pile grants a card draft (red pile → engine)
-    checkGoalReached(state);
   }
+  // ...BUT THE GOAL IS THE GAME'S, NOT THE CARD LAYER'S. This used to sit inside that guard, so
+  // with the cards off nothing ever asked whether the colony had reached the surface: reported as
+  // "I grew to the end goal, but did not win the level". Fixing the function's own `!state.cards`
+  // return was only half of it — a check that is never CALLED cannot pass. It guards itself (run
+  // over, no colony, no goal column) and the draft half inside it is guarded on state.cards.
+  checkGoalReached(state);
 
   checkPuzzleGoal(state);
   state.turn += 1;   // a step counter (each action advances the world one step)
@@ -23565,8 +23588,12 @@ class UI {
     // showing them would be reporting on a currency that never moves. Spores go too: they are the
     // meta-game's, and there is no meta-game here.
     const simpleOn = !!(this.state.config.simple && this.state.config.simple.enabled);
+    // SIMPLE MODE: energy, then the SPORE WALLET — spores are what red caches pay and what the
+    // between-levels shop spends, so they have to be visible while you decide whether a red pile
+    // is worth the detour.
     const resRow = simpleOn
       ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span></span>`
+        + `<span class="res sp">${SPORE_ICON}<span class="rv" id="hud-simple-spores">0</span></span>`
       : cardsOn
       ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span><span class="rd" id="hud-energy-inc"></span></span>`
         + `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span><span class="rd" id="hud-water-inc"></span></span>`
@@ -23595,6 +23622,7 @@ class UI {
       + `<div class="logdrop hidden" id="logdrop"><div class="loglist" id="loglist"></div></div>`;
     root.appendChild(hud);
     this.el.hudtop = hud.querySelector('.hudtop');   // _syncTopRow measures this against the Actions pill
+    this.el.simpleSpores = hud.querySelector('#hud-simple-spores');
     this.el.logdrop = hud.querySelector('#logdrop');
     this.el.loglist = hud.querySelector('#loglist');
     this.el.settingsmenu = hud.querySelector('#settingsmenu');
@@ -24337,6 +24365,9 @@ class UI {
     const net = s.active;
     refreshCadenceClock(s);   // phase the cadence bars' fill against the card layer's round clock
     this._resText('hud-energy', Math.floor(net.energy), s);
+    // SIMPLE MODE's spore wallet lives outside `state` (it spends between levels, and state is
+    // re-made per level), so main hands it over rather than the HUD reading it off the run.
+    if (this.el.simpleSpores) this.el.simpleSpores.textContent = String(this.simpleSporeCount | 0);
     text('hud-spores', Math.floor(s.spores));
 
     // Card layer: resources, hand, draw/skip.
@@ -29329,6 +29360,10 @@ function snapshotCarry() {
   return { cards: state.cards, energy: net.energy, water: net.water, phosphorus: net.phosphorus };
 }
 function applyCarry(st, carry) {
+  // NO CARD LAYER, NOTHING TO CARRY. The simplified prototype has no `state.cards` at all, and the
+  // next level's own energy comes from its config rather than from the last one — carrying an
+  // undefined hand here threw on the line below and took the level transition with it.
+  if (!carry || !carry.cards) return;
   st.cards = carry.cards;
   st.cards.pendingOffers = [];   // no stale pile offers on the fresh map
   st.cards.round = 1;
@@ -29594,7 +29629,11 @@ function presentRunOver() {
   _runOverPresented = true;
   // What happens once any celebration has finished (or immediately otherwise).
   const finish = () => {
-    if (state.won && cardsCampaign()) { onLevelWon(); return; }
+    // A WIN GOES TO THE LEVEL-WON PATH — and "is this a campaign?" is not the same question as
+    // "are the cards on?". `cardsCampaign()` is false in the simplified prototype, so a won level
+    // fell through to the run-over branch: no next level, no shop, and `clearResume` on a run that
+    // had just succeeded. The third half of the same fault as the win check itself.
+    if (state.won && (cardsCampaign() || SIMPLE())) { onLevelWon(); return; }
     clearResume();   // the run is over (death / non-campaign end) — nothing to continue
     const r = state.runResult || {};
     if (cardsCampaign()) {
@@ -29990,11 +30029,15 @@ function onLevelWon() {
     else showGameWon({ spores: runSpores, balance, onNewRun: () => runEndThen(backToPicker) });
   } else {
     const snap = snapshotCarry();
-    showLevelComplete({
+    const toComplete = () => showLevelComplete({
       level: cleared, maxLevel: campaignRun() ? CAMPAIGN_LEVELS : MAX_LEVEL, unlocked: newlyRevealed,
       earned, base, mult, balance,
       onNext: () => { currentLevel = cleared + 1; carryOver = snap; startRun(); },
     });
+    // SIMPLE MODE spends its spores HERE — between the win and the level-complete screen, over the
+    // map that earned them (owner). It wraps the existing path rather than replacing it: close the
+    // shop and everything downstream happens exactly as it always did.
+    if (SIMPLE()) showSimpleShop(toComplete); else toComplete();
   }
 }
 
@@ -31220,51 +31263,52 @@ function toSurveyView(animate) {
   uiDirty = true;
 }
 
-// SIMPLE MODE: A RED PILE OFFERS AN UPGRADE (owner). It takes the DRAFT'S place — same beat, same
-// stopped clock — but the three choices are about growing rather than about cards, because there
-// are none. Found exactly the way `checkPileRewards` finds a draft: a pile claimed and emptied,
-// paid once, and only to tissue that is actually still there (`cleanCover` — a claim outlives the
-// mycelium that made it). Red only: yellow and orange pay energy and nothing else.
+// SIMPLE MODE: A RED PILE PAYS SPORES (owner). Found exactly the way `checkPileRewards` finds a
+// draft — a pile claimed and emptied, paid once, and only to tissue that is actually still there
+// (`cleanCover`: a claim outlives the mycelium that made it). Red only; yellow and orange pay
+// energy and nothing else, so the three colours mean three different things.
 //
-// THE ORDER IS THE WHOLE POINT (owner): grow into the pile → THE GROWTH FINISHES DRAWING → time
-// stops → the red heap fades → the choice appears. Firing on the world tick that empties the pile
-// put the panel up over a filament still extending, with the clock stopped mid-animation.
+// The heap still HOLDS and then FADES rather than blinking out, using the card draft's own two
+// flags — `draftHeld` keeps it full while the growth that ate it is still drawing in, `_fadeAt`
+// fades it once that has finished. It is the same beat the offer used to occupy; what has gone is
+// the panel in the middle of the level. The clock is NOT stopped for it any more: a payout you
+// cannot spend until the level ends has nothing for the player to decide right now.
 //
-// So it is a three-beat machine rather than a test:
-//   held    — the pile is spoken for; its heap stays FULL (`draftHeld`, the card draft's own
-//             flag) so it does not quietly vanish while the growth is still arriving.
-//   pending — the growth has finished, the clock is stopped, and the heap is FADING
-//             (`_fadeAt`, again the draft's own mechanism, over LEAF_FADE_MS).
-//   offer   — the panel is up and waiting for a click.
-// `simPaused` reads the last two, so time stops when the fade starts and not before.
-let simpleOffer = null;      // the panel, once it is up
-let simpleHeld = null;       // a finished red pile, waiting for the growth to finish drawing
-let simplePending = null;    // { pile, at } — the fade beat between the two
-const SIMPLE_FADE_BEAT = 420;   // ms of visible fade before the panel covers it (LEAF_FADE_MS is longer)
+// THE WALLET AND THE UPGRADES ARE MODULE-SCOPED, and they have to be: `state.config` is a deep
+// clone taken at every LEVEL start, so anything written into it is gone one level later — which
+// is exactly the wrong lifetime for a shop that spends between levels. simpleApplyUpgrades()
+// replays what has been bought onto each new level's clone.
+let simpleSpores = 0;
+let simpleBought = { steps: 0, cheaper: 0, speed: 0 };
+// The shop element while it is open. `simPaused` reads it, so it has to be declared beside the
+// wallet rather than inside the block that builds it — the rewrite that turned the mid-level
+// draft into a between-levels shop dropped the declaration and left three references to a name
+// that no longer existed, which threw once per frame and stopped the whole loop.
+let simpleOffer = null;
+function simpleResetRun() { simpleSpores = 0; simpleBought = { steps: 0, cheaper: 0, speed: 0 }; }
+function simpleApplyUpgrades() {
+  if (!SIMPLE() || !state || !state.config || !state.config.simple) return;
+  const c = state.config.simple, u = c.upgrade;
+  c.growSegments += 3 * simpleBought.steps;
+  c.growEnergy = Math.max(u.minEnergy, c.growEnergy + u.stepEnergy * simpleBought.steps - u.cheaperBy * simpleBought.cheaper);
+  c.growTimeScale = c.growTimeScale / Math.pow(1 + u.speedFactor, simpleBought.speed);
+}
 
 function simpleCheckUpgradeOffer() {
-  if (!SIMPLE() || simpleOffer || !state || state.runOver) return;
+  if (!SIMPLE() || !state || state.runOver) return;
   const sub = state.substrate, net = state.active;
   if (!sub || !sub.foodPiles || !net || !net.alive) return;
-
-  // Beat 3: the fade has been running long enough to read — put the choice up.
-  if (simplePending) {
-    if (lastTime - simplePending.at >= SIMPLE_FADE_BEAT) { simplePending = null; showSimpleUpgrade(); }
-    return;
-  }
-  // Beat 2: the growth has finished drawing. Stop the clock, start the heap fading.
-  if (simpleHeld) {
+  // A held pile is one whose growth is still drawing in — let it fade once that has finished, so
+  // the heap never vanishes underneath the filament that ate it.
+  if (simpleHeld.length) {
     let revealing = false;
     try { revealing = anyRevealing(lastTime); } catch (_) {}
-    if (revealing) return;
-    simpleHeld.draftHeld = false;
-    simpleHeld._fadeAt = lastTime;
-    simplePending = { pile: simpleHeld, at: lastTime };
-    simpleHeld = null;
-    uiDirty = true;
-    return;
+    if (!revealing) {
+      for (const pile of simpleHeld) { pile.draftHeld = false; pile._fadeAt = lastTime; }
+      simpleHeld.length = 0;
+      uiDirty = true;
+    }
   }
-  // Beat 1: has a red pile just been finished off?
   let cover = null;
   for (const pile of sub.foodPiles) {
     if (pile.rewarded || pile.simpleRewarded) continue;
@@ -31280,43 +31324,79 @@ function simpleCheckUpgradeOffer() {
     if (!cover) cover = net.cleanCover(sub);
     if (!pile.cells.some((i) => cover.covers(i))) continue;          // ...by tissue still alive
     pile.simpleRewarded = true;
-    pile.draftHeld = true;      // hold the heap while the growth that ate it is still drawing
-    simpleHeld = pile;
-    return;
+    pile.draftHeld = true;                 // hold the heap while the growth is still arriving
+    simpleHeld.push(pile);
+    simpleSpores += state.config.simple.sporesPerRed | 0;
+    state.log(`The red cache spores — +${state.config.simple.sporesPerRed} to spend between levels.`, 'good');
+    uiDirty = true;
   }
 }
+const simpleHeld = [];   // piles waiting for their growth to finish before they fade
 
-// The three ways to get better at growing. Each one edits `state.config.simple` — the RUN's clone
-// — so it lasts the run and cannot leak into the next one, and every reader (the aim's reach, the
-// cost, the reveal's scale) already reads from there rather than from a captured number.
+// The three ways to get better at growing, and the shop that sells them. A purchase is recorded
+// in `simpleBought` — module-scoped, because `state.config` is re-cloned at every LEVEL start and
+// anything written there is gone one level later, which is the wrong lifetime for a shop that
+// spends BETWEEN levels. simpleApplyUpgrades() replays the record onto each new level.
 const SIMPLE_UPGRADES = [
-  { id: 'step', title: '+1 step', line: (c) => `Grow ${c.growSegments / 3 + 1} steps instead of ${c.growSegments / 3} — costs ${c.growEnergy + c.upgrade.stepEnergy}\u26a1 instead of ${c.growEnergy}\u26a1`,
-    apply: (c) => { c.growSegments += 3; c.growEnergy += c.upgrade.stepEnergy; } },
-  { id: 'speed', title: '+15% growth speed', line: () => 'Every grow finishes faster',
-    apply: (c) => { c.growTimeScale = c.growTimeScale / (1 + c.upgrade.speedFactor); } },
-  { id: 'cheap', title: '\u22121\u26a1 per grow', line: (c) => `Grow for ${Math.max(c.upgrade.minEnergy, c.growEnergy - c.upgrade.cheaperBy)}\u26a1 instead of ${c.growEnergy}\u26a1`,
-    apply: (c) => { c.growEnergy = Math.max(c.upgrade.minEnergy, c.growEnergy - c.upgrade.cheaperBy); } },
+  { id: 'steps', title: '+1 step',
+    line: (c) => `Grow ${c.growSegments / 3 + 1} steps instead of ${c.growSegments / 3} — costs ${c.growEnergy + c.upgrade.stepEnergy}\u26a1 instead of ${c.growEnergy}\u26a1`,
+    buy: () => { simpleBought.steps++; } },
+  { id: 'speed', title: '+15% growth speed',
+    line: () => 'Every grow finishes faster',
+    buy: () => { simpleBought.speed++; } },
+  { id: 'cheaper', title: '\u22121\u26a1 per grow',
+    line: (c) => (c.growEnergy <= c.upgrade.minEnergy
+      ? `Already as cheap as a grow gets (${c.upgrade.minEnergy}\u26a1)`
+      : `Grow for ${Math.max(c.upgrade.minEnergy, c.growEnergy - c.upgrade.cheaperBy)}\u26a1 instead of ${c.growEnergy}\u26a1`),
+    buy: () => { simpleBought.cheaper++; } },
 ];
 
-function showSimpleUpgrade() {
-  const c = state.config.simple;
+// THE SHOP, on winning a level (owner). An overlay OVER THE MAP rather than a screen of its own:
+// the level you just finished is what earned the spores, and it should still be behind the choice.
+// `onDone` carries whatever the win was going to do next, so this sits INSIDE that path rather
+// than replacing it — close the shop and the level-complete screen follows exactly as before.
+function showSimpleShop(onDone) {
   const root = document.createElement('div');
-  root.className = 'supick'; root.id = 'simpleUpgrade';
-  root.innerHTML = '<div class="supick-box"><h2>The red cache feeds something new</h2>'
-    + '<div class="supick-row">'
-    + SIMPLE_UPGRADES.map((u, i) =>
-        `<button class="supick-opt" data-i="${i}" type="button"><span class="supick-t">${u.title}</span>`
-        + `<span class="supick-l">${u.line(c)}</span></button>`).join('')
-    + '</div></div>';
+  root.className = 'supick'; root.id = 'simpleShop';
   document.body.appendChild(root);
-  simpleOffer = root;   // the clock is stopped while this is up — see simPaused
-  root.querySelectorAll('.supick-opt').forEach((b) => b.addEventListener('click', () => {
-    const u = SIMPLE_UPGRADES[+b.dataset.i]; if (u) u.apply(state.config.simple);
-    root.remove(); simpleOffer = null;
-    // The hint carries the price, so it has to be re-read after one changes.
-    if (ui && ui.setSimpleHint) ui.setSimpleHint(state.config.simple);
-    uiDirty = true;
-  }));
+  simpleOffer = root;
+  const cost = () => (CONFIG.simple.upgrade.cost | 0);
+  const render = () => {
+    // Priced against a clone carrying everything bought SO FAR, so a second purchase in one visit
+    // reads from the state the first one left — otherwise the lines would describe an upgrade the
+    // player already owns.
+    const c = JSON.parse(JSON.stringify(CONFIG.simple));
+    const u = c.upgrade;
+    c.growSegments += 3 * simpleBought.steps;
+    c.growEnergy = Math.max(u.minEnergy, c.growEnergy + u.stepEnergy * simpleBought.steps - u.cheaperBy * simpleBought.cheaper);
+    c.growTimeScale = c.growTimeScale / Math.pow(1 + u.speedFactor, simpleBought.speed);
+    const canAfford = simpleSpores >= cost();
+    root.innerHTML = '<div class="supick-box">'
+      + '<h2>Spend your spores</h2>'
+      + `<p class="supick-wallet">${SPORE_ICON} ${simpleSpores} spore${simpleSpores === 1 ? '' : 's'}`
+      + (canAfford ? '' : ` — a red cache is worth ${CONFIG.simple.sporesPerRed}`) + '</p>'
+      + '<div class="supick-row">'
+      + SIMPLE_UPGRADES.map((up, i) =>
+          `<button class="supick-opt${canAfford ? '' : ' off'}" data-i="${i}" type="button"${canAfford ? ' ' : ' disabled'}>`
+          + `<span class="supick-t">${up.title}</span>`
+          + `<span class="supick-l">${up.line(c)}</span>`
+          + `<span class="supick-c">${cost()}${SPORE_ICON}</span></button>`).join('')
+      + '</div>'
+      + `<button class="supick-done" id="suDone" type="button">${canAfford ? 'Done' : 'Continue'}</button>`
+      + '</div>';
+    root.querySelectorAll('.supick-opt').forEach((b) => b.addEventListener('click', () => {
+      if (simpleSpores < cost()) return;
+      const up = SIMPLE_UPGRADES[+b.dataset.i]; if (!up) return;
+      simpleSpores -= cost();
+      up.buy();
+      render();              // ...and STAY OPEN: several piles can buy several lines in one visit
+    }));
+    root.querySelector('#suDone').addEventListener('click', () => {
+      root.remove(); simpleOffer = null; uiDirty = true;
+      if (onDone) onDone();
+    });
+  };
+  render();
   uiDirty = true;
 }
 
@@ -32045,6 +32125,7 @@ function begin(newState) {
     camera.clamp();
   }
   simpleRepriceFood();   // SIMPLE MODE: yellow 10, orange 15, red 20 (no-op otherwise)
+  simpleApplyUpgrades(); // ...and replay anything bought in the shop onto this level's clone
   uiDirty = true;
   updateLevelChip();
   updateDevWinBtn();
@@ -33126,9 +33207,9 @@ function simPaused() {
   // only stops when the cards are actually on screen waiting to be chosen.
   const c = state.cards;
   if (c && c.pendingOffers && c.pendingOffers.length && draftSequenceStarted(c.pendingOffers[0])) return true;
-  // SIMPLE MODE's red-pile offer is that rule's twin: time stops while you choose (owner) — and
-  // from the moment the heap starts fading, which is the beat before the panel appears.
-  if (simpleOffer || simplePending) return true;
+  // SIMPLE MODE's shop is the card draft's twin: time stops while you choose (owner). It opens
+  // on a WIN, where the world has stopped anyway — this is the belt to that brace.
+  if (simpleOffer) return true;
   // Non-gameplay overlays: the "Level N" intro, the scripted tutorial, full-screen menus.
   if (pendingLevelIntro || levelIntro || victoryScreen) return true;
   // The tutorial freezes the clock so the player can read — except on a step marked `live`,
@@ -33562,7 +33643,8 @@ let _renderCount = 0;
 function renderFrame(time, dtFrames = 1) {
   _renderCount++;
   lastTime = time;
-  simpleCheckUpgradeOffer();    // SIMPLE MODE: a finished RED pile offers an upgrade (no-op otherwise)
+  if (SIMPLE() && ui) ui.simpleSporeCount = simpleSpores;   // the wallet the HUD prints
+  simpleCheckUpgradeOffer();    // SIMPLE MODE: a finished RED pile pays spores (no-op otherwise)
   followNewestGrowth();         // SIMPLE MODE: retarget onto the newest strand (no-op otherwise)
   updateCamFocus(time);         // advance the tutorial's smooth camera "zoom-in" tween
   updateDraftIntro(time);       // advance the food-pile → card-draft intro (sets ghost/icon alphas)
@@ -36191,7 +36273,8 @@ function enterGame() {
   // colour. See SIMPLE_* below for each rule and why it lives where it does.
   else if (dest === '#simple') {
     CONFIG.simple.enabled = true;
-    CONFIG.cards.enabled = false;        // no carousel, no hand, no drafts — the whole card layer
+    CONFIG.cards.enabled = false;
+    simpleResetRun();                    // a fresh run: empty wallet, nothing bought        // no carousel, no hand, no drafts — the whole card layer
     setMode('realtime');
     setGame('campaign');                 // ...on the campaign's authored maps, as #rt does
     bootSandbox = false; playtestLevel = null;
