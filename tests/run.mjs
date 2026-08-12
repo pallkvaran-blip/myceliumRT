@@ -31,6 +31,7 @@ const CHECKS = [
   ['feel',      'feel-check.cjs',    70,  false],
   ['hover',     'hover-check.cjs',   30,  false],
   ['reveal',    'reveal-check.cjs',  45,  false],
+  ['hudtop',    'hudtop-check.cjs',  70,  false],
   ['boot',      'boot-check.cjs',    60,  false],
   ['hs',        'hs-check.cjs',      35,  false],
   ['store',     'store-check.cjs',   35,  false],

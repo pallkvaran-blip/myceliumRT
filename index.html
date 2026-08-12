@@ -191,6 +191,26 @@
     /* Settings: a gear button sits to the RIGHT of the resource pill (log + mute now
        live in its menu, alongside Replay tutorial + the Sensing-range lighting toggle). */
     .hudtop { display: flex; align-items: center; gap: 8px; }
+    /* TWO CORNERS, ONE BAND, AND NOTHING BETWEEN THEM RESERVING A GUTTER. The left cluster
+       (.hud → resource pill + gear) is absolute against `left` and shrink-to-fit with no
+       max-width; the Actions dock is absolute against `right`. They collide on a narrow portrait
+       screen exactly when the player has BOTH kinds of card installed, because each side is what
+       makes the other's half wider: an income engine adds a "+N–M" to every resource on the pill,
+       and an installed ability is what puts the red pill on the right AT ALL. Measured at 844
+       tall: at 390 the GEAR sat 20px under the Actions pill, at 360 the pill itself 10px under it
+       and the gear 32px; a 414 phone fits with room to spare.
+       `_syncTopRow()` measures the real gap and steps the row down through these tiers until it
+       fits, so nothing here has to be kept in step with a media query and a wide phone pays
+       nothing. Order matters: the income deltas go first because they are the only thing on the
+       pill that is repeated in full in the ledger underneath. */
+    .hudtop.compact { gap: 6px; }
+    .hudtop.compact .res .rd { display: none; }
+    .hudtop.compact .resrow { gap: 6px; padding: 7px 6px 7px 9px; }
+    .hudtop.compact .res { padding: 0 2px; }
+    .hudtop.tight { flex-wrap: wrap; }
+    .hudtop.tight .resrow { gap: 4px; padding: 6px 5px 6px 8px; }
+    .hudtop.tight .res .rv { font-size: 14px; }
+    .hudtop.tight .res .ri { width: 14px; height: 14px; }
     /* Gear circle is smaller than the resource pill (which is 40px tall) and vertically
        centred against it — the icon inside keeps its 18px size, just a tighter ring. */
     .gearbtn { color: var(--ink); background: rgba(127,230,163,0.12);
@@ -23396,6 +23416,7 @@ class UI {
       + `</div>`
       + `<div class="logdrop hidden" id="logdrop"><div class="loglist" id="loglist"></div></div>`;
     root.appendChild(hud);
+    this.el.hudtop = hud.querySelector('.hudtop');   // _syncTopRow measures this against the Actions pill
     this.el.logdrop = hud.querySelector('#logdrop');
     this.el.loglist = hud.querySelector('#loglist');
     this.el.settingsmenu = hud.querySelector('#settingsmenu');
@@ -23535,7 +23556,20 @@ class UI {
       this.el.offermin.title = 'Finish your draft — click to choose a card';
       this.el.offermin.onclick = () => this.restoreOffer();
       root.appendChild(this.el.offermin);
-      window.addEventListener('resize', () => { if (this._offerMin) this._positionOfferMin(); this._syncPanelHeights(); });
+      // ...and the one-drop-down-at-a-time rule has to hold on ROTATION too, not only on a tap.
+      // It lived in toggleLedger / toggleActions / setLogOpen, all of which test the width at
+      // CLICK time, while the initial state is decided once at build — so a phone turned from
+      // landscape (innerWidth 844, both panels pinned open) to portrait arrived with both open,
+      // and the ledger (min(80vw,260px)) and the Actions menu (266px) cannot both fit under 1330.
+      // The ledger wins because it is the one attached to the pill the player is looking at.
+      window.addEventListener('resize', () => {
+        if (this._offerMin) this._positionOfferMin();
+        if (window.innerWidth < 760 && this.ledgerOpen && this.actionsOpen) {
+          this.actionsOpen = false;
+          this._renderActions();
+        }
+        this._syncPanelHeights();
+      });
       // Tempo-upgrade picker: "which installed ability should this speed up?"
       this.el.pick = div('offer pick hidden');
       root.appendChild(this.el.pick);
@@ -23860,6 +23894,45 @@ class UI {
       const top = p.getBoundingClientRect().top;
       p.style.maxHeight = Math.max(120, Math.round(floor - top - 10)) + 'px';
     }
+    this._syncTopRow();
+  }
+
+  // The top band is two clusters anchored to OPPOSITE CORNERS with nothing between them
+  // reserving a gutter — the resource pill + gear on the left, the Actions pill on the right —
+  // so on a narrow portrait screen the left one runs under the right one. Step the left cluster
+  // down through the compaction tiers in the stylesheet until it fits the gap.
+  //
+  // MEASURED, not keyed to a media query, because what has to fit is not a property of the
+  // screen: the pill widens with an income engine installed (a "+N–M" per resource), with a
+  // four-digit stock, and with the line-of-sight button, while the Actions pill's own width
+  // moves with its badge. A phone wide enough for all of it is left alone.
+  _syncTopRow() {
+    const top = this.el.hudtop, btn = this.el.actbtn;
+    if (!top) return;
+    // This runs on every HUD refresh — twice a second in real time — and a
+    // measure → classList → re-measure cycle is two forced reflows. Nothing about the fit can
+    // change unless the viewport, the pill's own text, or what is on the right does, so the
+    // work is done only when one of those does.
+    const dockOn = !!btn && !(this.el.actdock && this.el.actdock.classList.contains('hidden'));
+    const sig = window.innerWidth + '|' + top.textContent + '|' + (dockOn ? 1 : 0)
+      + '|' + (this.el.losbtn && !this.el.losbtn.classList.contains('hidden') ? 1 : 0);
+    if (sig === this._topSig) return;
+    this._topSig = sig;
+    top.classList.remove('compact', 'tight');
+    top.style.maxWidth = '';
+    if (!dockOn) return;                          // nothing on the right to collide with
+    // Against the BUTTON, not the dock: the dock is a right-aligned column that also holds the
+    // open Actions menu, which is 266px wide and hangs BELOW this band — measuring the column
+    // would compact the row to dodge something that is not beside it.
+    const GUTTER = 8;
+    const avail = Math.round(btn.getBoundingClientRect().left - top.getBoundingClientRect().left) - GUTTER;
+    if (avail <= 0 || top.scrollWidth <= avail) return;
+    top.classList.add('compact');
+    if (top.scrollWidth <= avail) return;
+    // Last resort: cap the row and let it WRAP rather than overlap. The cap is on .hudtop and
+    // not on .hud, so the ledger hanging underneath keeps its own width.
+    top.classList.add('tight');
+    top.style.maxWidth = avail + 'px';
   }
 
   setHint(text) {
