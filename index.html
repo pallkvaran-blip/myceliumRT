@@ -22910,13 +22910,16 @@ class NetworkRenderer {
     let count = 0;
     for (const n of nodes) if (!n._revSeen) count++;
     if (count === 0) return;
-    const k = this._revScale();
-    const spread = Math.min(REVEAL_SPREAD_MAX, Math.max(REVEAL_SPREAD_MIN, count * 55)) * k;
+    // NOT `k` — this function already has one, and it is the stagger INDEX below. Naming the
+    // scale `k` too was a redeclaration in the same scope: a syntax error, which in a single
+    // inline <script> means the whole game fails to parse and nothing boots at all.
+    const revK = this._revScale();
+    const spread = Math.min(REVEAL_SPREAD_MAX, Math.max(REVEAL_SPREAD_MIN, count * 55)) * revK;
     let k = 0;
     for (const n of nodes) {                    // array order = base→tip among the new nodes
       if (n._revSeen) continue;
       n._appearAt = time + (k / count) * spread;
-      n._liveAt = n._appearAt + REVEAL_SEG * k;   // physically there only once it has finished growing in
+      n._liveAt = n._appearAt + REVEAL_SEG * revK;   // physically there only once it has finished growing in
       if (n._liveAt > (net._arriveUntil || 0)) net._arriveUntil = n._liveAt;
       net._colonizePending = true;
       n._revSeen = true;
