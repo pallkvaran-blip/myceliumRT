@@ -18265,22 +18265,24 @@ function isLevel(o) {
 //   CORE_LINE_DEPTH   surface -> the molten line, and the whole playable depth: the line sits
 //                     on the content box's floor, so this IS the box.
 //   CORE_TOTAL_DEPTH  surface -> the very bottom. The remainder is the red band, held as
-//                     `bottomBuffer`. DEEPENED TWICE, both owner asks and both of the BAND
-//                     rather than of the total: +10% took 978 -> 1076 (total 2608 -> 2706), then
-//                     +20% takes 1076 -> 1291 (total 2706 -> 2921). The playable box is untouched
-//                     by both. The red is what a phone in portrait scrolls THROUGH: a deeper band
+//                     `bottomBuffer`. DEEPENED THREE TIMES, all owner asks and all of the BAND
+//                     rather than of the total: +10% took 978 -> 1076 (total 2608 -> 2706), +20%
+//                     took 1076 -> 1291 (-> 2921), and +10% again takes 1291 -> 1420 (-> 3050).
+//                     The playable box is untouched by every one of them. The red is what a phone in portrait scrolls THROUGH: a deeper band
 //                     is what lets the whole play area sit clear of the card carousel at the
 //                     bottom of the screen.
 //                     BUFFER rather than cells — the colony cannot cross the line, so rows
 //                     down there would be grid nobody can reach.
 //                     IT ALSO MOVES THE ZOOM FLOOR, which is the thing to check after changing
 //                     it: `minZoomForBounds` is viewH/worldH, so a taller world zooms further
-//                     out — on a 390x844 phone the fit went 0.243 -> 0.230 across this change.
+//                     out, and on a phone that is what lifts the play area clear of the cards.
+//                     Measured at 390x844 on 2-obsidian, core line vs the carousel's top edge
+//                     (539): band 978 -> y 568 (behind the cards), 1291 -> 514, 1420 -> 504.
 //
 // Art below the line would be clipped by the core; at 1956 the deepest map (1188) clears it
 // with room to spare, so nothing is trimmed.
 const CORE_LINE_DEPTH = 1630;
-const CORE_TOTAL_DEPTH = 2921;   // RED BAND 978 -> 1076 (+10%) -> 1291 (+20%); see below
+const CORE_TOTAL_DEPTH = 3050;   // RED BAND 978 -> 1076 (+10%) -> 1291 (+20%) -> 1420 (+10%); see below
 const CORE_BOX_DEPTH = CORE_LINE_DEPTH;
 
 // A clone of `config` with the level's world box applied. The rest of CONFIG
@@ -31004,6 +31006,41 @@ function focusBounds(b, pad = 80) {
   const z = Math.max(camera.minZoom, Math.min(camera.maxZoom, Math.min(camera.viewW / (w + pad * 2), camera.viewH / (h + pad * 2))));
   focusWorld((b.minX + b.maxX) / 2, (b.minY + b.maxY) / 2, z);
 }
+// THE SURVEY VIEW: as far out as this map allows, parked at its top-left corner. One
+// definition, two callers — the phone's opening view in begin(), and the camera the tutorial
+// hands the map back at — so those can never drift into being two slightly different views.
+//
+// It works out clamp()'s own answer rather than calling it, because the ANIMATED path needs the
+// destination before the camera goes there. The rule is clamp()'s: put the view's left/top edge
+// on the world's, and centre an axis the view already covers whole (in portrait, the vertical
+// one — so "top" and "all of it" are the same picture).
+function surveyCamera() {
+  const z = camera.minZoomForBounds();
+  const b = camera.bounds;
+  if (!b) return { x: camera.x, y: camera.y, zoom: z };
+  const halfW = camera.viewW / (2 * z), halfH = camera.viewH / (2 * z);
+  return {
+    zoom: z,
+    x: (b.maxX - b.minX) <= 2 * halfW ? (b.minX + b.maxX) / 2 : b.minX + halfW,
+    y: (b.maxY - b.minY) <= 2 * halfH ? (b.minY + b.maxY) / 2 : b.minY + halfH,
+  };
+}
+// `animate` PULLS BACK over the tutorial's own 640ms easing, which is what the end of the
+// walkthrough wants — a cut from a zoomed-in step to the whole map reads as a different screen.
+// A run START snaps instead: there is nothing on screen yet to move away from.
+function toSurveyView(animate) {
+  const s = surveyCamera();
+  if (animate) {
+    camFocus = { fromX: camera.x, fromY: camera.y, fromZoom: camera.zoom,
+      toX: s.x, toY: s.y, toZoom: s.zoom, t0: performance.now(), dur: 640 };
+  } else {
+    camFocus = null;            // a tween left running would drag the camera straight back off
+    camera.x = s.x; camera.y = s.y; camera.zoom = s.zoom;
+    camera.clamp();
+  }
+  uiDirty = true;
+}
+
 function updateCamFocus(time) {
   if (!camFocus) return;
   const t = Math.min(1, (time - camFocus.t0) / camFocus.dur);
@@ -31127,7 +31164,22 @@ function tutorialDeps() {
     // tell "the tutorial is too long" from "step 4 is broken", and the two want opposite fixes.
     // `n` is the step INDEX so the curve is orderable; `detail` names it for readability.
     onStep: (i, total) => logEvent('tutorial', { detail: 'step', n: i, level: currentLevel }),
-    onEnd: (why, i, total) => logEvent('tutorial', { detail: why, n: i, level: currentLevel }),
+    onEnd: (why, i, total) => {
+      logEvent('tutorial', { detail: why, n: i, level: currentLevel });
+      // HAND THE MAP BACK AS A SURVEY (owner: finishing the walkthrough, or pressing End on any
+      // step, should leave you at the zoomed-out top-left view). The tutorial spends its whole
+      // length framed on one thing at a time, so without this the player is left wherever the
+      // last step happened to be looking — which after the mould step is a cloud in the middle
+      // of nowhere. Animated, over the same 640ms the tutorial's own moves use, so it reads as
+      // the camera pulling back rather than as a different screen.
+      //
+      // ON `onEnd`, NOT `onDone`, and that is load-bearing: the controller exports
+      // `destroy: finish`, so onDone ALSO fires when a level change tears the tutorial down —
+      // and begin() sets that level's own opening camera immediately afterwards, which a
+      // pull-back tween started here would then animate away from. `why` is passed only by the
+      // two exits the owner named ('done' and 'skip'); destroy() passes none.
+      toSurveyView(true);
+    },
   };
 }
 
@@ -31611,6 +31663,10 @@ function begin(newState) {
   // x across the full world width) so panning/zooming never reveals the empty
   // background beyond the map's edges. viewHeight includes the bottom dirt buffer.
   camera.setWorldBounds(0, 0, state.substrate.worldWidth, state.substrate.viewHeight);
+  // Any camera tween from the run before this one is dead. It would otherwise keep easing
+  // toward a point in the PREVIOUS map, straight over whichever opening view is chosen below —
+  // the tutorial's pull-back is the one that can still be in flight when a level ends.
+  camFocus = null;
   if (state.mode === 'puzzle') {
     // show the whole level so the layout (rocks, food, chest, mould) reads;
     // pad the sides so the start (far left) and chest (far right) aren't jammed
@@ -31624,16 +31680,11 @@ function begin(newState) {
     // are, and has to pinch out before the level means anything. Opening at the floor zoom shows
     // as much of the map as the screen can hold, and the corner is where the run starts.
     //
-    // `minZoomForBounds()` is the floor the camera would clamp to anyway (viewW/worldW and
-    // viewH/worldH, whichever is larger), so this is "as far out as this map allows" rather than
-    // a number that could stop matching a map. Setting x/y to the origin and letting clamp() do
-    // the work parks the VIEW's left/top edge on the world's, and centres an axis the view
-    // already covers whole — which on a portrait phone is the vertical one, so "top" and
-    // "all of it" are the same picture there.
-    camera.zoom = camera.minZoomForBounds();
-    camera.x = 0;
-    camera.y = 0;
-    camera.clamp();
+    // `surveyCamera()` works out that view (the floor zoom the camera would clamp to anyway, and
+    // the corner clamp() would park it in), and the TUTORIAL'S EXIT hands the map back at the
+    // same one — one definition, so the opening view and the view the walkthrough returns you to
+    // cannot drift apart.
+    toSurveyView(false);
   } else {
     // Start focused on the colony's entry point so the player sees their network
     // immediately (they can zoom out / pan to survey the route). Centre on the

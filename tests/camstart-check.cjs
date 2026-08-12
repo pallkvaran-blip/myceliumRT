@@ -31,11 +31,11 @@ let pass = 0, fail = 0;
 const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — ' + x : '')))
                             : (fail++, console.log('  FAIL  ' + n + (x ? '  — ' + x : ''))); };
 
-// The band as the owner set it. Pinned because it is a decision, not a derivation — the two
-// deepenings were +10% and then +20% OF THE BAND, and a future "+N%" has to start from the
-// number that is actually shipped.
-const BAND_WAS = 1076;          // before this change (itself 978 +10%)
-const BAND_NOW = 1291;          // 1076 + 20%
+// The band as the owner set it. Pinned because it is a decision, not a derivation — the
+// deepenings were +10%, then +20%, then +10% OF THE BAND each time, and a future "+N%" has to
+// start from the number that is actually shipped.
+const BAND_ORIG = 978;          // where the ladder started
+const BAND_NOW = 1420;          // 978 -> 1076 (+10%) -> 1291 (+20%) -> 1420 (+10%)
 
 const boot = async (ctx, url, w, h) => {
   const p = await ctx.newPage();
@@ -94,8 +94,8 @@ ok('the map has a core to measure', v.coreY != null && v.coreY > v.surfaceY,
    `surface ${Math.round(v.surfaceY)}, core ${Math.round(v.coreY)}`);
 ok('the playable box is untouched by the change', Math.round(v.coreY - v.surfaceY) === v.lineDepth,
    `${Math.round(v.coreY - v.surfaceY)} deep vs CORE_LINE_DEPTH ${v.lineDepth}`);
-ok('the red band is 20% deeper than it was', (v.totalDepth - v.lineDepth) === BAND_NOW,
-   `${v.totalDepth - v.lineDepth} (was ${BAND_WAS}; +${(((v.totalDepth - v.lineDepth) / BAND_WAS - 1) * 100).toFixed(1)}%)`);
+ok('the red band is where the deepenings left it', (v.totalDepth - v.lineDepth) === BAND_NOW,
+   `${v.totalDepth - v.lineDepth} (from ${BAND_ORIG}; +${(((v.totalDepth - v.lineDepth) / BAND_ORIG - 1) * 100).toFixed(1)}% over three asks)`);
 ok('...and the band is what you scroll through, not cells',
    Math.round(v.scrollH - v.worldH) === (v.totalDepth - v.lineDepth),
    `scrollable ${Math.round(v.scrollH)} - world ${Math.round(v.worldH)} = ${Math.round(v.scrollH - v.worldH)}`);
@@ -116,13 +116,79 @@ ok('the colony start is on screen where it opens', v.rootX != null && v.rootX >=
 // 1076 the line sat below that edge, i.e. the bottom of the play area was behind the cards.
 ok('the card carousel is on screen to measure against', v.handTop != null && v.handTop > 0,
    v.handTop != null ? `cards start at y ${Math.round(v.handTop)}` : 'no .handbar');
-const oldScroll = v.scrollH - BAND_NOW + BAND_WAS;
+// Against the ORIGINAL band, not the previous one: by 1291 the line already cleared the cards,
+// so a control against that would assert nothing. 978 is where the ladder started and where the
+// line was still behind them.
+const oldScroll = v.scrollH - BAND_NOW + BAND_ORIG;
 const oldZoom = Math.max(v.viewW / v.worldW, v.viewH / oldScroll);
 const oldCoreScreenY = (v.coreY - oldScroll / 2) * oldZoom + v.viewH / 2;
 ok('the whole play area now sits clear of the cards', v.coreScreenY < v.handTop,
    `core line at y ${v.coreScreenY.toFixed(1)}, cards start at ${Math.round(v.handTop)}`);
-ok('control: at the old band it did NOT', oldCoreScreenY >= v.handTop,
-   `would have been y ${oldCoreScreenY.toFixed(1)} vs cards at ${Math.round(v.handTop)}`);
+ok('control: at the original band it did NOT', oldCoreScreenY >= v.handTop,
+   `band ${BAND_ORIG} would have put it at y ${oldCoreScreenY.toFixed(1)} vs cards at ${Math.round(v.handTop)}`);
+
+// ---- ...and the tutorial hands the map back at that same view -------------------------
+// Owner: finishing the walkthrough, or pressing End on any step, should leave you at the
+// zoomed-out top-left view. The tutorial frames one thing at a time, so without this you are
+// left wherever its last step was looking.
+const tut = await ph.evaluate(async () => {
+  const g = window.__game, cam = g.camera;
+  const survey = { x: cam.x, y: cam.y, zoom: cam.zoom };     // it is sitting there right now
+  g.startTutorial();
+  await new Promise((r) => setTimeout(r, 400));
+  // Frame something the way a step does, so there is a real move to come back from.
+  const root = g.state.networks[0] && g.state.networks[0].nodes[0];
+  cam.zoom = 1.6; cam.x = root ? root.x + 600 : 900; cam.y = g.state.substrate.surfaceY + 500;
+  cam.clamp();
+  const moved = { x: cam.x, y: cam.y, zoom: cam.zoom };
+  const btn = document.getElementById('tutEnd');
+  const had = !!(btn && window.__game.tutorial);
+  if (btn) btn.click();                                      // the End button on a tutorial step
+  await new Promise((r) => setTimeout(r, 1200));             // the pull-back eases over 640ms
+  return { had, survey, moved, after: { x: cam.x, y: cam.y, zoom: cam.zoom },
+           stillRunning: !!(g.tutorial && g.tutorial.active) };
+});
+ok('the tutorial was running and offered End', tut.had === true, JSON.stringify(tut.had));
+ok('...the probe really moved the camera off the survey view first',
+   Math.abs(tut.moved.zoom - tut.survey.zoom) > 0.2, `zoom ${tut.survey.zoom.toFixed(3)} -> ${tut.moved.zoom.toFixed(3)}`);
+ok('pressing End returns to the survey zoom', Math.abs(tut.after.zoom - tut.survey.zoom) < 1e-3,
+   `zoom ${tut.after.zoom.toFixed(4)} vs ${tut.survey.zoom.toFixed(4)}`);
+ok('...and to the same corner', Math.abs(tut.after.x - tut.survey.x) < 1 && Math.abs(tut.after.y - tut.survey.y) < 1,
+   `(${Math.round(tut.after.x)}, ${Math.round(tut.after.y)}) vs (${Math.round(tut.survey.x)}, ${Math.round(tut.survey.y)})`);
+ok('...and the tutorial is over', tut.stillRunning === false, `running=${tut.stillRunning}`);
+
+// FINISHING it walks the same exit — `finish('done')` and `finish('skip')` are one function, and
+// both carry a `why`, which is what tells them from the teardown a level change does.
+const fin = await ph.evaluate(async () => {
+  const g = window.__game, cam = g.camera;
+  const survey = { x: cam.x, y: cam.y, zoom: cam.zoom };
+  g.startTutorial();
+  await new Promise((r) => setTimeout(r, 400));
+  cam.zoom = 1.8; cam.x = 1400; cam.y = g.state.substrate.surfaceY + 700; cam.clamp();
+  // WAIT FOR THE CAMERA TO BE STILL FIRST. The tutorial's own first step frames its subject with
+  // a 640ms tween, and that tween keeps easing over anything the probe sets — the first version
+  // of this assertion read 0.675 and blamed destroy(), which had not touched the camera at all.
+  // Two agreeing samples, then the teardown.
+  let prev = null, held = null;
+  for (let i = 0; i < 40; i++) {
+    const now = { x: cam.x, y: cam.y, zoom: cam.zoom };
+    if (prev && Math.abs(prev.zoom - now.zoom) < 1e-6 && Math.abs(prev.x - now.x) < 0.01) { held = now; break; }
+    prev = now;
+    await new Promise((r) => setTimeout(r, 150));
+  }
+  const t = g.tutorial;
+  // destroy IS finish() — but with no `why`, so it must NOT move us: a level change sets its own
+  // opening camera a moment later, and a pull-back started here would animate away from it.
+  if (t) t.destroy();
+  await new Promise((r) => setTimeout(r, 900));
+  return { survey, held, after: { x: cam.x, y: cam.y, zoom: cam.zoom } };
+});
+ok('the camera settled before the teardown was measured', !!fin.held,
+   fin.held ? `held at zoom ${fin.held.zoom.toFixed(3)}` : 'never settled');
+ok('a tutorial torn down by a LEVEL CHANGE does not move the camera',
+   !!fin.held && Math.abs(fin.after.zoom - fin.held.zoom) < 1e-6
+     && Math.abs(fin.after.zoom - fin.survey.zoom) > 0.2,
+   `zoom stayed ${fin.after.zoom.toFixed(3)} (survey would be ${fin.survey.zoom.toFixed(3)})`);
 
 await ph.screenshot({ path: path.join(__dirname, '.artifacts', 'camstart-phone.png'),
   animations: 'disabled', timeout: 8000 }).catch(() => {});
