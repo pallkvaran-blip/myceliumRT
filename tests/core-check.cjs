@@ -45,7 +45,10 @@ const b=await chromium.launch({headless:true,executablePath:'/opt/pw-browsers/ch
 
 // ---- an authored map has a core -------------------------------------------
 let ctx=await b.newContext({viewport:{width:1400,height:800}});
-await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
+// The rock EDITOR is what stamps the deep-row assets below, and its panel only exists while
+// the on-map dev buttons do — they are off by default now (CONFIG.dev.inGameButtons), so this
+// opts back in. Without it `#eeApply` is null and the check dies before its first assertion.
+await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};window.MYCELIUM_DEV_BUTTONS=true;});
 let p=await boot(ctx, base+'/index.html#level,slate-c40');
 
 const geom=await p.evaluate(()=>{const s=window.__game.state.substrate;
@@ -237,7 +240,7 @@ await ctx.close();
 // instead: levelForNumber finds no JSON claiming slot 11, so start() falls through to
 // createState and the map really is generated. (Same trap ant-rock-check hit, one slot up.)
 ctx=await b.newContext({viewport:{width:1400,height:800}});
-await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
+await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};window.MYCELIUM_DEV_BUTTONS=true;});
 p=await boot(ctx, base+'/index.html#dev,turn');
 const proc=await p.evaluate(async ()=>{
   const g=window.__game;
@@ -259,7 +262,7 @@ off.id='core-off'; off.name='Core Off'; off.chapter='Chapter 1';
 off.assetsFrom='slate-c40'; off.campaignLevel=null;
 off.world=Object.assign({}, off.world, {coreDepthFrac:null});
 ctx=await b.newContext({viewport:{width:1400,height:800}});
-await ctx.addInitScript((c)=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};
+await ctx.addInitScript((c)=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};window.MYCELIUM_DEV_BUTTONS=true;
   try{localStorage.setItem('mycelium.savedLevels.v1',JSON.stringify([c]));}catch(_){}}, off);
 p=await boot(ctx, base+'/index.html#level,core-off');
 const noCore=await p.evaluate(()=>{const s=window.__game.state.substrate;
