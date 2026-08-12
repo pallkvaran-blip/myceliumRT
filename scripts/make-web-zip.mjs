@@ -149,12 +149,39 @@ if (PLATFORM === 'crazygames') {
 // It is a BUILD-TIME prune, never a deletion. Every one of those maps is still in the repo and
 // still reachable in development; CLAUDE.md's "deleting a level is three deletions" does not apply
 // because nothing is being deleted.
+//
+// AND SURVIVAL IS WITHDRAWN, so its maps are not reachable either. `OFFER_SURVIVAL` is false in
+// index.html: the title screen renders the campaign-only menu, and the survival resume path is
+// left reachable only through a `window.__game` hook a check drives. That was 12 folders and 488
+// files of art nobody could open — the biggest single thing in the zip after the campaign itself.
+//
+// THE FLAG IS READ OUT OF index.html RATHER THAN REPEATED HERE. Restoring survival is meant to be
+// one constant; having to remember a second edit in the build is how a restored mode ships with
+// 404s for all its art. It FAILS rather than guessing if the declaration moves — the same
+// discipline as the dev anchor above, and the two ways of guessing wrong are "ship 488 files
+// nobody can open" and "ship a mode whose maps are missing".
+const OFFER_SURVIVAL = (() => {
+  const m = /\bconst OFFER_SURVIVAL = (true|false);/.exec(html);
+  if (!m) {
+    console.error('FAILED: could not find `const OFFER_SURVIVAL = <bool>;` in index.html.\n' +
+                  'The declaration has moved — fix this script rather than guessing which maps ship.');
+    process.exit(2);
+  }
+  return m[1] === 'true';
+})();
 const levelsDir = path.join(ROOT, 'docs', 'levels');
 const reachable = new Set();
+// Counted as FOLDERS, not as level files: several survival levels share one `assetsFrom`, so the
+// file count (17) overstates what is actually pruned (12 folders) and would not tally with the
+// reachable count on the next line.
+const survivalOnly = new Set();
 for (const f of fs.readdirSync(levelsDir).filter((n) => n.endsWith('.json'))) {
   const def = JSON.parse(fs.readFileSync(path.join(levelsDir, f), 'utf8'));
-  if (def.campaignLevel || def.survival) reachable.add(def.assetsFrom || def.id);
+  if (def.campaignLevel) reachable.add(def.assetsFrom || def.id);
+  else if (def.survival) { if (OFFER_SURVIVAL) reachable.add(def.assetsFrom || def.id); else survivalOnly.add(def.assetsFrom || def.id); }
 }
+for (const k of reachable) survivalOnly.delete(k);   // a folder a campaign level also uses is not pruned
+say(`survival: ${OFFER_SURVIVAL ? 'OFFERED — its maps ship' : `withdrawn — ${survivalOnly.size} survival-only folder(s) pruned`}`);
 say(`levels a public build can reach: ${reachable.size} folders`);
 
 fs.rmSync(STAGE, { recursive: true, force: true });

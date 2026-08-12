@@ -27,6 +27,12 @@ const { execFileSync } = require('child_process');
 const { chromium } = require('playwright');
 
 const ROOT = path.resolve(__dirname, '..');
+// Does this build offer survival at all? The one constant that decides it lives in index.html.
+const OFFERS_SURVIVAL = (() => {
+  const m = /\bconst OFFER_SURVIVAL = (true|false);/.exec(fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8'));
+  if (!m) throw new Error('could not find `const OFFER_SURVIVAL = <bool>;` in index.html');
+  return m[1] === 'true';
+})();
 // Which artefact to check. There are two targets now (itch and crazygames), and a gate that can
 // only ever look at one of them is a gate the other ships around.
 //   node tests/itchzip-check.cjs                     -> dist/mycelium-itch.zip
@@ -88,7 +94,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const want = [];
     for (const f of fs.readdirSync(levelsDir).filter((n) => n.endsWith('.json'))) {
       const def = JSON.parse(fs.readFileSync(path.join(levelsDir, f), 'utf8'));
-      if (def.campaignLevel || def.survival) want.push({ id: def.id, from: def.assetsFrom || def.id });
+      // Survival's maps ship only while survival is OFFERED — the build prunes them otherwise, so
+      // asking for them here would fail a correct build. Read from index.html for the same reason
+      // the build does: one constant restores the mode, and this must follow it.
+      if (def.campaignLevel || (OFFERS_SURVIVAL && def.survival)) want.push({ id: def.id, from: def.assetsFrom || def.id });
     }
     const missing = want.filter((w) => !entries.some((e) => e.startsWith('assets/' + w.from + '/')));
     ok(`every reachable level's art is in the zip (${want.length} levels)`,
