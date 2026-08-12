@@ -31222,17 +31222,49 @@ function toSurveyView(animate) {
 
 // SIMPLE MODE: A RED PILE OFFERS AN UPGRADE (owner). It takes the DRAFT'S place — same beat, same
 // stopped clock — but the three choices are about growing rather than about cards, because there
-// are none. Detected exactly the way `checkPileRewards` detects a draft: a pile that is claimed
-// and emptied, paid once (`rewarded`), and only to tissue that is actually still there
-// (`cleanCover` — a claim outlives the mycelium that made it).
+// are none. Found exactly the way `checkPileRewards` finds a draft: a pile claimed and emptied,
+// paid once, and only to tissue that is actually still there (`cleanCover` — a claim outlives the
+// mycelium that made it). Red only: yellow and orange pay energy and nothing else.
 //
-// Red only: yellow and orange pay energy and nothing else, so the colours mean three different
-// things rather than three sizes of the same thing.
-let simpleOffer = null;
+// THE ORDER IS THE WHOLE POINT (owner): grow into the pile → THE GROWTH FINISHES DRAWING → time
+// stops → the red heap fades → the choice appears. Firing on the world tick that empties the pile
+// put the panel up over a filament still extending, with the clock stopped mid-animation.
+//
+// So it is a three-beat machine rather than a test:
+//   held    — the pile is spoken for; its heap stays FULL (`draftHeld`, the card draft's own
+//             flag) so it does not quietly vanish while the growth is still arriving.
+//   pending — the growth has finished, the clock is stopped, and the heap is FADING
+//             (`_fadeAt`, again the draft's own mechanism, over LEAF_FADE_MS).
+//   offer   — the panel is up and waiting for a click.
+// `simPaused` reads the last two, so time stops when the fade starts and not before.
+let simpleOffer = null;      // the panel, once it is up
+let simpleHeld = null;       // a finished red pile, waiting for the growth to finish drawing
+let simplePending = null;    // { pile, at } — the fade beat between the two
+const SIMPLE_FADE_BEAT = 420;   // ms of visible fade before the panel covers it (LEAF_FADE_MS is longer)
+
 function simpleCheckUpgradeOffer() {
   if (!SIMPLE() || simpleOffer || !state || state.runOver) return;
   const sub = state.substrate, net = state.active;
   if (!sub || !sub.foodPiles || !net || !net.alive) return;
+
+  // Beat 3: the fade has been running long enough to read — put the choice up.
+  if (simplePending) {
+    if (lastTime - simplePending.at >= SIMPLE_FADE_BEAT) { simplePending = null; showSimpleUpgrade(); }
+    return;
+  }
+  // Beat 2: the growth has finished drawing. Stop the clock, start the heap fading.
+  if (simpleHeld) {
+    let revealing = false;
+    try { revealing = anyRevealing(lastTime); } catch (_) {}
+    if (revealing) return;
+    simpleHeld.draftHeld = false;
+    simpleHeld._fadeAt = lastTime;
+    simplePending = { pile: simpleHeld, at: lastTime };
+    simpleHeld = null;
+    uiDirty = true;
+    return;
+  }
+  // Beat 1: has a red pile just been finished off?
   let cover = null;
   for (const pile of sub.foodPiles) {
     if (pile.rewarded || pile.simpleRewarded) continue;
@@ -31248,7 +31280,8 @@ function simpleCheckUpgradeOffer() {
     if (!cover) cover = net.cleanCover(sub);
     if (!pile.cells.some((i) => cover.covers(i))) continue;          // ...by tissue still alive
     pile.simpleRewarded = true;
-    showSimpleUpgrade();
+    pile.draftHeld = true;      // hold the heap while the growth that ate it is still drawing
+    simpleHeld = pile;
     return;
   }
 }
@@ -33093,8 +33126,9 @@ function simPaused() {
   // only stops when the cards are actually on screen waiting to be chosen.
   const c = state.cards;
   if (c && c.pendingOffers && c.pendingOffers.length && draftSequenceStarted(c.pendingOffers[0])) return true;
-  // SIMPLE MODE's red-pile offer is that rule's twin: time stops while you choose (owner).
-  if (simpleOffer) return true;
+  // SIMPLE MODE's red-pile offer is that rule's twin: time stops while you choose (owner) — and
+  // from the moment the heap starts fading, which is the beat before the panel appears.
+  if (simpleOffer || simplePending) return true;
   // Non-gameplay overlays: the "Level N" intro, the scripted tutorial, full-screen menus.
   if (pendingLevelIntro || levelIntro || victoryScreen) return true;
   // The tutorial freezes the clock so the player can read — except on a step marked `live`,
