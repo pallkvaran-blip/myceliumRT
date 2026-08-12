@@ -18265,17 +18265,22 @@ function isLevel(o) {
 //   CORE_LINE_DEPTH   surface -> the molten line, and the whole playable depth: the line sits
 //                     on the content box's floor, so this IS the box.
 //   CORE_TOTAL_DEPTH  surface -> the very bottom. The remainder is the red band, held as
-//                     `bottomBuffer`. DEEPENED BY 10% (owner) — 978 -> 1076, so the total goes
-//                     2608 -> 2706 while the playable box is untouched. The red is what a phone in
-//                     portrait scrolls THROUGH: a deeper band is what lets the whole play area sit
-//                     clear of the card carousel at the bottom of the screen.
+//                     `bottomBuffer`. DEEPENED TWICE, both owner asks and both of the BAND
+//                     rather than of the total: +10% took 978 -> 1076 (total 2608 -> 2706), then
+//                     +20% takes 1076 -> 1291 (total 2706 -> 2921). The playable box is untouched
+//                     by both. The red is what a phone in portrait scrolls THROUGH: a deeper band
+//                     is what lets the whole play area sit clear of the card carousel at the
+//                     bottom of the screen.
 //                     BUFFER rather than cells — the colony cannot cross the line, so rows
 //                     down there would be grid nobody can reach.
+//                     IT ALSO MOVES THE ZOOM FLOOR, which is the thing to check after changing
+//                     it: `minZoomForBounds` is viewH/worldH, so a taller world zooms further
+//                     out — on a 390x844 phone the fit went 0.243 -> 0.230 across this change.
 //
 // Art below the line would be clipped by the core; at 1956 the deepest map (1188) clears it
 // with room to spare, so nothing is trimmed.
 const CORE_LINE_DEPTH = 1630;
-const CORE_TOTAL_DEPTH = 2706;   // 2608 -> +10% of the RED BAND (978 -> 1076); see below
+const CORE_TOTAL_DEPTH = 2921;   // RED BAND 978 -> 1076 (+10%) -> 1291 (+20%); see below
 const CORE_BOX_DEPTH = CORE_LINE_DEPTH;
 
 // A clone of `config` with the level's world box applied. The rest of CONFIG
@@ -31165,6 +31170,14 @@ function beginLevelTip(level) {
   uiDirty = true;
 }
 
+// "Is this a phone-shaped screen?" — the SAME 760 the HUD's own phone layout uses, deliberately,
+// so the camera and the interface can never disagree about which game this is. It reads
+// `window.innerWidth` rather than a media query for the reason mobile-check records: what decides
+// the layout is the FRAME the game is in (an itch iframe can be narrower than the device), and
+// that is the thing the camera has to fit a map into as well.
+const PHONE_VIEW_MAX = 760;
+function phoneView() { return window.innerWidth < PHONE_VIEW_MAX; }
+
 function begin(newState) {
   state = newState;
   if (state.mode !== 'puzzle') state.level = currentLevel;
@@ -31604,6 +31617,23 @@ function begin(newState) {
     // against the screen edges / under the HUD + dev panels.
     camera.fitBounds({ minX: -160, minY: state.substrate.surfaceY - 30,
       maxX: state.substrate.worldWidth + 160, maxY: state.substrate.worldHeight }, 30);
+  } else if (phoneView()) {
+    // PHONE: OPEN FULLY ZOOMED OUT, AT THE TOP LEFT (owner). A phone gets a third of the desktop's
+    // pixels, so the desktop opening — 0.85 zoom parked on the colony root — is a keyhole: the
+    // player starts inside their own colony with no idea where the food, the rock or the goal
+    // are, and has to pinch out before the level means anything. Opening at the floor zoom shows
+    // as much of the map as the screen can hold, and the corner is where the run starts.
+    //
+    // `minZoomForBounds()` is the floor the camera would clamp to anyway (viewW/worldW and
+    // viewH/worldH, whichever is larger), so this is "as far out as this map allows" rather than
+    // a number that could stop matching a map. Setting x/y to the origin and letting clamp() do
+    // the work parks the VIEW's left/top edge on the world's, and centres an axis the view
+    // already covers whole — which on a portrait phone is the vertical one, so "top" and
+    // "all of it" are the same picture there.
+    camera.zoom = camera.minZoomForBounds();
+    camera.x = 0;
+    camera.y = 0;
+    camera.clamp();
   } else {
     // Start focused on the colony's entry point so the player sees their network
     // immediately (they can zoom out / pan to survey the route). Centre on the
