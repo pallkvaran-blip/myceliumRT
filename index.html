@@ -2977,14 +2977,16 @@ const CONFIG = {
     // `#level,<id>` boots, the minimised carousel, the skipped level intro, the picker's dev
     // column, every window.__game hook).
     //
-    // TEMPORARY, and this line is the whole of it: set it back to `true` and the three buttons
-    // are back. The `]` / `[` map cycle and the keyboard shortcuts are not gated on it — they are
-    // invisible, which is the thing that was in the way.
+    // TEMPORARY, and this line is the whole of it. It went `false` while the owner played the
+    // game as a player sees it, and BACK TO `true` when they needed the buttons for testing on
+    // the Pages build — which serves this branch as-is, so the flag here is what that site gets.
+    // The `]` / `[` map cycle and the keyboard shortcuts are not gated on it either way; they are
+    // invisible, which is why they were never the thing in the way.
     //
     // A CHECK THAT HAS TO CLICK ONE OPTS IN with `window.MYCELIUM_DEV_BUTTONS = true` before
     // boot (same shape as MYCELIUM_SUPABASE): edit, mapmenu, surface and traced all do, because
     // they drive the editor and the map list through the real buttons.
-    inGameButtons: false,
+    inGameButtons: true,
     cheatEnergy: 100,
     cheatSpores: 100,
   },
