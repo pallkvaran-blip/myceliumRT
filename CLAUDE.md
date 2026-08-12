@@ -977,8 +977,8 @@ change, which is the recommended gear — the most recent runs, each 0 failed:
 Per-check, measured: traced 1190 (76 maps) · edit 118 · threat 114 · campaign 106 · rt 69 ·
 enemy 52 · survival 53 · challenge 50 · sky 45 · mode 39 · species 38 · ctreats 31 · harvest 28 ·
 level 27 · fixes 27 · scale 26 · tut 24 · ants 22 · mould 20 · hs 19 · titlecard 16 · boot 16 ·
-core 16 · cascade 16 · victory 13 · review 13 · water 11 · surface 11 · aim 9 · lure 8 · hover 6 ·
-turn-play 5 · ingame 4 · pill 4 —
+core 16 · cascade 16 · reveal 16 · victory 13 · review 13 · water 11 · surface 11 · aim 9 ·
+lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
 plus **store 97** and **itchzip 20**, measured on their own runs (`itchzip` is not in the runner at
 all — it needs a built zip). Note `aim` contributes **0 of its 9** inside a full sweep, because it
 bails to a zero-coverage pass there, so a sweep's arithmetic never adds up.
@@ -1261,6 +1261,32 @@ allocator. Run it after touching anything that caches per camera.
 - **The card carousel is DOM, not canvas, and it is fine.** Scrolling it while the world ticks
   rebuilt the strip on 0 of 40 frames at both zooms, at the same frame cost as standing still —
   `_handSig` deliberately excludes `scrollLeft`, and that holds.
+- **THE BATCHED LOD HAS TO LEAVE THE GROWING STRANDS OUT, or growth does not animate — and a
+  PHONE IS ALWAYS IN THAT LOD.** `detailAmt = smoothstep(0.42, 0.62, zoom) * (1 - smoothstep(1400,
+  1900, nodes))` picks `_strokeBatched` below zoom ~0.44, and that path draws from Path2Ds baked
+  in `_rebuildCaches` — which is triggered by the structure CHANGING, i.e. by the grow itself, so
+  new strands were baked complete before their first frame. Reported as *"growth is not animating
+  properly when zoomed out on phone"*, and the phone part is arithmetic: the fit zoom is
+  `max(minZoom, viewW/worldW, viewH/worldH)`, **0.23-0.28 at 390x844** against 0.434 at 1280x720,
+  so a phone zoomed out is never in detail mode. Any colony past ~1900 nodes was in the same place
+  at any zoom.
+  - The batch now skips strands that have not finished revealing (`_growingStrands`, identified by
+    the scheduler's own `_revSeen`), `_strokeGrowing` strokes those per-node until they land, and
+    one rebuild folds them in. **A finished one is drawn with the batch's own curve and bucket
+    width**, so the fold-in is invisible — `reveal-check` asserts that as equal cream pixels across
+    the rebuild, with both frames rendered at the SAME clock, because the nutrient pulse swings an
+    idle board's cream count by ±30% frame to frame.
+  - **`revealFactor` / `isRevealing` no longer short-circuit on `_lastSimplify`.** They used to
+    answer "already there" / "nothing revealing" whenever the LOD drew, which took the glow, the
+    pulse, the enemy turn's wait and the draft's wait with them — so zoomed out, turn-based skipped
+    the ~1-3 s the player is supposed to watch. `_lastSimplify` is now written for the check and
+    read by nothing else.
+  - Cost: **one extra `_rebuildCaches` per grow** (at the grow, then at the fold-in), measured at
+    **6-12 ms against a ~57 ms frame at the 6,000-strand cap** on the headless software rasteriser,
+    once per grow rather than per frame. The per-node pass is bounded by what a single grow added.
+  - `tests/reveal-check.cjs` (16) covers it, with the detail path measured identically as a control
+    **on its own page** — a second grow on the same colony came back with 0 new strands (it had
+    eaten and colonised its own lattice), which reads as "the detail path does not animate either".
 
 Already in place before any of that, and worth not re-deriving: `RENDER_DPR_CAP` 2 and
 `RENDER_PIXEL_BUDGET` 2.3 Mpx (`renderScale`), and `IDLE_FPS` 30 for a still board
