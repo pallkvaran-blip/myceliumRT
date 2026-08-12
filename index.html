@@ -2965,6 +2965,22 @@ const CONFIG = {
     lightRadius: 64,            // base light radius (world units)
   },
 
+  // ---- THE SIMPLIFIED PROTOTYPE (owner, `#simple`) --------------------------------------
+  // A feel test, not a game mode: no cards, one verb, one resource. It lives on CONFIG rather
+  // than in main because three modules have to agree about it — main owns the input and the
+  // camera, the UI owns the pill and the (absent) action bar, and the cards module owns the aim's
+  // reach. `state.config` is a deep clone taken at run start, so setting `enabled` before the run
+  // is what turns it on, exactly like `mode` and `game`.
+  simple: {
+    enabled: false,
+    growSegments: 12,          // "grow 4" — 4 steps x 3 segments, the same reach as the grow-4 cards
+    growEnergy: 4,             // ...and what it costs, every time, for ever
+    zoom: 0.9,                 // "medium": between the survey view (~0.25) and the 4x ceiling
+    // Yellow / orange / red, named for what the map SHOWS — drawSubstrateLeaves keys the art off
+    // cell.foodKind, so these are the colours the player is looking at.
+    pileEnergy: { duff: 10, cache: 15, 'cache-engine': 20 },
+  },
+
   dev: {
     // Gates every visible dev shortcut: the in-game "Dev: win level" button (main.js
     // updateDevWinBtn) AND the picker's Dev quick-start / Dev: unlock all buttons
@@ -19248,6 +19264,9 @@ function cardUsesDragAim(name) {
 // preview line so the player sees how far the strand will push. `ref` is a card
 // name (looks it up in EFFECTS) or an installed action object (carries reachFn).
 function dragAimReach(state, ref) {
+  // SIMPLE MODE passes no ref: the one verb's reach is its own constant, not a card's.
+  const sc = state.config.simple;
+  if (sc && sc.enabled && ref == null) return sc.growSegments * state.config.growth.segmentLength;
   const e = typeof ref === 'string' ? EFFECTS[ref] : ref;
   const segs = (e && e.reachFn) ? e.reachFn(state) : state.config.cards.directionalSteps;
   return segs * state.config.growth.segmentLength;
@@ -23472,7 +23491,14 @@ class UI {
 
     // ---- Top HUD: one compact resource row + a drop-down event log ----
     const hud = div('panel hud');
-    const resRow = cardsOn
+    // SIMPLE MODE: ENERGY IS THE ONLY RESOURCE (owner), so the pill carries one number. Water and
+    // phosphorus are not merely hidden — nothing in this mode spends or grants them, so a pill
+    // showing them would be reporting on a currency that never moves. Spores go too: they are the
+    // meta-game's, and there is no meta-game here.
+    const simpleOn = !!(this.state.config.simple && this.state.config.simple.enabled);
+    const resRow = simpleOn
+      ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span></span>`
+      : cardsOn
       ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span><span class="rd" id="hud-energy-inc"></span></span>`
         + `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span><span class="rd" id="hud-water-inc"></span></span>`
         + `<span class="res p">${RES_ICON.phos}<span class="rv" id="hud-phosphorus">0</span><span class="rd" id="hud-phosphorus-inc"></span></span>`
@@ -23539,7 +23565,10 @@ class UI {
 
     // ---- Bottom action bar (only when the CARD layer is OFF — cards replace it) ----
     this.el.buttons = {};
-    if (!cardsOn) {
+    // SIMPLE MODE has ONE verb and it is a drag on the map, so there is no bar to build. Without
+    // this the card layer being off would hand back the seven basic actions — substrate, amputate,
+    // excrete, fruit — which is a different game from the one being tested.
+    if (!cardsOn && !simpleOn) {
       const bar = div('panel actionbar');
       const order = ['grow', 'addSubstrate', 'amputate', 'attackAnts', 'excrete', 'digest', 'fruit'];
       for (const name of order) bar.appendChild(this._actionButton(name));
@@ -23604,7 +23633,13 @@ class UI {
     // hints (e.g. "Tap the map to aim …" while a targeted card is armed) and hides
     // itself when empty (see setHint), so there's no always-on paragraph.
     this.el.hint = div('hint');
-    this.defaultHint = cardsOn
+    // SIMPLE MODE says how to play, because nothing else on screen can: there is no hand to read
+    // and no action bar to hover, so the one verb has to introduce itself. The card-mode default
+    // is empty and the old action-bar line names actions this mode does not have.
+    const simpleEnergy = (this.state.config.simple && this.state.config.simple.growEnergy) || 4;
+    this.defaultHint = simpleOn
+      ? `Drag from your mycelium to grow 4 steps that way — ${simpleEnergy}⚡ each. Right-drag to look around.`
+      : cardsOn
       ? ''
       : 'Hover an action for details. Grow extends the network toward sensed food.';
     this.el.hint.textContent = this.defaultHint;
@@ -28831,6 +28866,10 @@ let playtestLevel = null;
 // owner uses it to get into a run quickly — so it plays the survival pool like any other run.
 // Cleared on reaching the picker, so `#dev` → title → New still gets the real thing.
 let bootSandbox = false;
+// THE SIMPLIFIED PROTOTYPE — see `CONFIG.simple` for the knobs and the `#simple` boot for the
+// route in. Read through a function so the input and camera paths, which run outside a state
+// clone, cannot drift from what the run was actually started with.
+const SIMPLE = () => !!(CONFIG.simple && CONFIG.simple.enabled);
 function leaveSandbox() { bootSandbox = false; }
 function loadPlaytestLevel() {
   try {
@@ -31103,6 +31142,52 @@ function toSurveyView(animate) {
   uiDirty = true;
 }
 
+// SIMPLE MODE: FOOD PILES PAY A FLAT AMOUNT BY COLOUR (owner: yellow 10, orange 15, red 20).
+// The map's own values are a 1..8 roll per pile, and a red pile's point in the real game is the
+// ENGINE DRAFT it hands you rather than its energy — with the card layer off that reward does not
+// exist, so the colours have to carry the difference themselves or every pile is the same pile.
+//
+// It rewrites `energyValue` and the per-cell rate, not the nutrient: nutrient is what attracts
+// growth, what the threats eat and what paces colonisation, so changing it would change the map.
+// `energyPerNutrient` is only the exchange rate, and stampFood already spreads a pile's value
+// across its cells exactly this way — this is the same arithmetic with the owner's number.
+//
+// Keyed off `cell.foodKind`, because that is what the ART is drawn from: the player names these
+// piles by colour, so the colour is the correct key.
+function simpleRepriceFood() {
+  if (!SIMPLE() || !state || !state.substrate) return;
+  const sub = state.substrate, table = (state.config.simple && state.config.simple.pileEnergy) || {};
+  for (const pile of (sub.foodPiles || [])) {
+    if (!pile || !pile.cells || !pile.cells.length) continue;
+    const first = sub.cells[pile.cells[0]];
+    const want = table[(first && first.foodKind) || 'duff'];
+    if (want == null) continue;
+    let nutrient = 0;
+    for (const i of pile.cells) { const c = sub.cells[i]; if (c) nutrient += c.maxNutrient || 0; }
+    pile.energyValue = want;
+    const per = want / Math.max(1, nutrient);
+    for (const i of pile.cells) { const c = sub.cells[i]; if (c) c.energyPerNutrient = per; }
+  }
+}
+
+// SIMPLE MODE: KEEP THE CAMERA ON THE MOST RECENT GROWTH (owner). Retargeted when the newest
+// node CHANGES rather than every frame, which is the difference between "it follows your growth"
+// and "it fights your panning": between grows the view stays exactly where you put it, and a
+// right-drag is never dragged back. Node ids come off `nextNodeId` in order, so the largest id IS
+// the newest strand — no timestamp needed. It eases through the same tween the tutorial uses.
+let simpleFollowId = -1;
+function followNewestGrowth() {
+  if (!SIMPLE() || !state || !state.active) return;
+  const nodes = state.active.nodes;
+  if (!nodes || !nodes.length) return;
+  let newest = nodes[0];
+  for (const n of nodes) if (n.id > newest.id) newest = n;
+  if (newest.id === simpleFollowId) return;
+  simpleFollowId = newest.id;
+  camFocus = { fromX: camera.x, fromY: camera.y, fromZoom: camera.zoom,
+    toX: newest.x, toY: newest.y, toZoom: camera.zoom, t0: performance.now(), dur: 520 };
+}
+
 function updateCamFocus(time) {
   if (!camFocus) return;
   const t = Math.min(1, (time - camFocus.t0) / camFocus.dur);
@@ -31742,6 +31827,17 @@ function begin(newState) {
     // against the screen edges / under the HUD + dev panels.
     camera.fitBounds({ minX: -160, minY: state.substrate.surfaceY - 30,
       maxX: state.substrate.worldWidth + 160, maxY: state.substrate.worldHeight }, 30);
+  } else if (SIMPLE()) {
+    // SIMPLE MODE opens at a MEDIUM zoom on the colony (owner) and then FOLLOWS the newest
+    // growth — see followNewestGrowth, which is where the "keep it centered" half lives. The
+    // survey view is wrong here: the whole point of the prototype is the moment-to-moment feel of
+    // growing, which you cannot see at the zoom floor.
+    const root0 = state.networks[0] && state.networks[0].nodes[0];
+    camera.zoom = CONFIG.simple.zoom;
+    camera.x = root0 ? root0.x : state.substrate.worldWidth * 0.08;
+    camera.y = state.substrate.surfaceY + 180;
+    camera.clamp();
+    simpleFollowId = -1;   // the next growth retargets, whatever the id happens to be
   } else if (phoneView()) {
     // PHONE: OPEN FULLY ZOOMED OUT, AT THE TOP LEFT (owner). A phone gets a third of the desktop's
     // pixels, so the desktop opening — 0.85 zoom parked on the colony root — is a keyhole: the
@@ -31764,6 +31860,7 @@ function begin(newState) {
     camera.y = state.substrate.surfaceY + 180;   // surface high in view, colony below it
     camera.clamp();
   }
+  simpleRepriceFood();   // SIMPLE MODE: yellow 10, orange 15, red 20 (no-op otherwise)
   uiDirty = true;
   updateLevelChip();
   updateDevWinBtn();
@@ -32291,6 +32388,10 @@ function pointerMid() {
 // The currently-armed drag target, or null. For a hand card, ref is {id,name}; for
 // an installed action, ref is its index into state.cards.actions.
 function armedDragTarget() {
+  // SIMPLE MODE: the one verb is always armed. There is no hand to arm it from, and "infinite
+  // grow 4" is exactly "every press on the colony is a grow" — which is also what frees the left
+  // button from panning (see the pointer handlers).
+  if (SIMPLE()) return { kind: 'simple', ref: null };
   if (ui.pendingCard && cardUsesDragAim(ui.pendingCard.name)) return { kind: 'card', ref: ui.pendingCard };
   if (ui.pendingAction != null && state.cards) {
     const a = state.cards.actions[ui.pendingAction];
@@ -32316,7 +32417,7 @@ function beginAim(e) {
   // land exactly on a filament, which was easy to miss when zoomed out.
   const ss = camera.worldToScreen(src.x, src.y);
   if (Math.hypot(sx - ss.x, sy - ss.y) > aimNearPx()) { aim = null; return; }
-  const reachRef = t.kind === 'card' ? t.ref.name : state.cards.actions[t.ref];
+  const reachRef = t.kind === 'simple' ? null : (t.kind === 'card' ? t.ref.name : state.cards.actions[t.ref]);
   aim = {
     kind: t.kind, ref: t.ref,
     origin: { x: src.x, y: src.y },   // world source, snapped to a strand
@@ -32363,6 +32464,33 @@ function fireAim(a) {
   // way, so a blocked release doesn't leave a stale line armed on the map.
   if (draftLocked()) { aim = null; if (ui.clearPendingCard) ui.clearPendingCard(); if (ui.clearPendingAction) ui.clearPendingAction(); ui.resetHint(); uiDirty = true; return; }
   const ctx = { x: a.cur.x, y: a.cur.y, srcX: a.origin.x, srcY: a.origin.y };
+  // SIMPLE MODE: the whole economy is this. Pay 4 energy, grow 4 steps along the drag from the
+  // strand the player pressed on. `growDirected` is the same primitive the grow-4 cards use
+  // (aimedGrowCore), reached directly because there are no cards to route through — and the cost
+  // is only spent if something actually grew, so a drag into rock is free rather than punishing.
+  if (a.kind === 'simple') {
+    const net = state.active;
+    if (!net || !net.alive || state.runOver) { aim = null; return; }
+    const sc = state.config.simple;
+    if ((net.energy || 0) < sc.growEnergy) {
+      ui.toast(`Not enough energy — a grow costs ${sc.growEnergy}.`);
+      uiDirty = true; return;
+    }
+    const tip = net.nearestNode(ctx.srcX, ctx.srcY);
+    const fp = tip ? { x: tip.x, y: tip.y } : { x: ctx.srcX, y: ctx.srcY };
+    let dx = ctx.x - fp.x, dy = ctx.y - fp.y;
+    if (Math.hypot(dx, dy) < 1) { dx = 1; dy = 0; }
+    const grew = net.growDirected(state.substrate, state.rng, dx, dy, sc.growSegments, false, tip);
+    if (grew > 0) {
+      net.energy -= sc.growEnergy;
+      substrateRenderer.markDirty();
+      rendererFor(net).markStructureDirty();
+    } else {
+      ui.toast('Blocked — nothing grew that way.');
+    }
+    uiDirty = true;
+    return;
+  }
   if (a.kind === 'card') {
     const idx = state.cards.hand.findIndex((h) => h.id === a.ref.id);
     ui.clearPendingCard();
@@ -32531,7 +32659,11 @@ function setupInput() {
     if (aim && mouse.down && !mouse.rightPan) { updateAim(e); return; }   // aiming a directional grow — steer, don't pan
     if (mouse.down) {
       if (Math.abs(e.clientX - mouse.startX) + Math.abs(e.clientY - mouse.startY) > 4) mouse.moved = true;
-      if (mouse.moved) camera.panByScreen(dx, dy);
+      // SIMPLE MODE: THE LEFT BUTTON NEVER PANS (owner). It is the grow, and only the grow — a
+      // press that lands away from the colony finds no aim and must then do NOTHING, rather than
+      // dragging the map out from under a player who was reaching for a filament. Right-drag and
+      // pinch are untouched, so the camera is still yours.
+      if (mouse.moved && !(SIMPLE() && !mouse.rightPan)) camera.panByScreen(dx, dy);
     }
   });
   // A right-drag that panned must not also open the browser menu on release. Suppressed on the
@@ -33243,6 +33375,7 @@ let _renderCount = 0;
 function renderFrame(time, dtFrames = 1) {
   _renderCount++;
   lastTime = time;
+  followNewestGrowth();         // SIMPLE MODE: retarget onto the newest strand (no-op otherwise)
   updateCamFocus(time);         // advance the tutorial's smooth camera "zoom-in" tween
   updateDraftIntro(time);       // advance the food-pile → card-draft intro (sets ghost/icon alphas)
   spawnFinishFloaters();        // pop a "+N⚡" the instant a pile finishes digesting
@@ -35856,6 +35989,31 @@ function enterGame() {
   // survival/sandbox branch is what falls through to the procedural generator. A species is set
   // anyway because `campaignRun()` wants one for the fixed seed and the run-over screens, and the
   // starter is the one every save can play.
+  // THE SIMPLIFIED PROTOTYPE (owner: "a very simplified version — I want to see what it feels
+  // like"). A separate branch and a separate boot, deliberately: nothing about it is meant to
+  // reach the campaign, and every rule it changes is switched on by this ONE flag rather than
+  // edited into the game, so the prototype and the real game share every line they do not
+  // disagree about.
+  //
+  //   #simple     campaign level 1, real time, one verb
+  //   #simple,4   ...starting on level 4
+  //
+  // What it is: no cards and no drafting; drag from the colony to GROW 4 STEPS for 4 energy,
+  // as often as you can pay for; energy is the only resource; food piles pay a flat amount by
+  // colour. See SIMPLE_* below for each rule and why it lives where it does.
+  else if (dest === '#simple') {
+    CONFIG.simple.enabled = true;
+    CONFIG.cards.enabled = false;        // no carousel, no hand, no drafts — the whole card layer
+    setMode('realtime');
+    setGame('campaign');                 // ...on the campaign's authored maps, as #rt does
+    bootSandbox = false; playtestLevel = null;
+    chosenSpecies = (starterSpecies()[0] || SPECIES[0]) || null;
+    const w = parseInt(parts[1], 10);
+    const n = Math.min(CAMPAIGN_LEVELS, Math.max(1, w > 0 ? w : 1));
+    currentLevel = n; runStartLevel = n;
+    stockRun();
+    startRun();
+  }
   else if (dest === '#rt') {
     setMode('realtime');
     setGame('campaign');
