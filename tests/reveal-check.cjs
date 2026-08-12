@@ -163,8 +163,24 @@ ok('...while the batched LOD is still the one drawing', phone.out.every((s) => s
    `simplify ${phone.out.map((s) => s.simplify ? 1 : 0).join('')}`);
 ok('the renderer reports a reveal in progress at this zoom', phone.out.some((s) => s.revealing === true),
    `revealing ${phone.out.map((s) => s.revealing ? 1 : 0).join('')}`);
-ok('and it finishes', last.drawnNew === last.totalNew && last.revealing === false,
-   `${last.drawnNew}/${last.totalNew}, revealing ${last.revealing}`);
+ok('every strand of the grow ends up drawn', last.drawnNew === last.totalNew,
+   `${last.drawnNew}/${last.totalNew}`);
+// POLLED, NOT READ OFF THE LAST SAMPLE. The stagger window is up to REVEAL_SPREAD_MAX (2400ms)
+// plus a segment's 340, and the fixed sample loop is ~2.1s — so a big grow legitimately outlives
+// it and the last sample says `revealing true` on a build that is working perfectly. That is a
+// bet about the machine, which is the harness trap this file already warns about; wait for the
+// condition instead, bounded so a reveal that never ends still fails.
+const finished = await p.evaluate(async () => {
+  const g = window.__game;
+  for (let i = 0; i < 60; i++) {
+    g.renderFrame();
+    if (!g.netRenderer().isRevealing(performance.now())) return { done: true, ms: i * 100 };
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return { done: false, ms: 6000 };
+});
+ok('...and the reveal ends', finished.done === true,
+   finished.done ? `settled ${finished.ms}ms after the samples` : 'still revealing after 6s');
 
 // ON SCREEN, not only in the model — the model is what the fix changed, so a check that reads
 // only the model is checking its own edit.
