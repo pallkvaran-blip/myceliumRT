@@ -50,7 +50,8 @@ const DRAFTS = fs.readdirSync(path.join(ROOT, 'docs', 'levels'))
     const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
     const errs = [];
     page.on('pageerror', (e) => errs.push(String(e && e.message)));
-    await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+    // This check clicks "Dev: maps", which is off by default now — see CONFIG.dev.inGameButtons.
+    await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; window.MYCELIUM_DEV_BUTTONS = true; });
     if (withDrafts) {
       await page.addInitScript((drafts) => {
         localStorage.setItem('mycelium.savedLevels.v1', JSON.stringify(drafts.map(([id, name, af]) => ({

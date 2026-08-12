@@ -13,7 +13,9 @@ const srv=await new Promise(res=>{const s=http.createServer((rq,rs)=>{let p=deco
 const base='http://localhost:'+srv.address().port;
 const b=await chromium.launch({headless:true,executablePath:'/opt/pw-browsers/chromium'});
 const ctx=await b.newContext({viewport:{width:1500,height:900}});
-await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
+// The three on-map dev buttons are off by default now (CONFIG.dev.inGameButtons) and this
+// check drives the editor and the map list through the real ones, so it opts back in.
+await ctx.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};window.MYCELIUM_DEV_BUTTONS=true;});
 const p=await ctx.newPage();
 p.on('pageerror',e=>console.log('PAGEERROR:',String(e.stack||e).slice(0,400)));
 await p.goto(base+'/index.html#level,slate-c24',{waitUntil:'domcontentloaded'});

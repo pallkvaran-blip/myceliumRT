@@ -43,7 +43,8 @@ const LEVEL = 'campaign-01-magnetite-c40';
   // from the editor — a real press carries a real pointer.
   const errs = [];
   p.on('pageerror', (e) => { const m = String(e && e.message); if (!/setPointerCapture/.test(m)) errs.push(m); });
-  await p.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+  // Clicks "Dev: edit rocks", which is off by default now — see CONFIG.dev.inGameButtons.
+  await p.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; window.MYCELIUM_DEV_BUTTONS = true; });
   await p.goto(base + '/index.html#level,' + LEVEL + ',turn', { waitUntil: 'domcontentloaded' });
   await p.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
   await p.click('#loadscreen', { timeout: 5000 }).catch(() => {});

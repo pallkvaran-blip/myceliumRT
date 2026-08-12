@@ -78,7 +78,7 @@ const TRACED = ALL.filter((l) => l && l.traced)
     const errs = [];
     page.on('pageerror', (e) => errs.push(String(e && e.message)));
     page.on('console', (m) => { if (m.type() === 'error') errs.push('console:' + m.text()); });
-    await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+    await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; window.MYCELIUM_DEV_BUTTONS = true; });
     // TURN-BASED, or this check races the world clock. `#level,<id>` alone boots REAL TIME, so
     // the sim starts ticking the moment the map loads and the threats begin eating — measured on
     // campaign-10-ember-c30-5, the food went 105 cells -> 94 -> 83 -> 61 -> 41 -> 10 over two and
@@ -278,7 +278,7 @@ const TRACED = ALL.filter((l) => l && l.traced)
   const page2 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
   const errs2 = [];
   page2.on('pageerror', (e) => errs2.push(String(e && e.message)));
-  await page2.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+  await page2.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; window.MYCELIUM_DEV_BUTTONS = true; });
   await page2.goto(base + '/index.html', { waitUntil: 'domcontentloaded' });
   await page2.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
   await page2.click('#loadscreen', { timeout: 5000 }).catch(() => {});
@@ -307,7 +307,7 @@ const TRACED = ALL.filter((l) => l && l.traced)
   if (TRACED[0]) {
     const page3 = await browser.newPage({ viewport: { width: 1400, height: 900 } });
     page3.on('pageerror', (e) => errs2.push(String(e && e.message)));
-    await page3.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+    await page3.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; window.MYCELIUM_DEV_BUTTONS = true; });
     await page3.goto(base + '/index.html#level,' + TRACED[0].id, { waitUntil: 'domcontentloaded' });
     await page3.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
     await page3.click('#loadscreen', { timeout: 5000 }).catch(() => {});

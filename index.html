@@ -2971,6 +2971,20 @@ const CONFIG = {
     // (render/species_select.js). ON for owner testing — set to FALSE before cutting an
     // itch zip, and confirm with scratchpad/verify-nodev.mjs.
     enabled: true,
+    // ...and a SECOND switch, for the three buttons that stand ON THE MAP: "Dev: win level",
+    // "Dev: maps ▾" and "Dev: edit rocks". Owner's ask — they wanted those out of the way to
+    // play the game as a player sees it, WITHOUT giving up the rest of dev mode (the `#dev` /
+    // `#level,<id>` boots, the minimised carousel, the skipped level intro, the picker's dev
+    // column, every window.__game hook).
+    //
+    // TEMPORARY, and this line is the whole of it: set it back to `true` and the three buttons
+    // are back. The `]` / `[` map cycle and the keyboard shortcuts are not gated on it — they are
+    // invisible, which is the thing that was in the way.
+    //
+    // A CHECK THAT HAS TO CLICK ONE OPTS IN with `window.MYCELIUM_DEV_BUTTONS = true` before
+    // boot (same shape as MYCELIUM_SUPABASE): edit, mapmenu, surface and traced all do, because
+    // they drive the editor and the map list through the real buttons.
+    inGameButtons: false,
     cheatEnergy: 100,
     cheatSpores: 100,
   },
@@ -29927,12 +29941,23 @@ function devWinLevel() {
   state.won = true; state.runOver = true; state.runResult = { won: true, turns: state.turn };
   presentRunOver();
 }
+// The three dev buttons that stand ON THE MAP answer to this rather than to the dev flag
+// alone — see CONFIG.dev.inGameButtons for why and for how to get them back. Read off
+// `state.config` (the run's deep clone) like every other dev test here, so a per-level override
+// works; the window override is the door a check uses when it has to click one for real.
+function devButtonsOn() {
+  const dev = state && state.config && state.config.dev;
+  if (!dev || !dev.enabled) return false;
+  if (typeof window !== 'undefined' && window.MYCELIUM_DEV_BUTTONS === true) return true;
+  return !!dev.inGameButtons;
+}
+
 function updateDevWinBtn() {
   let btn = document.getElementById('devWin');
   const ui0 = document.getElementById('ui');
   // Dev-only shortcut, gated behind the dev flag (off for release) so it never shows in
   // the shipped game. The window.__game.winLevel() hook stays available for tests.
-  const devOn = !!(state && state.config && state.config.dev && state.config.dev.enabled);
+  const devOn = devButtonsOn();
   if (!devOn || !cardsCampaign()) { if (btn) btn.style.display = 'none'; return; }
   if (!btn && ui0) {
     btn = document.createElement('button'); btn.id = 'devWin'; btn.type = 'button';
@@ -29964,7 +29989,7 @@ function devSwitchLevel(id) {
 }
 function updateDevMapBtn() {
   const ui0 = document.getElementById('ui');
-  const devOn = !!(state && state.config && state.config.dev && state.config.dev.enabled);
+  const devOn = devButtonsOn();
   let btn = document.getElementById('devMapBtn');
   let panel = document.getElementById('devMapPanel');
   // THE CAMPAIGN COMES FIRST, IN SLOT ORDER, AND NOTHING ELSE IS IN THAT GROUP (owner). Grouping is
@@ -30777,7 +30802,7 @@ function syncPlaceButtons() {
 
 function updateDevEditBtn() {
   const ui0 = document.getElementById('ui');
-  const devOn = !!(state && state.config && state.config.dev && state.config.dev.enabled);
+  const devOn = devButtonsOn();
   const isTraced = !!(state && state.levelDef && (state.levelDef.traced || state.levelDef.objects));
   let btn = document.getElementById('devEditBtn');
   let panel = document.getElementById('devEditPanel');
