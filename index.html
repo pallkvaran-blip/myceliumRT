@@ -35843,6 +35843,30 @@ function enterGame() {
   else if (dest === '#notrich' || dest === '#ants') { noTrich = true; bootSandbox = true; currentLevel = 1; runStartLevel = 1; startRun(); }
   // `#dev` skips the picker AND keeps the procedural generator — see `bootSandbox`.
   else if (dest === '#dev') { chosenSpecies = null; bootSandbox = true; currentLevel = 1; runStartLevel = 1; startRun(); }
+  // REAL TIME, ON THE CAMPAIGN'S OWN MAPS (owner, for testing the variant again). There is no
+  // route to real time from the menu at all — `OFFER_REALTIME` took its title rows away — so this
+  // hash IS the route, and it exists to try the variant rather than to ship one.
+  //
+  // `#rt` starts campaign level 1; `#rt,4` starts level 4, which is how you reach a later map
+  // without playing up to it. `#rt,turn` is legal and pointless (the flag pass above would put it
+  // back into turn-based), so the mode is set AFTER that line rather than before.
+  //
+  // THE MAPS COME FROM `setGame('campaign')`, not from the species: `levelDefFor(n)` returns
+  // `levelForNumber(n)` — the authored map claiming slot n — for any campaign game, while the
+  // survival/sandbox branch is what falls through to the procedural generator. A species is set
+  // anyway because `campaignRun()` wants one for the fixed seed and the run-over screens, and the
+  // starter is the one every save can play.
+  else if (dest === '#rt') {
+    setMode('realtime');
+    setGame('campaign');
+    bootSandbox = false; playtestLevel = null;
+    chosenSpecies = (starterSpecies()[0] || SPECIES[0]) || null;
+    const want = parseInt(parts[1], 10);
+    const n = Math.min(CAMPAIGN_LEVELS, Math.max(1, want > 0 ? want : 1));
+    currentLevel = n; runStartLevel = n;
+    stockRun();          // retries and a clean entry snapshot, exactly as a run from the picker gets
+    startRun();
+  }
   else if (dest === '#tutorial') { tutorialPending = true; showPicker(); }             // force the first-run tutorial (testing)
   else showMainMenu();
 }
