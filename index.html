@@ -13548,7 +13548,7 @@ function starterSpecies() {
 // Their prices are the store's own, NOT TIER_COST: a store species is bought without ever
 // clearing the tier that reveals it, so the tier ladder's price has no bearing here.
 const STORE_SPECIES_IDS = ['schizophyllum', 'hydnellum', 'amanita', 'pruinomycena', 'psilocybe'];
-const STORE_SPECIES_COST = { schizophyllum: 1000, hydnellum: 350, amanita: 350, pruinomycena: 350, psilocybe: 350 };
+const STORE_SPECIES_COST = { schizophyllum: 500, hydnellum: 350, amanita: 350, pruinomycena: 350, psilocybe: 350 };
 function storeSpecies() {
   return STORE_SPECIES_IDS.map((id) => SPECIES.find((s) => s.id === id)).filter(Boolean);
 }
