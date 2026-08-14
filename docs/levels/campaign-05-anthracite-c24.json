@@ -18,8 +18,8 @@
     "clearChannels": false
   },
   "threats": {
-    "trych": 5,
-    "nematodes": 0,
+    "trych": 1,
+    "nematodes": 2,
     "ants": 2,
     "respawn": false
   },
@@ -99,15 +99,6 @@
       "y": 1078.4,
       "w": 226.2,
       "h": 421.1,
-      "rot": 0
-    },
-    {
-      "t": "boulder",
-      "key": "anthracite-c24R009",
-      "x": 320.2,
-      "y": 1079.6,
-      "w": 460.6,
-      "h": 280.6,
       "rot": 0
     },
     {
@@ -579,16 +570,6 @@
       "y": 805
     },
     {
-      "t": "trichoderma",
-      "x": 1894,
-      "y": 713
-    },
-    {
-      "t": "trichoderma",
-      "x": 2186,
-      "y": 922
-    },
-    {
       "t": "food",
       "kind": "duff",
       "x": 987,
@@ -669,6 +650,54 @@
       "y": 1695,
       "r": 1,
       "energy": 2
+    },
+    {
+      "t": "nematode",
+      "x": 2337,
+      "y": 1008
+    },
+    {
+      "t": "nematode",
+      "x": 1059,
+      "y": 1013
+    },
+    {
+      "t": "reservoir",
+      "key": "reservoir1",
+      "x": 347,
+      "y": 1065,
+      "r": 72
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1688,
+      "y": 1707,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1914,
+      "y": 1594,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2535,
+      "y": 1494,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "reservoir",
+      "key": "reservoir2",
+      "x": 1434,
+      "y": 1872,
+      "r": 72
     }
   ]
 }

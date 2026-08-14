@@ -18,8 +18,8 @@
     "clearChannels": false
   },
   "threats": {
-    "trych": 6,
-    "nematodes": 9,
+    "trych": 3,
+    "nematodes": 5,
     "ants": 1,
     "respawn": false
   },
@@ -404,16 +404,6 @@
     },
     {
       "t": "trichoderma",
-      "x": 45,
-      "y": 1027
-    },
-    {
-      "t": "trichoderma",
-      "x": 610,
-      "y": 1894
-    },
-    {
-      "t": "trichoderma",
       "x": 478,
       "y": 1739
     },
@@ -437,11 +427,6 @@
       "t": "nematode",
       "x": 1382,
       "y": 1965
-    },
-    {
-      "t": "nematode",
-      "x": 1501,
-      "y": 1715
     },
     {
       "t": "nematode",
@@ -491,16 +476,6 @@
       "y": 1992
     },
     {
-      "t": "nematode",
-      "x": 2815,
-      "y": 1757
-    },
-    {
-      "t": "nematode",
-      "x": 1798,
-      "y": 1921
-    },
-    {
       "t": "food",
       "kind": "cache",
       "x": 2887,
@@ -511,8 +486,8 @@
     {
       "t": "food",
       "kind": "cache",
-      "x": 2229,
-      "y": 1031,
+      "x": 2258,
+      "y": 1109,
       "r": 1,
       "energy": 4
     },
@@ -627,16 +602,6 @@
       "x": 1129
     },
     {
-      "t": "nematode",
-      "x": 2695,
-      "y": 1840
-    },
-    {
-      "t": "trichoderma",
-      "x": 1665,
-      "y": 1885
-    },
-    {
       "t": "mountain",
       "key": "mountain3",
       "x": 828,
@@ -659,6 +624,38 @@
       "key": "skyline5",
       "x": 1170,
       "w": 252
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1222,
+      "y": 911,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2189,
+      "y": 1525,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2548,
+      "y": 688,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 477,
+      "y": 828,
+      "r": 1,
+      "energy": 4
     }
   ]
 }

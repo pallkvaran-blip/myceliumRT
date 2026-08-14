@@ -19,7 +19,7 @@
   },
   "threats": {
     "trych": 0,
-    "nematodes": 16,
+    "nematodes": 7,
     "ants": 0,
     "respawn": false
   },
@@ -378,8 +378,8 @@
     },
     {
       "t": "nematode",
-      "x": 916,
-      "y": 651
+      "x": 918,
+      "y": 649
     },
     {
       "t": "food",
@@ -441,11 +441,6 @@
       "y": 430,
       "r": 1,
       "energy": 2
-    },
-    {
-      "t": "nematode",
-      "x": 2627,
-      "y": 1079
     },
     {
       "t": "food",
@@ -528,11 +523,6 @@
       "energy": 2
     },
     {
-      "t": "nematode",
-      "x": 1917,
-      "y": 518
-    },
-    {
       "t": "reservoir",
       "key": "reservoir2",
       "x": 1243,
@@ -542,37 +532,12 @@
     {
       "t": "nematode",
       "x": 852,
-      "y": 615
-    },
-    {
-      "t": "nematode",
-      "x": 852,
       "y": 672
-    },
-    {
-      "t": "nematode",
-      "x": 966,
-      "y": 599
-    },
-    {
-      "t": "nematode",
-      "x": 950,
-      "y": 633
-    },
-    {
-      "t": "nematode",
-      "x": 1862,
-      "y": 510
     },
     {
       "t": "nematode",
       "x": 1868,
       "y": 562
-    },
-    {
-      "t": "nematode",
-      "x": 1813,
-      "y": 533
     },
     {
       "t": "nematode",
@@ -583,16 +548,6 @@
       "t": "nematode",
       "x": 2646,
       "y": 1144
-    },
-    {
-      "t": "nematode",
-      "x": 2695,
-      "y": 1101
-    },
-    {
-      "t": "nematode",
-      "x": 1492,
-      "y": 1172
     },
     {
       "t": "nematode",

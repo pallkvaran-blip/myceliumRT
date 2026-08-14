@@ -19,7 +19,7 @@
   },
   "threats": {
     "trych": 5,
-    "nematodes": 3,
+    "nematodes": 2,
     "ants": 2,
     "respawn": false
   },
@@ -438,11 +438,6 @@
     },
     {
       "t": "nematode",
-      "x": 1562,
-      "y": 921
-    },
-    {
-      "t": "nematode",
       "x": 1561,
       "y": 1028
     },
@@ -471,6 +466,22 @@
       "key": "skyline5",
       "x": 1224,
       "w": 216
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 1493,
+      "y": 1076,
+      "r": 1,
+      "energy": 4
+    },
+    {
+      "t": "food",
+      "kind": "cache",
+      "x": 2176,
+      "y": 1216,
+      "r": 1,
+      "energy": 4
     }
   ]
 }

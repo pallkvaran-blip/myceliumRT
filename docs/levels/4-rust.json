@@ -19,7 +19,7 @@
   },
   "threats": {
     "trych": 1,
-    "nematodes": 11,
+    "nematodes": 5,
     "ants": 1,
     "respawn": false
   },
@@ -517,26 +517,6 @@
     },
     {
       "t": "nematode",
-      "x": 392,
-      "y": 1789
-    },
-    {
-      "t": "nematode",
-      "x": 1928,
-      "y": 1834
-    },
-    {
-      "t": "nematode",
-      "x": 1830,
-      "y": 1840
-    },
-    {
-      "t": "nematode",
-      "x": 452,
-      "y": 1796
-    },
-    {
-      "t": "nematode",
       "x": 343,
       "y": 1811
     },
@@ -552,23 +532,8 @@
     },
     {
       "t": "nematode",
-      "x": 532,
-      "y": 1827
-    },
-    {
-      "t": "nematode",
-      "x": 1900,
-      "y": 1866
-    },
-    {
-      "t": "nematode",
       "x": 1887,
       "y": 1823
-    },
-    {
-      "t": "nematode",
-      "x": 1865,
-      "y": 1876
     },
     {
       "t": "food",
@@ -611,16 +576,6 @@
       "key": "skyline6",
       "x": 2070,
       "w": 396
-    },
-    {
-      "t": "nematode",
-      "x": 2563,
-      "y": 1603
-    },
-    {
-      "t": "nematode",
-      "x": 2495,
-      "y": 1606
     },
     {
       "t": "nematode",
