@@ -803,6 +803,20 @@
       "t": "nematode",
       "x": 1122,
       "y": 1812
+    },
+    {
+      "t": "reservoir",
+      "key": "reservoir2",
+      "x": 424,
+      "y": 894,
+      "r": 72
+    },
+    {
+      "t": "reservoir",
+      "key": "reservoir1",
+      "x": 1033,
+      "y": 1290,
+      "r": 72
     }
   ]
 }
