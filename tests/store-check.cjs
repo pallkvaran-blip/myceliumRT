@@ -63,11 +63,45 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   });
   // Order matters as well as membership: the three resource tracks come first, in the game's own
   // energy / water / phosphorus order, so the store reads in the order of the numbers it raises.
-  ok('six upgrade tracks, in the owner\'s order',
-     shape.map((s) => s.id).join(',') === 'energy,water,phosphorus,carryCards,carryEngines,lives',
+  // SEVEN NOW: "Starting level" sits with the resource tracks because it is priced like one
+  // (phosphorus's ladder exactly) and, like them, it changes what a run OPENS with rather than
+  // what it carries out.
+  ok('seven upgrade tracks, in the owner\'s order',
+     shape.map((s) => s.id).join(',') === 'energy,water,phosphorus,startLevel,carryCards,carryEngines,lives',
      shape.map((s) => s.id).join(','));
   // The owner set these three by hand; they are the whole point of the last pass.
   const stepOf = (id) => (shape.find((s) => s.id === id) || {}).step;
+  // ---- "Starting level": priced like phosphorus, capped by what you have CLEARED -----------
+  // The price parity is the owner's word ("same price as P") and the cap is the whole feature —
+  // a track you can buy ahead of your progress has to say so rather than quietly not working.
+  // Asserted through `startLevel()`, which is where a run actually opens, NOT through the track's
+  // level: those two disagree on purpose, and the disagreement is the thing worth guarding.
+  const priced = await page.evaluate(() => {
+    const S = window.__game.store;
+    const p = S.upgrades.find((u) => u.id === 'phosphorus'), sl = S.upgrades.find((u) => u.id === 'startLevel');
+    return { same: sl.costs.every((c, i) => c === p.costs[i]), steps: sl.costs.length, costs: sl.costs.join(',') };
+  });
+  ok('Starting level is priced exactly like Phosphorus', priced.same === true, priced.costs);
+  ok('...for one step per level above the first', priced.steps === 8, `${priced.steps} steps`);
+  const startsAt = await page.evaluate(() => {
+    const S = window.__game.store, out = {};
+    S.reset(); S.credit(100000);
+    out.nothing = S.startLevel();
+    S.buy('startLevel'); S.buy('startLevel'); S.buy('startLevel');
+    out.boughtNoClears = S.startLevel();
+    S.clearLevel(2); out.cleared2 = S.startLevel();
+    S.clearLevel(5); out.cleared5 = S.startLevel();
+    for (let i = 0; i < 10; i++) S.buy('startLevel');
+    out.maxedCleared5 = S.startLevel();
+    S.reset();
+    return out;
+  });
+  ok('a fresh save starts on level 1', startsAt.nothing === 1, String(startsAt.nothing));
+  ok('...and buying ahead of your clears does NOT move it', startsAt.boughtNoClears === 1, String(startsAt.boughtNoClears));
+  ok('clearing a level releases what was bought', startsAt.cleared2 === 2, String(startsAt.cleared2));
+  ok('...up to what has been PAID for, not what has been cleared', startsAt.cleared5 === 4, String(startsAt.cleared5));
+  ok('...and never past the highest level cleared', startsAt.maxedCleared5 === 5, String(startsAt.maxedCleared5));
+
   ok('the resource steps are the ones the owner asked for',
      stepOf('energy') === 3 && stepOf('water') === 5 && stepOf('phosphorus') === 3,
      `energy +${stepOf('energy')}, water +${stepOf('water')}, phosphorus +${stepOf('phosphorus')}`);
@@ -108,7 +142,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // The tile copy is the owner's, word for word — it is what a player reads to decide.
   const names = shape.map((t) => t.name).join(' | ');
   ok('the tracks are named the way the owner named them',
-     names === 'Energy | Water | Phosphorus | Basic/Event Carry | Engine Carry | Retries', names);
+     names === 'Energy | Water | Phosphorus | Starting level | Basic/Event Carry | Engine Carry | Retries', names);
   // ALL SIX SUB-LINES ARE THE OWNER'S, word for word, and every one of them now opens with
   // "Increase" — they describe what BUYING A STEP does rather than what a run starts with, which
   // is the question a player standing in front of a Buy button is asking. Pinned in full rather
@@ -492,7 +526,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('no "Complete level N" tier rows remain', ui.tierRows === 0, ui.headers.join(' / '));
   ok('the three sections are named the way the owner named them',
      ui.headers.join('|') === 'Available|Purchase|Upgrades', ui.headers.join(' / '));
-  ok('six upgrade tiles', ui.tracks === 6, String(ui.tracks));
+  ok('seven upgrade tiles', ui.tracks === 7, String(ui.tracks));
   ok('the sections carry no sub-headings any more', ui.hints === 0, String(ui.hints));
   // ...and neither does the screen itself: the header is the title and the two chips, nothing else.
   ok('there is no blurb under the title', ui.lede === 0, String(ui.lede));
