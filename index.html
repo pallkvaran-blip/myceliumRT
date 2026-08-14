@@ -2670,6 +2670,19 @@ const CONFIG = {
     // ROOTWARD/sibling direction only: everything downstream of rot is claimed at once by
     // infectDescendants, whatever this says.
     spreadDepthPerTurn: 3,       // RT: 6 → 3 → 1.5 → 4.5 → 10 → 4.125 → 3 (turn-based is 12 = 4 steps)
+    // ...AND IT ONLY RACES FOR THIS MANY STEPS (owner: "let's make the game easier: have trych
+    // infection stop spreading after two turns. After that the infected mycelium dies off like
+    // normal but the rest of the colony lives on"). A rot that never stopped could only be
+    // survived by amputating ahead of it; with a fixed life it is a wound instead of a sentence —
+    // it claims what it claims, that tissue darkens and falls away on rotLifeTurns as before, and
+    // the colony beyond it is never at risk from THAT breach again.
+    //
+    // The clock belongs to the INFECTION, not to the strand: every strand a breach claims carries
+    // the same `_infAge`, so a rot that has been travelling for two steps stops even though its
+    // outermost strands were claimed a moment ago. Per-strand it would never stop, which is what
+    // it did before. NOT in MODE_TUNING: it is a count of world steps, and a step is a step in
+    // either mode — what differs is how fast the steps come.
+    spreadTurns: 2,              // (SLIDER)
     // 1 = the depth above is REAL. Anything less CAPS the effective spread, and caps it far
     // below what the depth says, because a failed roll drops that node from the frontier and
     // kills the branch for the rest of the call — so a filament advances a GEOMETRIC number of
@@ -13115,6 +13128,28 @@ function recordLevelCleared(level) {
   return p;
 }
 
+// THE HIGHEST LEVEL EVER CLEARED, which is the ceiling on the "Starting level" upgrade below.
+// Read off the same `clears` record the species tiers use — a level counts once it has been
+// finished at least once, in any run, with any colony.
+function highestCleared(progress) {
+  const p = progress || loadProgress();
+  let top = 0;
+  for (const k in (p && p.clears) || {}) {
+    const lv = +k;
+    if (lv > top && p.clears[k] > 0) top = lv;
+  }
+  return Math.min(top, CAMPAIGN_LEVELS);
+}
+// WHERE A RUN ACTUALLY STARTS: one plus what the track has been bought up to, held down BOTH by
+// what you have cleared (owner: "up to the highest level you have cleared in game") and by the
+// campaign's own length. Buying ahead of your clears is therefore not wasted, just not yet spent
+// — the tile says so rather than letting the number quietly disagree with the run.
+function startLevelFor(progress) {
+  const p = progress || loadProgress();
+  const bought = CAMPAIGN_START_LEVEL + upgradeLevel('startLevel', p);
+  return Math.max(CAMPAIGN_START_LEVEL, Math.min(bought, Math.max(CAMPAIGN_START_LEVEL, highestCleared(p)), CAMPAIGN_LEVELS));
+}
+
 // --- Spores wallet ---------------------------------------------------------
 function sporesBalance(progress) {
   const p = progress || loadProgress();
@@ -13414,6 +13449,15 @@ const STORE_UPGRADES = [
   { id: 'phosphorus', name: 'Phosphorus', icon: 'phos', accent: 'phos', step: 3, unit: 'phosphorus',
     effect: 'Increase starting phosphorus by <b>3</b>.',
     costs: OPENER(25, 10) },
+  // START FURTHER IN (owner: "same price as P. Start the game at a higher level, up to the
+  // highest level you have cleared in game"). The ladder IS phosphorus's, cut to the campaign's
+  // length — a 9-level campaign has 8 steps above level 1, so buying the last one starts you on
+  // the final map. The clear ceiling is enforced in `startLevelFor`, not here: this track records
+  // what has been PAID for, and the cap is a fact about the save that can change under it when
+  // you clear another level.
+  { id: 'startLevel', name: 'Starting level', icon: 'life', accent: 'life', step: 1, base: CAMPAIGN_START_LEVEL, unit: 'levels', unit1: 'level',
+    effect: 'Start each run <b>one level further in</b>, up to the highest level you have cleared.',
+    costs: OPENER(25, 10).slice(0, Math.max(1, CAMPAIGN_LEVELS - 1)) },
   // ...then the three that shape what you carry out of a run. Twenty steps of basic/event on the
   // same 25-then-+50 ladder; engines are the expensive half of a deck, so six steps of 100 then
   // +200.
@@ -13626,7 +13670,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -17400,7 +17444,7 @@ function infectNetwork(net, state) {
       // the LOWEST NODE ID, which is the oldest tissue in the set — so the green appeared to
       // travel out from the start of the colony instead of from the strand the cloud touched.
       // Every strand in the disc is marked, so the wave starts along the whole contact face.
-      for (const n of seeds) { n.infected = true; n._infSeed = true; }
+      for (const n of seeds) { n.infected = true; n._infSeed = true; n._infAge = 0; }   // a NEW infection, with its own clock
       for (const n of seeds) {
         // Guaranteed (chance 1), unlike the race below: the cost of being touched is a fixed
         // number of rings, not a dice roll per ring.
@@ -17420,12 +17464,24 @@ function infectNetwork(net, state) {
   // not also race this step (see the note on this function).
   // spreadDepthPerTurn may be FRACTIONAL (< 1 ring/tick) for a slow creep, so accumulate it
   // and only advance whole rings when at least one has built up (carry the remainder).
+  //
+  // AN INFECTION STOPS SPREADING AFTER `spreadTurns` STEPS (owner: "let's have trych infection
+  // stop spreading after two turns; after that the infected mycelium dies off like normal but the
+  // rest of the colony lives on"). The clock is the INFECTION'S, carried on every strand it claims
+  // (`_infAge`, inherited through infectAround), not the strand's own — otherwise each newly
+  // claimed strand would start a fresh two turns and the rot would never stop, which is the shape
+  // it had before. Nothing else changes: rotAge still ages per strand, the green still creeps, and
+  // what has been claimed still darkens, falls away and orphans what hung off it.
   net._spreadAccum = (net._spreadAccum || 0) + t.spreadDepthPerTurn;
   const rings = Math.floor(net._spreadAccum);
+  const maxAge = t.spreadTurns != null ? t.spreadTurns : Infinity;
   if (rings > 0) {
     net._spreadAccum -= rings;
-    for (const n of established) infectAround(net, n, rings, t.infectionSpreadChance, rng, sub);
+    for (const n of established) if ((n._infAge | 0) < maxAge) infectAround(net, n, rings, t.infectionSpreadChance, rng, sub);
   }
+  // ...then every live infection is one step older. Counted here, after the spread, so the step a
+  // breach lands on is age 0 and gets its first full spread rather than being aged out unused.
+  for (const n of net.nodes) if (n.infected) n._infAge = (n._infAge | 0) + 1;
 
   // 3) NOT the downstream claim. It used to run here every tick, and that was the invariant
   //    applied far wider than the thing it was written for.
@@ -17513,7 +17569,7 @@ function infectStrandsInMould(net, state) {
     // `_infSeed` marks where the rot came in, for the renderer's creep — see the note in
     // infectNetwork's contact pass. Growing INTO mould can catch several strands at once, and
     // each of them is a genuine point of contact, so each seeds its own wave.
-    if (cell && cell.trich >= th && !cellProofed(sub, n)) { n.infected = true; n._infSeed = true; hit++; seeds.push(n); }
+    if (cell && cell.trich >= th && !cellProofed(sub, n)) { n.infected = true; n._infSeed = true; n._infAge = 0; hit++; seeds.push(n); }   // a new infection, own clock
   }
   // First-touch burst: a strand caught in the mould rots a deep chunk in EVERY direction
   // at once, so a long grow (e.g. grow 6) can't just shoot its tip past the cloud and
@@ -17616,6 +17672,9 @@ function infectDescendants(net, sub) {
 // "grown since the last world step" is exactly id >= the value nextNodeId held then.
 function infectFreshGrowth(net, seed, depth, sub, sinceId) {
   if (!(depth > 0) || sinceId == null) return 0;
+  // Rides the seed's own infection clock (`_infAge`) rather than starting a new one: this is the
+  // same breach reaching further, not a second breach.
+  const seedAge = seed._infAge | 0;
   let frontier = [seed], claimed = 0;
   const seen = new Set([seed.id]);
   for (let d = 0; d < depth && frontier.length; d++) {
@@ -17624,7 +17683,7 @@ function infectFreshGrowth(net, seed, depth, sub, sinceId) {
       const step = (o) => {
         if (!o || seen.has(o.id)) return;
         seen.add(o.id);
-        if (o.id >= sinceId && !o.infected && !cellProofed(sub, o)) { o.infected = true; claimed++; }
+        if (o.id >= sinceId && !o.infected && !cellProofed(sub, o)) { o.infected = true; o._infAge = seedAge; claimed++; }
         next.push(o);
       };
       if (n.parentId != null) step(net.byId.get(n.parentId));
@@ -17635,18 +17694,24 @@ function infectFreshGrowth(net, seed, depth, sub, sinceId) {
   return claimed;
 }
 
+// `_infAge` is THE INFECTION'S age in world steps, not the strand's — every strand this walk
+// claims inherits the seed's, so one breach is one infection however far it travels and however
+// long it takes. That is what lets the spread be stopped after a fixed number of turns without
+// stopping the rot's own life cycle: `rotAge` (per strand, drives the fade and the fall) is
+// untouched, and a strand claimed on the last spreading step still lives out its full rotLifeTurns.
 function infectAround(network, seed, depth, chance, rng, sub) {
+  const age = seed._infAge | 0;
   let frontier = [seed];
   for (let d = 0; d < depth && frontier.length; d++) {
     const next = [];
     for (const n of frontier) {
       if (n.parentId != null) {
         const p = network.byId.get(n.parentId);
-        if (p && !p.infected && !cellProofed(sub, p) && (chance >= 1 || rng() < chance)) { p.infected = true; next.push(p); }
+        if (p && !p.infected && !cellProofed(sub, p) && (chance >= 1 || rng() < chance)) { p.infected = true; p._infAge = age; next.push(p); }
       }
       for (const cid of n.children) {
         const c = network.byId.get(cid);
-        if (c && !c.infected && !cellProofed(sub, c) && (chance >= 1 || rng() < chance)) { c.infected = true; next.push(c); }
+        if (c && !c.infected && !cellProofed(sub, c) && (chance >= 1 || rng() < chance)) { c.infected = true; c._infAge = age; next.push(c); }
       }
     }
     frontier = next;
@@ -25390,7 +25455,7 @@ function growMyceliumTitle(container, opts = {}) {
 
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
-  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, loadDeck, deckBucketFor, deckBuckets, deckSize,
+  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, highestCleared, startLevelFor, loadDeck, deckBucketFor, deckBuckets, deckSize,
     STORE_UPGRADES, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
@@ -25834,14 +25899,21 @@ function upgradeTile(u, progress, onBuy) {
       // bare "20" here would be reading out a number with no noun. `unit1` covers the one plural
       // that is not word + s ("retry"/"retries"); the resource tracks step by 3, 5 and 2, so
       // their value is never 1 and they never need it.
-      '<span class="ss-upg-now" aria-label="' + esc(RESOURCE_TRACK.test(u.id)
+      // STARTING LEVEL SHOWS WHERE A RUN WILL ACTUALLY OPEN, held down by what has been cleared —
+      // the one number that can disagree with what was paid for, so it is the one worth printing.
+      (u.id === 'startLevel'
+        ? '<span class="ss-upg-now" aria-label="' + esc('starts on level ' + startLevelFor(progress)) + '">'
+          + 'level ' + startLevelFor(progress) + '</span>'
+        : '<span class="ss-upg-now" aria-label="' + esc(RESOURCE_TRACK.test(u.id)
         ? (startingResources(progress)[u.id] | 0) + ' ' + u.unit
         : (have ? '+' + have + ' ' + (have === 1 ? (u.unit1 || u.unit) : u.unit) : 'none bought yet')) + '">' +
       (RESOURCE_TRACK.test(u.id)
         ? String(startingResources(progress)[u.id] | 0)
-        : (have ? '+' + have : 'none yet')) + '</span>' +
+        : (have ? '+' + have : 'none yet')) + '</span>') +
     '</div>' +
-    '<p class="ss-upg-eff">' + u.effect + '</p>' +
+    '<p class="ss-upg-eff">' + u.effect
+      + (u.id === 'startLevel' && (CAMPAIGN_START_LEVEL + upgradeLevel(u.id, progress)) > startLevelFor(progress)
+        ? ' <b>Clear level ' + startLevelFor(progress) + ' to use the next one.</b>' : '') + '</p>' +
     '<div class="ss-upg-pips" aria-hidden="true">' + pips + '</div>' +
     '<div class="ss-upg-foot">' +
       '<span class="ss-upg-lvl">' + lvl + ' of ' + max + ' bought</span>' +
@@ -25979,7 +26051,8 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   // Every colony opens on level 1 (CAMPAIGN_START_LEVEL). `defaultStartLevel` — which let a
   // higher tier skip the early grind — is not consulted: over a 10-level campaign that hands away
   // half of it, and the owner settled it when the start-level stepper was dropped.
-  const select = (s) => { hide(); onPick && onPick(s, CAMPAIGN_START_LEVEL); };
+  // ...unless the STORE has bought a later start, and the save has cleared far enough to use it.
+  const select = (s) => { hide(); onPick && onPick(s, startLevelFor(loadProgress())); };
 
   function render() {
     renderRate();
@@ -28548,7 +28621,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro, showVictory, VICT_FADE_MS } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages, assetState } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -31424,6 +31497,12 @@ function begin(newState) {
       upgrades: STORE_UPGRADES,
       level: upgradeLevel, value: upgradeValue, nextCost: upgradeNextCost, buy: buyUpgrade,
       bonuses: storeBonuses,
+      // "Starting level" is capped by what has been CLEARED, so the number that matters is not the
+      // track's level but where a run would actually open — and a probe needs to clear a level
+      // without playing one to see the two disagree.
+      startLevel: () => startLevelFor(loadProgress()),
+      highestCleared: () => highestCleared(loadProgress()),
+      clearLevel: (n) => recordLevelCleared(n),
       species: storeSpecies, speciesCost: storeSpeciesCost, buySpecies: purchaseStoreSpecies,
       // THE OPENING ROSTER, so a check can assert the screen against the LISTS rather than against
       // the numbers 3 and 4. Those numbers are today's design, not an invariant — the roster is
