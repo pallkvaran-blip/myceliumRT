@@ -605,6 +605,23 @@ function fixture() {
       if (c === 'b2') ev(c, sid, now - 5 * DAY, 'upgrade', 250);
       ev(c, sid, now - 5 * DAY, 'session_end', 1, ms);
     });
+    // A BASELINE BIG ENOUGH TO TRIM, AND ONE VISIT THAT WOULD DECIDE THE MEAN ON ITS OWN.
+    // `trimTop` deliberately does nothing under ten visits (1% of six is a 17% trim), so the
+    // baseline gets eight more ordinary played visits plus one tab left open for five hours —
+    // the shape of the real row that took a measured desktop mean from 5m 35s to 15m 22s. With
+    // it in, the mean is half an hour; trimmed, about a minute. A fixture without it would pass
+    // on a build that trimmed nothing.
+    for (let i = 0; i < 8; i++) {
+      const c = 'bx' + i, sid = 'sx' + i;
+      boot(c, sid, now - 5 * DAY);
+      ev(c, sid, now - 5 * DAY, 'run_start', null, null);
+      ev(c, sid, now - 5 * DAY, 'level_start', null, null);
+      ev(c, sid, now - 5 * DAY, 'session_end', 1, 60000 + i * 1000);
+    }
+    boot('bLong', 'sLong', now - 5 * DAY);
+    ev('bLong', 'sLong', now - 5 * DAY, 'run_start', null, null);
+    ev('bLong', 'sLong', now - 5 * DAY, 'level_start', null, null);
+    ev('bLong', 'sLong', now - 5 * DAY, 'session_end', 1, 5 * 3600000);
     // A SECOND, OLDER STAMPED BUILD — the case that made the table wrong. Two uploads in one day
     // gave the previous build a row of its own, which split the baseline and left the release
     // being judged against a handful of sessions. It must fold into "everything before it".
@@ -624,6 +641,25 @@ function fixture() {
       if (c === 'a1') { ev(c, sid, now - 1 * DAY, 'upgrade', 100); ev(c, sid, now - 1 * DAY, 'purchase', 350); }
       ev(c, sid, now - 1 * DAY, 'session_end', 1, ms);
     });
+    // ONE PLAYER WHO CAME BACK, on the release side, so "came back" is not asserted against a
+    // column of zeroes. a1's second visit is half a day after the first — well past VISIT_GAP,
+    // so it is a second VISIT and not a reload.
+    boot('a1', 's4r', now - 0.4 * DAY, '2026-08-09-abc1234');
+    ev('a1', 's4r', now - 0.4 * DAY, 'run_start', null, null);
+    ev('a1', 's4r', now - 0.4 * DAY, 'level_start', null, null);
+    ev('a1', 's4r', now - 0.4 * DAY, 'session_end', 1, 200000);
+
+    // A PHONE VISIT ON THE BASELINE, AND ONLY THERE. It is what makes the Device chip able to
+    // empty the release side further down — the chip list is built from the data, so a device
+    // nothing was ever played on has no chip to click. A BOUNCER, deliberately: it must not move
+    // any of the played-visit numbers asserted above, only the bounce count and the chip list.
+    rows.push({ id: ++id, created_at: new Date(now - 4 * DAY).toISOString(), client_id: 'ph1',
+      session_id: 'sph', kind: 'boot', ms: 1000, detail: null, source: 'crazygames',
+      game: 'campaign', mode: 'turn', device: 'phone' });
+    rows.push({ id: ++id, created_at: new Date(now - 4 * DAY).toISOString(), client_id: 'ph1',
+      session_id: 'sph', kind: 'session_end', ms: 12000, n: 1, source: 'crazygames',
+      game: 'campaign', mode: 'turn', device: 'phone' });
+
     const sp = await ctx.newPage();
     const serrs = []; sp.on('pageerror', (e) => serrs.push(String(e && e.message)));
     await sp.route('**/rest/v1/events*', async (route) => {
@@ -659,68 +695,113 @@ function fixture() {
        JSON.stringify(cmp && cmp.rows.map((r) => r[0])));
     // ...and the older stamp is IN the baseline, not missing from the page. A fold that dropped it
     // would look identical in the two rows above and quietly lose a build's worth of sessions.
+    // ...and the older stamp is IN the baseline, not missing from the page. A fold that dropped
+    // it would look identical in the two rows above and quietly lose a build's worth of sessions.
+    // NAMED rather than counted here: p1 started a run but no level, so it is not a played visit
+    // and does not show up in any column of the row it was folded into.
     ok('...with the previous build folded into it, and named',
-       !!before && before[2] === '4' && /old0001/.test(cmp.note) && /1 session\b/.test(cmp.note),
-       `${before && before[2]} baseline sessions · ${(cmp && cmp.note || '').slice(0, 90)}`);
+       /old0001/.test(cmp.note) && /1 session\b/.test(cmp.note),
+       (cmp && cmp.note || '').slice(0, 90));
     // The cut has to say WHERE it is: "the latest build" is not a date anyone can check.
     ok('...and the section names the build it cuts at',
        !!cmp && /Cut at 2026-08-09-abc1234/.test(cmp.note), (cmp && cmp.note || '').slice(0, 60));
-    // THE HEADLINE COLUMN. Median, not mean: one player who leaves a tab open overnight moves a
-    // mean by minutes and a median not at all, and on a table this small it would be the whole
-    // result. 60/120/180 -> 2m; 300/360/420 -> 6m.
-    // 55 / 90 / 95 / 125 -> median (90+95)/2 = 92.5s, which rounds to 1m 33s. The 90 is the folded
-    // older build's session, so this number is also the fold doing its job.
-    // TWO MEDIANS NOW (owner: "not including people who bounce without starting a level"), and the
-    // fixture is arranged so they DIFFER — b3 and p1 never start a level, so they are in the
-    // all-visits median and out of the played one. Identical columns would pass any "it renders"
-    // check while the filter did nothing.
-    //   all:    55 / 90 / 95 / 125 -> median 92.5s -> "1m 33s" over 4
-    //   played: 55 / 95            -> median 75s   -> "1m 15s" over 2
-    ok('the median visit includes the bouncers', !!before && /^1m 33s/.test(before[3]), before && before[3]);
-    ok('...and the PLAYED median excludes them', !!before && /^1m 15s/.test(before[4]), before && before[4]);
-    ok('...so the two columns are not the same number',
-       !!before && before[3] !== before[4], `${before && before[3]} vs ${before && before[4]}`);
-    ok('...and the count travels with each median', !!before && /\(4\)/.test(before[3]) && /\(2\)/.test(before[4]),
-       `${before && before[3]} / ${before && before[4]}`);
-    ok('the release side reports both too', !!after && /^5m 5s/.test(after[3]) && /^5m 5s/.test(after[4]),
+    // THE FOUR COLUMNS THE OWNER ASKED FOR, and the fixture is arranged so each one can fail on
+    // its own. Column order: 0 release · 1 players who played · 2 played visits · 3 avg · 4 median
+    // · 5 levels cleared/player · 6 cleared >=1 · 7 came back · 8 spent spores.
+    const secs = (t) => {
+      const m = /(?:(\d+)m)?\s*(?:(\d+)s)?/.exec(String(t || '').trim());
+      return (+(m && m[1] || 0)) * 60 + (+(m && m[2] || 0));
+    };
+    // BOUNCERS OUT (owner). b3 loads and leaves and is the LONGEST of the three original
+    // baseline visits, so a filter that failed to drop it would read HIGHER, not lower — an
+    // assertion that only checked "some number appeared" would pass on it.
+    //   baseline played: 55 · 60..67 · 95 · 18000  (11 visits)
+    ok('the time columns are over played visits only, bouncers dropped',
+       !!before && before[2] === '11', before && before[2]);
+    // PEOPLE, NOT VISITS, and the release side is where that can be seen: a1 plays twice, so it
+    // is three players over four visits. A column that counted sessions would read 4.
+    ok('...and the players column counts the people, not the visits',
+       !!after && after[1] === '3' && after[2] === '4',
+       (after && after[1]) + ' players / ' + (after && after[2]) + ' visits');
+    // OUTLIERS OUT (owner), and only from the MEAN — the median is already robust, which is the
+    // whole reason both are printed. Raw mean 28m 16s over 11; drop the five-hour visit and it is
+    // about a minute. The raw number has to stay VISIBLE beside it: a trimmed mean shown alone
+    // reads as fact.
+    ok('the average drops the longest 1% of visits',
+       !!before && secs(before[3]) > 0 && secs(before[3]) < 120,
+       before && before[3]);
+    ok('...and prints the raw average beside it, so the trim is never invisible',
+       !!before && /\(raw /.test(before[3]) && secs((/\(raw ([^)]+)\)/.exec(before[3]) || [])[1]) > 1500,
+       before && before[3]);
+    ok('...while the median needs no trimming and says something different',
+       !!before && secs(before[4]) > 0 && before[4] !== before[3],
+       (before && before[3]) + ' / ' + (before && before[4]));
+    // 240 / 305 / 370 / 200 -> mean 278.75s, median 272.5s. Under ten visits nothing is trimmed,
+    // so the release side is the control on the trim: no "(raw …)", and the two columns still
+    // differ because a mean and a median are different questions.
+    ok('the release side reports both too',
+       !!after && /^\d+m \d+s$/.test(after[3]) && after[3] !== after[4]
+         && secs(after[3]) > 250 && secs(after[3]) < 300,
        (after && after[3]) + ' / ' + (after && after[4]));
     // BOTH UNITS (owner: "need more detail"). Asserted as a shape rather than only as the exact
     // strings above, so a formatter that went back to one unit fails here under a name that says
-    // what it lost. Anchored at the START of the cell, not the whole of it: the cell carries the
-    // visit count in brackets after the duration, and matching to `$` made this a test of the
-    // layout instead of the formatter.
+    // what it lost.
     ok('...and a duration carries minutes AND seconds, not one rounded unit',
-       !!before && /^\d+m \d+s\b/.test(before[3]) && !!after && /^\d+m \d+s\b/.test(after[3]),
-       (before && before[3]) + ' / ' + (after && after[3]));
-    // 4 on the baseline: the three pre-stamp players plus the folded older build's one.
-    ok('players and sessions are counted per side',
-       !!before && before[1] === '4' && before[2] === '4' && !!after && after[1] === '3',
-       (before && before.slice(1, 3).join('/')) + ' vs ' + (after && after.slice(1, 3).join('/')));
-    // "Reached a run" is per SESSION: 3 of 4 on the baseline (b1, b2 and the folded p1), 3 of 3 after.
-    ok('...as is the share of sessions that reached a run',
-       !!before && /75%/.test(before[5]) && !!after && /100%/.test(after[5]),
-       (before && before[5]) + ' vs ' + (after && after[5]));
-    // AND "CLEARED A LEVEL" IS PER PLAYER, WHICH IS A DIFFERENT DENOMINATOR ON PURPOSE (owner:
-    // "% who cleared at least one level"). Nobody clears before, all three clear after. Asserted
-    // as DISTINCT PLAYERS: a3 clears twice in the fixture, so a per-event count would read 4 of 3
-    // and print 133% — the same defect as counting attempts where the question said people.
+       !!before && /^\d+m \d+s\b/.test(before[4]) && !!after && /^\d+m \d+s\b/.test(after[4]),
+       (before && before[4]) + ' / ' + (after && after[4]));
+    // LEVELS CLEARED, PER PLAYER (owner). a3 clears twice, so the COUNT is 4 over 3 players —
+    // which is the point of the column: the share who cleared anything says how many got off the
+    // ground, this says how far they then got. Nobody clears on the baseline.
+    ok('levels cleared is per player, and counts every clear',
+       !!after && /^1\.3\b/.test(after[5]) && /\(4\)/.test(after[5]), after && after[5]);
+    ok('...against a baseline where nobody cleared anything',
+       !!before && /^0\b/.test(before[5]), before && before[5]);
     ok('...and the share of PLAYERS who cleared at least one level',
        !!before && /^0\b/.test(before[6]) && /0%/.test(before[6])
          && !!after && /^3\b/.test(after[6]) && /100%/.test(after[6]),
        (before && before[6]) + ' vs ' + (after && after[6]));
     ok('...counting a player who cleared twice ONCE', !!after && !/^4\b/.test(after[6]), after && after[6]);
+    // RETENTION, COHORTED ON THE FIRST VISIT (owner: "playing a second session"). a1 comes back
+    // half a day later; nobody on the baseline does. Attribute by "has a session on this build"
+    // instead and a player who played both is retained on BOTH sides.
+    ok('came back is one player of the three on the release',
+       !!after && /^1\b/.test(after[7]) && /33\.3%/.test(after[7]), after && after[7]);
+    ok('...and nobody came back on the baseline', !!before && /^0\b/.test(before[7]), before && before[7]);
+    // ...OVER ITS OWN DENOMINATOR, which is not the players column beside it: only people whose
+    // first visit is more than a day old have been ASKED to come back. Right after a release that
+    // is a handful of the row beside it, and printing the two as if they shared a base is the
+    // trap the level table fell into.
+    ok('...over the players old enough to have been asked, with that n in brackets',
+       !!after && /\(of \d+\)/.test(after[7]), after && after[7]);
     // SPENDING, in the release table rather than a section of its own — the campaign is built to
     // stop a new player at level 3 or 4 and the answer is the store, so it is much of what a
-    // release is judged on. One spender of three on each side; the AFTER one spends TWICE.
-    // 1 of 4 on the baseline (the three pre-stamp players plus the folded older build's one),
-    // 1 of 3 on the release.
+    // release is judged on. The AFTER spender spends TWICE.
     ok('...and the share of PLAYERS who spent anything',
-       !!before && /^1\b/.test(before[7]) && /25%/.test(before[7])
-         && !!after && /^1\b/.test(after[7]) && /33\.3%/.test(after[7]),
-       (before && before[7]) + ' vs ' + (after && after[7]));
-    ok('...counting a player who spent twice ONCE', !!after && !/^2\b/.test(after[7]), after && after[7]);
-    ok('...and the two percentage columns name their denominators in the header',
-       !!cmp && /reached a run \(sessions\)/i.test(cmp.head) && /cleared a level \(players\)/i.test(cmp.head),
+       !!before && /^1\b/.test(before[8]) && !!after && /^1\b/.test(after[8]) && /33\.3%/.test(after[8]),
+       (before && before[8]) + ' vs ' + (after && after[8]));
+    ok('...counting a player who spent twice ONCE', !!after && !/^2\b/.test(after[8]), after && after[8]);
+    // AN EXCLUSION THE READER CANNOT SEE is indistinguishable from a population that was never
+    // there, so the bouncers are counted out loud. And the count has to be measured with the game
+    // left OPEN: a session that started nothing has no game, so the section's campaign pin has
+    // already dropped it — measured off the pinned rows this line reads a proud "0 of 11".
+    ok('...and the bouncers it dropped are counted out loud',
+       !!cmp && /Bouncers excluded/.test(cmp.note) && /never started a level/.test(cmp.note)
+         && /before it 3 of 14 visits/.test(cmp.note),
+       (/Bouncers excluded[^.]*\./.exec(cmp && cmp.note || '') || [''])[0]);
+    // THE SCOPE, IN WORDS AND READ OFF THE LIVE FILTER. Survival was withdrawn in the release, so
+    // a baseline containing it is not like for like — the page used to say "pick Game=campaign
+    // before reading this", which is a manual step forgotten exactly when it matters.
+    ok('...and the section says what it is scoped to',
+       !!cmp && /Campaign only/.test(cmp.note) && /Source: crazygames/.test(cmp.note),
+       (/Campaign only[^.]*\./.exec(cmp && cmp.note || '') || [''])[0].slice(0, 80));
+    // EVERY PERCENTAGE HERE NAMES ITS DENOMINATOR. They share one — players who reached a level —
+    // except "came back", which cannot: only people whose first visit is a day old have been asked,
+    // so it carries its own n in the cell. Two adjacent percentages over different bases with
+    // nothing saying so is exactly the trap the level table fell into.
+    ok('...and every percentage column names its denominator in the header',
+       !!cmp && /cleared \u2265 1 level \(players\)/i.test(cmp.head)
+         && /came back \(players\)/i.test(cmp.head) && /spent spores \(players\)/i.test(cmp.head)
+         && /levels cleared \/ player/i.test(cmp.head),
        cmp && cmp.head);
     // A SMALL SAMPLE MUST SAY SO. Three sessions on a new build is not a result, and a table that
     // prints it with the same confidence as a month of data invites exactly the wrong conclusion.
@@ -755,16 +836,32 @@ function fixture() {
                note: [...pan.querySelectorAll('.empty')].map((p) => p.textContent).join(' ') };
     });
     const cutBoth = await cutOf();
-    await sp.click('.chip[data-f="game"][data-v="survival"]');
+    // THE CHIP THAT CAN STILL EMPTY THE RELEASE SIDE IS THE DEVICE ONE, not the game one: this
+    // section pins campaign now, so Game=survival no longer reaches it. Every device row in the
+    // fixture is desktop, so picking phone leaves the release with nothing in it — which is the
+    // same shape as the original report and tests the same two rules.
+    await sp.click('.chip[data-f="device"][data-v="phone"]');
     await sleep(500);
     const cutSurv = await cutOf();
     ok('the cut point does not move when a filter excludes the release',
        !!cutBoth && !!cutSurv && /abc1234/.test(cutBoth.lead) && /abc1234/.test(cutSurv.lead),
-       `both: ${(cutBoth && cutBoth.lead || '').slice(0, 40)} · survival: ${(cutSurv && cutSurv.lead || '').slice(0, 40)}`);
+       `both: ${(cutBoth && cutBoth.lead || '').slice(0, 40)} · phone: ${(cutSurv && cutSurv.lead || '').slice(0, 40)}`);
     // ...and the release keeps its row, empty, because an empty row IS the finding here.
     ok('...and the release row is still drawn, with nothing in it',
        !!cutSurv && cutSurv.first[0] === '2026-08-09-abc1234' && /No sessions on/.test(cutSurv.note),
        JSON.stringify(cutSurv && cutSurv.first));
+    // ...AND A SURVIVAL FILTER CANNOT REACH THIS SECTION AT ALL. Survival was withdrawn in the
+    // release, so a baseline holding it is not like for like; the pin is what removes the manual
+    // step, and it is worth an assertion of its own that the numbers do NOT move.
+    await sp.click('.chip[data-f="device"][data-v=""]');
+    await sleep(400);
+    const cutOpen = await cutOf();
+    await sp.click('.chip[data-f="game"][data-v="survival"]');
+    await sleep(500);
+    const cutSurvGame = await cutOf();
+    ok('...and the Game chip cannot reach this section, because campaign is pinned',
+       !!cutOpen && !!cutSurvGame && cutOpen.note === cutSurvGame.note,
+       (cutSurvGame && cutSurvGame.note || '').slice(0, 60));
     await sp.click('.chip[data-f="game"][data-v=""]');
     await sleep(400);
 

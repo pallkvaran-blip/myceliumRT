@@ -2267,19 +2267,37 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
   it is the closest thing in this table to "did they enjoy it". The section **warns when the newest
   release has under 30 sessions**, because that is the normal state for a day after a release and a
   thin sample printed with the same confidence as a month of data invites the wrong conclusion.
-  - **TWO MEDIANS: THE VISIT AND THE *PLAYED* VISIT** (owner: *"double check you are calculating it
-    correctly — not including people who bounce without starting a level"*). About a third of every
-    visit never starts a run — they load, look and leave in **~17 s** — and they sit at the bottom
-    of both sides pulling the medians toward each other. Measured on the live table the two say
-    OPPOSITE things: all visits read 1m 14s after against 1m 12s before (no change), and visits
-    that reached a level read **1m 52s after against 2m 58s before**. The bouncers were hiding it,
-    not causing it. The played column is the headline; both are printed, each with **n in brackets**
-    (a median over 6 visits and one over 44 print identically and mean very different things).
-  - **REMOVING A MODE MOVES THIS NUMBER BY ITSELF, so compare like for like.** Survival visits were
-    the LONGEST in the table (3m 27s against campaign's 2m 43s) and the release withdrew survival —
-    so the all-games baseline is inflated by sessions the new build cannot have. Pick **Game =
-    campaign** before reading the comparison. It does not rescue the result here (campaign-only:
-    1m 52s after against 2m 43s before) but it is the only honest version of it.
+  - **THE TABLE IS THE OWNER'S FOUR MEASURES NOW** (*"avg play time, median play time, levels
+    cleared, retention"*), with the two populations that distort them taken out and NAMED on the
+    page: **players who played · played visits · avg · median · levels cleared/player · cleared ≥1 ·
+    came back · spent spores.** "Median visit" (all visits) and "reached a run" are gone — the
+    funnel above already carries the bounce rate.
+  - **BOUNCERS ARE OUT OF EVERY COLUMN, AND THE COUNT OF THEM CANNOT COME OFF THE SAME ROWS.**
+    About a third of every visit never starts a run — they load, look and leave in **~17 s** — and
+    they sat at the bottom of both sides pulling the medians toward each other. Measured on the live
+    table the two readings said OPPOSITE things: all visits 1m 14s after against 1m 12s before (no
+    change), visits that reached a level **1m 52s after against 2m 58s before**. But a session that
+    started nothing has NO GAME (`gameOf` files it under "started nothing"), so the campaign pin
+    below removes it before it can be counted — measured off the pinned rows the "bouncers excluded"
+    line reads a proud *0 of 11*. It is measured over a second, game-agnostic row set (`crossAny`).
+  - **OUTLIERS ARE OUT OF THE MEAN ONLY, AND THE RAW MEAN IS PRINTED BESIDE IT** — a median needs no
+    trim, which is the whole reason both are there. `trimTop` drops the longest 1% and **does
+    nothing under ten visits** (1% of six is a 17% trim, i.e. the outlier and the signal are the
+    same size). One session left open for 19h 39m took a real desktop mean from 5m 35s to 15m 22s;
+    a trimmed mean shown ALONE would have read as fact.
+  - **CAMPAIGN IS PINNED IN THIS SECTION, WHATEVER THE GAME CHIP SAYS** (`inFilterRelease`), and the
+    page says so in words. Survival visits were the LONGEST in the table (3m 27s against campaign's
+    2m 43s) and the release withdrew survival, so an all-games baseline is inflated by sessions the
+    new build cannot have. The page used to say "pick Game = campaign before reading this", which is
+    a manual step forgotten exactly when it matters. Source, device and mode chips still apply.
+    Consequence for the checks: the Game chip can no longer empty the release side, so the
+    cut-does-not-move assertion drives the **device** chip instead.
+  - **"CAME BACK" IS COHORTED ON THE FIRST VISIT AND CARRIES ITS OWN DENOMINATOR.** A player counts
+    on the side their FIRST EVER visit falls on — attribute by "has a session on this build" and
+    anyone who played both is retained on both sides, so both rows rise and neither means anything.
+    Only players whose first visit is over a day old are counted, because somebody who arrived an
+    hour ago has not failed to come back; right after a release they are most of the population. So
+    its n is printed in the cell rather than shared with the players column beside it.
   - **A VISIT STILL OPEN HAS NOT REPORTED AN END**, and long visits close last, so the newest
     release reads short for a while after a launch. On the reading above 11.6% of its visits had no
     `session_end` yet against 8.9% of the baseline's — a real bias, small, and in the direction

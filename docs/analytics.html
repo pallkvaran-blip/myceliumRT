@@ -151,6 +151,22 @@ function fmtMs(ms) {
 function median(a) { if (!a.length) return null; var s = a.slice().sort(function (x, y) { return x - y; }); var m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
 function mean(a) { if (!a.length) return null; var t = 0; for (var i = 0; i < a.length; i++) t += a[i]; return t / a.length; }
 
+// TRIM THE TAIL, AND KEEP THE RAW NUMBER BESIDE IT. A mean over play time is decided by its
+// longest few visits: ONE session left open for 19h 39m took the desktop mean played visit to
+// 15m 22s, and without that row it is 5m 35s — the difference between "desktop players stay
+// three times as long as phone players" and "a quarter longer". Four trimming methods (top 1%,
+// cap at 30 min, IQR fence, median) rank the devices identically once that row is out, so the
+// METHOD barely matters; what matters is that the trim is visible, because a trimmed mean shown
+// alone reads as fact.
+//
+// Under ten visits nothing is dropped: 1% of six is one visit, i.e. a 17% trim, and on a sample
+// that small the outlier and the signal are the same size.
+function trimTop(a, frac) {
+  if (a.length < 10) return a.slice();
+  var s = a.slice().sort(function (x, y) { return x - y; });
+  return s.slice(0, s.length - Math.max(1, Math.round(s.length * (frac || 0.01))));
+}
+
 // `source` WAS ADDED LATE TOO, and unlike the build columns it has its own chip — so an untagged
 // row is invisible rather than merely unattributed. SRC_NONE is the bucket that makes it clickable.
 var SRC_NONE = "__none";
@@ -223,6 +239,21 @@ function inFilterCrossRelease(r) {
   FILTER.days = 0;
   var k = inFilter(r);
   FILTER.days = d;
+  return k;
+}
+
+// ...AND IT PINS THE GAME TO CAMPAIGN, WHATEVER THE CHIP SAYS. This is the one place on the page
+// that compares two builds, and survival was WITHDRAWN in the current one — so a baseline that
+// includes survival is not like for like: survival visits were the longest in the table (3m 27s
+// against campaign’s 2m 43s), which inflates the "before" side with sessions the new build
+// cannot have. The page used to say "pick Game = campaign before reading this", which is a
+// manual step that is forgotten exactly when it matters. It is pinned here and stated in words
+// under the heading; every other chip (source, device, mode) still applies.
+function inFilterRelease(r) {
+  var g = FILTER.game;
+  FILTER.game = "campaign";
+  var k = inFilterCrossRelease(r);
+  FILTER.game = g;
   return k;
 }
 
@@ -666,7 +697,7 @@ function render() {
   // to a new release on its own, the first time anybody plays one.
   section("Before and after the last release");
   var pcmp = panel();
-  var cross = ROWS.filter(inFilterCrossRelease);
+  var cross = ROWS.filter(inFilterRelease);
   // THE CUT POINT COMES FROM *ALL* ROWS, NOT FROM THE FILTERED ONES — and this is the bug the
   // owner caught: "I still see 13 players today doing survival after the update". Taken from
   // `cross`, the cut moves whenever a filter excludes the newest build. Pick Game=survival and
@@ -716,71 +747,151 @@ function render() {
   if (latest) pcmp.appendChild(el("p", "lead", "Cut at " + latest
     + (firstSeen ? ", first played " + new Date(firstSeen).toISOString().replace("T", " ").slice(0, 16) + " UTC" : "")
     + ". Everything before it is one baseline — the previous build and every older session together."));
+  // WHAT THIS SECTION IS SCOPED TO, IN WORDS, read off the live filter rather than described —
+  // a sentence that says "CrazyGames" while the chip says itch is worse than no sentence.
+  pcmp.appendChild(el("p", "empty", "Campaign only \u2014 pinned, whatever the Game chip says, because"
+    + " survival was withdrawn in this release and a baseline containing it is not like for like."
+    + "  Source: " + (FILTER.source === SRC_NONE ? "untagged" : (FILTER.source || "all"))
+    + (FILTER.device ? "  \u00b7  device: " + FILTER.device : "")
+    + (FILTER.mode ? "  \u00b7  mode: " + FILTER.mode : "")
+    + "  \u00b7  bouncers excluded  \u00b7  longest 1% of visits trimmed from the average."));
 
-  // PLAY TIME IS THE HEADLINE (owner). `session_end.ms` is the length of one visit and it is the
-  // closest thing here to "did they enjoy it" — a release that makes the game better shows up as
-  // people staying longer before it shows up anywhere else. MEDIAN, not mean: one player who left
-  // a tab open overnight moves a mean by minutes and a median not at all.
-  // TWO PERCENTAGE COLUMNS, TWO DENOMINATORS, AND THE HEADER SAYS WHICH. "Reached a run" is per
-  // SESSION — what share of visits become a play — and "cleared a level" is per PLAYER, because
-  // the question is how many PEOPLE got anywhere, and someone who cleared on their second visit
-  // did clear. Two adjacent percentages over different denominators is exactly the trap the level
-  // table fell into ("it says only 1 person started lvl 1"), so neither is left implicit.
-  var ct2 = table(pcmp, ["release", { t: "players", n: 1 }, { t: "sessions", n: 1 },
-    { t: "median visit", n: 1 }, { t: "median PLAYED visit", n: 1 }, { t: "reached a run (sessions)", n: 1 },
-    { t: "cleared a level (players)", n: 1 }, { t: "spent spores (players)", n: 1 }]);
+
+  // THE FOUR MEASURES THE OWNER READS THIS TABLE FOR (their words: "avg play time, median play
+  // time, levels cleared, retention"), campaign-only, on one store, with the two populations that
+  // distort each of them taken out:
+  //
+  //   BOUNCERS. About a third of every visit here never starts a level — they load, look and leave
+  //   in ~17 s. They sit at the bottom of every time column pulling both sides toward each other,
+  //   and a release cannot change a bounce it never reached. Every number in this table is now over
+  //   visits and players that REACHED A LEVEL; the count of what was excluded is printed below it,
+  //   because a silent exclusion is the same trap as a silent inclusion.
+  //
+  //   OUTLIERS. Only the mean needs this — a median is already robust, which is why both are here.
+  //   The longest 1% of played visits is dropped (see trimTop), and the raw mean is printed beside
+  //   the trimmed one whenever they differ by more than a tenth, so the trim can never be mistaken
+  //   for the measurement.
+  //
+  // PLAY TIME IS STILL THE HEADLINE: `session_end.ms` is the length of one visit and the closest
+  // thing in this table to "did they enjoy it" — a release that makes the game better shows up as
+  // people staying longer before it shows up anywhere else. The mean is what a STORE publishes
+  // (CrazyGames reported 4:25 for a window this page reproduces at 4:14, two independent
+  // measurements 4% apart), and the median is the only one of the two that can be compared between
+  // two releases without the tail deciding the result: in that same window the longest 10% of
+  // visits held 48% of all time played.
+  //
+  // ONE DENOMINATOR FOR EVERY PERCENTAGE HERE — players who reached a level — and the header says
+  // so. Two adjacent percentages over different bases is exactly the trap the level table fell into
+  // ("it says only 1 person started lvl 1").
+  var ct2 = table(pcmp, ["release", { t: "players who played", n: 1 }, { t: "played visits", n: 1 },
+    { t: "avg play time", n: 1 }, { t: "median play time", n: 1 }, { t: "levels cleared / player", n: 1 },
+    { t: "cleared \u2265 1 level (players)", n: 1 }, { t: "came back (players)", n: 1 },
+    { t: "spent spores (players)", n: 1 }]);
+
+  // CAME BACK IS A COHORT, AND IT HAS TO BE COHORTED ON THE FIRST VISIT. A player is counted on the
+  // side their FIRST EVER visit falls on — attribute by "has a session on this build" instead and
+  // anyone who played both is retained on both sides, so both rows rise and neither means anything.
+  // And only players whose first visit is more than a day old count: somebody who arrived an hour
+  // ago has not failed to come back, they have not been asked yet. Right after a launch they are
+  // most of the population, so including them drags the new build toward zero by construction.
+  var firstOf = {}, seenOf = {}, sideOf = {};
+  cross.forEach(function (r) {
+    var t = new Date(r.created_at).getTime();
+    if (!(t > 0) || !r.client_id) return;
+    (seenOf[r.client_id] || (seenOf[r.client_id] = [])).push(t);
+    if (firstOf[r.client_id] == null || t < firstOf[r.client_id]) {
+      firstOf[r.client_id] = t;
+      sideOf[r.client_id] = (latest && buildOf(r) === latest) ? LATEST : OLDER;
+    }
+  });
+  function cameBack(side) {
+    var mat = 0, ret = 0;
+    Object.keys(firstOf).forEach(function (id) {
+      if (sideOf[id] !== side || NOW - firstOf[id] < DAY) return;
+      mat++;
+      var ts = seenOf[id].sort(function (a, b) { return a - b; });
+      for (var i = 1; i < ts.length; i++) if (ts[i] - ts[i - 1] >= VISIT_GAP) { ret++; return; }
+    });
+    return { mat: mat, ret: ret };
+  }
+
+  // THE BOUNCE COUNT CANNOT COME OFF `cross`, BECAUSE THE CAMPAIGN PIN HAS ALREADY REMOVED THE
+  // BOUNCERS. A session that never starts a run has no game at all — `gameOf` files it under
+  // "started nothing" — so pinning campaign drops it before it can be counted, and the line
+  // below would report a proud "0 of 11 never started a level" while the truth was a third of
+  // them. The exclusion is measured over the same source/device/mode with the game left open.
+  var crossAny = ROWS.filter(function (r) {
+    var g = FILTER.game; FILTER.game = "";
+    var k = inFilterCrossRelease(r); FILTER.game = g; return k;
+  });
+  var anyByBuild = {};
+  crossAny.forEach(function (r) {
+    var k = (latest && buildOf(r) === latest) ? LATEST : OLDER;
+    (anyByBuild[k] || (anyByBuild[k] = [])).push(r);
+  });
+  var bounced = {};
   order.forEach(function (b) {
     var rs = byBuild[b] || [];
-    var players = uniq(rs.map(function (r) { return r.client_id; })).length;
-    var sess = uniq(rs.map(function (r) { return r.session_id; })).length;
-    var mins = rs.filter(function (r) { return r.kind === "session_end" && r.ms != null; })
+    // WHO PLAYED, not who loaded. `level_start` is the line between the two, and it is the same
+    // line the funnel above draws.
+    var played = {}, playedBy = {};
+    rs.forEach(function (r) { if (r.kind === "level_start") { played[r.session_id] = 1; playedBy[r.client_id] = 1; } });
+    var players = Object.keys(playedBy).length;
+    var anyRs = anyByBuild[b] || [];
+    var anySess = {}, anyPlayed = {};
+    anyRs.forEach(function (r) {
+      anySess[r.session_id] = 1;
+      if (r.kind === "level_start") anyPlayed[r.session_id] = 1;
+    });
+    var mins = rs.filter(function (r) { return r.kind === "session_end" && r.ms != null && played[r.session_id]; })
                  .map(function (r) { return r.ms; });
-    // ...AND THE SAME NUMBER OVER VISITS THAT ACTUALLY PLAYED (owner: "not including people who
-    // bounce without starting a level"). About a third of every visit here never starts a run —
-    // they load, look and leave in ~17s — and they sit at the bottom of both columns pulling the
-    // two medians toward each other. A release cannot change a bounce it never reached; what it
-    // can change is how long the people who PLAYED stayed, which is a different number and moves
-    // in a different direction. Both are printed, with the played one as the headline.
-    var played = {};
-    rs.forEach(function (r) { if (r.kind === "level_start") played[r.session_id] = 1; });
-    var minsP = rs.filter(function (r) { return r.kind === "session_end" && r.ms != null && played[r.session_id]; })
-                  .map(function (r) { return r.ms; });
-    var ran = uniq(rs.filter(function (r) { return r.kind === "run_start"; })
-                     .map(function (r) { return r.session_id; })).length;
-    // DISTINCT PLAYERS with at least one clear, not a share of the raw count beside it — one
-    // player who cleared nine levels is one person who got somewhere, and counting clears would
-    // let them carry the column on their own.
+    bounced[b] = { skipped: Object.keys(anySess).length - Object.keys(anyPlayed).length, of: Object.keys(anySess).length };
+    var kept = trimTop(mins, 0.01);
+    var mRaw = mean(mins), mCut = mean(kept);
+    // CLEARS PER PLAYER, which is the progress measure — the share who cleared ANYTHING says how
+    // many got off the ground, and this says how far they then got. A campaign built to stop a new
+    // player on level 3 or 4 moves in this column long before it moves in the one beside it.
+    var clears = rs.filter(function (r) { return r.kind === "level_clear"; }).length;
     var clearedBy = uniq(rs.filter(function (r) { return r.kind === "level_clear"; })
                            .map(function (r) { return r.client_id; })).length;
-    // SPENDING, PER PLAYER. It replaced the raw "levels cleared" count, which said little the
-    // column beside it did not. The campaign is built to stop a new player on level 3 or 4, at
-    // which point the answer is the store — so "did anyone spend" is much of what a release is
-    // judged on, and it belongs in this table rather than in a section of its own (there was one,
-    // and the owner cut it as a filter-shaped answer to a side-by-side question).
-    //
     // SHARE OF PLAYERS WHO SPENT ANYTHING AT ALL, not total spores: one player who buys ten
     // upgrades is one person who engaged with the store, and a total lets them carry the row.
     var spentBy = uniq(rs.filter(function (r) { return r.kind === "upgrade" || r.kind === "purchase"; })
                          .map(function (r) { return r.client_id; })).length;
+    var back = cameBack(b);
     var tr = el("tr");
     tr.appendChild(el("td", "", b === LATEST ? latest : "everything before it"));
     tr.appendChild(el("td", "n", String(players)));
-    tr.appendChild(el("td", "n", String(sess)));
-    // THE COUNT TRAVELS WITH THE MEDIAN. A median over 6 visits and one over 44 print the same
-    // way and mean very different things; without n beside it the reader has no way to tell.
-    tr.appendChild(el("td", "n", mins.length ? fmtMs(median(mins)) + "  (" + mins.length + ")" : "–"));
-    var td = el("td", "n", minsP.length ? fmtMs(median(minsP)) + "  (" + minsP.length + ")" : "–");
-    td.style.fontWeight = "700";
-    tr.appendChild(td);
-    tr.appendChild(el("td", "n", ran + "  ·  " + pct(ran, sess) + "%"));
-    var tdc = el("td", "n", clearedBy + "  ·  " + pct(clearedBy, players) + "%");
-    tdc.style.fontWeight = "700";
-    tr.appendChild(tdc);
-    var tds = el("td", "n", spentBy + "  ·  " + pct(spentBy, players) + "%");
-    tds.style.fontWeight = "700";
-    tr.appendChild(tds);
+    tr.appendChild(el("td", "n", String(mins.length)));
+    // THE RAW MEAN TRAVELS WITH THE TRIMMED ONE whenever the trim moved it more than a tenth.
+    var avg = el("td", "n", mins.length ? fmtMs(mCut)
+      + (mRaw && mCut && Math.abs(mRaw - mCut) / mRaw > 0.1 ? "  (raw " + fmtMs(mRaw) + ")" : "") : "\u2013");
+    avg.style.fontWeight = "700";
+    tr.appendChild(avg);
+    var med = el("td", "n", kept.length ? fmtMs(median(kept)) : "\u2013");
+    med.style.fontWeight = "700";
+    tr.appendChild(med);
+    var tdl = el("td", "n", players ? String(Math.round(10 * clears / players) / 10) + "  (" + clears + ")" : "\u2013");
+    tdl.style.fontWeight = "700";
+    tr.appendChild(tdl);
+    tr.appendChild(el("td", "n", players ? clearedBy + "  \u00b7  " + pct(clearedBy, players) + "%" : "\u2013"));
+    // n IN BRACKETS, because this one has its own population: the players old enough to have been
+    // asked. Right after a release that is a handful of the people in the row beside it.
+    var tdb = el("td", "n", back.mat ? back.ret + "  \u00b7  " + pct(back.ret, back.mat) + "%  (of " + back.mat + ")"
+      : "too new");
+    tdb.style.fontWeight = "700";
+    tr.appendChild(tdb);
+    tr.appendChild(el("td", "n", players ? spentBy + "  \u00b7  " + pct(spentBy, players) + "%" : "\u2013"));
     ct2.appendChild(tr);
   });
+
+  // WHAT WAS LEFT OUT, IN NUMBERS. An exclusion the reader cannot see is indistinguishable from a
+  // population that was never there.
+  pcmp.appendChild(el("p", "empty", "Bouncers excluded: "
+    + order.map(function (b) {
+        var x = bounced[b] || { skipped: 0, of: 0 };
+        return (b === LATEST ? latest : "before it") + " " + x.skipped + " of " + x.of + " visits";
+      }).join(", ") + " never started a level."));
   // A SMALL SAMPLE IS THE NORMAL STATE OF THIS TABLE for a day or two after a release, and the
   // page has to say so — otherwise the first reading of a new build is a dozen sessions presented
   // with the same confidence as a month of them.
@@ -799,14 +910,17 @@ function render() {
                           .map(function (r) { return r.session_id; })).length;
         return b + " (" + n + " session" + (n === 1 ? "" : "s") + ")";
       }).join(", ") + ", plus every session from before builds stamped themselves."));
-  pcmp.appendChild(el("p", "empty", "A visit is `boot` to `session_end`, and the number in"
-    + " brackets is how many visits the median is over. “Median visit” includes people who loaded"
-    + " and left without starting anything; “median PLAYED visit” counts only visits that reached"
-    + " a level, and that is the one a release can move. A visit still open has not reported an end"
-    + " yet, and long visits close last, so the newest release reads a little short for a while."
-    + " “Reached a run” is a share of SESSIONS; “cleared a level” and “spent spores” are shares of"
-    + " PLAYERS — one person who cleared nine levels, or bought ten upgrades, is one person who"
-    + " got somewhere."
+  pcmp.appendChild(el("p", "empty", "A visit is `boot` to `session_end`, and only visits that"
+    + " reached a level are counted here. The AVERAGE is what a store publishes and the MEDIAN is"
+    + " the one to compare two builds on: play time is savagely skewed, and on this table the"
+    + " longest tenth of visits has held about half of all the time played, so a mean follows"
+    + " whoever left a tab open. “Levels cleared / player” counts every clear (the total is in"
+    + " brackets) — the column beside it says how many people got off the ground, this says how"
+    + " far they then got. “Came back” has its own denominator, printed in the cell: only players"
+    + " whose first visit is more than a day old have been asked, and a reload inside "
+    + Math.round(VISIT_GAP / 60000) + " minutes is the same visit rather than a return."
+    + " A visit still open has not reported an end yet, and long visits close last, so the newest"
+    + " release reads a little short for a while."
     + (newestSess && newestSess < 30 ? "  —  The newest release has only " + newestSess + " session(s) so far,"
         + " which is too few to read as a result: give it a day." : "")));
 
