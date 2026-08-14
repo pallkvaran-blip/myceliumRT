@@ -75,7 +75,11 @@ const fmt = (v) => v == null ? '–' : `${Math.floor(v / 60000)}m ${Math.round((
 const median = (a) => a.length ? (a.length % 2 ? a[a.length >> 1] : (a[(a.length >> 1) - 1] + a[a.length >> 1]) / 2) : null;
 const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : null;
 
-const since = new Date(Date.now() - (BACK + 2) * 86400000).toISOString();
+const BYHOUR = args.includes('--by-hour');
+const DEVICE = argOf('device', '');
+const SPAN = +argOf('span', BYHOUR ? 21 : BACK + 2);
+
+const since = new Date(Date.now() - SPAN * 86400000).toISOString();
 const rows = await fetchSince(since);
 
 // One stamp per session, off the boot row; one game per session, off the FIRST run_start.
@@ -83,6 +87,71 @@ const build = new Map(), game = new Map();
 for (const r of rows) if (r.kind === 'boot' && r.detail && r.session_id) build.set(r.session_id, r.detail);
 for (const r of rows.slice().sort((a, b) => ms(a) - ms(b)))
   if (r.kind === 'run_start' && r.game && r.session_id && !game.has(r.session_id)) game.set(r.session_id, r.game);
+
+// ---- --by-hour: "do sessions get longer later in the day?" ------------------------------------
+//
+// THE ANSWER SO FAR IS NO, AND THE REASON THE QUESTION CANNOT REALLY BE ANSWERED HERE IS WORTH
+// KNOWING BEFORE YOU READ THE TABLE. `created_at` is UTC and the telemetry records nothing about
+// where the player is — no timezone, no locale, no user-agent — so 18:00 UTC is a European
+// evening, a New York midday and a Sydney dawn in one bucket. A real evening effect would be
+// smeared flat by that mixing and this table could not tell you. The fix is one field on `boot`
+// (`new Date().getTimezoneOffset()`), which reveals nothing identifying, and then the question
+// becomes answerable in a few weeks.
+//
+// EVERY BUCKET GETS A BOOTSTRAP CI, because a median over 40 visits and a median over 300 print
+// identically and mean very different things — measured on 21 days of campaign visits, the blocks
+// ranged over 36 seconds while a single block's own interval was wider than that, i.e. nothing.
+// It also correlates each hour's VOLUME against its median, since "quiet hours are different
+// hours" is the obvious confound and is worth ruling out rather than assuming (r = -0.12).
+if (BYHOUR) {
+  const bySess = new Map();
+  for (const r of rows) { if (!bySess.has(r.session_id)) bySess.set(r.session_id, []); bySess.get(r.session_id).push(r); }
+  const V = [];
+  for (const [sid, evs] of bySess) {
+    if (!evs.some((e) => e.source === SOURCE)) continue;
+    const end = evs.find((e) => e.kind === 'session_end' && e.ms != null);
+    if (!end || !evs.some((e) => e.kind === 'level_start')) continue;
+    if (GAME && game.get(sid) !== GAME) continue;
+    const dev = (evs.find((e) => e.device) || {}).device || '?';
+    if (DEVICE && dev !== DEVICE) continue;
+    // THE HOUR A VISIT STARTED, not the hour its rows happen to fall in: a 70-minute session
+    // spans three of them, and filing its duration under the last is how a long visit makes the
+    // hour it ENDED in look like the hour people play longest.
+    V.push({ h: new Date(Math.min(...evs.map(ms))).getUTCHours(), ms: end.ms, dev });
+  }
+  const q = (a, p) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(s.length * p))] : null; };
+  const sortNum = (a) => [...a].sort((x, y) => x - y);
+  const boot = (a, n = 3000) => {
+    const o = [];
+    for (let i = 0; i < n; i++) { const s = []; for (let j = 0; j < a.length; j++) s.push(a[(Math.random() * a.length) | 0]); o.push(median(sortNum(s))); }
+    o.sort((x, y) => x - y);
+    return [o[(n * 0.025) | 0], o[(n * 0.975) | 0]];
+  };
+  const mix = {}; for (const v of V) mix[v.dev] = (mix[v.dev] || 0) + 1;
+  console.log(`\n${V.length} played visits over ${SPAN} days — source=${SOURCE} game=${GAME || 'all'}`
+    + (DEVICE ? ` device=${DEVICE}` : '') + `\ndevice mix: ${JSON.stringify(mix)}`);
+  const all = sortNum(V.map((v) => v.ms));
+  console.log(`overall: median ${fmt(median(all))}  p75 ${fmt(q(all, 0.75))}  p90 ${fmt(q(all, 0.9))}  mean ${fmt(mean(all))}\n`);
+  console.log('  UTC block   visits     median   95% CI of the median          mean');
+  for (const [a, b, l] of [[0, 4, '00-04'], [4, 8, '04-08'], [8, 12, '08-12'], [12, 16, '12-16'], [16, 20, '16-20'], [20, 24, '20-24']]) {
+    const d = sortNum(V.filter((v) => v.h >= a && v.h < b).map((v) => v.ms));
+    if (d.length < 10) { console.log(`  ${l}      ${String(d.length).padStart(5)}   (too few to read)`); continue; }
+    const [lo, hi] = boot(d);
+    console.log(`  ${l}      ${String(d.length).padStart(5)}   ${fmt(median(d)).padStart(8)}   ${fmt(lo)} .. ${fmt(hi)}`.padEnd(64) + fmt(mean(d)));
+  }
+  const pts = [...Array(24).keys()].map((h) => sortNum(V.filter((v) => v.h === h).map((v) => v.ms)))
+    .filter((d) => d.length >= 5).map((d) => ({ n: d.length, m: median(d) }));
+  if (pts.length >= 6) {
+    const xs = pts.map((p) => p.n), ys = pts.map((p) => p.m), n = xs.length;
+    const mx = mean(xs), my = mean(ys);
+    const r = xs.map((x, i) => (x - mx) * (ys[i] - my)).reduce((a, b) => a + b)
+      / Math.sqrt(xs.map((x) => (x - mx) ** 2).reduce((a, b) => a + b) * ys.map((y) => (y - my) ** 2).reduce((a, b) => a + b));
+    console.log(`\n  an hour's VOLUME against its median visit: r = ${r.toFixed(2)} over ${n} hours with 5+ visits`);
+  }
+  console.log('\n  UTC mixes every timezone into one bucket, so a real local-evening effect would be'
+    + '\n  invisible here. See the header: it needs one field on `boot`.');
+  process.exit(0);
+}
 
 const STAMP = /^\d{4}-\d{2}-\d{2}-/;
 const stamps = [...new Set([...build.values()].filter((b) => STAMP.test(b)))].sort();
