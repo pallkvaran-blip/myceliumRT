@@ -13455,7 +13455,7 @@ const STORE_UPGRADES = [
   // the final map. The clear ceiling is enforced in `startLevelFor`, not here: this track records
   // what has been PAID for, and the cap is a fact about the save that can change under it when
   // you clear another level.
-  { id: 'startLevel', name: 'Starting level', icon: 'life', accent: 'life', step: 1, base: CAMPAIGN_START_LEVEL, unit: 'levels', unit1: 'level',
+  { id: 'startLevel', name: 'Starting level', icon: 'climb', accent: 'life', step: 1, base: CAMPAIGN_START_LEVEL, unit: 'levels', unit1: 'level',
     effect: 'Start each run <b>one level further in</b>, up to the highest level you have cleared.',
     costs: OPENER(25, 10).slice(0, Math.max(1, CAMPAIGN_LEVELS - 1)) },
   // ...then the three that shape what you carry out of a run. Twenty steps of basic/event on the
@@ -25528,6 +25528,13 @@ const RI = {
   // viewBox so the path data is the original, unretraced; only the stroke is thickened, because
   // 2.2 units of stroke over 64 vanishes at 20px.
   life: '<svg class="ss-ri" viewBox="0 0 64 64" aria-hidden="true">' + FAVICON_MARK + '</svg>',
+  // STARTING LEVEL is a plain up arrow (owner). It shared the favicon with Retries, and two tiles
+  // wearing the same mark in the same near-white is a tile you have to read the words on. Stroked
+  // at 2 rather than the 1.5 the card glyphs use: those carry three overlapping rectangles and read
+  // as a shape, this is one line and thins away at 20px.
+  climb: '<svg class="ss-ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M12 20V5"/><path d="M6 11l6-6 6 6"/>' +
+    '</svg>',
 };
 
 // How much the dev wallet button hands over. Enough to buy the dearest colony and still have
