@@ -27477,6 +27477,13 @@ function startTutorial(deps) {
       // a third of a phone screen at the one moment the player needs to see where they are
       // growing. The armed card's own highlight is what says which card is in hand.
       hand: 'min',
+      // HIGH IN THE BAND, WHICH IS WHAT BUYS THE WIDE VIEW (owner: "zoom out more during the
+      // growth step, quite a bit more"). Centring is not free at the soil line: the colony has
+      // only 386 world units of map above it, so holding it at the middle of a 705px band costs
+      // z 0.91 whatever else is done. Asking for the upper fifth needs 0.33, so the step keeps
+      // the wide 0.42 — 2.4x more map than before — and spends the rest of the band on the soil
+      // the player is about to grow into, which is the half that matters here.
+      anchorY: 0.18,
       place: 'top',
       live: true,
       // DO NOT ADVANCE ON "THE COLONY GREW". This step is the only `live` one — the only one where
@@ -31298,8 +31305,13 @@ function focusWorld(x, y, zoom, anchorY, anchorX) {
       const fy = (anchorY != null) ? anchorY : 0.5;
       const it = camera.inset.top || 0, ib = camera.inset.bottom || 0;
       const bh = Math.max(1, camera.viewH - it - ib);
-      const need = Math.max((it + fy * bh) / Math.max(1, y - b.minY),
-                            (ib + (1 - fy) * bh) / Math.max(1, b.maxY - y));
+      // MEASURED FROM THE BAND'S EDGES, NOT THE SCREEN'S. The first version added `it` and `ib`
+      // — i.e. it demanded enough world to fill the strips BEHIND the popup and the carousel as
+      // well, which is exactly the space the inset exists to let go of. It asked for more zoom
+      // than the geometry needs and pinned several steps at the cap: the deck step wanted 1.05
+      // where 0.67 is enough.
+      const need = Math.max((fy * bh) / Math.max(1, y - b.minY),
+                            ((1 - fy) * bh) / Math.max(1, b.maxY - y));
       if (need > z) z = Math.min(TUT_PHONE_ZOOM_MAX, need);
     }
     // ANCHORED IN THE VISIBLE BAND, NOT THE VIEWPORT. `fy` is a fraction of the strip between the
