@@ -614,7 +614,11 @@
     /* Hand tray (bottom): the control row — [▾ arrow] · filter chips · [» Skip] —
        is ALWAYS visible and docked; the ▾/▴ arrow shows/hides only the card
        carousel. There is no separate action bar in card mode. */
-    .handbar { bottom: 16px; left: 12px; right: 12px; transform: none; max-width: none; padding: 8px 10px;
+    /* FLUSH WITH THE BOTTOM EDGE (owner). It floated 16px up, which bought nothing and cost a
+       strip of map; the bottom corners square off because a rounded edge pressed against the
+       screen edge reads as a mistake rather than as a panel. */
+    .handbar { bottom: 0; left: 12px; right: 12px; transform: none; max-width: none; padding: 8px 10px 6px;
+      border-bottom-left-radius: 0; border-bottom-right-radius: 0;
       display: flex; flex-direction: column; gap: 8px; align-items: stretch;
       background: linear-gradient(150deg, rgba(18,28,22,0.9), rgba(8,14,11,0.9));
       border: 1.5px solid rgba(130,230,166,0.45); border-radius: 14px;
@@ -658,15 +662,8 @@
     .skipchip .skn { font-size: 11px; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
     .skipchip .ske { display: inline-flex; align-items: center; }
     .skipchip .ske svg { width: 13px; height: 13px; display: block; margin: 0 -2px; }
-    /* filter chips */
-    /* Single scrollable row (never wraps) with a soft fade at both ends so the chips
-       melt out near the ▾ minimize and » Skip buttons instead of ending abruptly.
-       The 14px side padding parks the first/last chip just past the fade at rest. */
-    .handfilter { display: flex; gap: 6px; flex-wrap: nowrap; justify-content: safe center; flex: 1 1 auto;
-      min-width: 0; overflow-x: auto; padding: 0 14px; scrollbar-width: none;
-      -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%);
-      mask-image: linear-gradient(90deg, transparent 0, #000 14px, #000 calc(100% - 14px), transparent 100%); }
-    .handfilter::-webkit-scrollbar { display: none; }
+    /* Filter chips. The in-game row that used to carry them is gone (owner); these styles stay
+       because the run-end LOADOUT picker renders its own chips into `.lo-filter`. */
     .fchip { display: inline-flex; align-items: center; gap: 5px; font-family: inherit; font-size: 11px;
       padding: 3px 9px; border-radius: 999px; background: rgba(40,54,48,0.9); color: var(--ink-dim);
       border: 1px solid var(--panel-border); cursor: pointer; white-space: nowrap; }
@@ -675,13 +672,15 @@
     .fchip .fn { font-size: 9px; opacity: 0.75; background: rgba(0,0,0,0.28); border-radius: 8px; padding: 0 4px; }
     /* Carousel: a single horizontal drag-scroll row on every platform (no nav
        buttons — you drag; Play Card lives in the bottom action bar). */
-    .handcarousel { position: relative; align-items: center; gap: 8px; max-width: 100%; }   /* display gated by .handbar.open above; position:relative anchors the edge-fade nav arrows */
+    /* Cards sit ON the floor of the tray (owner: "have the cards start at the bottom"), so a
+       short card and a tall one share a baseline instead of floating about a centre line. */
+    .handcarousel { position: relative; align-items: flex-end; gap: 8px; max-width: 100%; }   /* display gated by .handbar.open above; position:relative anchors the edge-fade nav arrows */
     /* PADDED AT BOTH ENDS so the first and last card can scroll clear of the nav arrows. The
        arrows are 54px wide and overlay the list's edges — deliberately, so cards run full-width
        beneath them — but at the extremes of the scroll there is nothing left to melt under, and
        the outermost card just sits half-covered. 60px is the arrow plus a little air. Symmetric,
        so `safe center` still centres a short hand. */
-    .handlist { display: flex; gap: 6px; flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; justify-content: safe center;
+    .handlist { display: flex; align-items: flex-end; gap: 6px; flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; justify-content: safe center;
       max-width: none; overflow-x: auto; overflow-y: hidden; padding-inline: 60px;
       scrollbar-width: none; scroll-snap-type: none; cursor: grab; }
     .handlist::-webkit-scrollbar { display: none; }
@@ -920,10 +919,10 @@
       .actionbar .abtn { min-height: 44px; padding: 5px 8px; }
       .actionbar .abtn .blabel { font-size: 12px; }
       .actionbar .abtn .bcost { font-size: 10.5px; }
-      .handbar { bottom: calc(12px + env(safe-area-inset-bottom, 0px)); left: 6px; right: 6px; transform: none; max-width: none; padding: 6px; gap: 6px; }
-      .handfilter { flex-wrap: nowrap; overflow-x: auto; justify-content: safe center; max-width: none;
-        align-self: stretch; scrollbar-width: none; padding-bottom: 1px; }
-      .handfilter::-webkit-scrollbar { display: none; }
+      /* The safe-area inset is the only thing keeping it off the very bottom now — on a phone
+         that strip is the home indicator, not spare room. */
+      .handbar { bottom: 0; left: 6px; right: 6px; transform: none; max-width: none;
+        padding: 6px 6px calc(4px + env(safe-area-inset-bottom, 0px)); gap: 6px; }
       .handcarousel { align-self: stretch; }
       .handnav { display: none; }   /* phones swipe — no arrows */
       .handlist { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
@@ -959,10 +958,8 @@
       .actionbar .abtn { min-height: 38px; padding: 4px 9px; }
       .actionbar .abtn .blabel { font-size: 11.5px; }
       .actionbar .abtn .bcost { font-size: 10px; }
-      .handbar { bottom: 6px; left: 6px; right: 6px; transform: none; max-width: none; padding: 4px 6px; gap: 4px; }
-      .handfilter { flex-wrap: nowrap; overflow-x: auto; justify-content: safe center; align-self: stretch; scrollbar-width: none; }
-      .handfilter::-webkit-scrollbar { display: none; }
-      .fchip { font-size: 10px; padding: 2px 7px; }
+      .handbar { bottom: 0; left: 6px; right: 6px; transform: none; max-width: none;
+        padding: 4px 6px calc(3px + env(safe-area-inset-bottom, 0px)); gap: 4px; }
       .handcarousel { align-self: stretch; }
       .handnav { display: none; }
       .handlist { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
@@ -1922,7 +1919,7 @@
     .lo-panel { width:100%; max-width:1120px; display:flex; flex-direction:column; align-items:center; gap:5px; margin:auto; }
     .lo-caro { width:100%; display:flex; flex-direction:column; gap:4px; }
     .lo-label { font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:#7ef0c0; font-weight:700; margin:0 2px; }
-    /* filter chips — same look as the in-game .handfilter row */
+    /* filter chips — the only place in the game that still shows them */
     .lo-filter { display:flex; gap:6px; flex-wrap:nowrap; overflow-x:auto; padding:1px 2px; }
     .lo-filter::-webkit-scrollbar { display:none; }
     /* carousel scroll list — mirrors .handlist (horizontal, hidden scrollbar) */
@@ -23641,17 +23638,23 @@ class UI {
         + `<div class="handpreview hidden" id="handpreview"></div>`
         // Guidance shown when no card in hand can be played (hand empty OR all unaffordable).
         + `<div class="handhint hidden" id="handhint"></div>`
-        // Always-visible control row at the BOTTOM: [▾ show/hide arrow] · filter chips ·
-        // [» Skip chip]. The arrow collapses/expands the carousel above; the row stays put.
+        // Always-visible control row at the BOTTOM: [▾ show/hide arrow] · [» Skip chip]. The
+        // arrow collapses/expands the carousel above; the row stays put.
+        //
+        // NO FILTER CHIPS (owner: "taking up too much space on both desktop and phone"). They were
+        // a scrolling row of All/Basic/Engine/Event/Grow/… with counts, ~30px of a screen whose
+        // scarcest axis is vertical — and the hand is a handful of cards you can drag through in
+        // one gesture, so the filter was solving a problem the carousel does not have.
+        // `handFilter` SURVIVES as state: the tutorial narrows the hand to grow cards on the
+        // deck step (`filter: 'grow'`) and hands it back on the way out, and that is now the only
+        // caller. `_renderHandFilter` returns at its own `if (!fbar)` guard.
         + `<div class="handrow">`
         + `<button class="handtoggle" id="handtoggle" aria-label="Show or hide cards"><span class="htchev">▾</span></button>`
-        + `<div class="handfilter" id="handfilter"></div>`
         + `<button class="skipchip" id="skipchip" aria-label="Skip round — advance without playing"></button>`
         + `</div>`
         + `</div>`;
       this.el.handbar = hand;
       this.el.handlist = hand.querySelector('#handlist');
-      this.el.handfilter = hand.querySelector('#handfilter');
       this.el.handpreview = hand.querySelector('#handpreview');
       this.el.handhint = hand.querySelector('#handhint');
       this.el.handprev = hand.querySelector('#handprev');
@@ -24450,11 +24453,17 @@ class UI {
 
   // Filter chips: All + one per card group present in hand (with counts).
   _renderHandFilter(groups) {
-    const fbar = this.el.handfilter;
-    if (!fbar) return;
     const present = new Map();
     groups.forEach((g) => { cardGroups(g.card).forEach((gr) => { const e = present.get(gr.key) || { key: gr.key, label: gr.label, n: 0 }; e.n += g.count; present.set(gr.key, e); }); });
+    // THIS RESET RUNS EVEN THOUGH THE CHIPS ARE GONE, and it has to. With the row removed the
+    // only thing that ever sets a filter is the tutorial (`filter: 'grow'`), and nobody can clear
+    // it by hand any more — so a filter left pointing at a group the hand no longer holds would
+    // render an EMPTY carousel with no way out. It sits above the `fbar` guard for that reason.
     if (this.handFilter !== 'all' && !present.has(this.handFilter)) this.handFilter = 'all';  // active filter emptied out
+    // The in-game chip row was removed (owner); `handFilter` is state now, not a control. The
+    // loadout picker still renders its own `.fchip`s, which is why that styling stays.
+    const fbar = this.el.handfilter;
+    if (!fbar) return;
     const total = groups.reduce((a, g) => a + g.count, 0);
     const ordered = GROUP_ORDER.filter((k) => present.has(k)).map((k) => present.get(k));
     const chip = (key, label, n, on) => `<button class="fchip${on ? ' on' : ''}" data-f="${key}">${escapeHtml(label)}<span class="fn">${n}</span></button>`;
