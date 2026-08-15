@@ -19,7 +19,7 @@
   },
   "threats": {
     "trych": 0,
-    "nematodes": 7,
+    "nematodes": 5,
     "ants": 0,
     "respawn": false
   },
@@ -377,11 +377,6 @@
       "r": 72
     },
     {
-      "t": "nematode",
-      "x": 918,
-      "y": 649
-    },
-    {
       "t": "food",
       "kind": "duff",
       "x": 126,
@@ -528,11 +523,6 @@
       "x": 1243,
       "y": 1721,
       "r": 72
-    },
-    {
-      "t": "nematode",
-      "x": 852,
-      "y": 672
     },
     {
       "t": "nematode",

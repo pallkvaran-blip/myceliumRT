@@ -1821,11 +1821,11 @@
       filter:contrast(1.05); }
     /* SMALLER (owner). These are the two controls on a screen whose subject is the map behind
        them, and at the old size they were the loudest thing in the popup. */
-    .tut-btns { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-top:13px; }
+    /* ONE BUTTON, PUSHED RIGHT. `space-between` was laying out an End/Next pair; with Next alone
+       it pinned the only button to the LEFT edge, which reads as the wrong control. */
+    .tut-btns { display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:13px; }
     .tut-btn { font:inherit; font-weight:600; font-size:12.5px; cursor:pointer; pointer-events:auto;
       border-radius:9px; padding:6px 13px; letter-spacing:.01em; transition:background .12s, color .12s, border-color .12s; }
-    .tut-end { background:#000; border:1px solid rgba(255,255,255,0.5); color:#c8c8c8; }
-    .tut-end:hover { background:#151515; color:#fff; border-color:#fff; }
     .tut-next { background:#fff; border:1px solid #fff; color:#000; }
     .tut-next:hover { background:#e6e6e6; border-color:#e6e6e6; }
 
@@ -7106,7 +7106,7 @@ const LEVELS = [
     },
     "threats": {
       "trych": 0,
-      "nematodes": 7,
+      "nematodes": 5,
       "ants": 0,
       "respawn": false
     },
@@ -7161,7 +7161,6 @@ const LEVELS = [
       {"t":"boulder","key":"magnetite-c40R011","x":331.5,"y":481.5,"w":303,"h":238.3,"rot":0},
       {"t":"boulder","key":"magnetite-c40R018","x":1271.7,"y":575.4,"w":281.1,"h":249.9,"rot":-0.1745},
       {"t":"reservoir","key":"reservoir1","x":331,"y":724,"r":72},
-      {"t":"nematode","x":918,"y":649},
       {"t":"food","kind":"duff","x":126,"y":547,"r":1,"energy":2},
       {"t":"food","kind":"cache","x":890,"y":951,"r":1,"energy":4},
       {"t":"nematode","x":1488,"y":1198},
@@ -7181,7 +7180,6 @@ const LEVELS = [
       {"t":"food","kind":"duff","x":2398,"y":807,"r":1,"energy":2},
       {"t":"food","kind":"duff","x":2572,"y":535,"r":1,"energy":2},
       {"t":"reservoir","key":"reservoir2","x":1243,"y":1721,"r":72},
-      {"t":"nematode","x":852,"y":672},
       {"t":"nematode","x":1868,"y":562},
       {"t":"nematode","x":1811,"y":583},
       {"t":"nematode","x":2646,"y":1144},
@@ -27361,13 +27359,21 @@ function startTutorial(deps) {
   // Each step: { text, focus(s), target(s), image, gate(s,mem), interactive,
   //              place, glowCard, demo, onEnter(s,mem) }
   const APICAL = 'Apical Drive';
+  // ONE MEDIUM FRAMING FOR EVERY CLOSE STEP (owner: "some of the closest zoomed tutorial steps are
+  // too zoomed in"). The camera runs 0.2 to 4 and opens a level near 1; the pile, water and
+  // creature steps were pushing 1.3-1.5, which fills the screen with the one thing being named and
+  // takes away the ground around it — exactly when a new player is still working out where they
+  // are. A constant rather than six numbers, because "a bit wider" is one decision and it is going
+  // to be re-tuned by eye. Steps already at or below it are left alone, and the sensing-range step
+  // keeps its deliberate 0.42: that one is wide ON PURPOSE, to show a radius against the map.
+  const MED = 1.0;
   // The LEVEL-1 walkthrough, as scripted by the owner. Ants and Trichoderma have moved OUT of it
   // and onto levels 2 and 3 (`LEVEL_TIPS` below): meeting all three threats before playing a card
   // is a lot to hold, and the maps introduce them in that order anyway.
   const MAIN_STEPS = [
     {
       text: 'This is your colony.<br><b>You are mycelium. Mycelium is you.</b>',
-      focus: (s) => world(deps.colonyRoot(), 1.35),
+      focus: (s) => world(deps.colonyRoot(), MED),
       target: (s) => worldTarget(deps.colonyRoot()),
       // The ring is drawn at a fixed radius for a world target, which sat ON the colony rather
       // than around it (owner). Widened for this step only — it is the one step whose subject is
@@ -27413,7 +27419,7 @@ function startTutorial(deps) {
       // digested by world ticks. Turn-based ticks on the action itself, so it is moot there.
       text: 'Grow into <b>substrate</b> to consume it.<br>Yellow piles give you energy.'
         + ' Orange piles give you energy and <b>new cards</b>.',
-      focus: (s) => world(deps.starterPile() || deps.colonyRoot(), 1.5),
+      focus: (s) => world(deps.starterPile() || deps.colonyRoot(), MED),
       target: (s) => worldTarget(deps.starterPile()),
       glowCard: APICAL,
       demo: true,
@@ -27443,7 +27449,7 @@ function startTutorial(deps) {
     },
     {
       text: '<b>Red</b> leaves are rare and give you engine cards.<br><b>Very valuable.</b>',
-      focus: (s) => world(deps.enginePile() || deps.starterPile() || deps.colonyRoot(), 1.5),
+      focus: (s) => world(deps.enginePile() || deps.starterPile() || deps.colonyRoot(), MED),
       target: (s) => worldTarget(deps.enginePile()),
       skip: (s) => !(deps.enginePile && deps.enginePile()),   // no red pile on this map → skip cleanly
       place: 'bottom',
@@ -27454,14 +27460,14 @@ function startTutorial(deps) {
       // spaces keep the phrase whole, so the wrap has to fall inside "to harvest 1 water per round".
       text: 'Grow into bodies&nbsp;of&nbsp;<b>water</b> to harvest 1 water per round.'
         + '<br>Be careful: you won\'t survive for long without water.',
-      focus: (s) => world(deps.reservoir() || deps.colonyRoot(), 1.5),
+      focus: (s) => world(deps.reservoir() || deps.colonyRoot(), MED),
       target: (s) => worldTarget(deps.reservoir()),
       skip: (s) => !(deps.reservoir && deps.reservoir()),   // no reservoir on this map → skip cleanly
       place: 'bottom',
     },
     {
       text: 'Nematodes love eating mycelium.<br><b>Be careful around them.</b>',
-      focus: (s) => world(deps.threats().nematode, 1.3),
+      focus: (s) => world(deps.threats().nematode, MED),
       target: (s) => worldTarget(deps.threats().nematode),
       image: threatImg('nematode'),
       skip: (s) => !deps.threats().nematode,
@@ -27520,7 +27526,7 @@ function startTutorial(deps) {
         text: '<b>Trichoderma</b> — green mould.<br>Approach at your own risk.'
           + '<br><br>Tip: it takes time for infection to spread — strategy may be needed to reach'
           + ' red leaves. All will be well if you reach the eastern hills in time.',
-        focus: (s) => world(deps.threats().trich, 1.3),
+        focus: (s) => world(deps.threats().trich, MED),
         target: (s) => worldTarget(deps.threats().trich),
         image: threatImg('trichoderma'),
         skip: (s) => !deps.threats().trich,
@@ -27582,7 +27588,6 @@ function startTutorial(deps) {
     '<div class="tut-fig" id="tutFig"><img id="tutImg" alt="" draggable="false"></div>' +
     '<div class="tut-body" id="tutBody"></div>' +
     '<div class="tut-btns">' +
-      '<button class="tut-btn tut-end" id="tutEnd" type="button">End</button>' +
       '<button class="tut-btn tut-next" id="tutNext" type="button">Next</button>' +
     '</div>';
   root.appendChild(catcher);
@@ -27594,7 +27599,6 @@ function startTutorial(deps) {
   const fig = pop.querySelector('#tutFig');
   const img = pop.querySelector('#tutImg');
   const body = pop.querySelector('#tutBody');
-  const btnEnd = pop.querySelector('#tutEnd');
   const btnNext = pop.querySelector('#tutNext');
 
   // ---- controller state ---------------------------------------------------
@@ -27607,9 +27611,15 @@ function startTutorial(deps) {
   pop.addEventListener('click', stopEvt);
   catcher.addEventListener('click', () => next());
   btnNext.addEventListener('click', (e) => { e.stopPropagation(); next(); });
-  btnEnd.addEventListener('click', (e) => { e.stopPropagation(); finish('skip'); });
-  const onKey = (e) => { if (!alive) return; if (e.key === 'Escape') finish(); };
-  document.addEventListener('keydown', onKey);
+  // THE WALKTHROUGH HAS NO EXIT NOW (owner) — one Next button, and nothing else ends it early.
+  // It had an "End" button beside Next and an Escape key, and both were being pressed: 145 of 709
+  // tutorials were skipped, 116 of those at ONE step, and a session that skipped went on to clear
+  // a level 4% of the time against 52% for one that finished. The owner presses End by accident
+  // themselves — it sat next to the button you press ten times in a row. Escape went with it: it
+  // called `finish()` with no reason, so it did not even appear in the telemetry as a skip.
+  // `finish('skip')` therefore has no caller left; the branch stays because `destroy()` still ends
+  // a tutorial without a reason and the two must remain distinguishable.
+  const onKey = () => {};
 
   // THE CATCHER MUST NEVER SIT OVER A LIVE DRAFT. It is a full-screen click target that advances
   // the step, so with one up a click meant to pick a card advances the walkthrough instead and the
@@ -27720,9 +27730,9 @@ function startTutorial(deps) {
     const interactive = !!step.interactive;
     btnNext.style.display = (forced && !step.showNext) ? 'none' : '';
     btnNext.textContent = step.last ? 'Begin' : 'Next';
-    // `noSkip` withholds the End button and buys the step the same deaf window an auto-advanced
-    // one gets — a step nobody chose to open must be readable before a click can dismiss it.
-    btnEnd.style.display = step.noSkip ? 'none' : '';
+    // `noSkip` USED TO WITHHOLD THE END BUTTON, and there is no End button any more — what it
+    // still does is buy the step the same deaf window an auto-advanced one gets, so a step nobody
+    // chose to open is readable before a click can dismiss it. Kept for that half alone.
     if (step.noSkip) catcherArmAt = Math.max(catcherArmAt, performance.now() + AUTO_ARM_MS);
     wantCatcher = !(forced || interactive);
     syncCatcher();
@@ -27813,6 +27823,13 @@ function startTutorial(deps) {
     empty: false,
     tick,
     destroy: finish,
+    // FINISHING IT, FOR A CHECK ONLY — there is no player-facing exit any more, and walking to the
+    // end is not something a headless probe can do (several steps `gate` on a real action: arming
+    // a card, digesting a pile). `destroy()` is the same function with no reason, and the two are
+    // different on purpose — a teardown must not pull the camera back, an ending must. Without
+    // this the "finishing returns you to the survey view" assertion has nothing left to press.
+    // Not a skip: reaching it needs the console, exactly like every other `__game` hook.
+    end: () => finish('done'),
     get active() { return alive; },
     // THE SCRIPT THIS INSTANCE IS RUNNING, so a check can assert its SHAPE without walking it.
     // Walking is not an option: several steps are `gate`d on a real player action (arming a card,

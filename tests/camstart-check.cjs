@@ -128,9 +128,15 @@ ok('control: at the original band it did NOT', oldCoreScreenY >= v.handTop,
    `band ${BAND_ORIG} would have put it at y ${oldCoreScreenY.toFixed(1)} vs cards at ${Math.round(v.handTop)}`);
 
 // ---- ...and the tutorial hands the map back at that same view -------------------------
-// Owner: finishing the walkthrough, or pressing End on any step, should leave you at the
-// zoomed-out top-left view. The tutorial frames one thing at a time, so without this you are
-// left wherever its last step was looking.
+// Owner: finishing the walkthrough should leave you at the zoomed-out top-left view. The tutorial
+// frames one thing at a time, so without this you are left wherever its last step was looking.
+//
+// IT USED TO PRESS "End", AND THERE IS NO End ANY MORE. The walkthrough is unskippable (owner) —
+// one Next button, no Escape — because the skips were concentrated on a single step and a session
+// that skipped went on to clear a level 4% of the time against 52% for one that finished. So the
+// probe drives `tutorial.end()`, the console-only hook that walks the same `finish('done')` exit;
+// clicking Next to the end is not open to a headless probe, since several steps gate on a real
+// player action. The absence of the button is asserted below in its own right.
 const tut = await ph.evaluate(async () => {
   const g = window.__game, cam = g.camera;
   const survey = { x: cam.x, y: cam.y, zoom: cam.zoom };     // it is sitting there right now
@@ -141,17 +147,24 @@ const tut = await ph.evaluate(async () => {
   cam.zoom = 1.6; cam.x = root ? root.x + 600 : 900; cam.y = g.state.substrate.surfaceY + 500;
   cam.clamp();
   const moved = { x: cam.x, y: cam.y, zoom: cam.zoom };
-  const btn = document.getElementById('tutEnd');
-  const had = !!(btn && window.__game.tutorial);
-  if (btn) btn.click();                                      // the End button on a tutorial step
+  const had = !!(g.tutorial && g.tutorial.active);
+  const endBtn = !!document.getElementById('tutEnd');
+  const btns = [...document.querySelectorAll('#tutorial .tut-btn')].map((b) => b.textContent.trim());
+  if (g.tutorial) g.tutorial.end();
   await new Promise((r) => setTimeout(r, 1200));             // the pull-back eases over 640ms
-  return { had, survey, moved, after: { x: cam.x, y: cam.y, zoom: cam.zoom },
+  return { had, endBtn, btns, survey, moved, after: { x: cam.x, y: cam.y, zoom: cam.zoom },
            stillRunning: !!(g.tutorial && g.tutorial.active) };
 });
-ok('the tutorial was running and offered End', tut.had === true, JSON.stringify(tut.had));
+ok('the tutorial was running', tut.had === true, JSON.stringify(tut.had));
+// THE OWNER'S ASK, ASSERTED AS AN ABSENCE. Two ways to get it wrong and only one of them is the
+// element: the id could go while a second button survives under another name, so the BUTTON LIST
+// is checked as well as `#tutEnd`.
+ok('...with no End button on the step', tut.endBtn === false, `#tutEnd present=${tut.endBtn}`);
+ok('...and exactly one button, Next', tut.btns.length === 1 && /^(Next|Begin)$/.test(tut.btns[0]),
+   JSON.stringify(tut.btns));
 ok('...the probe really moved the camera off the survey view first',
    Math.abs(tut.moved.zoom - tut.survey.zoom) > 0.2, `zoom ${tut.survey.zoom.toFixed(3)} -> ${tut.moved.zoom.toFixed(3)}`);
-ok('pressing End returns to the survey zoom', Math.abs(tut.after.zoom - tut.survey.zoom) < 1e-3,
+ok('finishing it returns to the survey zoom', Math.abs(tut.after.zoom - tut.survey.zoom) < 1e-3,
    `zoom ${tut.after.zoom.toFixed(4)} vs ${tut.survey.zoom.toFixed(4)}`);
 ok('...and to the same corner', Math.abs(tut.after.x - tut.survey.x) < 1 && Math.abs(tut.after.y - tut.survey.y) < 1,
    `(${Math.round(tut.after.x)}, ${Math.round(tut.after.y)}) vs (${Math.round(tut.survey.x)}, ${Math.round(tut.survey.y)})`);

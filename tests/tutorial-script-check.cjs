@@ -346,7 +346,11 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   await sleep(300);
   t3ui.dismissableAfter = await p2.evaluate(() => !document.getElementById('tutBody'));
   await p2.evaluate(() => document.querySelectorAll('#tutorial').forEach((n) => n.remove()));
-  ok('the mould tip carries no End button — it is not skippable', t3ui.end === false,
+  // NOTHING carries an End button any more (owner) — the walkthrough and the per-level tips alike.
+  // This assertion predates that and was about the mould tip alone, via `noSkip`; it holds either
+  // way, and it is worth keeping pointed here because the tip is the case where a stray dismissal
+  // costs the player the one explanation of a creature that can end their run.
+  ok('the mould tip carries no End button — nothing here is skippable', t3ui.end === false,
      `End ${t3ui.end ? 'shown' : 'hidden'}`);
   // The control: withholding End must not TRAP the player. Begin still dismisses it.
   ok('...but Begin still dismisses it, so nothing is trapped',
