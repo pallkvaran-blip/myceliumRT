@@ -103,8 +103,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       console.log(`  [info] ${label}: the pile was already claimed by an earlier grow, so the`
         + ` substrate step self-advanced — asserting the draft only`);
     } else {
-      ok(`${label}: the pile step names both pile colours`,
-         /Yellow piles/i.test(growTxt || '') && /Orange piles/i.test(growTxt || ''), JSON.stringify(growTxt));
+      // YELLOW ONLY. The orange half is a step of its own now (owner), so a build that still
+      // crammed both onto the drag step would fail here rather than quietly pass.
+      ok(`${label}: the pile step names the yellow piles, and only those`,
+         /Yellow piles/i.test(growTxt || '') && !/Orange/i.test(growTxt || ''), JSON.stringify(growTxt));
       const forced = await page.evaluate(() => {
         const b = document.getElementById('tutNext');
         return { nextHidden: !b || getComputedStyle(b).display === 'none',
@@ -226,8 +228,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 
     await sleep(1200);
     const redTxt = await page.evaluate(() => { const b = document.getElementById('tutBody'); return b ? b.innerText : null; });
-    ok(`${label}: the following prompt is about RED piles only`,
-       /Red leaves are rare and give you engine cards/i.test(redTxt || '') && !/Orange/i.test(redTxt || ''),
+    // THE STEP AFTER THE DRAFT IS THE ORANGE ONE NOW — the red-leaves step moved one further
+    // along when the orange lesson was split out of the drag step. What this is really guarding is
+    // that the walkthrough MOVED ON after the draft rather than sticking, so it follows the script
+    // instead of pinning a particular colour.
+    ok(`${label}: the walkthrough moves on to the orange-pile lesson`,
+       /orange food piles also give new cards/i.test(redTxt || '')
+       && !/Grow into substrate/i.test(redTxt || ''),
        JSON.stringify(redTxt));
 
     // ...AND IT IS NOT FROZEN. Without this the assertion above passes on a tutorial nobody can

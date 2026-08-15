@@ -134,13 +134,24 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('4. "This is your deck. Click a card to play it."',
      iDeck > iCam && /This is your deck\.\s*Click a card to play it\./.test(texts[iDeck] || ''),
      texts[iDeck] || '(none)');
-  ok('5. the substrate line names both pile colours',
+  // YELLOW ONLY on this line now (owner). The orange half became a step of its own, pointed at an
+  // orange pile — asserting it here again would pass on a build that never split them.
+  ok('5. the substrate line names the yellow piles, and ONLY those',
      iSub > iDeck
      && /Grow into substrate to consume it\./.test(texts[iSub] || '')
      && /Yellow piles give you energy/.test(texts[iSub] || '')
-     && /Orange piles give you energy and new cards/.test(texts[iSub] || ''), texts[iSub] || '(none)');
-  ok('6. red leaves are engine cards', has(/Red leaves are rare and give you engine cards\.\s*Very valuable\./));
-  ok('7. water harvests 1 per round, and running out kills',
+     && !/Orange/i.test(texts[iSub] || ''), texts[iSub] || '(none)');
+  // ...AND THE ORANGE LESSON IS ITS OWN STEP, after it and before the red one. Every clause is
+  // asserted because the copy is the owner's, dictated, and a paraphrase is a regression.
+  const iOrange = idxOf(/orange food piles/i);
+  ok('6. orange piles are a step of their own, between substrate and red',
+     iOrange > iSub && iOrange < idxOf(/Red leaves are rare/), `orange at ${iOrange}, substrate at ${iSub}`);
+  ok('...and it says what orange is FOR, in the owner\'s words',
+     /While yellow food piles give you energy, orange food piles also give new cards for your deck\./.test(texts[iOrange] || '')
+     && /You get to choose one out of three options\./.test(texts[iOrange] || '')
+     && /Don.t miss the orange leaves\./.test(texts[iOrange] || ''), texts[iOrange] || '(none)');
+  ok('7. red leaves are engine cards', has(/Red leaves are rare and give you engine cards\.\s*Very valuable\./));
+  ok('8. water harvests 1 per round, and running out kills',
      has(/harvest 1 water per round/) && has(/won.t survive for long without water/));
   // ...ON ONE LINE at a desktop width. The sentence is 486px wide at this font and the popup used
   // to give it 434, so it wrapped — and `text-wrap: balance` then evened the halves and put the
@@ -166,8 +177,8 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('...and the popup is wide enough to hold that sentence on one line',
      fitsOneLine.avail >= fitsOneLine.natural,
      `${fitsOneLine.natural}px of text in ${fitsOneLine.avail}px of box`);
-  ok('7. nematodes', has(/Nematodes love eating mycelium\.\s*Be careful around them\./));
-  ok('8. click enemies to see their sensing range', has(/Click on enemies to see their sensing range\./));
+  ok('9. nematodes', has(/Nematodes love eating mycelium\.\s*Be careful around them\./));
+  ok('10. click enemies to see their sensing range', has(/Click on enemies to see their sensing range\./));
   // THE STEP'S CAMERA AND ITS RING. A sensing radius is 500 world units across, so at the
   // walkthrough's usual 1.1 the circle is wider than the screen and reads as a tint over
   // everything rather than as a range with an edge.
@@ -180,7 +191,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // ...and it must not survive the step.
   const afterFlash = await page.evaluate(() => window.__game.sightFlashCount());
   ok('...and nothing is left pulsing once the walkthrough ends', afterFlash === 0, String(afterFlash));
-  ok('9. it ends on "Good luck…"', /^Good luck…$/.test((texts[texts.length - 1] || '').trim()),
+  ok('11. it ends on "Good luck…"', /^Good luck…$/.test((texts[texts.length - 1] || '').trim()),
      texts[texts.length - 1] || '(none)');
   // MOVED OFF LEVEL 1 (owner). "an ant step exists" would pass on the old build, which is why this
   // asserts their ABSENCE from the walkthrough and their presence as tips further down.

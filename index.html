@@ -27459,8 +27459,10 @@ function startTutorial(deps) {
       // walkthrough moves on without ever saying what to do with it.
       // `live` lets the real-time clock RUN (the tutorial otherwise freezes it): a pile is only
       // digested by world ticks. Turn-based ticks on the action itself, so it is moot there.
-      text: 'Grow into <b>substrate</b> to consume it.<br>Yellow piles give you energy.'
-        + ' Orange piles give you energy and <b>new cards</b>.',
+      // YELLOW ONLY (owner). The orange half moved to a step of its own, pointed at an orange
+      // pile — it was a second lesson riding on the step that teaches the drag, and the player is
+      // busy learning a gesture when it arrives.
+      text: 'Grow into <b>substrate</b> to consume it.<br>Yellow piles give you energy.',
       // THE RING GOES ON THE COLONY, NOT ON THE PILE (owner), and so does the framing. The step
       // is teaching a DRAG, and a drag starts at the thing you are dragging FROM — ringing the
       // destination while the demo dot sets off from somewhere else left the gesture with no
@@ -27502,6 +27504,19 @@ function startTutorial(deps) {
       gate: (s) => (deps.starterPileClaimed && deps.starterPileClaimed())
         || !!(s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length)
         || (deps.starterPileGone && deps.starterPileGone()),
+    },
+    {
+      // ORANGE, ON AN ORANGE PILE (owner's copy, verbatim). It comes AFTER the grow step, by which
+      // point the starter cache has just been eaten — so it cannot point at `starterPile()` and
+      // uses `cachePile()`, the nearest orange pile that still has food in it. `skip` if the map
+      // has none left: a step ringing empty soil teaches the wrong thing.
+      text: 'While yellow food piles give you energy, <b>orange</b> food piles also give'
+        + ' <b>new cards</b> for your deck. You get to choose one out of three options.'
+        + '<br><b>Don\u2019t miss the orange leaves.</b>',
+      focus: (s) => world(deps.cachePile(), MED),
+      target: (s) => worldTarget(deps.cachePile()),
+      skip: (s) => !deps.cachePile(),
+      place: 'top',
     },
     {
       text: '<b>Red</b> leaves are rare and give you engine cards.<br><b>Very valuable.</b>',
@@ -31434,6 +31449,32 @@ function tutorialDeps() {
       let sx = 0, sy = 0;
       for (const idx of eng.cells) { const c = sub.cellCenter(idx % sub.cols, (idx / sub.cols) | 0); sx += c.x; sy += c.y; }
       return { x: sx / eng.cells.length, y: sy / eng.cells.length };
+    },
+    // The nearest ORANGE cache pile that still holds food — what the "orange leaves" step rings.
+    // NOT `starterPile()`: that step runs after the grow, and the grow is gated on the starter
+    // cache being eaten, so it would point at bare soil. `kind` is 'engine' for the red caches and
+    // absent/'normal' for the orange ones; the yellow duff is scattered cells rather than a pile,
+    // so `foodPiles` already excludes it and no colour test is needed here.
+    cachePile: () => {
+      const sub = state.substrate; const piles = sub && sub.foodPiles;
+      if (!piles || !state.active || !state.active.nodes.length) return null;
+      const root = state.active.nodes[0];
+      let best = null, bestD = Infinity;
+      for (const p of piles) {
+        if ((p.kind || 'normal') === 'engine' || !p.cells || !p.cells.length) continue;
+        let sx = 0, sy = 0, food = 0;
+        for (const idx of p.cells) {
+          const c = sub.cellCenter(idx % sub.cols, (idx / sub.cols) | 0);
+          sx += c.x; sy += c.y;
+          const cell = sub.cells[idx];
+          if (cell && cell.nutrient > 0) food++;
+        }
+        if (!food) continue;                       // eaten: ring it and the lesson lands on dirt
+        const at = { x: sx / p.cells.length, y: sy / p.cells.length };
+        const d = Math.hypot(at.x - root.x, at.y - root.y);
+        if (d < bestD) { bestD = d; best = at; }
+      }
+      return best;
     },
     // Nearest underground reservoir to the colony (for the "touch water" step).
     reservoir: () => {
