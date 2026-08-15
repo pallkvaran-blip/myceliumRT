@@ -625,10 +625,18 @@
       box-shadow: 0 0 14px -3px rgba(130,230,166,0.45), inset 0 0 0 1px rgba(130,230,166,0.12), 0 8px 22px -9px rgba(0,0,0,0.7);
       backdrop-filter: blur(6px); }
     .handbody { display: flex; flex-direction: column; gap: 8px; align-items: stretch; width: 100%; }
-    /* THE ONLY ROW: arrow (left) · cards (fill) · skip chip (right). `flex-end` so the two
-       controls sit on the same floor the cards do; `space-between` so they hold their edges when
-       the carousel between them is collapsed away. */
-    .handrow { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; width: 100%; }
+    /* THE ONLY ROW, and the two controls FLOAT OVER IT (owner: "just place the buttons over the
+       card carousel without letting them own the column — the cards should be visible in that
+       space"). As flex items they reserved a column each at both ends, which on a phone is most
+       of a card; absolute at the bottom corners they cost nothing and the carousel runs the full
+       width underneath. Same trick the nav arrows already use one level down.
+       `min-height` is what keeps the COLLAPSED tray from folding to nothing: with the carousel
+       `display:none` the row has no in-flow children left, and two absolute buttons cannot hold
+       it open on their own. */
+    .handrow { position: relative; display: flex; align-items: flex-end; width: 100%; min-height: 22px; }
+    .handtoggle, .skipchip { position: absolute; bottom: 0; z-index: 6; }
+    .handtoggle { left: 0; }
+    .skipchip { right: 0; }
     /* Card carousel + preview appear only when expanded (.open). */
     .handcarousel, .handpreview { display: none; }
     .handbar.open .handcarousel { display: flex; }
@@ -644,14 +652,14 @@
     /* ▾/▴ show-hide arrow — a small round glass button at the row's left edge */
     /* ▾/▴ arrow + » Skip chip: sized to match the filter chips' height so the whole
        row aligns on one line (green-glass, like the chips). */
-    .handtoggle { flex: 0 0 auto; width: 21px; height: 21px; padding: 0; border-radius: 50%;
+    .handtoggle { width: 21px; height: 21px; padding: 0; border-radius: 50%;
       display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
       background: rgba(40,54,48,0.9); color: var(--ink); border: 1px solid rgba(130,230,166,0.4); }
     .handtoggle:hover { border-color: rgba(170,255,205,0.6); background: rgba(52,70,60,0.95); }
     .handtoggle .htchev { font-size: 9px; line-height: 1; color: var(--accent); }
     /* » Skip chip — a small green-glass pill at the row's right edge: "»<cost>⚡".
        All three parts are vertically centred; the number + ⚡ are sized down. */
-    .skipchip { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 1px; font-family: inherit;
+    .skipchip { display: inline-flex; align-items: center; gap: 1px; font-family: inherit;
       font-weight: 700; color: var(--ink); cursor: pointer; white-space: nowrap; line-height: 1;
       padding: 3px 7px; border-radius: 999px; background: rgba(40,54,48,0.9);
       border: 1px solid rgba(130,230,166,0.4); }
@@ -676,7 +684,7 @@
        buttons — you drag; Play Card lives in the bottom action bar). */
     /* Cards sit ON the floor of the tray (owner: "have the cards start at the bottom"), so a
        short card and a tall one share a baseline instead of floating about a centre line. */
-    .handcarousel { position: relative; align-items: flex-end; gap: 8px; flex: 1 1 auto; min-width: 0; max-width: 100%; }   /* display gated by .handbar.open above; position:relative anchors the edge-fade nav arrows */
+    .handcarousel { position: relative; align-items: flex-end; gap: 8px; flex: 1 1 auto; min-width: 0; width: 100%; max-width: 100%; }   /* display gated by .handbar.open above; position:relative anchors the edge-fade nav arrows */
     /* PADDED AT BOTH ENDS so the first and last card can scroll clear of the nav arrows. The
        arrows are 54px wide and overlay the list's edges — deliberately, so cards run full-width
        beneath them — but at the extremes of the scroll there is nothing left to melt under, and
@@ -693,9 +701,12 @@
     .handnav { position: absolute; top: 0; bottom: 0; width: 54px; z-index: 5; cursor: pointer;
       display: inline-flex; align-items: center; font-size: 30px; line-height: 1;
       font-family: inherit; color: rgba(215,235,222,0.5); border: none; padding: 0; transition: color .15s; }
-    .handnav.prev { left: 0; justify-content: flex-start; padding-left: 3px;
+    /* The chevrons are pushed in past the ▾ and » buttons, which now float over these same two
+       corners. They are full-height strips and the buttons sit at the BOTTOM of them, so without
+       this the chevron and a control would overlap at the one place a thumb aims. */
+    .handnav.prev { left: 0; justify-content: flex-start; padding-left: 26px;
       background: linear-gradient(to right, rgba(9,14,11,0.92) 0%, rgba(9,14,11,0) 100%); }
-    .handnav.next { right: 0; justify-content: flex-end; padding-right: 3px;
+    .handnav.next { right: 0; justify-content: flex-end; padding-right: 30px;
       background: linear-gradient(to left, rgba(9,14,11,0.92) 0%, rgba(9,14,11,0) 100%); }
     .handnav:hover { color: rgba(232,255,242,0.95); }
     .handnav[hidden] { display: none; }
