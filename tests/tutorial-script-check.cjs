@@ -244,12 +244,19 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     for (let i = 0; i < 40; i++) {
       await new Promise((r) => setTimeout(r, 250));
       const t = (document.getElementById('tutBody') || {}).textContent || '';
-      marks.push({ ms: (i + 1) * 250, on: /Grow into substrate/.test(t) });
+      // THE REVEAL IS SAMPLED TOO, so the hold can be timed against the animation rather than
+      // against a stopwatch. `hold.after` is measured from the last frame of the grow, and the
+      // grow's length is a property of the map — a probe that only knew "it left after 3200ms"
+      // could not tell a working 1s pause from a 3s one.
+      marks.push({ ms: (i + 1) * 250, on: /Grow into substrate/.test(t), rev: window.__game.revealing() });
       if (!marks[marks.length - 1].on) break;
     }
     const after = (document.getElementById('tutBody') || {}).textContent || '';
     const leftAt = (marks.find((m) => !m.on) || {}).ms || null;
-    return { before, after, leftAt,
+    // The last sample that still saw the growth drawing; null if it was never caught mid-reveal.
+    const revs = marks.filter((m) => m.rev);
+    const revEnd = revs.length ? revs[revs.length - 1].ms : null;
+    return { before, after, leftAt, revEnd,
              moved: /Grow into substrate/.test(before) && !/Grow into substrate/.test(after) };
   });
   ok('growing into the substrate advances the step with no further action',
@@ -260,8 +267,17 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // grow was still walking out on screen. The floor is 900ms; anything under that means the hold
   // was dropped.
   ok('...and not before the growth has had time to finish drawing',
-     stall.skipped === true || (stall.leftAt != null && stall.leftAt >= 900),
+     stall.skipped === true || (stall.leftAt != null && stall.leftAt >= 1000),
      stall.skipped ? '(no pile on this map)' : `left the step after ${stall.leftAt}ms`);
+  // ...AND A BEAT AFTER IT, measured from the ANIMATION rather than from the gate (owner: "after
+  // the growth animation finishes, add a 1 second delay"). The gate fires when the model claims
+  // the pile, which is the frame the card resolves — so a floor measured from there is satisfied
+  // by a long grow on its own and would pass with the pause deleted. Sampling is 250ms, so the
+  // 1000ms ask is asserted at 750.
+  ok('...and holds a beat AFTER the animation, not just after the gate',
+     stall.skipped === true || stall.revEnd == null || (stall.leftAt - stall.revEnd) >= 750,
+     stall.skipped ? '(no pile on this map)'
+       : `reveal last seen at ${stall.revEnd}ms, left at ${stall.leftAt}ms (+${stall.leftAt - stall.revEnd})`);
 
   // ---- the tips, on their own levels -----------------------------------------
   // A SECOND PAGE, ON A MAP THAT HAS THE CREATURES. Each tip `skip`s when its subject is absent —

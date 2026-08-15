@@ -27449,7 +27449,11 @@ function startTutorial(deps) {
       target: (s) => worldTarget(deps.colonyRoot()),
       glowCard: APICAL,
       demo: true,
-      hand: 'open',
+      // MINIMISED, and the card is already armed by the time this step opens — the step before it
+      // gates on exactly that. So the tray has nothing left to offer here and is costing the map
+      // a third of a phone screen at the one moment the player needs to see where they are
+      // growing. The armed card's own highlight is what says which card is in hand.
+      hand: 'min',
       place: 'top',
       live: true,
       // DO NOT ADVANCE ON "THE COLONY GREW". This step is the only `live` one — the only one where
@@ -27468,7 +27472,12 @@ function startTutorial(deps) {
       // Let the grow finish on screen before moving on (owner). The floor is there because the
       // claim can land before the reveal has even started, and the ceiling because a walkthrough
       // must never be at the mercy of an animation.
-      hold: { min: 900, max: 6000 },
+      // ...AND A BEAT AFTER THE ANIMATION ENDS, not merely after the gate (owner: "add a 1 second
+      // delay before you move on"). `min` is measured from the GATE, which fires the instant the
+      // model claims the pile — so on any grow whose reveal outlasts 900ms the step advanced on
+      // the very frame the last strand landed, which is the moment the player is actually looking
+      // at it. `after` is measured from the end of the REVEAL instead.
+      hold: { min: 900, max: 6000, after: 1000 },
       gate: (s) => (deps.starterPileClaimed && deps.starterPileClaimed())
         || !!(s.cards && s.cards.pendingOffers && s.cards.pendingOffers.length)
         || (deps.starterPileGone && deps.starterPileGone()),
@@ -27791,8 +27800,12 @@ function startTutorial(deps) {
     // hand carousel: open it for the steps that need it; on a portrait phone,
     // MINIMIZE it on every other step so the popup + pics have room. Wider screens
     // keep the hand as-is (the top-half popup never reaches the carousel).
+    // `min` MINIMISES IT EVERYWHERE, not just on a phone (owner: after the player has clicked a
+    // card, get the carousel out of the way so there is room to do and see the first grow). The
+    // default — no `hand` at all — still only collapses it in portrait, where there is no room for
+    // both; a desktop keeps its hand, because the tray costs it nothing.
     if (step.hand === 'open') deps.setHandOpen(true);
-    else if (phonePortrait()) deps.setHandOpen(false);
+    else if (step.hand === 'min' || phonePortrait()) deps.setHandOpen(false);
     // select a card FILTER for this step (e.g. the card-play showcase highlights Grow)
     if (step.filter && deps.setHandFilter) deps.setHandFilter(step.filter);
     // forced (gated) → no Next, no catcher; interactive → Next but no catcher;
@@ -27892,7 +27905,16 @@ function startTutorial(deps) {
       if (mem._gateAt == null) mem._gateAt = performance.now();
       const held = performance.now() - mem._gateAt;
       const revealing = deps.growthRevealing && deps.growthRevealing();
-      if (held >= step.hold.max || (!revealing && held >= step.hold.min)) { next(true); return; }
+      // WHEN THE ANIMATION STOPPED, so `after` can be measured from it. Reset while it is still
+      // running, because a grow can start, pause and carry on — the last frame is the one that
+      // counts. A gate that fires with nothing revealing (the pile was eaten by something else)
+      // stamps it immediately, so that path waits `after` from the gate and never hangs.
+      if (revealing) mem._revEnd = null;
+      else if (mem._revEnd == null) mem._revEnd = performance.now();
+      const settled = mem._revEnd != null ? performance.now() - mem._revEnd : 0;
+      // `max` is still the ceiling over everything, so no animation can strand the walkthrough.
+      if (held >= step.hold.max
+          || (!revealing && held >= step.hold.min && settled >= (step.hold.after || 0))) { next(true); return; }
     }
     syncCatcher();
     layout();
@@ -31891,6 +31913,10 @@ function begin(newState) {
       if (i < 0) { C.hand.push({ id: C.seq++, name }); i = C.hand.length - 1; }
       ui.setPendingCard(i); uiDirty = true; return true;
     },
+    // IS A GROWTH STILL DRAWING? The tutorial's hold waits on this, so a check can time that hold
+    // against the animation instead of against a stopwatch of its own — the grow's length is a
+    // property of the map, so "it left after 3200ms" cannot tell a working 1s pause from a 3s one.
+    revealing: () => { try { return !!anyRevealing(lastTime); } catch (_) { return false; } },
     aimState: () => (aim ? {
       armed: true, dragged: !!aim.dragged, cancelled: !!aim.cancelled,
       d: Math.hypot(aim.curScreen.x - aim.startScreen.x, aim.curScreen.y - aim.startScreen.y),
