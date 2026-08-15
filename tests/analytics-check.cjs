@@ -881,6 +881,94 @@ function fixture() {
        !!cutDev && /abc1234/.test(cutDev.lead) && !/Cut at dev/.test(cutDev.lead),
        (cutDev && cutDev.lead || '').slice(0, 60));
 
+    // ---- THE ONBOARDING FUNNEL, BEFORE AND AFTER --------------------------------
+    // The section the page is read for after a release that changed the walkthrough. Its rows are
+    // added HERE, after the tables above have been asserted, so the extra sessions cannot move
+    // their counts — the page only re-reads on reload.
+    //
+    // The fixture is arranged so every row can fail on its own: the baseline half-finishes and
+    // half-skips the tutorial, the release finishes all of it and skips none, and the level-1
+    // clear rate moves 1-of-3 to 2-of-3. A build that wired the columns backwards, or divided by
+    // the wrong denominator, cannot produce these numbers by accident.
+    const tut = (cid, sid, t, detail, n, build) => {
+      rows.push({ id: ++id, created_at: new Date(t).toISOString(), client_id: cid, session_id: sid,
+        kind: 'boot', ms: 1000, detail: build || null, source: 'crazygames', game: 'campaign', mode: 'turn', device: 'desktop' });
+      rows.push({ id: ++id, created_at: new Date(t).toISOString(), client_id: cid, session_id: sid,
+        kind: 'tutorial', detail: 'step', n: 0, source: 'crazygames', game: 'campaign', mode: 'turn', device: 'desktop' });
+      if (detail) rows.push({ id: ++id, created_at: new Date(t).toISOString(), client_id: cid, session_id: sid,
+        kind: 'tutorial', detail, n: n == null ? 3 : n, source: 'crazygames', game: 'campaign', mode: 'turn', device: 'desktop' });
+      rows.push({ id: ++id, created_at: new Date(t).toISOString(), client_id: cid, session_id: sid,
+        kind: 'run_start', game: 'campaign', level: 1, source: 'crazygames', mode: 'turn', device: 'desktop', n: null, ms: null });
+      rows.push({ id: ++id, created_at: new Date(t).toISOString(), client_id: cid, session_id: sid,
+        kind: 'level_start', game: 'campaign', level: 1, source: 'crazygames', mode: 'turn', device: 'desktop', n: null, ms: null });
+    };
+    const clears = (cid, sid, t, toLevel) => {
+      rows.push({ id: ++id, created_at: new Date(t).toISOString(), client_id: cid, session_id: sid,
+        kind: 'level_clear', game: 'campaign', level: 1, source: 'crazygames', mode: 'turn', device: 'desktop', n: null, ms: null });
+      if (toLevel >= 2) rows.push({ id: ++id, created_at: new Date(t).toISOString(), client_id: cid, session_id: sid,
+        kind: 'level_start', game: 'campaign', level: 2, source: 'crazygames', mode: 'turn', device: 'desktop', n: null, ms: null });
+    };
+    // BEFORE (no stamp): 4 saw it — 2 finished, 2 skipped. All four start level 1 (the helper
+    // pushes one), 1 clears and 1 reaches level 2, so the clear rate is 1 of 4.
+    tut('o1', 'so1', now - 5 * DAY, 'done');
+    tut('o2', 'so2', now - 5 * DAY, 'done');
+    tut('o3', 'so3', now - 5 * DAY, 'skip');
+    tut('o4', 'so4', now - 5 * DAY, 'skip');
+    clears('o1', 'so1', now - 5 * DAY, 2);
+    // AFTER: 3 saw it, 3 finished, none skipped. 2 of 3 cleared, 2 reached level 2.
+    tut('n1', 'sn1', now - 1 * DAY, 'done', 3, '2026-08-09-abc1234');
+    tut('n2', 'sn2', now - 1 * DAY, 'done', 3, '2026-08-09-abc1234');
+    tut('n3', 'sn3', now - 1 * DAY, 'done', 3, '2026-08-09-abc1234');
+    clears('n1', 'sn1', now - 1 * DAY, 2);
+    clears('n2', 'sn2', now - 1 * DAY, 2);
+    await sp.reload({ waitUntil: 'domcontentloaded' });
+    await sp.waitForFunction(() => !/Loading/.test(document.getElementById('sub').textContent), { timeout: 25000 });
+    await sleep(500);
+    const onb = await sp.evaluate(() => {
+      const h = [...document.querySelectorAll('#body > h2')].find((x) => /Onboarding, before and after/i.test(x.textContent));
+      if (!h) return null;
+      let n = h.nextElementSibling, pan = null;
+      while (n && n.tagName !== 'H2' && !pan) { if (n.querySelector && n.querySelector('table')) pan = n; n = n.nextElementSibling; }
+      if (!pan) return { rows: [] };
+      const t = pan.querySelector('table');
+      return { head: t.tHead ? t.tHead.textContent : '',
+               lead: (pan.querySelector('.lead') || {}).textContent || '',
+               rows: [...t.querySelectorAll('tbody tr')].map((tr) => [...tr.children].map((td) => td.textContent.trim())) };
+    });
+    ok('the onboarding funnel has a section of its own', !!onb && onb.rows.length === 8,
+       onb ? `${onb.rows.length} row(s)` : '(no section)');
+    const row = (re) => (onb.rows.find((r) => re.test(r[0])) || []);
+    // THE COLUMN THE RELEASE IS BEING JUDGED ON. 3 of 3 after against 2 of 4 before.
+    ok('...and the walkthrough finish rate, per side',
+       /^3\b/.test(row(/FINISHED/)[1] || '') && /100%/.test(row(/FINISHED/)[1] || '')
+       && /^2\b/.test(row(/FINISHED/)[2] || '') && /50%/.test(row(/FINISHED/)[2] || ''),
+       JSON.stringify(row(/FINISHED/)));
+    ok('...over the people who SAW it, not over every visit',
+       /^4\b/.test(row(/saw the walkthrough/)[2] || ''), JSON.stringify(row(/saw the walkthrough/)));
+    ok('...and the skips, which an unskippable build drives to zero',
+       /^0\b/.test(row(/skipped it/)[1] || '') && /^2\b/.test(row(/skipped it/)[2] || ''),
+       JSON.stringify(row(/skipped it/)));
+    // LEVEL 1 IS PER PLAYER and its share is over the players who STARTED it, not over visits.
+    // 2 of 3 after against 1 of 4 before — DIFFERENT denominators on the two sides, which is the
+    // point of a share: the release has fewer players and a better rate, and a raw count would
+    // have said it got worse.
+    ok('...the level-1 clear rate, over the players who started level 1',
+       /^2\b/.test(row(/CLEARED it/)[1] || '') && /66\.7%/.test(row(/CLEARED it/)[1] || '')
+       && /^1\b/.test(row(/CLEARED it/)[2] || '') && /25%/.test(row(/CLEARED it/)[2] || ''),
+       JSON.stringify(row(/CLEARED it/)));
+    ok('...and how many got to level 2', /^2\b/.test(row(/reached level 2/)[1] || '')
+       && /^1\b/.test(row(/reached level 2/)[2] || ''), JSON.stringify(row(/reached level 2/)));
+    // THE CHANGE IS IN POINTS. A raw count difference between two windows of different lengths
+    // says nothing, which is the trap this column exists to avoid.
+    ok('...with the change in percentage POINTS', /\+50 pts/.test(row(/FINISHED/)[3] || ''),
+       JSON.stringify(row(/FINISHED/)[3]));
+    ok('...and no change where there is no share to compare', row(/^visits/)[3] === '—',
+       JSON.stringify(row(/^visits/)));
+    // AND IT OPENS ON THE ANSWER, in a sentence, rather than making the reader assemble it.
+    ok('...and the section says the finding in words',
+       /100% of the players who saw the walkthrough finished it/i.test(onb.lead)
+       && /was 50%/.test(onb.lead), (onb.lead || '').slice(0, 120));
+
     ok('no page errors in the release comparison', serrs.length === 0, serrs.slice(0, 2).join(' | '));
     await sp.close();
   }
