@@ -27447,7 +27447,6 @@ function startTutorial(deps) {
       // looking for on a screen they have had for ten seconds.
       focus: (s) => world(deps.colonyRoot() || deps.starterPile(), MED),
       target: (s) => worldTarget(deps.colonyRoot()),
-      anchorY: 0.3,
       glowCard: APICAL,
       demo: true,
       hand: 'open',
@@ -27645,9 +27644,21 @@ function startTutorial(deps) {
   function measureCover() {
     const vh = window.innerHeight || 1;
     const M = 12;
+    let top = 0, bottom = 0;
     const pr = pop.getBoundingClientRect();
-    const top = (pr.height > 0 && pr.bottom > 0) ? Math.max(0, Math.min(vh * 0.6, pr.bottom + M)) : 0;
-    let bottom = 0;
+    if (pr.height > 0) {
+      // WHICH EDGE THE POPUP IS ON, decided by where its own middle sits. It MOVES — `place` is
+      // 'top' on some steps and 'bottom' on most — and the first version credited its height to
+      // the TOP every time. On a bottom-placed step that declared the top 549px of a 915px screen
+      // covered while the popup actually sat at 849, so the band was computed upside down and the
+      // camera hauled the map up until half the screen was the void above the world. That is the
+      // black screenshot. Read the rect; never assume the placement.
+      if ((pr.top + pr.bottom) / 2 < vh / 2) top = Math.min(vh * 0.6, pr.bottom + M);
+      else bottom = Math.min(vh * 0.6, vh - pr.top + M);
+    }
+    // The carousel is always at the BOTTOM and is present on every step — full height when a step
+    // wants the hand, a slim bar when it does not. `Math.max`, so a bottom popup resting on it is
+    // not counted twice.
     // `.handbar` IS THE CAROUSEL'S OUTER PANEL — `#handbody` and `#handlist` are inside it and
     // both sit above its own padding, so measuring either leaves a strip of card frame counted as
     // open map. Guessed at `#hand` / `.handwrap` first, which match NOTHING: the inset came back
@@ -27655,7 +27666,7 @@ function startTutorial(deps) {
     const hand = document.querySelector('.handbar');
     if (hand) {
       const hr = hand.getBoundingClientRect();
-      if (hr.height > 0 && hr.top < vh) bottom = Math.max(0, Math.min(vh * 0.6, vh - hr.top + M));
+      if (hr.height > 0 && hr.top < vh) bottom = Math.max(bottom, Math.min(vh * 0.6, vh - hr.top + M));
     }
     // NEVER LET THE TWO EAT THE WHOLE SCREEN. A band of nothing would make `bandH()` collapse and
     // the clamp divide the world by a sliver; 25% of the viewport is the floor.
@@ -27762,13 +27773,11 @@ function startTutorial(deps) {
     // Otherwise: popup at step.place (top/bottom/centre).
     const desktop = desktopWide();
     pop.classList.remove('tut-pop--top', 'tut-pop--bottom', 'tut-pop--center', 'tut-pop--side', 'tut-pop--left', 'tut-pop--right');
-    // WHERE IN THE BAND THE SUBJECT SITS, and a step may override it. The default centres it,
-    // which is right when the subject has map on all sides — and wrong for anything at the SOIL
-    // LINE, where centring spends the top of the band on sky. The colony root is exactly that: it
-    // starts at the surface, so the grow step asks for a third of the way down and gets the soil
-    // the player is about to grow into instead of the mountains.
-    let anchorY = step.anchorY != null ? step.anchorY
-      : (step.place === 'top' ? 0.5 : 0.28);   // portrait vertical framing
+    // CENTRED IN THE BAND, ON EVERY STEP (owner: "centered on the viewable part of each map").
+    // It was 0.5 for a top-placed popup and 0.28 otherwise — two numbers standing in for "leave
+    // room for the popup", which is exactly what the band accounts for now that the camera knows
+    // what is covering it. A step may still override; none does.
+    let anchorY = step.anchorY != null ? step.anchorY : 0.5;   // portrait: fraction of the BAND
     let anchorX;                                        // desktop horizontal framing (undef elsewhere)
     if (desktop) {
       const midX = (s && s.substrate) ? s.substrate.worldWidth / 2 : 0;
@@ -31195,6 +31204,10 @@ function isPortraitPhone() {
 // the steps that point at a pile or a creature were filling it with that one thing. It is a
 // multiplier rather than a second set of per-step numbers so the desktop framing is untouched.
 const TUT_PHONE_ZOOM = 0.42;
+// ...and the tightest it is ever allowed to go when the world edge forces a zoom-in to centre the
+// subject (see focusWorld). 1 is the game's own default zoom and the desktop tutorial framing, so
+// the phone can never end up TIGHTER than a desktop looking at the same step.
+const TUT_PHONE_ZOOM_MAX = 1;
 function isDesktopWide() {
   try { return window.innerWidth >= 900 && !isPortraitPhone(); }
   catch (_) { return false; }
@@ -31213,6 +31226,24 @@ function focusWorld(x, y, zoom, anchorY, anchorX) {
   let tx = x, ty = y;
   if (isPortraitPhone()) {
     z *= TUT_PHONE_ZOOM;                                   // wider view
+    // ...BUT THE WORLD EDGE OUTRANKS THE WIDE VIEW. A subject near the top of the map cannot be
+    // centred in the band at any zoom that is too wide: the colony sits 386 world units below the
+    // map's ceiling, which at 0.42 is 162px, and the band's centre is 374px down. The clamp then
+    // parks it against the edge and no anchor can move it — measured on every step of level 1.
+    // So the step's zoom is a FLOOR (the widest we would like), and this raises it only as far as
+    // centring actually needs, never past `TUT_PHONE_ZOOM_MAX`. A subject with map on all sides
+    // asks for nothing and keeps the wide view; only the ones against an edge pay for it.
+    // Vertical only: doing the same horizontally would demand 3.8x for a colony 54 units from the
+    // left wall, i.e. the whole screen for one strand.
+    const b = camera.bounds;
+    if (b) {
+      const fy = (anchorY != null) ? anchorY : 0.5;
+      const it = camera.inset.top || 0, ib = camera.inset.bottom || 0;
+      const bh = Math.max(1, camera.viewH - it - ib);
+      const need = Math.max((it + fy * bh) / Math.max(1, y - b.minY),
+                            (ib + (1 - fy) * bh) / Math.max(1, b.maxY - y));
+      if (need > z) z = Math.min(TUT_PHONE_ZOOM_MAX, need);
+    }
     // ANCHORED IN THE VISIBLE BAND, NOT THE VIEWPORT. `fy` is a fraction of the strip between the
     // popup and the carousel, so 0.5 means "halfway down the part the player can actually see";
     // the second term slides the camera to put that strip's centre where the subject is wanted.
