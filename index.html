@@ -20827,7 +20827,21 @@ class Camera {
     this.viewW = 1;
     this.viewH = 1;
     this.bounds = null;  // {minX,minY,maxX,maxY}: the map rect the view is kept inside
+    // UI THAT SITS ON TOP OF THE CANVAS, in SCREEN PIXELS. The clamp knows the viewport, and the
+    // viewport is not what the player can see: the tutorial's popup covers the top and the card
+    // carousel covers the bottom, so a subject at the world's EDGE gets pinned into a corner that
+    // is behind one of them. Measured on level 1 at 412x915 — the colony sat at screen y 193 with
+    // the popup ending at 188 and the visible band running 188..617, and NO anchor could move it,
+    // because the camera was already at its minimum on both axes. Zooming out makes it worse, not
+    // better: the clamp's half-view grows, so the corner pushes further into the corner.
+    // With an inset the clamp only has to keep the BAND inside the world; the strips behind the
+    // popup and the carousel may show past the edge, because nobody can see them.
+    this.inset = { top: 0, bottom: 0 };
   }
+  // The visible band, in screen px and as the world-unit half-height the clamp must respect.
+  bandH() { return Math.max(1, this.viewH - (this.inset.top || 0) - (this.inset.bottom || 0)); }
+  // How far the band's centre sits below the viewport centre, in WORLD units.
+  bandShift() { return (((this.inset.top || 0) - (this.inset.bottom || 0)) / 2) / this.zoom; }
 
   setViewport(w, h) { this.viewW = w; this.viewH = h; this.clamp(); }
 
@@ -20858,9 +20872,16 @@ class Camera {
     this.x = (maxX - minX) <= 2 * halfW
       ? (minX + maxX) / 2
       : Math.max(minX + halfW, Math.min(maxX - halfW, this.x));
-    this.y = (maxY - minY) <= 2 * halfH
+    // VERTICALLY IT IS THE BAND THAT IS KEPT INSIDE THE WORLD, not the viewport — see `inset`.
+    // With no inset set, `bandH()` is `viewH` and `bandShift()` is 0, so this is the old line
+    // exactly; the whole feature is inert until something declares what it is covering.
+    const halfB = this.bandH() / (2 * this.zoom);
+    const shift = this.bandShift();
+    const cy = this.y + shift;                       // the band's centre, in world units
+    const cyc = (maxY - minY) <= 2 * halfB
       ? (minY + maxY) / 2
-      : Math.max(minY + halfH, Math.min(maxY - halfH, this.y));
+      : Math.max(minY + halfB, Math.min(maxY - halfB, cy));
+    this.y = cyc - shift;
   }
 
   worldToScreen(wx, wy) {
@@ -27419,8 +27440,14 @@ function startTutorial(deps) {
       // digested by world ticks. Turn-based ticks on the action itself, so it is moot there.
       text: 'Grow into <b>substrate</b> to consume it.<br>Yellow piles give you energy.'
         + ' Orange piles give you energy and <b>new cards</b>.',
-      focus: (s) => world(deps.starterPile() || deps.colonyRoot(), MED),
-      target: (s) => worldTarget(deps.starterPile()),
+      // THE RING GOES ON THE COLONY, NOT ON THE PILE (owner), and so does the framing. The step
+      // is teaching a DRAG, and a drag starts at the thing you are dragging FROM — ringing the
+      // destination while the demo dot sets off from somewhere else left the gesture with no
+      // visible origin. It also puts the framing on the colony, which is what the player is
+      // looking for on a screen they have had for ten seconds.
+      focus: (s) => world(deps.colonyRoot() || deps.starterPile(), MED),
+      target: (s) => worldTarget(deps.colonyRoot()),
+      anchorY: 0.3,
       glowCard: APICAL,
       demo: true,
       hand: 'open',
@@ -27607,6 +27634,35 @@ function startTutorial(deps) {
   let alive = true;
   let glowed = null;
 
+  // WHAT IS COVERING THE CANVAS RIGHT NOW, in screen px, measured rather than assumed.
+  // The popup is as tall as its own text and the carousel is as tall as the cards in it, so both
+  // change between steps and neither can be a constant. `getBoundingClientRect` on the live nodes
+  // is the only honest source, and it is cheap — this runs once per step, not per frame.
+  //
+  // A MARGIN, because the numbers are what the elements occupy and the subject should not be
+  // wedged against them; and a FLOOR OF ZERO on each, so a popup that has not laid out yet (or a
+  // carousel that is minimised, which is most steps) contributes nothing instead of a negative.
+  function measureCover() {
+    const vh = window.innerHeight || 1;
+    const M = 12;
+    const pr = pop.getBoundingClientRect();
+    const top = (pr.height > 0 && pr.bottom > 0) ? Math.max(0, Math.min(vh * 0.6, pr.bottom + M)) : 0;
+    let bottom = 0;
+    // `.handbar` IS THE CAROUSEL'S OUTER PANEL — `#handbody` and `#handlist` are inside it and
+    // both sit above its own padding, so measuring either leaves a strip of card frame counted as
+    // open map. Guessed at `#hand` / `.handwrap` first, which match NOTHING: the inset came back
+    // {top: 200, bottom: 0} and the framing moved only half as far as it should have.
+    const hand = document.querySelector('.handbar');
+    if (hand) {
+      const hr = hand.getBoundingClientRect();
+      if (hr.height > 0 && hr.top < vh) bottom = Math.max(0, Math.min(vh * 0.6, vh - hr.top + M));
+    }
+    // NEVER LET THE TWO EAT THE WHOLE SCREEN. A band of nothing would make `bandH()` collapse and
+    // the clamp divide the world by a sliver; 25% of the viewport is the floor.
+    if (top + bottom > vh * 0.75) { const k = (vh * 0.75) / (top + bottom); return { top: top * k, bottom: bottom * k }; }
+    return { top, bottom };
+  }
+
   const stopEvt = (e) => e.stopPropagation();
   pop.addEventListener('click', stopEvt);
   catcher.addEventListener('click', () => next());
@@ -27706,7 +27762,13 @@ function startTutorial(deps) {
     // Otherwise: popup at step.place (top/bottom/centre).
     const desktop = desktopWide();
     pop.classList.remove('tut-pop--top', 'tut-pop--bottom', 'tut-pop--center', 'tut-pop--side', 'tut-pop--left', 'tut-pop--right');
-    let anchorY = step.place === 'top' ? 0.5 : 0.28;   // portrait vertical framing
+    // WHERE IN THE BAND THE SUBJECT SITS, and a step may override it. The default centres it,
+    // which is right when the subject has map on all sides — and wrong for anything at the SOIL
+    // LINE, where centring spends the top of the band on sky. The colony root is exactly that: it
+    // starts at the surface, so the grow step asks for a third of the way down and gets the soil
+    // the player is about to grow into instead of the mountains.
+    let anchorY = step.anchorY != null ? step.anchorY
+      : (step.place === 'top' ? 0.5 : 0.28);   // portrait vertical framing
     let anchorX;                                        // desktop horizontal framing (undef elsewhere)
     if (desktop) {
       const midX = (s && s.substrate) ? s.substrate.worldWidth / 2 : 0;
@@ -27736,6 +27798,14 @@ function startTutorial(deps) {
     if (step.noSkip) catcherArmAt = Math.max(catcherArmAt, performance.now() + AUTO_ARM_MS);
     wantCatcher = !(forced || interactive);
     syncCatcher();
+    // TELL THE CAMERA WHAT IS COVERING IT, BEFORE ASKING IT TO FRAME ANYTHING. On a portrait phone
+    // the popup owns the top of the canvas and the carousel the bottom, and the clamp cannot know
+    // that on its own — see `Camera.inset`. Measured from the live rects rather than guessed,
+    // because the popup's height is its TEXT: this step's three lines are 128px and the one before
+    // it is 76px, so a constant would be wrong on most steps. Desktop clears its inset: the
+    // side-by-side layout leaves the subject's quadrant uncovered, and an inset there would shove
+    // the framing for no reason.
+    if (deps.setCameraInset) deps.setCameraInset(phonePortrait() ? measureCover() : null);
     // camera focus: frame the subject at (anchorX, anchorY). focusWorld applies the
     // offsets only on the matching form factor (portrait → anchorY; desktop → both).
     if (f && f.zoom != null) deps.focusWorld(f.x, f.y, f.zoom, anchorY, anchorX);
@@ -27765,6 +27835,11 @@ function startTutorial(deps) {
     if (why && deps.onEnd) { try { deps.onEnd(why, idx, steps.length); } catch (_) {} }
     clearGlow();
     if (deps.setSightFlash) deps.setSightFlash(false);
+    // GIVE THE CAMERA ITS WHOLE VIEWPORT BACK. The inset is the tutorial's, and it must not
+    // outlive it — a leftover one silently re-frames the map for the rest of the run, and it is
+    // the kind of leak that looks like a camera bug three screens later. Cleared on EVERY exit,
+    // including `destroy()` (a level change), which is why it sits here and not in the Next path.
+    if (deps.setCameraInset) deps.setCameraInset(null);
     deps.setHandOpen(true);   // always leave the hand carousel maximized afterward
     if (deps.setHandFilter) deps.setHandFilter('all');   // ...and back to the full hand
     document.removeEventListener('keydown', onKey);
@@ -31115,6 +31190,11 @@ function isPortraitPhone() {
   try { return !!(window.matchMedia && window.matchMedia('(max-width:720px) and (orientation:portrait)').matches); }
   catch (_) { return false; }
 }
+// HOW FAR OUT A PORTRAIT PHONE FRAMES A TUTORIAL SUBJECT, as a multiple of the step's own zoom.
+// 0.5 -> 0.42 (owner: "zoom out a bit more") — a phone shows a tall thin slice of a wide map, and
+// the steps that point at a pile or a creature were filling it with that one thing. It is a
+// multiplier rather than a second set of per-step numbers so the desktop framing is untouched.
+const TUT_PHONE_ZOOM = 0.42;
 function isDesktopWide() {
   try { return window.innerWidth >= 900 && !isPortraitPhone(); }
   catch (_) { return false; }
@@ -31132,9 +31212,13 @@ function focusWorld(x, y, zoom, anchorY, anchorX) {
   let z = zoom != null ? zoom : camera.zoom;
   let tx = x, ty = y;
   if (isPortraitPhone()) {
-    z *= 0.5;                                              // wider view
+    z *= TUT_PHONE_ZOOM;                                   // wider view
+    // ANCHORED IN THE VISIBLE BAND, NOT THE VIEWPORT. `fy` is a fraction of the strip between the
+    // popup and the carousel, so 0.5 means "halfway down the part the player can actually see";
+    // the second term slides the camera to put that strip's centre where the subject is wanted.
+    // With no inset declared the band IS the viewport and both terms collapse to the old maths.
     const fy = (anchorY != null) ? anchorY : 0.5;
-    ty = y + (0.5 - fy) * camera.viewH / z;               // centre the camera so the subject lands at fraction fy
+    ty = y + (0.5 - fy) * camera.bandH() / z - (((camera.inset.top || 0) - (camera.inset.bottom || 0)) / 2) / z;
   } else if (isDesktopWide()) {
     const fx = (anchorX != null) ? anchorX : 0.5;
     const fy = (anchorY != null) ? anchorY : 0.5;
@@ -31234,6 +31318,14 @@ function tutorialDeps() {
     getState: () => state,
     worldToScreen: (x, y) => camera.worldToScreen(x, y),
     focusWorld, focusBounds,
+    // What the tutorial is covering the canvas with, so the clamp can keep the SUBJECT inside the
+    // part the player can see. `null` restores the plain viewport — passed on desktop, and on the
+    // way out, so nothing the tutorial did survives it.
+    setCameraInset: (ins) => {
+      camera.inset = { top: (ins && ins.top) || 0, bottom: (ins && ins.bottom) || 0 };
+      camera.clamp();
+      uiDirty = true;
+    },
     handCardEl: (name) => document.querySelector('#handlist .cardbtn[data-name="' + name + '"]'),
     pendingCard: () => (ui && ui.pendingCard) || null,
     setHandOpen: (open) => { if (ui && ui.setHandOpen) ui.setHandOpen(open); },

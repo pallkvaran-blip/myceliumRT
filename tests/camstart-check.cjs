@@ -198,10 +198,16 @@ const fin = await ph.evaluate(async () => {
 });
 ok('the camera settled before the teardown was measured', !!fin.held,
    fin.held ? `held at zoom ${fin.held.zoom.toFixed(3)}` : 'never settled');
+// THE SECOND CLAUSE IS RELATIVE, NOT AN ABSOLUTE 0.2. It only has to say "this is not the survey
+// view", and an absolute margin is a bet on how far in the tutorial frames: widening the phone
+// framing (0.5 -> 0.42 of the step's zoom) took the gap from 0.43 to 0.17 and failed this on a
+// build where the teardown behaved perfectly. A ratio cannot go stale the same way — the survey
+// zoom is the floor for the whole map, so anything the tutorial frames is far above it.
 ok('a tutorial torn down by a LEVEL CHANGE does not move the camera',
    !!fin.held && Math.abs(fin.after.zoom - fin.held.zoom) < 1e-6
-     && Math.abs(fin.after.zoom - fin.survey.zoom) > 0.2,
-   `zoom stayed ${fin.after.zoom.toFixed(3)} (survey would be ${fin.survey.zoom.toFixed(3)})`);
+     && fin.after.zoom / fin.survey.zoom > 1.25,
+   `zoom stayed ${fin.after.zoom.toFixed(3)} (survey would be ${fin.survey.zoom.toFixed(3)}, ` +
+   `ratio ${(fin.after.zoom / fin.survey.zoom).toFixed(2)}x)`);
 
 await ph.screenshot({ path: path.join(__dirname, '.artifacts', 'camstart-phone.png'),
   animations: 'disabled', timeout: 8000 }).catch(() => {});
