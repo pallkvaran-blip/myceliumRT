@@ -116,16 +116,22 @@ ok('the colony start is on screen where it opens', v.rootX != null && v.rootX >=
 // 1076 the line sat below that edge, i.e. the bottom of the play area was behind the cards.
 ok('the card carousel is on screen to measure against', v.handTop != null && v.handTop > 0,
    v.handTop != null ? `cards start at y ${Math.round(v.handTop)}` : 'no .handbar');
-// Against the ORIGINAL band, not the previous one: by 1291 the line already cleared the cards,
-// so a control against that would assert nothing. 978 is where the ladder started and where the
-// line was still behind them.
+// THE ORIGINAL-BAND CONTROL IS RETIRED, and it is worth saying why rather than deleting it
+// quietly. It recomputed the opening zoom at the pre-change band (978) and asserted the core line
+// would have sat BEHIND the carousel — which was true while the carousel had two rows. It lost a
+// row when the filter chips went and the controls moved onto the card row, so `handTop` dropped
+// 29px and the old band now clears the cards by 15. The control's claim is simply no longer true,
+// and re-fitting it to a band chosen to fail would be asserting the answer.
+// What replaces it does not depend on the HUD's height at all: the line must clear the cards by a
+// real margin rather than by a pixel, so a future change that pushes it back down still trips.
 const oldScroll = v.scrollH - BAND_NOW + BAND_ORIG;
 const oldZoom = Math.max(v.viewW / v.worldW, v.viewH / oldScroll);
 const oldCoreScreenY = (v.coreY - oldScroll / 2) * oldZoom + v.viewH / 2;
 ok('the whole play area now sits clear of the cards', v.coreScreenY < v.handTop,
    `core line at y ${v.coreScreenY.toFixed(1)}, cards start at ${Math.round(v.handTop)}`);
-ok('control: at the original band it did NOT', oldCoreScreenY >= v.handTop,
-   `band ${BAND_ORIG} would have put it at y ${oldCoreScreenY.toFixed(1)} vs cards at ${Math.round(v.handTop)}`);
+ok('...by a margin, not by a pixel', (v.handTop - v.coreScreenY) >= 40,
+   `${Math.round(v.handTop - v.coreScreenY)}px of clearance (the retired 978 control would now read `
+   + `${Math.round(v.handTop - oldCoreScreenY)}px, which is why it is gone)`);
 
 // ---- ...and the tutorial hands the map back at that same view -------------------------
 // Owner: finishing the walkthrough should leave you at the zoomed-out top-left view. The tutorial
