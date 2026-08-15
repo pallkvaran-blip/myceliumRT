@@ -191,16 +191,33 @@ function slice(a, b) {
     retries: evs.filter((x) => x.kind === 'retry').length, lv };
 }
 
-const A = slice(T0, NOW + 1);
-const B = slice(T0 - BACK * 86400000, NOW + 1 - BACK * 86400000);
+// TWO WINDOWS THAT DO NOT OVERLAP, and past 24 h the default pair DOES. "The same clock window a
+// day back" is the right frame while a release is hours old — it cancels the daily traffic cycle,
+// which swings ~4x — but the moment the release is more than a day old, [T0, now] and its shifted
+// copy [T0-24h, now-24h] intersect, and the baseline starts containing the build it is meant to be
+// judging. Measured at 25.2 h: 25 sessions on the NEW build had leaked into the "yesterday" side.
+//
+// `--hours N` is the clean version for that case: the release's first N hours against the N hours
+// IMMEDIATELY BEFORE it. At N = 24 the daily cycle cancels on its own — both windows are a whole
+// day — so nothing is given up by dropping the clock alignment.
+const HOURS = +argOf('hours', 0);
+const A = HOURS ? slice(T0, T0 + HOURS * 3600000) : slice(T0, NOW + 1);
+const B = HOURS ? slice(T0 - HOURS * 3600000, T0)
+                : slice(T0 - BACK * 86400000, NOW + 1 - BACK * 86400000);
 const iso = (t) => new Date(t).toISOString().replace('T', ' ').slice(0, 16);
 
+if (HOURS && NOW - T0 < HOURS * 3600000)
+  console.log(`\n  NOTE: only ${((NOW - T0) / 3600000).toFixed(1)} h of the ${HOURS} h window has happened yet.`);
 console.log(`\n${NEW} first played ${iso(T0)} UTC, newest event ${iso(NOW)} UTC`
   + `  —  ${((NOW - T0) / 3600000).toFixed(1)} h`);
-console.log(`source=${SOURCE} game=${GAME || 'all'}, against the same clock window ${BACK} day(s) back\n`);
+console.log(HOURS
+  ? `source=${SOURCE} game=${GAME || 'all'}, its first ${HOURS} h against the ${HOURS} h before it`
+    + `\n  after  ${iso(T0)} -> ${iso(T0 + HOURS * 3600000)}`
+    + `\n  before ${iso(T0 - HOURS * 3600000)} -> ${iso(T0)}\n`
+  : `source=${SOURCE} game=${GAME || 'all'}, against the same clock window ${BACK} day(s) back\n`);
 const mixOf = (x) => Object.entries(x.mix).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([k, v]) => `${k} ${v}`).join(', ');
-console.log(`  today      ${mixOf(A)}`);
-console.log(`  ${BACK} day(s) ago  ${mixOf(B)}\n`);
+console.log(`  after   ${mixOf(A)}`);
+console.log(`  before  ${mixOf(B)}\n`);
 
 const R = [['sessions', (x) => x.sessions], ['of which bounced', (x) => `${x.bounced} (${Math.round(100 * x.bounced / (x.sessions || 1))}%)`],
   ['players who played', (x) => x.players], ['played visits', (x) => x.visits],
@@ -212,10 +229,10 @@ const R = [['sessions', (x) => x.sessions], ['of which bounced', (x) => `${x.bou
   ['  total clears', (x) => x.clears], ['players who cleared >=1', (x) => x.cleared],
   ['players who spent', (x) => x.spent], ['upgrades bought', (x) => x.upgrades], ['retries used', (x) => x.retries]];
 const w = Math.max(...R.map(([l]) => l.length));
-console.log(`${''.padEnd(w)}   ${'since the update'.padStart(18)} ${('same window -' + BACK + 'd').padStart(18)}`);
+console.log(`${''.padEnd(w)}   ${(HOURS ? 'after (' + HOURS + 'h)' : 'since the update').padStart(18)} ${(HOURS ? 'before (' + HOURS + 'h)' : 'same window -' + BACK + 'd').padStart(18)}`);
 for (const [l, f] of R) console.log(`${l.padEnd(w)}   ${String(f(A)).padStart(18)} ${String(f(B)).padStart(18)}`);
 
-console.log(`\n${'level'.padStart(6)}   ${'started'.padStart(8)} ${'cleared'.padStart(8)}   ${'started'.padStart(8)} ${'cleared'.padStart(8)}   (today | -${BACK}d)`);
+console.log(`\n${'level'.padStart(6)}   ${'started'.padStart(8)} ${'cleared'.padStart(8)}   ${'started'.padStart(8)} ${'cleared'.padStart(8)}   ${HOURS ? '(after | before)' : '(today | -' + BACK + 'd)'}`);
 const levels = [...new Set([...Object.keys(A.lv), ...Object.keys(B.lv)])].map(Number).sort((a, b) => a - b);
 for (const L of levels) {
   const a = A.lv[L] || { s: new Set(), c: new Set() }, b = B.lv[L] || { s: new Set(), c: new Set() };
