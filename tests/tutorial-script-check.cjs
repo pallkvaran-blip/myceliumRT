@@ -226,6 +226,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
     // The bearing the arrow SHOULD have, from where it actually sits to the actual corner, and
     // the one it has — read back out of the computed matrix.
+    // The bearing to OUR OWN bottom-right corner — which is NOT where the button is, and is the
+    // number this assertion used to demand. It is kept as the thing the arrow must be steeper
+    // than: the control sits in the embedder's chrome, below the frame.
     const want = Math.atan2(innerHeight - cy, innerWidth - cx) * 180 / Math.PI;
     const m = /matrix\(([-\d.]+), *([-\d.]+)/.exec(getComputedStyle(a).transform);
     const got = m ? Math.atan2(+m[2], +m[1]) * 180 / Math.PI : null;
@@ -233,7 +236,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
              clearsTray: (r.y + r.height) < bar.top,
              arrowShown: getComputedStyle(a).display !== 'none',
              ringShown: getComputedStyle(document.querySelector('.tut-ring')).display !== 'none',
-             aimErr: got == null ? null : Math.round(Math.abs(got - want)),
+             got: got == null ? null : Math.round(got), want: Math.round(want),
              popGap: Math.round(Math.hypot(cx - (pr.x + pr.width / 2), cy - (pr.y + pr.height / 2))),
              popBelowHalf: (pr.y + pr.height / 2) > innerHeight / 2,
              popRightHalf: (pr.x + pr.width / 2) > innerWidth / 2,
@@ -251,8 +254,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // the corner at 65deg, so the first version pointed past it into the wall. The bearing is
   // computed from where the arrow ACTUALLY is to where the corner ACTUALLY is, both of which move
   // with the window, so this asserts the two agree rather than asserting a number.
-  ok('...aimed at the corner, not at a guessed angle', fsRing.aimErr != null && fsRing.aimErr <= 2,
-     `off by ${fsRing.aimErr}deg`);
+  // ...AIMED PAST THE CORNER, AT THE EMBEDDER'S CHROME. The fullscreen button is not ours and is
+  // not in our frame: CrazyGames and itch both draw it in a bar UNDER the iframe. So the honest
+  // bearing is STEEPER than the one to our own bottom-right corner — nearly straight down, a
+  // little to the right. The first version aimed at the corner itself and read as pointing at the
+  // wall beside the button. Asserted as a BAND rather than a number, because the chrome's height
+  // is unknowable from in here and the gesture is what carries the meaning.
+  ok('...aimed past our corner, down into the embedder\'s chrome where the button lives',
+     fsRing.got != null && fsRing.got > fsRing.want + 8 && fsRing.got > 70 && fsRing.got < 89,
+     `${fsRing.got}deg, vs ${fsRing.want}deg to our own corner`);
   // AND THE MESSAGE SITS BESIDE ITS POINTER (owner). Every other desktop step puts the popup in
   // the quadrant OPPOSITE its subject, so as not to cover what it describes — wrong shape for a
   // step whose subject is off the screen entirely.

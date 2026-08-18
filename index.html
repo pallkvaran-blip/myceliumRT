@@ -27621,7 +27621,17 @@ function startTutorial(deps) {
       // AN ARROW, NOT A RING (owner) — the fullscreen button is off the play screen, so there is
       // nothing here to draw a circle around — AIMED AT THE CORNER ITSELF rather than at a fixed
       // 45deg, which pointed past it (see the arrowAt note in layout()).
-      arrowAt: () => ({ x: window.innerWidth || 0, y: window.innerHeight || 0 }),
+      // ...AND THE TARGET IS BELOW OUR FRAME, NOT AT ITS CORNER. The button belongs to the page
+      // EMBEDDING us — CrazyGames draws it in a chrome bar UNDER the iframe, itch likewise — so
+      // aiming at `(innerWidth, innerHeight)` aims at our own bottom-right corner, which is short
+      // of the real thing by the height of that bar and reads as pointing into the wall beside it
+      // (reported: "not quite pointing at the full screen button"). Pushed DOWN past the edge so
+      // the bearing steepens to roughly 80deg — nearly straight down, a little to the right, which
+      // is where the control actually is. The exact chrome height is unknowable from in here
+      // (cross-origin), and it does not need to be: any point clearly below the frame gives the
+      // right GESTURE, and being a few degrees out on something off-screen costs nothing, while
+      // aiming 15deg too shallow points at a neighbour.
+      arrowAt: () => ({ x: (window.innerWidth || 0) - 24, y: (window.innerHeight || 0) + 150 }),
       // ...and the popup comes DOWN to it (owner: "move that message popup so it's closer to the
       // arrow"). Every other desktop step frames a subject on the map and puts the popup in the
       // opposite top quadrant; this one points at a corner, and a message about that corner
