@@ -191,13 +191,15 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // ...and it must not survive the step.
   const afterFlash = await page.evaluate(() => window.__game.sightFlashCount());
   ok('...and nothing is left pulsing once the walkthrough ends', afterFlash === 0, String(afterFlash));
-  // SECOND TO LAST, AND DESKTOP ONLY (owner). Asserted by POSITION as well as by content: the
-  // point of it is that it lands after the rules and before the send-off, so an appended step
-  // would satisfy "it exists" and be in the wrong place.
+  // LAST, AND DESKTOP ONLY (owner). Asserted by POSITION as well as by content: it carries the
+  // send-off itself now, so a build that left it second-to-last would say "Good luck" twice and
+  // still satisfy "the line exists".
   const iFull = idxOf(/full screen mode/i);
-  ok('11. the fullscreen line is the second-to-last step',
-     iFull === texts.length - 2, `at ${iFull} of ${texts.length - 1}`);
-  ok('...in the owner\'s words', /This game is best played on full screen mode\./.test(texts[iFull] || ''),
+  ok('12. the fullscreen line is the LAST step',
+     iFull === texts.length - 1, `at ${iFull} of ${texts.length - 1}`);
+  ok('...in the owner\'s words, send-off included',
+     /For the best experience, full screen mode is recommended\./.test(texts[iFull] || '')
+     && /Good luck!/.test(texts[iFull] || ''),
      texts[iFull] || '(none)');
   // ...AND IT POINTS WITH AN ARROW, ON A SCREEN CORNER (owner: the fullscreen button is off the
   // play screen). It is the only step whose target is neither a world point nor an element, so
@@ -236,6 +238,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
              popBelowHalf: (pr.y + pr.height / 2) > innerHeight / 2,
              popRightHalf: (pr.x + pr.width / 2) > innerWidth / 2,
              trayOpen: document.querySelector('.handbar').classList.contains('open'),
+             nextLabel: ((document.getElementById('tutNext') || {}).textContent || '').trim(),
              on: /full screen mode/i.test((document.getElementById('tutBody') || {}).textContent || '') };
   });
   ok('...with an ARROW in the bottom-right corner, not a ring',
@@ -262,8 +265,27 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('...clear of the tray, so it is not aimed at the Skip chip', fsRing.clearsTray === true,
      `arrow bottom vs tray top: ${fsRing.clearsTray}`);
   ok('...and the carousel is minimised for it', fsRing.trayOpen === false, `open=${fsRing.trayOpen}`);
-  ok('12. it ends on "Good luck…"', /^Good luck…$/.test((texts[texts.length - 1] || '').trim()),
-     texts[texts.length - 1] || '(none)');
+  // ...AND ITS BUTTON SAYS "Begin", because nothing follows it on a desktop.
+  ok('...and its button says Begin, not Next', fsRing.nextLabel === 'Begin', fsRing.nextLabel || '(none)');
+  // THE PLAIN SIGN-OFF IS STILL THERE, immediately before it, for every device that skips the
+  // fullscreen line. The two are a pair — exactly one shows — so asserting only that the script
+  // ends on the fullscreen line would pass on a build that had deleted the phone's ending.
+  // ...ASKED OF THE SCRIPT, NOT OF THE WALK. `texts` is what a DESKTOP was actually shown, and a
+  // desktop skips the plain sign-off by design — so it is absent there and present in `script`,
+  // which lists every step including the ones that opt out at runtime.
+  const scriptTail = await page.evaluate(() => {
+    // `script` hands back the AUTHORED text, i.e. with its markup — unlike `texts`, which is read
+    // off the rendered popup. Strip it so both sides of this file compare the same thing.
+    const s = (window.__game.tutorialScript() || []).map((x) => String(x.text).replace(/<[^>]*>/g, ''));
+    return { last2: s.slice(-2), lasts: (window.__game.tutorialScript() || []).filter((x) => x.last).length };
+  });
+  ok('11. the plain sign-off sits just before it, for the devices that skip it',
+     /^Good luck…$/.test((scriptTail.last2[0] || '').trim())
+     && /full screen mode/i.test(scriptTail.last2[1] || ''),
+     scriptTail.last2.map((t) => t.slice(0, 26)).join(' | '));
+  // ...and exactly one of the two is flagged `last`, so the survival splice still finds one
+  // closing step to put the ant and mould tips in front of.
+  ok('...and exactly one step is flagged last', scriptTail.lasts === 1, `${scriptTail.lasts} flagged`);
   // ...AND A PHONE NEVER SEES IT. `script` lists every step INCLUDING the ones that skip
   // themselves at runtime, so the only honest way to ask "does a phone see it?" is to WALK the
   // walkthrough on a phone and collect what was actually shown. A phone browser's fullscreen is
@@ -279,21 +301,29 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     g.startTutorial();
     await new Promise((r) => setTimeout(r, 400));
     const seen = [];
+    let endLabel = null;
     for (let i = 0; i < 26; i++) {
       const b = document.getElementById('tutBody');
       const t = b ? b.textContent : '';
       if (t && seen[seen.length - 1] !== t) seen.push(t);
-      if (/Good luck/.test(t)) break;
       const nx = document.getElementById('tutNext');
+      if (/Good luck/.test(t)) { endLabel = ((nx || {}).textContent || '').trim(); break; }
       if (nx && getComputedStyle(nx).display !== 'none') nx.click();
       else g.armAim('Apical Drive');
       await new Promise((r) => setTimeout(r, 220));
     }
-    return seen;
+    return { seen, endLabel };
   });
   ok('...and a phone is never shown it',
-     phoneSeen.some((t) => /Good luck/.test(t)) && !phoneSeen.some((t) => /full screen mode/i.test(t)),
-     `walked ${phoneSeen.length} step(s), ended on "${(phoneSeen[phoneSeen.length - 1] || '').slice(0, 24)}"`);
+     phoneSeen.seen.some((t) => /Good luck/.test(t))
+     && !phoneSeen.seen.some((t) => /full screen mode/i.test(t)),
+     `walked ${phoneSeen.seen.length} step(s), ended on `
+     + `"${(phoneSeen.seen[phoneSeen.seen.length - 1] || '').slice(0, 24)}"`);
+  // ...AND ITS BUTTON SAYS "Begin" THERE TOO, which is the whole reason the label is computed off
+  // the live skips rather than read off the array's own `last` flag: on a phone the last step
+  // SHOWN is not the last step in the script, and the flag version offered "Next" on the ending.
+  ok('...and the phone\'s own ending says Begin, not Next', phoneSeen.endLabel === 'Begin',
+     phoneSeen.endLabel || '(none)');
   await ph.close();
 
   // MOVED OFF LEVEL 1 (owner). "an ant step exists" would pass on the old build, which is why this

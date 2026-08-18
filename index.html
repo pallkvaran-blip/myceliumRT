@@ -27597,15 +27597,27 @@ function startTutorial(deps) {
       place: 'bottom',
     },
     {
-      // FULLSCREEN, AND DESKTOP ONLY (owner). It is the second-to-last thing said, once the rules
-      // are out of the way and the only thing left is how to sit comfortably. `skip` on anything
-      // that is not a wide screen: a phone browser's fullscreen is not in that corner, is often
-      // not offered at all, and the advice would be a step pointing at nothing.
+      // THE PHONE'S SIGN-OFF. The walkthrough ends on the fullscreen line on a desktop and on this
+      // one everywhere else, so the two are a pair: exactly one of them shows, and each carries
+      // the send-off so neither platform ends on a rule.
+      text: '<b>Good luck…</b>',
+      focus: (s) => world(deps.colonyRoot(), 1.0),
+      place: 'center',
+      skip: () => desktopWide(),
+      closing: true,
+    },
+    {
+      // FULLSCREEN, AND DESKTOP ONLY (owner). It is the LAST thing said — it carries the send-off
+      // itself rather than being followed by one, because a step that ends "Good luck!" and then
+      // hands over to another step saying "Good luck…" says it twice. `skip` on anything that is
+      // not a wide screen: a phone browser's fullscreen is not in that corner, is often not
+      // offered at all, and the advice would be a step pointing at nothing — which is why the
+      // plain sign-off above exists rather than this one simply being the end for everybody.
       //
       // THE RING IS ON A SCREEN CORNER, not on anything of ours — the control belongs to the site
       // embedding the game (CrazyGames puts it bottom-right of the frame), so there is no element
       // to point at. 44px in from each edge is the middle of a typical embed chrome button.
-      text: 'This game is best played on <b>full screen mode</b>.',
+      text: 'For the best experience, <b>full screen mode</b> is recommended.<br><b>Good luck!</b>',
       // AN ARROW, NOT A RING (owner) — the fullscreen button is off the play screen, so there is
       // nothing here to draw a circle around — AIMED AT THE CORNER ITSELF rather than at a fixed
       // 45deg, which pointed past it (see the arrowAt note in layout()).
@@ -27632,11 +27644,7 @@ function startTutorial(deps) {
       // somewhere to point.
       hand: 'min',
       place: 'top',
-    },
-    {
-      text: '<b>Good luck…</b>',
-      focus: (s) => world(deps.colonyRoot(), 1.0),
-      place: 'center',
+      closing: true,
       last: true,
     },
   ];
@@ -27703,7 +27711,14 @@ function startTutorial(deps) {
   // script of one — concatenated as-is, the button would read "Begin" three steps early.
   function stepsWithTipsInline() {
     const tips = [].concat(LEVEL_TIPS[2] || [], LEVEL_TIPS[3] || []);
-    const out = MAIN_STEPS.slice(0, -1).concat(tips, MAIN_STEPS.slice(-1));
+    // THE CLOSING BLOCK IS TWO STEPS NOW, not one, and `slice(-1)` no longer names it: the
+    // walkthrough ends on the fullscreen line or on the plain sign-off depending on the device, so
+    // splicing before the last ELEMENT would have dropped the ant and mould tips between them and
+    // left a phone reading "Good luck…" three steps before the end. Found by the `closing` flag so
+    // a third closing step needs no edit here.
+    let cut = MAIN_STEPS.length;
+    while (cut > 0 && MAIN_STEPS[cut - 1].closing) cut--;
+    const out = MAIN_STEPS.slice(0, cut).concat(tips, MAIN_STEPS.slice(cut));
     return out.map((st, i) => {
       const want = (i === out.length - 1);
       return (!!st.last === want) ? st : Object.assign({}, st, { last: want });
@@ -27941,7 +27956,12 @@ function startTutorial(deps) {
     const forced = !!step.gate;
     const interactive = !!step.interactive;
     btnNext.style.display = (forced && !step.showNext) ? 'none' : '';
-    btnNext.textContent = step.last ? 'Begin' : 'Next';
+    // "Begin" MEANS "NOTHING FOLLOWS", AND THE FLAG CANNOT KNOW THAT ANY MORE. The script ends in
+    // a PAIR of closing steps — the fullscreen line on a desktop, the plain sign-off everywhere
+    // else — so the array's last step is not the last step SHOWN on a phone, and reading `st.last`
+    // there left the final message offering "Next". Asked of the live skips instead, which is the
+    // same question `enter` asks a moment later, so the label can never disagree with what happens.
+    btnNext.textContent = isLastShown(idx) ? 'Begin' : 'Next';
     // `noSkip` USED TO WITHHOLD THE END BUTTON, and there is no End button any more — what it
     // still does is buy the step the same deaf window an auto-advanced one gets, so a step nobody
     // chose to open is readable before a click can dismiss it. Kept for that half alone.
@@ -27967,6 +27987,18 @@ function startTutorial(deps) {
     if (step.onEnter) step.onEnter(deps.getState(), mem);
     if (deps.onStep) { try { deps.onStep(idx, steps.length); } catch (_) {} }
     layout();
+  }
+
+  // Is `i` the last step the player will actually be shown? Every step after it opts out on this
+  // device. Evaluated live rather than cached: a `skip` reads the world (no reservoir, no worm)
+  // as well as the viewport.
+  function isLastShown(i) {
+    const s = deps.getState();
+    for (let j = i + 1; j < steps.length; j++) {
+      const st = steps[j];
+      if (!(st.skip && st.skip(s))) return false;
+    }
+    return true;
   }
 
   function next(auto) {

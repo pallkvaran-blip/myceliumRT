@@ -298,6 +298,15 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
       // concatenated as-is the Next button reads "Begin" three steps early.
       ok('exactly one step is marked last, so the button says Begin once',
          tut.campLasts === 1, `${tut.campLasts} step(s) marked last`);
+      // ...AND THE TIPS LAND IN FRONT OF THE WHOLE CLOSING BLOCK, which is TWO steps now — the
+      // plain "Good luck…" for a phone and the fullscreen line for a desktop. Splicing before the
+      // last ELEMENT would drop the tips between them and leave a phone signing off three steps
+      // early, and "the tips are present" passes either way.
+      const iAnt = tut.surv.findIndex((t) => /Ants are/i.test(t));
+      const iBye = tut.surv.findIndex((t) => /Good luck/i.test(t));
+      ok('...and both tips come BEFORE the sign-off, not between the two closing steps',
+         iAnt > 0 && iBye > 0 && iAnt < iBye && /full screen mode/i.test(tut.surv[tut.surv.length - 1] || ''),
+         `ant at ${iAnt}, sign-off at ${iBye} of ${tut.surv.length - 1}`);
     }
   }
 
