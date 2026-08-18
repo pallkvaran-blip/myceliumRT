@@ -191,8 +191,81 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // ...and it must not survive the step.
   const afterFlash = await page.evaluate(() => window.__game.sightFlashCount());
   ok('...and nothing is left pulsing once the walkthrough ends', afterFlash === 0, String(afterFlash));
-  ok('11. it ends on "Good luck…"', /^Good luck…$/.test((texts[texts.length - 1] || '').trim()),
+  // SECOND TO LAST, AND DESKTOP ONLY (owner). Asserted by POSITION as well as by content: the
+  // point of it is that it lands after the rules and before the send-off, so an appended step
+  // would satisfy "it exists" and be in the wrong place.
+  const iFull = idxOf(/full screen mode/i);
+  ok('11. the fullscreen line is the second-to-last step',
+     iFull === texts.length - 2, `at ${iFull} of ${texts.length - 1}`);
+  ok('...in the owner\'s words', /This game is best played on full screen mode\./.test(texts[iFull] || ''),
+     texts[iFull] || '(none)');
+  // ...AND ITS RING IS ON A SCREEN CORNER, not on anything of ours. It is the only step whose
+  // target is neither a world point nor an element, so this is also the assertion that the
+  // screen-space target path works at all.
+  const fsRing = await page.evaluate(async () => {
+    const g = window.__game, t = g.tutorial;
+    if (t) t.destroy();
+    document.querySelectorAll('#tutorial').forEach((n) => n.remove());
+    g.startTutorial();
+    await new Promise((r) => setTimeout(r, 400));
+    for (let i = 0; i < 24; i++) {
+      const b = document.getElementById('tutBody');
+      if (b && /full screen mode/i.test(b.textContent)) break;
+      const nx = document.getElementById('tutNext');
+      if (nx && getComputedStyle(nx).display !== 'none') nx.click();
+      else g.armAim('Apical Drive');
+      await new Promise((r) => setTimeout(r, 220));
+    }
+    const r = document.querySelector('.tut-ring').getBoundingClientRect();
+    const bar = document.querySelector('.handbar').getBoundingClientRect();
+    return { fromRight: Math.round(innerWidth - (r.x + r.width / 2)),
+             fromBottom: Math.round(innerHeight - (r.y + r.height / 2)),
+             clearsTray: (r.y + r.height) < bar.top,
+             trayOpen: document.querySelector('.handbar').classList.contains('open'),
+             on: /full screen mode/i.test((document.getElementById('tutBody') || {}).textContent || '') };
+  });
+  ok('...with the ring in the bottom-right corner', fsRing.on && fsRing.fromRight < 120 && fsRing.fromBottom < 200,
+     `${fsRing.fromRight}px from the right, ${fsRing.fromBottom}px from the bottom`);
+  // IT MUST NOT LAND ON THE » SKIP CHIP, which lives in that exact corner — the first version put
+  // the ring squarely over it, so the one control it appeared to circle was the one it does not
+  // mean. Cleared by the collapsed tray's own height.
+  ok('...clear of the tray, so it is not circling the Skip chip', fsRing.clearsTray === true,
+     `ring bottom vs tray top: ${fsRing.clearsTray}`);
+  ok('...and the carousel is minimised for it', fsRing.trayOpen === false, `open=${fsRing.trayOpen}`);
+  ok('12. it ends on "Good luck…"', /^Good luck…$/.test((texts[texts.length - 1] || '').trim()),
      texts[texts.length - 1] || '(none)');
+  // ...AND A PHONE NEVER SEES IT. `script` lists every step INCLUDING the ones that skip
+  // themselves at runtime, so the only honest way to ask "does a phone see it?" is to WALK the
+  // walkthrough on a phone and collect what was actually shown. A phone browser's fullscreen is
+  // not in that corner and is often not offered at all, so the step would point at nothing.
+  const ph = await browser.newPage({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
+  await ph.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+  await ph.goto(base + '/index.html#dev,turn', { waitUntil: 'domcontentloaded' });
+  await ph.waitForSelector('#loadscreen.ld-ready', { timeout: 30000 }).catch(() => {});
+  await ph.click('#loadscreen', { timeout: 5000 }).catch(() => {});
+  await ph.waitForFunction(() => window.__game && window.__game.startTutorial, null, { timeout: 30000 });
+  const phoneSeen = await ph.evaluate(async () => {
+    const g = window.__game;
+    g.startTutorial();
+    await new Promise((r) => setTimeout(r, 400));
+    const seen = [];
+    for (let i = 0; i < 26; i++) {
+      const b = document.getElementById('tutBody');
+      const t = b ? b.textContent : '';
+      if (t && seen[seen.length - 1] !== t) seen.push(t);
+      if (/Good luck/.test(t)) break;
+      const nx = document.getElementById('tutNext');
+      if (nx && getComputedStyle(nx).display !== 'none') nx.click();
+      else g.armAim('Apical Drive');
+      await new Promise((r) => setTimeout(r, 220));
+    }
+    return seen;
+  });
+  ok('...and a phone is never shown it',
+     phoneSeen.some((t) => /Good luck/.test(t)) && !phoneSeen.some((t) => /full screen mode/i.test(t)),
+     `walked ${phoneSeen.length} step(s), ended on "${(phoneSeen[phoneSeen.length - 1] || '').slice(0, 24)}"`);
+  await ph.close();
+
   // MOVED OFF LEVEL 1 (owner). "an ant step exists" would pass on the old build, which is why this
   // asserts their ABSENCE from the walkthrough and their presence as tips further down.
   ok('ants and Trichoderma are NOT in the level-1 walkthrough',

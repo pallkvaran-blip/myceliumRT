@@ -27568,6 +27568,34 @@ function startTutorial(deps) {
       place: 'bottom',
     },
     {
+      // FULLSCREEN, AND DESKTOP ONLY (owner). It is the second-to-last thing said, once the rules
+      // are out of the way and the only thing left is how to sit comfortably. `skip` on anything
+      // that is not a wide screen: a phone browser's fullscreen is not in that corner, is often
+      // not offered at all, and the advice would be a step pointing at nothing.
+      //
+      // THE RING IS ON A SCREEN CORNER, not on anything of ours — the control belongs to the site
+      // embedding the game (CrazyGames puts it bottom-right of the frame), so there is no element
+      // to point at. 44px in from each edge is the middle of a typical embed chrome button.
+      text: 'This game is best played on <b>full screen mode</b>.',
+      // JUST ABOVE THE TRAY, not on it. At a flat 44px from each edge the ring landed squarely
+      // over the » Skip chip, which lives in that exact corner — so the one control it appeared
+      // to be circling was the one thing on screen it does not mean. Cleared vertically by the
+      // collapsed tray's own height, measured rather than assumed, so it stays clear at any
+      // breakpoint; horizontally it still hugs the right edge, which is the direction that
+      // carries the meaning.
+      target: () => {
+        const bar = document.querySelector('.handbar');
+        const h = bar ? Math.round(bar.getBoundingClientRect().height) : 46;
+        return cornerTarget(48, h + 58);
+      },
+      skip: () => !desktopWide(),
+      // MINIMISED (owner): the tray is the one thing of ours near that corner, and the ring is
+      // pointing THROUGH where it sits. With it collapsed the corner is bare and the line has
+      // somewhere to point.
+      hand: 'min',
+      place: 'top',
+    },
+    {
       text: '<b>Good luck…</b>',
       focus: (s) => world(deps.colonyRoot(), 1.0),
       place: 'center',
@@ -27653,6 +27681,11 @@ function startTutorial(deps) {
   // ---- helpers used by the script -----------------------------------------
   function world(p, zoom) { return p ? { x: p.x, y: p.y, zoom } : null; }
   function worldTarget(p) { return p ? { world: p } : null; }
+  // Screen-space target, in viewport px. `fromRight`/`fromBottom` so a step can name a CORNER and
+  // have it stay a corner at any window size.
+  function cornerTarget(fromRight, fromBottom) {
+    return { screen: { x: (window.innerWidth || 0) - fromRight, y: (window.innerHeight || 0) - fromBottom } };
+  }
   function cardTarget(name) { const e = deps.handCardEl(name); return e ? { el: e } : null; }
   function nodeCount(s) { return (s && s.active && s.active.nodes) ? s.active.nodes.length : 0; }
 
@@ -27920,6 +27953,11 @@ function startTutorial(deps) {
     let tx = null, ty = null, r = 46;
     if (t && t.world) { const s = deps.worldToScreen(t.world.x, t.world.y); tx = s.x; ty = s.y; r = step.ringR || 52; }
     else if (t && t.el) { const b = t.el.getBoundingClientRect(); if (b.width) { tx = b.left + b.width / 2; ty = b.top + b.height / 2; r = Math.max(b.width, b.height) / 2 + 12; } }
+    // A POINT ON THE SCREEN, not in the world and not an element of ours. The fullscreen control
+    // belongs to whoever is EMBEDDING us — CrazyGames draws it in the bottom-right of the frame —
+    // so there is no node to measure and no world position to convert. Recomputed every frame like
+    // the other two, which is what keeps it in the corner when the window is resized.
+    else if (t && t.screen) { tx = t.screen.x; ty = t.screen.y; r = step.ringR || 52; }
     if (tx == null) { ring.style.display = 'none'; }
     else {
       ring.style.display = '';
