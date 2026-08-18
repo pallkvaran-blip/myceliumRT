@@ -220,12 +220,21 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const a = document.querySelector('.tut-arrow');
     const r = a.getBoundingClientRect();
     const bar = document.querySelector('.handbar').getBoundingClientRect();
-    return { fromRight: Math.round(innerWidth - (r.x + r.width / 2)),
-             fromBottom: Math.round(innerHeight - (r.y + r.height / 2)),
+    const pr = document.querySelector('.tut-pop').getBoundingClientRect();
+    const cx = r.x + r.width / 2, cy = r.y + r.height / 2;
+    // The bearing the arrow SHOULD have, from where it actually sits to the actual corner, and
+    // the one it has — read back out of the computed matrix.
+    const want = Math.atan2(innerHeight - cy, innerWidth - cx) * 180 / Math.PI;
+    const m = /matrix\(([-\d.]+), *([-\d.]+)/.exec(getComputedStyle(a).transform);
+    const got = m ? Math.atan2(+m[2], +m[1]) * 180 / Math.PI : null;
+    return { fromRight: Math.round(innerWidth - cx), fromBottom: Math.round(innerHeight - cy),
              clearsTray: (r.y + r.height) < bar.top,
              arrowShown: getComputedStyle(a).display !== 'none',
              ringShown: getComputedStyle(document.querySelector('.tut-ring')).display !== 'none',
-             rotated: /matrix/.test(getComputedStyle(a).transform),
+             aimErr: got == null ? null : Math.round(Math.abs(got - want)),
+             popGap: Math.round(Math.hypot(cx - (pr.x + pr.width / 2), cy - (pr.y + pr.height / 2))),
+             popBelowHalf: (pr.y + pr.height / 2) > innerHeight / 2,
+             popRightHalf: (pr.x + pr.width / 2) > innerWidth / 2,
              trayOpen: document.querySelector('.handbar').classList.contains('open'),
              on: /full screen mode/i.test((document.getElementById('tutBody') || {}).textContent || '') };
   });
@@ -234,10 +243,19 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      && fsRing.fromRight < 120 && fsRing.fromBottom < 200,
      `arrow=${fsRing.arrowShown} ring=${fsRing.ringShown}, ${fsRing.fromRight}px from the right, `
      + `${fsRing.fromBottom}px from the bottom`);
-  // ...AIMED. An arrow drawn at its default 0deg points RIGHT, which on this step would be at the
-  // wall rather than the corner — so the rotation is the difference between a pointer and a
-  // decoration.
-  ok('...and rotated to aim at it', fsRing.rotated === true, `transform applied: ${fsRing.rotated}`);
+  // ...AIMED AT THE CORNER, measured rather than trusted. A fixed 45deg is only right if the arrow
+  // sits on the diagonal, and it does not — 48px from the right against 104px from the bottom puts
+  // the corner at 65deg, so the first version pointed past it into the wall. The bearing is
+  // computed from where the arrow ACTUALLY is to where the corner ACTUALLY is, both of which move
+  // with the window, so this asserts the two agree rather than asserting a number.
+  ok('...aimed at the corner, not at a guessed angle', fsRing.aimErr != null && fsRing.aimErr <= 2,
+     `off by ${fsRing.aimErr}deg`);
+  // AND THE MESSAGE SITS BESIDE ITS POINTER (owner). Every other desktop step puts the popup in
+  // the quadrant OPPOSITE its subject, so as not to cover what it describes — wrong shape for a
+  // step whose subject is off the screen entirely.
+  ok('...with the popup beside it, not across the screen',
+     fsRing.popBelowHalf === true && fsRing.popRightHalf === true && fsRing.popGap < 420,
+     `${fsRing.popGap}px away, bottom-right quadrant: ${fsRing.popBelowHalf && fsRing.popRightHalf}`);
   // IT MUST NOT LAND ON THE » SKIP CHIP, which lives in that exact corner — the first version put
   // the ring squarely over it, so the one control it appeared to circle was the one it does not
   // mean. Cleared by the collapsed tray's own height.

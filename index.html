@@ -1837,6 +1837,12 @@
     .tut-pop--side.tut-pop--left  { left:clamp(20px, 4vw, 72px); }
     .tut-pop--side.tut-pop--right { right:clamp(20px, 4vw, 72px); }
     .tut-pop--side .tut-fig img { max-height:200px; }
+    /* PINNED BESIDE ITS POINTER. Used by the fullscreen step, whose arrow is in the bottom-right
+       corner: it sits above the collapsed carousel and inboard of the arrow, so the sentence and
+       the thing it is about are one glance apart instead of a screen apart. Narrower than a side
+       popup because it is one line and does not need a quadrant. */
+    .tut-pop--pin-bottom-right { left:auto; right:clamp(16px, 3vw, 44px); transform:none;
+      top:auto; bottom:clamp(150px, 22vh, 210px); width:min(430px, 58vw); }
     .tut-body { font-size:17px; line-height:1.5; letter-spacing:.004em; text-wrap:balance; }
     .tut-body b { font-weight:700; }
     .tut-body i { font-style:italic; color:#dcdcdc; }
@@ -27601,8 +27607,14 @@ function startTutorial(deps) {
       // to point at. 44px in from each edge is the middle of a typical embed chrome button.
       text: 'This game is best played on <b>full screen mode</b>.',
       // AN ARROW, NOT A RING (owner) — the fullscreen button is off the play screen, so there is
-      // nothing here to draw a circle around. 45deg is down-and-right, toward the corner.
-      arrow: 45,
+      // nothing here to draw a circle around — AIMED AT THE CORNER ITSELF rather than at a fixed
+      // 45deg, which pointed past it (see the arrowAt note in layout()).
+      arrowAt: () => ({ x: window.innerWidth || 0, y: window.innerHeight || 0 }),
+      // ...and the popup comes DOWN to it (owner: "move that message popup so it's closer to the
+      // arrow"). Every other desktop step frames a subject on the map and puts the popup in the
+      // opposite top quadrant; this one points at a corner, and a message about that corner
+      // belonging at the far end of the screen from it was the odd one out.
+      pin: 'bottom-right',
       // JUST ABOVE THE TRAY, not on it. At a flat 44px from each edge the ring landed squarely
       // over the » Skip chip, which lives in that exact corner — so the one control it appeared
       // to be circling was the one thing on screen it does not mean. Cleared vertically by the
@@ -27890,14 +27902,21 @@ function startTutorial(deps) {
     //   each own a top quadrant, clear of each other, the top pill, and the bottom carousel.
     // Otherwise: popup at step.place (top/bottom/centre).
     const desktop = desktopWide();
-    pop.classList.remove('tut-pop--top', 'tut-pop--bottom', 'tut-pop--center', 'tut-pop--side', 'tut-pop--left', 'tut-pop--right');
+    pop.classList.remove('tut-pop--top', 'tut-pop--bottom', 'tut-pop--center', 'tut-pop--side',
+      'tut-pop--left', 'tut-pop--right', 'tut-pop--pin-bottom-right');
     // CENTRED IN THE BAND, ON EVERY STEP (owner: "centered on the viewable part of each map").
     // It was 0.5 for a top-placed popup and 0.28 otherwise — two numbers standing in for "leave
     // room for the popup", which is exactly what the band accounts for now that the camera knows
     // what is covering it. A step may still override; none does.
     let anchorY = step.anchorY != null ? step.anchorY : 0.5;   // portrait: fraction of the BAND
     let anchorX;                                        // desktop horizontal framing (undef elsewhere)
-    if (desktop) {
+    if (step.pin) {
+      // A STEP MAY PIN ITS POPUP, on any form factor. The desktop rule below is about a subject
+      // ON THE MAP — put the popup in the opposite quadrant so it does not cover what it is
+      // describing — and that is the wrong shape for a step pointing OFF the screen, where the
+      // message wants to be beside its pointer instead of as far from it as possible.
+      pop.classList.add('tut-pop--pin-' + step.pin);
+    } else if (desktop) {
       const midX = (s && s.substrate) ? s.substrate.worldWidth / 2 : 0;
       const subjLeft = (f && f.x != null) ? (f.x < midX) : true;
       anchorX = subjLeft ? 0.25 : 0.75;                // centre of the top-left / top-right quadrant…
@@ -27994,12 +28013,22 @@ function startTutorial(deps) {
     // ONE POINTER OR THE OTHER, never both: a step that wants an arrow is pointing OFF the play
     // screen, and a ring around the same spot would be circling whatever of ours happens to sit
     // there — which is exactly the confusion the arrow exists to avoid.
-    const wantArrow = step.arrow != null && tx != null;
+    const wantArrow = (step.arrow != null || step.arrowAt) && tx != null;
     ring.style.display = (tx == null || wantArrow) ? 'none' : '';
     arrow.style.display = wantArrow ? '' : 'none';
     if (wantArrow) {
       arrow.style.left = tx + 'px'; arrow.style.top = ty + 'px';
-      arrow.style.transform = 'rotate(' + step.arrow + 'deg)';
+      // AIMED AT A POINT, NOT AT A FIXED BEARING. A hard-coded 45deg is only correct if the arrow
+      // happens to sit on the diagonal, and it does not: parked 48px from the right and 104px up
+      // from the bottom, the corner is at 65deg from it, so the arrow was pointing past the corner
+      // into the wall. `arrowAt` names the destination and the angle is measured to it — which
+      // also means it stays aimed when the window is resized under it, since both ends move.
+      let deg = step.arrow || 0;
+      if (step.arrowAt) {
+        const to = step.arrowAt();
+        if (to) deg = Math.atan2(to.y - ty, to.x - tx) * 180 / Math.PI;
+      }
+      arrow.style.transform = 'rotate(' + deg + 'deg)';
     } else if (tx != null) {
       ring.style.left = (tx - r) + 'px'; ring.style.top = (ty - r) + 'px';
       ring.style.width = ring.style.height = (r * 2) + 'px';
