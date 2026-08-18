@@ -1562,8 +1562,16 @@
       gap:clamp(4px,1.1vh,13px); text-align:center; overflow:hidden;
       padding:clamp(12px,3vh,28px) clamp(20px,5vw,56px) clamp(96px,13vh,150px);   /* bottom pad clears the collapsed carousel strip */
       font-family:var(--ss-sans); color:var(--ss-ink);
+      /* A FLAT WASH UNDER THE VIGNETTE (owner: "hard to read the text right now, especially the
+         red text"). The two radials are centred at 50% 40% and fade out by 82%, so they cover the
+         wordmark and almost nothing else — and every line BELOW it, the spores and the red call to
+         action most of all, was being read against whatever rock, soil or molten core happened to
+         be under it. `.spore-cta` is #c0281f, a dark red chosen to work on near-black; over a lit
+         map it had nothing to sit on. The wash is last in the list, i.e. furthest BACK, so the
+         mint and red vignettes still tint it and the map still reads through at a third. */
       background:radial-gradient(46% 40% at 50% 40%, rgba(127,230,163,0.10), transparent 66%),
-                 radial-gradient(52% 50% at 50% 40%, rgba(3,7,6,0.60), rgba(3,7,6,0.20) 60%, transparent 82%);
+                 radial-gradient(52% 50% at 50% 40%, rgba(3,7,6,0.60), rgba(3,7,6,0.20) 60%, transparent 82%),
+                 linear-gradient(rgba(3,7,6,0.68), rgba(3,7,6,0.68));
       animation:ssIn .5s ease both; }
     .ss-win-title { position:relative; width:min(680px,86vw); height:clamp(82px,14vh,150px); pointer-events:none;
       background:radial-gradient(50% 60% at 50% 50%, rgba(150,255,205,0.18), rgba(127,230,163,0.05) 46%, transparent 72%); }
@@ -1596,8 +1604,11 @@
     .ss-dth-title { margin:0; font-family:var(--ss-serif); font-weight:700; line-height:1.12;
       font-size:clamp(26px,4.4vw,44px); color:#ffd9d1; max-width:min(760px,92vw);
       text-shadow:0 2px 8px rgba(0,0,0,0.9), 0 0 30px rgba(255,120,96,0.22); }
+    /* The death screen REPLACES the background above, so it needs the same wash of its own or it
+       keeps the old unreadable one — the red call to action is on this screen too. */
     .ss-dth { background:radial-gradient(46% 40% at 50% 40%, rgba(255,120,96,0.10), transparent 66%),
-                         radial-gradient(52% 50% at 50% 40%, rgba(8,4,3,0.62), rgba(8,4,3,0.22) 60%, transparent 82%); }
+                         radial-gradient(52% 50% at 50% 40%, rgba(8,4,3,0.62), rgba(8,4,3,0.22) 60%, transparent 82%),
+                         linear-gradient(rgba(8,4,3,0.68), rgba(8,4,3,0.68)); }
     .ss-dth-spores { margin:clamp(4px,1.2vh,12px) 0 0; font-family:var(--ss-serif);
       font-size:clamp(14px,2vw,19px); color:var(--ss-ink); }
     .ss-dth-spores b { color:#eaf7ff; font-weight:700; font-size:1.18em; }
@@ -1607,8 +1618,12 @@
        because a true dark red on a near-black ground loses too much contrast.
        Uppercase and tracked-out because the owner wrote it that way; the transform is in CSS so
        the strings stay readable in the source and in a search. */
+    /* AND A SHADOW ON THE RED ITSELF. It is the darkest text on either screen against the darkest
+       ground, so it is the line that fails first — the wash behind it is most of the fix, this is
+       what keeps it legible where the map is bright (the surface meadow, the molten core). */
     .spore-cta { font-family:var(--ss-sans); font-weight:700; text-transform:uppercase;
       letter-spacing:0.11em; line-height:1.5; color:#c0281f; text-wrap:balance;
+      text-shadow:0 1px 3px rgba(0,0,0,0.95), 0 0 12px rgba(0,0,0,0.8);
       font-size:clamp(9.5px,1.25vw,12.5px); margin:6px auto 0; max-width:44ch; }
     /* The run-over overlay is a black-and-white card with its own scale, so the same class needs
        a size that belongs there rather than to the campaign screens — AND ITS OWN COLOUR, because
@@ -1843,6 +1858,14 @@
     .tut-ring { position:absolute; border-radius:50%; border:2px solid rgba(255,255,255,0.95);
       box-shadow:0 0 18px 2px rgba(255,255,255,0.55), inset 0 0 14px rgba(255,255,255,0.35);
       pointer-events:none; animation:tutPulse 1.4s ease-in-out infinite; }
+    /* AN ARROW, FOR WHAT IS NOT ON THE PLAY SCREEN. A ring says "this thing here"; the fullscreen
+       control is not ours and not in our frame, so the only honest pointer is one that says "over
+       there". White, drop-shadowed rather than glowing, because it has to read against soil, rock
+       and the red core alike, and it borrows the ring's pulse so the two feel like one system. */
+    .tut-arrow { position:absolute; pointer-events:none; width:74px; height:74px; margin:-37px 0 0 -37px;
+      filter:drop-shadow(0 2px 6px rgba(0,0,0,0.85)) drop-shadow(0 0 14px rgba(255,255,255,0.45));
+      animation:tutPulse 1.4s ease-in-out infinite; }
+    .tut-arrow svg { width:100%; height:100%; display:block; }
     @keyframes tutPulse { 0%,100%{ opacity:0.95 } 50%{ opacity:0.5 } }
 
     /* strong white glow on the card the player is being forced to play */
@@ -27577,6 +27600,9 @@ function startTutorial(deps) {
       // embedding the game (CrazyGames puts it bottom-right of the frame), so there is no element
       // to point at. 44px in from each edge is the middle of a typical embed chrome button.
       text: 'This game is best played on <b>full screen mode</b>.',
+      // AN ARROW, NOT A RING (owner) — the fullscreen button is off the play screen, so there is
+      // nothing here to draw a circle around. 45deg is down-and-right, toward the corner.
+      arrow: 45,
       // JUST ABOVE THE TRAY, not on it. At a flat 44px from each edge the ring landed squarely
       // over the » Skip chip, which lives in that exact corner — so the one control it appeared
       // to be circling was the one thing on screen it does not mean. Cleared vertically by the
@@ -27694,6 +27720,12 @@ function startTutorial(deps) {
   const catcher = el('div', 'tut-catcher');
   const ring = el('div', 'tut-ring');
   const demo = el('div', 'tut-demo', '<div class="tut-demo-dot"></div>');
+  // The arrow is built once and rotated per step — a shaft with a head, drawn at 0deg pointing
+  // RIGHT, so `step.arrow` is a plain compass bearing in degrees and 45 is down-and-right.
+  const arrow = el('div', 'tut-arrow',
+    '<svg viewBox="0 0 48 48" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round"'
+    + ' stroke-linejoin="round" aria-hidden="true"><path d="M7 24h30"/><path d="M25 12l13 12-13 12"/></svg>');
+  arrow.style.display = 'none';
   const pop = el('div', 'tut-pop');
   pop.innerHTML =
     '<div class="tut-fig" id="tutFig"><img id="tutImg" alt="" draggable="false"></div>' +
@@ -27703,6 +27735,7 @@ function startTutorial(deps) {
     '</div>';
   root.appendChild(catcher);
   root.appendChild(ring);
+  root.appendChild(arrow);
   root.appendChild(demo);
   root.appendChild(pop);
   document.body.appendChild(root);
@@ -27958,9 +27991,16 @@ function startTutorial(deps) {
     // so there is no node to measure and no world position to convert. Recomputed every frame like
     // the other two, which is what keeps it in the corner when the window is resized.
     else if (t && t.screen) { tx = t.screen.x; ty = t.screen.y; r = step.ringR || 52; }
-    if (tx == null) { ring.style.display = 'none'; }
-    else {
-      ring.style.display = '';
+    // ONE POINTER OR THE OTHER, never both: a step that wants an arrow is pointing OFF the play
+    // screen, and a ring around the same spot would be circling whatever of ours happens to sit
+    // there — which is exactly the confusion the arrow exists to avoid.
+    const wantArrow = step.arrow != null && tx != null;
+    ring.style.display = (tx == null || wantArrow) ? 'none' : '';
+    arrow.style.display = wantArrow ? '' : 'none';
+    if (wantArrow) {
+      arrow.style.left = tx + 'px'; arrow.style.top = ty + 'px';
+      arrow.style.transform = 'rotate(' + step.arrow + 'deg)';
+    } else if (tx != null) {
       ring.style.left = (tx - r) + 'px'; ring.style.top = (ty - r) + 'px';
       ring.style.width = ring.style.height = (r * 2) + 'px';
     }

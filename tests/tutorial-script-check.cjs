@@ -199,9 +199,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      iFull === texts.length - 2, `at ${iFull} of ${texts.length - 1}`);
   ok('...in the owner\'s words', /This game is best played on full screen mode\./.test(texts[iFull] || ''),
      texts[iFull] || '(none)');
-  // ...AND ITS RING IS ON A SCREEN CORNER, not on anything of ours. It is the only step whose
-  // target is neither a world point nor an element, so this is also the assertion that the
-  // screen-space target path works at all.
+  // ...AND IT POINTS WITH AN ARROW, ON A SCREEN CORNER (owner: the fullscreen button is off the
+  // play screen). It is the only step whose target is neither a world point nor an element, so
+  // this is also the assertion that the screen-space target path works at all — and the only one
+  // that uses the arrow instead of the ring, so it guards that the two never show together.
   const fsRing = await page.evaluate(async () => {
     const g = window.__game, t = g.tutorial;
     if (t) t.destroy();
@@ -216,21 +217,32 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       else g.armAim('Apical Drive');
       await new Promise((r) => setTimeout(r, 220));
     }
-    const r = document.querySelector('.tut-ring').getBoundingClientRect();
+    const a = document.querySelector('.tut-arrow');
+    const r = a.getBoundingClientRect();
     const bar = document.querySelector('.handbar').getBoundingClientRect();
     return { fromRight: Math.round(innerWidth - (r.x + r.width / 2)),
              fromBottom: Math.round(innerHeight - (r.y + r.height / 2)),
              clearsTray: (r.y + r.height) < bar.top,
+             arrowShown: getComputedStyle(a).display !== 'none',
+             ringShown: getComputedStyle(document.querySelector('.tut-ring')).display !== 'none',
+             rotated: /matrix/.test(getComputedStyle(a).transform),
              trayOpen: document.querySelector('.handbar').classList.contains('open'),
              on: /full screen mode/i.test((document.getElementById('tutBody') || {}).textContent || '') };
   });
-  ok('...with the ring in the bottom-right corner', fsRing.on && fsRing.fromRight < 120 && fsRing.fromBottom < 200,
-     `${fsRing.fromRight}px from the right, ${fsRing.fromBottom}px from the bottom`);
+  ok('...with an ARROW in the bottom-right corner, not a ring',
+     fsRing.on && fsRing.arrowShown === true && fsRing.ringShown === false
+     && fsRing.fromRight < 120 && fsRing.fromBottom < 200,
+     `arrow=${fsRing.arrowShown} ring=${fsRing.ringShown}, ${fsRing.fromRight}px from the right, `
+     + `${fsRing.fromBottom}px from the bottom`);
+  // ...AIMED. An arrow drawn at its default 0deg points RIGHT, which on this step would be at the
+  // wall rather than the corner — so the rotation is the difference between a pointer and a
+  // decoration.
+  ok('...and rotated to aim at it', fsRing.rotated === true, `transform applied: ${fsRing.rotated}`);
   // IT MUST NOT LAND ON THE » SKIP CHIP, which lives in that exact corner — the first version put
   // the ring squarely over it, so the one control it appeared to circle was the one it does not
   // mean. Cleared by the collapsed tray's own height.
-  ok('...clear of the tray, so it is not circling the Skip chip', fsRing.clearsTray === true,
-     `ring bottom vs tray top: ${fsRing.clearsTray}`);
+  ok('...clear of the tray, so it is not aimed at the Skip chip', fsRing.clearsTray === true,
+     `arrow bottom vs tray top: ${fsRing.clearsTray}`);
   ok('...and the carousel is minimised for it', fsRing.trayOpen === false, `open=${fsRing.trayOpen}`);
   ok('12. it ends on "Good luck…"', /^Good luck…$/.test((texts[texts.length - 1] || '').trim()),
      texts[texts.length - 1] || '(none)');
