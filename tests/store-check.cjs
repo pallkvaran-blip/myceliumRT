@@ -51,6 +51,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
   await page.waitForFunction(() => window.__game && window.__game.store && window.__game.showPicker, null, { timeout: 25000 });
   for (let i = 0; i < 4 && await page.$('#levelIntro'); i++) { await page.mouse.click(720, 450); await sleep(1000); }
+  // THE SHOP THIS FILE IS ABOUT IS THE CAMPAIGN'S, AND `#dev` IS NOT IT. A dev boot never calls
+  // `setGame`, so `CONFIG.game` sits at its default — survival — and the picker now renders one
+  // tile fewer there ("Starting level" is `campaignOnly`). Everything below therefore says which
+  // shop it means rather than inheriting whichever the boot hash happened to leave set; the
+  // survival shape is asserted deliberately in its own block at the end.
+  // `__cfg.game` is exactly the field `setGame` writes, and the screen reads it live.
+  await page.evaluate(() => { window.__cfg.game = 'campaign'; });
 
   const wipe = () => page.evaluate(() => window.__game.store.reset());
 
@@ -101,6 +108,51 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('clearing a level releases what was bought', startsAt.cleared2 === 2, String(startsAt.cleared2));
   ok('...up to what has been PAID for, not what has been cleared', startsAt.cleared5 === 4, String(startsAt.cleared5));
   ok('...and never past the highest level cleared', startsAt.maxedCleared5 === 5, String(startsAt.maxedCleared5));
+
+  // ---- SELLING IT BACK (owner: "add a sell button as well so you can lower your starting level
+  // and get the spores you spent back") ----------------------------------------------------
+  // The claim worth guarding is that a buy-then-sell round trip is EXACTLY neutral — both the
+  // wallet and the level land back where they started. A refund that is merely "about right"
+  // (off by a rung, because it paid `costs[lvl]` instead of `costs[lvl-1]`) passes any assertion
+  // that only checks the balance went up, and then quietly prints or drains Spores every time
+  // someone changes their mind.
+  const sold = await page.evaluate(() => {
+    const S = window.__game.store, out = {};
+    S.reset(); S.credit(1000); S.clearLevel(9);            // clears, so the level is free to move
+    out.start = { bal: S.balance(), lvl: S.startLevel() };
+    out.sellAtZero = S.sell('startLevel').ok;              // nothing bought yet: refuse
+    for (let i = 0; i < 3 && S.buy('startLevel').ok; i++) ;
+    out.bought = { bal: S.balance(), lvl: S.startLevel(), n: S.level('startLevel') };
+    // The rung being handed back is the one just climbed, so its value must equal what the NEXT
+    // buy would cost after the sale — the ladder read from both directions at the same rung.
+    out.sellValue = S.sellValue('startLevel');
+    const r = S.sell('startLevel');
+    out.afterOne = { bal: S.balance(), lvl: S.startLevel(), n: S.level('startLevel'), refund: r.refund };
+    out.nextCostNow = S.nextCost('startLevel');
+    while (S.sell('startLevel').ok) ;
+    out.emptied = { bal: S.balance(), lvl: S.startLevel(), n: S.level('startLevel') };
+    // ...and a track that did NOT ask to be sellable stays unsellable however hard you push.
+    S.buy('water');
+    out.waterSell = S.sell('water').ok;
+    out.waterLevel = S.level('water');
+    S.reset();
+    return out;
+  });
+  ok('a track with nothing bought cannot be sold', sold.sellAtZero === false);
+  ok('selling hands back exactly what the rung cost',
+     sold.afterOne.refund === sold.sellValue && sold.afterOne.bal === sold.bought.bal + sold.sellValue,
+     `refund ${sold.afterOne.refund}, ${sold.bought.bal} → ${sold.afterOne.bal}`);
+  ok('...and the ladder reads the same from both directions',
+     sold.nextCostNow === sold.sellValue, `sold at ${sold.sellValue}, next buy ${sold.nextCostNow}`);
+  ok('...so the starting level comes down a step', sold.afterOne.lvl === sold.bought.lvl - 1,
+     `${sold.bought.lvl} → ${sold.afterOne.lvl}`);
+  ok('selling everything back is EXACTLY neutral, wallet and level',
+     sold.emptied.bal === sold.start.bal && sold.emptied.lvl === sold.start.lvl && sold.emptied.n === 0,
+     `${sold.start.bal}⚬/L${sold.start.lvl} → ${sold.bought.bal}⚬/L${sold.bought.lvl} → ${sold.emptied.bal}⚬/L${sold.emptied.lvl}`);
+  // The negative control: without it, "selling works" would pass on a build where every track
+  // could be sold, which is a different and much larger economy change.
+  ok('a track that is not sellable cannot be sold', sold.waterSell === false && sold.waterLevel === 1,
+     `water still at ${sold.waterLevel}`);
 
   ok('the resource steps are the ones the owner asked for',
      stepOf('energy') === 3 && stepOf('water') === 5 && stepOf('phosphorus') === 3,
@@ -526,13 +578,94 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   ok('no "Complete level N" tier rows remain', ui.tierRows === 0, ui.headers.join(' / '));
   ok('the three sections are named the way the owner named them',
      ui.headers.join('|') === 'Available|Purchase|Upgrades', ui.headers.join(' / '));
-  ok('seven upgrade tiles', ui.tracks === 7, String(ui.tracks));
+  ok('seven upgrade tiles in the campaign', ui.tracks === 7, String(ui.tracks));
   ok('the sections carry no sub-headings any more', ui.hints === 0, String(ui.hints));
   // ...and neither does the screen itself: the header is the title and the two chips, nothing else.
   ok('there is no blurb under the title', ui.lede === 0, String(ui.lede));
   ok('every tile draws one pip per step it has',
      ui.pips === shape.reduce((a, s) => a + s.steps, 0), `${ui.pips} pips vs ${shape.reduce((a, s) => a + s.steps, 0)} steps`);
   ok('affordable steps are clickable', ui.buyable > 0, `${ui.buyable} buyable at 12000 Spores`);
+
+  // ---- ...AND THE SELL BUTTON, ON THE SCREEN ------------------------------------------------
+  // The model is asserted above; this is the control that says a player can reach it. Both the
+  // "not yet" and the "now" state, because a Sell button that is simply always there would pass
+  // half of this and offer a refund on a track nobody has bought.
+  const sellUi = await page.evaluate(async () => {
+    const S = window.__game.store, root = () => document.getElementById('speciesSelect');
+    const sel = (s) => root().querySelector(s);
+    S.reset(); S.credit(12000); S.clearLevel(9);
+    document.querySelectorAll('#speciesSelect').forEach((n) => n.remove());
+    window.__game.showPicker();
+    await new Promise((r) => setTimeout(r, 500));
+    const out = { atZero: root().querySelectorAll('.ss-upg-sell').length };
+    sel('.ss-upg-btn[data-upg="startLevel"]').click();       // buy one, through the real button
+    await new Promise((r) => setTimeout(r, 500));
+    const btn = sel('.ss-upg-sell[data-sell="startLevel"]');
+    out.appeared = !!btn;
+    out.label = btn ? btn.textContent.replace(/\s+/g, ' ').trim() : null;
+    // Only the sellable track grew one — the others are at level 0 here, but the flag is what
+    // decides, so this also fails a build that put a Sell on every tile.
+    out.sells = [...root().querySelectorAll('.ss-upg-sell')].map((b) => b.getAttribute('data-sell'));
+    out.before = { bal: S.balance(), lvl: S.startLevel() };
+    if (btn) btn.click();
+    await new Promise((r) => setTimeout(r, 500));
+    out.after = { bal: S.balance(), lvl: S.startLevel() };
+    out.gone = root().querySelectorAll('.ss-upg-sell').length;
+    S.reset();
+    return out;
+  });
+  ok('no Sell button on a track with nothing bought', sellUi.atZero === 0, String(sellUi.atZero));
+  ok('...it appears the moment a step is bought', sellUi.appeared === true);
+  ok('...and it names the refund', /Sell\s*\d+/.test(sellUi.label || ''), sellUi.label || '(no label)');
+  ok('only Starting level offers one', sellUi.sells.join(',') === 'startLevel', sellUi.sells.join(',') || '(none)');
+  ok('clicking it refunds the Spores and lowers the level',
+     sellUi.after.bal === sellUi.before.bal + 25 && sellUi.after.lvl === sellUi.before.lvl - 1,
+     `${sellUi.before.bal}⚬/L${sellUi.before.lvl} → ${sellUi.after.bal}⚬/L${sellUi.after.lvl}`);
+  ok('...and the button goes with the last step', sellUi.gone === 0, String(sellUi.gone));
+
+  // ---- SURVIVAL HAS NO STARTING LEVEL AT ALL (owner) ----------------------------------------
+  // Two halves, and the second is the one that would be missed: the tile is off the shelf, AND a
+  // run started from this screen opens on level 1 whatever the track was bought up to in the
+  // campaign. Hiding the tile alone would leave a player who bought it in the campaign carrying
+  // a later start into survival, where the ladder is a different length over a shuffled bag of
+  // maps. The campaign reading is taken back afterwards as the control — "survival shows six
+  // tiles" is meaningless unless the campaign shows seven on the same save.
+  const surv = await page.evaluate(async () => {
+    const S = window.__game.store, out = {};
+    S.reset(); S.credit(12000); S.clearLevel(9);
+    for (let i = 0; i < 4; i++) S.buy('startLevel');
+    out.paidFor = S.startLevel();                      // the campaign would open here
+    const shelf = async (game) => {
+      window.__cfg.game = game;
+      document.querySelectorAll('#speciesSelect').forEach((n) => n.remove());
+      window.__game.showPicker();
+      await new Promise((r) => setTimeout(r, 500));
+      const root = document.getElementById('speciesSelect');
+      return { tiles: root.querySelectorAll('#ssUpg .ss-upg').length,
+               names: [...root.querySelectorAll('#ssUpg .ss-upg-nm')].map((n) => n.textContent),
+               // Where a run started from this screen would OPEN — the same function the picker
+               // hands to `onPick`, so this is the run's answer and not a second copy of the rule.
+               opensAt: S.runStartLevel() };
+    };
+    out.survival = await shelf('survival');
+    out.campaign = await shelf('campaign');
+    window.__cfg.game = 'campaign';
+    S.reset();
+    return out;
+  });
+  ok('the track was bought up to a later start', surv.paidFor === 5, `level ${surv.paidFor}`);
+  ok('a survival shelf is one tile shorter', surv.survival.tiles === surv.campaign.tiles - 1,
+     `survival ${surv.survival.tiles}, campaign ${surv.campaign.tiles}`);
+  ok('...and the missing one is Starting level',
+     !surv.survival.names.includes('Starting level') && surv.campaign.names.includes('Starting level'),
+     surv.survival.names.join(', '));
+  // THE HALF THAT WOULD BE MISSED. Hiding the tile leaves the bonus intact, so a player who
+  // bought it in the campaign would carry a later start into survival with nothing on the screen
+  // to explain where it came from.
+  ok('a survival run opens on level 1 whatever was bought', surv.survival.opensAt === 1,
+     `level ${surv.survival.opensAt}`);
+  ok('...while the campaign still opens where it was paid for, on the same save',
+     surv.campaign.opensAt === surv.paidFor, `level ${surv.campaign.opensAt}`);
 
   // The dev wallet top-up. It exists so the store can be TRIED — "unlock all" hands you every
   // species and leaves the shop with nothing to sell, so it is no substitute.

@@ -1038,20 +1038,36 @@ function render() {
   var pe = el("div", "panel"); p3.appendChild(pe);
   pe.appendChild(el("h2", "", "Earned vs spent")).style.margin = "0 0 8px";
   var earned = ends.reduce(function (a, r) { return a + (r.n || 0); }, 0);
+  // NET of anything sold back — a sell is the same `upgrade` event with a NEGATIVE `n`, so the
+  // sum is already "what the store actually took" and needs no second term. The COUNT beside it
+  // does need filtering, or a refund reads as a purchase in the sub-line under a total it just
+  // reduced.
   var spentU = of("upgrade").reduce(function (a, r) { return a + (r.n || 0); }, 0);
+  var boughtU = of("upgrade").filter(function (r) { return (r.n || 0) > 0; }).length;
   var spentS = of("purchase").reduce(function (a, r) { return a + (r.n || 0); }, 0);
   var ke = el("div", "cards"); pe.appendChild(ke);
   kpi(ke, String(earned), "spores earned", ends.length + " runs");
-  kpi(ke, String(spentU + spentS), "spores spent", of("upgrade").length + " upgrades, " + of("purchase").length + " colonies");
+  kpi(ke, String(spentU + spentS), "spores spent", boughtU + " upgrades, " + of("purchase").length + " colonies");
   kpi(ke, earned ? pct(spentU + spentS, earned) + "%" : "–", "of earnings spent",
       (spentU + spentS) > earned ? "spending exceeds the window\u2019s earnings — older balances" : "");
   var pu = el("div", "panel"); p3.appendChild(pu);
   pu.appendChild(el("h2", "", "Which upgrades")).style.margin = "0 0 8px";
-  var ups = {};
-  of("upgrade").forEach(function (r) { ups[r.detail || "?"] = (ups[r.detail || "?"] || 0) + 1; });
+  // A SELL IS AN `upgrade` EVENT WITH A NEGATIVE `n` — one stream carries the ladder in both
+  // directions, so `spentU` above nets out on its own. This table counts PURCHASES, though, so
+  // it has to filter: without the `n > 0` test, giving a step back would read here as buying
+  // one, and "Starting level" — the only sellable track — would be the one track whose count
+  // could be inflated by a player changing their mind.
+  var ups = {}, sells = 0;
+  of("upgrade").forEach(function (r) {
+    if ((r.n || 0) < 0) { sells++; return; }
+    ups[r.detail || "?"] = (ups[r.detail || "?"] || 0) + 1;
+  });
   var uk = Object.keys(ups).sort(function (a, b) { return ups[b] - ups[a]; });
   if (!uk.length) pu.appendChild(el("p", "empty", "Nobody has bought an upgrade in this window."));
   else { var ut = table(pu, ["track", "bought"]); uk.forEach(function (k) { barRow(ut, k, ups[k], ups[uk[0]]); }); }
+  // Its own line rather than a column: how often people undo a purchase is a fact about the
+  // track being priced or explained wrong, and it would vanish inside a net count.
+  if (sells) pu.appendChild(el("p", "note", sells + " step(s) sold back in this window."));
   var pdk = panel(); pdk.style.marginTop = "10px";
   pdk.appendChild(el("h2", "", "Cards carried out of a run")).style.margin = "0 0 8px";
   var deck = of("deck").map(function (r) { return r.n || 0; });

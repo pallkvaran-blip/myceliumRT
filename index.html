@@ -1554,6 +1554,20 @@
     .ss-upg-btn .spore-ic { width:14px; height:14px; filter:brightness(0) drop-shadow(0 0 3px rgba(120,170,210,0.5)); }
     .ss-upg-btn:disabled { background:#0d1110; color:var(--ss-ink-faint); border-color:rgba(255,255,255,0.14); cursor:not-allowed; }
     .ss-upg-btn:disabled .spore-ic { filter:brightness(0) invert(1) opacity(0.45); }
+    /* SELL: the same button, ghosted. It is the secondary action on the row — you buy far more
+       often than you sell — so it is an outline against Buy's solid white rather than a second
+       filled control competing with it. `margin-left:auto` on BOTH means the first of the two to
+       appear takes the gap: with Buy present that is Sell, and the pair sits together on the
+       right; at the top of the ladder Buy is a "Maxed" label and Sell takes the gap alone.
+       The spore mark is NOT inverted here (Buy sits on white and has to be), just dimmed to the
+       button's own ink. */
+    .ss-upg-sell { margin-left:auto; flex:0 0 auto; font:inherit; font-size:12.5px; font-weight:600; cursor:pointer;
+      display:inline-flex; align-items:center; gap:5px; border-radius:10px; padding:8px 11px;
+      background:transparent; color:var(--ss-ink-dim); border:1px solid rgba(255,255,255,0.22);
+      transition:background .16s, border-color .16s, color .16s; }
+    .ss-upg-sell:hover { background:rgba(255,255,255,0.07); border-color:rgba(255,255,255,0.45); color:var(--ss-ink); }
+    .ss-upg-sell .spore-ic { width:13px; height:13px; opacity:0.72; }
+    .ss-upg-sell .ss-sellw { letter-spacing:.04em; }
     .ss-upg-max { margin-left:auto; font-size:11px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--u-acc); }
 
 
@@ -12447,7 +12461,8 @@ function deleteSavedLevel(id) {
 
 // ===================== src/species.js =====================
 const __m_species = (function () {
-  const { CONFIG } = __m_config;
+  // `isCampaignGame` for the one upgrade track that is campaign-only — see `startLevelForGame`.
+  const { CONFIG, isCampaignGame } = __m_config;
 // =============================================================================
 // Starter-species roster for the start-of-run picker.
 //
@@ -13184,6 +13199,21 @@ function startLevelFor(progress) {
   const bought = CAMPAIGN_START_LEVEL + upgradeLevel('startLevel', p);
   return Math.max(CAMPAIGN_START_LEVEL, Math.min(bought, Math.max(CAMPAIGN_START_LEVEL, highestCleared(p)), CAMPAIGN_LEVELS));
 }
+// ...AND WHERE THE RUN ABOUT TO START ACTUALLY OPENS, which is not the same question in both
+// games (owner: "survival mode should not have the starting level option at all"). The track is
+// `campaignOnly`, so survival opens on level 1 however far it was bought up to in the campaign —
+// its ladder is a different length over a shuffled bag of maps, and "start on level 6" names
+// nothing a survival player has seen.
+//
+// A FUNCTION OF ITS OWN, not a branch at the picker: hiding the tile and refusing the effect are
+// two halves of one rule, and with the second half living at the call site they could be changed
+// apart. Both now read the same `campaignOnly` flag, and this is directly assertable — a probe
+// can ask where a survival run would open without starting one.
+function startLevelForGame(progress) {
+  const u = upgradeById('startLevel');
+  if (u && u.campaignOnly && !isCampaignGame()) return CAMPAIGN_START_LEVEL;
+  return startLevelFor(progress);
+}
 
 // --- Spores wallet ---------------------------------------------------------
 function sporesBalance(progress) {
@@ -13490,7 +13520,15 @@ const STORE_UPGRADES = [
   // the final map. The clear ceiling is enforced in `startLevelFor`, not here: this track records
   // what has been PAID for, and the cap is a fact about the save that can change under it when
   // you clear another level.
+  //
+  // IT IS THE ONE TRACK YOU CAN SELL BACK (`sellable`, owner) — see `sellUpgrade` for why the
+  // refund is the full price. And it is CAMPAIGN-ONLY (`campaignOnly`, owner: "survival mode
+  // should not have the starting level option at all"): every number in it is written in the
+  // campaign's terms — `CAMPAIGN_START_LEVEL`, the ladder cut to `CAMPAIGN_LEVELS`, a ceiling of
+  // levels CLEARED — and survival is a different ladder over a shuffled bag of maps, where "start
+  // on level 6" names nothing a player has seen.
   { id: 'startLevel', name: 'Starting level', icon: 'climb', accent: 'life', step: 1, base: CAMPAIGN_START_LEVEL, unit: 'levels', unit1: 'level',
+    sellable: true, campaignOnly: true,
     effect: 'Start each run <b>one level further in</b>, up to the highest level you have cleared.',
     costs: OPENER(25, 10).slice(0, Math.max(1, CAMPAIGN_LEVELS - 1)) },
   // ...then the three that shape what you carry out of a run. Twenty steps of basic/event on the
@@ -13558,6 +13596,41 @@ function buyUpgrade(id) {
   p.spores = sporesBalance(p) - cost;
   saveProgress(p);
   return { ok: true, spores: p.spores, level: p.upgrades[id] };
+}
+// What selling the TOP rung back would pay, or null at level 0. The price of the rung being
+// handed in — `costs[lvl - 1]` — which is the mirror of `upgradeNextCost`'s `costs[lvl]`.
+function upgradeSellValue(id, progress) {
+  const u = upgradeById(id);
+  if (!u) return null;
+  const lvl = upgradeLevel(id, progress);
+  return lvl <= 0 ? null : (u.costs[lvl - 1] | 0);
+}
+// SELL ONE STEP BACK, at exactly what it cost (owner, of Starting level: "add a sell button as
+// well so you can lower your starting level and get the spores you spent back"). { ok, spores,
+// level, refund } — ok=false at level 0.
+//
+// THE REFUND IS THE FULL PRICE, and that is the whole design rather than a generosity: this is a
+// RESPEC, not a trade. Buying and selling the same rung nets exactly zero, so there is no loop to
+// farm — you can only ever sell rungs you paid for, at what you paid — and refunding less would
+// tax a player for changing their mind, which is the opposite of what a sell button is for.
+// Because the ladder rises, selling always hands back the DEAREST rung bought and the next sale
+// is cheaper, which is the same order buying climbed.
+//
+// ONLY WHERE THE TRACK ASKS FOR IT (`sellable`). Starting level is the one that has it, because
+// it is the one track whose value can turn out to be wrong for you — a later start is worth less
+// than it looked if the map it drops you on is the one stopping you, and there is no other way
+// back down. The rest are strictly additive and there is nothing to reconsider.
+function sellUpgrade(id) {
+  const p = loadProgress();
+  const u = upgradeById(id);
+  const lvl = upgradeLevel(id, p);
+  const refund = upgradeSellValue(id, p);
+  if (!u || !u.sellable || refund == null) return { ok: false, spores: sporesBalance(p), level: lvl };
+  if (!p.upgrades) p.upgrades = {};
+  p.upgrades[id] = lvl - 1;
+  p.spores = sporesBalance(p) + refund;
+  saveProgress(p);
+  return { ok: true, spores: p.spores, level: p.upgrades[id], refund };
 }
 // What a run actually OPENS with: the universal base from CONFIG plus the store's three resource
 // tracks. One function because two places need the identical number and they drifted the moment
@@ -13705,7 +13778,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -25522,11 +25595,14 @@ function growMyceliumTitle(container, opts = {}) {
 
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
-  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, highestCleared, startLevelFor, loadDeck, deckBucketFor, deckBuckets, deckSize,
-    STORE_UPGRADES, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, highestCleared, startLevelFor, startLevelForGame, loadDeck, deckBucketFor, deckBuckets, deckSize,
+    STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
-  const { CONFIG, timeify } = __m_config;
+  // `isCampaignGame` rather than a `game` argument threaded down from main: this screen is shared
+  // by both games and `CONFIG.game` is already set before it opens (the title screen's New/Old
+  // carries it), so asking is one call and cannot fall out of step with the run that follows.
+  const { CONFIG, isCampaignGame, timeify } = __m_config;
   const { cardSlug, SPORE_ICON } = __m_render_ui;
   const { logEvent } = __m_net_scores;
   const { growMyceliumTitle } = __m_render_mycelium_title;
@@ -25951,6 +26027,8 @@ function upgradeTile(u, progress, onBuy) {
   const lvl = upgradeLevel(u.id, progress);
   const max = upgradeMax(u);
   const cost = upgradeNextCost(u.id, progress);       // null = maxed
+  // What the top rung would pay back, or null — at level 0, or on a track that cannot be sold.
+  const sellVal = u.sellable ? upgradeSellValue(u.id, progress) : null;
   const have = upgradeValue(u.id, progress);
   const bal = sporesBalance(progress);
   const afford = cost != null && bal >= cost;
@@ -25991,6 +26069,23 @@ function upgradeTile(u, progress, onBuy) {
     '<div class="ss-upg-pips" aria-hidden="true">' + pips + '</div>' +
     '<div class="ss-upg-foot">' +
       '<span class="ss-upg-lvl">' + lvl + ' of ' + max + ' bought</span>' +
+      // SELL SITS LEFT OF BUY, and only on a `sellable` track that has something to sell (owner,
+      // of Starting level). It carries `margin-left:auto` so it takes the gap when Buy is a
+      // "Maxed" label rather than a button — at the top of the ladder selling back down is the
+      // ONLY thing left to do here, and a Sell button pinned to the middle of the row would look
+      // like part of the level text.
+      //
+      // It prints the refund beside the spore mark exactly as Buy prints the price, because they
+      // are the same number seen from either side: what the top rung cost is what it pays back.
+      // The two are told apart by COLOUR and by their words, not by their shape — a ghosted
+      // button against Buy's white one, which is also how the screen already distinguishes a
+      // primary action from a secondary one.
+      (sellVal != null
+        ? '<button class="ss-upg-sell" type="button" data-sell="' + esc(u.id) + '"' +
+          ' aria-label="Sell one step of ' + esc(u.name) + ' back for ' + sellVal + ' Spores"' +
+          ' title="Give back one step and take the ' + sellVal + ' Spores it cost">' +
+          '<span class="ss-sellw">Sell</span>' + SPORE_ICON + '<span class="ss-buyn">' + sellVal + '</span></button>'
+        : '') +
       (cost == null
         ? '<span class="ss-upg-max">Maxed</span>'
         : '<button class="ss-upg-btn" type="button" data-upg="' + esc(u.id) + '"' + (afford ? '' : ' disabled') +
@@ -26002,6 +26097,10 @@ function upgradeTile(u, progress, onBuy) {
   // The PRICE goes to the caller too — `cost` is the next step's price and is only in scope
   // here; the upgrade object carries a ladder, not the rung just climbed.
   if (btn && afford) btn.addEventListener('click', () => { if (buyUpgrade(u.id).ok) onBuy && onBuy(u, cost); });
+  const sell = node.querySelector('.ss-upg-sell');
+  // NEGATED, so one telemetry field carries both directions of the same ladder rather than a
+  // second event nobody would think to join against. `onBuy`'s caller re-renders either way.
+  if (sell) sell.addEventListener('click', () => { if (sellUpgrade(u.id).ok) onBuy && onBuy(u, -sellVal); });
   return node;
 }
 
@@ -26126,7 +26225,11 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   // higher tier skip the early grind — is not consulted: over a 10-level campaign that hands away
   // half of it, and the owner settled it when the start-level stepper was dropped.
   // ...unless the STORE has bought a later start, and the save has cleared far enough to use it.
-  const select = (s) => { hide(); onPick && onPick(s, startLevelFor(loadProgress())); };
+  //
+  // ...and `startLevelForGame` rather than `startLevelFor`, because survival does not have this
+  // track at all (owner) — hiding its tile is only half the rule, and the other half lives in
+  // that function so the two cannot be changed apart.
+  const select = (s) => { hide(); onPick && onPick(s, startLevelForGame(loadProgress())); };
 
   function render() {
     renderRate();
@@ -26165,10 +26268,20 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
     // WHICH TRACK PEOPLE BUY, AND WHEN. The store is the retention loop and nothing measured it:
     // a track nobody ever buys is priced wrong, and you cannot tell that from the wallet total.
     // `level` carries the step they just bought (its new level), so the ladder is readable.
-    for (const u of STORE_UPGRADES) upgGrid.appendChild(upgradeTile(u, progress, (bought, paid) => {
-      if (bought) logEvent('upgrade', { detail: bought.id, level: upgradeLevel(bought.id), n: paid || 0 });
-      refresh();
-    }));
+    // A `campaignOnly` track is not on the shelf in survival at all (owner: "survival mode should
+    // not have the starting level option at all") — Starting level is the one, and every number
+    // in it is written in the campaign's terms. Hidden rather than disabled: a greyed tile says
+    // "you could have this", and here you could not. What a player already BOUGHT is untouched
+    // and is waiting for them the next time they open a campaign — a survival run simply cannot
+    // spend it, which `startLevelFor`'s caller enforces separately, so the shelf and the run
+    // agree.
+    for (const u of STORE_UPGRADES) {
+      if (u.campaignOnly && !isCampaignGame()) continue;
+      upgGrid.appendChild(upgradeTile(u, progress, (bought, paid) => {
+        if (bought) logEvent('upgrade', { detail: bought.id, level: upgradeLevel(bought.id), n: paid || 0 });
+        refresh();
+      }));
+    }
   }
   // One re-read of progress after any purchase: a buy moves the wallet, the pips, which
   // section a colony sits in AND whether every other button is still affordable, so
@@ -28958,7 +29071,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro, showVictory, VICT_FADE_MS } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, buyUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages, assetState } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -31907,11 +32020,18 @@ function begin(newState) {
     store: {
       upgrades: STORE_UPGRADES,
       level: upgradeLevel, value: upgradeValue, nextCost: upgradeNextCost, buy: buyUpgrade,
+      // The ladder's other direction. `sellValue` is what the top rung would pay back, so a check
+      // can assert the round trip is EXACTLY neutral rather than inferring it from two balances.
+      sellValue: upgradeSellValue, sell: sellUpgrade,
       bonuses: storeBonuses,
       // "Starting level" is capped by what has been CLEARED, so the number that matters is not the
       // track's level but where a run would actually open — and a probe needs to clear a level
       // without playing one to see the two disagree.
       startLevel: () => startLevelFor(loadProgress()),
+      // ...and where the run ABOUT TO START opens, which is level 1 in survival however far the
+      // track was bought — the track is campaign-only, and a probe should be able to ask that
+      // without starting a run to find out.
+      runStartLevel: () => startLevelForGame(loadProgress()),
       highestCleared: () => highestCleared(loadProgress()),
       clearLevel: (n) => recordLevelCleared(n),
       species: storeSpecies, speciesCost: storeSpeciesCost, buySpecies: purchaseStoreSpecies,

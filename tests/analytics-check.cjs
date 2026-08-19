@@ -73,6 +73,14 @@ function fixture() {
       // assertion failed on a page that was filing it correctly. Check `type` before picking one.
       if (p % 4 === 0) push(t + 20700, Object.assign({ kind: 'install', level: 1, n: 1, detail: 'Constricting Ring' }, base));
       if (p % 5 === 0) push(t + 21000, Object.assign({ kind: 'upgrade', detail: 'water', level: 1, n: 25 }, base));
+      // A SELL: the same `upgrade` event with a NEGATIVE `n` (only `startLevel` is sellable). It
+      // is in the fixture so the page's filtering is exercised rather than assumed — a sell has
+      // to net out of "spores spent" and must NOT show up as a purchase in "Which upgrades",
+      // and with no such row in the fixture both of those pass on a page that does neither.
+      if (p % 5 === 0) {
+        push(t + 21100, Object.assign({ kind: 'upgrade', detail: 'startLevel', level: 1, n: 25 }, base));
+        push(t + 21200, Object.assign({ kind: 'upgrade', detail: 'startLevel', level: 0, n: -25 }, base));
+      }
     }
   }
   // PRE-v2 SESSIONS, i.e. the build that shipped before `game`/`mode`/`device` existed. itch
@@ -354,6 +362,34 @@ function fixture() {
      scaleRows.length >= 2 && scaleRows.every((t) => !/%/.test(t)),
      scaleRows.length < 2 ? `only ${scaleRows.length} scaled row(s) rendered — nothing was checked`
        : (scaleRows.filter((t) => /%/.test(t)).slice(0, 2).join(' | ') || `${scaleRows.length} rows checked`));
+
+  // ---- A SELL IS NOT A PURCHASE ---------------------------------------------
+  // Selling a step back logs the SAME `upgrade` event with a negative `n` — one stream carrying
+  // the ladder in both directions, so "spores spent" nets out for free. Every COUNT off that
+  // stream has to filter, though, and the fixture buys `startLevel` once and sells it once per
+  // spending player: a page that did not filter would show `startLevel` at twice `water`'s count
+  // while the money says it was never bought at all.
+  const sellUi = await page.evaluate(() => {
+    const out = { rows: {}, note: null };
+    for (const t of document.querySelectorAll('#body table')) {
+      if (!/bought/.test(t.tHead.textContent.toLowerCase())) continue;
+      for (const r of t.tBodies[0].rows) {
+        const k = r.cells[0] && r.cells[0].textContent.trim();
+        const n = r.querySelector('.track span');
+        if (k) out.rows[k] = n ? n.textContent.trim() : '';
+      }
+    }
+    for (const p of document.querySelectorAll('#body .panel')) {
+      if (!/which upgrades/i.test(p.textContent)) continue;
+      const n = p.querySelector('p.note'); if (n) out.note = n.textContent;
+    }
+    return out;
+  });
+  ok('a sold step does not count as a purchase',
+     sellUi.rows.startLevel === sellUi.rows.water,
+     `startLevel ${sellUi.rows.startLevel}, water ${sellUi.rows.water} (bought once each)`);
+  ok('...but the page still says how many were sold back', /sold back/i.test(sellUi.note || ''),
+     sellUi.note || '(no note)');
 
   // ---- THE ENGINES: TAKEN vs BUILT ------------------------------------------
   // Two numbers that are easy to confuse and mean different things: `draft` is what was offered

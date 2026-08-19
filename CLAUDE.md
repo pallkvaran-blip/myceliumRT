@@ -995,13 +995,14 @@ change, which is the recommended gear — the most recent runs, each 0 failed:
 | handoff · lure · boot · hs · store · campaign · tut · ingame · hover · tutscript | **309 passed** (the menu → run handoff set, ~5 min) |
 | survival · level · core · mode · campaign · hs · store · handoff · sky · ants · ctreats · challenge | see the survival section (the authored-survival set) |
 | fixes · survival · campaign (+ `mode` on its own) | **198 + 47 passed** (the title-screen set — the four checks that read the screen's shape) |
+| campaign · survival · store · hs (+ `analytics` on its own) | **308 + 89 passed** (the store set — the sell button and the campaign-only track) |
 
 Per-check, measured: traced 1190 (76 maps) · edit 118 · threat 114 · campaign 110 · rt 69 ·
 enemy 52 · survival 58 · challenge 50 · sky 45 · mode 47 · tutscript 46 · species 38 · ctreats 31 ·
 harvest 28 · level 27 · fixes 30 · scale 26 · tut 24 · ants 22 · mould 20 · hs 19 · titlecard 16 ·
 boot 16 · core 16 · cascade 16 · reveal 16 · victory 13 · review 13 · crazygames 13 · water 11 ·
 surface 11 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 97** and **itchzip 22** (**23** for `crazygames`, the extra one being the SDK),
+plus **store 121** and **itchzip 22** (**23** for `crazygames`, the extra one being the SDK),
 measured on their own runs (`itchzip` is not in the runner at all — it needs a built zip). Note `aim` contributes **0 of its 9** inside a full sweep, because it
 bails to a zero-coverage pass there, so a sweep's arithmetic never adds up.
 
@@ -2255,6 +2256,14 @@ run were the same row and every rate over the table was an average across two di
 - **Three generic carriers rather than a column per feature**: `n` a count, `ms` a duration,
   `detail` names the thing. `perf` used to smuggle frame-ms into `turns` and pixels into `level`,
   which quietly poisoned every query grouping by level; it uses `ms`/`n` now and sends no `level`.
+- **AN `upgrade` WITH A NEGATIVE `n` IS A SELL.** One stream carries the store's ladder in both
+  directions rather than a second kind nobody would think to join against, so **"spores spent"
+  nets out for free** — but **every COUNT off that stream has to filter `n > 0`**, or handing a
+  step back reads as buying one. Two places do (the "Which upgrades" table and the sub-line under
+  the spend total), and the fixture in `analytics-check` buys and sells the same track so a page
+  that stopped filtering fails rather than quietly doubling `startLevel`. How many were sold gets
+  a line of its own under the table: people undoing a purchase is a fact about a track being
+  priced or explained wrong, and it would vanish inside a net count.
 - **IT SURVIVES AN UN-MIGRATED TABLE.** PostgREST rejects the WHOLE row on one unknown column
   (PGRST204), so a build shipped ahead of its migration would go completely dark rather than
   degrade. `_slimEvents` latches on the first 400 and posts the original seven columns for the
@@ -2881,7 +2890,7 @@ sit BETWEEN the two carousel frames and the gap it held open. Measured after: **
 - The sheet reuses `inspector()`'s overlay (scrim, blur, click-out, Escape), so there is exactly
   one modal on the screen and the deck and a species sheet can never both be open.
 
-### The six upgrade tracks
+### The seven upgrade tracks
 
 **A track is a LIST OF PRICES, not a price × a count.** `costs.length` IS the cap, so adding a
 step is appending a number. `LADDER(first, steps)` builds the flat arithmetic ones — writing 20
@@ -2893,9 +2902,45 @@ numbers by hand is 20 chances to fat-finger one. Read a total through **`upgrade
 | `energy` Energy | +3 starting energy | 10 | **25**, then 50 → 450 (+50) | — |
 | `water` Water | +5 starting water | 10 | **25**, then 50 → 450 (+50) | — |
 | `phosphorus` Phosphorus | **+3** starting phosphorus | 10 | **25**, then 50 → 450 (+50) | — |
+| `startLevel` Starting level | +1 level to open on | 8 | phosphorus's, cut to the campaign's length | **1** |
 | `carryCards` Basic/Event Memory | +1 basic/event kept | 20 | **25**, then 50 → 950 (+50) | **3** |
 | `carryEngines` Engine Memory | +1 engine kept | 6 | **100**, then 200 → 1000 (+200) | — |
 | `lives` Retries | +1 retry | 4 | 100 · 250 · 400 · 600 | — |
+
+**`startLevel` IS THE ODD ONE, AND IT CARRIES TWO FLAGS NO OTHER TRACK HAS.**
+
+- **`sellable` — it can be SOLD BACK** (owner: *"add a sell button as well so you can lower your
+  starting level and get the spores you spent back"*). `sellUpgrade(id)` hands back
+  `costs[lvl - 1]`, the mirror of `upgradeNextCost`'s `costs[lvl]`, so **a buy-then-sell round
+  trip is EXACTLY neutral** in both the wallet and the level. That is the design, not a
+  generosity: this is a RESPEC, so refunding less would tax a player for changing their mind, and
+  there is no loop to farm because you can only sell rungs you paid for at what you paid. A
+  refund off by one rung passes any assertion that merely checks the balance went UP and then
+  quietly prints or drains Spores forever — `store-check` asserts the round trip lands on the
+  starting numbers, and keeps `sellValue === nextCost after the sale` as the direct reading of
+  the same rung from both directions.
+  - The button is the tile's SECONDARY action — ghosted outline against Buy's solid white — and
+    carries `margin-left:auto` like Buy, so the first of the two present takes the gap: at the top
+    of the ladder Buy is a "Maxed" label and Sell takes it alone.
+  - **Only a `sellable` track gets one.** `store-check` keeps a non-sellable track refusing to
+    sell as its negative control, because "selling works" would otherwise pass on a build where
+    every track could be sold — a much larger economy change than the one asked for.
+- **`campaignOnly` — SURVIVAL DOES NOT HAVE IT AT ALL** (owner). Every number in the track is
+  written in the campaign's terms (`CAMPAIGN_START_LEVEL`, the ladder cut to `CAMPAIGN_LEVELS`, a
+  ceiling of levels CLEARED), and survival is a different ladder over a shuffled bag of maps where
+  "start on level 6" names nothing a player has seen.
+  - **IT IS TWO HALVES AND THE SECOND IS THE ONE THAT GETS MISSED**: the tile is off the shelf,
+    AND the run refuses the bonus. Hiding the tile alone leaves a player who bought the track in
+    the campaign carrying a later start into survival with nothing on screen to explain it.
+    **`startLevelForGame(progress)`** is where the second half lives — a function rather than a
+    branch at the picker, so the two cannot be changed apart, and so a probe can ask where a
+    survival run would open without starting one (`__game.store.runStartLevel`).
+  - Hidden rather than disabled: a greyed tile says "you could have this", and here you could not.
+    What was already bought is untouched and waiting the next time a campaign opens.
+  - **`#dev` IS SURVIVAL**, because a dev boot never calls `setGame` and `CONFIG.game` defaults
+    there — so any check or shot tool that renders the picker off `#dev` and means the CAMPAIGN's
+    shop must now say so (`window.__cfg.game = 'campaign'`, the field `setGame` writes).
+    `store-check` and `campaign-shot` both do.
 
 **Every number here is the owner's**, set by hand — the names, the sub-lines, the step sizes and
 the ladders. Three readings worth recording because the brief gave a rule rather than a list:

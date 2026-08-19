@@ -69,8 +69,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   const dress = () => page.evaluate(() => {
     const g = window.__game, S = g.store;
+    // THE PICKER IS SHARED BY BOTH GAMES AND `#dev` IS SURVIVAL — a dev boot never calls setGame,
+    // so CONFIG.game sits at its default. This file photographs the CAMPAIGN's screens, and the
+    // campaign's shelf carries one tile survival's does not ("Starting level" is campaignOnly),
+    // so it has to say which game it means or the frame is quietly of the other shop.
+    window.__cfg.game = 'campaign';
     S.reset(); S.credit(9400);
     S.buy('energy'); S.buy('water'); S.buy('water'); S.buy('carryCards'); S.buy('carryEngines'); S.buy('lives');
+    // Two rungs of the sellable track, so the Sell button is IN the frame — it only exists once
+    // something has been bought, and a screen dressed at zero cannot show it.
+    S.clearLevel(3); S.buy('startLevel'); S.buy('startLevel');
     g.deck.set([{ name: 'Turgor Thrust', count: 4 }, { name: 'Rhizomorph Lance', count: 2 },
                 { name: 'Foraging Fan', count: 3 }, { name: 'Acorn Cache', count: 2 },
                 { name: 'Cord Capillary', count: 1 }, { name: 'Prospecting Cords', count: 1 }]);
