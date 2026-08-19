@@ -391,36 +391,44 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
   };
   await p2.goto(base + '/index.html', { waitUntil: 'domcontentloaded' }); await boot();
   await p2.waitForSelector('#titleScreen .ts-btn', { timeout: 30000 });
-  // THE DOOR IS OPEN AGAIN (owner: "let's add survival back"). It was shut for one release and
-  // the option to reopen it was one constant, `OFFER_SURVIVAL` — so the row's return is that line
-  // and nothing else, which is the claim this pair of assertions makes.
-  //
-  // Everything BELOW still drives the run through `__menu.playSurvival` rather than through the
-  // button. That was written when the row was gone and it stays: it is the shorter route, and it
-  // keeps this file measuring survival's RULES rather than the title screen's markup, which
-  // mode-check owns.
-  const doors = await p2.evaluate(() => ['tsNew', 'tsCont', 'tsNewRt', 'tsContRt', 'tsNewCamp', 'tsContCamp']
-    .filter((id) => !!document.getElementById(id)));
-  ok('survival has a row on the title screen again', doors.includes('tsNew') && doors.includes('tsCont'),
-     doors.join(', '));
-  ok('...beside the campaign\'s, and real time still has none',
-     doors.join(',') === 'tsNew,tsCont,tsNewCamp,tsContCamp', doors.join(', '));
-  // AND THE DOOR OPENS ONTO SOMETHING. A row that renders is not a row that works: the survival
-  // entry path sat unexercised for a release, and `onNew` branches on the game it is handed —
-  // the campaign gets the opening screens, survival goes straight to the picker. Driven through
-  // the real clicks (New → name → Start), because the ids and the handler table are exactly what
-  // could have drifted apart while nothing was pressing them. It ends at the PICKER rather than
-  // in a run: choosing a species is the next screen either way, and this file has its own,
-  // shorter route into the run itself just below.
-  await p2.click('#tsNew');
-  await p2.waitForSelector('#tsNameStart', { timeout: 8000 });
-  await p2.click('#tsNameStart');
-  const arrived = await p2.waitForSelector('#speciesSelect', { timeout: 20000 }).then(() => true).catch(() => false);
-  ok('pressing Survival "New" reaches the species picker', arrived);
-  ok('...having set the game to survival, not the campaign',
-     await p2.evaluate(() => window.__cfg.game === 'survival' && window.__cfg.mode === 'turn'),
-     await p2.evaluate(() => window.__cfg.game + '/' + window.__cfg.mode));
-  await p2.evaluate(() => { document.querySelectorAll('#speciesSelect').forEach((n) => n.remove()); });
+  // THE DOOR IS SHUT AGAIN, and this file's job is to prove the ROOM is still furnished.
+  // Owner, 19 Aug: "remove the campaign and survival from the title screen — we'll only be working
+  // on [the mine] for the foreseeable future." `OFFER_SURVIVAL` is that one constant and it has now
+  // been closed, reopened and closed again; every time, everything under it stayed live. So the
+  // assertions here TRACK THE FLAG rather than pinning a layout — read `__offers` and require the
+  // markup to agree with it, in both directions. Pinning either state outright means one of the two
+  // is a red line the next time the owner changes their mind about the front door.
+  const doors = await p2.evaluate(() => ({
+    ids: ['tsNew', 'tsCont', 'tsNewRt', 'tsContRt', 'tsNewCamp', 'tsContCamp', 'tsNewMine']
+      .filter((id) => !!document.getElementById(id)),
+    offers: window.__offers,
+  }));
+  const wantSurvival = !!doors.offers.survival;
+  ok(`survival's title row matches OFFER_SURVIVAL (${wantSurvival})`,
+     doors.ids.includes('tsNew') === wantSurvival && doors.ids.includes('tsCont') === wantSurvival,
+     `[${doors.ids.join(', ')}] with offers ${JSON.stringify(doors.offers)}`);
+  // AND REAL TIME'S DOOR IS A SEPARATE CONSTANT, kept as the control: the two are the same
+  // mechanism, so survival's row arriving with real time's in tow would mean they had been confused.
+  ok('...and real time has no row of its own either way',
+     !doors.ids.includes('tsNewRt') && !doors.ids.includes('tsContRt'), doors.ids.join(', '));
+  // THE DOOR OPENS ONTO SOMETHING — driven through the real clicks WHEN THERE IS A BUTTON, because
+  // the ids and the handler table are exactly what drift apart while nothing is pressing them (that
+  // row sat unexercised for a whole release). `onNew` branches on the game it is handed and the
+  // campaign has one more screen behind it than survival, so this ends at the PICKER rather than in a
+  // run. With the door shut there is nothing to click and the block below is the whole coverage.
+  if (wantSurvival) {
+    await p2.click('#tsNew');
+    await p2.waitForSelector('#tsNameStart', { timeout: 8000 });
+    await p2.click('#tsNameStart');
+    const arrived = await p2.waitForSelector('#speciesSelect', { timeout: 20000 }).then(() => true).catch(() => false);
+    ok('pressing Survival "New" reaches the species picker', arrived);
+    ok('...having set the game to survival, not the campaign',
+       await p2.evaluate(() => window.__cfg.game === 'survival' && window.__cfg.mode === 'turn'),
+       await p2.evaluate(() => window.__cfg.game + '/' + window.__cfg.mode));
+    await p2.evaluate(() => { document.querySelectorAll('#speciesSelect').forEach((n) => n.remove()); });
+  } else {
+    console.log('  note   survival\'s door is shut (OFFER_SURVIVAL false) — the click path is not on screen to drive');
+  }
   const ran = await p2.evaluate(async () => {
     if (!window.__menu.playSurvival('marasmius', 1, 'turn')) return false;   // the row carried its mode
     for (let i = 0; i < 80; i++) {

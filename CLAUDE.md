@@ -1,8 +1,32 @@
 # Working notes for Claude
 
-Mycelium: a 2D roguelike engine-builder about growing a fungal colony to the surface. This
-repo ships **two games in one build** — the original turn-based game and a real-time variant.
-See README.md for the player/config-facing description; this file is the stuff that bites.
+Mycelium: a 2D roguelike engine-builder about growing a fungal colony. This repo ships **three
+games in one build** — the turn-based campaign, survival, and **THE DEEP MINE**, a real-time
+depth-miner with no cards. See README.md for the player/config-facing description; this file is
+the stuff that bites.
+
+> **THE MINE IS THE ONLY THING BEING WORKED ON.** Owner, 19 Aug 2026: *"remove the campaign and
+> survival from the title screen — we'll only be working on this for the foreseeable future."*
+> So `OFFER_CAMPAIGN` and `OFFER_SURVIVAL` are both **`false`** and the title screen offers one
+> door, "Dig in". **Nothing under either was deleted** — the campaign's 9 authored levels, the 17
+> survival maps, the whole card layer, the species roster, the deck and both resume slots are all
+> still live and all still covered by their checks, exactly as `OFFER_SURVIVAL` was withheld and
+> restored once before. Flipping either constant brings its game back in one line.
+>
+> **TWO CHECKS LOSE COVERAGE WHILE THE DOORS ARE SHUT, and they say so rather than going quiet.**
+> `mode` drops **48 → 25** (it prints `note this build offers: mine`) and `survival` skips its
+> click-through, because the buttons those blocks press are not on screen — the RULES either game
+> owns are still driven through the model (`__menu.playSurvival`, `__game.campaign.play`,
+> `__game.survival.play`). Both files now **read `window.__offers` and require the markup to agree
+> with it in both directions**, rather than pinning one layout: `OFFER_SURVIVAL` has been closed,
+> reopened and closed again inside a fortnight, and a check that pins either state is a red line
+> the next time the owner changes their mind about the front door. Don't "fix" the lower count.
+>
+> What that means in practice: **new work goes into the mine unless the owner says otherwise**,
+> and a change that would cost the campaign or survival something is still a regression — the
+> ~1,450 assertions guarding them are the reason this pivot could be made without a rewrite, and
+> they are what makes going back cheap if the mine does not land. Do not start deleting the card
+> game to tidy up.
 
 ## Shape of the codebase
 
@@ -993,7 +1017,7 @@ reading as a dead button.
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**47 checks registered in `run.mjs`**, roughly 2980 assertions, of which `traced` is 1190 (one map's
+**47 checks registered in `run.mjs`**, roughly 2995 assertions, of which `traced` is 1190 (one map's
 worth each, 76 maps). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -1020,6 +1044,32 @@ failures are the KNOWN FLAKIES documented under Loose ends — `turn-play`'s lon
 the 30 it wants, `over:false alive:true`, the queued-step stall) and `core`'s rock-clip pixel test
 (31 against a tolerance of 30) — and both went **5/5 and 18/18 on three consecutive re-runs**, same
 build. Re-run before believing either of them.
+
+**`mine` IS 121 NOW** (from 107), the extra fourteen being the STREAMING WORLD: ten in its own block
+(chunks arrive in both directions and ahead of the colony, every streamed-in sprite is collided, the
+new ground carries its own ore/water/creatures, the seams meet as one connected space reachable to
+both far edges, no page errors) plus four in the shaft block (the grid is every chunk, only a few
+chunks exist at boot, the carve leaves room for rock, the rock loop met its band targets).
+
+Four of its assertions had to be **re-pointed rather than re-tuned** when the world became chunked,
+and each was pinning a per-world number that is now per-chunk:
+- the threat counts are the table **x the number of generated chunks** (a density, not a population);
+- "nothing was seeded inside a boulder" reads the generator's own recorded `spots`, not the LIVE
+  creatures — a worm crawls and a cloud creeps, so a live reading measures their movement rules a few
+  seconds later and legitimately finds one leaning on a rock face;
+- the reachability flood is **scoped to the chunks that exist**, because ungenerated ground is bare
+  SOIL and a flood over the whole 504-column grid walks into it and reports ~90% of the mask
+  reachable — passing "the bottom is reachable" for the wrong reason;
+- the water pocket asserts the **lump per source** (`gain === taps * reservoirWater`) rather than
+  `taps === 1`: one dig fans out ~19 filaments and can legitimately reach a second pocket in the same
+  tick, so the old form was pinning the map.
+
+And two of its blocks needed a **fresh page**, both for the same reason and both having failed
+loudly: the depth beat is announced ONCE per band (`mineBeatBand` only moves forward), so a probe
+sharing a page with the camera block — which digs to ~89 m — starts its observer two boundaries late
+and reads `1 beats at 165 m: 126 m Hematite` on a build where all three fire. The water probe on that
+same page had already tapped a pocket during the beat dive and charged this measurement for it
+(`2 sources, +10W`). **A once-per-run announcement can only be measured from the start of a run.**
 
 Everything else has been verified on SUBSETS scaled to the
 change, which is the recommended gear — the most recent runs, each 0 failed:
@@ -3131,40 +3181,153 @@ store while staying deletable — or promotable — with data behind it. `OFFER_
   exactly the path the 89 authored maps go down and inherits every guarantee they have. That is why
   this is ~450 lines and not a second terrain engine.
 
-### One map per run, and why depth is capped by MEMORY rather than by design
+### The world STREAMS SIDEWAYS, in chunks (owner's ask #2/#3)
 
-`SubstrateRenderer` bakes **two WORLD-SIZED canvases** (base + dyn), so depth costs ~2 bytes per
-world pixel, squared. At `cols` 48 the shipped numbers are 1728 x 6828 = **11.8 Mpx per buffer**,
-the same order as the campaign's 2600 x 3660. **Doubling the depth doubles that on a phone**, which
-is the reason the mine is ONE map per run with the bands as depth zones inside it rather than a
-stitched endless shaft. The owner asked for "banded, with a short depth beat", which is the FEEL;
-this is the implementation that delivers it without stitching.
+Owner: *"I want to be able to grow both left and right as well — so the map needs to either generate
+as I go, or it needs to be much larger and have boundaries. I prefer the former."* **It is honestly
+both, and the split is the thing to understand:**
 
-- **`cols` IS FLOORED BY THE VIEWPORT, not free.** `minZoomForBounds` is `viewW/worldW`, so a shaft
-  narrower than `viewW/zoom` forces the camera to zoom IN past `CONFIG.mine.zoom` and the fixed zoom
-  stops being fixed. 48 cells holds 0.85 at a 1280-wide desktop. Wider screens legitimately zoom in.
-- Measured on the shipped build: **boot to playable 2.1 s, renderFrame 11-14 ms median** at both
-  390x844 dpr3 and 1280x720 (against the campaign's 87 ms after its perf pass) — the fixed close
-  zoom means very little is on screen. `tickWorld` 0.5-0.6 ms. 630 sprites per map, culled per frame.
+- **The CELL GRID is allocated whole, once**, at `createLevelState`. It cannot be otherwise: the grid
+  is a flat row-major array with a fixed `cols`, so extending it LEFT would renumber every index in
+  the engine. `chunksEachWay` (10) either side of the home chunk at `chunkCols` (24) is **21 chunks,
+  504 columns, 18,144 world units** — ±252 columns of the hill, which at ~4 columns per dig is ~59
+  consecutive sideways digs to reach an edge, i.e. 118 water spent going nowhere.
+- **The CONTENT streams**, which is what the player perceives. Every rock, ore seam, water pocket and
+  creature is placed by `mineGenerateChunk(state, ci)`, called from `mineEnsureChunks(state)` in the
+  frame loop for any chunk within `preloadCols` (26) of the colony's x-extent. One-shot per chunk via
+  `state.mineChunks`, so it is two comparisons on every frame that generates nothing.
+
+**WIDTH ONLY COSTS CELLS NOW, and that is what made this affordable.** `SubstrateRenderer` used to
+bake **two WORLD-SIZED canvases** (base + dyn) — at 504 columns that is 18,144 x 6,828 = **124 Mpx a
+buffer**, which no phone has. `substrate.mine` takes the `this.live` path instead (`_drawLive`: sky
+and earth gradients, one seamless 384px noise tile drawn as an `overlay` pattern, the crust, the
+trich field), so nothing world-sized is allocated at all and 504 x 168 is 85k cells and no pixels.
+Measured on the wide world: **renderFrame 1.6-2.6 ms median** at 390x844, against 11-14 on the baked
+build and the campaign's 87.
+
+**CONNECTIVITY IS BY CONSTRUCTION AND NEEDS NO CROSS-CHUNK STATE** — the one load-bearing idea:
+
+- **GALLERIES at rows every chunk agrees on** (`galleryEvery`, 18), spanning each chunk's full width,
+  pinned to the exact gallery row **within 2 cells of each seam** so a gallery meets its neighbours'
+  at both ends. They wander ±2 rows through the middle so the result does not read as a grid.
+- **A SHAFT running the full depth**, which therefore crosses every one of its own chunk's galleries.
+- So any point connects to any other, and **a chunk can be generated in any order at any time** —
+  which is what lets `mineChunkRng(seed, ci)` make a chunk re-entered later be the one that was there
+  before. Same seed, same chunk, whether it was generated first or fifth.
+- **A SPRITE MUST FIT INSIDE ITS OWN CHUNK** (`x ± w/2` within the seams). Not tidiness: a sprite
+  reaching into the neighbour would be collided there before that chunk was carved, so a corridor
+  could be walled off by a rock belonging to a chunk generated earlier — the one failure the whole
+  design exists to make impossible.
+- **The shaft's wander is BOUNDED to ±4 columns of its home column.** Unbounded (clamped only to the
+  chunk) a ±1 walk over 168 rows drifts right across the chunk, so a "shaft" erodes most of its width
+  and the solid slabs the rock needs never exist.
+
+**NEW ROCK IS COLLIDED INCREMENTALLY — `solidifyMineRock()`, and it must never be a full re-stamp.**
+`solidifyRock` rebuilds both masks from EVERY sprite in the world; at a few thousand sprites that is a
+visible hitch on every chunk, i.e. every few digs, on exactly the frame the player is watching. So:
+
+- `solidifyRock` **keeps its coarse cover** on `sub._coarseCover` (mine only — `cols * rows` bytes,
+  and nothing else would read it) and records `sub._solidFrom`, the sprite watermark.
+- `solidifyMineRock` stamps the sprites appended since, then reconciles `cell.rock` and the fine
+  mask's water over the **COLUMN RANGE** the new chunks touched (`sub._mineDirtyC0/C1`). The range and
+  not each sprite's box, because a chunk also stamps **water pockets**, whose cells the fine mask has
+  to be told about and which lie nowhere near any new sprite.
+- **It STOPS at the first sprite whose art has not decoded rather than skipping it.** The watermark is
+  a single index, so a skipped sprite is stranded uncollided for the rest of the run — a hole in a
+  wall the player can see, which is the worst defect this file can have.
+- **And it does not reconcile until the whole dirty range is in**, or a cell whose only cover is a
+  still-loading sprite is cleared to soil and never flagged again.
+
+**`resolveIncome` HAS A MINE FAST PATH, and it needs one.** That loop is O(world cells) twice a second
+and the mine's world is 85,000 of them, most of it ground no colony will ever see. Every scrap of
+nutrient in a mine is stamped by `stampFood` from `mineGenerateChunk`, which registers the pile — and
+there are no cards, so no player-dropped cache can add one behind that rule's back. So `sub.foodPiles`
+is the COMPLETE set of cells that can ever have nutrient: **85k cell visits a tick becomes 36**.
+
+- **`state.mineChunks[ci]` IS THE PER-CHUNK RECORD** (`rocks / ore / water / worms / clouds / open /
+  bbox / target / closed / spots`), surfaced by `__game.mine.stats()` as an aggregate. It is the only
+  way to ask why a chunk came out the way it did once it is on screen, and it is what separates two
+  failures the drawn mask cannot tell apart: a chunk that **missed its band targets**, and one that
+  **hit them and still looks thin**. `spots` is where the creatures were PLACED, which is not where
+  they are a few seconds later — see the threat note below.
+- The threat table is a **DENSITY, not a population**: each chunk seeds its own share, so a world with
+  three chunks holds 3x the table. `mine-check` multiplies by `chunks()` for that reason — pinning the
+  table's own numbers would have been asserting that threat density falls off as the shaft widens.
+- **THERE IS NO `_needMineThreats` FLAG ANY MORE, and don't go looking for one.** Creatures used to be
+  seeded on the first frame after the fine mask landed (the survival trap). A chunk is generated
+  DURING play, so `solidAtWorld` already answers by then and there is nothing to defer.
+
+### THE CARVE IS THE DENSITY, AND ALMOST NOTHING ELSE IS
+
+**Two rounds were spent on the placement before this was measured rather than estimated.** The
+numbers, on one chunk:
+
+| | |
+|---|---|
+| the carve opened | **53%** of the chunk |
+| the rock loop then bbox-covered | **72% of everything left** |
+| the drawn fine mask came out | **12% solid** — a shaft you can swim through, ore lying in it |
+
+So **a boulder's alpha fills only ~35% of its bounding box**, and the ceiling at 53% open is
+`0.47 x 0.35 ≈ 16%`. No placement change can beat that. What fixed it, measured at **32% solid** —
+inside the traced campaign maps' own 23-53% range — with band targets met and frames at 2.1 ms:
+
+- **`galleryEvery` 14 → 18 and `shaftsPerChunk` 2 → 1.** One shaft crosses every gallery in its own
+  chunk, which is all connectivity needs. Openness 53% → **36%**.
+- **`galleryRadius` / `shaftRadius` are PER BAND and narrow with depth**, which is where the banding
+  the owner asked for actually bites: a deeper band is the same rock at a tighter squeeze, which the
+  player feels, where a `fill` number they cannot see is not. Nothing may go below ~1.15 (2.3 cells
+  across) — growth needs a corridor wider than one 25.5-unit segment.
+- **`fill` IS A SHARE OF THE CLOSED GROUND, NOT OF THE BAND.** Against the whole band three of the
+  four targets were simply unreachable (band 3 asked for 645 cells of ground with 474 in existence),
+  so the loop ran out of candidates every time and the number decided nothing at all. Re-read that
+  way the values are 0.86 / 0.91 / 0.96 / 1.00.
+- **`OVERLAP` 0.62 → 0.88 and the candidate stride 2 → 1.** Filling a slab means OVERLAPPING boxes
+  whose alphas union; spacing them leaves the soil showing between them, which was the look.
+- **Each sprite is sized to the SLAB it sits in** (`slabAt`), and to the slab's own bounds rather than
+  to half-extents about the candidate cell. That distinction is most of the density: a candidate one
+  cell in from a corridor has a half-extent of 1 however wide the slab beside it is, and candidates
+  were every second column, so three of four got a 3-cell budget and one got the real one.
+- **The sprite's CENTRE is clamped to the band its library came from.** The placement is free within
+  the slab (up to 8 cells), so without it a candidate near a seam lands the other side and the map
+  carries rock from a band BELOW — measured as 2 anthracite sprites in band 1, and the one thing the
+  blend rule forbids (the deeper type STARTS appearing as you go down; it never leaks upward).
 
 ### REACHABILITY IS BY CONSTRUCTION: carve first, then place rock
 
 **The colony cannot dig through rock, so a boulder across the only route is an unwinnable run with
 nothing on screen to explain it.** So the generator inverts the obvious order: it CARVES a skeleton
-(a home cap under the hill, three wandering descent channels, lateral galleries) and then places rock
-only where a sprite's **whole bounding box** misses the carved space. A bbox test is conservative — a
-sprite's alpha lives inside its box — so every carved channel is guaranteed wider than it looks.
+(galleries at world-wide fixed rows, one full-depth shaft, a head under the hill in the home chunk)
+and then places rock only where a sprite's **whole bounding box** misses the carved space. A bbox test
+is conservative — a sprite's alpha lives inside its box — so every carved channel is guaranteed wider
+than it looks. Measured on the streamed world, 13 chunks in: **99.6% of the open space connected from
+the colony's own root**, the deepest row reachable, and **all 104 ore seams and 52 water pockets
+reachable**.
 
-- **The channels keep a HEADING for a few rows at a time** rather than re-rolling per row: a per-row
+- **The corridors keep a HEADING for a few rows at a time** rather than re-rolling per row: a per-row
   coin flip is a jittery vertical scribble, a held heading leans, crosses its neighbours and comes
   back, which is what reads as a mine.
 - **CARVING GUARANTEES THE ROUTE BUT NOT THE REWARDS**, and that gap cost an unreachable ore seam
   (measured 19 of 20 on one seed). A water pocket's cells are **solid** (`stampReservoir` sets rock +
   water), so one carved across a gallery's neck severs whatever is beyond it — a consequence of two
-  independent placements that nothing upstream can see. There is a **connectivity sweep** at the end
-  of generation: flood the carved space MINUS the water, from the head, and **drop** anything
-  stranded. Dropping rather than re-placing, because a reward you can see and cannot reach is worse
-  than one that is not there. `_stats.stranded` reports it; normally 0-2.
+  independent placements that nothing upstream can see. There is a **connectivity sweep at the end of
+  every chunk**: flood the carve MINUS the water from the galleries at BOTH SEAMS — the cells every
+  neighbour is guaranteed to meet, which is what makes a chunk-local flood a valid answer — and
+  **drop** anything stranded. Dropping rather than re-placing, because a reward you can see and cannot
+  reach is worse than one that is not there.
+- **A REWARD SITS AT THE END OF A DEAD-END SPUR, AND THE SPUR IS DUG FOR IT.** "Open, and off the
+  route" is the EMPTY SET and always will be: every carve is followed by a `markRoute` with a strictly
+  WIDER brush (1.0-1.55 against 3.4; 1.2-1.9 against 4.0), so every open cell is on the route by
+  construction. Searching for one was the first version of the chunked generator and it placed
+  **0 ore seams and 0 water pockets on every chunk of every seed**, with nothing to notice it by —
+  a shaft with no reward in it looks exactly like a shaft. So the spur is carved, off a corridor, out
+  past the route brush, and deliberately not route-marked.
+- **`spurCells` IS A FUEL KNOB, NOT A GEOMETRY ONE.** ≥5 is what clears the widest route brush; the
+  shipped floor is **8** because a dig fans out ~19 filaments and follows open ground, so a spur the
+  length of one dig is not a detour — it is scenery the fan wanders into. At [5, 9] a straight dive on
+  seed 909 stumbled on TWO water pockets and reached **106 m of 168 on its opening tank**; the store
+  has little to sell a player who got half way down for free. At [8, 12] the same two seeds run dry at
+  **52 and 60 m**.
 - **`mine-check` floods the REAL FINE MASK anyway** — the one stamped from sprite alpha at render
   time — because the above is a promise about the generator and the mask is what growth actually
   tests. Same argument as `traced-check` for the authored maps.
@@ -4283,15 +4446,18 @@ established in discussion, and how each point actually landed:
   going real time, which the owner asked for anyway — `setGame('mine')` forces it, so the mine never
   reaches the enemy-turn phase machine or the turn gate at all. The campaign stays turn-based; the
   reversal is scoped to the third game.
-- **Fixed zoom is cheap and pays twice.** CONFIRMED and then some: measured at **11-14 ms per
-  frame** on both a phone and a desktop viewport, against the campaign's 87 ms after its own perf
-  pass. A fixed close zoom simply has very little on screen.
+- **Fixed zoom is cheap and pays twice.** CONFIRMED and then some: **1.6-2.6 ms per frame** on the
+  streamed 504-column world at 390x844, against the campaign's 87 ms after its own perf pass (and
+  11-14 ms on the mine's own earlier build, which still baked world-sized canvases). A fixed close
+  zoom simply has very little on screen.
 - **The map pipeline is LANDSCAPE, and that is the biggest unpriced cost.** SIDESTEPPED rather than
   solved: the mine does not trace an image at all. It reuses the owner's ROCK SPRITES — the parts of
-  the traced maps that are worth keeping — and generates the layout itself, tall. `gen-map.mjs` and
-  the tracer are untouched and still serve the campaign. The real cost turned out to be **canvas
-  memory**, not aspect ratio: two world-sized buffers cap a single shaft at roughly the campaign's
-  depth, which is why the mine is one banded map per run rather than an endless stitched one.
+  the traced maps that are worth keeping — and generates the layout itself. `gen-map.mjs` and the
+  tracer are untouched and still serve the campaign. The real cost looked like **canvas memory** at
+  first (two world-sized buffers cap a shaft at roughly the campaign's depth) and that turned out to
+  be a property of the RENDERER rather than of the world: `substrate.mine` takes `SubstrateRenderer`'s
+  `live` path, which bakes nothing world-sized at all, after which the world is 18,144 units wide and
+  streams in per chunk. So the constraint that shaped the first version is gone.
 - **"Is depth miner literally DOWNWARD?" — ANSWERED YES, by the brief.** The hill is on the surface
   in the middle, the colony digs down from it, and the molten core is the bottom of the shaft (a hard
   growth floor you can see coming, drawn in the red the earth already ramps to). The goal is gone

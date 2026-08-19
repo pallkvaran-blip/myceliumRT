@@ -3149,11 +3149,28 @@ const CONFIG = {
   // double that on a phone. The BANDS below are depth zones inside the one world, which is what
   // makes "the deeper you go, different rock types appear" true without stitching.
   mine: {
-    cols: 48,                    // shaft width in cells -> 48 x 36 = 1728 world units.
-                                 // FLOORED BY THE VIEWPORT, not free: `minZoomForBounds` is
-                                 // viewW/worldW, so a shaft narrower than viewW/zoom forces the
-                                 // camera to zoom IN past `zoom` below and the fixed zoom stops
-                                 // being fixed. 48 cells holds 0.85 at a 1280-wide desktop.
+    // ---- HOW WIDE, AND HOW IT COMES INTO EXISTENCE --------------------------
+    // The shaft runs sideways as far as anyone can dig (owner: "I want to be able to grow both left
+    // and right as well - so the map needs to either generate as I go, or it needs to be much larger
+    // and have boundaries. I prefer the former"). It is BOTH, and honestly: the content is generated
+    // CHUNK BY CHUNK as the colony approaches it, which is what the player perceives, on a grid that
+    // is allocated once and is wide enough that the edge takes deliberate effort to reach.
+    //
+    // Why not literally unbounded: the cell grid is a flat row-major array with a fixed `cols`, so
+    // extending it LEFT would renumber every index in the engine. What the world-sized RENDER buffers
+    // used to cost is gone (see SubstrateRenderer's `live` mode), so width now costs only cells, and
+    // cells are cheap — 504 x 168 is 85k of them.
+    //
+    // 21 chunks of 24 columns = 504 columns = 18,144 world units, so ±252 columns either side of the
+    // hill. A dig covers ~4 columns, so reaching an edge is ~59 CONSECUTIVE sideways digs, i.e. 118
+    // water spent going nowhere — more than a base tank and a half. Raise `chunksEachWay` if that
+    // ever turns out to be reachable; it costs 24 x 168 cells a step and nothing else.
+    chunkCols: 24,
+    chunksEachWay: 10,
+    // How far ahead of the colony chunks are generated, in COLUMNS. A dig is ~4 columns and this runs
+    // every frame, so one chunk of lookahead is many digs of slack. Ungenerated ground is bare soil
+    // rather than solid, so the only thing this must never do is let the player SEE the frontier.
+    preloadCols: 26,
     bandRows: 42,                // rows per rock band -> 1512 world units each
     surfaceY: 380,               // sky above the hill, exactly as every other map
     bottomBuffer: 400,           // the dirt/void band below the content (camera scroll room)
@@ -3173,10 +3190,10 @@ const CONFIG = {
       // box must miss the carved channels), so scaling the deep bands UP made them run out of room
       // and land BELOW the shallow ones. Measured: 0.46 / 0.52 / 0.42 / 0.39 against targets that
       // rose the whole way. More, smaller rock packs, which also reads as deep rock being fractured.
-      { theme: 'magnetite',  name: 'Magnetite',  assetsFrom: 'magnetite-c24',  scale: [0.48, 0.92], fill: 0.38 },
-      { theme: 'anthracite', name: 'Anthracite', assetsFrom: 'anthracite-c24', scale: [0.46, 0.86], fill: 0.50 },
-      { theme: 'garnet',     name: 'Garnet',     assetsFrom: 'garnet-c24',     scale: [0.43, 0.80], fill: 0.58 },
-      { theme: 'hematite',   name: 'Hematite',   assetsFrom: 'hematite-c24',   scale: [0.40, 0.74], fill: 0.64 },
+      { theme: 'magnetite',  name: 'Magnetite',  assetsFrom: 'magnetite-c24',  scale: [0.48, 0.92], fill: 0.86 },
+      { theme: 'anthracite', name: 'Anthracite', assetsFrom: 'anthracite-c24', scale: [0.46, 0.86], fill: 0.91 },
+      { theme: 'garnet',     name: 'Garnet',     assetsFrom: 'garnet-c24',     scale: [0.43, 0.80], fill: 0.96 },
+      { theme: 'hematite',   name: 'Hematite',   assetsFrom: 'hematite-c24',   scale: [0.40, 0.74], fill: 1.00 },
     ],
     // How far into a band the previous band's rock keeps appearing, as a fraction of the band.
     // "The deeper you go, different rock types START appearing" — so a boundary is a blend
@@ -3196,24 +3213,58 @@ const CONFIG = {
     // found no fuel stopped at 40-45 m — inside band 1, with nothing having happened yet. At 44 it
     // reaches the low 60s, which is band 2, which is where the worms start.
     startWater: 44,
+    // ---- the carve, per chunk ----------------------------------------------
+    // GALLERIES AT FIXED ROWS ARE WHAT MAKES A CHUNKED WORLD CONNECTED WITHOUT ANY CROSS-CHUNK STATE.
+    // Every chunk carves a lateral corridor spanning its full width at the same rows as every other
+    // chunk, so they meet at the seams and the whole world is laterally traversable; and every chunk
+    // runs vertical shafts the full depth, which necessarily cross all of its own galleries. So the
+    // colony can reach anywhere from anywhere, and no chunk needs to know what its neighbours did —
+    // which is the property that lets them be generated in any order, at any time.
+    //
+    // THE CARVE IS THE DENSITY, AND ALMOST NOTHING ELSE IS. Measured on one chunk: the carve opened
+    // **53%** of it, the rock loop then covered **72% of everything left** with sprite bounding
+    // boxes, and the drawn mask still came out **12% solid** — because a boulder's ALPHA fills only
+    // about 35% of its box. So the reachable ceiling at 53% open is 0.47 x 0.35 ≈ **16%**, and no
+    // amount of better placement can beat it. Two rounds were spent on the placement before that was
+    // measured rather than estimated; if the shaft ever reads too open again, carve less first.
+    galleryEvery: 18,            // rows between galleries (fixed world-wide, or the seams miss)
+    shaftsPerChunk: 1,           // one is enough — a shaft crosses every gallery in its own chunk
+    // The corridors NARROW WITH DEPTH, and that is where the banding the owner asked for actually
+    // bites: a deeper band is the same rock library at a tighter squeeze, which is a thing the player
+    // feels, where a `fill` number they cannot see is not. Radii are in CELLS; growth needs a corridor
+    // wider than one 25.5-unit segment, so nothing here may go below ~1.15 (2.3 cells across).
+    galleryRadius: [[1.15, 1.55], [1.1, 1.45], [1.05, 1.35], [1.0, 1.25]],
+    shaftRadius: [[1.35, 1.9], [1.3, 1.75], [1.25, 1.6], [1.2, 1.5]],
     // --- ore ----------------------------------------------------------------
     // A pile pays PHOSPHORUS, banked at run end and spent in the store (owner). Nothing drafts,
     // because there are no cards; `energyPerNutrient` still carries the Energy the engine's own
     // harvest maths wants, and the mine HUD simply does not show Energy.
     orePerPile: [3, 5, 8, 12],   // P per pile, by band — deeper ore is worth more
-    pilesPerBand: 5,
+    // PER BAND PER CHUNK now, not per world: a chunked world has no total to divide up. 2 and 1 keep
+    // roughly the density the fixed 48-column map had (18 seams and 12 pockets across it).
+    // HOW FAR OFF THE CORRIDOR A REWARD SITS, in cells, as the length of the spur dug to it. This is
+    // the whole of "nothing worth having is on the way through", and it is measured against the reach
+    // a colony standing in the corridor already has: a dig fans out ~19 filaments and follows open
+    // ground, so a spur the length of one dig is not a detour — it is scenery the fan wanders into.
+    // At [5, 9] a straight dive on seed 909 stumbled on TWO water pockets and reached 106 m of 168 on
+    // its opening tank; the store has little to sell a player who got half way down for free.
+    spurCells: [8, 12],
+    pilesPerBand: 2,
     // --- water pockets: the fuel cans ---------------------------------------
-    reservoirsPerBand: 3,
+    reservoirsPerBand: 1,
     reservoirWater: 10,          // water granted for tapping one, once each (see _tappedWater)
     // --- threats, by band (owner: worms + mould, appearing deeper) -----------
     // Band 1 is empty on purpose: the first 42 m teach the fuel clock with nothing chasing you.
     // The player has no counterplay in the mine (Excrete and Amputate were the card/action
     // layer), so these are obstacles to route around rather than fights.
+    // PER BAND PER CHUNK, for the same reason the ore is: there is no world total any more. Halved
+    // from the whole-world figures so a chunk is not a wall of creatures — a descent passes through
+    // three or four chunks, which comes to about what the fixed map held.
     threatBands: [
       { worms: 0, clouds: 0 },
-      { worms: 2, clouds: 0 },
-      { worms: 3, clouds: 2 },
-      { worms: 4, clouds: 3 },
+      { worms: 1, clouds: 0 },
+      { worms: 1, clouds: 1 },
+      { worms: 2, clouds: 1 },
     ],
     // --- what a creature can see, against what the PLAYER can see ------------
     // 500 IS THE CAMPAIGN'S NUMBER AND IT IS TOO FAR FOR A FIXED ZOOM. Measured at 390x844 and zoom
@@ -19162,7 +19213,10 @@ function stampFood(sub, o, N) {
   sub.foodPiles.push(pile);
 }
 
-  return { LEVEL_FORMAT, LEVEL_VERSION, ROCK_TYPES, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH, blankLevel, isLevel, configForLevelDef, buildLevel };
+  // `stampFood` / `stampReservoir` are exported for the MINE, which stamps objects into a live
+  // substrate chunk by chunk rather than handing buildLevel a finished list. Same functions the
+  // authored path uses, so a mine's piles and pockets are the authored ones in every respect.
+  return { LEVEL_FORMAT, LEVEL_VERSION, ROCK_TYPES, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH, blankLevel, isLevel, configForLevelDef, buildLevel, stampFood, stampReservoir };
 })();
 
 // ===================== src/engine/state.js =====================
@@ -19234,11 +19288,10 @@ function createLevelState(config, seed, level) {
   // not exist yet: the seeders all steer around `cell.rock`, which on an authored map is stamped
   // from the sprites' alpha at RENDER time and is empty until then.
   state._needLevelThreats = !!(level && level.survival);
-  // THE MINE'S CREATURES ARE ALSO SEEDED LATE, and for the same reason — see mineSeedThreats.
-  // A separate flag rather than a shared one because the two seed from different tables: survival
-  // takes the campaign's whole escalation curve off `configForLevel`, the mine takes its own
-  // per-BAND counts, and a run must never get both.
-  state._needMineThreats = !!(level && level.mine);
+  // THE MINE HAS NO SUCH FLAG, and that is worth knowing rather than looking for one: its creatures
+  // are placed by `mineGenerateChunk`, which runs DURING play, so the fine mask already exists by
+  // the time any of them is placed and there is nothing to defer. The mine's level def zeroes every
+  // threat ceiling and sets `respawn: false`, so the procedural seeders find nothing to do here.
   if (level && level.mine) state.mineOre = 0;
   return state;
 }
@@ -20833,7 +20886,7 @@ EFFECTS['Cordyceps Stroma'] = action({ effect: 'destroy a sensed ant nest', ever
 const __m_engine_mine = (function () {
   const { CONFIG } = __m_config;
   const { makeRng } = __m_engine_rng;
-  const { LEVEL_FORMAT, LEVEL_VERSION } = __m_engine_level;
+  const { LEVEL_FORMAT, LEVEL_VERSION, stampFood, stampReservoir } = __m_engine_level;
   const { placeClouds, stampCloudField } = __m_engine_threats;
   const { placeNematodes } = __m_engine_nematodes;
   const { waterSourcesNear } = __m_engine_cards;
@@ -21015,10 +21068,17 @@ const mineBands = (config) => mineCfg(config).bands;
 function mineRows(config) { const M = mineCfg(config); return M.bandRows * M.bands.length; }
 // The whole shaft, in world units. `cellSize` comes from the base CONFIG — the mine does not
 // re-pick it, because the 36-unit grid is what every growth and threat rate is tuned against.
+//
+// THE WIDTH IS THE CHUNK COUNT, NOT A NUMBER. The substrate's cell grid is allocated once at
+// `createLevelState` and is what every index into it assumes, so the world's EXTENT has to be
+// its final one from the first frame — what streams in is the CONTENT (rock, ore, creatures),
+// chunk by chunk. `chunksEachWay` either way of the home chunk is the boundary the owner's
+// second option asked for; at 24 cols a chunk and 10 either way that is 21 chunks, 504 columns,
+// ~18,000 world units of lateral room, which no run has come close to using.
 function mineWorldBox(config) {
   const M = mineCfg(config), cs = config.world.cellSize;
   return {
-    width: M.cols * cs,
+    width: (M.chunkCols | 0) * mineChunkCount(config) * cs,
     height: M.surfaceY + mineRows(config) * cs,
     surfaceY: M.surfaceY,
     cellSize: cs,
@@ -21051,274 +21111,16 @@ function mineDepthReached(state) {
 // -----------------------------------------------------------------------------
 // GENERATION
 // -----------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// GENERATION — a level def with NO objects in it, and chunks that arrive later
+// -----------------------------------------------------------------------------
+// The def carries the world box, the layout and the (zeroed) threat ceilings; every rock, ore seam,
+// water pocket and creature is generated per CHUNK by `mineGenerateChunk`, as the colony approaches.
+// That is the owner's "generate as I go", and it is also the only way a shaft this wide is
+// affordable: generating 21 chunks up front would place ~13,000 sprites for a run that visits four.
 function mineLevelDef(config, seed) {
   const M = mineCfg(config);
   const box = mineWorldBox(config);
-  const cs = box.cellSize, cols = M.cols, rows = mineRows(config);
-  const bands = M.bands;
-  const rng = makeRng((seed >>> 0) || 1);
-  const ri = (n) => Math.floor(rng() * n);
-  const rf = (a, b) => a + rng() * (b - a);
-  const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
-
-  // `open` is the carved skeleton: soil the generator promises to leave clear of rock. `taken`
-  // is everything a placed sprite's bounding box covers, so rocks stack into masses instead of
-  // piling into one spot, and so ore and water can be put somewhere no rock is drawn.
-  const open = new Uint8Array(cols * rows);
-  const taken = new Uint8Array(cols * rows);
-  const objects = [];
-  const at = (c, r) => r * cols + c;
-  const inGrid = (c, r) => c >= 0 && c < cols && r >= 0 && r < rows;
-  const carve = (c, r, rad) => {
-    const k = Math.ceil(rad), r2 = rad * rad;
-    for (let dr = -k; dr <= k; dr++)
-      for (let dc = -k; dc <= k; dc++) {
-        if (dc * dc + dr * dr > r2) continue;
-        if (inGrid(c + dc, r + dr)) open[at(c + dc, r + dr)] = 1;
-      }
-  };
-
-  // --- the head: open ground under the hill ---------------------------------
-  // Every channel starts inside this cap, which is what makes them all reachable from the
-  // colony without a connectivity pass: one open region at the top, three routes out of it.
-  const home = cols >> 1;
-  const HOME_HALF = 5;
-  for (let r = 0; r < 3; r++)
-    for (let c = home - HOME_HALF; c <= home + HOME_HALF; c++)
-      if (inGrid(c, r)) open[at(c, r)] = 1;
-
-  // --- descending channels --------------------------------------------------
-  // Three, so the player has a choice of route at every depth rather than one corridor to
-  // follow. Each keeps a HEADING for a few rows at a time instead of re-rolling every row: a
-  // per-row coin flip produces a jittery vertical scribble, a held heading produces a channel
-  // that leans, crosses its neighbours and comes back — which is what reads as a mine.
-  const CHANNELS = 3;
-  const chanCells = [];                       // every open cell a channel laid, for later passes
-  // ...and a mask of the descent routes themselves, WIDER than the carve. Ore and water are placed
-  // strictly outside it (see below), and "outside" has to mean "you cannot reach it by diving" —
-  // a pocket one cell off a channel's edge is on the route for anything with a 25.5-unit segment.
-  const onRoute = new Uint8Array(cols * rows);
-  const markRoute = (c, r, rad) => {
-    const k = Math.ceil(rad), r2 = rad * rad;
-    for (let dr = -k; dr <= k; dr++)
-      for (let dc = -k; dc <= k; dc++) {
-        if (dc * dc + dr * dr > r2) continue;
-        if (inGrid(c + dc, r + dr)) onRoute[at(c + dc, r + dr)] = 1;
-      }
-  };
-  for (let s = 0; s < CHANNELS; s++) {
-    let col = clamp(home + (s - 1) * 4, 3, cols - 4);
-    let dir = 0, hold = 0;
-    for (let r = 2; r < rows; r++) {
-      carve(col, r, rf(1.35, 2.15));
-      markRoute(col, r, 4.2);
-      chanCells.push([col, r]);
-      if (hold-- <= 0) { dir = ri(3) - 1; hold = 2 + ri(4); }
-      col = clamp(col + dir, 3, cols - 4);
-    }
-  }
-
-  // --- lateral galleries ----------------------------------------------------
-  // Side runs off the channels. They are where the ore and the water are, so digging sideways
-  // is the detour the economy pays for; they also join the three channels to each other.
-  const galleryEnds = [];
-  // ROUGHLY TWO PER BAND PER REWARD. Both the ore and the water pockets are placed at gallery
-  // ENDS now, so the gallery count is what decides whether either can be placed at all — and a
-  // band that runs out falls back to a random off-route spot, which works but reads as a seam in
-  // the middle of nowhere rather than at the end of a dug tunnel.
-  const galleries = Math.round(rows / 3.2);
-  for (let g = 0; g < galleries; g++) {
-    const [c0, r0] = chanCells[ri(chanCells.length)];
-    if (r0 < 4) continue;
-    let c = c0, r = r0;
-    const way = rng() < 0.5 ? -1 : 1;
-    const len = 4 + ri(11);
-    for (let i = 0; i < len; i++) {
-      c = clamp(c + way, 2, cols - 3);
-      if (rng() < 0.3) r = clamp(r + (rng() < 0.5 ? -1 : 1), 2, rows - 2);
-      carve(c, r, rf(1.15, 1.7));
-    }
-    galleryEnds.push([c, r]);
-  }
-
-  // --- ore piles: the Phosphorus (see mineOreRewards) ------------------------
-  // At the ENDS of galleries by preference — a pile you have to go and get is the whole reason
-  // to dig sideways in a game about digging down. `stampFood` clears rock from the cells it
-  // takes, so a pile is always diggable; putting them in carved space keeps them from HOLING a
-  // boulder (markCoverGrid skips food cells, so a pile inside rock opens a hole in a wall that
-  // still looks solid — see __game.auditRocks).
-  // NOTHING WORTH HAVING IS ON THE WAY DOWN, and that is the whole economy rather than a flavour
-  // decision. Measured on the first playable build, with the pockets placed anywhere open: a probe
-  // diving straight down reached 167 m of a 168 m shaft on a FIRST run and banked no ore at all —
-  // it tapped seven water pockets it never had to look for, and passed every ore seam. Both halves
-  // of that are the same defect: a reward sitting in the descent channel is a reward for descending,
-  // and the descent is the thing the fuel is supposed to be limiting.
-  //
-  // So ore AND water live at the far ends of the lateral galleries, off `onRoute`. Digging sideways
-  // costs fuel and buys fuel, which is the trade the run is actually about — and the ore that pays
-  // for the next descent is found the same way, so one rule covers both.
-  const bandPool = (rLo, rHi) => galleryEnds
-    .filter(([c, r]) => r >= rLo && r <= rHi && !onRoute[at(c, r)]);
-  // A LAST RESORT ONLY, and it still refuses the route: a band where every gallery landed on a
-  // channel would otherwise get nothing at all, which is a dead band rather than a hard one.
-  const offRouteSpot = (rLo, rHi) => {
-    for (let tries = 0; tries < 400; tries++) {
-      const r = rLo + ri(Math.max(1, rHi - rLo)), c = 2 + ri(cols - 4);
-      if (open[at(c, r)] && !onRoute[at(c, r)]) return [c, r];
-    }
-    return null;
-  };
-  const orePer = M.orePerPile;
-  const pools = [];
-  // Where each reward ended up, for the connectivity sweep at the end — see there.
-  const spots = [];
-  for (let b = 0; b < bands.length; b++) {
-    const rLo = b * M.bandRows + 2, rHi = (b + 1) * M.bandRows - 2;
-    const pool = bandPool(rLo, rHi);
-    pools.push({ rLo, rHi, pool });
-    for (let i = 0; i < M.pilesPerBand; i++) {
-      const spot = (pool.length ? pool.splice(ri(pool.length), 1) : [offRouteSpot(rLo, rHi)])[0];
-      if (!spot) continue;
-      const [c, r] = spot;
-      carve(c, r, 2.2);                             // room to work around the pile
-      const pile = { t: 'food', kind: b >= 2 ? 'cache-engine' : 'cache',
-                     x: (c + 0.5) * cs, y: box.surfaceY + (r + 0.5) * cs, r: 1,
-                     energy: orePer[Math.min(orePer.length - 1, b)] };
-      objects.push(pile);
-      spots.push({ o: pile, c, r, kind: 'ore' });
-    }
-  }
-
-  // --- water pockets: the fuel cans -----------------------------------------
-  // A reservoir's cells are IMPASSABLE (stampReservoir sets rock + water), so one dropped into a
-  // channel would wall the shaft with the very thing you came for. Each is therefore carved a
-  // ROOM around it first — the pocket plus a clear ring — so the colony can reach round it and
-  // touch the water face, and the route past it survives.
-  for (let b = 0; b < bands.length; b++) {
-    const { rLo, rHi, pool } = pools[b];
-    for (let i = 0; i < M.reservoirsPerBand; i++) {
-      const spot = (pool.length ? pool.splice(ri(pool.length), 1) : [offRouteSpot(rLo, rHi)])[0];
-      if (!spot) continue;
-      const [c, r] = spot;
-      const rad = 1;
-      carve(c, r, rad + 1.8);
-      const pocket = { t: 'reservoir', x: (c + 0.5) * cs, y: box.surfaceY + (r + 0.5) * cs, r: rad * cs };
-      objects.push(pocket);
-      spots.push({ o: pocket, c, r, kind: 'water', rad });
-    }
-  }
-
-  // --- rock -----------------------------------------------------------------
-  // Everything that is not carved, filled with the band's own sprites. A candidate is rejected
-  // whole: its bounding box may not touch a single carved cell, may not leave the content box,
-  // and may not land on ground another sprite has already covered past `OVERLAP` — which is what
-  // makes rocks form masses with soil between them rather than one stack in the first clear spot.
-  // How much of a candidate's box may already be covered by earlier sprites. Low numbers spread the
-  // rock into isolated boulders; high ones let it CLUMP into masses with soil between them, which is
-  // both what a mine looks like and how the fill target is reached at all — a bbox that must land on
-  // virgin ground runs out of room long before it runs out of target.
-  const OVERLAP = 0.62;
-  const libFor = (b) => (MINE_ROCKS[bands[b].theme] || []);
-  const bandCover = new Array(bands.length).fill(0);
-  const bandTarget = bands.map((b) => b.fill * M.bandRows * cols);
-  const contentBottom = box.height;
-  // Which library a row draws from: its own band, but the top `blendFrac` of every band still
-  // serves the band above it some of the time, so a rock type STARTS appearing rather than
-  // switching on at a line. Band 0 has nothing above it and simply keeps its own.
-  const libAtRow = (r) => {
-    const b = Math.min(bands.length - 1, Math.floor(r / M.bandRows));
-    const t = (r - b * M.bandRows) / M.bandRows;
-    if (b > 0 && t < M.blendFrac && rng() > t / M.blendFrac) return { b, lib: libFor(b - 1) };
-    return { b, lib: libFor(b) };
-  };
-  // A CANDIDATE EVERY TWO CELLS, not every three. The deeper bands ask for more rock and have less
-  // room for it (their sprites' boxes must miss the carved channels too), so at stride 3 they simply
-  // ran out of candidates before they reached their target — measured at 0.39 against a 0.66 target
-  // while band 1 hit 0.46 against 0.46. Generation happens once per run, so the extra attempts cost
-  // nothing that matters.
-  for (let r = 1; r < rows; r += 2) {
-    for (let c = 1; c < cols; c += 2) {
-      const { b, lib } = libAtRow(r);
-      if (!lib.length || bandCover[b] >= bandTarget[b]) continue;
-      // Biggest first, then smaller — a big mass where one fits, gravel-free fill where it
-      // doesn't. Six attempts, because most candidates near a channel legitimately fail.
-      let placed = false;
-      for (let attempt = 0; attempt < 6 && !placed; attempt++) {
-        const src = lib[ri(lib.length)];
-        const sc = rf(bands[b].scale[0], bands[b].scale[1]) * (1 - attempt * 0.13);
-        const w = Math.max(cs, src.w * sc), h = Math.max(cs, src.h * sc);
-        const x = (c + rf(-0.6, 0.6)) * cs, y = box.surfaceY + (r + rf(-0.6, 0.6)) * cs;
-        if (x - w / 2 < 0 || x + w / 2 > box.width) continue;
-        if (y - h / 2 < box.surfaceY + cs * 0.5 || y + h / 2 > contentBottom) continue;
-        const c0 = Math.floor((x - w / 2) / cs), c1 = Math.floor((x + w / 2) / cs);
-        const r0 = Math.floor((y - h / 2 - box.surfaceY) / cs), r1 = Math.floor((y + h / 2 - box.surfaceY) / cs);
-        let clear = true, cells = 0, already = 0;
-        for (let rr = r0; rr <= r1 && clear; rr++)
-          for (let cc = c0; cc <= c1; cc++) {
-            if (!inGrid(cc, rr)) { clear = false; break; }
-            if (open[at(cc, rr)]) { clear = false; break; }
-            cells++; if (taken[at(cc, rr)]) already++;
-          }
-        if (!clear || !cells || already / cells > OVERLAP) continue;
-        for (let rr = r0; rr <= r1; rr++)
-          for (let cc = c0; cc <= c1; cc++) if (!taken[at(cc, rr)]) { taken[at(cc, rr)] = 1; bandCover[b]++; }
-        objects.push({ t: 'boulder', key: src.k, x: +x.toFixed(1), y: +y.toFixed(1),
-                       w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
-        placed = true;
-      }
-    }
-  }
-
-  // --- the connectivity sweep -----------------------------------------------
-  // CARVING FIRST GUARANTEES THE ROUTE, BUT NOT THE REWARDS, and that gap cost an unreachable ore
-  // seam (measured: 19 of 20 on one seed). Every carve only ever ADDS open ground and every gallery
-  // starts on a channel, so open space is connected by construction — EXCEPT that a water pocket's
-  // own cells are SOLID (stampReservoir sets rock + water), so a pocket carved across the neck of a
-  // gallery can sever the ore at its far end. Nothing upstream can see that: it is a consequence of
-  // two independent placements, and the only honest answer is to check the finished map.
-  //
-  // So: flood the carved space MINUS the water, from the head, and drop anything the colony could
-  // not reach. Dropping rather than re-placing, because a reward that cannot be reached is worse
-  // than one that is not there — the player can see it on the map and spend a whole run's fuel on it.
-  {
-    const water = new Uint8Array(cols * rows);
-    for (const sp of spots) {
-      if (sp.kind !== 'water') continue;
-      const k = Math.ceil(sp.rad), r2 = sp.rad * sp.rad;
-      for (let dr = -k; dr <= k; dr++)
-        for (let dc = -k; dc <= k; dc++) {
-          if (dc * dc + dr * dr > r2) continue;
-          if (inGrid(sp.c + dc, sp.r + dr)) water[at(sp.c + dc, sp.r + dr)] = 1;
-        }
-    }
-    const seen = new Uint8Array(cols * rows);
-    const stack = [];
-    for (let c = home - HOME_HALF; c <= home + HOME_HALF; c++)
-      if (inGrid(c, 0) && open[at(c, 0)] && !water[at(c, 0)]) { seen[at(c, 0)] = 1; stack.push(at(c, 0)); }
-    while (stack.length) {
-      const i = stack.pop(), r = (i / cols) | 0, c = i % cols;
-      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const nc = c + dc, nr = r + dr;
-        if (!inGrid(nc, nr)) continue;
-        const j = at(nc, nr);
-        if (seen[j] || !open[j] || water[j]) continue;
-        seen[j] = 1; stack.push(j);
-      }
-    }
-    const reachable = (sp) => {
-      if (sp.kind === 'ore') return !!seen[at(sp.c, sp.r)];
-      // A pocket is reachable when the colony can get NEXT TO it — the water itself is solid, and
-      // tapping it is a matter of almost touching it (growth.waterContactDist).
-      for (let dr = -sp.rad - 2; dr <= sp.rad + 2; dr++)
-        for (let dc = -sp.rad - 2; dc <= sp.rad + 2; dc++)
-          if (inGrid(sp.c + dc, sp.r + dr) && seen[at(sp.c + dc, sp.r + dr)]) return true;
-      return false;
-    };
-    const stranded = spots.filter((sp) => !reachable(sp));
-    for (const sp of stranded) { const i = objects.indexOf(sp.o); if (i >= 0) objects.splice(i, 1); }
-    var _stranded = stranded.length;
-  }
-
   return {
     format: LEVEL_FORMAT, version: LEVEL_VERSION,
     id: 'mine-' + ((seed >>> 0) || 1).toString(36),
@@ -21328,78 +21130,466 @@ function mineLevelDef(config, seed) {
     // FOUR ASSET FOLDERS, NOT ONE. `loadLevelAssets(id)` filters the deferred manifest by the
     // folder name, and a mine map draws from every band's — so main.js loads the list rather
     // than the single `assetsFrom` an authored map carries.
-    assetsFrom: bands[0].assetsFrom,
-    assetsFromAll: bands.map((b) => b.assetsFrom),
-    world: { width: box.width, height: box.height, surfaceY: box.surfaceY, cellSize: cs,
+    assetsFrom: M.bands[0].assetsFrom,
+    assetsFromAll: M.bands.map((b) => b.assetsFrom),
+    world: { width: box.width, height: box.height, surfaceY: box.surfaceY, cellSize: box.cellSize,
              bottomBuffer: M.bottomBuffer, coreDepthFrac: 1 },
     layout: { mine: true, startCols: 2, goalCols: 0, summerCols: 0, clearChannels: false },
-    // The creatures are placed by `mineSeedThreats` on the first frame the rock mask exists, not
-    // from here — see there. Zeroed ceilings plus `respawn: false` is what keeps the procedural
-    // seeders and the top-ups out, so the mine's population is exactly what this module places.
+    // Nothing is placed from here — see `mineGenerateChunk`. Zeroed ceilings plus `respawn: false`
+    // is what keeps the procedural seeders and the top-ups out, so the mine's population is exactly
+    // what this module places, chunk by chunk.
     threats: { trych: 0, nematodes: 0, ants: 0, respawn: false },
     render: { soilPebbles: false },
-    objects,
+    objects: [],
     _seed: (seed >>> 0) || 1,
-    // What the generator actually managed to lay down, per band — for `mine-check` and for
-    // anyone reading a report about one shaft. A band whose `cover` is far under its `fill`
-    // target is a band the carve left no room in, which is a tuning fact rather than a bug.
-    _stats: { rocks: objects.filter((o) => o.t === 'boulder').length,
-              piles: objects.filter((o) => o.t === 'food').length,
-              pockets: objects.filter((o) => o.t === 'reservoir').length,
-              // What the sweep above had to drop. Normally 0; a number here is the water-pocket /
-              // gallery interaction described there, and it is a tuning fact rather than a bug.
-              stranded: _stranded,
-              cover: bandCover.map((n, i) => +(n / (M.bandRows * cols)).toFixed(3)) },
   };
 }
 
+// --- chunk geometry ----------------------------------------------------------
+// Chunks are numbered from 0 at the left edge. The HOME chunk is the middle one, and the colony
+// roots at the middle of it.
+const mineChunkCount = (config) => 2 * (mineCfg(config).chunksEachWay | 0) + 1;
+const mineHomeChunk = (config) => (mineCfg(config).chunksEachWay | 0);
+function mineChunkRange(config, ci) {
+  const w = mineCfg(config).chunkCols | 0;
+  return { c0: ci * w, c1: ci * w + w - 1 };
+}
+const mineChunkOfCol = (config, col) =>
+  Math.max(0, Math.min(mineChunkCount(config) - 1, Math.floor(col / (mineCfg(config).chunkCols | 0))));
+
+// A chunk's own rng, from the run's seed and the chunk index. DETERMINISTIC and order-independent:
+// two runs on the same seed get the same chunk whether it was generated first or fifth, and a chunk
+// re-entered later is the one that was there before.
+function mineChunkRng(seed, ci) {
+  let h = Math.imul((seed >>> 0) ^ 0x9e3779b9, 0x85ebca6b);
+  h = Math.imul(h ^ (ci + 0x27d4eb2f), 0xc2b2ae35);
+  h ^= h >>> 15;
+  return makeRng((h >>> 0) || 1);
+}
+
 // -----------------------------------------------------------------------------
-// THREATS, seeded LATE (owner: worms + mould, appearing deeper)
+// ONE CHUNK
 // -----------------------------------------------------------------------------
-// Same trap as `seedLevelThreats` and the ants' opening trail: on a map whose rock is sprites,
-// `cell.rock` is stamped from each sprite's ALPHA during RENDER and is empty at build time — so
-// anything placed in `buildLevel` lands inside boulders, silently. This runs on the first frame
-// after `_fineSolid` exists, one-shot, and re-stamps the cloud field because a cloud has no
-// sprite: it IS `cell.trich`, and nothing else would project these until the first world step.
+// CARVE FIRST, THEN PLACE ROCK OUTSIDE THE CARVE — the same rule the fixed-width generator used, for
+// the same reason: the colony cannot dig through rock, so a boulder across the only route is an
+// unwinnable run with nothing on screen to explain it. What changed is how the carve guarantees
+// connectivity now that there is no whole-world pass to check it with:
 //
-// Band 1 seeds nothing on purpose. The player has no counterplay in the mine (Excrete and
-// Amputate belonged to the card/action layer), so these are hazards to route around, and the
-// first 42 m are where the fuel clock is learnt with nothing chasing you.
-function mineSeedThreats(state) {
-  if (!state || !state._needMineThreats) return false;
-  const sub = state.substrate;
-  if (!sub || !sub._fineSolid) return false;
-  state._needMineThreats = false;
-  const cfg = state.config, M = mineCfg(cfg), rng = state.rng, cs = sub.cellSize;
-  const bandsT = M.threatBands || [];
-  const worms = [], clouds = [];
-  // A spot clear of the DRAWN rock, not of `cell.rock`: `solidAtWorld` samples the fine mask, so
-  // this asks the question the player's eye asks. The margin keeps a creature off a rock face it
-  // would otherwise be standing inside.
-  const spotIn = (rLo, rHi) => {
-    for (let tries = 0; tries < 400; tries++) {
-      const r = rLo + Math.floor(rng() * Math.max(1, rHi - rLo));
-      const c = 2 + Math.floor(rng() * Math.max(1, sub.cols - 4));
-      const x = (c + 0.5) * cs, y = sub.surfaceY + (r + 0.5) * cs;
-      if (sub.solidAtWorld(x, y)) continue;
-      if (sub.rockNear(c, r, 1.6)) continue;
-      const cell = sub.cellAt(c, r);
-      if (!cell || cell.water || cell.maxNutrient > 0) continue;
-      return { x, y };
+//   · GALLERIES at rows every `galleryEvery`, spanning the chunk's FULL width. The rows are the same
+//     in every chunk, so a gallery meets its neighbours' at both seams and the world is laterally
+//     traversable end to end — with no chunk needing to know anything about any other.
+//   · SHAFTS running the full depth, which therefore cross every one of the chunk's own galleries.
+//
+// So any point connects to any other, and chunks can be generated in any order at any time. The
+// galleries wander ±2 rows through the middle and return to the exact gallery row at each seam, so
+// the structure does not read as a grid.
+function mineGenerateChunk(state, ci) {
+  const sub = state.substrate, cfg = state.config, M = mineCfg(cfg);
+  const cs = sub.cellSize, rows = sub.rows, cols = sub.cols;
+  const bands = M.bands;
+  const { c0, c1 } = mineChunkRange(cfg, ci);
+  if (c1 < 0 || c0 >= cols) return null;
+  const rng = mineChunkRng(state.mineSeed || state.seed || 1, ci);
+  const ri = (n) => Math.floor(rng() * n);
+  const rf = (a, b) => a + rng() * (b - a);
+  const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+  const home = sub.mineHomeCol != null ? sub.mineHomeCol : (cols >> 1);
+
+  // `open` and `taken` are CHUNK-LOCAL, indexed [row][col-c0]. Chunk-local because nothing outside
+  // needs them and because a world-sized pair of these per chunk is the cost this design exists to
+  // avoid; the seam rule above is what makes locality safe.
+  const W = c1 - c0 + 1;
+  const open = new Uint8Array(W * rows);
+  const taken = new Uint8Array(W * rows);
+  const at = (c, r) => r * W + (c - c0);
+  const inChunk = (c, r) => c >= c0 && c <= c1 && r >= 0 && r < rows;
+  const carve = (c, r, rad) => {
+    const k = Math.ceil(rad), r2 = rad * rad;
+    for (let dr = -k; dr <= k; dr++)
+      for (let dc = -k; dc <= k; dc++) {
+        if (dc * dc + dr * dr > r2) continue;
+        if (inChunk(c + dc, r + dr)) open[at(c + dc, r + dr)] = 1;
+      }
+  };
+  // `onRoute` is WIDER than the carve, and it is what keeps the rewards off the way through — a seam
+  // one cell off a corridor's edge is on the route for anything with a 25.5-unit segment.
+  const onRoute = new Uint8Array(W * rows);
+  const markRoute = (c, r, rad) => {
+    const k = Math.ceil(rad), r2 = rad * rad;
+    for (let dr = -k; dr <= k; dr++)
+      for (let dc = -k; dc <= k; dc++) {
+        if (dc * dc + dr * dr > r2) continue;
+        if (inChunk(c + dc, r + dr)) onRoute[at(c + dc, r + dr)] = 1;
+      }
+  };
+
+  // --- galleries: the lateral routes, at rows every chunk agrees on ----------
+  // The corridor radius is the BAND's, so the shaft tightens as it goes down — see the config.
+  const bandOfRow = (r) => Math.min(bands.length - 1, Math.max(0, Math.floor(r / M.bandRows)));
+  const radAt = (tbl, r) => {
+    const t = (tbl && tbl[Math.min(tbl.length - 1, bandOfRow(r))]) || [1.2, 1.6];
+    return rf(t[0], t[1]);
+  };
+  const every = Math.max(4, M.galleryEvery | 0);
+  const galleryRows = [];
+  for (let r = Math.max(2, (every / 2) | 0); r < rows - 1; r += every) galleryRows.push(r);
+  for (const gr of galleryRows) {
+    let r = gr;
+    for (let c = c0; c <= c1; c++) {
+      // Back to the agreed row at both seams — the wander is only allowed in the middle, or two
+      // neighbours' galleries meet at different rows and the world stops being connected.
+      const nearSeam = (c - c0) < 2 || (c1 - c) < 2;
+      if (nearSeam) r = gr;
+      else if (rng() < 0.22) r = clamp(r + (rng() < 0.5 ? -1 : 1), Math.max(1, gr - 2), Math.min(rows - 2, gr + 2));
+      carve(c, r, radAt(M.galleryRadius, r));
+      markRoute(c, r, 3.4);
+    }
+  }
+  // --- shafts: the vertical routes, crossing every gallery ------------------
+  const shafts = Math.max(1, M.shaftsPerChunk | 0);
+  for (let sI = 0; sI < shafts; sI++) {
+    const home0 = clamp(c0 + Math.round(W * (sI + 0.5) / shafts) + ri(5) - 2, c0 + 1, c1 - 1);
+    let col = home0;
+    let dir = 0, hold = 0;
+    for (let r = 0; r < rows; r++) {
+      carve(col, r, radAt(M.shaftRadius, r));
+      markRoute(col, r, 4.0);
+      if (hold-- <= 0) { dir = ri(3) - 1; hold = 2 + ri(4); }
+      // BOUNDED AROUND ITS HOME COLUMN. Unbounded (`clamp(col + dir, c0 + 1, c1 - 1)`) a ±1 walk
+      // over 168 rows drifts right across the chunk, so a "shaft" erodes most of its width and the
+      // solid slabs the rock needs never exist. ±4 keeps it a shaft that leans.
+      col = clamp(col + dir, Math.max(c0 + 1, home0 - 4), Math.min(c1 - 1, home0 + 4));
+    }
+  }
+  // --- the head, in the HOME chunk only -------------------------------------
+  // The colony roots at the surface and has to get underground; every other chunk reaches the
+  // surface band through the top gallery, which is enough (nothing starts up there).
+  if (c0 <= home && home <= c1) {
+    for (let r = 0; r < 3; r++)
+      for (let c = home - 5; c <= home + 5; c++) if (inChunk(c, r)) { open[at(c, r)] = 1; onRoute[at(c, r)] = 1; }
+    const firstGallery = galleryRows.length ? galleryRows[0] : 6;
+    for (let r = 0; r <= firstGallery; r++) { carve(home, r, 1.8); markRoute(home, r, 4.0); }
+  }
+
+  // --- the rewards, at the end of a SPUR ------------------------------------
+  // NOTHING WORTH HAVING IS ON THE WAY THROUGH. Measured on the fixed-width build: with the water
+  // pockets placed anywhere open, a straight dive reached 167 m of a 168 m shaft on a FIRST run and
+  // banked no ore at all. A reward in the corridor is a reward for using the corridor.
+  //
+  // A REWARD SITS AT THE END OF A DEAD-END SPUR, AND THE SPUR IS DUG FOR IT. "Open, and off the
+  // route" is the EMPTY SET here and always will be: every carve above is followed by a `markRoute`
+  // with a strictly wider brush (1.15-1.7 against 3.4; 1.3-2.0 against 4.0), so every open cell in
+  // the chunk is on the route by construction. Searching for one was the first version of this and
+  // it placed nothing at all — 0 ore seams and 0 water pockets on every chunk of every seed, with
+  // nothing on screen to say so, because a shaft with no reward in it looks exactly like a shaft.
+  // So the spur has to be CARVED, off a corridor, out past the route brush and no further, and it
+  // is deliberately not route-marked: the detour IS the cost of the ore.
+  // ≥5 is what clears the widest route brush (4.0); the SHIPPED floor is higher than that and the
+  // reason is the fuel economy rather than the geometry — see `spurCells` in CONFIG.
+  const SPUR_MIN = Math.max(5, ((M.spurCells || [8, 12])[0]) | 0);
+  const SPUR_MAX = Math.max(SPUR_MIN + 1, ((M.spurCells || [8, 12])[1]) | 0);
+  const routeNear = (c, r, reach) => {
+    for (let k = 1; k <= reach; k++)
+      for (let dr = -k; dr <= k; dr++)
+        for (let dc = -k; dc <= k; dc++) {
+          if (Math.max(Math.abs(dr), Math.abs(dc)) !== k) continue;      // the ring, not the disc
+          const cc = c + dc, rr = r + dr;
+          if (inChunk(cc, rr) && open[at(cc, rr)] && onRoute[at(cc, rr)]) return [cc, rr];
+        }
+    return null;
+  };
+  // Digs from `from` to `to`, carving and NOT marking route, so everything it opens is off-route.
+  const carveSpur = (from, to, rad) => {
+    const steps = Math.max(1, Math.abs(to[0] - from[0]) + Math.abs(to[1] - from[1]));
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      carve(Math.round(from[0] + (to[0] - from[0]) * t), Math.round(from[1] + (to[1] - from[1]) * t), rad);
+    }
+  };
+  const offRouteSpot = (rLo, rHi) => {
+    for (let tries = 0; tries < 500; tries++) {
+      const r = rLo + ri(Math.max(1, rHi - rLo)), c = c0 + 2 + ri(Math.max(1, W - 4));
+      if (open[at(c, r)] || onRoute[at(c, r)]) continue;   // must be untouched AND off the route
+      const from = routeNear(c, r, SPUR_MAX);
+      if (!from) continue;
+      const d = Math.abs(c - from[0]) + Math.abs(r - from[1]);
+      if (d < SPUR_MIN) continue;                          // too close to the corridor to be a detour
+      carveSpur(from, [c, r], 1.25);
+      return [c, r];
     }
     return null;
   };
-  for (let b = 0; b < M.bands.length; b++) {
+  // `placed` is the chunk's own record, kept on `state.mineChunks[ci]` — the map's diagnostics, and
+  // the only way to ask why a chunk came out the way it did once it is on screen. `bbox` / `target`
+  // are the rock loop's own arithmetic: a chunk that failed to reach its band targets and one that
+  // reached them and still looks thin are different bugs, and the drawn mask cannot tell them apart.
+  const placed = { rocks: 0, ore: 0, water: 0, worms: 0, clouds: 0,
+                   cells: 0, open: 0, bbox: null, target: null, closed: null };
+  const spots = [];
+  const orePer = M.orePerPile;
+  const N = cfg.substrate.foodCellNutrient || 50;
+  for (let b = 0; b < bands.length; b++) {
+    const rLo = b * M.bandRows + 2, rHi = (b + 1) * M.bandRows - 2;
+    for (let i = 0; i < (M.pilesPerBand | 0); i++) {
+      const spot = offRouteSpot(rLo, rHi);
+      if (!spot) continue;
+      carve(spot[0], spot[1], 2.2);                 // room to work around the seam
+      spots.push({ kind: 'ore', c: spot[0], r: spot[1], band: b });
+    }
+    for (let i = 0; i < (M.reservoirsPerBand | 0); i++) {
+      const spot = offRouteSpot(rLo + 1, rHi - 1);
+      if (!spot) continue;
+      // A pocket's cells are IMPASSABLE (stampReservoir sets rock + water), so it is carved a ROOM
+      // rather than a hole: the colony has to be able to reach round it and touch the water face.
+      carve(spot[0], spot[1], 2.8);
+      spots.push({ kind: 'water', c: spot[0], r: spot[1], rad: 1 });
+    }
+  }
+
+  // --- the connectivity sweep, chunk-local ---------------------------------
+  // Carving guarantees the ROUTES but not the rewards: a water pocket carved across the neck of
+  // something can sever what is beyond it, which cost an unreachable ore seam on the fixed-width
+  // build (19 of 20 on one seed). Flood the carve MINUS the water from the galleries at both seams —
+  // the cells every neighbour is guaranteed to meet — and drop anything stranded. Dropping rather
+  // than moving: a reward you can see and cannot reach is worse than one that is not there.
+  {
+    const water = new Uint8Array(W * rows);
+    for (const sp of spots) {
+      if (sp.kind !== 'water') continue;
+      const k = Math.ceil(sp.rad), r2 = sp.rad * sp.rad;
+      for (let dr = -k; dr <= k; dr++)
+        for (let dc = -k; dc <= k; dc++) {
+          if (dc * dc + dr * dr > r2) continue;
+          if (inChunk(sp.c + dc, sp.r + dr)) water[at(sp.c + dc, sp.r + dr)] = 1;
+        }
+    }
+    const seen = new Uint8Array(W * rows), stack = [];
+    const push = (c, r) => { if (inChunk(c, r) && open[at(c, r)] && !water[at(c, r)] && !seen[at(c, r)]) { seen[at(c, r)] = 1; stack.push([c, r]); } };
+    for (const gr of galleryRows) { push(c0, gr); push(c1, gr); }
+    if (c0 <= home && home <= c1) push(home, 0);
+    while (stack.length) {
+      const [c, r] = stack.pop();
+      push(c + 1, r); push(c - 1, r); push(c, r + 1); push(c, r - 1);
+    }
+    const reach = (sp) => {
+      if (sp.kind === 'ore') return !!seen[at(sp.c, sp.r)];
+      for (let dr = -sp.rad - 2; dr <= sp.rad + 2; dr++)
+        for (let dc = -sp.rad - 2; dc <= sp.rad + 2; dc++)
+          if (inChunk(sp.c + dc, sp.r + dr) && seen[at(sp.c + dc, sp.r + dr)]) return true;
+      return false;
+    };
+    for (let i = spots.length - 1; i >= 0; i--) if (!reach(spots[i])) spots.splice(i, 1);
+  }
+
+  // --- stamp the rewards into the LIVE substrate ---------------------------
+  for (const sp of spots) {
+    if (sp.kind === 'ore') {
+      stampFood(sub, { kind: sp.band >= 2 ? 'cache-engine' : 'cache',
+                       x: (sp.c + 0.5) * cs, y: sub.surfaceY + (sp.r + 0.5) * cs, r: 1,
+                       energy: orePer[Math.min(orePer.length - 1, sp.band)] }, N);
+      placed.ore++;
+    } else {
+      stampReservoir(sub, { x: (sp.c + 0.5) * cs, y: sub.surfaceY + (sp.r + 0.5) * cs, r: sp.rad * cs });
+      placed.water++;
+    }
+  }
+
+  // --- rock, everywhere the carve is not -----------------------------------
+  // `OVERLAP` is how much ALREADY-COVERED ground a new sprite may sit on, and it wants to be high:
+  // a boulder's alpha fills ~35% of its box, so filling a slab means OVERLAPPING boxes whose alphas
+  // union — spacing them out leaves the soil showing between them, which is the look this had.
+  const OVERLAP = 0.88;
+  const libFor = (b) => (MINE_ROCKS[bands[b].theme] || []);
+  const bandCover = new Array(bands.length).fill(0);
+  // `fill` IS A SHARE OF THE CLOSED GROUND, NOT OF THE BAND. Against the whole band, three of the
+  // four targets were simply unreachable — the carve had already opened more of the band than the
+  // target left for rock (band 3 asked for 645 cells of ground with 474 in existence), so the loop
+  // ran to the end of its candidates every time and the number decided nothing at all.
+  const bandClosed = new Array(bands.length).fill(0);
+  for (let r = 0; r < rows; r++)
+    for (let c = c0; c <= c1; c++)
+      if (!open[at(c, r)]) bandClosed[Math.min(bands.length - 1, Math.floor(r / M.bandRows))]++;
+  const bandTarget = bands.map((b, i) => b.fill * bandClosed[i]);
+  const contentBottom = sub.worldHeight;
+  const libAtRow = (r) => {
+    const b = Math.min(bands.length - 1, Math.floor(r / M.bandRows));
+    const t = (r - b * M.bandRows) / M.bandRows;
+    if (b > 0 && t < M.blendFrac && rng() > t / M.blendFrac) return { b, lib: libFor(b - 1) };
+    return { b, lib: libFor(b) };
+  };
+  const x0World = c0 * cs, x1World = (c1 + 1) * cs;
+  // HOW MUCH SOLID ROOM IS THERE HERE? The extent of the unopened SLAB the cell sits in, measured
+  // along each axis from the cell and returned as the slab's own bounds — not as half-extents about
+  // the cell. THAT DISTINCTION IS MOST OF THE DENSITY, and it took a measurement to see: a candidate
+  // one cell in from a corridor has a half-extent of 1 however wide the slab beside it is, and the
+  // candidates are every second column, so in an 8-cell slab three of the four got a 3-cell budget
+  // and one got the real one.
+  //
+  // Sizing to the room at all is the difference between a mine and a cave, for a reason that is pure
+  // arithmetic: a sprite is rejected unless EVERY cell of its bounding box is unopened, and the carve
+  // leaves ~40% of a chunk open — so a 4x4 box clears with probability 0.6^16 ≈ 3%. Sweeping a
+  // lattice and hoping was the first version and it measured **12% solid against band targets of
+  // 38-64%**, i.e. a shaft you can swim through with the ore lying in it.
+  const LIM = 8;
+  const slabAt = (c, r) => {
+    const free = (cc, rr) => inChunk(cc, rr) && !open[at(cc, rr)];
+    if (!free(c, r)) return null;
+    let l = 0, rt = 0, u = 0, d = 0;
+    while (l < LIM && free(c - l - 1, r)) l++;
+    while (rt < LIM && free(c + rt + 1, r)) rt++;
+    while (u < LIM && free(c, r - u - 1)) u++;
+    while (d < LIM && free(c, r + d + 1)) d++;
+    return { l, rt, u, d };
+  };
+  // EVERY CELL IS A CANDIDATE, not every second one. With a high overlap allowance the cost of a
+  // dense lattice is bounded by the band targets rather than by the sweep, and a stride of 2 left
+  // alpha gaps a stride of 1 fills.
+  for (let r = 1; r < rows; r += 1) {
+    for (let c = c0 + 1; c <= c1; c += 1) {
+      const { b, lib } = libAtRow(r);
+      if (!lib.length || bandCover[b] >= bandTarget[b]) continue;
+      const slab = slabAt(c, r);
+      if (!slab) continue;
+      // A SPRITE MUST FIT INSIDE ITS OWN CHUNK. Not tidiness: a sprite reaching into the neighbour
+      // would be collided there before that chunk was carved, so a corridor could be walled off by a
+      // rock belonging to a chunk generated earlier — the one failure this whole design exists to
+      // make impossible.
+      const wLo = Math.max(x0World, (c - slab.l) * cs), wHi = Math.min(x1World, (c + slab.rt + 1) * cs);
+      // THE SPRITE'S CENTRE STAYS IN THE BAND ITS LIBRARY CAME FROM. `libAtRow` picks the rock by the
+      // candidate's row and the placement is then free within the slab — up to 8 cells — so without
+      // this a candidate near a band seam lands the other side of it and the map carries rock from a
+      // band BELOW, which is the one thing the blend rule forbids (the deeper type STARTS appearing as
+      // you go down; it never leaks upward). Measured as 2 anthracite sprites in band 1.
+      const bandTop = sub.surfaceY + b * M.bandRows * cs;
+      const bandBot = sub.surfaceY + Math.min(rows, (b + 1) * M.bandRows) * cs;
+      const hLo = Math.max(sub.surfaceY + cs * 0.5, sub.surfaceY + (r - slab.u) * cs, bandTop);
+      const hHi = Math.min(contentBottom, sub.surfaceY + (r + slab.d + 1) * cs, bandBot);
+      const maxW = wHi - wLo, maxH = hHi - hLo;
+      if (maxW < cs || maxH < cs) continue;
+      let done = false;
+      for (let attempt = 0; attempt < 5 && !done; attempt++) {
+        const src = lib[ri(lib.length)];
+        // The band's own scale, then capped by the slab — so the owner's sizes are what you get
+        // wherever there is space for them, and a tight slab gets a smaller piece rather than none.
+        // The shrink per attempt is what answers a slab whose two axis lines are clear and whose
+        // CORNERS are not (the bbox test below is the only thing that knows).
+        const sc = Math.min(rf(bands[b].scale[0], bands[b].scale[1]), maxW / src.w, maxH / src.h)
+                 * (1 - attempt * 0.17);
+        const w = src.w * sc, h = src.h * sc;
+        if (w < cs * 0.9 || h < cs * 0.9) continue;
+        // Anywhere in the slab that fits, so the rock does not sit on the candidate lattice.
+        const x = rf(wLo + w / 2, wHi - w / 2), y = rf(hLo + h / 2, hHi - h / 2);
+        if (x - w / 2 < x0World || x + w / 2 > x1World) continue;
+        if (y - h / 2 < sub.surfaceY + cs * 0.5 || y + h / 2 > contentBottom) continue;
+        const bc0 = Math.floor((x - w / 2) / cs), bc1 = Math.floor((x + w / 2) / cs);
+        const br0 = Math.floor((y - h / 2 - sub.surfaceY) / cs), br1 = Math.floor((y + h / 2 - sub.surfaceY) / cs);
+        let clear = true, cells = 0, already = 0;
+        for (let rr = br0; rr <= br1 && clear; rr++)
+          for (let cc = bc0; cc <= bc1; cc++) {
+            if (!inChunk(cc, rr)) { clear = false; break; }
+            if (open[at(cc, rr)]) { clear = false; break; }
+            cells++; if (taken[at(cc, rr)]) already++;
+          }
+        if (!clear || !cells || already / cells > OVERLAP) continue;
+        for (let rr = br0; rr <= br1; rr++)
+          for (let cc = bc0; cc <= bc1; cc++) if (!taken[at(cc, rr)]) { taken[at(cc, rr)] = 1; bandCover[b]++; }
+        sub.levelSprites.push({ key: src.k, style: 'boulder', x: +x.toFixed(1), y: +y.toFixed(1),
+                                w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
+        placed.rocks++;
+        done = true;
+      }
+    }
+  }
+  for (let i = 0; i < open.length; i++) if (open[i]) placed.open++;
+  placed.cells = W * rows;
+  placed.bbox = bandCover.slice();
+  placed.target = bandTarget.map((t) => Math.round(t));
+  placed.closed = bandClosed.slice();
+
+  // --- creatures, off the same table, per band ------------------------------
+  // Placed HERE rather than deferred to a frame after the mask lands (which is what the fixed-width
+  // build had to do): a chunk is generated during play, so `solidAtWorld` already answers, and the
+  // spots can be tested against the DRAWN rock straight away — except for this chunk's own sprites,
+  // which have not been stamped yet, so the chunk-local `taken` grid stands in for them.
+  const bandsT = M.threatBands || [];
+  const spotFor = (rLo, rHi) => {
+    for (let tries = 0; tries < 300; tries++) {
+      const r = rLo + Math.floor(rng() * Math.max(1, rHi - rLo));
+      const c = c0 + 1 + Math.floor(rng() * Math.max(1, W - 2));
+      if (!open[at(c, r)] || taken[at(c, r)]) continue;
+      const cell = sub.cellAt(c, r);
+      if (!cell || cell.rock || cell.water || cell.maxNutrient > 0) continue;
+      if (sub.rockNear(c, r, 1.6)) continue;
+      return { x: (c + 0.5) * cs, y: sub.surfaceY + (r + 0.5) * cs };
+    }
+    return null;
+  };
+  const worms = [], clouds = [];
+  for (let b = 0; b < bands.length; b++) {
     const t = bandsT[Math.min(bandsT.length - 1, b)] || { worms: 0, clouds: 0 };
     const rLo = b * M.bandRows + 2, rHi = (b + 1) * M.bandRows - 2;
-    for (let i = 0; i < (t.worms | 0); i++) { const s = spotIn(rLo, rHi); if (s) worms.push(s); }
-    for (let i = 0; i < (t.clouds | 0); i++) { const s = spotIn(rLo, rHi); if (s) clouds.push({ x: s.x, y: s.y, r: 0 }); }
+    for (let i = 0; i < (t.worms | 0); i++) { const sp = spotFor(rLo, rHi); if (sp) worms.push(sp); }
+    for (let i = 0; i < (t.clouds | 0); i++) { const sp = spotFor(rLo, rHi); if (sp) clouds.push({ x: sp.x, y: sp.y, r: 0 }); }
   }
-  state.nematodes = state.nematodes.concat(placeNematodes(rng, worms));
-  state.clouds = state.clouds.concat(placeClouds(sub, clouds, cfg));
-  stampCloudField(sub, state.clouds);
-  return true;
+  // THE SPOTS ARE RECORDED, because where a creature IS a few seconds later is not where it was
+  // placed and only the second one is this generator's business. A worm crawls and a cloud creeps, so
+  // an assertion made against live positions is measuring their movement rules; `mine-check` reads
+  // these instead and asks the question that belongs here — did anything get placed inside a boulder?
+  placed.spots = worms.concat(clouds.map((c) => ({ x: c.x, y: c.y })));
+  if (worms.length) { state.nematodes = state.nematodes.concat(placeNematodes(rng, worms)); placed.worms = worms.length; }
+  if (clouds.length) {
+    state.clouds = state.clouds.concat(placeClouds(sub, clouds, cfg));
+    stampCloudField(sub, state.clouds);   // a cloud has no sprite — it IS cell.trich
+    placed.clouds = clouds.length;
+  }
+  return placed;
 }
+
+// -----------------------------------------------------------------------------
+// WHICH CHUNKS EXIST YET — called every frame
+// -----------------------------------------------------------------------------
+// Generates any chunk within `preloadCols` of the colony's horizontal extent, plus the home chunk
+// on the first pass. Ungenerated ground is bare SOIL rather than solid rock, so the one thing this
+// must never do is let the player see the frontier — a dig covers ~4 columns and this runs per
+// frame, so one chunk of lookahead is many digs of slack.
+//
+// One-shot per chunk (`state.mineChunks`), so this is a couple of arithmetic comparisons on every
+// frame that generates nothing.
+function mineEnsureChunks(state) {
+  const sub = state.substrate, cfg = state.config;
+  if (!sub || !sub.mine) return 0;
+  const M = mineCfg(cfg);
+  const done = (state.mineChunks = state.mineChunks || {});
+  const total = mineChunkCount(cfg);
+  const want = new Set([mineHomeChunk(cfg)]);
+  const net = state.active;
+  if (net && net.nodes.length) {
+    let lo = Infinity, hi = -Infinity;
+    for (const n of net.nodes) { if (n.x < lo) lo = n.x; if (n.x > hi) hi = n.x; }
+    const pad = (M.preloadCols | 0) * sub.cellSize;
+    const cLo = sub.colAtX(lo - pad), cHi = sub.colAtX(hi + pad);
+    for (let ci = mineChunkOfCol(cfg, cLo); ci <= mineChunkOfCol(cfg, cHi); ci++) want.add(ci);
+  }
+  let made = 0;
+  for (const ci of want) {
+    if (ci < 0 || ci >= total || done[ci]) continue;
+    done[ci] = mineGenerateChunk(state, ci) || true;
+    made++;
+    // NEW ROCK HAS TO BE COLLIDED, AND IT MUST NOT COST A FULL RE-STAMP. `solidifyRock` rebuilds
+    // both masks from EVERY sprite in the world — at a few thousand sprites that is a visible hitch
+    // on every chunk, i.e. every few digs, which is exactly the frame the player is watching. So a
+    // chunk records the range of ground it touched and main.js stamps only the new sprites into the
+    // masks already published (`solidifyMineRock`). The COLUMN range, not the sprite watermark
+    // alone, because a chunk also stamps water pockets, whose cells the fine mask has to be told
+    // about and which lie nowhere near any new sprite's bounding box.
+    const { c0, c1 } = mineChunkRange(cfg, ci);
+    sub._mineDirtyC0 = Math.min(sub._mineDirtyC0 != null ? sub._mineDirtyC0 : c0, c0);
+    sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : c1, c1);
+  }
+  return made;
+}
+
+
 
 // -----------------------------------------------------------------------------
 // THE ECONOMY: ore pays Phosphorus, water pockets pay fuel
@@ -21536,7 +21726,8 @@ function mineEndRun(state) {
 }
 
   return { MINE_ROCKS, mineLevelDef, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
-           mineDepthReached, mineSeedThreats, mineOreRewards, mineWaterPickups, mineGrowCost,
+           mineDepthReached, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
+           mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
            mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
            OUT_OF_FUEL_GRACE_MS };
 })();
@@ -21807,13 +21998,24 @@ function resolveIncome(net, substrate, config) {
   // runs BEFORE infectNetwork within the tick, so on the step the rot lands the release pass has
   // not happened yet and a claim the colony no longer holds would still be worth a turn's income.
   const cover = net.cleanCover(substrate);
-  for (let i = 0; i < substrate.cells.length; i++) {
+  const take1 = (i) => {
     const cell = substrate.cells[i];
-    if (cell.colonized <= 0 || cell.nutrient <= 0 || cell.hazard) continue;
-    if (!cover.covers(i)) continue;
+    if (!cell || cell.colonized <= 0 || cell.nutrient <= 0 || cell.hazard) return;
+    if (!cover.covers(i)) return;
     const take = Math.min(cell.nutrient, e.passiveIncomeRate) * cell.colonized;
     cell.nutrient -= take;
     energyGained += take * (cell.energyPerNutrient != null ? cell.energyPerNutrient : e.incomeEfficiency);
+  };
+  // THE MINE VISITS ITS ORE SEAMS, NOT ITS 85,000 CELLS. This loop is O(world) twice a second, and
+  // the mine's world is a shaft 504 columns wide — most of which is ground no colony will ever see.
+  // Every scrap of nutrient in it is stamped by `stampFood` from `mineGenerateChunk`, which registers
+  // the pile, so `foodPiles` is the COMPLETE set of cells that can ever have nutrient: there are no
+  // cards in the mine, so no player-dropped cache can add one behind this rule's back. Measured on a
+  // fresh shaft, 4 seams in: 85k cell visits a tick becomes 36.
+  if (substrate.mine && substrate.foodPiles) {
+    for (const pile of substrate.foodPiles) for (const idx of pile.cells) take1(idx);
+  } else {
+    for (let i = 0; i < substrate.cells.length; i++) take1(i);
   }
   const income = energyGained + e.baselineTrickle;
   net.energy += income;
@@ -30653,7 +30855,8 @@ const __m_main = (function () {
   const { CONFIG, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, isRealtime, setMode, setGame, isCampaignGame, isMineGame, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState, seedLevelThreats } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
-  const { mineLevelDef, mineWorldBox, mineBandAt, mineDepthM, mineDepthReached, mineSeedThreats,
+  const { mineLevelDef, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
+          mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun } = __m_engine_mine;
   const { levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
@@ -31129,6 +31332,11 @@ function start(seed) {
   if (def && def.assetsFromAll) for (const f of def.assetsFromAll) loadLevelAssets(f);
   else if (def && (def.assetsFrom || def.id)) loadLevelAssets(def.assetsFrom || def.id);
   begin(def ? createLevelState(cfg, seed, def) : createState(cfg, seed));
+  // THE HOME CHUNK IS GENERATED BEFORE THE FIRST FRAME, not on it. `mineEnsureChunks` is driven by
+  // the frame loop from here on, but the frame the map is revealed on is the one the player looks at
+  // hardest — arriving on bare soil and watching the rock appear is the whole cost of streaming, and
+  // it is avoidable for the one chunk that is always wanted.
+  if (state && state.substrate && state.substrate.mine) mineEnsureChunks(state);
 }
 // A CAMPAIGN level is a fixed map: its seed comes from the ladder, so level 3 is the same shape
 // every time — including after a death, which is the point of a campaign you can learn.
@@ -33854,7 +34062,37 @@ function begin(newState) {
       isRun: () => mineRun(),
       seed: () => mineSeed,
       def: () => { const d = state && state.levelDef; return d && d.mine ? d : null; },
-      stats: () => { const d = state && state.levelDef; return (d && d._stats) || null; },
+      // THE STATS ARE NOW AN AGGREGATE OVER THE CHUNKS THAT EXIST, not a number the level def
+      // carried: the def places nothing at all any more (see mineGenerateChunk), so a `_stats` block
+      // on it would be a record of an empty world. `cover` is bbox coverage as a share of each band's
+      // CLOSED ground, which is what the generator's own target is written against.
+      stats: () => {
+        const sub = state && state.substrate, cs = state && state.mineChunks;
+        if (!sub || !sub.mine || !cs) return null;
+        const cis = Object.keys(cs).map(Number).filter((n) => cs[n] && cs[n].bbox);
+        if (!cis.length) return null;
+        const nb = mineBands(state.config).length;
+        const bbox = new Array(nb).fill(0), target = new Array(nb).fill(0), closed = new Array(nb).fill(0);
+        let rocks = 0, ore = 0, water = 0, open = 0, cells = 0;
+        for (const ci of cis) {
+          const p = cs[ci];
+          rocks += p.rocks; ore += p.ore; water += p.water; open += p.open; cells += p.cells;
+          for (let b = 0; b < nb; b++) {
+            bbox[b] += p.bbox[b] || 0; target[b] += p.target[b] || 0; closed[b] += p.closed[b] || 0;
+          }
+        }
+        return { chunks: cis.length, rocks, piles: (sub.foodPiles || []).length,
+                 pockets: (sub.reservoirs || []).length, ore, water,
+                 openFrac: +(open / Math.max(1, cells)).toFixed(3),
+                 // bbox coverage as a share of the CLOSED ground — what `fill` is written against.
+                 cover: bbox.map((v, b) => +(v / Math.max(1, closed[b])).toFixed(3)),
+                 // ...and how much of the band's own target it actually reached.
+                 hit: bbox.map((v, b) => +(v / Math.max(1, target[b])).toFixed(3)) };
+      },
+      chunks: () => Object.keys((state && state.mineChunks) || {}).map(Number).sort((a, b) => a - b),
+      chunkOf: (x) => mineChunkOfCol(state.config, state.substrate.colAtX(x)),
+      chunkCount: () => mineChunkCount(state ? state.config : CONFIG),
+      homeChunk: () => mineHomeChunk(state ? state.config : CONFIG),
       depth: () => mineDepthReached(state),
       band: (m) => mineBandAt(state ? state.config : CONFIG, m),
       bands: () => (state ? state.config : CONFIG).mine.bands.map((b) => b.theme),
@@ -35387,9 +35625,15 @@ function advanceSim(time) {
   // plans its road correctly first time — the replan above is what covers the AUTHORED nests
   // that were placed before it existed, and simply finds nothing to do for these.
   if (state && state._needLevelThreats) seedLevelThreats(state);
-  // THE MINE'S CREATURES, same frame and same reason (mineSeedThreats). Its own flag rather than
-  // the one above, because the two seed from different tables and a run must never get both.
-  if (state && state._needMineThreats) mineSeedThreats(state);
+  // THE MINE STREAMS ITS WORLD IN, and this is where. `mineEnsureChunks` generates any chunk the
+  // colony has come within `preloadCols` of and returns 0 on every other frame; `solidifyMineRock`
+  // then collides only the sprites that arrived, into the masks already published. Both are cheap
+  // no-ops the vast majority of frames, and BOTH have to run here rather than on a grow: a chunk is
+  // wanted by where the colony IS, and a worm dragging the extent sideways counts too.
+  if (state && state.substrate && state.substrate.mine) {
+    mineEnsureChunks(state);
+    solidifyMineRock();
+  }
   if (_lastSimTime < 0) _lastSimTime = time;
   const dt = time - _lastSimTime;
   _lastSimTime = time;
@@ -37392,6 +37636,67 @@ function solidifyRock() {
   // Publish the FINE growth-collision mask (read by substrate.solidAtWorld / network _placeOk).
   sub._fineSolid = fine; sub._fineSize = fSize; sub._fineCols = fCols; sub._fineRows = fRows;
   sub._rockSolidified = true;
+  // THE COARSE COVER IS KEPT, for the MINE only. This function is the whole-world pass; the mine
+  // gets new sprites during play and `solidifyMineRock` adds them incrementally, which it can only
+  // do if the array they accumulate into is still here — reconciling `cell.rock` needs the union of
+  // every sprite, not just the new one. It is `cols * rows` bytes (~85 KB at the mine's size) and is
+  // only retained where something will read it, so no other map pays for it.
+  sub._coarseCover = sub.mine ? cover : null;
+  sub._solidFrom = (sub.levelSprites || []).length;
+}
+
+// THE MINE'S INCREMENTAL STAMP — see `mineEnsureChunks` for why a full re-stamp is not an option.
+// Adds the sprites appended since the last pass into the masks `solidifyRock` published, then
+// reconciles `cell.rock` and the fine mask's water over the COLUMN RANGE the new chunks touched.
+// The range, not each sprite's box, because a chunk also stamps water pockets and ore seams, whose
+// cells the masks have to be told about and which lie nowhere near a new sprite.
+function solidifyMineRock() {
+  const sub = state.substrate;
+  if (!sub || !sub.mine || !sub._rockSolidified || !sub._coarseCover || !sub._fineSolid) return;
+  const sprites = sub.levelSprites || [];
+  let from = sub._solidFrom | 0;
+  if (from >= sprites.length && sub._mineDirtyC0 == null) return;
+  const cs = sub.cellSize, cover = sub._coarseCover, fine = sub._fineSolid;
+  const fSize = sub._fineSize, fCols = sub._fineCols, fRows = sub._fineRows;
+  // STOP AT THE FIRST SPRITE WHOSE ART HAS NOT DECODED, rather than skipping it. The watermark is a
+  // single index, so skipping one would strand it uncollided for the rest of the run — an invisible
+  // gap in a wall the player can see, which is the worst defect this file can have. A chunk's
+  // sprites all come from the four band folders, loaded together, so the wait is a frame at most.
+  while (from < sprites.length) {
+    const s = sprites[from], img = asset(s.key);
+    if (!img) break;
+    markCoverGrid(sub, img, s.x, s.y, s.w, s.h, s.rot, cover, sub.cols, sub.rows, cs);
+    markCoverGrid(sub, img, s.x, s.y, s.w, s.h, s.rot, fine, fCols, fRows, fSize);
+    from++;
+  }
+  sub._solidFrom = from;
+  if (sub._mineDirtyC0 == null) return;
+  // Only reconcile once every sprite in the dirty range is in — otherwise a cell whose only cover is
+  // a sprite still loading would be cleared to soil and never flagged again.
+  if (from < sprites.length) return;
+  const c0 = Math.max(0, sub._mineDirtyC0 | 0), c1 = Math.min(sub.cols - 1, sub._mineDirtyC1 | 0);
+  sub._mineDirtyC0 = sub._mineDirtyC1 = null;
+  const K = 4;
+  for (let r = 0; r < sub.rows; r++) {
+    for (let c = c0; c <= c1; c++) {
+      const i = r * sub.cols + c, cell = sub.cells[i];
+      if (!cell) continue;
+      // Water first, exactly as the whole-world pass orders it: a pocket is drawn as water and
+      // stays SOLID, and its cells are baked into the fine mask (which the sprite loop above has
+      // no reason to have touched).
+      if (cell.water) {
+        for (let a = 0; a < K; a++) for (let b = 0; b < K; b++) {
+          const fc = c * K + b, fr = r * K + a;
+          if (fc < fCols && fr < fRows) fine[fr * fCols + fc] = 1;
+        }
+        continue;
+      }
+      const covered = cover[i] === 1;
+      cell.rock = covered;
+      cell.rockFill = false;      // nothing here was flagged by a procedural pass — the mine places none
+      if (covered) cell.hazard = false;
+    }
+  }
 }
 
 // HAND-AUTHORED rock sprites — every boulder / formation the level editor placed,

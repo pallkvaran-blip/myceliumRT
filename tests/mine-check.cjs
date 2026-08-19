@@ -111,14 +111,28 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       soilCols: sub.surface.filter((c) => c.soil).length,
       channelX0: sub.channelX0, channelX1: sub.channelX1,
       stats: g.mine.stats(), seed: g.mine.seed(),
+      chunks: g.mine.chunks(), chunkCount: g.mine.chunkCount(), homeChunk: g.mine.homeChunk(),
+      chunkCols: M.chunkCols, preloadCols: M.preloadCols,
     };
   });
   ok('the mine is real time', shaft.mode === 'realtime' && shaft.game === 'mine', `${shaft.game}/${shaft.mode}`);
   // THE ONE SWITCH THE WHOLE CARD LAYER READS. Everything else about "no cards" follows from it —
   // main.js `cardsCampaign`, the HUD's `cardsOn`, the draft, the deck, the engines.
   ok('the card layer is off', shaft.cards === false, String(shaft.cards));
-  ok('the shaft is CONFIG.mine\'s size', shaft.cols === 48 && shaft.rows === shaft.bandRows * shaft.bands,
-     `${shaft.cols}x${shaft.rows} = ${shaft.bands} bands of ${shaft.bandRows}`);
+  // THE GRID IS ALLOCATED WHOLE AND THE CONTENT STREAMS IN. `cols` is every chunk, because a flat
+  // row-major cell array cannot grow leftward without renumbering every index in the engine — what
+  // the owner asked for ("generate as I go") is the CONTENT, which is what they see.
+  ok('the shaft is CONFIG.mine\'s size', shaft.cols === shaft.chunkCols * shaft.chunkCount
+     && shaft.rows === shaft.bandRows * shaft.bands,
+     `${shaft.cols}x${shaft.rows} = ${shaft.chunkCount} chunks of ${shaft.chunkCols}, ${shaft.bands} bands of ${shaft.bandRows}`);
+  // ...AND ONLY A FEW CHUNKS EXIST AT THE START. Generating all 21 up front would place ~13,000
+  // sprites for a run that visits four, which is the cost this whole design is here to avoid — so a
+  // fresh boot holding every chunk is a silent regression to that, and reads as nothing but a
+  // slow boot.
+  ok('only the chunks near the colony are generated', shaft.chunks.length >= 1 && shaft.chunks.length <= 5,
+     `${shaft.chunks.length} of ${shaft.chunkCount}: [${shaft.chunks}]`);
+  ok('...and the home chunk is one of them', shaft.chunks.includes(shaft.homeChunk),
+     `home ${shaft.homeChunk}, have [${shaft.chunks}]`);
   // THE COLONY STARTS IN THE MIDDLE (owner: "The green hill starts in the middle of the map"), and
   // the assertion is against the shaft's own centre rather than a column number, so widening the
   // shaft cannot silently move the start to one side.
@@ -138,7 +152,18 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   ok('the core is the bottom of the shaft', Math.abs(shaft.coreY - shaft.height) < 1 && Math.abs(shaft.growFloorY - shaft.coreY) < 1,
      `core ${shaft.coreY} floor ${shaft.growFloorY} content ${shaft.height}`);
   ok('the generator laid rock, ore and water', shaft.stats.rocks > 150 && shaft.stats.piles > 10 && shaft.stats.pockets > 6,
-     `${shaft.stats.rocks} rocks, ${shaft.stats.piles} ore, ${shaft.stats.pockets} pockets`);
+     `${shaft.stats.rocks} rocks, ${shaft.stats.piles} ore, ${shaft.stats.pockets} pockets over ${shaft.stats.chunks} chunk(s)`);
+  // THE CARVE IS THE DENSITY CEILING, and this is the assertion that says so. A boulder's alpha
+  // fills ~35% of its bounding box, so the most solid ground a chunk can ever show is roughly
+  // (1 - open) x 0.35 — measured at 53% open the ceiling was 16% and the shaft was swimmable at 12%,
+  // with the rock loop already covering 72% of everything left. No placement change can beat this
+  // number, so it is the one to look at first if the mine ever reads too open again.
+  ok('the carve leaves room for rock', shaft.stats.openFrac < 0.45, `${(shaft.stats.openFrac * 100).toFixed(1)}% open`);
+  // ...and the rock loop reached the band targets it was given. Separate from the mask assertions
+  // below because they are different failures: a chunk that missed its targets and a chunk that hit
+  // them and still looks thin want opposite fixes, and the drawn mask cannot tell them apart.
+  ok('...and the rock loop met its band targets', shaft.stats.hit.every((h) => h > 0.85),
+     shaft.stats.hit.join(' / '));
   // Deeper bands run denser (CONFIG.mine.bands[].fill), which is what makes the descent close in.
   // Asserted as a TREND with slack rather than as monotonic: a band's target is a target, and the
   // carve has priority — a seed whose channels wander through one band legitimately leaves it less
@@ -148,13 +173,13 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // ...and every band lands in the TRACED CAMPAIGN MAPS' own range of solid ground. The trend above
   // is a design intention the carve can legitimately override on one seed; this is the bound that
   // actually decides whether a band is playable.
-  ok('...and every band is in the traced maps\' range',
-     shaft.stats.cover.every((c) => c > 0.28 && c < 0.80), shaft.stats.cover.join(' / '));
+  ok('...and every band packs most of its closed ground',
+     shaft.stats.cover.every((c) => c > 0.55 && c <= 1.001), shaft.stats.cover.join(' / '));
   // NOTHING SHOULD HAVE BEEN STRANDED. The generator's own sweep drops any ore or water pocket the
   // colony cannot reach (a pocket carved across a gallery's neck can sever what is beyond it), so a
   // number here is that interaction happening — worth knowing, not worth failing on, since the sweep
   // is what makes the reachability assertions below true either way.
-  console.log(`  note   generator stranded ${shaft.stats.stranded} reward(s) and dropped them`);
+  console.log(`  note   ${shaft.stats.ore} ore seam(s) and ${shaft.stats.water} pocket(s) placed across ${shaft.stats.chunks} chunk(s)`);
 
   // ---- 2. the rock is BANDED, and the sprites are the owner's -----------------------------
   console.log('--- banded rock');
@@ -198,10 +223,18 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // misses the carve). This is the independent check: flood the mask `solidifyRock` stamped from
   // each sprite's own alpha, from the colony's own root, and ask how deep the open space goes.
   // Flooding the COARSE `cell.rock` grid would pass on a build whose sprites never decoded.
+  //
+  // SCOPED TO THE CHUNKS THAT EXIST, and that is not a detail: ungenerated ground is bare SOIL, so a
+  // flood over the whole 504-column grid walks straight into it and reports ~90% of the mask
+  // reachable — which passes "the bottom is reachable" for the wrong reason and fails "neither hollow
+  // nor solid" on a shaft that is neither. The question is only ever about generated ground.
   const flood = await m.page.evaluate(() => {
-    const s = window.__game.state, sub = s.substrate, cs = sub.cellSize;
+    const G = window.__game, s = G.state, sub = s.substrate, cs = sub.cellSize;
     const root = s.active.nodes[0];
     const step = sub._fineSize, W = sub._fineCols, H = sub._fineRows, solid = sub._fineSolid;
+    const cw = s.config.mine.chunkCols, K = Math.round(cs / step);
+    const cis = G.mine.chunks();
+    const fx0 = cis[0] * cw * K, fx1 = Math.min(W - 1, (cis[cis.length - 1] + 1) * cw * K - 1);
     const seen = new Uint8Array(W * H);
     const sx = Math.floor(root.x / step), sy = Math.floor((root.y - sub.surfaceY) / step);
     const q = [sy * W + sx]; seen[q[0]] = 1;
@@ -212,12 +245,15 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       if (y > deepest) deepest = y;
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        if (nx < fx0 || ny < 0 || nx > fx1 || ny >= H) continue;
         const j = ny * W + nx;
         if (seen[j] || solid[j]) continue;
         seen[j] = 1; q.push(j);
       }
     }
+    // Openness measured over the SAME window the flood was allowed to use.
+    let winCells = 0, winOpen = 0;
+    for (let y = 0; y < H; y++) for (let x = fx0; x <= fx1; x++) { winCells++; if (!solid[y * W + x]) winOpen++; }
     // How much of every ORE pile and every water pocket the colony can actually get to.
     const cellOpen = (col, row) => {
       const p = sub.cellCenter(col, row);
@@ -242,8 +278,12 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
         }
       if (near) pocketsOk++;
     }
-    return { deepestM: Math.floor(deepest * step / cs), rows: sub.rows, reachedFrac: reached / (W * H),
-             piles, pilesOk, pockets, pocketsOk };
+    return { deepestM: Math.floor(deepest * step / cs), rows: sub.rows,
+             reachedFrac: reached / Math.max(1, winCells),
+             // Of the open ground in the window, how much the colony can actually get to. 100% is
+             // the promise the carve makes; anything less is a pocket the generator sealed.
+             connectedFrac: reached / Math.max(1, winOpen),
+             chunks: cis.length, piles, pilesOk, pockets, pocketsOk };
   });
   // THE BOTTOM OF THE SHAFT IS REACHABLE. Within a couple of metres of the floor, because the
   // deepest row is against the molten line and the mask's last fine row may be partly under rock.
@@ -258,7 +298,12 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // CAMPAIGN MAPS' own range (23-53% solid) seen from the other side — the fill targets were raised
   // to land there, and this is what would notice them drifting back out.
   ok('...and the shaft is neither hollow nor solid', flood.reachedFrac > 0.2 && flood.reachedFrac < 0.8,
-     `${(flood.reachedFrac * 100).toFixed(1)}% of the mask reachable`);
+     `${(flood.reachedFrac * 100).toFixed(1)}% of the ${flood.chunks} generated chunk(s) reachable`);
+  // CONNECTIVITY IS THE CARVE'S WHOLE PROMISE, and it is a different assertion from the three above:
+  // those ask whether specific things are reachable, this asks whether ANY open ground is walled off.
+  // A sealed pocket is where a run dies for no reason the player can see.
+  ok('...and essentially no open ground is walled off', flood.connectedFrac > 0.97,
+     `${(flood.connectedFrac * 100).toFixed(1)}% of open ground connected`);
 
   // ---- 4. NO CARDS ON THE SCREEN -----------------------------------------------------------
   console.log('--- no cards, and the mine HUD');
@@ -341,6 +386,118 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   ok('...and is refused when it cannot be paid for', grow.refusedWhenBroke && grow.refusalSaysWater, 'refused, and says water');
   ok('...with the run still live', grow.stillLive === true, String(grow.stillLive));
 
+  // ---- 4b. THE WORLD STREAMS SIDEWAYS ------------------------------------------------------
+  // The owner's ask, verbatim: "I want to be able to grow both left and right as well - so the map
+  // needs to either generate as I go, or it needs to be much larger and have boundaries. I prefer
+  // the former." It is both, honestly: the CELL GRID is allocated whole (a flat row-major array
+  // cannot grow leftward without renumbering every index in the engine) and the CONTENT — rock, ore,
+  // water, creatures — is generated per chunk as the colony approaches, which is what is perceived.
+  //
+  // WHAT MUST HOLD, AND WHY EACH ONE IS HERE:
+  //   · digging sideways generates chunks, in BOTH directions (the home chunk is in the middle, so a
+  //     bug that only walks one way passes any single-direction probe);
+  //   · a chunk arrives BEFORE the colony is standing in it (`preloadCols`), or the player watches
+  //     the map appear in front of them, which is the whole cost of streaming;
+  //   · the new rock is COLLIDED — an uncollided chunk is a wall you can see and grow through, the
+  //     worst defect this file can have, and it is invisible in a screenshot;
+  //   · and it stays connected, which the reachability flood above only asserted for the chunks that
+  //     existed at boot.
+  console.log('--- the world streams sideways');
+  {
+    const b = await bootMine(4242);
+    const dig = async (dir, n) => {
+      for (let i = 0; i < n; i++) {
+        const ok = await b.page.evaluate((d) => {
+          const g = window.__game, s = g.state;
+          s.active.water = 9999;
+          let best = null;
+          for (const nd of s.active.nodes) {
+            if (nd.infected) continue;
+            const sc = nd.x * d;
+            if (!best || sc > best.sc) best = { n: nd, sc };
+          }
+          if (!best) return false;
+          const t = best.n, R = 200;
+          return g.mine.growFrom(t.x, t.y, t.x + d * R, t.y + 0.15 * R).ok;
+        }, dir);
+        if (!ok) break;
+        await sleep(320);
+      }
+    };
+    const at0 = await b.page.evaluate(() => window.__game.mine.chunks());
+    await dig(1, 26);
+    const right = await b.page.evaluate(() => {
+      const g = window.__game, s = g.state, sub = s.substrate;
+      const xs = s.active.nodes.map((n) => n.x);
+      const hi = Math.max(...xs);
+      return { chunks: g.mine.chunks(), tipChunk: g.mine.chunkOf(hi),
+               col: sub.colAtX(hi), sprites: sub.levelSprites.length, solidFrom: sub._solidFrom };
+    });
+    ok('digging right generates new chunks', right.chunks.length > at0.length,
+       `[${at0}] -> [${right.chunks}]`);
+    // ONE CHUNK OF LOOKAHEAD AT LEAST. A dig covers ~4 columns and `mineEnsureChunks` runs every
+    // frame, so the frontier should always be beyond the colony rather than at it.
+    ok('...ahead of the colony, not under it',
+       right.chunks[right.chunks.length - 1] > right.tipChunk,
+       `frontier ${right.chunks[right.chunks.length - 1]}, tip in ${right.tipChunk} (col ${right.col})`);
+    await dig(-1, 44);
+    const left = await b.page.evaluate(() => {
+      const g = window.__game, s = g.state, sub = s.substrate;
+      const xs = s.active.nodes.map((n) => n.x);
+      const lo = Math.min(...xs);
+      return { chunks: g.mine.chunks(), tipChunk: g.mine.chunkOf(lo),
+               col: sub.colAtX(lo), home: g.mine.homeChunk(),
+               sprites: sub.levelSprites.length, solidFrom: sub._solidFrom,
+               piles: (sub.foodPiles || []).length, pockets: (sub.reservoirs || []).length,
+               worms: s.nematodes.length, clouds: s.clouds.length };
+    });
+    ok('...and digging left generates them the other way', left.chunks[0] < at0[0],
+       `[${at0}] -> [${left.chunks}], home ${left.home}`);
+    ok('...also ahead of the colony', left.chunks[0] < left.tipChunk,
+       `frontier ${left.chunks[0]}, tip in ${left.tipChunk} (col ${left.col})`);
+    // EVERY NEW SPRITE IS COLLIDED. `_solidFrom` is the incremental stamp's watermark — it reaching
+    // the end of `levelSprites` is the direct statement that nothing is waiting, and it is checked
+    // rather than the masks themselves because a sprite left out would be a hole in a wall that
+    // still looks solid.
+    ok('every streamed-in sprite has been collided', left.solidFrom === left.sprites,
+       `${left.solidFrom} of ${left.sprites} sprites stamped`);
+    // ...and the ore, water and creatures came with them, per chunk. A chunk that generated rock and
+    // nothing else is a chunk with nothing in it to go there for.
+    ok('...and the new ground carries its own ore, water and creatures',
+       left.piles > 20 && left.pockets > 10 && left.worms > 6 && left.clouds > 3,
+       `${left.piles} ore, ${left.pockets} pockets, ${left.worms} worms, ${left.clouds} clouds over ${left.chunks.length} chunks`);
+    // THE SEAMS MEET. Galleries are carved at rows every chunk agrees on, which is the whole reason a
+    // chunk needs to know nothing about its neighbours — so this is the assertion that the design's
+    // one load-bearing idea actually holds once a run has crossed several seams.
+    const seam = await b.page.evaluate(() => {
+      const g = window.__game, s = g.state, sub = s.substrate;
+      const step = sub._fineSize, W = sub._fineCols, H = sub._fineRows, solid = sub._fineSolid;
+      const cw = s.config.mine.chunkCols, K = Math.round(sub.cellSize / step);
+      const cis = g.mine.chunks();
+      const fx0 = cis[0] * cw * K, fx1 = Math.min(W - 1, (cis[cis.length - 1] + 1) * cw * K - 1);
+      const root = s.active.nodes[0];
+      const seen = new Uint8Array(W * H), q = [];
+      const push = (x, y) => { if (x < fx0 || x > fx1 || y < 0 || y >= H) return;
+        const i = y * W + x; if (seen[i] || solid[i]) return; seen[i] = 1; q.push(i); };
+      push(Math.floor(root.x / step), Math.floor((root.y - sub.surfaceY) / step));
+      let reached = 0;
+      while (q.length) { const i = q.pop(); reached++;
+        const y = (i / W) | 0, x = i % W; push(x + 1, y); push(x - 1, y); push(x, y + 1); push(x, y - 1); }
+      let openF = 0;
+      for (let y = 0; y < H; y++) for (let x = fx0; x <= fx1; x++) if (!solid[y * W + x]) openF++;
+      // Can it get to the far edge of the leftmost and rightmost chunks, at any depth?
+      const edgeOpen = (fx) => { for (let y = 0; y < H; y++) if (seen[y * W + fx]) return true; return false; };
+      return { chunks: cis.length, connected: reached / Math.max(1, openF),
+               leftEdge: edgeOpen(fx0 + 1), rightEdge: edgeOpen(fx1 - 1) };
+    });
+    ok('the chunk seams meet — the whole streamed world is one connected space',
+       seam.connected > 0.97, `${(seam.connected * 100).toFixed(1)}% of open ground over ${seam.chunks} chunks`);
+    ok('...reachable to both far edges', seam.leftEdge && seam.rightEdge,
+       `left ${seam.leftEdge}, right ${seam.rightEdge}`);
+    ok('no page errors while the world streamed in', b.errs.length === 0, b.errs.join(' | ') || 'clean');
+    await b.ctx.close();
+  }
+
   // ---- 5. THE ZOOM IS FIXED ----------------------------------------------------------------
   console.log('--- the fixed zoom');
   const zoomed = await m.page.evaluate(async () => {
@@ -359,19 +516,40 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
 
   // THE CAMERA FOLLOWS THE DIG, which is what a fixed zoom demands: with no way to zoom out, a
   // player who cannot see their deepest strand cannot steer at all.
+  //
+  // ON A FRESH PAGE, because THE RUN ON THIS ONE IS OVER. The grow block above deliberately drains
+  // the tank to prove a dig is refused when it cannot be paid for, and `mineFuelCheck` then ends the
+  // descent `OUT_OF_FUEL_GRACE_MS` later — which the zoom block above spends. Setting `water` back up
+  // does not revive it, so every dig here returned `{ok:false}` and the probe read
+  // `camera y 2177 -> 2177, 44 -> 44 m`: the camera working perfectly, on a dead run. Measured on a
+  // fresh page, the same dig loop makes 126 m with **0 refusals of 40**, which is what said the
+  // colony was not walled in.
+  await m.ctx.close();
+  m = await bootMine(4242);
+  //
+  // IT DRIVES TO A DEPTH, NOT A DIG COUNT, and that is not tidiness: `mine.grow(0, 1)` digs straight
+  // down from the deepest tip and a straight-down dig is legitimately REFUSED by a boulder, so ten
+  // blind digs is a bet about the map. Read `camera y 2177 -> 2177 at 44 m` the first time the rock
+  // got denser — the camera was working perfectly and the colony had simply not moved.
   const followed = await m.page.evaluate(async () => {
     const g = window.__game;
-    g.state.active.water = 400;
-    const y0 = g.camera.y;
-    for (let i = 0; i < 10; i++) g.mine.grow(0, 1);
+    g.state.active.water = 4000;
+    const y0 = g.camera.y, d0 = g.mine.depth();
+    for (let i = 0; i < 60 && g.mine.depth() < d0 + 30; i++) {
+      // Aim slightly off vertical on a refusal, so a boulder directly below is dug around rather
+      // than dug at sixty times.
+      const r = g.mine.grow(0, 1);
+      if (!r.ok) g.mine.grow(i % 2 ? 0.55 : -0.55, 1);
+      await new Promise((r2) => setTimeout(r2, 90));
+    }
     await new Promise((r) => setTimeout(r, 2600));
     let tip = null;
     for (const n of g.state.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
     const s = g.camera.worldToScreen(tip.x, tip.y);
-    return { y0, y1: g.camera.y, tipScreenY: s.y, viewH: g.camera.viewH, depth: g.mine.depth() };
+    return { y0, y1: g.camera.y, d0, tipScreenY: s.y, viewH: g.camera.viewH, depth: g.mine.depth() };
   });
   ok('the camera follows the dig downward', followed.y1 > followed.y0 + 100,
-     `camera y ${Math.round(followed.y0)} -> ${Math.round(followed.y1)} at ${followed.depth} m`);
+     `camera y ${Math.round(followed.y0)} -> ${Math.round(followed.y1)}, ${followed.d0} -> ${followed.depth} m`);
   // ...and keeps the tip ON SCREEN, in the upper half, so most of the frame is undug ground.
   ok('...keeping the deepest tip in view', followed.tipScreenY > 0 && followed.tipScreenY < followed.viewH * 0.75,
      `tip at y ${Math.round(followed.tipScreenY)} of ${followed.viewH}`);
@@ -381,6 +559,14 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // mine, not crossing into a new layer — and the assertion covers both, or "it never fires"
   // passes the first half.
   console.log('--- the depth beat');
+  // A FRESH PAGE, and that is the whole assertion working. The beat is announced ONCE per band —
+  // `mineBeatBand` is a module variable that only moves forward — so a probe sharing a page with the
+  // camera block, which digs to ~89 m, starts its MutationObserver two band boundaries too late and
+  // reads ONE beat naming band 4. That is exactly what it did: `1 beats at 165 m: 126 m Hematite`, on
+  // a build where all three fire correctly. A once-per-run announcement can only be measured from
+  // the start of the run.
+  await m.ctx.close();
+  m = await bootMine(4242);
   const beat = await m.page.evaluate(async () => {
     const g = window.__game, M = g.state.config.mine;
     const seen = [];
@@ -424,7 +610,18 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     const res = (sub.reservoirs || [])[0];
     if (!res) return { none: true };
     const at = sub.cellCenter(res.cx, res.cy);
-    s.active.water = 100000;
+    const cost = g.mine.cost();
+    // THE GAIN IS TRACKED, NOT THE TAP COUNT. One dig fans out ~19 filaments, so a grow aimed at a
+    // pocket can legitimately reach a SECOND one in the same tick — the rule is "each source pays its
+    // lump once", and pinning `taps === 1` was pinning the map instead (it read 2 the moment the
+    // spurs moved). `gain` is what the tank got beyond what the digging cost.
+    const w0 = 100000;
+    s.active.water = w0;
+    // ...AND FROM WHERE THE PAGE ALREADY IS. This block shares its page with the depth-beat dive,
+    // which digs to ~166 m and taps a pocket of its own on the way — counted from zero the probe
+    // charged this measurement for a payment made before it set the tank, and read `2 sources, +10W`.
+    const taps0 = (s._tappedWater || { size: 0 }).size;
+    let digs = 0;
     for (let i = 0; i < 60; i++) {
       let tip = null, bd = Infinity;
       for (const n of s.active.nodes) {
@@ -433,23 +630,25 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
         if (d < bd) { bd = d; tip = n; }
       }
       if (!tip) break;
-      g.mine.growFrom(tip.x, tip.y, at.x, at.y);
+      if (g.mine.growFrom(tip.x, tip.y, at.x, at.y).ok) digs++;
       await new Promise((r) => setTimeout(r, 200));
-      if ((s._tappedWater || { size: 0 }).size > 0) break;
+      if ((s._tappedWater || { size: 0 }).size > taps0) break;
     }
-    const taps = (s._tappedWater || { size: 0 }).size;
+    const taps = (s._tappedWater || { size: 0 }).size - taps0;
     if (!taps) return { reached: false };
+    const gain = s.active.water - (w0 - digs * cost);
     // The lump has landed. Now sit still for several world ticks with a strand in the water and
     // check the tank does not move — no income, no second tap.
     s.active.water = 100;
     await new Promise((r) => setTimeout(r, 3500));
-    return { reached: true, taps, after: s.active.water,
+    return { reached: true, taps, gain, digs, after: s.active.water,
              want: s.config.mine.reservoirWater };
   });
   if (pocket.none || pocket.reached === false) {
     console.log('  note   could not reach a water pocket in the probe window — pocket rules unmeasured');
   } else {
-    ok('a water pocket pays once', pocket.taps === 1, `${pocket.taps} source(s) tapped`);
+    ok('a water pocket pays one lump, once', pocket.gain === pocket.taps * pocket.want,
+       `${pocket.taps} source(s) tapped, +${pocket.gain}W over ${pocket.digs} dig(s) — want ${pocket.taps * pocket.want}`);
     ok('...and pays nothing after that', pocket.after === 100,
        `water sat at ${pocket.after} over ~7 world ticks with a strand in the pocket`);
   }
@@ -712,28 +911,49 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       for (const c of s.clouds) per[bandOf(c.cy)].clouds++;
       // ...and none of them standing INSIDE a boulder, which is what seeding before the fine mask
       // exists does — silently. Same trap as the ants' opening trail, one step further on.
-      let inRock = 0;
-      for (const w of s.nematodes) if (sub.solidAtWorld(w.x, w.y)) inRock++;
-      for (const c of s.clouds) if (sub.solidAtWorld(c.cx, c.cy)) inRock++;
-      return { per, want: M.threatBands, ants: s.ants.length, inRock,
-               respawnW: s.config.nematodes.respawnChance, respawnC: s.config.trichoderma.respawnChance,
-               pending: !!s._needMineThreats };
+      // ...and none of them PLACED inside a boulder. Read off the generator's own record of the
+      // spots it chose (`mineChunks[ci].spots`), NOT off the live creatures: a worm crawls and a
+      // cloud creeps, so a live reading measures their movement rules a few seconds later and
+      // legitimately finds one leaning on a rock face. This asks the generator's own question.
+      let inRock = 0, spots = 0;
+      for (const ci of window.__game.mine.chunks())
+        for (const sp of ((s.mineChunks[ci] && s.mineChunks[ci].spots) || [])) {
+          spots++; if (sub.solidAtWorld(sp.x, sp.y)) inRock++;
+        }
+      return { per, want: M.threatBands, ants: s.ants.length, inRock, spots,
+               chunks: window.__game.mine.chunks().length,
+               live: s.nematodes.length + s.clouds.length,
+               respawnW: s.config.nematodes.respawnChance, respawnC: s.config.trichoderma.respawnChance };
     });
-    ok('the threats have been seeded', th.pending === false, String(th.pending));
+    // EVERY LIVING CREATURE WAS PLACED BY A CHUNK, which is what says the procedural seeders and the
+    // respawn top-ups found nothing to do here — the mine's population is exactly what it generated.
+    // This replaced a `_needMineThreats === false` assertion that PASSED VACUOUSLY the moment the flag
+    // was retired (creatures are placed during play now, so there is nothing to defer and no flag);
+    // an assertion reading an undefined field is worse than no assertion, because it prints green.
+    ok('every creature was placed by a chunk', th.live > 6 && th.live === th.spots,
+       `${th.live} alive, ${th.spots} placed across ${th.chunks} chunk(s)`);
     ok('band 1 has nothing in it', th.per[0].worms === 0 && th.per[0].clouds === 0,
        `${th.per[0].worms} worms, ${th.per[0].clouds} clouds`);
     // PER BAND, against the table — "there are some worms" passes on a build that ignores depth.
+    //
+    // TIMES THE NUMBER OF CHUNKS, because the table is a DENSITY now and not a population: every
+    // chunk seeds its own share as it is generated, so a world with three chunks in it holds three
+    // times the table and one with twenty holds twenty. Pinning the table's own numbers would fail
+    // the moment a run wandered sideways, and would in effect be asserting that threat density
+    // falls off as the shaft widens.
     ok('worms appear from band 2 and scale with depth',
-       th.per.every((p, i) => p.worms === th.want[i].worms),
-       th.per.map((p) => p.worms).join(',') + ' vs ' + th.want.map((w) => w.worms).join(','));
-    ok('mould appears deeper still', th.per.every((p, i) => p.clouds === th.want[i].clouds),
-       th.per.map((p) => p.clouds).join(',') + ' vs ' + th.want.map((w) => w.clouds).join(','));
+       th.per.every((p, i) => p.worms === th.want[i].worms * th.chunks),
+       th.per.map((p) => p.worms).join(',') + ' vs ' + th.want.map((w) => w.worms * th.chunks).join(',')
+       + ` (the table x ${th.chunks} chunks)`);
+    ok('mould appears deeper still', th.per.every((p, i) => p.clouds === th.want[i].clouds * th.chunks),
+       th.per.map((p) => p.clouds).join(',') + ' vs ' + th.want.map((w) => w.clouds * th.chunks).join(','));
     // NO ANTS, and no top-ups: the mine's population is exactly what it places, because the player
     // has no counterplay (Excrete and Amputate belonged to the card/action layer) and these are
     // hazards to route around rather than fights.
     ok('no ant nests', th.ants === 0, String(th.ants));
     ok('nothing respawns', th.respawnW === 0 && th.respawnC === 0, `${th.respawnW} / ${th.respawnC}`);
-    ok('nothing was seeded inside a boulder', th.inRock === 0, `${th.inRock} on solid ground`);
+    ok('nothing was seeded inside a boulder', th.spots > 6 && th.inRock === 0,
+       `${th.inRock} of ${th.spots} seeded spots on solid ground`);
     // WHAT THEY CAN SENSE, AGAINST WHAT THE PLAYER CAN SEE. The campaign's 500 is further than the
     // visible half-height at the mine's fixed zoom and more than twice the half-WIDTH, so a worm
     // would sense the colony from outside the frame and start crawling with nothing on screen to say
