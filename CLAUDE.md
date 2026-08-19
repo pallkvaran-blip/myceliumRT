@@ -366,6 +366,10 @@ repo unchanged, plus a run id whose build job shows `runner_id: 0` and a 15-minu
 
 ## The two modes
 
+(There are also THREE GAMES on the other axis — campaign, survival and the Deep Mine. That axis is
+`CONFIG.game` / `setGame()`; see "THE DEEP MINE" and "Two games on the title screen" below. The mine
+is real-time only, and `setGame('mine')` calls `setMode('realtime')` itself for that reason.)
+
 `CONFIG.mode` is `'turn' | 'realtime'`, applied by `setMode()`. **`realtime.enabled` is the one
 flag every mode-dependent rule reads** — engine code sees it as `state.config.realtime.enabled`,
 via `isRealtime(cfg)`. `state.config` is a deep clone taken at run start, so `setMode()` must be
@@ -989,7 +993,7 @@ reading as a dead button.
 ## Testing
 
 `tests/` holds Playwright scripts that drive the real game headless and assert what it did —
-**46 checks registered in `run.mjs`**, roughly 2880 assertions, of which `traced` is 1190 (one map's
+**47 checks registered in `run.mjs`**, roughly 2980 assertions, of which `traced` is 1190 (one map's
 worth each, 76 maps). Plus the PROBES and PERF TOOLS, which print and never fail — see Loose ends, the
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
@@ -1029,7 +1033,7 @@ rt 69 · enemy 52 · survival 58 · challenge 50 · sky 45 · mode 47 · tutscri
 harvest 28 · level 27 · fixes 30 · scale 26 · tut 24 · ants 22 · mould 20 · hs 19 · titlecard 16 ·
 boot 16 · core 16 · cascade 16 · reveal 16 · victory 13 · review 13 · crazygames 13 · water 11 ·
 surface 11 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 121** and **itchzip 22** (**23** for `crazygames`, the extra one being the SDK),
+mine 96 · plus **store 124** and **itchzip 22** (**23** for `crazygames`, the extra one being the SDK),
 measured on their own runs (`itchzip` is not in the runner at all — it needs a built zip). Note `aim` contributes **0 of its 9** inside a full sweep, because it
 bails to a zero-coverage pass there, so a sweep's arithmetic never adds up.
 
@@ -3090,6 +3094,265 @@ a real detail sheet.
   geometry BELOW its card, no "?" tiles, no tier rows, a detail sheet with exactly one button, and
   that unlocking a colony MOVES it up a section. It also fails on any 4xx or page error.
 
+## THE DEEP MINE — the third game (19 Aug 2026)
+
+**The depth-miner the owner asked for is BUILT, as a third `CONFIG.game` beside campaign and
+survival.** Their brief, and it is the whole design: *no cards*; *start with a grow 2 which costs 2
+water and can be used as long as they have water*; *the green hill starts in the middle of the map
+and the point is to go deeper and deeper*; *procedurally generated using the rock types we have, each
+found at a certain depth*; *fixed zoom, down/left/right only, portrait phone*; *real time*; *when the
+player runs out of water they fruit and spore and go to the upgrade store, which has no species —
+just the upgrades, plus raising the default grow from 2 to 3*.
+
+Answers they gave when asked: **worms + mould, appearing deeper**; ore pays **Phosphorus, and P is
+the store's currency**; and going deeper reads as **banded, with a short depth beat**.
+
+**A THIRD MODE, NOT A REWRITE — and CLAUDE.md's own recorded recommendation.** `setGame` was already
+an orthogonal axis and campaign/survival coexist without either knowing about the other, so the mine
+reuses the substrate, the growth primitives, the harvest layer, the threats, the renderers and the
+store while staying deletable — or promotable — with data behind it. `OFFER_MINE` is its door.
+
+- **`setGame('mine')` FORCES REAL TIME AND TURNS `cards.enabled` OFF.** Both are properties of the
+  GAME rather than choices inside it, and `cards.enabled` is the one switch the whole card layer
+  already reads (`cardsCampaign`, the HUD's `cardsOn`, `begin()`'s card init) — so that one line
+  takes the carousel, the drafts, the deck and the engines off the screen.
+- **`CONFIG.mine` holds the entire shape**: shaft size, the depth BANDS and their rock libraries, the
+  grow, the fuel, the ore, the threat table, the fixed zoom and the beat.
+- **`__m_engine_mine` GENERATES A LEVEL DEF, NOT A WORLD.** `buildLevel` already turns a list of
+  objects into a playable Substrate — sprites on `sub.levelSprites`, collision stamped from each
+  sprite's own ALPHA at render time, food and water baked into cells — so a mine map goes down
+  exactly the path the 89 authored maps go down and inherits every guarantee they have. That is why
+  this is ~450 lines and not a second terrain engine.
+
+### One map per run, and why depth is capped by MEMORY rather than by design
+
+`SubstrateRenderer` bakes **two WORLD-SIZED canvases** (base + dyn), so depth costs ~2 bytes per
+world pixel, squared. At `cols` 48 the shipped numbers are 1728 x 6828 = **11.8 Mpx per buffer**,
+the same order as the campaign's 2600 x 3660. **Doubling the depth doubles that on a phone**, which
+is the reason the mine is ONE map per run with the bands as depth zones inside it rather than a
+stitched endless shaft. The owner asked for "banded, with a short depth beat", which is the FEEL;
+this is the implementation that delivers it without stitching.
+
+- **`cols` IS FLOORED BY THE VIEWPORT, not free.** `minZoomForBounds` is `viewW/worldW`, so a shaft
+  narrower than `viewW/zoom` forces the camera to zoom IN past `CONFIG.mine.zoom` and the fixed zoom
+  stops being fixed. 48 cells holds 0.85 at a 1280-wide desktop. Wider screens legitimately zoom in.
+- Measured on the shipped build: **boot to playable 2.1 s, renderFrame 11-14 ms median** at both
+  390x844 dpr3 and 1280x720 (against the campaign's 87 ms after its perf pass) — the fixed close
+  zoom means very little is on screen. `tickWorld` 0.5-0.6 ms. 630 sprites per map, culled per frame.
+
+### REACHABILITY IS BY CONSTRUCTION: carve first, then place rock
+
+**The colony cannot dig through rock, so a boulder across the only route is an unwinnable run with
+nothing on screen to explain it.** So the generator inverts the obvious order: it CARVES a skeleton
+(a home cap under the hill, three wandering descent channels, lateral galleries) and then places rock
+only where a sprite's **whole bounding box** misses the carved space. A bbox test is conservative — a
+sprite's alpha lives inside its box — so every carved channel is guaranteed wider than it looks.
+
+- **The channels keep a HEADING for a few rows at a time** rather than re-rolling per row: a per-row
+  coin flip is a jittery vertical scribble, a held heading leans, crosses its neighbours and comes
+  back, which is what reads as a mine.
+- **CARVING GUARANTEES THE ROUTE BUT NOT THE REWARDS**, and that gap cost an unreachable ore seam
+  (measured 19 of 20 on one seed). A water pocket's cells are **solid** (`stampReservoir` sets rock +
+  water), so one carved across a gallery's neck severs whatever is beyond it — a consequence of two
+  independent placements that nothing upstream can see. There is a **connectivity sweep** at the end
+  of generation: flood the carved space MINUS the water, from the head, and **drop** anything
+  stranded. Dropping rather than re-placing, because a reward you can see and cannot reach is worse
+  than one that is not there. `_stats.stranded` reports it; normally 0-2.
+- **`mine-check` floods the REAL FINE MASK anyway** — the one stamped from sprite alpha at render
+  time — because the above is a promise about the generator and the mask is what growth actually
+  tests. Same argument as `traced-check` for the authored maps.
+
+### NOTHING WORTH HAVING IS ON THE WAY DOWN
+
+**This is the economy, and it was measured rather than felt.** With the water pockets placed anywhere
+open, a probe diving straight down reached **167 m of a 168 m shaft on a FIRST run and banked no ore
+at all** — it tapped seven pockets it never had to look for and passed every seam. Both halves are
+the same defect: a reward sitting in the descent channel is a reward for descending, and the descent
+is the thing the fuel exists to limit.
+
+So ore AND water pockets sit at the **far ends of the lateral galleries**, outside an `onRoute` mask
+that is deliberately WIDER than the carve (4.2 cells — a pocket one cell off a channel's edge is on
+the route for anything with a 25.5-unit segment). Digging sideways costs fuel and buys fuel, and the
+ore that pays for the next descent is found the same way. Off-route a straight dive lands **65-112 m
+across seeds**, banking under a quarter of the shaft's ore.
+
+- **`startWater` 30 -> 44, and the reason is the ROCK rather than the tank.** Raising the bands'
+  `fill` to the traced maps' range took a dig from ~4.25 m of depth to **~2.7** — `growDirected`
+  spends a dense band dodging — and a dive that found no fuel was stopping at 40-45 m, inside band 1,
+  with nothing having happened yet. At 44 it reaches the low 60s, which is band 2, which is where the
+  worms start.
+- **A WATER POCKET IS A FUEL CAN, NOT AN ANNUITY** (owner: *"water sources should only give a one off
+  burst of +10W, not continuous income"*). The campaign's version of tapping water is a synthetic
+  card ENGINE paying +1/turn forever, which cannot run here (`produceCardEngines` returns on
+  `!state.cards`) and would be the wrong shape anyway. `mineWaterPickups` grants a lump once per
+  source, keyed on the same `_tappedWater` set. `mine-check` pins BOTH halves — once, and nothing
+  after — because the first is true today by accident of the card layer being off.
+- **`fill` IS A BOUNDING-BOX TARGET, NOT SOLID AREA.** 0.30-0.50 came out at **13% solid** against
+  the traced campaign maps' 23-53%, i.e. boulders scattered in soil rather than a mine. The targets
+  are 0.38/0.50/0.58/0.64 now and land around 46-56%.
+- **THE CANDIDATE LATTICE IS EVERY 2 CELLS, NOT 3**, and without it the deep bands ran out of
+  candidates and came out LESS dense than the shallow ones (0.39 against a 0.66 target).
+- **DEEPER IS DENSER WITH SMALLER PIECES**, the opposite of the first attempt: a big sprite has far
+  fewer legal spots (its whole box must miss the carve), so scaling the deep bands UP lost them the
+  density race. More, smaller rock packs — and reads as deep rock being fractured.
+- **`OVERLAP` 0.62** — how much of a candidate's box may already be covered. Low numbers spread the
+  rock into isolated boulders; high ones let it CLUMP into masses with soil between them, which is
+  both what a mine looks like and how the fill target is reached at all.
+
+### The bands, and the depth beat
+
+Four bands of 42 rows, one per rock library, **shallowest first: magnetite, anthracite, garnet,
+hematite** — the owner's own curated exports in `docs/mine/*.json`, spliced into `MINE_ROCKS` by
+`node scripts/gen-mine-rocks.mjs`. That subset IS the signal: anthracite's source map has 47 rocks
+and the export keeps 42, hematite's has 50 and keeps 28. The generator scales them per band, so
+"use them in different sizes" is a multiple of the owner's own size.
+
+- **THE THEME COMES FROM THE SPRITE KEY, NOT THE FILE NAME.** A key is `<assetsFrom>R<nnn>`
+  (`anthracite-c24R017`) and the export's own `id` is the owner's map name (`anthracite-24-main`),
+  which is NOT the asset folder. Parsing the id would name a folder that does not exist and every
+  rock in that band would silently 404.
+- **`blendFrac` 0.28**: the top quarter of each band still serves the band ABOVE it some of the
+  time, so a rock type *starts appearing* rather than switching on at a line. `mine-check` asserts
+  each band is >60% its own theme and carries nothing from a band BELOW it.
+- **The beat is `showMineBeat`** — "42 m / ANTHRACITE" over the map, `beatMs` 2200, pointer-transparent
+  and gone on its own. It announces the band you ARRIVED in, so crossing two bands between frames
+  legitimately shows one beat; a dig is ~4 m against a 42 m band, so that cannot happen in play. It
+  cost `mine-check` a false failure: a probe digging in bursts skipped band 2's beat, and the fix is
+  the probe digging at a player's pace, not the check widening its expectation.
+- **`assetsFromAll` — FOUR ASSET FOLDERS, NOT ONE.** `loadLevelAssets(id)` filters the deferred
+  manifest by ONE folder name, which is right for an authored map and three short of what a four-band
+  shaft needs — and `solidifyRock` waits for `ready` before stamping, so the missing three would be
+  rock you can grow straight through.
+
+### The action layer: one grow, always armed
+
+**`armedDragTarget()` returns `{kind:'mine'}` whenever the substrate is a mine**, so the grow is
+always armed and there is nothing to select. A press near the colony aims (`beginAim`'s own
+`aimNearPx` rule, unchanged) and a press away from it pans. Release digs.
+
+- **A STEP IS 3 SEGMENTS**, the card layer's own unit (`grow4Segments` 12 = 4 steps), so "grow 2" is
+  exactly the reach a 2-step card would have. Measured: a grow-2 advances **152 of a possible 153**
+  world units in clear ground.
+- **`mineGrow` does NOT go through `performAction`** — that charges Energy, logs an action and (in
+  turn-based) queues an enemy turn. It shares `growDirected`, which is where the pile claim, the
+  reveal scheduling and the rock collision live.
+- **NO DIRECTION MEANS DOWN.** A tap with no drag is a legitimate phone gesture, and the card layer's
+  fallback is `dx = 1` — rightward, toward the goal it was written for — which here would send the
+  colony sideways along the surface on the player's very first tap.
+- **THE CAMERA FOLLOWS THE DEEPEST TIP**, eased, held ~18% of the band above centre so most of the
+  frame is undug ground. That is what a fixed zoom demands: with no way to zoom out, a player who
+  cannot see their deepest strand cannot steer. It stands down for `MINE_PAN_HOLD_MS` (2600) after
+  any pan, or looking sideways at a pocket is a tug of war the player always loses.
+- **EVERY ZOOM INPUT ASKS ONE PREDICATE** (`mineFixedZoom`, off the SUBSTRATE not `CONFIG.game`):
+  wheel, pinch, double-tap and `F`. The wheel is swallowed rather than left unbound, or the page
+  scrolls behind the canvas and it reads as the game losing the input.
+- **A CLAIM NEEDS FRAMES, and this bit the check twice.** In real time `colonizeReachablePiles` only
+  runs while a grow is in flight (`_colonizePending`, until the last strand has revealed) and a
+  strand is not live until it has animated in (`grownIn`) — so a probe digging faster than the reveal
+  claims nothing and walks past every seam. Measured: 4 digs per 80 ms reached the bottom with 0 P.
+- **`__game.mine.grow(dx,dy)` DIGS FROM THE DEEPEST TIP; `growFrom(sx,sy,tx,ty)` from a chosen one.**
+  Two hooks because the two questions differ: a probe steering toward a seam off to one side computed
+  its direction from a strand near the seam and had it applied from the bottom of the shaft, so it
+  dived to the floor while reporting that it was aiming sideways.
+
+### Running dry, and the store
+
+**`mineFuelCheck` / `mineEndRun`, not `checkWater` and not the `fruit` action.** `checkWater` kills
+the colony at water 0 with `cause: 'water'`, which lands on the DEATH screen — wrong screen and wrong
+moment: the run is over when a grow can no longer be AFFORDED (below the cost, so before 0), and the
+ending is "the colony fruits and spores" with the ore banked. `checkWater` stands down in the mine,
+and the modal low-water warning goes with it — in a game whose whole clock is fuel, the number on the
+HUD is the warning. The `fruit` action is not used either: it needs fruitable soil the colony has
+reached, and a colony 120 m down has none, so it would refuse and the run would never end.
+
+- **`OUT_OF_FUEL_GRACE_MS` (1600) is not optional.** A strand already inside a pocket's reach pays
+  out on the next tick, so ending the run the instant the counter dips takes it away from a player
+  whose last dig just reached the fuel.
+- **THE ORE IS BANKED AT `presentMineEnd`, not when it was dug.** `mineOreRewards` credits the
+  COLONY's Phosphorus during the run (what the HUD counts); this is where it becomes money, on the
+  funnel every ending passes through, so a run cannot pay twice.
+- **THE STORE IS A SEPARATE SHOP: `walletField` / `upgradeField`.** The mine spends `p.minerals` out
+  of `p.mineUpgrades`; every other game spends `p.spores` out of `p.upgrades`, unchanged. Sharing one
+  wallet would let a campaign player's Spores buy a mine player's fuel — two economies laundering
+  through one track — and sharing one ledger would put the mine's tracks in a save nothing can spend.
+  `sporesBalance` / `addSpores` / `takeSpores` keep their NAMES (fifty callers) and return whichever
+  wallet is spendable now.
+- **`MINE_UPGRADE_IDS` IS AN ALLOW-LIST, NOT AN EXCLUSION.** Every track was written for the card
+  game, so "which of these mean anything in a mine?" is the shorter and more honest question: Energy
+  buys nothing, starting Phosphorus would be starting with currency, `startLevel` names levels the
+  mine has not got, the two carry tracks are cards, and Retries retries a level. What is left is
+  **Water** plus the mine's own **Grow strength / Ore yield / Water pockets**.
+- **`upgradeInGame` GATES THE SHELF AND THE BUY PATH WITH ONE PREDICATE**, so a tile can never be on
+  a shelf whose wallet cannot pay for it and a track can never be buyable without being shown.
+  `MINE_COSTS` re-prices the shared Water track: 25-then-+50 is a Spores ladder and a whole descent
+  digs out 10-30 P.
+- **THE STORE REACHES THE RUN THROUGH `configForLevel`**, folded into the config CLONE at run start —
+  same shape as the campaign's `effectiveSpecies`. A rule that asked the store at the point of use
+  would be reading localStorage inside the sim loop and would let a mid-run purchase change a run in
+  flight. `growSteps` is copied WHOLE (the track carries `base: 2`, the authority on what a grow is
+  worth) rather than added to `CONFIG.mine.growSteps`.
+- **`startingResources` HAS A MINE BRANCH**, or the Water tile promises 20 (the card game's
+  `cards.startWater`) while the run hands out 44. That function exists to stop exactly this, and it
+  arrived from a third game rather than from a second screen.
+- **"NEW" MUST NOT WIPE THE SAVE IN THE MINE.** `resetProgress()` clears wallet, purchases and deck
+  because in the other two games New means a new PLAYTHROUGH. In the mine there is no playthrough:
+  the store IS the progression and the button that starts a descent is the one you press after every
+  run — wiping there deletes the Phosphorus just banked, every time, and the only symptom is a store
+  that never fills up.
+
+### The screens
+
+- **The title screen gets a THIRD row (`.ts-third`), appended UNDER the other two** rather than
+  swapped into either. The two that straddle the wordmark had their gaps to its ink solved per side
+  against the rendered canvas; a third game either goes outside that pair or re-opens all of it.
+  `positionMenu` hangs it off the bottom block's measured height, clamped to the viewport.
+- **THE MINE HAS A NEW AND NO OLD.** A descent is one sitting, and `buildResumeSnapshot` saves a
+  deck, a hand and installed engines — re-entering from an opening state is the wrong promise for a
+  map whose whole content is how far down you got.
+- **The row uses the FULL three-column grid with an empty `.ts-slot` in the Old column.** Dropping
+  the first child slides the label into the left column and NEW into the middle, and the row reads as
+  a mistake rather than as "this game has no Old". **`.ts-slot`, deliberately NOT `.ts-act`**: that
+  class means "a New/Old button and its caption" and three checks walk every one of them expecting a
+  `.ts-btn` inside — a spacer wearing the name crashed all three on `getBoundingClientRect` of null.
+- **The store screen is the species picker with its two colony sections HIDDEN**, not a second
+  screen: everything on it already speaks that screen's vocabulary. Built-and-hidden rather than
+  left out of the markup, because `render()` writes into all three grids and a null container there
+  is a throw on the one screen the mine cannot be played without. `mine: isMineGame()` is the flag.
+- **`currencyMark()` / `currencyName()`** — the wallet chip, the Buy and Sell buttons and their aria
+  labels. `RI.phos`, NOT `RES_ICON.phos`: the two are different icon sets in different modules and
+  only one is exported, and reading the wrong one throws INSIDE `render()`, which leaves the whole
+  screen blank with a heading on it.
+- **The end screen grows a WORD and prints the depth as plain type.** Growing the NUMBER was the
+  first version and the obvious idea — the depth IS the achievement — and it reads badly: the grower
+  fills each glyph with filaments and sprays a fringe past its edges, which a letter absorbs and a
+  digit does not. A grown 3 and a grown 8 are the same smudge, and this is the one number on the
+  screen the player wants exactly.
+- **`drawMineHill` is a WHOLE hill on the middle of the surface**, sized to the fruitable soil band
+  rather than to a number picked for looks, and **`cityRuns` returns [] in the mine** — the derived
+  runs put a skyline over every wide run of 'concrete' surface, and a mine's surface is concrete edge
+  to edge apart from the hill, so the shaft came up under a city on both sides of it.
+- **The mine HUD is a THIRD variant**, not the cards-off one: water, Phosphorus, depth, and no action
+  bar. Energy is off the row deliberately — nothing in the mine spends it, so a number that only ever
+  rises is three characters of noise on the scarcest screen in the game.
+- **`ui.setHint(text, sticky)`** and the mine's one instruction: *"Drag from the colony to dig — 2
+  water a dig"*, held up until the player has dug and gated on `p.mineBest`, so it is there on the
+  first descent and gone by the second. There is no tutorial in the mine and no button to point at.
+
+### What is NOT in it yet
+
+- **No secrets and no new resource types below** — the owner said they would develop that later, and
+  the bands' `orePerPile` is where the value curve lives when they do.
+- **No resume.** See above; the store is the persistence.
+- **The mine records no high score.** `p.mineBest` is a field of its own — the board is per MODE and
+  ranks survival's level number, so a depth would have to be dressed as a level to get in.
+- **No `#mine` route in `make-web-zip`'s level prune.** The prune stages the levels a PUBLIC build
+  can reach and the mine's rock comes from four `assets/<theme>-c24/` folders that the campaign
+  already stages — but that is luck rather than design, and the first mine band whose theme the
+  campaign does NOT use will ship as rock you can grow through. Check before the next cut.
+- **`tests/mine-check.cjs` (96)** is the coverage; `#mine,<seed>` pins the shaft, and
+  `__game.mine` is the model (`stats`, `depth`, `band`, `cost`, `steps`, `ore`, `grow`, `growFrom`,
+  `end`, `play`, `playSeed`).
+
 ## Two games on the title screen: Survival and Campaign
 
 **SURVIVAL IS OFFERED AGAIN — `OFFER_SURVIVAL = true` (owner: *"let's add survival back, but put
@@ -3956,10 +4219,16 @@ death was firing; the screen was lying about it.
 - `tests/threat-check.cjs` covers it in both modes (12 assertions): the cause the model records and
   the words the player reads, including the exact old wrong string kept as the regression it is.
 
-## Where the game stands (19 Aug 2026): rejected, and a pivot under consideration
+## Where the game stands (19 Aug 2026): rejected, and the pivot is BUILT
 
 **CrazyGames REJECTED the game for low play time.** Read the rest of this section before starting
 any work that assumes the current design is the target.
+
+**THE DEPTH MINER BELOW IS NO LONGER A PROPOSAL — IT IS BUILT AND PLAYABLE.** See "THE DEEP MINE"
+above for what shipped. The rest of this section is the reasoning that led there and is kept because
+every prediction in it turned out to matter; where the build settled a question, it says so inline.
+Nothing was deleted for it: campaign and survival are untouched, and the mine is a third
+`CONFIG.game` that can be promoted or removed with data behind it.
 
 **The onboarding work did not move the numbers, and the owner has checked.** Over several days the
 tutorial was made unskippable, reframed for phones, given medium-zoom steps, a wider growth step,
@@ -3975,40 +4244,45 @@ and dying *"felt like you lost too much"*. The proposal is a **depth miner** —
 loops, **no cards**, and a **fixed zoom** (no zooming out to plan a whole route), which they
 expect to work far better on a phone.
 
-**THIS IS A DIRECTION, NOT A DECISION — nothing has been approved and no code should be deleted
-for it yet.** What was established in discussion, and is worth not re-deriving:
+**IT IS A DIRECTION THAT WAS THEN BUILT AS A THIRD MODE — no code was deleted for it.** What was
+established in discussion, and how each point actually landed:
 
-- **The growth system is not card-shaped and survives intact.** `_growStep`, `_segmentClear`, tip
-  spacing, the organism scale, `colonizeReachablePiles` and the harvest/claim layer are primitives
-  that cards merely INVOKE. The aiming primitives for a tap-to-grow loop already exist (`armAim`,
-  drag-aim, the targeted tap). The interesting decision moves onto the MAP rather than disappearing.
-- **Cards are the ACTION SYSTEM, not just content, and that is the structural risk.** In
-  turn-based, playing a card is *what ticks the world* — the enemy-turn phase machine, the turn
-  gate and `playerBlockedReason` all key off discrete player actions. Removing cards means either
-  redefining "an action" or going real time. Real time already exists as a first-class mode with
-  its own `MODE_TUNING` and ~100 assertions, but the campaign is turn-based **by the owner's own
-  earlier call**, so this reverses that.
-- **Fixed zoom is cheap and pays twice.** The camera machinery is there, and the one render case
-  that keeps getting worse with screen size is *panning while zoomed in* (69 ms at 1024×640 →
-  431 ms at 4K, ~3× the still cost). Pin the zoom, constrain scrolling to one axis, and the worst
-  frame in the game goes away — on exactly the device being targeted.
-- **The map pipeline is LANDSCAPE, and that is the biggest unpriced cost.** The world is ~2600
-  wide against 1630 of playable depth, the traced maps are 82×30 cells, and `gen-map.mjs` asks
-  FLUX for 1440×608 (2.32:1). A descent game wants tall, or wants procedural endless generation —
-  which exists and is seeded, and would make most of the traced set moot.
-- **Open question, and it gates the art work: is "depth miner" literally DOWNWARD?** Today the
-  colony starts underground and grows UP to the surface, with the molten core as the floor. An
-  inversion toward the core is coherent (the core is already an authored hard boundary with its
-  own art treatment) but flips the goal, the threat placement and the map aspect together. Not
-  yet answered.
-- **Threat legibility breaks under a fixed close zoom.** A sensing radius is 500 world units and
-  will not fit on screen when the player can no longer zoom out to see what is coming.
-- **The recommendation on the table: add a third mode, do not rewrite.** `CONFIG.game` is already
-  an orthogonal axis applied by `setGame()`, gated by `campaignRun()`, and survival and campaign
-  coexist without either knowing about the other. A `#mine` boot reusing substrate, growth,
-  harvesting and threats but swapping the action layer is the smallest thing that answers "do
-  people play this longer", is non-destructive, and lets the card layer be deleted AFTERWARDS with
-  data behind it.
+- **The growth system is not card-shaped and survives intact.** CONFIRMED, and it was the cheapest
+  part: `mineGrow` is ~20 lines around `growDirected`, and the pile claim, the reveal scheduling and
+  the rock collision all came free. The drag-aim gesture needed one new `kind` in
+  `armedDragTarget()`.
+- **Cards are the ACTION SYSTEM, not just content, and that is the structural risk.** RESOLVED by
+  going real time, which the owner asked for anyway — `setGame('mine')` forces it, so the mine never
+  reaches the enemy-turn phase machine or the turn gate at all. The campaign stays turn-based; the
+  reversal is scoped to the third game.
+- **Fixed zoom is cheap and pays twice.** CONFIRMED and then some: measured at **11-14 ms per
+  frame** on both a phone and a desktop viewport, against the campaign's 87 ms after its own perf
+  pass. A fixed close zoom simply has very little on screen.
+- **The map pipeline is LANDSCAPE, and that is the biggest unpriced cost.** SIDESTEPPED rather than
+  solved: the mine does not trace an image at all. It reuses the owner's ROCK SPRITES — the parts of
+  the traced maps that are worth keeping — and generates the layout itself, tall. `gen-map.mjs` and
+  the tracer are untouched and still serve the campaign. The real cost turned out to be **canvas
+  memory**, not aspect ratio: two world-sized buffers cap a single shaft at roughly the campaign's
+  depth, which is why the mine is one banded map per run rather than an endless stitched one.
+- **"Is depth miner literally DOWNWARD?" — ANSWERED YES, by the brief.** The hill is on the surface
+  in the middle, the colony digs down from it, and the molten core is the bottom of the shaft (a hard
+  growth floor you can see coming, drawn in the red the earth already ramps to). The goal is gone
+  entirely: no column anywhere is flagged `goal`, which is what stops `checkGoalReached` firing and
+  retires the goal hill and its bushes.
+- **Threat legibility breaks under a fixed close zoom.** STILL OPEN, and it is the biggest thing the
+  build has not answered. A sensing radius is 500 world units against ~460 of visible width at the
+  mine's zoom, so a worm senses you from further away than you can see. The mine's own mitigations
+  are that band 1 has nothing in it and that nothing respawns, so a creature met is a creature you
+  walked into — but a player has no counterplay (Excrete and Amputate belonged to the card/action
+  layer) and no warning. The levers, in order of cheapness: a smaller `sightRadius` in the mine's
+  config clone, a screen-edge indicator, or giving the mine one defensive action.
+- **The recommendation was: add a third mode, do not rewrite. THAT IS WHAT WAS BUILT.** `#mine`
+  reuses substrate, growth, harvesting, threats, the renderers and the store and swaps the action
+  layer, so it is non-destructive and lets the card layer be deleted AFTERWARDS with data behind it.
+  What it needs next is TELEMETRY — the whole point of the exercise is "do people play this longer",
+  and `logEvent` currently files a mine run as `game: 'mine'` with no depth on it. The obvious
+  addition is depth reached on `run_end` (its `n` carries the ore instead) or a `detail` of the band;
+  either way `docs/analytics.html` needs a mine column before the first upload can be read.
 
 **Distribution, if the pivot does not happen or does not land.** itch is already live and free.
 The lower-bar ad-funded tier is the syndication networks — **GameDistribution** (Azerion, 4,000+

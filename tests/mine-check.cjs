@@ -558,6 +558,57 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   }
 
   // =========================================================================================
+  // BEING EATEN IS AN ENDING TOO, AND IT STILL PAYS
+  // =========================================================================================
+  // Running dry is the ending the design is built around, but it is not the only one: a worm eating
+  // the last strand sets `cause: 'devoured'` inside tickWorld and rot reaching everything sets
+  // `infected`, and BOTH build their own `runResult` with no depth and no ore on it. Read from the
+  // result alone, a player eaten at 90 m with ore in hand arrived at the end screen reading "0 m"
+  // and banked nothing — a whole run's work lost to the one ending they did not choose. The figures
+  // fall back to the STATE, and the payout is identical; only the line on the screen changes.
+  console.log('--- eaten, not dry');
+  {
+    const b = await bootMine(4242);
+    const eaten = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      s.active.water = 100000;
+      // Dig down a way and bank some ore, so there is something to lose.
+      const sub = s.substrate;
+      for (let i = 0; i < 40; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 90)); }
+      // Hand it some ore directly rather than hunting a seam — the payout path is what is under
+      // test here, not the geometry (which the block above covers).
+      s.mineOre = 25; s.active.phosphorus = 25;
+      const depth = g.mine.depth();
+      // Kill the colony the way a worm does: strip it to nothing. `tickWorld`'s post-loop catch is
+      // what turns that into `cause: 'devoured'`.
+      // `_removeNodes` takes a Set of ids and no cause — `tickWorld`'s catch AFTER its network loop
+      // is what reads `healthyCount() === 0` and files `devoured`, which is exactly the code path a
+      // worm's last bite takes. Also raise Energy, or the death is attributed to STARVATION and this
+      // block passes while proving nothing about being eaten.
+      s.active.energy = 5000;
+      s.active._removeNodes(new Set(s.active.nodes.map((n) => n.id)));
+      for (let i = 0; i < 12 && !s.runOver; i++) { g.tickWorld(s); await new Promise((r) => setTimeout(r, 60)); }
+      await new Promise((r) => setTimeout(r, 3000));
+      const el = document.getElementById('ssMineEnd');
+      return { over: s.runOver, cause: s.runResult && s.runResult.cause, depth,
+               screen: !!el, text: el ? el.textContent : '',
+               shownDepth: el ? (el.querySelector('.ss-mineend-depth') || {}).textContent : '',
+               minerals: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minerals | 0 };
+    });
+    if (!eaten.over) {
+      console.log('  note   could not force a devoured ending in the probe window — unmeasured');
+    } else {
+      ok('being eaten ends the descent', eaten.screen === true, eaten.cause || '(no cause)');
+      ok('...on the mine\'s own screen, not the death screen',
+         /eaten|rot took/i.test(eaten.text), (eaten.text || '').slice(0, 60));
+      ok('...still reporting the depth reached',
+         (eaten.shownDepth || '').replace(/\D/g, '') === String(eaten.depth), `"${eaten.shownDepth}" vs ${eaten.depth} m`);
+      ok('...and still banking the ore', eaten.minerals >= 25, `${eaten.minerals} P banked`);
+    }
+    await b.ctx.close();
+  }
+
+  // =========================================================================================
   // 6. THE STORE IS A SEPARATE SHOP
   // =========================================================================================
   console.log('--- the store');

@@ -27482,7 +27482,7 @@ function showLevelComplete({ level, maxLevel, unlocked, earned, base, mult, bala
 // `.ss-win`'s family rather than a screen of its own, for the reason the death screen was moved
 // into it: the run has ended, here is what happened, here is what you do next. The map stays
 // visible through it, and in the mine that map is the shaft you just dug, which is the picture.
-function showMineEnd({ depth, ore, best, balance, onDone }) {
+function showMineEnd({ depth, ore, best, balance, eaten, cause, onDone }) {
   const root = el('div', 'ss-win ss-mineend'); root.id = 'ssMineEnd';
   // THE GROWN WORDMARK IS A WORD, AND THE DEPTH IS PLAIN TYPE UNDER IT. Growing the NUMBER was the
   // first version and it is the obvious idea — the depth IS the achievement, so it should take the
@@ -27494,7 +27494,14 @@ function showMineEnd({ depth, ore, best, balance, onDone }) {
   root.innerHTML =
     '<div class="ss-win-title" role="img" aria-label="Spored"></div>' +
     '<p class="ss-mineend-depth">' + (depth | 0) + '<span class="ss-mineend-m">m</span></p>' +
-    '<p class="ss-win-sub">Out of water. The colony fruits and spores.</p>' +
+    // WHAT ENDED IT, in one line. Running dry is the ordinary ending and the one the whole design is
+    // built around; being eaten or rotted out is the other kind, and saying "out of water" over a
+    // colony a worm ate is the game lying about its own rules.
+    '<p class="ss-win-sub">' + (eaten
+      ? (cause === 'infected'
+          ? 'The rot took the colony. What it had spored is yours.'
+          : 'The colony was eaten. What it had spored is yours.')
+      : 'Out of water. The colony fruits and spores.') + '</p>' +
     '<p class="ss-win-earned">+' + (ore | 0) + RI.phos + '</p>' +
     (best && best.isNew
       ? '<p class="ss-mineend-best ss-new">Your deepest descent yet</p>'
@@ -31301,17 +31308,30 @@ function afterDeath(hsPromise, next) {
 // this is where it becomes money. One place, on the funnel every ending passes through, so a run
 // cannot pay twice and cannot pay for a shaft it is still in.
 function presentMineEnd(r) {
-  const depth = Math.max(0, r.depth | 0);
-  const ore = Math.max(0, r.ore | 0);
+  // THE FIGURES COME OFF THE STATE WHEN THE RESULT DOES NOT CARRY THEM, and that is not belt and
+  // braces — it is the only thing that makes a DEATH in the mine pay out. `mineEndRun` writes
+  // `depth`/`ore`, but running dry is not the only way a descent can end: a worm eating the last
+  // strand sets `cause: 'devoured'` inside `tickWorld` and rot reaching everything sets `infected`,
+  // and both build their own `runResult` with neither field on it. Read from `r` alone, a player
+  // eaten at 90 m with 30 P dug out came here reading "0 m" and banked nothing — every scrap of a
+  // run's work lost to the one ending they did not choose.
+  const depth = Math.max(0, (r.depth != null ? r.depth : (state && state.mineDepth)) | 0);
+  const ore = Math.max(0, (r.ore != null ? r.ore : (state && state.mineOre)) | 0);
+  // ...and the ore is banked either way. You dug it out; what killed the colony afterwards does not
+  // unmake that. The line on the screen changes, the payout does not.
+  const eaten = !!r.died && r.cause !== 'dry';
   if (!r._minePaid) {
     r._minePaid = true;
     if (ore > 0) addSpores(ore);          // `addSpores` writes whichever wallet this game spends
     _sessionRuns++;
-    logEvent('run_end', { level: 1, cause: r.cause || 'dry', turns: state && state.turn, n: ore });
+    // `n` is the ore banked and `level` the DEPTH in metres — the mine has no levels, and depth is
+    // the one number that answers "did people play this longer", which is the whole reason the mode
+    // exists. `docs/analytics.html` has no mine column yet; this is the row it will read.
+    logEvent('run_end', { level: depth, cause: r.cause || 'dry', turns: state && state.turn, n: ore });
   }
   const best = mineRecordDepth(depth);
   showMineEnd({
-    depth, ore, best,
+    depth, ore, best, eaten, cause: r.cause,
     balance: sporesBalance(),
     onDone: () => { runEndThen(() => { setGame('mine'); showPicker(); }); },
   });
