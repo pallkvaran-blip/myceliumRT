@@ -93,8 +93,19 @@ atlas (see the prune notes below). CrazyGames' caps are 1500 files / 250 MB, so 
   through with the SDK CDN unreachable, so the bridge degrades instead of taking the game down.
 - **THE TOKEN IS NOT IN THE CONTAINER.** `$GITHUB_TOKEN` is unset, so `curl`ing the Actions API to
   poll a run silently returns nothing and any `until` loop built on it spins forever. Use the
-  GitHub MCP tools. `actions_list` returns a payload too large to read — fetch a single run with
-  `actions_get` (`resource_id`, not `run_id`) instead.
+  GitHub MCP tools. `actions_list` returns a payload too large to read — but `list_workflow_runs`
+  saves the full payload to a file, so parse the run id out of that with python and then fetch the
+  single run with `actions_get` (`resource_id`, not `run_id`).
+- **AND POLLING A RUN SERVES A STALE SNAPSHOT — `status` LIES FOR AS LONG AS HALF AN HOUR.**
+  Measured on the 19 Aug cut: the job completed at **10:47:36** and `get_workflow_job` was still
+  answering `"status":"in_progress"` with every later step `"pending"` past 11:20, unchanged across
+  four polls. Reported to the owner as "still building at 40 minutes", which was wrong — the run
+  took **7m34s**. Two ways not to be caught: read the STEP TIMESTAMPS rather than the status field
+  (a `completed_at` on the last step is the run's real end, and a step list frozen for ten minutes
+  is a cache, not a slow build), and confirm the outcome from a DIFFERENT endpoint —
+  `list_releases` showing the draft is proof the release step ran, whatever the job says.
+  So: fire the workflow, do other work, and check back ONCE rather than polling — a build that
+  really is slow will still be slow, and a finished one has already been finished for a while.
 
 - **YOU CANNOT HAND THE ZIP OVER FROM A SESSION. The chat upload cap is 30 MiB and the zip is
   ~43 MB**, so `SendUserFile` refuses it and the artefact only ever exists inside the container.
