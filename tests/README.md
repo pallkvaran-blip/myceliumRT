@@ -117,10 +117,16 @@ the runner — 59 maps is ~20 minutes. `__game.auditRocks()` is the in-page vers
 way to reach a saved map that exists solely in one browser's localStorage.
 
 `shot.cjs`, `hs-shot.cjs`, `lure-shot.cjs`, `core-shot.cjs`, `mould-shot.cjs`,
-`handoff-shot.cjs` and `level-shots.cjs` aren't checks — they capture frames for eyeballing: the
-title screen, the leaderboard, the pointer lure, the whole-world core view, the mould/rot fades,
-one frame from inside the menu→run handoff, and every authored map. Every depth and colour
-decision in the core was made by looking at `core-shot`'s frame, not by reading a number.
+`handoff-shot.cjs`, `store-shot.cjs` and `level-shots.cjs` aren't checks — they capture frames for
+eyeballing: the title screen, the leaderboard, the pointer lure, the whole-world core view, the
+mould/rot fades, one frame from inside the menu→run handoff, the upgrade shelf, and every authored
+map. Every depth and colour decision in the core was made by looking at `core-shot`'s frame, not
+by reading a number.
+`store-shot` takes the shelf in BOTH games, because that is the one screen whose content differs
+between them — seven tiles in the campaign, six in survival, since "Starting level" is
+`campaignOnly`. `store-check` asserts the count; the frame is how you see that six still lay out
+as two rows of three rather than leaving a hole. It dresses the save first: the Sell button only
+exists on a track with something bought, so a shelf photographed at zero cannot show it.
 `handoff-shot` takes `NOFIX=1` for its negative control (it serves a patched copy of
 `index.html`, so the two frames come from one working tree) and prints the title's opacity with
 each shot — `tOp: null` means the capture landed after the handover and proves nothing.

@@ -1024,8 +1024,8 @@ change, which is the recommended gear — the most recent runs, each 0 failed:
 | fixes · survival · campaign (+ `mode` on its own) | **198 + 47 passed** (the title-screen set — the four checks that read the screen's shape) |
 | campaign · survival · store · hs (+ `analytics` on its own) | **308 + 89 passed** (the store set — the sell button and the campaign-only track) |
 
-Per-check, measured: traced 1190 (76 maps) · edit 118 · threat 114 · campaign 110 · rt 69 ·
-enemy 52 · survival 58 · challenge 50 · sky 45 · mode 47 · tutscript 46 · species 38 · ctreats 31 ·
+Per-check, measured: traced 1190 (76 maps) · edit 118 · threat 114 · campaign 110 · analytics 89 ·
+rt 69 · enemy 52 · survival 58 · challenge 50 · sky 45 · mode 47 · tutscript 46 · species 38 · ctreats 31 ·
 harvest 28 · level 27 · fixes 30 · scale 26 · tut 24 · ants 22 · mould 20 · hs 19 · titlecard 16 ·
 boot 16 · core 16 · cascade 16 · reveal 16 · victory 13 · review 13 · crazygames 13 · water 11 ·
 surface 11 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
@@ -1042,6 +1042,13 @@ dresses a save worth looking at first — most of these screens say nothing at z
 the traps in comments (the dev build skips the level intro; the wordmarks grow and headless
 throttles rAF; `/index.html` → `/index.html#dev` is a same-document hash change so `goto` does not
 re-boot and the dev hooks never arrive).
+
+**`node tests/store-shot.cjs`** is its companion for the one screen whose CONTENT differs between
+the two games: the upgrade shelf, seven tiles in the campaign and six in survival. `store-check`
+asserts the count; the frame is how you see that six still lay out as two rows of three rather
+than leaving a hole where the seventh was. It dresses the save first (clears, then buys) because
+the Sell button only exists on a track with something bought — a shelf shot at zero cannot show
+it — and it sets `__cfg.game` per pass, since `#dev` is survival.
 
 See `tests/README.md` for what each covers and how to add one. Playwright lives on
 `NODE_PATH=/opt/node22/lib/node_modules` here; the runner sets that itself.
@@ -2252,7 +2259,7 @@ UX decision now sits in, and because two of these were believed to be otherwise.
   cleared L1 48% vs 10%, median played visit 5:04 vs 2:40, spend rate 14% vs 2.5%. A change judged
   on blended numbers is being judged on the week's traffic mix.
 - **RETRIES WORK AND NOBODY BUYS THEM.** 72% of the 43 players who used one went on to clear a
-  level, and it is the LEAST-bought of the six upgrade tracks (13 purchases against Phosphorus's
+  level, and it is the LEAST-bought of the six upgrade tracks there were then (13 against Phosphorus's
   74). An argument for the free retry, and possibly for a cheaper first rung.
 - **PERFORMANCE IS DONE.** Median frame 3.4 ms desktop, 3.0 phone, 2.0 tablet; five "bad" sessions
   in the whole table, and their median visit is barely under the healthy one. The phone gap above
@@ -2339,14 +2346,18 @@ capabilities are `downloads` and `mcp`, neither of which is a fetch. Serve it in
     itself the first time anyone plays one.
   - **...AND IT IS TAKEN FROM *ALL* ROWS, NOT THE FILTERED ONES.** Reported as *"I still see 13
     players today doing survival after the update"*. Taken from the filtered set, the cut MOVED
-    whenever a filter excluded the newest build: pick **Game=survival** and the release contributes
-    nothing (survival is withheld in it), so the newest stamp still standing was the PREVIOUS build
-    — and the section relabelled that as "the last release" and showed its 13 survival players as
-    if they were on the new one. Any filter the release has no rows under does this. Which release
-    is latest is a fact about the release HISTORY, not about what is on screen.
+    whenever a filter excluded the newest build: pick **Game=survival** and the release contributed
+    nothing (survival was withheld in the build of the day), so the newest stamp still standing was
+    the PREVIOUS build — and the section relabelled that as "the last release" and showed its 13
+    survival players as if they were on the new one. Any filter the release has no rows under does
+    this. Which release is latest is a fact about the release HISTORY, not about what is on screen.
   - **The release row is drawn even when it is EMPTY under the filter**, because an empty row is
     the finding: 0 survival sessions on the new build is how you see the feature is gone. The
     section says so in words rather than leaving a row of zeroes unexplained.
+  - **EXPECT THAT EXAMPLE TO INVERT ON THE NEXT READ.** Survival is offered again from the 19 Aug
+    cut, so its cohort comes BACK — a survival count that goes 13 → 0 → 13 across three releases
+    is the door closing and reopening, not players changing their minds. Anything compared across
+    either boundary is comparing two different games' worth of sessions.
   - **`dev` IS A VALID `detail` VALUE AND SORTS AFTER EVERY DATE.** Every local run and every
     Playwright boot posts `detail: 'dev'` (the repo's placeholder), so a plain newest-string wins
     made the whole section read **"Cut at dev"** with an empty release row and every real release
@@ -3758,6 +3769,25 @@ On the 18 Aug occurrences HEAD and `origin/<branch>` AGREED — both on the stal
 two-SHA test passed while five commits were missing. Only `git fetch origin <branch>` showed the
 truth (`0d268fa..19ba4a3`). **When anything else says rollback, fetch before believing the refs.**
 
+**AND ON 19 AUG IT ARRIVED DISGUISED AS UNCOMMITTED WORK, WHICH IS THE WORST FACE IT HAS WORN.**
+The session opened on a stop-hook complaint — *"There are uncommitted changes in the repository.
+Please commit and push"* — over a tree holding a coherent, finished-looking day's work: a
+`2-obsidian.json` that was not in `LEVELS`, matching edits across `index.html` and four checks.
+Everything about it read as "you forgot to commit". It was the rollback: HEAD was at `0d268fa`,
+**~140 commits behind**, and the restored tree carried that old commit's dirty working copy.
+**I committed it before checking, and that commit would have reverted nine days of work under a
+message describing a feature.**
+
+- **A DIRTY TREE IS A ROLLBACK SYMPTOM, NOT AN INVITATION.** Run the fetch-and-compare BEFORE
+  committing anything you did not write this session — `git log --oneline HEAD..origin/<branch>`
+  printing a hundred lines is the whole diagnosis, and it costs one call.
+- **THE CHEAPEST CONFIRMATION IS TO GREP THE REMOTE FOR YOUR OWN "NEW" WORK.** Every marker in
+  that tree (`ss-dth-title`, `2-obsidian`, `OPENER`, `lo-open`) was already on `origin`, at equal
+  or higher counts. Work that is somehow ALREADY UPSTREAM was never uncommitted — it is a
+  snapshot of the past being handed back to you.
+- The fix was the usual one and cost nothing once seen: `git reset --hard origin/<branch>`, then
+  verify (`ls tests/` went 51 → 84, which is the same tell as ever).
+
 Three more tells from that day, all cheaper than the symptom they precede:
 
 - **The Edit tool saying "the file had been modified on disk since you last read it"** on a file
@@ -4010,9 +4040,16 @@ which is the real lift for a landscape-first game.
   Each found a real defect; each header says which, and `worm-probe`'s and `infect-probe`'s
   headers record how their first versions misled me (`infect-probe`'s 4-unit-spaced colony
   overstates any geometric rule tenfold — read `breach-probe` for anything about radii).
-- `CONFIG.dev.enabled` is `true` (dev buttons on screen). Flip it off for a public cut — and
-  note it now gates more than buttons: the map switcher, the rock editor, the minimised
-  carousel and the skipped level intro all read it.
+- **THE 19 AUG ZIP IS BUILT AND NOT YET UPLOADED.** `build-2026-08-19` at `db7e4cf` is a DRAFT
+  release with `mycelium-itch.zip` attached (42.8 MB, 981 files, gate 22/22). Until the owner
+  puts it on itch, everything in this session is **pushed, not shipped** — and the live build is
+  still the 10 August one, which is what any player-facing claim has to be measured against. Two
+  things travel with it: the devlog in `docs/itch-description.md` carries one bullet flagged as
+  resting on `7bccac5` having been in that 10 Aug upload (no tag records what went up), and the
+  entry-cap headroom is down to 19.
+- `CONFIG.dev.enabled` is `true` (dev buttons on screen). The RELEASE BUILD PATCHES A COPY, so
+  this does not need flipping to cut a zip — see Shipping. It gates more than buttons: the map
+  switcher, the rock editor, the minimised carousel and the skipped level intro all read it.
 - **The 58 traced maps are not campaign levels yet.** Every one has `campaignLevel: null`, so
   they claim no slot and are reachable only from the editor's map list or `#level,<id>`. The
   owner is picking 10-15 of them for a new campaign; the rest are for later. (Seventeen of them
