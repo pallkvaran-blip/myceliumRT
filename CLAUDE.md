@@ -1045,7 +1045,8 @@ the 30 it wants, `over:false alive:true`, the queued-step stall) and `core`'s ro
 (31 against a tolerance of 30) — and both went **5/5 and 18/18 on three consecutive re-runs**, same
 build. Re-run before believing either of them.
 
-**`mine` IS 121 NOW** (from 107), the extra fourteen being the STREAMING WORLD: ten in its own block
+**`mine` IS 126 NOW** (from 107) — fourteen for the STREAMING WORLD and five more for digging
+sideways from the start (see the report above): ten in its own block
 (chunks arrive in both directions and ahead of the colony, every streamed-in sprite is collided, the
 new ground carries its own ore/water/creatures, the seams meet as one connected space reachable to
 both far edges, no page errors) plus four in the shaft block (the grid is every chunk, only a few
@@ -3297,6 +3298,41 @@ counterplay**, since Excrete and Amputate belonged to the card/action layer. It 
 real run at this fuel economy (the probe hands itself unlimited water and digs far past a tank), but
 it is the shape of the problem if the tank ever gets much bigger. The lever the owner would most
 likely want is `nematodes.breedChance` in the mine's config clone, not the seeded counts.
+
+### "IT'S NOT LETTING ME GROW TO THE LEFT OR RIGHT" — two causes, one report
+
+Reported from a phone. **Both halves passed every existing assertion**, because `mine-check`'s
+streaming block digs with `growFrom` from wherever the colony already is — it proved chunks arrive,
+which was never the thing that was broken.
+
+- **THE MAP: the first gallery sat at `galleryEvery / 2` — row 9 — and the colony roots at row 0.**
+  Above it there was only an 11-column home cap and a two-cell head shaft, so the open run either
+  side of home was **2 to 8 cells for rows 1-6**: the most constrained ground on the whole map was
+  the ground the player starts on and first tries to travel across. `FIRST_GALLERY_ROW` is **3** now.
+- **THE CAMERA: `mineFollowCamera` targeted the DEEPEST tip**, which does not move when you dig
+  sideways — so a run of lateral digs was never followed and the far side of the colony slid off a
+  fixed-zoom screen, where it cannot be pressed at all. Measured: after ten digs one way, **50 of 108
+  strands were off-screen and therefore untouchable**, and the strand the last dig grew sat at
+  **(-1454, -1811) of a 390x844 viewport**. It follows **`state._mineFocus`** now — the strand the
+  last dig ended on, held as a node ID so it stops chasing tissue a worm ate — with the deepest tip
+  as the fallback. The downward LOOK-AHEAD is scaled by the dig's own `dy`, or a lateral dig pushes
+  the frame below the tissue the player is extending.
+
+Measured with the real drag gesture at 390x844, fresh page per direction: **left 430 → 1348 units,
+right 0 → 2076**.
+
+**TWO THINGS THE ASSERTIONS FOR THIS TAUGHT, both found by a verified negative control that PASSED:**
+
+- **A FLOOD OF THE FINE MASK CANNOT ANSWER "CAN I GO SIDEWAYS FROM HERE?"** Rock is clipped at the
+  soil line, so **row 0 carries none at all** and a flood bounded to the top rows runs along the
+  surface forever — it read **253 cells either way**, on the broken map and the fixed one. What the
+  player does is GROW, and growth has rules the mask knows nothing about. The assertion digs now.
+- **AND A LATERAL PROBE MUST NOT LET ITS OWN DIGS BECOME THE DEEPEST STRAND.** The first camera
+  assertion compared the camera's distance to the lateral work against its distance to a deepest tip
+  captured BEFORE the lateral digs — and those digs make their own tissue, some of it deeper, so on
+  the broken build the camera chased a NEW deepest strand that happened to be over on the left and
+  the assertion passed. It digs strictly horizontally now, and asserts the player-facing property
+  instead: **is what I just grew still on screen?** On a fixed-zoom screen that is the whole of it.
 
 ### THE CARVE IS THE DENSITY, AND ALMOST NOTHING ELSE IS
 

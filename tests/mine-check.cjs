@@ -498,6 +498,138 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     await b.ctx.close();
   }
 
+  // ---- 4c. YOU CAN TRAVEL SIDEWAYS FROM WHERE YOU START ------------------------------------
+  // REPORTED FROM A PHONE: "it's not letting me grow to the left or right, at least not much beyond
+  // the original frame." Two independent causes, and the streaming block above passed throughout
+  // both because it digs with `growFrom` from wherever the colony already is.
+  //
+  //   1. THE MAP. The first gallery sat at `galleryEvery / 2` — row 9 — while the colony roots at
+  //      row 0, so the only carved ground above it was an 11-column home cap and a two-cell head
+  //      shaft. Measured, the open run either side of home was 2 to 8 cells for rows 1-6: the most
+  //      constrained ground on the map was the ground the player starts on. With the real drag
+  //      gesture at 390x844, ten left drags moved 430 units and ten right drags moved NOTHING.
+  //   2. THE CAMERA — see the block below.
+  //
+  // This asserts the MAP half, and it asks the player's question rather than the generator's: flood
+  // the real fine mask from the colony's own root and measure how far the reachable space extends
+  // each way within the rows a new player is actually in. A gallery-row number would pass on a map
+  // whose gallery is walled off from the head.
+  console.log('--- you can travel sideways from where you start');
+  {
+    const b = await bootMine(4242);
+    // MEASURED BY DIGGING, NOT BY FLOODING THE MASK. A flood was the first version and it CANNOT
+    // FAIL here: rock is clipped at the soil line, so row 0 carries none at all and the flood runs
+    // along the surface forever — it read 253 cells either way, on the broken map and the fixed one.
+    // What the player does is GROW, and growth has rules the mask knows nothing about. So this digs,
+    // with `growFrom` rather than the drag, to keep the camera out of the measurement (the camera is
+    // the other half of the report and is asserted separately below).
+    const near = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state, sub = s.substrate;
+      const x0 = s.active.nodes[0].x;
+      const run = async (dir) => {
+        for (let i = 0; i < 12; i++) {
+          s.active.water = 99999;
+          let t = null;
+          for (const n of s.active.nodes) {
+            if (n.infected) continue;
+            if (!t || n.x * dir > t.x * dir) t = n;
+          }
+          if (!t) break;
+          g.mine.growFrom(t.x, t.y, t.x + dir * 200, t.y + 40);
+          await new Promise((r) => setTimeout(r, 170));
+        }
+      };
+      await run(-1);
+      const left = x0 - Math.min(...s.active.nodes.filter((n) => !n.infected).map((n) => n.x));
+      return { left, cs: sub.cellSize, depth: g.mine.depth() };
+    });
+    const near2 = await (async () => {
+      // A FRESH PAGE for the other direction: twelve digs one way leaves the colony somewhere else,
+      // and "how far can I get from the START" is the question.
+      const b2 = await bootMine(4242);
+      const r = await b2.page.evaluate(async () => {
+        const g = window.__game, s = g.state;
+        const x0 = s.active.nodes[0].x;
+        for (let i = 0; i < 12; i++) {
+          s.active.water = 99999;
+          let t = null;
+          for (const n of s.active.nodes) { if (n.infected) continue; if (!t || n.x > t.x) t = n; }
+          if (!t) break;
+          g.mine.growFrom(t.x, t.y, t.x + 200, t.y + 40);
+          await new Promise((r2) => setTimeout(r2, 170));
+        }
+        return { right: Math.max(...s.active.nodes.filter((n) => !n.infected).map((n) => n.x)) - x0 };
+      });
+      await b2.ctx.close();
+      return r;
+    })();
+    // TWELVE DIGS SHOULD CARRY YOU WELL CLEAR OF THE STARTING FRAME. On the broken map — the first
+    // gallery half a spacing down, above which there was only an 11-column cap and a two-cell head
+    // shaft — the same twelve digs managed 430 units. A phone viewport is ~460 world units across at
+    // this zoom, so 900 is "about two screens", which is what "beyond the original frame" means.
+    ok('twelve digs carry the colony well to the LEFT of the start', near.left > 900,
+       `${Math.round(near.left)} units (~${(near.left / near.cs).toFixed(0)} cells)`);
+    ok('...and as far to the RIGHT', near2.right > 900, `${Math.round(near2.right)} units`);
+
+    // ---- and the CAMERA follows the work, not the deepest strand ----------------------------
+    // The other half of the report. `mineFollowCamera` targeted the DEEPEST tip, which does not move
+    // when you dig sideways — so a run of lateral digs was never followed and the far side of the
+    // colony slid off a fixed-zoom screen, where it cannot be pressed at all (measured: 50 of 108
+    // strands off-screen and therefore untouchable). It follows `state._mineFocus`, the strand the
+    // last dig ended on, with the deepest tip as the fallback.
+    //
+    // ASSERTED AS "CAN THE PLAYER STILL TOUCH IT?", which is the only form that discriminates. The
+    // first version compared the camera's distance to the lateral work against its distance to a
+    // deepest tip captured BEFORE the lateral digs — and those digs make their own tissue, some of
+    // it deeper, so on the broken build the camera chased a NEW deepest strand that happened to be
+    // over on the left and the assertion passed. Verified negative control both ways now.
+    const cam = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      s.active.water = 99999;
+      // Go DOWN a long way first, so "the deepest strand" and "what I am working on" are far apart.
+      for (let i = 0; i < 16; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 120)); }
+      await new Promise((r) => setTimeout(r, 900));
+      const camAfterDown = g.camera.x, depthAfterDown = g.mine.depth();
+      // Now work SIDEWAYS, near the SURFACE — strictly horizontal, so nothing this does can become
+      // the deepest strand and hand the broken camera the right answer by accident.
+      const shallowY = Math.min(...s.active.nodes.filter((n) => !n.infected).map((n) => n.y));
+      for (let i = 0; i < 10; i++) {
+        let t = null;
+        for (const n of s.active.nodes) {
+          if (n.infected || n.y > shallowY + 90) continue;
+          if (!t || n.x < t.x) t = n;
+        }
+        if (!t) break;
+        g.mine.growFrom(t.x, t.y, t.x - 200, t.y);
+        await new Promise((r) => setTimeout(r, 160));
+      }
+      // Past MINE_PAN_HOLD_MS (2600) and the follow easing, so this is where the camera SETTLES.
+      await new Promise((r) => setTimeout(r, 3600));
+      let work = null, deep = null;
+      for (const n of s.active.nodes) {
+        if (n.infected) continue;
+        if (n.y <= shallowY + 90 && (!work || n.x < work.x)) work = n;
+        if (!deep || n.y > deep.y) deep = n;
+      }
+      const p = g.camera.worldToScreen(work.x, work.y);
+      const r = document.getElementById('game').getBoundingClientRect();
+      return { camX: g.camera.x, camAfterDown, depthAfterDown, depth: g.mine.depth(),
+               onScreen: p.x > 0 && p.y > 0 && p.x < r.width && p.y < r.height,
+               screen: [Math.round(p.x), Math.round(p.y)], view: [Math.round(r.width), Math.round(r.height)],
+               dWork: Math.abs(g.camera.x - work.x), dDeep: Math.abs(g.camera.x - deep.x) };
+    });
+    // THE PLAYER-FACING PROPERTY: what you just dug is still on screen, so you can press it and keep
+    // going. On a fixed-zoom screen that is the whole of it — tissue off screen cannot be touched.
+    ok('what a sideways dig just grew is still on screen', cam.onScreen,
+       `strand at ${cam.screen} of ${cam.view}, camera ${Math.round(cam.camX)}` +
+       ` (${Math.round(cam.dWork)} from the work, ${Math.round(cam.dDeep)} from the deepest strand)`);
+    ok('...and the camera moved there rather than staying over the descent',
+       Math.abs(cam.camX - cam.camAfterDown) > 60,
+       `${Math.round(cam.camAfterDown)} -> ${Math.round(cam.camX)}`);
+    ok('no page errors digging sideways', b.errs.length === 0, b.errs.join(' | ') || 'clean');
+    await b.ctx.close();
+  }
+
   // ---- 5. THE ZOOM IS FIXED ----------------------------------------------------------------
   console.log('--- the fixed zoom');
   const zoomed = await m.page.evaluate(async () => {

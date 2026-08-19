@@ -3227,6 +3227,12 @@ const CONFIG = {
     // about 35% of its box. So the reachable ceiling at 53% open is 0.47 x 0.35 ≈ **16%**, and no
     // amount of better placement can beat it. Two rounds were spent on the placement before that was
     // measured rather than estimated; if the shaft ever reads too open again, carve less first.
+    // GALLERIES ARE THE ONLY WAY TO TRAVEL SIDEWAYS, so this number is how often the player gets a
+    // CHOICE — not a density knob, even though it is also the biggest one. A dig covers ~4 rows, so
+    // 18 was four and a half digs of forced vertical travel between lateral routes and the shaft read
+    // as a corridor with no junctions. 12 is three, and the first is at row 3 rather than half a
+    // spacing down (see FIRST_GALLERY_ROW — the old placement put it at row 9, above which the player
+    // starts, which is what "it's not letting me grow to the left or right" actually was).
     galleryEvery: 18,            // rows between galleries (fixed world-wide, or the seams miss)
     shaftsPerChunk: 1,           // one is enough — a shaft crosses every gallery in its own chunk
     // The corridors NARROW WITH DEPTH, and that is where the banding the owner asked for actually
@@ -21232,7 +21238,16 @@ function mineGenerateChunk(state, ci) {
   };
   const every = Math.max(4, M.galleryEvery | 0);
   const galleryRows = [];
-  for (let r = Math.max(2, (every / 2) | 0); r < rows - 1; r += every) galleryRows.push(r);
+  // THE FIRST GALLERY IS NEAR THE SURFACE, NOT HALF A SPACING DOWN, and that was reported as the
+  // feature not working at all: "it's not letting me grow to the left or right, at least not much
+  // beyond the original frame". At `every/2` the first lateral route was **row 9** while the colony
+  // roots at row 0, so the only thing above it was the 11-column home cap and a two-cell head shaft
+  // — measured, the open run either side of home was **2 to 8 cells for rows 1-6**. So the most
+  // constrained ground on the whole map was the ground the player starts on and first tries to
+  // travel across. Reproduced with the real drag gesture at 390x844: ten left drags moved 430 units
+  // and stopped, ten right drags moved NOTHING.
+  const FIRST_GALLERY_ROW = 3;
+  for (let r = FIRST_GALLERY_ROW; r < rows - 1; r += every) galleryRows.push(r);
   for (const gr of galleryRows) {
     let r = gr;
     for (let c = c0; c <= c1; c++) {
@@ -21682,9 +21697,24 @@ function mineGrow(state, ctx) {
   // toward the goal it was written for), which here would send the colony sideways along the
   // surface on the player's very first tap.
   if (Math.hypot(dx, dy) < 1) { dx = 0; dy = 1; }
+  const before = net.nextNodeId;
   const made = net.growDirected(sub, state.rng, dx, dy, mineGrowSegments(state.config), false, tip);
   if (!made) return { ok: false, message: 'Solid rock that way — aim into open ground.' };
   net.water -= cost;
+  // WHERE THE CAMERA SHOULD BE LOOKING — the strand this dig ended on, furthest along the direction
+  // asked for, plus the direction itself (the look-ahead is only meaningful downward). Held as a
+  // node ID rather than a point so the camera stops chasing tissue a worm has eaten. See
+  // `mineFollowCamera` for why the deepest tip is the wrong thing to follow.
+  {
+    const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    let best = null, bestS = -Infinity;
+    for (const n of net.nodes) {
+      if (n.id < before || n.infected) continue;
+      const s2 = (n.x - fp.x) * ux + (n.y - fp.y) * uy;
+      if (s2 > bestS) { bestS = s2; best = n; }
+    }
+    if (best) state._mineFocus = { id: best.id, dy: uy };
+  }
   net.recomputeVitality();
   return { ok: true, made, water: net.water, message: `Dug ${made} filament${made > 1 ? 's' : ''}.` };
 }
@@ -35728,14 +35758,30 @@ function mineFollowCamera(time, dt) {
   if (time - _minePanAt < MINE_PAN_HOLD_MS) return;
   const net = state.active, sub = state.substrate;
   if (!net) return;
+  // IT FOLLOWS THE DIG THE PLAYER IS WORKING, NOT THE DEEPEST TIP. `state._mineFocus` is where the
+  // last dig ended, stamped by `mineGrow`. Following the deepest tip is right while you are going
+  // down and wrong the moment you go SIDEWAYS: the deepest strand does not move, so a run of lateral
+  // digs is never followed, and the far side of the colony slides off a fixed-zoom screen where it
+  // cannot be pressed at all. That is the other half of "it's not letting me grow to the left or
+  // right" — measured at 390x844, half the colony (50 of 108 strands) was off-screen and therefore
+  // untouchable after ten digs in one direction.
+  //
+  // Falls back to the deepest tip, which is what the first frame of a run wants and what a colony
+  // whose focus strand a worm ate needs.
   let tip = null;
   for (const n of net.nodes) { if (!n.infected && (!tip || n.y > tip.y)) tip = n; }
-  if (!tip) return;
+  const f = state._mineFocus;
+  const focus = (f && net.byId && net.byId.get(f.id) && !net.byId.get(f.id).infected) ? net.byId.get(f.id) : tip;
+  if (!focus) return;
   camera.zoom = mineZoom();
   // A third of the visible band below centre: the tip sits above the middle, so the frame is
   // mostly undug ground. `bandH` rather than `viewH` because the HUD covers the top and bottom.
-  const ahead = (camera.bandH() / camera.zoom) * 0.18;
-  const wantY = tip.y + ahead, wantX = tip.x;
+  //
+  // THE LOOK-AHEAD IS ONLY FOR A DOWNWARD DIG. Applied to a lateral one it pushes the frame below
+  // the tissue the player is extending, which is the thing they need to see and press.
+  const down = !f || f.dy == null ? 1 : Math.max(0, Math.min(1, f.dy));
+  const ahead = (camera.bandH() / camera.zoom) * 0.18 * down;
+  const wantY = focus.y + ahead, wantX = focus.x;
   // Frame-rate independent easing: the same `followLerp` per 16 ms however fast the loop runs.
   const k = 1 - Math.pow(1 - Math.min(0.9, (CONFIG.mine.followLerp || 0.12)), Math.max(0.2, Math.min(4, (dt || 16) / 16)));
   camera.x += (wantX - camera.x) * k;
