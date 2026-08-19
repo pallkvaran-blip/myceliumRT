@@ -3271,6 +3271,30 @@ is the COMPLETE set of cells that can ever have nutrient: **85k cell visits a ti
   seeded on the first frame after the fine mask landed (the survival trap). A chunk is generated
   DURING play, so `solidAtWorld` already answers by then and there is nothing to defer.
 
+### `tests/mine-probe.cjs` — the measuring tool
+
+`node tests/mine-probe.cjs [seed] [vw] [vh]`. Prints numbers, never fails, **not in the runner** —
+`mine-check` is the gate. It digs down, then streams sideways both ways, and reports the shape, the
+three DENSITY numbers, connectivity and reward reachability over the real fine mask, and renderFrame.
+It also writes a frame to `tests/.artifacts/`. Three findings came out of it that no assertion would
+have surfaced, each recorded in its header:
+
+- **the carve is the density ceiling** (below) — print `open`, `bbox` and `solid` before touching the
+  placement again;
+- **no rewards were being placed at all** by the first chunked generator, invisibly;
+- **a colony that looks stuck usually isn't.** `mine-check`'s camera probe read `44 -> 44 m` over 60
+  digs and the suspicion was a sealed pocket; this measured **0 refusals of 40 and 126 m on a fresh
+  page**. The run on the shared page had ENDED (out of fuel), and a dead run refuses every dig with
+  the camera working perfectly. **Check `runOver` before suspecting the map.**
+
+One thing it shows that is a DESIGN question rather than a bug, so it is recorded and not "fixed":
+after a long cheated dig it reports **166 worms** where 7 chunks seed 28. That is `breedChance` 0.8
+per feeding tick doing its job and hitting the nematode cap (150) — and the mine has **no
+counterplay**, since Excrete and Amputate belonged to the card/action layer. It cannot happen in a
+real run at this fuel economy (the probe hands itself unlimited water and digs far past a tank), but
+it is the shape of the problem if the tank ever gets much bigger. The lever the owner would most
+likely want is `nematodes.breedChance` in the mine's config clone, not the seeded counts.
+
 ### THE CARVE IS THE DENSITY, AND ALMOST NOTHING ELSE IS
 
 **Two rounds were spent on the placement before this was measured rather than estimated.** The
