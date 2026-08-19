@@ -1280,6 +1280,20 @@ Harness traps that have cost real time:
     until **three consecutive reads agree** (two is not enough; a mask still filling can repeat a
     value once, which is the `core-check` lesson), bounded so a mask that truly never settles still
     fails. When a check calls the ENGINE a liar, suspect its own clock first.
+- **`scale`'s "enough fresh strands" WAS A LOOP THAT SETTLED AFTER IT STOPPED — fixed.** It grew
+  until it had 30 samples and only THEN ran `settleEnemyTurn()`, and that world step REMOVES strands
+  (a starvation prune, a worm bite), so the count the assertion read was smaller than the one the
+  loop had been satisfied by. Same build, four boots: **37 / 21 / 18 / 18** against a floor of 20.
+  The settle is inside the loop now, so `d` is always the sample the assertion will see; 4/4 green
+  after, landing at 22 / 37 / 23 / 20.
+  - **It cost an hour of bisecting an innocent change**, which is the reusable part. Three
+    consecutive runs failed on a new commit and three passed on the previous one — six samples, all
+    pointing at a diff whose only shared-code edit was a refactor that was provably identical for
+    non-mine maps. The seed is `Date.now()`, so **runs close together in time roll SIMILAR MAPS**,
+    and a 3-vs-3 split across two builds measured a few minutes apart is not the independent
+    evidence it looks like. When a bisect implicates a change that cannot possibly explain the
+    symptom, re-run the SAME build four or five times before believing the split.
+
 - **`turn-play`'s "a long session plays out" (`acts >= 30`) IS STILL FLAKY, and the perf pass
   made it flakier** — 4/4 full 120-action sessions on the pre-perf build, 13 / 120 / 37 after.
   Diagnosed but NOT fixed, so start here rather than from scratch. A turn-based action QUEUES

@@ -132,14 +132,20 @@ const grown=await p.evaluate(() => {
   // sampled 39 fresh strands on one boot and 19 on another, and the coverage guard below failed
   // on the second. Bounded, so a genuinely broken grow still trips that guard instead of
   // spinning here.
+  //
+  // AND IT SETTLES INSIDE THE LOOP, so `d` is always the sample the assertion will actually see.
+  // Settling once at the END was the bug behind the last round of this: the loop stopped as soon as
+  // it had 30 samples, and the world step it then settled REMOVES strands (starvation prunes, a worm
+  // bite), so the final count came in under the floor on a map where the loop had been satisfied.
+  // Same build, four boots: 37 / 21 / 18 / 18 — which reads as a regression and is a fixed count
+  // being a bet about the map, the seed being `Date.now()`.
   let d=[];
   for (let i=0;i<80 && d.length<30;i++) {
     for (const j of idx) { const cell=sub.cells[j]; cell.nutrient=50; cell.maxNutrient=50; }
     G.performAction(s,'grow',{});
+    G.settleEnemyTurn();   // turn-based QUEUES each action's world step for the frame loop
     d=sample();
   }
-  G.settleEnemyTurn();   // turn-based QUEUES each action's world step for the frame loop; settle before measuring
-  d=sample();
   d.sort((a,b)=>a-b);
   return { before, after:net.nodes.length, n:d.length,
            med:d.length?d[Math.floor(d.length/2)]:0, max:d.length?d[d.length-1]:0 };
