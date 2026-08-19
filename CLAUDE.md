@@ -71,12 +71,18 @@ or, in CI, **Actions → "Build web zip" → Run workflow** with a tag and a `pl
 release. itch settings the script cannot set: HTML5, fullscreen button ON, mobile-friendly ON,
 viewport 1280×720.
 
-**BUILD LOCALLY AND RUN THE GATE BEFORE SPENDING A CI RUN.** The build is a few minutes of
+**BUILD LOCALLY AND RUN THE GATE BEFORE SPENDING A CI RUN.** The build is ~8 minutes of
 re-encoding and the gate is under a minute, so a failure costs seconds instead of a round trip —
-and the gate is the only thing that reads the bytes that will actually be uploaded. Measured on
-the 18 Aug cut: itch **30.9 MB / 455 files**, crazygames **32.0 MB / 493** (caps 1000 and 1500).
-The CrazyGames build carries one more level and 385 manifest entries to itch's 347 — a platform
-split in the level set, not a build difference.
+and the gate is the only thing that reads the bytes that will actually be uploaded.
+
+**MEASURED ON THE 19 AUG CUT, THE FIRST WITH SURVIVAL BACK: itch 42.8 MB / 981 files, 873
+manifest entries, 26 reachable levels.** That is **19 entries under itch's 1,000 cap** — the
+prune reads `OFFER_SURVIVAL` out of index.html, so restoring the row put 12 survival-only map
+folders and ~500 manifest entries back into the zip and took the headroom with them. It was
+30.9 MB / 455 files on the 18 Aug cut with survival withheld. **The next map added to the
+reachable set will fail the build on the entry cap**, and the script fails rather than letting
+itch be the one to say so; the lever when that day comes is packing each map's sprites into an
+atlas (see the prune notes below). CrazyGames' caps are 1500 files / 250 MB, so it has room.
 
 - **`--platform` IS THE SDK, AND THE GATE CHECKS BOTH DIRECTIONS.** `itchzip-check` asserts the
   CrazyGames build LOADS `sdk.crazygames.com` and the itch build does NOT — shipping an itch zip
@@ -178,8 +184,9 @@ Two things bring it under:
   that map opened.
 - **`zip -D`**, no directory entries. itch counts them; a browser does not need them.
 
-**980 entries, 42.8 MB** (from 2,450 and 103.5). **Twenty entries of headroom**, and the script
-FAILS the build above 1,000 rather than letting itch be the one to say so.
+**981 entries, 42.8 MB** (from 2,450 and 103.5) on the 19 Aug cut. **Nineteen entries of
+headroom**, and the script FAILS the build above 1,000 rather than letting itch be the one to say
+so — so the next map added to the reachable set is the one that breaks it.
 
 Two more things now come out of the build, on top of the level prune:
 
@@ -214,10 +221,19 @@ Reported from a real upload. The workflow uploads the **stage directory** instea
 GitHub builds has `index.html` at its own root and is itself a valid itch zip; the release asset
 was always fine either way. `itchzip-check` refuses any nested archive whatever produced it.
 
-**`tests/itchzip-check.cjs` (20) IS THE GATE, and it is the only check here that runs against the
+**`tests/itchzip-check.cjs` (22) IS THE GATE, and it is the only check here that runs against the
 ARTEFACT rather than the working tree** — which is the only way to catch a build-step mistake. It
 unzips, serves the result and plays it: title → campaign → a live colony, then survival from a cold
-reload, with no dev button on any screen that carries one and no failed requests. Plus the two
+reload, with no dev button on any screen that carries one and no failed requests.
+
+- **PLAYING BOTH GAMES IS NOT SYMMETRY, IT IS COVERAGE OF THE PRUNE.** While survival was withheld
+  this loop played the CAMPAIGN twice, which was right then and became a hole the moment the row
+  came back: the prune reads the same `OFFER_SURVIVAL`, so 12 survival-only map folders now ship
+  that a campaign play-through cannot touch. For one build the release gate would have had no
+  opinion at all about half of what the zip contained. The second pass is still a cold reload —
+  the loop reloads between games — so it keeps that reading too.
+
+Plus the two
 static assertions that guard the prune, because **playing two levels would never see a sprite
 missing from level 14**: every one of the 26 reachable levels has its folder with sprites in it,
 and all 888 manifest entries point at files that are in the zip. Not in the runner — it needs a zip

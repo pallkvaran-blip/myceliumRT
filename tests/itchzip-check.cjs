@@ -188,12 +188,18 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const devOnTitle = await page.evaluate((ids) => ids.filter((i) => !!document.querySelector(i)), DEV_IDS);
     ok('no dev buttons on the title screen', devOnTitle.length === 0, devOnTitle.join(', '));
 
-    // ---- 4. it PLAYS: the campaign, twice — once from this boot and once from a cold one -----
-    // IT USED TO PLAY BOTH GAMES HERE. Survival is withheld from the title screen now (owner), so
-    // there is one door, and the second pass is what it was always really worth: the same artefact
-    // played from a COLD RELOAD, which is how a player arrives at it. The loop shape is kept
-    // deliberately — reopening survival is one constant, and this is where its row goes back.
-    for (const [row, label] of [['#tsNewCamp', 'campaign'], ['#tsNewCamp', 'campaign, cold boot']]) {
+    // ---- 4. it PLAYS: the campaign, then survival from a cold reload -------------------------
+    // BOTH GAMES AGAIN. It played the campaign twice while survival was withheld from the title
+    // screen, with the note that this is where its row goes back — `OFFER_SURVIVAL` is true again
+    // (owner), so it does.
+    //
+    // AND IT MATTERS MORE HERE THAN ANYWHERE ELSE, because the prune reads that same flag: with
+    // survival withheld the build dropped 12 survival-only map folders and 488 manifest entries,
+    // and with it offered they ship. A campaign play-through cannot touch a single one of them, so
+    // for as long as this loop said `campaign` twice, the release gate had no opinion at all about
+    // more than half of what the zip now contains. The second pass is still a COLD RELOAD — the
+    // loop reloads between games — so it keeps the "arrives at the artefact fresh" reading too.
+    for (const [row, label] of [['#tsNewCamp', 'campaign'], ['#tsNew', 'survival, cold boot']]) {
       await page.evaluate(() => {
         document.querySelectorAll('#levelIntro, #speciesSelect, #tutorial, #ssGameWon').forEach((n) => n.remove());
       });
