@@ -67,16 +67,26 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok('...and the SURVIVAL pair is the bottom row', bot.join(',') === 'tsCont,tsNew', bot.join(',') || '(none)');
     ok('real time is still not offered from the title screen',
        (await page.$('#tsNewRt')) === null && (await page.$('#tsContRt')) === null);
-    // Two games means two labels again, and the campaign is the one that carries a sub-line.
+    // THREE games now, each with its own row and its own label, campaign on top. The Deep Mine's
+    // row is APPENDED under the other two rather than swapped into either of them — the two that
+    // straddle the wordmark had their gaps to its ink solved per side against the rendered canvas,
+    // and a third game either goes outside that pair or re-opens all of it.
     const modes = await page.$$eval('#titleScreen .ts-mode', (ns) => ns.map((n) => n.textContent.trim()));
-    ok('each row names its game, campaign first', modes.join(',') === 'Campaign,Survival', modes.join(',') || '(none)');
+    ok('each row names its game, campaign first', modes.join(',') === 'Campaign,Survival,Deep Mine', modes.join(',') || '(none)');
+    // THE MINE HAS A NEW AND NO OLD: a descent is one sitting (the run ends when the fuel does) and
+    // what persists between them is the STORE, not a half-finished shaft.
+    ok('the Deep Mine offers New and not Old',
+       (await page.$('#tsNewMine')) !== null && (await page.$('#tsContMine')) === null);
     ok('nothing is left labelling a mode that has no button',
        (await page.$$('#titleScreen .ts-kind')).length === 0);
+    // `.ts-soon` is the sub-line slot under a game's label — "Chapter 1" for the campaign, "dig
+    // down" for the mine. Asserted as the PAIR, in row order, so a sub-line landing under the wrong
+    // game (which is how "coming soon" used to sit under Campaign) still fails.
     const soon = await page.$$eval('#titleScreen .ts-soon', (ns) => ns.map((n) => n.textContent.trim()));
-    ok('"Chapter 1" sits under CAMPAIGN and nowhere else', soon.join(',') === 'Chapter 1', soon.join(',') || '(none)');
+    ok('the sub-lines sit under their own games', soon.join(',') === 'Chapter 1,dig down', soon.join(',') || '(none)');
     const caps = await page.$$eval('#titleScreen .ts-cap', (cs) => cs.map((c) => c.textContent));
     ok('every button keeps its caption',
-       caps.join(' | ') === 'continue last game | start a new game | continue last game | start a new game',
+       caps.join(' | ') === 'continue last game | start a new game | continue last game | start a new game | start a new descent',
        caps.join(' | '));
 
     // OLD LEFT, NEW RIGHT, IN BOTH ROWS (owner) — measured, because the ids above only say what
@@ -104,8 +114,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       const b = a.querySelector('.ts-btn').getBoundingClientRect(), c = a.querySelector('.ts-cap').getBoundingClientRect();
       return Math.round((c.top + c.height / 2) - (b.top + b.height / 2));
     }));
-    ok('all four captions sit UNDER their word',
-       capSide.length === 4 && capSide.every((d) => d > 0), capSide.join(', ') + ' px below');
+    // DERIVED, not five: the count follows however many New/Old buttons the screen offers, so a
+    // fourth game does not turn a correct screen into a red line. What is pinned is that EVERY one
+    // of them is under its word — the rule was `.ts-act.ts-solo` only at one point, so restoring a
+    // multi-row screen silently put most of them back above.
+    const nAct = await page.$$eval('#titleScreen .ts-act', (as) => as.length);
+    ok('every caption sits UNDER its word',
+       capSide.length === nAct && nAct >= 5 && capSide.every((d) => d > 0), capSide.join(', ') + ' px below');
 
     // The two-row PAIR size, and the same on both rows. A band rather than a number (it is a
     // clamp() and a 1280-wide page lands mid-range); the floor that matters is ~26px, below which

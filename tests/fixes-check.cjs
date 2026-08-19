@@ -240,7 +240,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
         btn: box(a.querySelector('.ts-btn')), cap: box(a.querySelector('.ts-cap')),
         size: parseFloat(getComputedStyle(a.querySelector('.ts-btn')).fontSize),
       }));
-      return { top: row('#titleScreen .ts-top'), bot: row('#titleScreen .ts-bottom'), acts };
+      // THE DEEP MINE'S ROW is a third block under the other two, and it is a New with no Old —
+      // a descent is one sitting, and what persists between them is the store. Its label has to sit
+      // on the same line as its word like every other row's, which is the rule this block owns.
+      return { top: row('#titleScreen .ts-top'), bot: row('#titleScreen .ts-bottom'),
+               third: document.querySelector('#titleScreen .ts-third') ? row('#titleScreen .ts-third') : null,
+               acts };
     });
     for (const r of [geo.top, geo.bot]) {
       ok(`the ${r.label} row is a New/Old pair`, r.n === 2, `${r.n} button(s)`);
@@ -249,7 +254,16 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       ok(`...with ${r.label} centred on it`, r.labMid != null && Math.abs(r.labMid - r.btnMid) <= 6,
          r.labMid == null ? '(no label)' : `label ${Math.round(r.labMid)} vs words ${Math.round(r.btnMid)}`);
     }
-    ok('all four words carry a caption', geo.acts.length === 4, `${geo.acts.length} of 4`);
+    if (geo.third) {
+      ok('the Deep Mine row is a New on its own', geo.third.n === 1, `${geo.third.n} button(s)`);
+      ok('...with Deep Mine centred on it',
+         geo.third.labMid != null && Math.abs(geo.third.labMid - geo.third.btnMid) <= 6,
+         geo.third.labMid == null ? '(no label)' : `label ${Math.round(geo.third.labMid)} vs word ${Math.round(geo.third.btnMid)}`);
+    }
+    // FIVE with three games, and DERIVED so a fourth does not turn a correct screen red. What is
+    // pinned is that every word has one and every one of them reads as its subtitle.
+    const wantCaps = 2 + 2 + (geo.third ? geo.third.n : 0);
+    ok('every word carries a caption', geo.acts.length === wantCaps, `${geo.acts.length} of ${wantCaps}`);
     ok('...and every one of them is below its word', geo.acts.every((a) => a.cap.mid > a.btn.mid),
        geo.acts.map((a) => Math.round(a.cap.mid - a.btn.mid)).join(', ') + ' px');
     // CLOSE, not merely below: the caption belongs to that word and has to read as its subtitle

@@ -1028,9 +1028,12 @@
        front of it, so this only declares the shared block geometry — the two rules above are the
        same shape and only differ in where they START from. */
     #titleScreen .ts-third { gap:clamp(6px,1.2vh,12px); }
-    /* The empty left-hand slot on the mine's row — see the markup. Zero-size and unclickable, so
-       it holds the grid column open without being a target or affecting the row's height. */
-    #titleScreen .ts-act-ghost { width:0; height:0; pointer-events:none; }
+    /* The empty left-hand slot on the mine's row — see the markup. Zero-size and unclickable, so it
+       holds the grid column open without being a target or affecting the row's height.
+       DELIBERATELY NOT `.ts-act`: that class means "a New/Old button and its caption", and three
+       checks walk every one of them expecting to find a `.ts-btn` inside — a spacer wearing the
+       name crashed all three on `getBoundingClientRect` of null. */
+    #titleScreen .ts-slot { width:0; height:0; pointer-events:none; }
     #titleScreen .ts-mode { font-size:clamp(15px,2.3vw,22px); letter-spacing:.44em; text-indent:.44em; line-height:1;
       text-transform:uppercase; font-weight:700; color:#bfeecb; text-shadow:0 0 20px rgba(127,230,163,0.45); }
     /* Three columns: OLD (right-aligned) · MODE (centred) · NEW (left-aligned) — the buttons
@@ -3137,10 +3140,20 @@ const CONFIG = {
     // owner placed them at — deeper bands run bigger, so the rock closes in as you descend.
     // `fill` is the share of the band's soil the generator tries to cover in rock.
     bands: [
-      { theme: 'magnetite',  name: 'Magnetite',  assetsFrom: 'magnetite-c24',  scale: [0.45, 0.85], fill: 0.30 },
-      { theme: 'anthracite', name: 'Anthracite', assetsFrom: 'anthracite-c24', scale: [0.50, 0.95], fill: 0.38 },
-      { theme: 'garnet',     name: 'Garnet',     assetsFrom: 'garnet-c24',     scale: [0.55, 1.05], fill: 0.44 },
-      { theme: 'hematite',   name: 'Hematite',   assetsFrom: 'hematite-c24',   scale: [0.60, 1.15], fill: 0.50 },
+      // `fill` is a BOUNDING-BOX target, not the solid area you end up with: a sprite's alpha fills
+      // maybe half its box, and the boxes may not touch the carved channels at all. Measured on the
+      // real fine mask, 0.30-0.50 came out at 13% solid — against 23-53% on the traced campaign
+      // maps, i.e. boulders scattered in soil rather than a mine. These are the numbers that put
+      // the shaft in the traced maps' range; `mine-check` measures the mask, not the target.
+      // DEEPER IS DENSER WITH SMALLER PIECES, not bigger masses — and that is the opposite of the
+      // first attempt, for a measurable reason: a big sprite has far fewer legal spots (its whole
+      // box must miss the carved channels), so scaling the deep bands UP made them run out of room
+      // and land BELOW the shallow ones. Measured: 0.46 / 0.52 / 0.42 / 0.39 against targets that
+      // rose the whole way. More, smaller rock packs, which also reads as deep rock being fractured.
+      { theme: 'magnetite',  name: 'Magnetite',  assetsFrom: 'magnetite-c24',  scale: [0.48, 0.92], fill: 0.38 },
+      { theme: 'anthracite', name: 'Anthracite', assetsFrom: 'anthracite-c24', scale: [0.46, 0.86], fill: 0.50 },
+      { theme: 'garnet',     name: 'Garnet',     assetsFrom: 'garnet-c24',     scale: [0.43, 0.80], fill: 0.58 },
+      { theme: 'hematite',   name: 'Hematite',   assetsFrom: 'hematite-c24',   scale: [0.40, 0.74], fill: 0.64 },
     ],
     // How far into a band the previous band's rock keeps appearing, as a fraction of the band.
     // "The deeper you go, different rock types START appearing" — so a boundary is a blend
@@ -3154,7 +3167,12 @@ const CONFIG = {
     // was the pockets being on the route (fixed — see the generator) and half was simply too much
     // in the tank: 40 water is 20 digs is ~85 m before a single pocket. At 30 a first descent that
     // finds nothing gets about 64 m, which is band 2, which is where the worms start.
-    startWater: 30,
+    // 30 -> 44, and the reason is the ROCK rather than the tank: raising the bands' fill to the
+    // traced maps' range took a dig from ~4.25 m of depth to ~2.7, because `growDirected` spends
+    // most of a dense band dodging. Measured across three seeds at 30 water, a straight dive that
+    // found no fuel stopped at 40-45 m — inside band 1, with nothing having happened yet. At 44 it
+    // reaches the low 60s, which is band 2, which is where the worms start.
+    startWater: 44,
     // --- ore ----------------------------------------------------------------
     // A pile pays PHOSPHORUS, banked at run end and spent in the store (owner). Nothing drafts,
     // because there are no cards; `energyPerNutrient` still carries the Energy the engine's own
@@ -21087,6 +21105,8 @@ function mineLevelDef(config, seed) {
   };
   const orePer = M.orePerPile;
   const pools = [];
+  // Where each reward ended up, for the connectivity sweep at the end — see there.
+  const spots = [];
   for (let b = 0; b < bands.length; b++) {
     const rLo = b * M.bandRows + 2, rHi = (b + 1) * M.bandRows - 2;
     const pool = bandPool(rLo, rHi);
@@ -21096,9 +21116,11 @@ function mineLevelDef(config, seed) {
       if (!spot) continue;
       const [c, r] = spot;
       carve(c, r, 2.2);                             // room to work around the pile
-      objects.push({ t: 'food', kind: b >= 2 ? 'cache-engine' : 'cache',
+      const pile = { t: 'food', kind: b >= 2 ? 'cache-engine' : 'cache',
                      x: (c + 0.5) * cs, y: box.surfaceY + (r + 0.5) * cs, r: 1,
-                     energy: orePer[Math.min(orePer.length - 1, b)] });
+                     energy: orePer[Math.min(orePer.length - 1, b)] };
+      objects.push(pile);
+      spots.push({ o: pile, c, r, kind: 'ore' });
     }
   }
 
@@ -21115,7 +21137,9 @@ function mineLevelDef(config, seed) {
       const [c, r] = spot;
       const rad = 1;
       carve(c, r, rad + 1.8);
-      objects.push({ t: 'reservoir', x: (c + 0.5) * cs, y: box.surfaceY + (r + 0.5) * cs, r: rad * cs });
+      const pocket = { t: 'reservoir', x: (c + 0.5) * cs, y: box.surfaceY + (r + 0.5) * cs, r: rad * cs };
+      objects.push(pocket);
+      spots.push({ o: pocket, c, r, kind: 'water', rad });
     }
   }
 
@@ -21124,7 +21148,11 @@ function mineLevelDef(config, seed) {
   // whole: its bounding box may not touch a single carved cell, may not leave the content box,
   // and may not land on ground another sprite has already covered past `OVERLAP` — which is what
   // makes rocks form masses with soil between them rather than one stack in the first clear spot.
-  const OVERLAP = 0.45;
+  // How much of a candidate's box may already be covered by earlier sprites. Low numbers spread the
+  // rock into isolated boulders; high ones let it CLUMP into masses with soil between them, which is
+  // both what a mine looks like and how the fill target is reached at all — a bbox that must land on
+  // virgin ground runs out of room long before it runs out of target.
+  const OVERLAP = 0.62;
   const libFor = (b) => (MINE_ROCKS[bands[b].theme] || []);
   const bandCover = new Array(bands.length).fill(0);
   const bandTarget = bands.map((b) => b.fill * M.bandRows * cols);
@@ -21138,8 +21166,13 @@ function mineLevelDef(config, seed) {
     if (b > 0 && t < M.blendFrac && rng() > t / M.blendFrac) return { b, lib: libFor(b - 1) };
     return { b, lib: libFor(b) };
   };
-  for (let r = 1; r < rows; r += 3) {
-    for (let c = 1; c < cols; c += 3) {
+  // A CANDIDATE EVERY TWO CELLS, not every three. The deeper bands ask for more rock and have less
+  // room for it (their sprites' boxes must miss the carved channels too), so at stride 3 they simply
+  // ran out of candidates before they reached their target — measured at 0.39 against a 0.66 target
+  // while band 1 hit 0.46 against 0.46. Generation happens once per run, so the extra attempts cost
+  // nothing that matters.
+  for (let r = 1; r < rows; r += 2) {
+    for (let c = 1; c < cols; c += 2) {
       const { b, lib } = libAtRow(r);
       if (!lib.length || bandCover[b] >= bandTarget[b]) continue;
       // Biggest first, then smaller — a big mass where one fits, gravel-free fill where it
@@ -21171,6 +21204,56 @@ function mineLevelDef(config, seed) {
     }
   }
 
+  // --- the connectivity sweep -----------------------------------------------
+  // CARVING FIRST GUARANTEES THE ROUTE, BUT NOT THE REWARDS, and that gap cost an unreachable ore
+  // seam (measured: 19 of 20 on one seed). Every carve only ever ADDS open ground and every gallery
+  // starts on a channel, so open space is connected by construction — EXCEPT that a water pocket's
+  // own cells are SOLID (stampReservoir sets rock + water), so a pocket carved across the neck of a
+  // gallery can sever the ore at its far end. Nothing upstream can see that: it is a consequence of
+  // two independent placements, and the only honest answer is to check the finished map.
+  //
+  // So: flood the carved space MINUS the water, from the head, and drop anything the colony could
+  // not reach. Dropping rather than re-placing, because a reward that cannot be reached is worse
+  // than one that is not there — the player can see it on the map and spend a whole run's fuel on it.
+  {
+    const water = new Uint8Array(cols * rows);
+    for (const sp of spots) {
+      if (sp.kind !== 'water') continue;
+      const k = Math.ceil(sp.rad), r2 = sp.rad * sp.rad;
+      for (let dr = -k; dr <= k; dr++)
+        for (let dc = -k; dc <= k; dc++) {
+          if (dc * dc + dr * dr > r2) continue;
+          if (inGrid(sp.c + dc, sp.r + dr)) water[at(sp.c + dc, sp.r + dr)] = 1;
+        }
+    }
+    const seen = new Uint8Array(cols * rows);
+    const stack = [];
+    for (let c = home - HOME_HALF; c <= home + HOME_HALF; c++)
+      if (inGrid(c, 0) && open[at(c, 0)] && !water[at(c, 0)]) { seen[at(c, 0)] = 1; stack.push(at(c, 0)); }
+    while (stack.length) {
+      const i = stack.pop(), r = (i / cols) | 0, c = i % cols;
+      for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nc = c + dc, nr = r + dr;
+        if (!inGrid(nc, nr)) continue;
+        const j = at(nc, nr);
+        if (seen[j] || !open[j] || water[j]) continue;
+        seen[j] = 1; stack.push(j);
+      }
+    }
+    const reachable = (sp) => {
+      if (sp.kind === 'ore') return !!seen[at(sp.c, sp.r)];
+      // A pocket is reachable when the colony can get NEXT TO it — the water itself is solid, and
+      // tapping it is a matter of almost touching it (growth.waterContactDist).
+      for (let dr = -sp.rad - 2; dr <= sp.rad + 2; dr++)
+        for (let dc = -sp.rad - 2; dc <= sp.rad + 2; dc++)
+          if (inGrid(sp.c + dc, sp.r + dr) && seen[at(sp.c + dc, sp.r + dr)]) return true;
+      return false;
+    };
+    const stranded = spots.filter((sp) => !reachable(sp));
+    for (const sp of stranded) { const i = objects.indexOf(sp.o); if (i >= 0) objects.splice(i, 1); }
+    var _stranded = stranded.length;
+  }
+
   return {
     format: LEVEL_FORMAT, version: LEVEL_VERSION,
     id: 'mine-' + ((seed >>> 0) || 1).toString(36),
@@ -21198,6 +21281,9 @@ function mineLevelDef(config, seed) {
     _stats: { rocks: objects.filter((o) => o.t === 'boulder').length,
               piles: objects.filter((o) => o.t === 'food').length,
               pockets: objects.filter((o) => o.t === 'reservoir').length,
+              // What the sweep above had to drop. Normally 0; a number here is the water-pocket /
+              // gallery interaction described there, and it is a tuning fact rather than a bug.
+              stranded: _stranded,
               cover: bandCover.map((n, i) => +(n / (M.bandRows * cols)).toFixed(3)) },
   };
 }
@@ -25184,7 +25270,12 @@ class UI {
     top.style.maxWidth = avail + 'px';
   }
 
-  setHint(text) {
+  // `sticky` holds the line up until something clears it, instead of the 4 s auto-dismiss below.
+  // It exists for the mine's one instruction: there is no tutorial there and no button to point at,
+  // so "drag from the colony to dig" has to stay on screen until the player has actually dug once.
+  // An auto-dismissing hint is right for a transient label ("tap the map to aim") and wrong for the
+  // only thing telling a first-time player what the game's single input is.
+  setHint(text, sticky) {
     const el = this.el.hint; if (!el) return;
     if (this._hintTimer) { clearTimeout(this._hintTimer); this._hintTimer = null; }
     el.textContent = text || '';
@@ -25194,6 +25285,7 @@ class UI {
     const hb = this.el.handbar;
     if (hb) { const r = hb.getBoundingClientRect(); el.style.bottom = Math.round(window.innerHeight - r.top + 8) + 'px'; }
     el.style.display = ''; el.style.opacity = '1';
+    if (sticky) return;
     // Auto-dismiss after a few seconds — aiming still works; this is only the label.
     this._hintTimer = setTimeout(() => {
       el.style.opacity = '0';
@@ -27812,7 +27904,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
             // "this game has no Old". An empty, aria-hidden placeholder keeps DEEP MINE centred
             // under MYCELIUM and NEW directly under the other two NEWs.
             '<div class="ts-actions">' +
-              '<span class="ts-act ts-sm ts-act-ghost" aria-hidden="true"></span>' +
+              '<span class="ts-slot" aria-hidden="true"></span>' +
               '<div class="ts-modewrap"><div class="ts-mode">Deep Mine</div><div class="ts-soon">dig down</div></div>' +
               '<span class="ts-act ts-sm"><span class="ts-cap">start a new descent</span><button class="ts-btn ts-sm" id="tsNewMine" type="button">New</button></span>' +
             '</div>' +
@@ -27916,7 +28008,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
             // "this game has no Old". An empty, aria-hidden placeholder keeps DEEP MINE centred
             // under MYCELIUM and NEW directly under the other two NEWs.
             '<div class="ts-actions">' +
-              '<span class="ts-act ts-sm ts-act-ghost" aria-hidden="true"></span>' +
+              '<span class="ts-slot" aria-hidden="true"></span>' +
               '<div class="ts-modewrap"><div class="ts-mode">Deep Mine</div><div class="ts-soon">dig down</div></div>' +
               '<span class="ts-act ts-sm"><span class="ts-cap">start a new descent</span><button class="ts-btn ts-sm" id="tsNewMine" type="button">New</button></span>' +
             '</div>' +
@@ -33281,6 +33373,12 @@ function begin(newState) {
     },
     store: {
       upgrades: STORE_UPGRADES,
+      // WHICH TRACKS THIS GAME'S SHELF SHOWS, and it is not all of them: the mine's four are its
+      // own shop (see `upgradeInGame`), so a check that reads `upgrades` whole is reading the
+      // TABLE rather than any one store. `shelf()` is what a player is looking at.
+      shelf: (game) => STORE_UPGRADES.filter((u) => upgradeInGame(u, game)),
+      inGame: (id, game) => upgradeInGame(upgradeById(id), game),
+      costs: (id, game) => upgradeCosts(upgradeById(id), game).slice(),
       level: upgradeLevel, value: upgradeValue, nextCost: upgradeNextCost, buy: buyUpgrade,
       // The ladder's other direction. `sellValue` is what the top rung would pay back, so a check
       // can assert the round trip is EXACTLY neutral rather than inferring it from two balances.
@@ -33366,6 +33464,13 @@ function begin(newState) {
         return mineGrow(state, { srcX: tip.x, srcY: tip.y,
                                  x: tip.x + (dx || 0) / L * 400, y: tip.y + (dy || 1) / L * 400 });
       },
+      // ...and dig from a CHOSEN strand toward a chosen point, which is the gesture exactly: press to
+      // pick where growth starts, drag to pick which way it heads. `grow` above always digs from the
+      // DEEPEST tip, which is right for a dive and wrong for anything else — a probe steering toward
+      // an ore seam off to one side computed its direction from a strand near the seam and then had
+      // it applied from the bottom of the shaft, so it dived to the floor while reporting that it was
+      // aiming sideways. Two hooks, because the two questions are different.
+      growFrom: (sx, sy, tx, ty) => mineGrow(state, { srcX: sx, srcY: sy, x: tx, y: ty }),
       end: () => mineEndRun(state),
       play: () => { beginMineRun(); return true; },
       // Pin the shaft: the only way to look at the same generated map twice.
@@ -34298,6 +34403,9 @@ function fireAim(a) {
   if (a.kind === 'mine') {
     const res = mineGrow(state, ctx);
     if (res.ok) {
+      // They have dug: the standing instruction has done its job. `resetHint` puts back the
+      // default, which in the mine is empty.
+      ui.resetHint();
       substrateRenderer.markDirty();
       rendererFor(state.active).markStructureDirty();
       // No sound call here: the network renderer's reveal scheduler plays the layered grow SFX
@@ -34975,6 +35083,18 @@ function showMineBeat(depthText, name) {
 
 function mineFrame(time, dt) {
   if (state.runOver) return;
+  // THE ONE INSTRUCTION. The mine has no tutorial and no button to point at — its whole input is a
+  // press-and-drag on the colony — so a first-time player has nothing to go on. Shown until their
+  // FIRST DESCENT HAS ENDED (`p.mineBest`), not once per run: it is needed on the first descent and
+  // is noise on the twentieth, and "have they finished a descent?" is already recorded.
+  if (!state._mineHinted) {
+    state._mineHinted = true;
+    try {
+      if (!(loadProgress().mineBest > 0) && ui && ui.setHint) {
+        ui.setHint(`Drag from the colony to dig — ${mineGrowCost(state.config)} water a dig`, true);
+      }
+    } catch (_) {}
+  }
   mineFollowCamera(time, dt);
   const gotOre = mineOreRewards(state);
   const gotWater = mineWaterPickups(state);

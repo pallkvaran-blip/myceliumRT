@@ -62,18 +62,42 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   const wipe = () => page.evaluate(() => window.__game.store.reset());
 
   // ---- the tracks themselves ------------------------------------------------
+  // THE CAMPAIGN'S SHELF, NOT THE WHOLE TABLE. `store.upgrades` is `STORE_UPGRADES` entire, and
+  // since the Deep Mine arrived that table also holds the mine's own tracks — a separate shop with
+  // its own wallet and its own ledger (see `upgradeInGame`). Reading the table whole made three
+  // assertions here fail on a shelf that had not changed: seven tiles, seven names, and the pip
+  // total. `shelf()` is what a player standing in the campaign store is looking at.
   const shape = await page.evaluate(() => {
     const S = window.__game.store;
-    return S.upgrades.map((u) => ({ id: u.id, steps: u.costs.length, step: u.step, base: u.base || 0,
+    return S.shelf('campaign').map((u) => ({ id: u.id, steps: u.costs.length, step: u.step, base: u.base || 0,
       costs: u.costs.slice(), name: u.name, effect: u.effect,
       rising: u.costs.every((c, i) => i === 0 || c > u.costs[i - 1]) }));
   });
+  // ...and the other half of that, which is the assertion the old one could not make: a mine track
+  // must not be on the campaign's shelf, and must not be BUYABLE there either. The shelf filter and
+  // `buyUpgrade`'s refusal are the same predicate, so a tile can never appear in a game whose
+  // wallet cannot pay for it — and Spores can never end up in the mine's ledger.
+  const mineTracks = await page.evaluate(() => {
+    const S = window.__game.store;
+    S.reset(); S.credit(100000);
+    const shelf = S.shelf('campaign').map((u) => u.id);
+    const bought = S.buy('growSteps');
+    S.reset();
+    return { shelf, onCampaignShelf: shelf.filter((id) => ['growSteps', 'oreYield', 'pocketWater'].includes(id)),
+             mineShelf: S.shelf('mine').map((u) => u.id), boughtInCampaign: !!bought.ok };
+  });
+  ok('the mine\'s own tracks are not on the campaign shelf',
+     mineTracks.onCampaignShelf.length === 0, mineTracks.onCampaignShelf.join(',') || 'none');
+  ok('...and cannot be bought with Spores either',
+     mineTracks.boughtInCampaign === false, mineTracks.boughtInCampaign ? 'BOUGHT' : 'refused');
+  ok('the mine\'s shelf is fuel and the three mine tracks',
+     mineTracks.mineShelf.join(',') === 'water,growSteps,oreYield,pocketWater', mineTracks.mineShelf.join(','));
   // Order matters as well as membership: the three resource tracks come first, in the game's own
   // energy / water / phosphorus order, so the store reads in the order of the numbers it raises.
   // SEVEN NOW: "Starting level" sits with the resource tracks because it is priced like one
   // (phosphorus's ladder exactly) and, like them, it changes what a run OPENS with rather than
   // what it carries out.
-  ok('seven upgrade tracks, in the owner\'s order',
+  ok('seven upgrade tracks on the campaign shelf, in the owner\'s order',
      shape.map((s) => s.id).join(',') === 'energy,water,phosphorus,startLevel,carryCards,carryEngines,lives',
      shape.map((s) => s.id).join(','));
   // The owner set these three by hand; they are the whole point of the last pass.

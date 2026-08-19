@@ -1010,7 +1010,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // half"), so both rows carry a label. mode-check owns the LAYOUT — which row, which side, how
   // far from the wordmark; what matters HERE is that the campaign is a real entry with a pair of
   // its own, which is this file's whole subject, and that it is the one on top.
-  ok('the title screen names both games', !title.missing && title.modes.join(',') === 'Campaign,Survival',
+  // THREE games now — the Deep Mine was appended as a row under the other two. What matters HERE
+  // is unchanged: the campaign is a real entry with a pair of its own and it is the one on TOP.
+  ok('the title screen names every game, campaign first',
+     !title.missing && title.modes.join(',') === 'Campaign,Survival,Deep Mine',
      (title.modes || []).join(' / ') || '(none)');
   ok('Campaign has its own New and Old', title.hasNew === true && title.hasOld === true,
      (title.ids || []).join(', '));
@@ -1027,7 +1030,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // rules — the same word the in-game editor stamps on maps saved from it. It was dropped while
   // the campaign was the only game, when with nothing else on the screen it read as a line of its
   // own rather than as a subtitle; with a label above it, it is a subtitle again.
-  ok('...and "Chapter 1" sits under CAMPAIGN', (title.soon || []).join(',') === 'Chapter 1',
+  // `.ts-soon` is the sub-line slot under a game's label, and there are two of them now — the
+  // campaign's "Chapter 1" and the mine's "dig down". Asserted in ROW ORDER so a sub-line landing
+  // under the wrong game (how "coming soon" once sat under Campaign) still fails.
+  ok('...and "Chapter 1" is the CAMPAIGN\'s sub-line', (title.soon || [])[0] === 'Chapter 1',
      (title.soon || []).join(' | ') || '(nothing there)');
   // THREE RESUME SLOTS, one per (mode, game) pair. Two are reachable from the title now and the
   // real-time one is not, but keeping all three distinct is what stops a campaign start
