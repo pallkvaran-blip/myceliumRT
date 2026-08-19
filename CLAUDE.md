@@ -1014,6 +1014,13 @@ honest and the food is simply walled in. The owner's call: move the food or move
 (The ember count reads 10 of 105 rather than the 2 of 61 recorded earlier because `traced` boots
 TURN-BASED now: nothing eats the food while it is being counted, so the number is the map's rather
 than whichever tick the probe landed on.)
+**AND THE 19 AUG MINE SWEEP: 1445 passed, 2 failed across 38 checks** (everything registered except
+`traced`, `rt`, `tut`, `lure`, `special`, `hs`, `tutscript` timing-outs — see the list below). Both
+failures are the KNOWN FLAKIES documented under Loose ends — `turn-play`'s long session (14 acts of
+the 30 it wants, `over:false alive:true`, the queued-step stall) and `core`'s rock-clip pixel test
+(31 against a tolerance of 30) — and both went **5/5 and 18/18 on three consecutive re-runs**, same
+build. Re-run before believing either of them.
+
 Everything else has been verified on SUBSETS scaled to the
 change, which is the recommended gear — the most recent runs, each 0 failed:
 

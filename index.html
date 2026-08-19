@@ -18794,11 +18794,11 @@ function configForLevelDef(config, level) {
     if (w.bottomBuffer != null) cfg.world.bottomBuffer = Math.max(0, +w.bottomBuffer);
     cfg.world.coreDepthFrac = w.coreDepthFrac !== undefined ? w.coreDepthFrac : 1;
   } else {
-  cfg.world.height = _sy + CORE_BOX_DEPTH;
-  cfg.world.coreDepthFrac = CORE_LINE_DEPTH / CORE_BOX_DEPTH;
-  // The red band below the line, and what sets the TOTAL depth you scroll through.
-  cfg.world.bottomBuffer = Math.max(0, CORE_TOTAL_DEPTH - CORE_BOX_DEPTH);
-  if (w.coreDepthFrac !== undefined) cfg.world.coreDepthFrac = w.coreDepthFrac;
+    cfg.world.height = _sy + CORE_BOX_DEPTH;
+    cfg.world.coreDepthFrac = CORE_LINE_DEPTH / CORE_BOX_DEPTH;
+    // The red band below the line, and what sets the TOTAL depth you scroll through.
+    cfg.world.bottomBuffer = Math.max(0, CORE_TOTAL_DEPTH - CORE_BOX_DEPTH);
+    if (w.coreDepthFrac !== undefined) cfg.world.coreDepthFrac = w.coreDepthFrac;
   }
   // A TRACED map brings its own lighting, baked into the art by whatever drew it, and the
   // renderer's ambient pass then multiplies the whole underground by a warm tint
