@@ -135,6 +135,76 @@ Spares, for a store with a larger cap: `management`, `atmospheric`, `singleplaye
 Kept for the same reason as the copy and the tags: so the next one starts from what went up. Newest
 first.
 
+### Easier, and much better on a phone  (2026-08-19)
+
+Shipped from `9150414`..`db7e4cf` — nine days and 69 commits, the first upload since 10 August.
+
+**It is easier now**
+
+- **Rot burns out.** A Trichoderma infection spreads for two turns and then stops. What it already
+  claimed still dies off, but the rest of the colony is safe from that breach — it used to spread
+  until you amputated ahead of it.
+- **Every run starts with a free retry**, and the retry button now says where to buy more.
+- **Every campaign level got an easier pass**: fewer threats, more food. Level 6 went from nine
+  mould clouds to two, level 7 from eleven to three.
+- **Water on levels 5, 6 and 7** — six new reservoirs.
+- **You start with 10 phosphorus.**
+
+**The store**
+
+- **A new upgrade: Starting level.** Begin a run further in, up to the highest level you have
+  cleared. Eight steps, priced like Phosphorus, from 25 Spores.
+- **…and you can sell it back**, at exactly what you paid, if you would rather start earlier.
+- **Split Gill is 500 Spores**, down from 1000.
+
+**Phones**
+
+- **Growth animates when you are zoomed out.** A phone is always on the low-detail draw path, so a
+  grow used to appear whole in a single frame with no filaments extending at all.
+- **A map opens fully zoomed out** rather than on your colony. A phone has a third of the pixels,
+  so the old opening was a keyhole — you started inside your own colony with no idea where the
+  food, the rock or the goal were.
+- **The top bar stops overlapping itself** when you have both an income engine and an ability
+  installed.
+- **The card tray lost a row**: no more filter chips, and ▾ / » Skip sit at the ends of the card
+  row instead of owning a line of their own.
+- **The molten band at the bottom is a third deeper**, so the core line clears the cards.
+
+**The tutorial**
+
+- **It cannot be quit by accident.** One Next button; the End beside it is gone.
+- **The camera stops shoving you around.** Every step frames its subject wider, and finishing hands
+  the map back as a full survey view instead of leaving you wherever the last step was looking.
+- **Orange piles get a step of their own**, standing on an actual orange pile, rather than being a
+  second lesson squeezed onto the step that teaches the drag.
+- **The grow step gets the screen to itself** — the tray collapses, and there is a beat to watch
+  what you grew.
+- **A strategy tip for the mould** on level 3.
+- **Desktop players get a line about fullscreen**, with an arrow pointing at the corner the button
+  lives in.
+
+**Fixes**
+
+- **A dropped image is retried.** One failed request meant that art — the goal hill, the cities —
+  was silently missing for the whole session, and only a reload brought it back. Reported as
+  "there was simply no end goal there".
+- **The title screen is rearranged**: Campaign on top, Survival below it, Old on the left of each
+  and New on the right.
+
+Deliberately NOT in it, recorded so they are not "restored" later:
+
+- **Survival's withdrawal and return is not a bullet, because no player saw either.** It was taken
+  off the title screen on 11 Aug and put back on 19 Aug, both between uploads, so the live build
+  and this one both have it. Naming it would announce a change nobody can see — and worse, imply
+  it had been missing. **The high-score board is the same story** and is left out for the same
+  reason: it goes with survival, so it left and came back inside the same window.
+- **Nor is real time.** It has been off the title screen since before the last upload and still is.
+- **The free-retry bullet rests on `7bccac5` having shipped on 10 Aug** (it set `lives.base` to 0
+  that day, and `a6e7493` put it back to 1 on the 11th). The telemetry argument that settled it —
+  a new player dying on level 3 with no retry and no Spores — is about real players, so it did.
+  If the 10 Aug upload predates that commit, strike this bullet: the live build already had the
+  free retry and nothing changed.
+
 ### Sharper controls, clearer cards  (2026-08-09)
 
 Shipped from `32183b8` (phone autofocus), `002b34e` (the feel pass) and `192fc37` (the aim fix).
