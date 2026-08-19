@@ -3192,6 +3192,24 @@ const CONFIG = {
       { worms: 3, clouds: 2 },
       { worms: 4, clouds: 3 },
     ],
+    // --- what a creature can see, against what the PLAYER can see ------------
+    // 500 IS THE CAMPAIGN'S NUMBER AND IT IS TOO FAR FOR A FIXED ZOOM. Measured at 390x844 and zoom
+    // 0.85, the visible half-height is ~496 world units and the half-WIDTH is ~229 — so a worm at
+    // the campaign's `sightRadius` senses the colony from twice as far as the player can see in the
+    // only direction the shaft is narrow in, and starts crawling toward tissue with nothing on
+    // screen to say why. That is bad in the campaign and unfair here, because the mine has no
+    // counterplay at all: Excrete and Amputate belonged to the card/action layer, so a creature that
+    // finds you is a creature you have to outrun with the fuel you have left.
+    //
+    // 300 makes "it can sense you" roughly "you can see it" at this zoom. It does NOT make them
+    // harmless — a worm bites 4 strands at a time and closes at 1.0 cells/tick — it makes them
+    // something you walked into rather than something that arrived. The other half of the same rule
+    // is that band 1 seeds nothing and NOTHING RESPAWNS (see `threatBands` and the level def's
+    // `threats.respawn: false`), so the mine's population is exactly what it placed.
+    //
+    // Applied to the run's config clone by `configForLevel`, so the sliders and the campaign are
+    // untouched. If the mine ever gets a defensive action, this is the first number to put back.
+    sightRadius: 300,
     // --- camera -------------------------------------------------------------
     zoom: 0.85,                  // FIXED (owner: no zooming out to plan a route). Roughly the
                                  // campaign's medium zoom, and above the 0.62 the detail LOD
@@ -30589,6 +30607,11 @@ function configForLevel(level) {
   // store's tile, the picker's note and the dig all read the same number. `mine-check` asserts the
   // two agree at zero purchases, which is the only way that duplication can go wrong.
   if (isMineGame() && cfg.mine) {
+    // WHAT THE CREATURES CAN SEE, brought in line with what the player can — see the comment on
+    // `CONFIG.mine.sightRadius`. Both threats, because they have always shared the number and a mine
+    // where the mould sees twice as far as the worms would be arbitrary rather than designed.
+    const sr = Math.max(60, cfg.mine.sightRadius | 0);
+    if (sr) { cfg.nematodes.sightRadius = sr; cfg.trichoderma.sightRadius = sr; }
     const b = storeBonuses();
     cfg.mine.startWater = Math.max(1, (cfg.mine.startWater | 0) + (b.water | 0));
     cfg.mine.growSteps = Math.max(1, b.growSteps | 0);

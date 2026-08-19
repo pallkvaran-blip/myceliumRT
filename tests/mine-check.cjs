@@ -734,6 +734,25 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     ok('no ant nests', th.ants === 0, String(th.ants));
     ok('nothing respawns', th.respawnW === 0 && th.respawnC === 0, `${th.respawnW} / ${th.respawnC}`);
     ok('nothing was seeded inside a boulder', th.inRock === 0, `${th.inRock} on solid ground`);
+    // WHAT THEY CAN SENSE, AGAINST WHAT THE PLAYER CAN SEE. The campaign's 500 is further than the
+    // visible half-height at the mine's fixed zoom and more than twice the half-WIDTH, so a worm
+    // would sense the colony from outside the frame and start crawling with nothing on screen to say
+    // why — unfair here in a way it is not in the campaign, because the mine has no counterplay.
+    // Asserted as a RELATION to the viewport rather than as the number 300, so changing the zoom or
+    // the shaft's width cannot silently reopen the gap.
+    const sight = await b.page.evaluate(() => {
+      const c = window.__game.state.config, cam = window.__game.camera;
+      return { worm: c.nematodes.sightRadius, cloud: c.trichoderma.sightRadius,
+               halfH: cam.bandH() / (2 * cam.zoom), halfW: cam.viewW / (2 * cam.zoom),
+               campaign: window.__cfg.nematodes.sightRadius };
+    });
+    ok('a creature senses no further than the player can see down',
+       sight.worm <= sight.halfH && sight.cloud <= sight.halfH,
+       `sight ${sight.worm}/${sight.cloud} vs ${Math.round(sight.halfH)} visible below`);
+    ok('...and both threats share the number', sight.worm === sight.cloud,
+       `${sight.worm} / ${sight.cloud}`);
+    // ...and the CAMPAIGN's is untouched: this is a clone-time override, not a retune.
+    ok('...while the campaign keeps its own 500', sight.campaign === 500, String(sight.campaign));
     await b.ctx.close();
   }
 

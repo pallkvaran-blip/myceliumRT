@@ -3224,6 +3224,27 @@ and the export keeps 42, hematite's has 50 and keeps 28. The generator scales th
   shaft needs — and `solidifyRock` waits for `ready` before stamping, so the missing three would be
   rock you can grow straight through.
 
+### The creatures: worms and mould, appearing deeper
+
+Owner's answer when asked: **worms + mould, appearing deeper**. `threatBands` is the table — band 1
+is **empty on purpose** (the first 42 m teach the fuel clock with nothing chasing you), worms from
+band 2, mould from band 3, and **no ants at all**.
+
+- **`mineSeedThreats` RUNS ON THE FIRST FRAME AFTER THE ROCK MASK LANDS**, exactly like
+  `seedLevelThreats`, and for the same reason: on a map whose rock is sprites, `cell.rock` is stamped
+  from each sprite's ALPHA during RENDER and is empty at build time, so anything placed in
+  `buildLevel` lands inside boulders, silently. Its own flag (`_needMineThreats`) rather than sharing
+  survival's, because the two seed from different tables and a run must never get both. It re-stamps
+  the cloud field, or the clouds are invisible until the first world step — a cloud has no sprite, it
+  IS `cell.trich`.
+- **NOTHING RESPAWNS.** The level def carries `threats: { trych: 0, nematodes: 0, ants: 0, respawn:
+  false }`, so the procedural seeders and the top-ups are both out and the mine's population is
+  exactly what this module places. That is a design choice, not tidiness: the player has no
+  counterplay, so a creature has to be a hazard you route around rather than a standing pressure.
+- **`CONFIG.mine.sightRadius` 300, not the campaign's 500** — see the note under "Where the game
+  stands". At the mine's fixed zoom 500 is further than the player can see, and a creature that
+  senses you from off-screen with no answer available is unfair rather than hard.
+
 ### The action layer: one grow, always armed
 
 **`armedDragTarget()` returns `{kind:'mine'}` whenever the substrate is a mine**, so the grow is
@@ -4269,13 +4290,17 @@ established in discussion, and how each point actually landed:
   growth floor you can see coming, drawn in the red the earth already ramps to). The goal is gone
   entirely: no column anywhere is flagged `goal`, which is what stops `checkGoalReached` firing and
   retires the goal hill and its bushes.
-- **Threat legibility breaks under a fixed close zoom.** STILL OPEN, and it is the biggest thing the
-  build has not answered. A sensing radius is 500 world units against ~460 of visible width at the
-  mine's zoom, so a worm senses you from further away than you can see. The mine's own mitigations
-  are that band 1 has nothing in it and that nothing respawns, so a creature met is a creature you
-  walked into — but a player has no counterplay (Excrete and Amputate belonged to the card/action
-  layer) and no warning. The levers, in order of cheapness: a smaller `sightRadius` in the mine's
-  config clone, a screen-edge indicator, or giving the mine one defensive action.
+- **Threat legibility breaks under a fixed close zoom.** ADDRESSED with the cheapest of the three
+  levers: `CONFIG.mine.sightRadius` **300**, copied over BOTH threats' radii by `configForLevel` on
+  the run's config clone. Measured at 390x844 and zoom 0.85 the visible half-height is ~496 units and
+  the half-WIDTH ~229, so the campaign's 500 had a worm sensing the colony from twice as far as the
+  player can see sideways and starting to crawl with nothing on screen to say why — bad in the
+  campaign and unfair here, because the mine has no counterplay at all. `mine-check` asserts it as a
+  RELATION to the viewport rather than as the number, so changing the zoom or the shaft's width
+  cannot silently reopen the gap, and that the CAMPAIGN keeps its own 500.
+  Still on the table if it needs more: a screen-edge indicator, or giving the mine one defensive
+  action. The other half of the rule is already in: band 1 seeds nothing and NOTHING RESPAWNS, so a
+  creature met is a creature you walked into.
 - **The recommendation was: add a third mode, do not rewrite. THAT IS WHAT WAS BUILT.** `#mine`
   reuses substrate, growth, harvesting, threats, the renderers and the store and swaps the action
   layer, so it is non-destructive and lets the card layer be deleted AFTERWARDS with data behind it.
