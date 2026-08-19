@@ -96,6 +96,15 @@ relevant one after any change to those systems, and read `worm-probe`'s header b
 it — its first version reused one colony across every sample and the worms ate it, which
 produced a clean-looking table supporting the wrong conclusion.
 
+**`mine-probe.cjs` is the DEEP MINE's own** — `node tests/mine-probe.cjs [seed] [vw] [vh]`. It digs
+down, streams sideways both ways, and prints the shape, the three DENSITY numbers, connectivity and
+reward reachability over the real fine mask, and renderFrame, plus a frame in `.artifacts/`. Read it
+before touching the generator's placement: the finding it exists for is that **the CARVE is the
+density ceiling** — a boulder's alpha fills only ~35% of its bounding box, so at 53% open the most
+solid ground a chunk can show is ~16%, and two rounds went on better placement before that was
+measured rather than estimated. Its other two findings are in its header, and the second one is
+general: **a colony that looks stuck usually isn't — check `runOver` before suspecting the map.**
+
 **`telemetry-probe.mjs` is the same kind of tool, at PLAYER scale** — and it is the only one that
 reads the live world rather than a headless browser. `node tests/telemetry-probe.mjs
 [--source itch|all] [--cache rows.json]` pulls the `events` table (paged: PostgREST caps a GET at

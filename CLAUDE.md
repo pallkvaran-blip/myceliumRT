@@ -3217,7 +3217,10 @@ buffer**, which no phone has. `substrate.mine` takes the `this.live` path instea
 and earth gradients, one seamless 384px noise tile drawn as an `overlay` pattern, the crust, the
 trich field), so nothing world-sized is allocated at all and 504 x 168 is 85k cells and no pixels.
 Measured on the wide world: **renderFrame 1.6-2.6 ms median** at 390x844, against 11-14 on the baked
-build and the campaign's 87.
+build and the campaign's 87. **Boot to playable is unchanged at 2.2-2.3 s** (390x844 dpr3, three runs)
+even though `start()` now generates the home chunk and its two neighbours — 1,499 sprites — before the
+first frame, which it does on purpose: the frame the map is revealed on is the one the player looks at
+hardest, and arriving on bare soil while the rock appears is the whole cost of streaming.
 
 **CONNECTIVITY IS BY CONSTRUCTION AND NEEDS NO CROSS-CHUNK STATE** — the one load-bearing idea:
 
