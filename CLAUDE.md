@@ -60,14 +60,35 @@ unless a zip went up.
 **THE CUT IS SCRIPTED NOW — don't do it by hand.**
 
 ```bash
-node scripts/make-itch-zip.mjs      # -> dist/mycelium-itch.zip
-node tests/itchzip-check.cjs        # 20 assertions, against the ARTEFACT
+node scripts/make-web-zip.mjs --platform itch          # -> dist/mycelium-itch.zip
+node scripts/make-web-zip.mjs --platform crazygames    # -> dist/mycelium-crazygames.zip
+node tests/itchzip-check.cjs                # 22 assertions, against the ARTEFACT
+node tests/itchzip-check.cjs crazygames     # 23 — the extra one is the SDK
 ```
 
 or, in CI, **Actions → "Build web zip" → Run workflow** with a tag and a `platform`
 (`.github/workflows/itch-zip.yml`), which does the same build and attaches the zip to a **draft**
 release. itch settings the script cannot set: HTML5, fullscreen button ON, mobile-friendly ON,
 viewport 1280×720.
+
+**BUILD LOCALLY AND RUN THE GATE BEFORE SPENDING A CI RUN.** The build is a few minutes of
+re-encoding and the gate is under a minute, so a failure costs seconds instead of a round trip —
+and the gate is the only thing that reads the bytes that will actually be uploaded. Measured on
+the 18 Aug cut: itch **30.9 MB / 455 files**, crazygames **32.0 MB / 493** (caps 1000 and 1500).
+The CrazyGames build carries one more level and 385 manifest entries to itch's 347 — a platform
+split in the level set, not a build difference.
+
+- **`--platform` IS THE SDK, AND THE GATE CHECKS BOTH DIRECTIONS.** `itchzip-check` asserts the
+  CrazyGames build LOADS `sdk.crazygames.com` and the itch build does NOT — shipping an itch zip
+  with the SDK, or a CrazyGames zip without it, are both submission failures and neither is
+  visible from the outside. `tests/crazygames-check.cjs` (13) covers the bridge's BEHAVIOUR
+  separately, on the tree: `init → loadingStart → loadingStop → gameplayStart`, edge-triggered
+  once, never before `loadingStop` or while a menu is up. The zip gate also plays the build
+  through with the SDK CDN unreachable, so the bridge degrades instead of taking the game down.
+- **THE TOKEN IS NOT IN THE CONTAINER.** `$GITHUB_TOKEN` is unset, so `curl`ing the Actions API to
+  poll a run silently returns nothing and any `until` loop built on it spins forever. Use the
+  GitHub MCP tools. `actions_list` returns a payload too large to read — fetch a single run with
+  `actions_get` (`resource_id`, not `run_id`) instead.
 
 - **YOU CANNOT HAND THE ZIP OVER FROM A SESSION. The chat upload cap is 30 MiB and the zip is
   ~43 MB**, so `SendUserFile` refuses it and the artefact only ever exists inside the container.
@@ -975,12 +996,12 @@ change, which is the recommended gear — the most recent runs, each 0 failed:
 | survival · level · core · mode · campaign · hs · store · handoff · sky · ants · ctreats · challenge | see the survival section (the authored-survival set) |
 
 Per-check, measured: traced 1190 (76 maps) · edit 118 · threat 114 · campaign 106 · rt 69 ·
-enemy 52 · survival 53 · challenge 50 · sky 45 · mode 39 · species 38 · ctreats 31 · harvest 28 ·
-level 27 · fixes 27 · scale 26 · tut 24 · ants 22 · mould 20 · hs 19 · titlecard 16 · boot 16 ·
-core 16 · cascade 16 · reveal 16 · victory 13 · review 13 · water 11 · surface 11 · aim 9 ·
-lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
-plus **store 97** and **itchzip 20**, measured on their own runs (`itchzip` is not in the runner at
-all — it needs a built zip). Note `aim` contributes **0 of its 9** inside a full sweep, because it
+enemy 52 · survival 56 · challenge 50 · sky 45 · tutscript 46 · mode 39 · species 38 · ctreats 31 ·
+harvest 28 · level 27 · fixes 27 · scale 26 · tut 24 · ants 22 · mould 20 · hs 19 · titlecard 16 ·
+boot 16 · core 16 · cascade 16 · reveal 16 · victory 13 · review 13 · crazygames 13 · water 11 ·
+surface 11 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
+plus **store 97** and **itchzip 22** (**23** for `crazygames`, the extra one being the SDK),
+measured on their own runs (`itchzip` is not in the runner at all — it needs a built zip). Note `aim` contributes **0 of its 9** inside a full sweep, because it
 bails to a zero-coverage pass there, so a sweep's arithmetic never adds up.
 
 **`node tests/campaign-shot.cjs`** is not a check — it writes nine frames to `tests/.artifacts/`
@@ -1064,6 +1085,23 @@ Harness traps that have cost real time:
   else would re-render it (`hover-check` sets `st.cards._engTick = 0` before probing the cadence
   bar), and step your samples >29 ms apart — the copies of those same assertions on `rt-test`'s
   long-lived page had to be deleted for reporting failures they couldn't justify.
+- **`offsetParent` IS NULL FOR `position: fixed`, AND EVERY OVERLAY HERE IS FIXED.** So the
+  ordinary "is it visible?" idiom (`n.offsetParent !== null`) reports the species picker, the
+  level intro and the tutorial popup as hidden while they are on screen — which presents as a
+  screen that "never appeared" and sends you looking for a boot failure that is not there. Test a
+  rect instead: `display`/`visibility` plus `getBoundingClientRect()` with non-zero size.
+- **THE PUBLIC BUILD HAS SCREENS THE `#dev` BOOT SKIPS**, so a click-through written against the
+  dev hash stalls on the real artefact. In order: the name dialog (its confirm is `#tsNameStart`;
+  **Enter is not wired to it**), then a prologue that advances on a click ANYWHERE rather than a
+  button, then the level intro that dev skips outright. A release click-through therefore wants a
+  LOOP that polls state and clicks the most plausible advance, not a fixed script — which is what
+  `itchzip-check` already is. **Look for an existing gate before writing one**: that check is the
+  release gate and does this properly, including a cold boot.
+- **`__game.tutorialScript()` RETURNS THE AUTHORED TEXT, WITH ITS MARKUP**; a walkthrough walk
+  reads `textContent` off the popup. Comparing one against the other fails on the tags alone
+  (`^Good luck…$` against `<b>Good luck…</b>`), which reads as a missing step. Strip before
+  comparing. And `script` lists EVERY step including ones that skip themselves at runtime, so
+  "does a phone see it?" can only be answered by a WALK at that viewport.
 - Chromium is at `/opt/pw-browsers/chromium` (`executablePath`). Use `deviceScaleFactor` 2–3,
   never 4 (it OOMs), and **one browser per case** — reusing a context across cases has leaked
   state into later assertions.
@@ -1343,6 +1381,23 @@ Already in place before any of that, and worth not re-deriving: `RENDER_DPR_CAP`
   applied by `configForLevelDef`); `ambientWarmth` scales only the hue shift, 0 being a neutral
   dim.
 
+- **THE CARD TRAY IS `.handbar`, and no other name matches it.** `#hand` / `.handwrap` select
+  nothing — a tutorial framing pass measured its inset against them, got `{top:200, bottom:0}`,
+  and shifted the camera by half what it meant to. `.handrow` is the row inside it, `.handlist`
+  the strip, `.handtoggle` / `.skipchip` the two controls.
+  - The owner stripped it down for space (phone above all): **the filter chips are gone**
+    (`handFilter` state survives, unused), the bar sits flush at the very bottom with its lower
+    corners square, cards align to the BOTTOM of the row, and the two buttons are **absolutely
+    positioned OVER the strip** rather than owning a row or a column of their own — *"the cards
+    should be visible in that space"*. Worth ~60px of height and a card and a half of width.
+- **THE SUCCESS AND DEATH SCREENS NEED A FLOOR UNDER THEIR TEXT.** `.ss-win`'s only backdrop was
+  two radials centred at 50% 40% that fade out by 82%, so they cover the wordmark and little else
+  — every line below it was read against whatever rock, soil or molten core sat underneath, and
+  `.spore-cta` is `#c0281f`, a dark red picked to work on near-black. A flat wash goes **LAST in
+  the background list** (i.e. furthest back), so the mint and red vignettes still tint it and the
+  map still reads through at about a third. **`.ss-dth` REPLACES that background rather than
+  inheriting it**, so it needs its own wash; the red also carries a text-shadow, being the darkest
+  text on either screen.
 - **HUD churn.** The RT HUD refreshes every world tick. Any markup that encodes per-tick
   progress gets rebuilt at 2 Hz, which destroys the element under the cursor (flicker, swallowed
   clicks). Hence the `_handSig` / `_filterSig` / `_ledgerHTML` / `_actMenuHTML` guards and the
@@ -3179,14 +3234,55 @@ level guaranteed to have all three to point at.
 
 - `deps.inlineTips` (= `survivalRun()`) selects `stepsWithTipsInline()`, and `beginLevelTip` returns
   early for survival so the tips cannot also fire on 2 and 3.
-- **Spliced BEFORE the closing "Good luck…", and `last` is RE-DERIVED.** Each tip carries
+- **Spliced BEFORE the whole CLOSING BLOCK, and `last` is RE-DERIVED.** Each tip carries
   `last: true` of its own because each is normally a script of one — concatenated as-is, the Next
-  button reads **"Begin" three steps early**.
+  button reads **"Begin" three steps early**. The block is TWO steps (below), found by their
+  `closing` flag rather than as `slice(-1)`: splicing before the last ELEMENT drops the tips
+  between the pair and leaves a phone signing off three steps before the end.
 - Asserted on the SCRIPT (`__game.tutorialScript()`, backed by a `script` getter on the tutorial
   controller), not by clicking through: several steps are `gate`d on a real player action (arming a
   card, digesting a pile), which a headless probe cannot supply. `survival-check` keeps the campaign
   run as a control on the same page — without it, "all the tips are on level 1" passes on a build
   that simply always inlines them.
+
+### The walkthrough ends on a PAIR, one per device
+
+The last two entries of `MAIN_STEPS` are a matched set, both flagged `closing`, and **exactly one
+of them ever shows**: the fullscreen line on a desktop, the plain `<b>Good luck…</b>` everywhere
+else. Owner: *"For the best experience, full screen mode is recommended. Good luck!"*, and make it
+the last message.
+
+- **It is DESKTOP ONLY (`skip: () => !desktopWide()`, i.e. `innerWidth >= 900`)**, so it cannot
+  simply BE the ending — a phone browser's fullscreen is not in that corner and is often not
+  offered at all. Without the plain sign-off beside it a phone would end on a rule about clicking
+  enemies. That is also why the new text carries the send-off ITSELF rather than handing over to
+  the old one: a desktop would otherwise say "Good luck" twice, seconds apart.
+- **"Begin" MEANS "NOTHING FOLLOWS", AND THE `last` FLAG CANNOT SAY THAT.** `last` is a statement
+  about POSITION in the array; with a per-device pair at the end, the array's last step is not the
+  last step SHOWN on a phone, and the ending offered "Next". **`isLastShown(i)`** asks the live
+  `skip`s — the same question `enter` asks a moment later — so the label can never disagree with
+  what actually happens. The flag survives for the `script` getter, where position IS the subject.
+- **THE POINTER IS AN ARROW, NOT THE RING, AND IT AIMS PAST OUR OWN CORNER.** The fullscreen
+  button belongs to whoever EMBEDS the game — CrazyGames draws it in a chrome bar *under* the
+  iframe — so there is no element to circle and no world point to convert. `cornerTarget(fromRight,
+  fromBottom)` is the third kind of target; the arrow clears the tray by its measured height so it
+  is not aimed at the » Skip chip that lives in that same corner.
+  - **Aiming at `(innerWidth, innerHeight)` IS STILL WRONG** — that is the corner of OUR frame,
+    and the control sits below it. Reported as *"not quite pointing at the full screen button"*.
+    `step.arrowAt` names the point and `layout()` takes the `atan2` every frame; it now targets
+    well below the edge, which puts the bearing at **85°** against the 65° to our own corner.
+    Read off the owner's screenshot, which is a downscaled crop — a scale factor CANCELS OUT of an
+    angle, so a picture is enough to measure a bearing without knowing the window size. The true
+    figure was ~83°. The chrome's height is unknowable from in here (cross-origin) and need not be
+    known: any point well below the frame gives the right gesture.
+  - **`step.pin` overrides the popup placement, and is checked BEFORE the desktop quadrant rule.**
+    That rule keeps a message off the thing it describes, which is right everywhere except here —
+    the arrow points off-screen, so the two must be read together. 265px apart, same quadrant.
+- **THE ASSERTION HAD PINNED THE BUG.** It demanded the bearing to our own bottom-right corner, so
+  it read "off by 0deg" on a build that pointed at the wall beside the button — it was testing
+  that the arrow agreed with the mistake. It asserts a BAND now (steeper than that corner, 70–89°)
+  with the corner bearing printed beside it as the thing being beaten. *A measured assertion is
+  still only as good as the thing it measures against.*
 
 **A STEP THE PLAYER DID NOT CLICK INTO MUST BE READABLE BEFORE A CLICK CAN DISMISS IT.** The
 `tut-catcher` is a full-screen click target that advances the step, and it used to go live on the
@@ -3558,6 +3654,28 @@ git rev-parse HEAD origin/<branch> && ls tests/ | wc -l
 Two SHAs that differ, or a test count that dropped, is a rollback and nothing else. It is
 cheaper than discovering it from an edit that won't apply.
 
+**BEWARE: `git rev-parse origin/<branch>` READS A LOCAL REF, AND THE ROLLBACK TAKES THAT TOO.**
+On the 18 Aug occurrences HEAD and `origin/<branch>` AGREED — both on the stale commit — so the
+two-SHA test passed while five commits were missing. Only `git fetch origin <branch>` showed the
+truth (`0d268fa..19ba4a3`). **When anything else says rollback, fetch before believing the refs.**
+
+Three more tells from that day, all cheaper than the symptom they precede:
+
+- **The Edit tool saying "the file had been modified on disk since you last read it"** on a file
+  only you have touched. Sometimes benign (your own earlier edit), so it is a prompt to check
+  rather than a diagnosis — but it is free.
+- **The stop hook reporting uncommitted changes you did not make.** Twice the flagged files were
+  another session's work restored by the snapshot (`author-campaign-surface.mjs`, four checks).
+  **Do NOT commit them.** That is precisely the "commit onto a stale base" failure this section
+  warns about, arriving disguised as a housekeeping request. Fetch, verify origin is ahead, reset.
+- **A whole directory missing** — `.github/workflows/` and `scripts/make-web-zip.mjs` were both
+  simply absent while `index.html` still parsed and ran.
+
+**AND ONE TRAP IN THE RECOVERY ITSELF.** `docs/levels/2-obsidian.json` shows as UNTRACKED before
+the reset and TRACKED after it, so the reflex `rm -f` on "the rollback's leftover file" deletes a
+real committed file — done twice on 18 Aug. Reset FIRST, then look at what is actually untracked;
+`git checkout -- <path>` puts it back.
+
 Three things the later runs added to the picture:
 
 - **THE SCRATCHPAD ROLLS BACK TOO**, and to a different session's contents. A tool written
@@ -3708,6 +3826,70 @@ death was firing; the screen was lying about it.
   asserts the overlay path, which is the one `#dev` gives a test.
 - `tests/threat-check.cjs` covers it in both modes (12 assertions): the cause the model records and
   the words the player reads, including the exact old wrong string kept as the regression it is.
+
+## Where the game stands (19 Aug 2026): rejected, and a pivot under consideration
+
+**CrazyGames REJECTED the game for low play time.** Read the rest of this section before starting
+any work that assumes the current design is the target.
+
+**The onboarding work did not move the numbers, and the owner has checked.** Over several days the
+tutorial was made unskippable, reframed for phones, given medium-zoom steps, a wider growth step,
+an orange-pile lesson, a fullscreen line, and ~60px of screen reclaimed from the carousel — all
+aimed at a measured funnel (116 of 145 tutorial skips landing on ONE step; 52% vs 4% level-clear
+rate by tutorial outcome). Owner's verdict afterwards, verbatim: *"I've checked the data and the
+changes did nothing."* **So do not propose more onboarding polish as the fix** — that hypothesis
+has been tested and failed. It is evidence for a structural change, not against measurement.
+
+**The owner's read, and the direction they are considering** (their words): the cards *"made it
+too complex"*, *"not enough people liked the card collection loop"*, *"too much card drafting"*,
+and dying *"felt like you lost too much"*. The proposal is a **depth miner** — shorter initial
+loops, **no cards**, and a **fixed zoom** (no zooming out to plan a whole route), which they
+expect to work far better on a phone.
+
+**THIS IS A DIRECTION, NOT A DECISION — nothing has been approved and no code should be deleted
+for it yet.** What was established in discussion, and is worth not re-deriving:
+
+- **The growth system is not card-shaped and survives intact.** `_growStep`, `_segmentClear`, tip
+  spacing, the organism scale, `colonizeReachablePiles` and the harvest/claim layer are primitives
+  that cards merely INVOKE. The aiming primitives for a tap-to-grow loop already exist (`armAim`,
+  drag-aim, the targeted tap). The interesting decision moves onto the MAP rather than disappearing.
+- **Cards are the ACTION SYSTEM, not just content, and that is the structural risk.** In
+  turn-based, playing a card is *what ticks the world* — the enemy-turn phase machine, the turn
+  gate and `playerBlockedReason` all key off discrete player actions. Removing cards means either
+  redefining "an action" or going real time. Real time already exists as a first-class mode with
+  its own `MODE_TUNING` and ~100 assertions, but the campaign is turn-based **by the owner's own
+  earlier call**, so this reverses that.
+- **Fixed zoom is cheap and pays twice.** The camera machinery is there, and the one render case
+  that keeps getting worse with screen size is *panning while zoomed in* (69 ms at 1024×640 →
+  431 ms at 4K, ~3× the still cost). Pin the zoom, constrain scrolling to one axis, and the worst
+  frame in the game goes away — on exactly the device being targeted.
+- **The map pipeline is LANDSCAPE, and that is the biggest unpriced cost.** The world is ~2600
+  wide against 1630 of playable depth, the traced maps are 82×30 cells, and `gen-map.mjs` asks
+  FLUX for 1440×608 (2.32:1). A descent game wants tall, or wants procedural endless generation —
+  which exists and is seeded, and would make most of the traced set moot.
+- **Open question, and it gates the art work: is "depth miner" literally DOWNWARD?** Today the
+  colony starts underground and grows UP to the surface, with the molten core as the floor. An
+  inversion toward the core is coherent (the core is already an authored hard boundary with its
+  own art treatment) but flips the goal, the threat placement and the map aspect together. Not
+  yet answered.
+- **Threat legibility breaks under a fixed close zoom.** A sensing radius is 500 world units and
+  will not fit on screen when the player can no longer zoom out to see what is coming.
+- **The recommendation on the table: add a third mode, do not rewrite.** `CONFIG.game` is already
+  an orthogonal axis applied by `setGame()`, gated by `campaignRun()`, and survival and campaign
+  coexist without either knowing about the other. A `#mine` boot reusing substrate, growth,
+  harvesting and threats but swapping the action layer is the smallest thing that answers "do
+  people play this longer", is non-destructive, and lets the card layer be deleted AFTERWARDS with
+  data behind it.
+
+**Distribution, if the pivot does not happen or does not land.** itch is already live and free.
+The lower-bar ad-funded tier is the syndication networks — **GameDistribution** (Azerion, 4,000+
+portals) and **GameMonetize** (45% dev share) — which do not gate on session length because they
+monetise impressions; but note that a game rejected for short sessions also EARNS little on an ad
+network, so this removes the gate rather than the problem. **Playgama Bridge** is the newer option
+(one SDK, many platforms, better share) and two of its requirements bite us specifically: a **30 MB
+initial-load cap** — our zips are 30.9 and 32.0 MB, fixable via WebP quality, where q85 is 81% of
+shipped size and alpha stays lossless whatever the setting — and **portrait orientation required**,
+which is the real lift for a landscape-first game.
 
 ## Loose ends
 
