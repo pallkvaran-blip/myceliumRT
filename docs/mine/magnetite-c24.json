@@ -1,0 +1,251 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "magnetite-c24",
+ "name": "Magnetite 24",
+ "campaignLevel": null,
+ "world": {
+  "width": 2952,
+  "height": 1389.7,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/top-magnetite-scatter-c24-1@4x.webp",
+  "threshold": 128,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R001",
+   "x": 2473.4,
+   "y": 852.3,
+   "w": 453.1,
+   "h": 478.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R002",
+   "x": 321.6,
+   "y": 670.3,
+   "w": 427.2,
+   "h": 489.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R003",
+   "x": 1427.6,
+   "y": 851.9,
+   "w": 492.6,
+   "h": 378.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R004",
+   "x": 1999.1,
+   "y": 839.9,
+   "w": 386.7,
+   "h": 457.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R005",
+   "x": 729.1,
+   "y": 948,
+   "w": 381.7,
+   "h": 383.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R006",
+   "x": 1399,
+   "y": 1208.8,
+   "w": 388,
+   "h": 270.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R007",
+   "x": 1322.7,
+   "y": 548,
+   "w": 339.4,
+   "h": 289.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R008",
+   "x": 278.6,
+   "y": 1253,
+   "w": 341.3,
+   "h": 273.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R009",
+   "x": 767.1,
+   "y": 585.9,
+   "w": 294,
+   "h": 269.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R010",
+   "x": 1827.5,
+   "y": 1197.8,
+   "w": 264.5,
+   "h": 276.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R011",
+   "x": 1111.8,
+   "y": 1014.9,
+   "w": 257.2,
+   "h": 301.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R012",
+   "x": 1805.4,
+   "y": 534.5,
+   "w": 266.7,
+   "h": 244.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R013",
+   "x": 2511.4,
+   "y": 531.5,
+   "w": 232.6,
+   "h": 240.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R014",
+   "x": 2239.7,
+   "y": 1157.1,
+   "w": 220.8,
+   "h": 235.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R015",
+   "x": 2582.8,
+   "y": 1232.3,
+   "w": 229.1,
+   "h": 234.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R016",
+   "x": 737.4,
+   "y": 1276.8,
+   "w": 223.6,
+   "h": 222.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R017",
+   "x": 389.5,
+   "y": 970.3,
+   "w": 228.6,
+   "h": 196.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R018",
+   "x": 1013.9,
+   "y": 736,
+   "w": 205.8,
+   "h": 234,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R019",
+   "x": 2155.3,
+   "y": 511.3,
+   "w": 167.7,
+   "h": 193.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R020",
+   "x": 483.6,
+   "y": 1119.1,
+   "w": 151.3,
+   "h": 143.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R021",
+   "x": 2015.7,
+   "y": 1321.3,
+   "w": 115.5,
+   "h": 119.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R022",
+   "x": 959.3,
+   "y": 1286.5,
+   "w": 75.9,
+   "h": 100.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R023",
+   "x": 184.6,
+   "y": 1000.8,
+   "w": 85,
+   "h": 82.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R024",
+   "x": 1573.8,
+   "y": 516.5,
+   "w": 79.5,
+   "h": 91.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "magnetite-c24R025",
+   "x": 1015.7,
+   "y": 464.3,
+   "w": 73.2,
+   "h": 72.2,
+   "rot": 0
+  }
+ ]
+}

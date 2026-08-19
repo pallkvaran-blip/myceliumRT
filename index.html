@@ -185,6 +185,28 @@
        the same yellow here as on card costs + the Skip chip; the number stays green.) */
     .res.w .rk, .res.w .rv, .res.w .ri, .res.w .rd { color: #7fd0e0; }
     .res.p .rk, .res.p .rv, .res.p .ri, .res.p .rd { color: #c79be6; }
+    /* THE MINE'S DEPTH READOUT. Deliberately the QUIETEST thing on the pill — it is a measurement
+       and not a stock, so it must not compete with the water the player is rationing. The unit
+       sits after the number and at two thirds its weight, which is what makes "48 m" read as a
+       depth rather than as a third resource with a funny icon. */
+    .res.d .rv { color: #d8d2c4; }
+    .res.d .rk { color: #d8d2c4; opacity: 0.6; font-size: 10px; margin-left: -1px; }
+
+    /* THE DEPTH BEAT — "42 m / Anthracite" as a new rock layer starts (owner: a short depth beat).
+       Centred over the map, pointer-transparent, and gone on its own; it names the layer rather
+       than interrupting to explain it, so a descent has milestones without ever taking a click.
+       No backdrop panel: the type carries a shadow instead, so the map is never hidden behind a
+       card the player then has to look past. */
+    .minebeat { position: fixed; left: 0; right: 0; top: 32%; z-index: 46; text-align: center;
+      pointer-events: none; opacity: 0; transition: opacity 420ms ease; }
+    .minebeat.in { opacity: 1; }
+    .minebeat .mb-d { font-family: 'Cinzel', Georgia, serif; font-weight: 700;
+      font-size: clamp(30px, 9vw, 56px); line-height: 1; color: #f2ece0;
+      text-shadow: 0 2px 18px rgba(0,0,0,0.92), 0 0 46px rgba(0,0,0,0.7); }
+    .minebeat .mb-n { margin-top: 6px; font-size: clamp(12px, 3.4vw, 17px); font-weight: 700;
+      letter-spacing: 0.24em; text-transform: uppercase; color: #9fe0bd;
+      text-shadow: 0 1px 12px rgba(0,0,0,0.95); }
+    @media (prefers-reduced-motion: reduce) { .minebeat { transition: none; } }
     /* Resource marks (bolt / water drop / phosphorus spark) — inherit currentColor. */
     .ri { display: inline-block; width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.14em; }
     .res .ri { width: 16px; height: 16px; align-self: center; }
@@ -1002,6 +1024,13 @@
     #titleScreen .ts-block { position:absolute; left:0; right:0; display:flex; flex-direction:column; align-items:center; gap:clamp(14px,3vh,32px); }
     #titleScreen .ts-top { top:clamp(22px,6vh,64px); }
     #titleScreen .ts-bottom { bottom:clamp(22px,6vh,64px); gap:clamp(8px,1.6vh,16px); }
+    /* THE DEEP MINE'S ROW, under the bottom one. `positionMenu` sets its `top` off the block in
+       front of it, so this only declares the shared block geometry — the two rules above are the
+       same shape and only differ in where they START from. */
+    #titleScreen .ts-third { gap:clamp(6px,1.2vh,12px); }
+    /* The empty left-hand slot on the mine's row — see the markup. Zero-size and unclickable, so
+       it holds the grid column open without being a target or affecting the row's height. */
+    #titleScreen .ts-act-ghost { width:0; height:0; pointer-events:none; }
     #titleScreen .ts-mode { font-size:clamp(15px,2.3vw,22px); letter-spacing:.44em; text-indent:.44em; line-height:1;
       text-transform:uppercase; font-weight:700; color:#bfeecb; text-shadow:0 0 20px rgba(127,230,163,0.45); }
     /* Three columns: OLD (right-aligned) · MODE (centred) · NEW (left-aligned) — the buttons
@@ -1577,6 +1606,45 @@
        collapsed to a thin strip before this appears (main.js onLevelWon), so the bottom
        pad only needs to clear that strip. Body-level overlay, so it re-declares the
        --ss-* palette the embedded cards need. */
+    /* ===== THE DEEP MINE: the store's shelf-only shape, and the end of a descent =====
+       The store screen is the species picker with its two colony sections hidden, so the only new
+       rules are for the one button that replaces them. `.ss-mine` also drops the console's minimum
+       height: with four tiles and no colony grids the panel would otherwise be mostly empty. */
+    .ss-mine .ss-console { min-height:0; }
+    /* THE WALLET CHIP AND THE BUY BUTTONS CARRY THE MINE'S SPARK, and `.ss-ri` was written for the
+       upgrade tiles' 16px header row — inside a chip it inherits `color` from the chip rather than
+       from a tile accent, and the sell/buy buttons size their mark off `.spore-ic`. These give the
+       spark the same box the spore print had in all three places, so the mine's prices line up
+       exactly where the campaign's do. */
+    .ss-wallet .ss-ri, .ss-upg-btn .ss-ri, .ss-upg-sell .ss-ri { width:1em; height:1em; flex:0 0 auto;
+      vertical-align:-0.13em; }
+    .ss-minego { display:flex; flex-direction:column; align-items:center; gap:6px;
+      margin:clamp(4px,1.2vh,14px) 0 clamp(10px,2vh,20px); }
+    /* Solid white like the store's Buy buttons rather than the ghosted outline of a secondary
+       action: this is the only thing on the screen that starts a run. */
+    .ss-descend { font-family:var(--ss-sans,inherit); font-weight:800; letter-spacing:.06em;
+      text-transform:uppercase; font-size:clamp(14px,2.4vw,17px); padding:11px clamp(26px,6vw,54px);
+      color:#0b110d; background:#e8f3ec; border:0; border-radius:7px; cursor:pointer;
+      box-shadow:0 2px 14px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.5); }
+    .ss-descend:hover { background:#fbfffc; }
+    /* What the descent will open with, off the same numbers the run reads. Quiet, because it is a
+       confirmation of what the tiles above already say and not a fifth thing to weigh up. */
+    .ss-minenote { margin:0; font-size:11.5px; font-weight:600; letter-spacing:.04em;
+      color:var(--ss-ink-dim,#8aa193); }
+    /* THE DEPTH, and it is the biggest thing on the screen after the wordmark — a descent's whole
+       score is one number. Tabular figures so 134 and 199 are the same width, which matters when
+       the player is comparing this run with the last one from memory. */
+    .ss-mineend-depth { margin:clamp(2px,0.8vh,10px) 0 0; font-family:var(--ss-serif,Georgia,serif);
+      font-weight:700; font-variant-numeric:tabular-nums; line-height:1;
+      font-size:clamp(46px,11vw,86px); color:#f2ece0;
+      text-shadow:0 2px 10px rgba(0,0,0,0.9), 0 0 34px rgba(127,230,163,0.22); }
+    .ss-mineend-depth .ss-mineend-m { font-size:0.36em; font-weight:600; margin-left:0.14em;
+      color:var(--ss-ink-dim,#8aa193); letter-spacing:.04em; }
+    .ss-mineend-best { margin:2px 0 0; font-family:var(--ss-serif,Georgia,serif); font-style:italic;
+      font-size:clamp(12px,2vw,15px); color:var(--ss-ink-dim,#8aa193); }
+    .ss-mineend-best.ss-new { font-style:normal; font-weight:700; color:#7fe6a3; letter-spacing:.05em;
+      text-transform:uppercase; font-size:clamp(11px,1.8vw,13px); }
+
     .ss-win {
       --ss-mint:#7fe6a3; --ss-mint-hi:#c8fff0; --ss-ink:#d7e6dc; --ss-ink-dim:#8aa193; --ss-ink-faint:#57685f;
       --ss-gold:#e6b45c; --ss-water:#7fd0e0; --ss-white-rim:rgba(226,238,232,0.9);
@@ -2427,9 +2495,9 @@ const CONFIG = {
   // 'turn' = the original turn-based Mycelium; 'realtime' = the RT variant. Chosen on the
   // title screen (setMode below, which also swaps in that mode's balance tuning).
   mode: 'realtime',
-  // 'survival' | 'campaign' — the second axis (see setGame). Survival is the default because it
-  // is what every boot hash and every existing save means; the title screen's Campaign row is
-  // the only thing that flips it.
+  // 'survival' | 'campaign' | 'mine' — the second axis (see setGame). Survival is the default
+  // because it is what every boot hash and every existing save means; the title screen's
+  // Campaign and Deep Mine rows are the only things that flip it.
   game: 'survival',
 
   // ---- Real-time clock (RT variant) ---------------------------------------
@@ -3041,6 +3109,80 @@ const CONFIG = {
     lightRadius: 64,            // base light radius (world units)
   },
 
+  // ---- THE DEEP MINE (the third game — see setGame / __m_engine_mine) -------
+  // A depth-miner: the colony starts on a green hill in the MIDDLE of the surface and digs
+  // down through banded rock. There are no cards, no goal to cross to and no levels — one
+  // procedurally generated shaft per run, and WATER IS THE FUEL. Every grow costs water, the
+  // run ends when you can no longer afford one, and Phosphorus dug out of the ore piles is
+  // what the store spends.
+  //
+  // ONE MAP PER RUN, NOT A STITCHED WORLD, and that is a memory constraint rather than a design
+  // one: SubstrateRenderer bakes two WORLD-SIZED canvases (base + dyn), so depth costs ~2 bytes
+  // per world pixel squared. At `cols` 48 the numbers below come to 1728 x 6828 = 11.8 Mpx per
+  // buffer, which is the same order as the campaign's 2600 x 3660. Doubling the depth would
+  // double that on a phone. The BANDS below are depth zones inside the one world, which is what
+  // makes "the deeper you go, different rock types appear" true without stitching.
+  mine: {
+    cols: 48,                    // shaft width in cells -> 48 x 36 = 1728 world units.
+                                 // FLOORED BY THE VIEWPORT, not free: `minZoomForBounds` is
+                                 // viewW/worldW, so a shaft narrower than viewW/zoom forces the
+                                 // camera to zoom IN past `zoom` below and the fixed zoom stops
+                                 // being fixed. 48 cells holds 0.85 at a 1280-wide desktop.
+    bandRows: 42,                // rows per rock band -> 1512 world units each
+    surfaceY: 380,               // sky above the hill, exactly as every other map
+    bottomBuffer: 400,           // the dirt/void band below the content (camera scroll room)
+    // THE BANDS, shallowest first. `assetsFrom` is the folder the sprites live in; `rocks` is
+    // filled in from MINE_ROCKS (docs/mine/*.json, the owner's own curated exports).
+    // `scale` is the size range each band draws its sprites at, as a multiple of the size the
+    // owner placed them at — deeper bands run bigger, so the rock closes in as you descend.
+    // `fill` is the share of the band's soil the generator tries to cover in rock.
+    bands: [
+      { theme: 'magnetite',  name: 'Magnetite',  assetsFrom: 'magnetite-c24',  scale: [0.45, 0.85], fill: 0.30 },
+      { theme: 'anthracite', name: 'Anthracite', assetsFrom: 'anthracite-c24', scale: [0.50, 0.95], fill: 0.38 },
+      { theme: 'garnet',     name: 'Garnet',     assetsFrom: 'garnet-c24',     scale: [0.55, 1.05], fill: 0.44 },
+      { theme: 'hematite',   name: 'Hematite',   assetsFrom: 'hematite-c24',   scale: [0.60, 1.15], fill: 0.50 },
+    ],
+    // How far into a band the previous band's rock keeps appearing, as a fraction of the band.
+    // "The deeper you go, different rock types START appearing" — so a boundary is a blend
+    // rather than a line, and the depth beat lands on the first cell of the new band's name.
+    blendFrac: 0.28,
+    // --- the grow, which is the whole action layer ---------------------------
+    growSteps: 2,                // "grow 2": steps, each 3 segments (cards.js's own unit)
+    growWaterCost: 2,            // ...and what one costs. Store track `growSteps` raises the steps.
+    // A FRESH RUN'S FUEL, before the store's Water track. 40 -> 30, MEASURED rather than felt: at
+    // 40 a probe diving straight down reached 167 m of the 168 m shaft on a first run. Half of that
+    // was the pockets being on the route (fixed — see the generator) and half was simply too much
+    // in the tank: 40 water is 20 digs is ~85 m before a single pocket. At 30 a first descent that
+    // finds nothing gets about 64 m, which is band 2, which is where the worms start.
+    startWater: 30,
+    // --- ore ----------------------------------------------------------------
+    // A pile pays PHOSPHORUS, banked at run end and spent in the store (owner). Nothing drafts,
+    // because there are no cards; `energyPerNutrient` still carries the Energy the engine's own
+    // harvest maths wants, and the mine HUD simply does not show Energy.
+    orePerPile: [3, 5, 8, 12],   // P per pile, by band — deeper ore is worth more
+    pilesPerBand: 5,
+    // --- water pockets: the fuel cans ---------------------------------------
+    reservoirsPerBand: 3,
+    reservoirWater: 10,          // water granted for tapping one, once each (see _tappedWater)
+    // --- threats, by band (owner: worms + mould, appearing deeper) -----------
+    // Band 1 is empty on purpose: the first 42 m teach the fuel clock with nothing chasing you.
+    // The player has no counterplay in the mine (Excrete and Amputate were the card/action
+    // layer), so these are obstacles to route around rather than fights.
+    threatBands: [
+      { worms: 0, clouds: 0 },
+      { worms: 2, clouds: 0 },
+      { worms: 3, clouds: 2 },
+      { worms: 4, clouds: 3 },
+    ],
+    // --- camera -------------------------------------------------------------
+    zoom: 0.85,                  // FIXED (owner: no zooming out to plan a route). Roughly the
+                                 // campaign's medium zoom, and above the 0.62 the detail LOD
+                                 // needs, so growth still animates per-strand on a phone.
+    followLerp: 0.12,            // how quickly the camera eases to the deepest tip, per frame
+    // --- the depth beat -----------------------------------------------------
+    beatMs: 2200,                // how long the "42 m - Anthracite" flash stays up
+  },
+
   dev: {
     // Gates every visible dev shortcut: the in-game "Dev: win level" button (main.js
     // updateDevWinBtn) AND the picker's Dev quick-start / Dev: unlock all buttons
@@ -3225,6 +3367,11 @@ const OFFER_REALTIME = false;
 //     link opened an empty ladder ("remove the high scores as that is not relevant anymore");
 //     with survival offered again there is something to rank, so the link comes back with it.
 const OFFER_SURVIVAL = true;
+// DOES THIS BUILD OFFER THE DEEP MINE? The third game (see CONFIG.mine): a real-time depth-miner
+// with no cards, procedurally generated, water as its fuel. Same shape and same promise as the two
+// flags above — it withholds the DOOR, not the room, so `#mine` boots one whatever this says and
+// `mine-check` drives the lot either way.
+const OFFER_MINE = true;
 // Is the REAL-TIME variant running? Pass a state.config from engine code; defaults to CONFIG.
 function isRealtime(cfg) {
   const c = cfg || CONFIG;
@@ -3248,12 +3395,24 @@ function setMode(mode) {
 // only differences are the ladder's LENGTH, whether a level's map is fixed, and whether the run
 // records a high score. Set BEFORE a run begins, exactly like setMode — `state.config` is a deep
 // clone taken at run start, and the resume slot is keyed off both axes.
+//   'mine'     — the DEEP MINE. No cards, no levels, no goal: one procedurally generated shaft
+//                per run, dug downward from a hill in the middle of the surface, with water as
+//                the fuel and Phosphorus as the store's currency. REAL TIME ONLY (owner).
+//                See CONFIG.mine and __m_engine_mine.
 function setGame(game) {
-  const g = game === 'campaign' ? 'campaign' : 'survival';
+  const g = game === 'campaign' ? 'campaign' : game === 'mine' ? 'mine' : 'survival';
   CONFIG.game = g;
+  // THE MINE IS REAL TIME AND HAS NO CARDS, and both are properties of the GAME rather than
+  // choices inside it — so they are applied here, where the game is chosen, instead of being
+  // re-asserted at every site that could ask. `cards.enabled` is the switch the whole card layer
+  // already reads (main.js `cardsCampaign`, the HUD's `cardsOn`), so turning it off here is what
+  // takes the carousel, the drafts, the deck and the engines off the screen in one move.
+  if (g === 'mine') { setMode('realtime'); CONFIG.cards.enabled = false; }
+  else CONFIG.cards.enabled = true;
   return g;
 }
 const isCampaignGame = (cfg) => ((cfg || CONFIG).game === 'campaign');
+const isMineGame = (cfg) => ((cfg || CONFIG).game === 'mine');
 
 // --- ROUNDS → SECONDS in player-facing text ---------------------------------
 // Every card description (and a few log messages) is authored in ROUNDS — the turn-based
@@ -3297,7 +3456,7 @@ function setByPath(obj, path, value) {
   target[last] = value;
 }
 
-  return { CONFIG, SLIDERS, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode, setGame, isCampaignGame };
+  return { CONFIG, SLIDERS, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode, setGame, isCampaignGame, isMineGame };
 })();
 
 // ===================== src/cards-data.js =====================
@@ -12462,7 +12621,9 @@ function deleteSavedLevel(id) {
 // ===================== src/species.js =====================
 const __m_species = (function () {
   // `isCampaignGame` for the one upgrade track that is campaign-only — see `startLevelForGame`.
-  const { CONFIG, isCampaignGame } = __m_config;
+  // `isMineGame` for the mine's shop: which tracks are on the shelf (`upgradeInGame`), which wallet
+  // pays for them (`walletField`) and which ledger records them (`upgradeField`).
+  const { CONFIG, isCampaignGame, isMineGame } = __m_config;
 // =============================================================================
 // Starter-species roster for the start-of-run picker.
 //
@@ -13113,6 +13274,10 @@ function loadProgress() {
   if (!Array.isArray(p.deathCarry)) p.deathCarry = [];   // the SHARED deck: cards chosen at the end of a run to bring into the next one, consumed when it seeds
   if (!p.deckBySpecies || typeof p.deckBySpecies !== 'object') p.deckBySpecies = {};   // per-colony decks — a MEMORY colony keeps its own rather than sharing (owner)
   if (!p.upgrades) p.upgrades = {};   // campaign store: steps bought per upgrade track, { water: 3, lives: 1, ... } (additive — an older v2 save just reads as nothing bought)
+  // THE MINE'S OWN SHOP, kept apart from the campaign's on both sides: `minerals` is the
+  // Phosphorus banked out of the shaft and `mineUpgrades` the steps it bought. See `walletField`.
+  if (typeof p.minerals !== 'number' || !isFinite(p.minerals)) p.minerals = 0;
+  if (!p.mineUpgrades) p.mineUpgrades = {};
   if (migrateProgress(p)) saveProgress(p);   // one-time roster-swap migrations; persist if anything changed
   return p;
 }
@@ -13216,9 +13381,14 @@ function startLevelForGame(progress) {
 }
 
 // --- Spores wallet ---------------------------------------------------------
+// THE WALLET FOR THE GAME BEING PLAYED — Spores everywhere, Phosphorus in the mine. The NAME is
+// the old one because every caller and every check reads it, and renaming it would touch fifty
+// sites to say the same thing; what it returns is the balance of whichever wallet is spendable
+// right now (`walletField`).
 function sporesBalance(progress) {
   const p = progress || loadProgress();
-  return (typeof p.spores === 'number' && isFinite(p.spores)) ? p.spores : 0;
+  const v = p[walletField()];
+  return (typeof v === 'number' && isFinite(v)) ? v : 0;
 }
 // ===================== rating the game, and the boon for it =====================
 // The species-selection screen asks the player to rate Mycelium on itch, and doubles the Spores
@@ -13303,18 +13473,20 @@ function endRunSpores() {
 // Credit the wallet (e.g. for clearing a level); persists and returns new balance.
 function addSpores(amount) {
   const p = loadProgress();
-  p.spores = sporesBalance(p) + Math.max(0, amount | 0);
+  const f = walletField();
+  p[f] = sporesBalance(p) + Math.max(0, amount | 0);
   saveProgress(p);
-  return p.spores;
+  return p[f];
 }
 // Take Spores back out of the wallet, floored at zero. The mirror of addSpores, and it exists
 // for exactly one caller: a RETRY undoes the half-payout the death it cancels had already
 // banked. Without it, a run with three retries banks the death bonus four times on one level.
 function takeSpores(amount) {
   const p = loadProgress();
-  p.spores = Math.max(0, sporesBalance(p) - Math.max(0, amount | 0));
+  const f = walletField();
+  p[f] = Math.max(0, sporesBalance(p) - Math.max(0, amount | 0));
   saveProgress(p);
-  return p.spores;
+  return p[f];
 }
 function isPurchased(sp, progress) {
   const p = progress || loadProgress();
@@ -13557,17 +13729,81 @@ const STORE_UPGRADES = [
   { id: 'lives', name: 'Retries', icon: 'life', accent: 'life', step: 1, base: 1, unit: 'retries', unit1: 'retry',
     effect: 'Increase the number of times you can retry a level by <b>1</b>.',
     costs: [100, 250, 400, 600] },
+
+  // ---- THE DEEP MINE'S OWN TRACKS (mineOnly) --------------------------------
+  // Priced in PHOSPHORUS, not Spores, and bought out of a LEDGER OF THEIR OWN — see
+  // `walletField` / `upgradeField` for why the mine's store is a separate shop rather than a
+  // filtered view of this one. The prices are therefore on a different scale entirely: a first
+  // run digs out something like 10-20 P, so a first rung has to be affordable inside two runs.
+  //
+  // The mine also SHARES the `water` track above, because starting fuel is exactly what that
+  // track already is — see MINE_UPGRADE_IDS. Its prices are re-read from MINE_COSTS, since
+  // 25-then-+50 is a Spores ladder and would take fifty runs of ore.
+  { id: 'growSteps', name: 'Grow strength', icon: 'climb', accent: 'mint', step: 1, base: 2, unit: 'steps', unit1: 'step',
+    mineOnly: true,
+    effect: 'Each grow digs <b>one step further</b>, for the same water.',
+    costs: [12, 30, 60, 110, 190] },
+  { id: 'oreYield', name: 'Ore yield', icon: 'phos', accent: 'phos', step: 1, unit: 'phosphorus',
+    mineOnly: true,
+    effect: 'Every ore seam you digest pays <b>1</b> more Phosphorus.',
+    costs: [10, 22, 40, 70, 110, 170] },
+  { id: 'pocketWater', name: 'Water pockets', icon: 'water', accent: 'water', step: 4, unit: 'water',
+    mineOnly: true,
+    effect: 'Each water pocket you tap gives <b>4</b> more Water.',
+    costs: [14, 32, 62, 105, 165] },
 ];
+// THE MINE'S SHELF: an ALLOW-LIST, not an exclusion list. Every track above was written for the
+// card game, so the honest question is "which of these mean anything in a mine?" rather than
+// "which don't" — and the answer is short. Energy buys nothing (nothing in the mine spends it),
+// starting Phosphorus would be starting with currency, `startLevel` names levels the mine does
+// not have, the two carry tracks are cards, and Retries retries a level. What is left is fuel and
+// the three tracks written for the mine itself.
+const MINE_UPGRADE_IDS = ['water', 'growSteps', 'oreYield', 'pocketWater'];
+// The mine's price for a shared track. `water` is a Spores ladder upstairs (25, 50, 100 …) and
+// the mine's whole currency runs an order of magnitude smaller, so a shared track needs its own
+// ladder or its first rung is unreachable.
+const MINE_COSTS = { water: [10, 24, 45, 75, 115, 165, 225, 300, 390, 500] };
+// Does this track appear in the store for `game`? One predicate, asked by the shelf, by the buy
+// path and by the checks — so a track cannot be visible in a game whose wallet cannot buy it.
+function upgradeInGame(u, game) {
+  if (!u) return false;
+  const g = game || CONFIG.game;
+  if (g === 'mine') return MINE_UPGRADE_IDS.indexOf(u.id) >= 0;
+  if (u.mineOnly) return false;
+  if (u.campaignOnly && g !== 'campaign') return false;
+  return true;
+}
+// The price ladder for a track IN THIS GAME. Everything else about a track is shared; only the
+// numbers differ, and only because the two currencies do.
+function upgradeCosts(u, game) {
+  if (!u) return [];
+  if ((game || CONFIG.game) === 'mine' && MINE_COSTS[u.id]) return MINE_COSTS[u.id];
+  return u.costs || [];
+}
+
+// ===================== TWO SHOPS, TWO WALLETS ================================
+// The mine spends PHOSPHORUS dug out of the ore (owner: "Let's use P and we'll use that as the
+// main currency in the store"), and it keeps its purchases in a ledger of its own.
+//
+// SEPARATE RATHER THAN SHARED, and that is the decision worth recording: sharing `p.upgrades`
+// would let a campaign player's Spores buy a mine player's fuel — two economies laundering
+// through one track — and would put the mine's three new tracks in the campaign's save where
+// nothing can spend them. Separate keys mean the mine's store is a shop, not a filtered view,
+// and every existing save reads exactly as it did (both functions return the old field for
+// every game but the mine).
+const walletField = (game) => ((game || CONFIG.game) === 'mine' ? 'minerals' : 'spores');
+const upgradeField = (game) => ((game || CONFIG.game) === 'mine' ? 'mineUpgrades' : 'upgrades');
 const STORE_UPGRADE_BY_ID = {};
 for (const u of STORE_UPGRADES) STORE_UPGRADE_BY_ID[u.id] = u;
 
 const upgradeById = (id) => STORE_UPGRADE_BY_ID[id] || null;
-const upgradeMax = (u) => (u && u.costs ? u.costs.length : 0);
+const upgradeMax = (u) => upgradeCosts(u).length;
 // Steps bought, clamped into range — a hand-edited localStorage (or a track that LOST steps
 // in a retune) can otherwise report a level with no price behind it.
 function upgradeLevel(id, progress) {
   const p = progress || loadProgress();
-  const n = (p.upgrades && p.upgrades[id]) | 0;
+  const f = p[upgradeField()];
+  const n = (f && f[id]) | 0;
   return Math.max(0, Math.min(upgradeMax(upgradeById(id)), n));
 }
 // The TOTAL bonus this track is currently granting. `base` is what you have before buying
@@ -13583,19 +13819,26 @@ function upgradeNextCost(id, progress) {
   const u = upgradeById(id);
   if (!u) return null;
   const lvl = upgradeLevel(id, progress);
-  return lvl >= upgradeMax(u) ? null : u.costs[lvl];
+  return lvl >= upgradeMax(u) ? null : upgradeCosts(u)[lvl];
 }
 // Buy ONE step. { ok, spores, level } — ok=false if the track is maxed or the wallet is short.
 function buyUpgrade(id) {
   const p = loadProgress();
   const lvl = upgradeLevel(id, p);
   const cost = upgradeNextCost(id, p);
+  // A TRACK THE CURRENT GAME DOES NOT SHOW CANNOT BE BOUGHT IN IT. The shelf already filters, so
+  // this only catches a debug hook or a stale handler — but the failure it prevents is silent and
+  // permanent: Spores buying a mine track (or ore buying Retries) into a ledger the other game
+  // then reads. `mine-check` and `store-check` both assert the refusal.
+  const u = upgradeById(id);
+  if (!upgradeInGame(u)) return { ok: false, spores: sporesBalance(p), level: lvl };
   if (cost == null || sporesBalance(p) < cost) return { ok: false, spores: sporesBalance(p), level: lvl };
-  if (!p.upgrades) p.upgrades = {};
-  p.upgrades[id] = lvl + 1;
-  p.spores = sporesBalance(p) - cost;
+  const uf = upgradeField(), wf = walletField();
+  if (!p[uf]) p[uf] = {};
+  p[uf][id] = lvl + 1;
+  p[wf] = sporesBalance(p) - cost;
   saveProgress(p);
-  return { ok: true, spores: p.spores, level: p.upgrades[id] };
+  return { ok: true, spores: p[wf], level: p[uf][id] };
 }
 // What selling the TOP rung back would pay, or null at level 0. The price of the rung being
 // handed in — `costs[lvl - 1]` — which is the mirror of `upgradeNextCost`'s `costs[lvl]`.
@@ -13603,7 +13846,7 @@ function upgradeSellValue(id, progress) {
   const u = upgradeById(id);
   if (!u) return null;
   const lvl = upgradeLevel(id, progress);
-  return lvl <= 0 ? null : (u.costs[lvl - 1] | 0);
+  return lvl <= 0 ? null : (upgradeCosts(u)[lvl - 1] | 0);
 }
 // SELL ONE STEP BACK, at exactly what it cost (owner, of Starting level: "add a sell button as
 // well so you can lower your starting level and get the spores you spent back"). { ok, spores,
@@ -13626,11 +13869,12 @@ function sellUpgrade(id) {
   const lvl = upgradeLevel(id, p);
   const refund = upgradeSellValue(id, p);
   if (!u || !u.sellable || refund == null) return { ok: false, spores: sporesBalance(p), level: lvl };
-  if (!p.upgrades) p.upgrades = {};
-  p.upgrades[id] = lvl - 1;
-  p.spores = sporesBalance(p) + refund;
+  const uf = upgradeField(), wf = walletField();
+  if (!p[uf]) p[uf] = {};
+  p[uf][id] = lvl - 1;
+  p[wf] = sporesBalance(p) + refund;
   saveProgress(p);
-  return { ok: true, spores: p.spores, level: p.upgrades[id], refund };
+  return { ok: true, spores: p[wf], level: p[uf][id], refund };
 }
 // What a run actually OPENS with: the universal base from CONFIG plus the store's three resource
 // tracks. One function because two places need the identical number and they drifted the moment
@@ -13640,6 +13884,18 @@ function sellUpgrade(id) {
 function startingResources(progress) {
   const b = storeBonuses(progress);
   const cc = CONFIG.cards || {};
+  // THE MINE'S BASE IS ITS OWN. `cards.startWater` is the CARD GAME's opening reserve (20) and the
+  // mine seeds from `CONFIG.mine.startWater` (40) — see the Network constructor — so without this
+  // the store's Water tile promised a run 20 water while the run handed out 40. That is the exact
+  // defect this function exists to prevent, arriving from a third game rather than from a second
+  // screen: the tile and the run must read one number.
+  if (isMineGame()) {
+    return {
+      energy: (CONFIG.energy.start || 0) + b.energy,
+      water: Math.max(1, ((CONFIG.mine && CONFIG.mine.startWater) | 0)) + b.water,
+      phosphorus: 0,     // P is DUG in the mine, never started with — the bank is what it is spent from
+    };
+  }
   return {
     energy: (CONFIG.energy.start || 0) + b.energy,
     water: (cc.startWater || 0) + b.water,
@@ -13778,7 +14034,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -15123,6 +15379,15 @@ class Network {
     const cc = config.cards || {};
     this.water = cc.startWater || 0;
     this.phosphorus = cc.startPhosphorus || 0;
+    // THE MINE FUELS ITSELF HERE, because nothing else can. Every other game hands the colony its
+    // opening reserves through `initCards` — which is the CARD LAYER, off in the mine — so a mine
+    // colony would otherwise open on whatever `cards.startWater` happens to be, i.e. on the card
+    // game's balance, and the store's Water track would reach it through nothing at all. It starts
+    // with NO Phosphorus on purpose: P is dug, and the bank is what it is spent from.
+    if (config.game === 'mine' && config.mine) {
+      this.water = Math.max(1, config.mine.startWater | 0);
+      this.phosphorus = 0;
+    }
     this.spores = 0;           // spores this network has produced (Fruit)
 
     this.alive = true;         // false once dead (killed) ...
@@ -18484,11 +18749,21 @@ function configForLevelDef(config, level) {
   // Applied to the CONFIG, never to the level — `def.world.height` stays as the tracer wrote
   // it, so editExport round-trips the original rather than baking today's box into the JSON.
   const _sy = cfg.world.surfaceY;
+  // A MINE MAP BRINGS ITS OWN BOX AND KEEPS IT. The fixed campaign box below exists so nine
+  // authored maps are one consistent size whatever depth the tracer picked; a mine is the
+  // opposite — its depth IS the game, and it is generated to the size CONFIG.mine asks for. Its
+  // core sits at the content floor (coreDepthFrac 1), which makes the molten band the bottom of
+  // the shaft: a hard growth floor you can see coming, drawn in the red the earth already ramps to.
+  if (level && level.mine) {
+    if (w.bottomBuffer != null) cfg.world.bottomBuffer = Math.max(0, +w.bottomBuffer);
+    cfg.world.coreDepthFrac = w.coreDepthFrac !== undefined ? w.coreDepthFrac : 1;
+  } else {
   cfg.world.height = _sy + CORE_BOX_DEPTH;
   cfg.world.coreDepthFrac = CORE_LINE_DEPTH / CORE_BOX_DEPTH;
   // The red band below the line, and what sets the TOTAL depth you scroll through.
   cfg.world.bottomBuffer = Math.max(0, CORE_TOTAL_DEPTH - CORE_BOX_DEPTH);
   if (w.coreDepthFrac !== undefined) cfg.world.coreDepthFrac = w.coreDepthFrac;
+  }
   // A TRACED map brings its own lighting, baked into the art by whatever drew it, and the
   // renderer's ambient pass then multiplies the whole underground by a warm tint
   // (rgb(a, a*0.9, a*0.76) at ambientLight 0.62) before adding the colony's glow back. On a
@@ -18571,11 +18846,22 @@ function buildLevel(config, level) {
   const lay = (level && level.layout) || {};
   const objects = (level && level.objects) || [];
 
-  const goalCols = Math.max(2, Math.min(sub.cols - 4, lay.goalCols || 6));
+  // THE MINE HAS NO GOAL AND ITS HOME IS IN THE MIDDLE (owner). Both fall out of one flag:
+  // `goalCols` is forced to 0 so nothing anywhere is flagged `goal` — which is what stops
+  // `checkGoalReached` from ever firing, retires the goal hill and its bushes (both return early
+  // on `goalCol0() < 0`) and leaves depth as the only thing to chase — and the colony's start
+  // column becomes the centre instead of the left edge.
+  const isMine = !!lay.mine;
+  const goalCols = isMine ? 0 : Math.max(2, Math.min(sub.cols - 4, lay.goalCols || 6));
   const startCols = Math.max(1, Math.min(sub.cols - goalCols - 1, lay.startCols || 2));
   const goalStart = sub.cols - goalCols;
+  sub.mine = isMine;
   sub.startCols = startCols;
-  sub.homeCols = Math.max(6, startCols + 4);
+  // The mine's hill is a WHOLE hill standing on the middle of the surface, not the half-hill
+  // hugging the left frame every other map gets — so this is its full width in columns, and
+  // `mineHomeCol` is where its peak sits. main.js drawMineHill reads both.
+  sub.mineHomeCol = isMine ? (sub.cols >> 1) : null;
+  sub.homeCols = isMine ? 12 : Math.max(6, startCols + 4);
   sub.authored = true;              // renderers/solidify take the levelSprites path
   sub.rockColumns = [];             // authored maps express columns as formation sprites
   sub.levelSprites = [];            // { key, style, x, y, w, h, rot } — draw + collide from this
@@ -18597,10 +18883,20 @@ function buildLevel(config, level) {
     sub.surface[c].goal = false;
     sub.surface[c].barrier = 'concrete';
   }
+  // THE MINE'S SURFACE IS ONE HILL IN THE MIDDLE, and everything else stays barrier. Fruitable
+  // soil is what `computeFruitPoints` looks for, so the hill is the only place the colony could
+  // ever surface — but nothing in the mine asks it to: the run ends on empty fuel
+  // (mineEndRun), not on reaching a surface. The soil is here so the hill READS as living ground
+  // and the colony's birthplace is a real place rather than a hole in a concrete plain.
+  if (isMine) {
+    const h = sub.mineHomeCol, half = Math.max(2, (sub.homeCols >> 1));
+    for (let c = h - half; c <= h + half; c++)
+      if (c >= 0 && c < sub.cols) { sub.surface[c].soil = true; sub.surface[c].barrier = null; }
+  }
   for (let c = goalStart; c < sub.cols; c++) {
     sub.surface[c].soil = true; sub.surface[c].goal = true; sub.surface[c].barrier = null;
   }
-  const summerCols = Math.max(0, Math.min(goalStart - startCols - 2, lay.summerCols != null ? lay.summerCols : 7));
+  const summerCols = isMine ? 0 : Math.max(0, Math.min(goalStart - startCols - 2, lay.summerCols != null ? lay.summerCols : 7));
   for (let c = goalStart - summerCols; c < goalStart; c++)
     if (c >= 0) { sub.surface[c].barrier = null; sub.surface[c].soil = true; sub.surface[c].goal = true; sub.surface[c].shade = false; }
 
@@ -18700,7 +18996,7 @@ function buildLevel(config, level) {
     sub.channelX1 = (goalStart - 1) * cs;
   }
 
-  const startCol = Math.max(1, Math.floor(startCols / 2));
+  const startCol = isMine ? sub.mineHomeCol : Math.max(1, Math.floor(startCols / 2));
   return { substrate: sub, spawns, startCol };
 }
 
@@ -18855,6 +19151,12 @@ function createLevelState(config, seed, level) {
   // not exist yet: the seeders all steer around `cell.rock`, which on an authored map is stamped
   // from the sprites' alpha at RENDER time and is empty until then.
   state._needLevelThreats = !!(level && level.survival);
+  // THE MINE'S CREATURES ARE ALSO SEEDED LATE, and for the same reason — see mineSeedThreats.
+  // A separate flag rather than a shared one because the two seed from different tables: survival
+  // takes the campaign's whole escalation curve off `configForLevel`, the mine takes its own
+  // per-BAND counts, and a run must never get both.
+  state._needMineThreats = !!(level && level.mine);
+  if (level && level.mine) state.mineOre = 0;
   return state;
 }
 
@@ -18947,6 +19249,8 @@ function assembleState(config, rng, seed, substrate, networks, clouds, extra) {
 
   if (state.mode === 'puzzle') {
     state.log('A fixed puzzle: steer the colony to the treasure chest.', 'good');
+  } else if (substrate && substrate.mine) {
+    state.log('The colony wakes on the hill. Dig DOWN — water is your only fuel, and the ore below pays for the next descent.', 'good');
   } else {
     state.log('The colony stirs at the western edge. Cross underground to the far side and fruit at the surface.', 'good');
   }
@@ -20439,7 +20743,651 @@ EFFECTS['Cordyceps Bloom'] = grow((s) => eruptNearestNest(s));
 // 3b. Cordyceps Stroma — installed ACTION (engine): destroy a sensed ant nest every 10 rounds.
 EFFECTS['Cordyceps Stroma'] = action({ effect: 'destroy a sensed ant nest', every: 10 }, (s) => eruptNearestNest(s));
 
-  return { cardDeckAdditions, initCards, rebuildCardsFromSnapshot, checkPileRewards, chooseOffer, drawCost, cardBlockedReason, cardNeedsTarget, cardUsesDragAim, dragAimReach, drawCard, skipRound, playCard, cardAbilityInfo, produceCardEngines, actionUsable, activateAction, checkGoalReached, WATER_SOURCE_NAME, EFFECTS, isArchived, playable };
+  return { cardDeckAdditions, initCards, rebuildCardsFromSnapshot, checkPileRewards, chooseOffer, drawCost, cardBlockedReason, cardNeedsTarget, cardUsesDragAim, dragAimReach, drawCard, skipRound, playCard, cardAbilityInfo, produceCardEngines, actionUsable, activateAction, checkGoalReached, waterSourcesNear, WATER_SOURCE_NAME, EFFECTS, isArchived, playable };
+})();
+
+// ===================== src/engine/mine.js =====================
+const __m_engine_mine = (function () {
+  const { CONFIG } = __m_config;
+  const { makeRng } = __m_engine_rng;
+  const { LEVEL_FORMAT, LEVEL_VERSION } = __m_engine_level;
+  const { placeClouds, stampCloudField } = __m_engine_threats;
+  const { placeNematodes } = __m_engine_nematodes;
+  const { waterSourcesNear } = __m_engine_cards;
+// =============================================================================
+// THE DEEP MINE — the third game's world, economy and clock (CONFIG.mine).
+//
+// A depth-miner. One procedurally generated shaft per run: a green hill in the MIDDLE of the
+// surface, rock banded by depth, and nothing to cross to — the point is to go DOWN. There are no
+// cards and no levels. Water is the FUEL (every grow costs some), Phosphorus dug out of the ore
+// is the store's currency, and the run ends when you can no longer afford a grow.
+//
+// IT GENERATES A LEVEL DEF, IT DOES NOT GENERATE A WORLD. `buildLevel` already turns a list of
+// objects into a playable Substrate — sprites published on `sub.levelSprites`, collision stamped
+// from each sprite's own ALPHA at render time, food and water baked into cells — so a mine map
+// goes down exactly the path the 89 authored maps go down and inherits every guarantee they
+// have. Nothing downstream can tell a generated mine from a hand-authored level, which is why
+// this module is ~400 lines rather than a second terrain engine.
+//
+// REACHABILITY IS BY CONSTRUCTION, NOT BY REJECTION, and that is the one thing this generator
+// must never get wrong: the colony CANNOT dig through rock, so a shaft sealed by a boulder is an
+// unwinnable run with nothing on screen to explain it. So the order is inverted from the obvious
+// one — CARVE FIRST, then place rock only where a sprite's whole bounding box misses the carved
+// space. A bbox test is conservative (a sprite's alpha lives inside its box), so every carved
+// channel is guaranteed wider than it looks, and "is the bottom reachable?" is answered by the
+// carve rather than by a flood fill nobody ran. `mine-check` floods the real fine mask anyway.
+// =============================================================================
+
+// THE ROCK LIBRARY — GENERATED. `node scripts/gen-mine-rocks.mjs` splices this from
+// docs/mine/*.json, the owner's own editor exports: one map per rock type, holding the sprites
+// they picked for it at the sizes they placed them. `w`/`h` are those sizes, and the generator
+// scales them per band (CONFIG.mine.bands[].scale) — so "use them in different sizes" is a
+// multiple of the owner's own, not a number invented here. Don't hand-edit between the anchors.
+// <mine-rocks>
+const MINE_ROCKS = {
+  // magnetite — 25 sprites from assets/magnetite-c24/
+  magnetite: [
+    { k: 'magnetite-c24R001', w: 453.1, h: 478.5 },
+    { k: 'magnetite-c24R002', w: 427.2, h: 489.9 },
+    { k: 'magnetite-c24R003', w: 492.6, h: 378.6 },
+    { k: 'magnetite-c24R004', w: 386.7, h: 457.1 },
+    { k: 'magnetite-c24R005', w: 381.7, h: 383.5 },
+    { k: 'magnetite-c24R006', w: 388, h: 270.9 },
+    { k: 'magnetite-c24R007', w: 339.4, h: 289.9 },
+    { k: 'magnetite-c24R008', w: 341.3, h: 273.5 },
+    { k: 'magnetite-c24R009', w: 294, h: 269.1 },
+    { k: 'magnetite-c24R010', w: 264.5, h: 276.7 },
+    { k: 'magnetite-c24R011', w: 257.2, h: 301.7 },
+    { k: 'magnetite-c24R012', w: 266.7, h: 244.4 },
+    { k: 'magnetite-c24R013', w: 232.6, h: 240.3 },
+    { k: 'magnetite-c24R014', w: 220.8, h: 235.3 },
+    { k: 'magnetite-c24R015', w: 229.1, h: 234.9 },
+    { k: 'magnetite-c24R016', w: 223.6, h: 222.2 },
+    { k: 'magnetite-c24R017', w: 228.6, h: 196.3 },
+    { k: 'magnetite-c24R018', w: 205.8, h: 234 },
+    { k: 'magnetite-c24R019', w: 167.7, h: 193.6 },
+    { k: 'magnetite-c24R020', w: 151.3, h: 143.2 },
+    { k: 'magnetite-c24R021', w: 115.5, h: 119.5 },
+    { k: 'magnetite-c24R022', w: 75.9, h: 100.9 },
+    { k: 'magnetite-c24R023', w: 85, h: 82.7 },
+    { k: 'magnetite-c24R024', w: 79.5, h: 91.3 },
+    { k: 'magnetite-c24R025', w: 73.2, h: 72.2 },
+  ],
+  // anthracite — 42 sprites from assets/anthracite-c24/
+  anthracite: [
+    { k: 'anthracite-c24R001', w: 505.1, h: 559.4 },
+    { k: 'anthracite-c24R002', w: 610.4, h: 322.4 },
+    { k: 'anthracite-c24R003', w: 534, h: 405.1 },
+    { k: 'anthracite-c24R004', w: 256.8, h: 426.9 },
+    { k: 'anthracite-c24R005', w: 326, h: 277.7 },
+    { k: 'anthracite-c24R006', w: 324.2, h: 288.1 },
+    { k: 'anthracite-c24R007', w: 280.4, h: 256.4 },
+    { k: 'anthracite-c24R008', w: 189.9, h: 353.6 },
+    { k: 'anthracite-c24R009', w: 386.7, h: 235.6 },
+    { k: 'anthracite-c24R010', w: 267.2, h: 258.2 },
+    { k: 'anthracite-c24R011', w: 274, h: 219.4 },
+    { k: 'anthracite-c24R012', w: 247.8, h: 277.6 },
+    { k: 'anthracite-c24R013', w: 266.3, h: 211.1 },
+    { k: 'anthracite-c24R014', w: 257.3, h: 261 },
+    { k: 'anthracite-c24R015', w: 260.5, h: 244.7 },
+    { k: 'anthracite-c24R016', w: 230.2, h: 265 },
+    { k: 'anthracite-c24R017', w: 237.9, h: 251.9 },
+    { k: 'anthracite-c24R018', w: 218.9, h: 227.4 },
+    { k: 'anthracite-c24R019', w: 229.3, h: 243.8 },
+    { k: 'anthracite-c24R020', w: 214.3, h: 192.1 },
+    { k: 'anthracite-c24R021', w: 226.1, h: 184.5 },
+    { k: 'anthracite-c24R022', w: 176.4, h: 239.7 },
+    { k: 'anthracite-c24R023', w: 199.9, h: 194.5 },
+    { k: 'anthracite-c24R024', w: 209.4, h: 203.9 },
+    { k: 'anthracite-c24R025', w: 174.5, h: 202.1 },
+    { k: 'anthracite-c24R026', w: 210.7, h: 187.6 },
+    { k: 'anthracite-c24R027', w: 183.6, h: 208.4 },
+    { k: 'anthracite-c24R028', w: 202.1, h: 191.7 },
+    { k: 'anthracite-c24R029', w: 224.3, h: 140.2 },
+    { k: 'anthracite-c24R030', w: 150.1, h: 165 },
+    { k: 'anthracite-c24R031', w: 150.5, h: 167.8 },
+    { k: 'anthracite-c24R032', w: 158.7, h: 147 },
+    { k: 'anthracite-c24R033', w: 147.8, h: 152.4 },
+    { k: 'anthracite-c24R034', w: 129.8, h: 147.9 },
+    { k: 'anthracite-c24R035', w: 158.7, h: 144.2 },
+    { k: 'anthracite-c24R037', w: 149.2, h: 123.9 },
+    { k: 'anthracite-c24R038', w: 108.9, h: 140.7 },
+    { k: 'anthracite-c24R039', w: 134.3, h: 119.8 },
+    { k: 'anthracite-c24R040', w: 109.4, h: 136.1 },
+    { k: 'anthracite-c24R041', w: 100, h: 91.8 },
+    { k: 'anthracite-c24R042', w: 114.9, h: 72.8 },
+    { k: 'anthracite-c24R045', w: 77.3, h: 75.6 },
+  ],
+  // garnet — 31 sprites from assets/garnet-c24/
+  garnet: [
+    { k: 'garnet-c24R001', w: 506.5, h: 414.6 },
+    { k: 'garnet-c24R002', w: 401.5, h: 400.2 },
+    { k: 'garnet-c24R003', w: 301.7, h: 453.5 },
+    { k: 'garnet-c24R004', w: 428.3, h: 370.3 },
+    { k: 'garnet-c24R005', w: 335.1, h: 394.8 },
+    { k: 'garnet-c24R006', w: 323.8, h: 384.8 },
+    { k: 'garnet-c24R007', w: 303.9, h: 361.7 },
+    { k: 'garnet-c24R008', w: 285.3, h: 402.4 },
+    { k: 'garnet-c24R009', w: 268.1, h: 344.2 },
+    { k: 'garnet-c24R010', w: 289.4, h: 229.7 },
+    { k: 'garnet-c24R011', w: 196.3, h: 279.9 },
+    { k: 'garnet-c24R012', w: 283.9, h: 269.1 },
+    { k: 'garnet-c24R013', w: 208.1, h: 261.3 },
+    { k: 'garnet-c24R014', w: 226.5, h: 249.2 },
+    { k: 'garnet-c24R015', w: 242.8, h: 216.6 },
+    { k: 'garnet-c24R016', w: 234.2, h: 211.1 },
+    { k: 'garnet-c24R017', w: 213, h: 245.1 },
+    { k: 'garnet-c24R018', w: 238.8, h: 181.8 },
+    { k: 'garnet-c24R019', w: 200.8, h: 174.6 },
+    { k: 'garnet-c24R020', w: 156.9, h: 150.1 },
+    { k: 'garnet-c24R021', w: 145.6, h: 142.5 },
+    { k: 'garnet-c24R022', w: 151.9, h: 115.3 },
+    { k: 'garnet-c24R023', w: 119.8, h: 125.7 },
+    { k: 'garnet-c24R024', w: 112.6, h: 99 },
+    { k: 'garnet-c24R025', w: 101.3, h: 107.6 },
+    { k: 'garnet-c24R026', w: 102.2, h: 98.1 },
+    { k: 'garnet-c24R027', w: 99, h: 95 },
+    { k: 'garnet-c24R028', w: 86.8, h: 100 },
+    { k: 'garnet-c24R029', w: 91.3, h: 88.6 },
+    { k: 'garnet-c24R030', w: 81.4, h: 84.5 },
+    { k: 'garnet-c24R031', w: 75.5, h: 80.9 },
+  ],
+  // hematite — 28 sprites from assets/hematite-c24/
+  hematite: [
+    { k: 'hematite-c24R001', w: 369.8, h: 433.2 },
+    { k: 'hematite-c24R002', w: 366.3, h: 415.6 },
+    { k: 'hematite-c24R003', w: 360.9, h: 363.5 },
+    { k: 'hematite-c24R004', w: 334.7, h: 366.3 },
+    { k: 'hematite-c24R007', w: 308.9, h: 297.5 },
+    { k: 'hematite-c24R008', w: 341.9, h: 283.6 },
+    { k: 'hematite-c24R009', w: 264.1, h: 291.7 },
+    { k: 'hematite-c24R010', w: 268.6, h: 268.2 },
+    { k: 'hematite-c24R011', w: 305.7, h: 261.3 },
+    { k: 'hematite-c24R012', w: 241.1, h: 303.4 },
+    { k: 'hematite-c24R014', w: 256.9, h: 241.9 },
+    { k: 'hematite-c24R019', w: 253.7, h: 199.4 },
+    { k: 'hematite-c24R020', w: 172.3, h: 238.8 },
+    { k: 'hematite-c24R023', w: 214.8, h: 159.6 },
+    { k: 'hematite-c24R025', w: 164.6, h: 222.4 },
+    { k: 'hematite-c24R026', w: 193.6, h: 174.1 },
+    { k: 'hematite-c24R028', w: 210.7, h: 161 },
+    { k: 'hematite-c24R030', w: 144.7, h: 154.7 },
+    { k: 'hematite-c24R032', w: 170, h: 121.7 },
+    { k: 'hematite-c24R035', w: 144.8, h: 140.2 },
+    { k: 'hematite-c24R038', w: 118.5, h: 125.7 },
+    { k: 'hematite-c24R039', w: 148.3, h: 99.5 },
+    { k: 'hematite-c24R040', w: 113, h: 109.9 },
+    { k: 'hematite-c24R043', w: 90, h: 100 },
+    { k: 'hematite-c24R046', w: 79.6, h: 83.2 },
+    { k: 'hematite-c24R048', w: 94.5, h: 75 },
+    { k: 'hematite-c24R049', w: 81.9, h: 68.7 },
+    { k: 'hematite-c24R050', w: 70.5, h: 64.7 },
+  ],
+};
+// </mine-rocks>
+
+// --- geometry ----------------------------------------------------------------
+const mineCfg = (config) => (config && config.mine) || CONFIG.mine;
+const mineBands = (config) => mineCfg(config).bands;
+function mineRows(config) { const M = mineCfg(config); return M.bandRows * M.bands.length; }
+// The whole shaft, in world units. `cellSize` comes from the base CONFIG — the mine does not
+// re-pick it, because the 36-unit grid is what every growth and threat rate is tuned against.
+function mineWorldBox(config) {
+  const M = mineCfg(config), cs = config.world.cellSize;
+  return {
+    width: M.cols * cs,
+    height: M.surfaceY + mineRows(config) * cs,
+    surfaceY: M.surfaceY,
+    cellSize: cs,
+  };
+}
+// Depth in METRES, one cell to the metre — the readout the HUD prints and the number the depth
+// beat names. Floored, so the surface reads 0 rather than flickering onto 1.
+function mineDepthM(sub, y) {
+  if (!sub) return 0;
+  return Math.max(0, Math.floor((y - sub.surfaceY) / sub.cellSize));
+}
+// Which band a depth is in, clamped at both ends. Takes METRES so the HUD, the beat and the
+// generator all ask the same question in the same unit.
+function mineBandAt(config, metres) {
+  const M = mineCfg(config);
+  const i = Math.floor(Math.max(0, metres) / M.bandRows);
+  return Math.max(0, Math.min(M.bands.length - 1, i));
+}
+// The deepest LIVING strand, in metres. The camera follows it, the HUD prints it and the run's
+// payout is measured by it. Infected tissue is excluded for the same reason it cannot harvest:
+// rot is not progress.
+function mineDepthReached(state) {
+  const net = state && state.active, sub = state && state.substrate;
+  if (!net || !sub) return 0;
+  let best = sub.surfaceY;
+  for (const n of net.nodes) { if (!n.infected && n.y > best) best = n.y; }
+  return mineDepthM(sub, best);
+}
+
+// -----------------------------------------------------------------------------
+// GENERATION
+// -----------------------------------------------------------------------------
+function mineLevelDef(config, seed) {
+  const M = mineCfg(config);
+  const box = mineWorldBox(config);
+  const cs = box.cellSize, cols = M.cols, rows = mineRows(config);
+  const bands = M.bands;
+  const rng = makeRng((seed >>> 0) || 1);
+  const ri = (n) => Math.floor(rng() * n);
+  const rf = (a, b) => a + rng() * (b - a);
+  const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+
+  // `open` is the carved skeleton: soil the generator promises to leave clear of rock. `taken`
+  // is everything a placed sprite's bounding box covers, so rocks stack into masses instead of
+  // piling into one spot, and so ore and water can be put somewhere no rock is drawn.
+  const open = new Uint8Array(cols * rows);
+  const taken = new Uint8Array(cols * rows);
+  const objects = [];
+  const at = (c, r) => r * cols + c;
+  const inGrid = (c, r) => c >= 0 && c < cols && r >= 0 && r < rows;
+  const carve = (c, r, rad) => {
+    const k = Math.ceil(rad), r2 = rad * rad;
+    for (let dr = -k; dr <= k; dr++)
+      for (let dc = -k; dc <= k; dc++) {
+        if (dc * dc + dr * dr > r2) continue;
+        if (inGrid(c + dc, r + dr)) open[at(c + dc, r + dr)] = 1;
+      }
+  };
+
+  // --- the head: open ground under the hill ---------------------------------
+  // Every channel starts inside this cap, which is what makes them all reachable from the
+  // colony without a connectivity pass: one open region at the top, three routes out of it.
+  const home = cols >> 1;
+  const HOME_HALF = 5;
+  for (let r = 0; r < 3; r++)
+    for (let c = home - HOME_HALF; c <= home + HOME_HALF; c++)
+      if (inGrid(c, r)) open[at(c, r)] = 1;
+
+  // --- descending channels --------------------------------------------------
+  // Three, so the player has a choice of route at every depth rather than one corridor to
+  // follow. Each keeps a HEADING for a few rows at a time instead of re-rolling every row: a
+  // per-row coin flip produces a jittery vertical scribble, a held heading produces a channel
+  // that leans, crosses its neighbours and comes back — which is what reads as a mine.
+  const CHANNELS = 3;
+  const chanCells = [];                       // every open cell a channel laid, for later passes
+  // ...and a mask of the descent routes themselves, WIDER than the carve. Ore and water are placed
+  // strictly outside it (see below), and "outside" has to mean "you cannot reach it by diving" —
+  // a pocket one cell off a channel's edge is on the route for anything with a 25.5-unit segment.
+  const onRoute = new Uint8Array(cols * rows);
+  const markRoute = (c, r, rad) => {
+    const k = Math.ceil(rad), r2 = rad * rad;
+    for (let dr = -k; dr <= k; dr++)
+      for (let dc = -k; dc <= k; dc++) {
+        if (dc * dc + dr * dr > r2) continue;
+        if (inGrid(c + dc, r + dr)) onRoute[at(c + dc, r + dr)] = 1;
+      }
+  };
+  for (let s = 0; s < CHANNELS; s++) {
+    let col = clamp(home + (s - 1) * 4, 3, cols - 4);
+    let dir = 0, hold = 0;
+    for (let r = 2; r < rows; r++) {
+      carve(col, r, rf(1.35, 2.15));
+      markRoute(col, r, 4.2);
+      chanCells.push([col, r]);
+      if (hold-- <= 0) { dir = ri(3) - 1; hold = 2 + ri(4); }
+      col = clamp(col + dir, 3, cols - 4);
+    }
+  }
+
+  // --- lateral galleries ----------------------------------------------------
+  // Side runs off the channels. They are where the ore and the water are, so digging sideways
+  // is the detour the economy pays for; they also join the three channels to each other.
+  const galleryEnds = [];
+  // ROUGHLY TWO PER BAND PER REWARD. Both the ore and the water pockets are placed at gallery
+  // ENDS now, so the gallery count is what decides whether either can be placed at all — and a
+  // band that runs out falls back to a random off-route spot, which works but reads as a seam in
+  // the middle of nowhere rather than at the end of a dug tunnel.
+  const galleries = Math.round(rows / 3.2);
+  for (let g = 0; g < galleries; g++) {
+    const [c0, r0] = chanCells[ri(chanCells.length)];
+    if (r0 < 4) continue;
+    let c = c0, r = r0;
+    const way = rng() < 0.5 ? -1 : 1;
+    const len = 4 + ri(11);
+    for (let i = 0; i < len; i++) {
+      c = clamp(c + way, 2, cols - 3);
+      if (rng() < 0.3) r = clamp(r + (rng() < 0.5 ? -1 : 1), 2, rows - 2);
+      carve(c, r, rf(1.15, 1.7));
+    }
+    galleryEnds.push([c, r]);
+  }
+
+  // --- ore piles: the Phosphorus (see mineOreRewards) ------------------------
+  // At the ENDS of galleries by preference — a pile you have to go and get is the whole reason
+  // to dig sideways in a game about digging down. `stampFood` clears rock from the cells it
+  // takes, so a pile is always diggable; putting them in carved space keeps them from HOLING a
+  // boulder (markCoverGrid skips food cells, so a pile inside rock opens a hole in a wall that
+  // still looks solid — see __game.auditRocks).
+  // NOTHING WORTH HAVING IS ON THE WAY DOWN, and that is the whole economy rather than a flavour
+  // decision. Measured on the first playable build, with the pockets placed anywhere open: a probe
+  // diving straight down reached 167 m of a 168 m shaft on a FIRST run and banked no ore at all —
+  // it tapped seven water pockets it never had to look for, and passed every ore seam. Both halves
+  // of that are the same defect: a reward sitting in the descent channel is a reward for descending,
+  // and the descent is the thing the fuel is supposed to be limiting.
+  //
+  // So ore AND water live at the far ends of the lateral galleries, off `onRoute`. Digging sideways
+  // costs fuel and buys fuel, which is the trade the run is actually about — and the ore that pays
+  // for the next descent is found the same way, so one rule covers both.
+  const bandPool = (rLo, rHi) => galleryEnds
+    .filter(([c, r]) => r >= rLo && r <= rHi && !onRoute[at(c, r)]);
+  // A LAST RESORT ONLY, and it still refuses the route: a band where every gallery landed on a
+  // channel would otherwise get nothing at all, which is a dead band rather than a hard one.
+  const offRouteSpot = (rLo, rHi) => {
+    for (let tries = 0; tries < 400; tries++) {
+      const r = rLo + ri(Math.max(1, rHi - rLo)), c = 2 + ri(cols - 4);
+      if (open[at(c, r)] && !onRoute[at(c, r)]) return [c, r];
+    }
+    return null;
+  };
+  const orePer = M.orePerPile;
+  const pools = [];
+  for (let b = 0; b < bands.length; b++) {
+    const rLo = b * M.bandRows + 2, rHi = (b + 1) * M.bandRows - 2;
+    const pool = bandPool(rLo, rHi);
+    pools.push({ rLo, rHi, pool });
+    for (let i = 0; i < M.pilesPerBand; i++) {
+      const spot = (pool.length ? pool.splice(ri(pool.length), 1) : [offRouteSpot(rLo, rHi)])[0];
+      if (!spot) continue;
+      const [c, r] = spot;
+      carve(c, r, 2.2);                             // room to work around the pile
+      objects.push({ t: 'food', kind: b >= 2 ? 'cache-engine' : 'cache',
+                     x: (c + 0.5) * cs, y: box.surfaceY + (r + 0.5) * cs, r: 1,
+                     energy: orePer[Math.min(orePer.length - 1, b)] });
+    }
+  }
+
+  // --- water pockets: the fuel cans -----------------------------------------
+  // A reservoir's cells are IMPASSABLE (stampReservoir sets rock + water), so one dropped into a
+  // channel would wall the shaft with the very thing you came for. Each is therefore carved a
+  // ROOM around it first — the pocket plus a clear ring — so the colony can reach round it and
+  // touch the water face, and the route past it survives.
+  for (let b = 0; b < bands.length; b++) {
+    const { rLo, rHi, pool } = pools[b];
+    for (let i = 0; i < M.reservoirsPerBand; i++) {
+      const spot = (pool.length ? pool.splice(ri(pool.length), 1) : [offRouteSpot(rLo, rHi)])[0];
+      if (!spot) continue;
+      const [c, r] = spot;
+      const rad = 1;
+      carve(c, r, rad + 1.8);
+      objects.push({ t: 'reservoir', x: (c + 0.5) * cs, y: box.surfaceY + (r + 0.5) * cs, r: rad * cs });
+    }
+  }
+
+  // --- rock -----------------------------------------------------------------
+  // Everything that is not carved, filled with the band's own sprites. A candidate is rejected
+  // whole: its bounding box may not touch a single carved cell, may not leave the content box,
+  // and may not land on ground another sprite has already covered past `OVERLAP` — which is what
+  // makes rocks form masses with soil between them rather than one stack in the first clear spot.
+  const OVERLAP = 0.45;
+  const libFor = (b) => (MINE_ROCKS[bands[b].theme] || []);
+  const bandCover = new Array(bands.length).fill(0);
+  const bandTarget = bands.map((b) => b.fill * M.bandRows * cols);
+  const contentBottom = box.height;
+  // Which library a row draws from: its own band, but the top `blendFrac` of every band still
+  // serves the band above it some of the time, so a rock type STARTS appearing rather than
+  // switching on at a line. Band 0 has nothing above it and simply keeps its own.
+  const libAtRow = (r) => {
+    const b = Math.min(bands.length - 1, Math.floor(r / M.bandRows));
+    const t = (r - b * M.bandRows) / M.bandRows;
+    if (b > 0 && t < M.blendFrac && rng() > t / M.blendFrac) return { b, lib: libFor(b - 1) };
+    return { b, lib: libFor(b) };
+  };
+  for (let r = 1; r < rows; r += 3) {
+    for (let c = 1; c < cols; c += 3) {
+      const { b, lib } = libAtRow(r);
+      if (!lib.length || bandCover[b] >= bandTarget[b]) continue;
+      // Biggest first, then smaller — a big mass where one fits, gravel-free fill where it
+      // doesn't. Six attempts, because most candidates near a channel legitimately fail.
+      let placed = false;
+      for (let attempt = 0; attempt < 6 && !placed; attempt++) {
+        const src = lib[ri(lib.length)];
+        const sc = rf(bands[b].scale[0], bands[b].scale[1]) * (1 - attempt * 0.13);
+        const w = Math.max(cs, src.w * sc), h = Math.max(cs, src.h * sc);
+        const x = (c + rf(-0.6, 0.6)) * cs, y = box.surfaceY + (r + rf(-0.6, 0.6)) * cs;
+        if (x - w / 2 < 0 || x + w / 2 > box.width) continue;
+        if (y - h / 2 < box.surfaceY + cs * 0.5 || y + h / 2 > contentBottom) continue;
+        const c0 = Math.floor((x - w / 2) / cs), c1 = Math.floor((x + w / 2) / cs);
+        const r0 = Math.floor((y - h / 2 - box.surfaceY) / cs), r1 = Math.floor((y + h / 2 - box.surfaceY) / cs);
+        let clear = true, cells = 0, already = 0;
+        for (let rr = r0; rr <= r1 && clear; rr++)
+          for (let cc = c0; cc <= c1; cc++) {
+            if (!inGrid(cc, rr)) { clear = false; break; }
+            if (open[at(cc, rr)]) { clear = false; break; }
+            cells++; if (taken[at(cc, rr)]) already++;
+          }
+        if (!clear || !cells || already / cells > OVERLAP) continue;
+        for (let rr = r0; rr <= r1; rr++)
+          for (let cc = c0; cc <= c1; cc++) if (!taken[at(cc, rr)]) { taken[at(cc, rr)] = 1; bandCover[b]++; }
+        objects.push({ t: 'boulder', key: src.k, x: +x.toFixed(1), y: +y.toFixed(1),
+                       w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
+        placed = true;
+      }
+    }
+  }
+
+  return {
+    format: LEVEL_FORMAT, version: LEVEL_VERSION,
+    id: 'mine-' + ((seed >>> 0) || 1).toString(36),
+    name: 'The Deep Mine',
+    campaignLevel: null,
+    mine: true,                                 // buildLevel's centre-hill layout; no goal
+    // FOUR ASSET FOLDERS, NOT ONE. `loadLevelAssets(id)` filters the deferred manifest by the
+    // folder name, and a mine map draws from every band's — so main.js loads the list rather
+    // than the single `assetsFrom` an authored map carries.
+    assetsFrom: bands[0].assetsFrom,
+    assetsFromAll: bands.map((b) => b.assetsFrom),
+    world: { width: box.width, height: box.height, surfaceY: box.surfaceY, cellSize: cs,
+             bottomBuffer: M.bottomBuffer, coreDepthFrac: 1 },
+    layout: { mine: true, startCols: 2, goalCols: 0, summerCols: 0, clearChannels: false },
+    // The creatures are placed by `mineSeedThreats` on the first frame the rock mask exists, not
+    // from here — see there. Zeroed ceilings plus `respawn: false` is what keeps the procedural
+    // seeders and the top-ups out, so the mine's population is exactly what this module places.
+    threats: { trych: 0, nematodes: 0, ants: 0, respawn: false },
+    render: { soilPebbles: false },
+    objects,
+    _seed: (seed >>> 0) || 1,
+    // What the generator actually managed to lay down, per band — for `mine-check` and for
+    // anyone reading a report about one shaft. A band whose `cover` is far under its `fill`
+    // target is a band the carve left no room in, which is a tuning fact rather than a bug.
+    _stats: { rocks: objects.filter((o) => o.t === 'boulder').length,
+              piles: objects.filter((o) => o.t === 'food').length,
+              pockets: objects.filter((o) => o.t === 'reservoir').length,
+              cover: bandCover.map((n, i) => +(n / (M.bandRows * cols)).toFixed(3)) },
+  };
+}
+
+// -----------------------------------------------------------------------------
+// THREATS, seeded LATE (owner: worms + mould, appearing deeper)
+// -----------------------------------------------------------------------------
+// Same trap as `seedLevelThreats` and the ants' opening trail: on a map whose rock is sprites,
+// `cell.rock` is stamped from each sprite's ALPHA during RENDER and is empty at build time — so
+// anything placed in `buildLevel` lands inside boulders, silently. This runs on the first frame
+// after `_fineSolid` exists, one-shot, and re-stamps the cloud field because a cloud has no
+// sprite: it IS `cell.trich`, and nothing else would project these until the first world step.
+//
+// Band 1 seeds nothing on purpose. The player has no counterplay in the mine (Excrete and
+// Amputate belonged to the card/action layer), so these are hazards to route around, and the
+// first 42 m are where the fuel clock is learnt with nothing chasing you.
+function mineSeedThreats(state) {
+  if (!state || !state._needMineThreats) return false;
+  const sub = state.substrate;
+  if (!sub || !sub._fineSolid) return false;
+  state._needMineThreats = false;
+  const cfg = state.config, M = mineCfg(cfg), rng = state.rng, cs = sub.cellSize;
+  const bandsT = M.threatBands || [];
+  const worms = [], clouds = [];
+  // A spot clear of the DRAWN rock, not of `cell.rock`: `solidAtWorld` samples the fine mask, so
+  // this asks the question the player's eye asks. The margin keeps a creature off a rock face it
+  // would otherwise be standing inside.
+  const spotIn = (rLo, rHi) => {
+    for (let tries = 0; tries < 400; tries++) {
+      const r = rLo + Math.floor(rng() * Math.max(1, rHi - rLo));
+      const c = 2 + Math.floor(rng() * Math.max(1, sub.cols - 4));
+      const x = (c + 0.5) * cs, y = sub.surfaceY + (r + 0.5) * cs;
+      if (sub.solidAtWorld(x, y)) continue;
+      if (sub.rockNear(c, r, 1.6)) continue;
+      const cell = sub.cellAt(c, r);
+      if (!cell || cell.water || cell.maxNutrient > 0) continue;
+      return { x, y };
+    }
+    return null;
+  };
+  for (let b = 0; b < M.bands.length; b++) {
+    const t = bandsT[Math.min(bandsT.length - 1, b)] || { worms: 0, clouds: 0 };
+    const rLo = b * M.bandRows + 2, rHi = (b + 1) * M.bandRows - 2;
+    for (let i = 0; i < (t.worms | 0); i++) { const s = spotIn(rLo, rHi); if (s) worms.push(s); }
+    for (let i = 0; i < (t.clouds | 0); i++) { const s = spotIn(rLo, rHi); if (s) clouds.push({ x: s.x, y: s.y, r: 0 }); }
+  }
+  state.nematodes = state.nematodes.concat(placeNematodes(rng, worms));
+  state.clouds = state.clouds.concat(placeClouds(sub, clouds, cfg));
+  stampCloudField(sub, state.clouds);
+  return true;
+}
+
+// -----------------------------------------------------------------------------
+// THE ECONOMY: ore pays Phosphorus, water pockets pay fuel
+// -----------------------------------------------------------------------------
+// The mine's answer to `checkPileRewards`, which cannot serve here — that one pays a CARD DRAFT
+// and needs `state.cards`, and the mine has neither. Same finish line, though: a pile pays when
+// it has been claimed AND emptied AND clean tissue is still on it (Network.cleanCover), so rot
+// that emptied a pile, or tissue a worm ate off one, collects nothing.
+function mineOreRewards(state) {
+  const sub = state.substrate, net = state.active;
+  if (!sub || !sub.foodPiles || !net || !net.alive || state.runOver) return 0;
+  let cover = null, paid = 0;
+  for (const pile of sub.foodPiles) {
+    if (pile.rewarded) continue;
+    let total = 0, claimed = false;
+    for (const idx of pile.cells) {
+      const cell = sub.cells[idx]; if (!cell) continue;
+      total += cell.nutrient;
+      if (cell.colonized > 0) claimed = true;
+    }
+    if (!claimed || total > 1e-6) continue;
+    if (!cover) cover = net.cleanCover(sub);
+    if (!pile.cells.some((idx) => sub.cells[idx] && sub.cells[idx].colonized > 0 && cover.covers(idx))) continue;
+    pile.rewarded = true;
+    // `energyValue` is what the level def wrote as this pile's worth — the band's own ore value —
+    // plus whatever the store's Ore yield track adds, PER SEAM. Per seam rather than per run is
+    // the point of that track: it rewards digging sideways for more of them.
+    const p = Math.max(1, Math.round(pile.energyValue || 1) + (mineCfg(state.config).oreBonus | 0));
+    net.phosphorus += p;
+    state.mineOre = (state.mineOre || 0) + p;
+    paid += p;
+    state.log(`Ore seam digested: +${p} Phosphorus.`, 'good');
+  }
+  return paid;
+}
+
+// A water pocket is a FUEL CAN: touching one pays a lump of Water, ONCE. The campaign's version
+// of this is a synthetic card engine paying +1/turn forever, which cannot work here — the card
+// layer is off — and would be the wrong shape anyway: in a game where water is the fuel, a
+// pocket you find is a refill, not an annuity.
+function mineWaterPickups(state) {
+  const net = state.active;
+  if (!net || !net.alive || state.runOver) return 0;
+  const tapped = (state._tappedWater = state._tappedWater || new Set());
+  let gained = 0;
+  for (const src of waterSourcesNear(state)) {
+    if (tapped.has(src)) continue;
+    tapped.add(src);
+    const w = Math.max(1, mineCfg(state.config).reservoirWater | 0);
+    net.water += w; gained += w;
+    state.log(`Tapped a water pocket: +${w} Water.`, 'good');
+  }
+  return gained;
+}
+
+// -----------------------------------------------------------------------------
+// THE GROW — the mine's whole action layer (owner: "Players start with a grow 2 which costs 2
+// water and they can use as long as they have water")
+// -----------------------------------------------------------------------------
+// A STEP IS 3 SEGMENTS, which is the card layer's own unit and the reason this is not a new one:
+// every grow card in the game counts segments in threes (`grow4Segments` 12 = 4 steps), so "grow
+// 2" here is exactly the reach a 2-step card would have and the store's upgrade to 3 is exactly a
+// 3-step card. Reusing the unit means the numbers can be compared to a game people have played.
+function mineGrowSegments(config) { return Math.max(1, mineCfg(config).growSteps | 0) * 3; }
+// How far a grow reaches, for the aim line. The drawn arrow has to end where the growth ends or
+// the gesture is a guess.
+function mineGrowReach(config) {
+  const seg = (config.growth && config.growth.segmentLength) || 25.5;
+  return mineGrowSegments(config) * seg;
+}
+// Dig. `ctx` is the drag-aim's own: `srcX/srcY` the strand the player pressed, `x/y` where they
+// dragged. Deliberately the SAME shape the directional cards use (engine/cards.js dirFrom), so the
+// press-to-pick-a-strand, drag-to-pick-a-direction gesture is the one the game already had.
+//
+// IT DOES NOT GO THROUGH `performAction`. That charges Energy, logs an action and — in turn-based
+// — queues an enemy turn; the mine charges WATER, is real time, and has no turn to queue. What it
+// does share is `growDirected`, which is where the pile claim, the reveal scheduling and the rock
+// collision all live, so an upgraded mine grow behaves like a card grow in every way but its price.
+function mineGrow(state, ctx) {
+  const net = state && state.active, sub = state && state.substrate;
+  if (!net || !net.alive || state.runOver) return { ok: false, message: 'The colony is no longer alive.' };
+  const cost = mineGrowCost(state.config);
+  if (net.water < cost) return { ok: false, message: `Not enough water — a grow costs ${cost}.` };
+  const hasOrigin = ctx.srcX != null && ctx.srcY != null;
+  const tip = net.nearestNode(hasOrigin ? ctx.srcX : ctx.x, hasOrigin ? ctx.srcY : ctx.y);
+  const fp = tip ? { x: tip.x, y: tip.y } : (net.frontierPoint() || { x: 0, y: sub.surfaceY });
+  let dx = ctx.x - fp.x, dy = ctx.y - fp.y;
+  // NO DIRECTION MEANS DOWN. A tap with no drag is a legitimate gesture on a phone and the mine
+  // has one obvious answer to "which way?" — the card layer's fallback is `dx = 1` (rightward,
+  // toward the goal it was written for), which here would send the colony sideways along the
+  // surface on the player's very first tap.
+  if (Math.hypot(dx, dy) < 1) { dx = 0; dy = 1; }
+  const made = net.growDirected(sub, state.rng, dx, dy, mineGrowSegments(state.config), false, tip);
+  if (!made) return { ok: false, message: 'Solid rock that way — aim into open ground.' };
+  net.water -= cost;
+  net.recomputeVitality();
+  return { ok: true, made, water: net.water, message: `Dug ${made} filament${made > 1 ? 's' : ''}.` };
+}
+
+// --- the fuel clock ---------------------------------------------------------
+// What one grow costs right now. The store's `growSteps` track raises the STEPS, not the price,
+// so an upgraded colony digs further per unit of fuel rather than digging more often.
+function mineGrowCost(config) { return Math.max(1, mineCfg(config).growWaterCost | 0); }
+function mineCanGrow(state) {
+  const net = state && state.active;
+  return !!(net && net.alive && !state.runOver && net.water >= mineGrowCost(state.config));
+}
+// OUT OF FUEL IS NOT THE SAME INSTANT AS "cannot afford a grow", and the grace is why: a strand
+// already inside a water pocket's reach pays out on the next tick, so ending the run the moment
+// the counter dips would take the run away from a player whose last grow just reached the fuel.
+// `graceMs` of wall clock, and any water arriving inside it cancels the ending.
+const OUT_OF_FUEL_GRACE_MS = 1600;
+function mineFuelCheck(state, nowMs) {
+  if (!state || state.runOver || !state.active || !state.active.alive) return false;
+  if (mineCanGrow(state)) { state._mineDry = 0; return false; }
+  if (!state._mineDry) { state._mineDry = nowMs; return false; }
+  if (nowMs - state._mineDry < OUT_OF_FUEL_GRACE_MS) return false;
+  return true;
+}
+
+// The run's end. Not the `fruit` ACTION: that one needs fruitable soil the colony has reached,
+// and a colony 120 m down has none — it would refuse and the run would never end. The fiction is
+// the same (owner: "they fruit and spore"), the bookkeeping is the mine's own.
+function mineEndRun(state) {
+  if (!state || state.runOver) return null;
+  const net = state.active;
+  const depth = mineDepthReached(state);
+  const ore = Math.max(0, Math.round(state.mineOre || 0));
+  net.fruited = true; net.alive = false;
+  state.runOver = true;
+  state.runResult = { mine: true, depth, ore, spores: 0, bodies: 0, died: false, cause: 'dry' };
+  state.log(`Out of water at ${depth} m. The colony fruits and spores — ${ore} Phosphorus banked.`, 'good');
+  return state.runResult;
+}
+
+  return { MINE_ROCKS, mineLevelDef, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
+           mineDepthReached, mineSeedThreats, mineOreRewards, mineWaterPickups, mineGrowCost,
+           mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
+           OUT_OF_FUEL_GRACE_MS };
 })();
 
 // ===================== src/engine/turn.js =====================
@@ -23663,10 +24611,26 @@ class UI {
     const maybeCollapsed = narrow ? ' collapsed' : '';
     const cardsOn = !!(this.state.config.cards && this.state.config.cards.enabled);
     this.cardsOn = cardsOn;
+    // THE MINE IS A THIRD HUD, not the cards-off one. Off the SUBSTRATE rather than off
+    // `config.game`, so a mine map is a mine map wherever it was opened from — the same reason
+    // `mineFixedZoom` reads it. It shares `cardsOn === false` with the sandbox, and what it needs
+    // is different in both directions: no action bar (there is one action and it is the drag), and
+    // a resource row of WATER, PHOSPHORUS and DEPTH rather than energy and spores. Energy is off
+    // the row entirely — nothing in the mine spends it, so a number that only ever goes up is
+    // three characters of noise on the scarcest screen in the game.
+    const mineOn = !!(this.state.substrate && this.state.substrate.mine);
+    this.mineOn = mineOn;
 
     // ---- Top HUD: one compact resource row + a drop-down event log ----
     const hud = div('panel hud');
-    const resRow = cardsOn
+    const resRow = mineOn
+      // WATER FIRST, because it is the fuel and the clock — it is the number the player is
+      // watching. Depth carries its unit in the markup ("m"), so the readout reads as a
+      // measurement rather than as a third stock.
+      ? `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span></span>`
+        + `<span class="res p">${RES_ICON.phos}<span class="rv" id="hud-phosphorus">0</span></span>`
+        + `<span class="res d"><span class="rv" id="hud-depth">0</span><span class="rk">m</span></span>`
+      : cardsOn
       ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span><span class="rd" id="hud-energy-inc"></span></span>`
         + `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span><span class="rd" id="hud-water-inc"></span></span>`
         + `<span class="res p">${RES_ICON.phos}<span class="rv" id="hud-phosphorus">0</span><span class="rd" id="hud-phosphorus-inc"></span></span>`
@@ -23733,7 +24697,10 @@ class UI {
 
     // ---- Bottom action bar (only when the CARD layer is OFF — cards replace it) ----
     this.el.buttons = {};
-    if (!cardsOn) {
+    // NOT IN THE MINE. The six basic actions are the sandbox's control surface; the mine has one
+    // action and it is a drag on the map (main.js armedDragTarget), so a bar of buttons would be
+    // both wrong and the single biggest thing on a portrait phone's screen.
+    if (!cardsOn && !mineOn) {
       const bar = div('panel actionbar');
       const order = ['grow', 'addSubstrate', 'amputate', 'attackAnts', 'excrete', 'digest', 'fruit'];
       for (const name of order) bar.appendChild(this._actionButton(name));
@@ -23803,8 +24770,8 @@ class UI {
     // hints (e.g. "Tap the map to aim …" while a targeted card is armed) and hides
     // itself when empty (see setHint), so there's no always-on paragraph.
     this.el.hint = div('hint');
-    this.defaultHint = cardsOn
-      ? ''
+    this.defaultHint = cardsOn ? ''
+      : mineOn ? ''
       : 'Hover an action for details. Grow extends the network toward sensed food.';
     this.el.hint.textContent = this.defaultHint;
     this.el.hint.style.display = this.defaultHint ? '' : 'none';
@@ -24424,6 +25391,13 @@ class UI {
     refreshCadenceClock(s);   // phase the cadence bars' fill against the card layer's round clock
     this._resText('hud-energy', Math.floor(net.energy), s);
     text('hud-spores', Math.floor(s.spores));
+    // THE MINE'S ROW, and it is the only one that has to be written OUTSIDE the `cardsOn` branch
+    // below — that branch is guarded on `s.cards`, which the mine does not have.
+    if (this.mineOn) {
+      this._resText('hud-water', Math.floor(net.water || 0), s);
+      this._resText('hud-phosphorus', Math.floor(net.phosphorus || 0), s);
+      text('hud-depth', String(s.mineDepth | 0));
+    }
 
     // Card layer: resources, hand, draw/skip.
     if (this.cardsOn && s.cards) {
@@ -25596,13 +26570,13 @@ function growMyceliumTitle(container, opts = {}) {
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
   const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, highestCleared, startLevelFor, startLevelForGame, loadDeck, deckBucketFor, deckBuckets, deckSize,
-    STORE_UPGRADES, upgradeById, upgradeMax, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+    STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
   // `isCampaignGame` rather than a `game` argument threaded down from main: this screen is shared
   // by both games and `CONFIG.game` is already set before it opens (the title screen's New/Old
   // carries it), so asking is one call and cannot fall out of step with the run that follows.
-  const { CONFIG, isCampaignGame, timeify } = __m_config;
+  const { CONFIG, isCampaignGame, isMineGame, timeify } = __m_config;
   const { cardSlug, SPORE_ICON } = __m_render_ui;
   const { logEvent } = __m_net_scores;
   const { growMyceliumTitle } = __m_render_mycelium_title;
@@ -26021,6 +26995,14 @@ function speciesSlot(s, { cost, balance, onRead, onSelect, onBuy }) {
 // tile states the absolute figure the run opens with; every other track states what it adds.
 const RESOURCE_TRACK = /^(energy|water|phosphorus)$/;
 
+// THE CURRENCY MARK AND ITS NAME, for whichever game is being played. Every price on this screen
+// is printed beside one of these, and the mine's prices are an order of magnitude smaller than the
+// campaign's — so a spore print over "10" would read as ten spores rather than ten Phosphorus, on
+// a screen where the difference is the whole economy. Two functions rather than a ternary at each
+// of the six sites, and the aria label uses the same pair so a screen reader hears the right noun.
+const currencyMark = () => (isMineGame() ? RI.phos : SPORE_ICON);
+const currencyName = () => (isMineGame() ? 'Phosphorus' : 'Spores');
+
 // One upgrade track's tile: name, what it is currently granting, the effect, a pip per step,
 // and the price of the next one. Rebuilt whole on every purchase — see `refresh` below.
 function upgradeTile(u, progress, onBuy) {
@@ -26082,16 +27064,16 @@ function upgradeTile(u, progress, onBuy) {
       // primary action from a secondary one.
       (sellVal != null
         ? '<button class="ss-upg-sell" type="button" data-sell="' + esc(u.id) + '"' +
-          ' aria-label="Sell one step of ' + esc(u.name) + ' back for ' + sellVal + ' Spores"' +
-          ' title="Give back one step and take the ' + sellVal + ' Spores it cost">' +
-          '<span class="ss-sellw">Sell</span>' + SPORE_ICON + '<span class="ss-buyn">' + sellVal + '</span></button>'
+          ' aria-label="Sell one step of ' + esc(u.name) + ' back for ' + sellVal + ' ' + currencyName() + '"' +
+          ' title="Give back one step and take the ' + sellVal + ' ' + currencyName() + ' it cost">' +
+          '<span class="ss-sellw">Sell</span>' + currencyMark() + '<span class="ss-buyn">' + sellVal + '</span></button>'
         : '') +
       (cost == null
         ? '<span class="ss-upg-max">Maxed</span>'
         : '<button class="ss-upg-btn" type="button" data-upg="' + esc(u.id) + '"' + (afford ? '' : ' disabled') +
-          ' aria-label="Buy one step of ' + esc(u.name) + ' for ' + cost + ' Spores"' +
-          ' title="' + (afford ? 'Buy the next step' : 'You need ' + (cost - bal) + ' more Spores') + '">' +
-          SPORE_ICON + '<span class="ss-buyn">' + cost + '</span></button>') +
+          ' aria-label="Buy one step of ' + esc(u.name) + ' for ' + cost + ' ' + currencyName() + '"' +
+          ' title="' + (afford ? 'Buy the next step' : 'You need ' + (cost - bal) + ' more ' + currencyName()) + '">' +
+          currencyMark() + '<span class="ss-buyn">' + cost + '</span></button>') +
     '</div>';
   const btn = node.querySelector('.ss-upg-btn');
   // The PRICE goes to the caller too — `cost` is the next step's price and is only in scope
@@ -26104,9 +27086,17 @@ function upgradeTile(u, progress, onBuy) {
   return node;
 }
 
-function showSpeciesSelect({ onPick, onDev, onLevel }) {
+function showSpeciesSelect({ onPick, onDev, onLevel, mine }) {
   let progress = loadProgress();
+  // THE MINE'S VERSION OF THIS SCREEN IS THE SAME SCREEN WITH TWO SECTIONS TAKEN OUT (owner: "The
+  // upgrade store does not have new species - just the upgrades"). It is not a second screen,
+  // because everything on it already speaks this one's vocabulary — the wallet chip, the section
+  // rules, the upgrade tiles and their buy buttons — and a copy would be two things to keep in
+  // step. What changes: no colony grids, no deck (there are no cards), no rating ask on a shelf
+  // this bare, the wallet reads PHOSPHORUS, and the one button descends.
+  const mineOn = !!mine;
   const root = el('div'); root.id = 'speciesSelect';
+  if (mineOn) root.classList.add('ss-mine');
   // Dev shortcuts (owner testing only), GATED on config.dev.enabled — the same flag as the
   // in-game "Dev: win level" button, so cutting a release is one flag flip. They were once
   // deleted outright for the itch cut, which meant re-typing them to test again; don't do
@@ -26130,24 +27120,37 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
     '<div class="ss-console" role="dialog" aria-label="Select species">' +
       devBtns + mapCol +
       '<header class="ss-head">' +
-        '<div class="ss-headrow"><h1>Select species</h1>' +
+        '<div class="ss-headrow"><h1>' + (mineOn ? 'The Deep Mine' : 'Select species') + '</h1>' +
           // Deck + wallet travel together: both are things you carry between runs, and both are
           // read here rather than changed.
           '<span class="ss-headtools">' +
+            (mineOn ? '' :
             '<button class="ss-deckbtn" id="ssDeckBtn" type="button" title="The cards you kept from your last run">' +
-              'Deck<span class="ss-deckn" id="ssDeckN"></span></button>' +
-            '<span class="ss-spores ss-wallet" id="ssWallet" title="Spores — earned by finishing levels, spent here"></span>' +
+              'Deck<span class="ss-deckn" id="ssDeckN"></span></button>') +
+            '<span class="ss-spores ss-wallet" id="ssWallet" title="'
+              + (mineOn ? 'Phosphorus — dug out of the ore seams, spent here'
+                        : 'Spores — earned by finishing levels, spent here') + '"></span>' +
           '</span></div>' +
       '</header>' +
       '<div class="ss-body">' +
-        '<section class="ss-section">' +
+        // The two colony sections are BUILT AND HIDDEN in the mine rather than left out of the
+        // markup: `render()` writes into all three grids, and a null container there would be a
+        // throw on the one screen the mine cannot be played without.
+        '<section class="ss-section"' + (mineOn ? ' hidden' : '') + '>' +
           '<div class="ss-rowlabel"><span class="ss-lk">Available</span><span class="ss-rule"></span></div>' +
           '<div class="ss-grid" id="ssAvail"></div>' +
         '</section>' +
-        '<section class="ss-section" id="ssForSaleSec">' +
+        '<section class="ss-section" id="ssForSaleSec"' + (mineOn ? ' hidden' : '') + '>' +
           '<div class="ss-rowlabel"><span class="ss-lk">Purchase</span><span class="ss-rule"></span></div>' +
           '<div class="ss-grid" id="ssForSale"></div>' +
         '</section>' +
+        // THE DESCEND BUTTON IS ABOVE THE SHELF, not below it. It is the one thing the player came
+        // here to press, and a shelf of four tiles is tall enough on a phone that a button under it
+        // is off the bottom of the screen on arrival.
+        (mineOn
+          ? '<div class="ss-minego"><button class="ss-descend" id="ssDescend" type="button">Descend</button>'
+            + '<p class="ss-minenote" id="ssMineNote"></p></div>'
+          : '') +
         '<section class="ss-section">' +
           '<div class="ss-rowlabel"><span class="ss-lk">Upgrades</span><span class="ss-rule"></span></div>' +
           '<div class="ss-upgrades" id="ssUpg"></div>' +
@@ -26232,9 +27235,31 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   const select = (s) => { hide(); onPick && onPick(s, startLevelForGame(loadProgress())); };
 
   function render() {
-    renderRate();
+    if (!mineOn) renderRate();
     const bal = sporesBalance(progress);
-    wallet.innerHTML = SPORE_ICON + '<span class="ss-sp-n">' + bal + '</span>';
+    // THE ICON IS THE CURRENCY, and getting it wrong is the one thing on this screen that could
+    // silently mislead: the tiles' prices come from the same ladder either way, so a spore glyph
+    // over a Phosphorus balance would read as the mine costing hundreds.
+    // `RI.phos`, NOT `RES_ICON.phos`: the two are different icon sets in different modules and only
+    // one of them is exported. `RES_ICON` is a module-local const inside __m_render_ui, so reading
+    // it here throws — and the throw lands INSIDE render(), which leaves the whole screen blank
+    // with a heading on it. `RI` is this module's own set and is what the upgrade tiles already use,
+    // so the wallet's spark matches the prices under it.
+    wallet.innerHTML = currencyMark() + '<span class="ss-sp-n">' + bal + '</span>';
+    if (mineOn) {
+      // What a descent will actually open with, off the same functions the run reads
+      // (`storeBonuses`) — so the note cannot promise a number the run does not get.
+      // `growSteps` is the TRACK'S OWN TOTAL, base included — the track's `base` (2) is the
+      // authority on what a grow is worth and `configForLevel` copies this same figure into
+      // `cfg.mine.growSteps` for the run, so the note and the dig cannot disagree.
+      const b = storeBonuses(progress);
+      const water = Math.max(1, (CONFIG.mine.startWater | 0)) + (b.water | 0);
+      const steps = Math.max(1, b.growSteps | 0);
+      const cost = Math.max(1, CONFIG.mine.growWaterCost | 0);
+      const note = root.querySelector('#ssMineNote');
+      if (note) note.textContent = `${water} water to start · grow ${steps} · ${cost} water a dig`;
+      return renderUpgrades(bal);
+    }
     // The count is COPIES, not distinct names — "how big is my deck?" has one answer. Rendered
     // here rather than once at build time so it follows a wipe or a dev reset.
     const size = deckSize(progress);
@@ -26275,8 +27300,19 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
     // and is waiting for them the next time they open a campaign — a survival run simply cannot
     // spend it, which `startLevelFor`'s caller enforces separately, so the shelf and the run
     // agree.
+    renderUpgrades(bal);
+  }
+  // The shelf. Split out of `render` because the mine's version of this screen is ONLY the shelf,
+  // and one function means the two cannot end up filtering differently.
+  //
+  // `upgradeInGame` replaces the `campaignOnly && !isCampaignGame()` test that used to be inline:
+  // with three games the question is which tracks THIS game shows, and the same predicate is what
+  // `buyUpgrade` refuses on — so a tile can never be on a shelf whose wallet cannot buy it, and a
+  // track can never be buyable without being shown.
+  function renderUpgrades(bal) {
+    upgGrid.innerHTML = '';
     for (const u of STORE_UPGRADES) {
-      if (u.campaignOnly && !isCampaignGame()) continue;
+      if (!upgradeInGame(u)) continue;
       upgGrid.appendChild(upgradeTile(u, progress, (bought, paid) => {
         if (bought) logEvent('upgrade', { detail: bought.id, level: upgradeLevel(bought.id), n: paid || 0 });
         refresh();
@@ -26289,7 +27325,12 @@ function showSpeciesSelect({ onPick, onDev, onLevel }) {
   function refresh() { progress = loadProgress(); render(); }
 
   render();
-  deckBtn.addEventListener('click', () => showDeckView());
+  if (mineOn) {
+    // ONE BUTTON, AND IT IS THE ONLY THING ON THIS SCREEN THAT STARTS A RUN. `onPick` is reused
+    // rather than given a name of its own: the caller's job is identical ("the player is done
+    // shopping, begin"), and the mine has no colony to hand it, so it gets null.
+    root.querySelector('#ssDescend').addEventListener('click', () => { hide(); onPick && onPick(null, 1); });
+  } else deckBtn.addEventListener('click', () => showDeckView());
   if (devOn) {
     root.querySelector('#ssDev').addEventListener('click', () => { hide(); onDev && onDev(); });
     root.querySelector('#ssDevUnlock').addEventListener('click', () => { devUnlockAll(); refresh(); });
@@ -26338,6 +27379,42 @@ function showLevelComplete({ level, maxLevel, unlocked, earned, base, mult, bala
   const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: word.toUpperCase(), stepRate: 3.2 });
   function hide() { title.destroy(); root.remove(); }
   root.querySelector('#ssWinProceed').addEventListener('click', () => { hide(); onNext && onNext(); });
+  return { hide, root };
+}
+
+// ==================== the end of a descent (THE DEEP MINE) ===================
+// Owner: "When the player runs out of water, they fruit and spore and go to the upgrade store."
+// So this screen has one sentence and one button, and the sentence is the depth — which is the
+// score, the reason to buy anything, and the only thing a miner remembers about a run.
+//
+// `.ss-win`'s family rather than a screen of its own, for the reason the death screen was moved
+// into it: the run has ended, here is what happened, here is what you do next. The map stays
+// visible through it, and in the mine that map is the shaft you just dug, which is the picture.
+function showMineEnd({ depth, ore, best, balance, onDone }) {
+  const root = el('div', 'ss-win ss-mineend'); root.id = 'ssMineEnd';
+  // THE GROWN WORDMARK IS A WORD, AND THE DEPTH IS PLAIN TYPE UNDER IT. Growing the NUMBER was the
+  // first version and it is the obvious idea — the depth IS the achievement, so it should take the
+  // slot "Success" and "Unlocked" take. It reads badly: the grower fills each glyph with filaments
+  // and sprays a fringe past its edges, which a letter absorbs (you know what MYCELIUM says before
+  // you read it) and a digit does not — a grown 3 and a grown 8 are the same smudge, and this is
+  // the one number on the screen the player wants to know EXACTLY. So the word carries the beat and
+  // the number carries the fact.
+  root.innerHTML =
+    '<div class="ss-win-title" role="img" aria-label="Spored"></div>' +
+    '<p class="ss-mineend-depth">' + (depth | 0) + '<span class="ss-mineend-m">m</span></p>' +
+    '<p class="ss-win-sub">Out of water. The colony fruits and spores.</p>' +
+    '<p class="ss-win-earned">+' + (ore | 0) + RI.phos + '</p>' +
+    (best && best.isNew
+      ? '<p class="ss-mineend-best ss-new">Your deepest descent yet</p>'
+      : (best && best.m > depth ? '<p class="ss-mineend-best">Deepest so far ' + (best.m | 0) + ' m</p>' : '')) +
+    '<p class="spore-cta">Spend Phosphorus on fuel and a stronger dig, then go back down</p>' +
+    '<button class="ss-win-btn" id="ssMineDone" type="button">To the store</button>';
+  document.body.appendChild(root);
+  // `stepRate` 3.2 is the family's own — the wordmark grows at the same pace on every one of these
+  // screens, so they read as one moment repeated rather than three animations.
+  const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: 'SPORED', stepRate: 3.2 });
+  function hide() { title.destroy(); root.remove(); }
+  root.querySelector('#ssMineDone').addEventListener('click', () => { hide(); onDone && onDone(); });
   return { hide, root };
 }
 
@@ -26433,7 +27510,7 @@ function showGameWon({ spores, balance, onNewRun }) {
   return { hide, root };
 }
 
-  return { showDeathScreen, showSpeciesSelect, showLevelComplete, showSpeciesUnlocked, showGameWon, showDeckView };
+  return { showDeathScreen, showSpeciesSelect, showLevelComplete, showSpeciesUnlocked, showMineEnd, showGameWon, showDeckView };
 })();
 
 // ===================== src/render/loadout_select.js =====================
@@ -26672,7 +27749,7 @@ function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEn
 const __m_render_title_screen = (function () {
   // Whether this build offers the real-time variant at all — see __m_config, where it lives so
   // that this screen and the high-score board cannot disagree about it.
-  const { OFFER_REALTIME, OFFER_SURVIVAL } = __m_config;
+  const { OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE } = __m_config;
   const { playGrowBurst } = __m_render_sfx;
   const { loadProgress } = __m_species;
 // =============================================================================
@@ -26724,6 +27801,23 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
           '<span class="ts-act ts-solo"><span class="ts-cap">continue last game</span><button class="ts-btn ts-solo" id="tsContCamp" type="button">Old</button></span>' +
         '</div>' +
       '</div>' +
+      // The mine's row is in BOTH layouts, because `OFFER_SURVIVAL` and `OFFER_MINE` are separate
+      // decisions and withholding survival must not take the mine's door with it.
+      (OFFER_MINE
+        ? '<div class="ts-block ts-third">' +
+            // THE FULL THREE-COLUMN GRID WITH THE OLD SLOT LEFT EMPTY, not a two-item row. The
+            // grid is `1fr auto 1fr` with the label in the middle, so dropping the first child
+            // slides the label into the left column and NEW into the middle — the mine's row
+            // ends up out of line with the two above it, which reads as a mistake rather than as
+            // "this game has no Old". An empty, aria-hidden placeholder keeps DEEP MINE centred
+            // under MYCELIUM and NEW directly under the other two NEWs.
+            '<div class="ts-actions">' +
+              '<span class="ts-act ts-sm ts-act-ghost" aria-hidden="true"></span>' +
+              '<div class="ts-modewrap"><div class="ts-mode">Deep Mine</div><div class="ts-soon">dig down</div></div>' +
+              '<span class="ts-act ts-sm"><span class="ts-cap">start a new descent</span><button class="ts-btn ts-sm" id="tsNewMine" type="button">New</button></span>' +
+            '</div>' +
+          '</div>'
+        : '') +
     '</div>';
   root.innerHTML =
     '<canvas id="tsCanvas"></canvas>' +
@@ -26802,6 +27896,32 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
               '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNew" type="button">New</button></span>' +
             '</div>') +
       '</div>' +
+      // THE DEEP MINE — a THIRD row, appended UNDER the bottom one rather than swapped into either
+      // of the two the owner arranged (campaign top, survival bottom). Those two straddle the
+      // wordmark and their gaps to its ink were solved per side against the rendered canvas; a
+      // third game either goes outside that pair or re-opens all of it. `positionMenu` hangs this
+      // one off the bottom block's own measured height, so the tuned geometry above is untouched.
+      //
+      // ONE BUTTON, AND THERE IS NO "OLD". A descent is a single sitting — the run ends the moment
+      // the fuel does — and what persists between them is the STORE, not a half-finished shaft.
+      // The resume machinery could not serve one anyway: `buildResumeSnapshot` saves a deck, a hand
+      // and installed engines, and re-entering a level from its opening state is the wrong promise
+      // for a map whose whole content is how far down you got.
+      (OFFER_MINE
+        ? '<div class="ts-block ts-third">' +
+            // THE FULL THREE-COLUMN GRID WITH THE OLD SLOT LEFT EMPTY, not a two-item row. The
+            // grid is `1fr auto 1fr` with the label in the middle, so dropping the first child
+            // slides the label into the left column and NEW into the middle — the mine's row
+            // ends up out of line with the two above it, which reads as a mistake rather than as
+            // "this game has no Old". An empty, aria-hidden placeholder keeps DEEP MINE centred
+            // under MYCELIUM and NEW directly under the other two NEWs.
+            '<div class="ts-actions">' +
+              '<span class="ts-act ts-sm ts-act-ghost" aria-hidden="true"></span>' +
+              '<div class="ts-modewrap"><div class="ts-mode">Deep Mine</div><div class="ts-soon">dig down</div></div>' +
+              '<span class="ts-act ts-sm"><span class="ts-cap">start a new descent</span><button class="ts-btn ts-sm" id="tsNewMine" type="button">New</button></span>' +
+            '</div>' +
+          '</div>'
+        : '') +
     '</div>');
   document.body.appendChild(root);
 
@@ -27403,8 +28523,21 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     // phone. Both rows are the same distance from the INK now, so the gap above is measured to
     // the caption under NEW and the gap below to the top of OLD.
     const gapTitle = Math.max(28, H * 0.085);        // ink edge → row
-    topB.style.bottom = 'auto'; topB.style.top = Math.round(titleY - halfUp - gapTitle - topH) + 'px';
-    botB.style.bottom = 'auto'; botB.style.top = Math.round(titleY + halfDown + gapTitle) + 'px';
+    topB.style.bottom = 'auto'; topB.style.top = Math.round(titleY + 0 - halfUp - gapTitle - topH) + 'px';
+    const botTop = Math.round(titleY + halfDown + gapTitle);
+    botB.style.bottom = 'auto'; botB.style.top = botTop + 'px';
+    // THE THIRD ROW HANGS OFF THE SECOND, not off the wordmark. Everything above is solved against
+    // the drawn ink and must not move because a game was added; this one only has to clear the row
+    // in front of it. Its gap is a fraction of the between-rows distance rather than of the
+    // viewport, so on a phone — where the wordmark eats most of the screen — the three rows close
+    // up together instead of the last one sliding off the bottom.
+    const third = root.querySelector('.ts-third');
+    if (third) {
+      const gapRow = Math.max(16, gapTitle * 0.55);
+      const bottomLimit = H - (third.offsetHeight || 60) - 12;
+      third.style.bottom = 'auto';
+      third.style.top = Math.round(Math.min(botTop + (botB.offsetHeight || 60) + gapRow, bottomLimit)) + 'px';
+    }
   }
 
   // True when there's saved unlock progress from an old run — which "New" (Survival) wipes
@@ -27474,6 +28607,11 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     nb.addEventListener('click', () => { newGameDialog(nb, mode, game); });
     cb.addEventListener('click', () => consume(cb, () => onContinue && onContinue(mode, game)));
   });
+  // The mine's New is wired on its own because it has no Old to pair with — the loop above skips
+  // any row missing either half, which is the guard that lets the real-time row stay in the table
+  // while its markup is withheld, and would silently skip this one too.
+  const mineBtn = root.querySelector('#tsNewMine');
+  if (mineBtn) mineBtn.addEventListener('click', () => { newGameDialog(mineBtn, 'realtime', 'mine'); });
 
   let rt = 0;
   const onResize = () => { if (consuming || finished) return; clearTimeout(rt); rt = setTimeout(layout, 200); };
@@ -29049,9 +30187,12 @@ function showCredits({ onClose } = {}) {
 
 // ===================== src/main.js =====================
 const __m_main = (function () {
-  const { CONFIG, MODE_TUNING, OFFER_SURVIVAL, isRealtime, setMode, setGame, isCampaignGame, timeify, roundsToTime } = __m_config;
+  const { CONFIG, MODE_TUNING, OFFER_SURVIVAL, OFFER_MINE, isRealtime, setMode, setGame, isCampaignGame, isMineGame, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState, seedLevelThreats } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
+  const { mineLevelDef, mineWorldBox, mineBandAt, mineDepthM, mineDepthReached, mineSeedThreats,
+          mineOreRewards, mineWaterPickups, mineGrowCost, mineGrowSegments, mineGrowReach, mineGrow,
+          mineCanGrow, mineFuelCheck, mineEndRun } = __m_engine_mine;
   const { levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
@@ -29066,12 +30207,12 @@ const __m_main = (function () {
   const { NetworkRenderer, drawFruitBodies } = __m_render_network;
   const { Lighting } = __m_render_lighting;
   const { UI, deathText, cardSlug, SPORE_ICON } = __m_render_ui;   // deathText: one table, both death screens
-  const { showDeathScreen, showSpeciesSelect, showLevelComplete, showGameWon, showSpeciesUnlocked, showDeckView } = __m_render_species_select;
+  const { showDeathScreen, showSpeciesSelect, showLevelComplete, showGameWon, showSpeciesUnlocked, showMineEnd, showDeckView } = __m_render_species_select;
   const { showLoadoutSelect } = __m_render_loadout_select;
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro, showVictory, VICT_FADE_MS } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages, assetState } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -29338,6 +30479,23 @@ function configForLevel(level) {
     cfg.trichoderma.respawnChance = 0;
     cfg.trichoderma.guardAnchors = null;
   }
+  // THE MINE'S STORE REACHES THE RUN HERE, and it has to be a config edit rather than a read at
+  // the point of use: `state.config` is a deep clone taken at run start, so a rule that asked the
+  // store every time it needed a number would be asking localStorage inside the sim loop and would
+  // let a purchase mid-run change a run in flight. Same shape as the campaign's `effectiveSpecies`,
+  // which folds the resource tracks into a COPY of the species at seed time.
+  //
+  // `growSteps` is copied WHOLE (the track carries `base: 2`, which is what a grow is worth before
+  // anything is bought) rather than added to `CONFIG.mine.growSteps` — one authority, so the
+  // store's tile, the picker's note and the dig all read the same number. `mine-check` asserts the
+  // two agree at zero purchases, which is the only way that duplication can go wrong.
+  if (isMineGame() && cfg.mine) {
+    const b = storeBonuses();
+    cfg.mine.startWater = Math.max(1, (cfg.mine.startWater | 0) + (b.water | 0));
+    cfg.mine.growSteps = Math.max(1, b.growSteps | 0);
+    cfg.mine.reservoirWater = Math.max(1, (cfg.mine.reservoirWater | 0) + (b.pocketWater | 0));
+    cfg.mine.oreBonus = Math.max(0, b.oreYield | 0);
+  }
   return cfg;
 }
 // Level-editor PLAYTEST: `#level` boots straight into whatever map is open in
@@ -29355,6 +30513,14 @@ let playtestLevel = null;
 // Cleared on reaching the picker, so `#dev` → title → New still gets the real thing.
 let bootSandbox = false;
 function leaveSandbox() { bootSandbox = false; }
+// THE MINE'S SEED, FIXED FOR THE WHOLE RUN. `levelDefFor` is asked for the map on every
+// `startRun()` — and the mine's descent is one long map rather than a ladder of them — so a seed
+// taken from the clock there would generate a DIFFERENT shaft every time anything re-entered the
+// run. Set once by `beginMineRun`.
+let mineSeed = 0;
+// The depth, in metres, whose band beat has already been shown. Per RUN, so re-entering the mine
+// plays the beats again.
+let mineBeatBand = -1;
 function loadPlaytestLevel() {
   try {
     const obj = JSON.parse(localStorage.getItem(PLAYTEST_KEY) || 'null');
@@ -29428,13 +30594,28 @@ function survivalMapIdFor(n) {
 // maps, then, once that fall-through was closed, as *"it's now starting me on the procedurally
 // generated map"*. The owner's rule is that survival plays the 17 authored maps, and a button
 // inside the survival picker is survival. Only the boot hash is exempt.
-function survivalRun() { return !playtestLevel && !isCampaignGame() && !bootSandbox; }
+// ...AND NOT THE MINE. `!isCampaignGame()` was the whole test while there were two games, and
+// the moment a third arrived it started answering "yes" for the mine — which would have served
+// survival's 17 authored maps to a mine run and put survival's level-1 tips over it.
+function survivalRun() { return !playtestLevel && !isCampaignGame() && !isMineGame() && !bootSandbox; }
 
 // The map for a level: the playtest draft if one is loaded, else — in a survival run — this
 // level's turn in the survival rotation, else a hand-authored level claiming this campaign slot
 // (__m_levels_data, GENERATED from docs/levels/*.json), else null → the procedural generator.
+// A MINE RUN: the mine game, and not a playtest map. Deliberately NOT gated on `chosenSpecies` or
+// on `bootSandbox` — the mine has no species picker at all (the store sells upgrades only, owner),
+// and `#mine` is how it is played rather than a developer's back door. Same lesson survival cost
+// twice: gating "is this a real run?" on a picker click serves the wrong map to every route that
+// does not go through the picker.
+function mineRun() { return isMineGame() && !playtestLevel; }
+
 function levelDefFor(n) {
   if (playtestLevel) return playtestLevel;
+  // THE MINE GENERATES ITS MAP, and it is one map for the whole run rather than one per level:
+  // there are no levels in the mine, so this is asked once. `mineSeed` is fixed at run start so a
+  // resume or a re-entry rebuilds the SAME shaft — a re-roll would hand the player a different
+  // mine at the depth they left off at.
+  if (mineRun()) return mineLevelDef(CONFIG, mineSeed || 1);
   // SURVIVAL NEVER SERVES A CAMPAIGN MAP, and the fall-through that let it is the whole reason
   // this reads as a branch on the GAME rather than a chain of fallbacks. `levelForNumber(n)`
   // answers "which map claims campaign slot n", and it does not care which game is being played
@@ -29466,7 +30647,13 @@ function start(seed) {
   // Blocking here would put a stall between the picker and the level for no gain.
   // `assetsFrom` is what a map saved from the editor carries: it has its own id and no
   // assets/<id>/ folder, and its sprites are still the source map's.
-  if (def && (def.assetsFrom || def.id)) loadLevelAssets(def.assetsFrom || def.id);
+  // A MINE MAP DRAWS FROM EVERY BAND'S FOLDER, so it carries a LIST. `loadLevelAssets` filters
+  // the deferred manifest by one folder name, which is right for an authored map (all its
+  // sprites are its own) and one folder short of what a four-band shaft needs — the deeper
+  // three would render nothing and, worse, `solidifyRock` waits for `ready` before stamping
+  // collision, so they would be rock you can grow straight through.
+  if (def && def.assetsFromAll) for (const f of def.assetsFromAll) loadLevelAssets(f);
+  else if (def && (def.assetsFrom || def.id)) loadLevelAssets(def.assetsFrom || def.id);
   begin(def ? createLevelState(cfg, seed, def) : createState(cfg, seed));
 }
 // A CAMPAIGN level is a fixed map: its seed comes from the ladder, so level 3 is the same shape
@@ -29543,8 +30730,25 @@ function dropHandoff() {
 
 function startRun() {
   raiseHandoff(); armHandoffSafety();   // nothing of the game shows until the card (or the map fade) is ready
-  const fixed = campaignRun() ? campaignSeed(currentLevel) : null;
+  // THE MINE USES ITS OWN SEED FOR THE WORLD TOO, not just for the map. One number means one
+  // shaft: the same rock, the same ore, the same water pockets and the same creatures every time
+  // anything re-enters this run. A clock seed here would leave the map fixed (levelDefFor reads
+  // `mineSeed`) and re-roll everything the state's rng decides on top of it.
+  const fixed = mineRun() ? (mineSeed || 1) : campaignRun() ? campaignSeed(currentLevel) : null;
   start(fixed != null ? fixed : ((Date.now() & 0x7fffffff) || 1));
+}
+
+// Begin a fresh DESCENT. One run, one shaft, one seed — and the store's upgrades are read into
+// the run here (`stockRun`) exactly as every other game reads them.
+function beginMineRun() {
+  setGame('mine');
+  playtestLevel = null; chosenSpecies = null; bootSandbox = false;
+  currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0;
+  mineSeed = (Date.now() & 0x7fffffff) || 1;
+  mineBeatBand = -1;
+  stockRun();
+  logEvent('run_start', { level: 1, cause: 'new' });
+  startRun();
 }
 
 // THE CAMPAIGN OPENING, shown on pressing New and nowhere else (owner). It used to be armed at
@@ -29577,11 +30781,19 @@ function showPicker() {
   leaveSandbox();    // reaching the picker means this is the game, not the `#dev` sandbox
   playMenuMusic();   // vol29 keeps playing (or starts) across the title → picker
   showSpeciesSelect({
+    // THE MINE'S SHELF, and its one button. `onPick` is the same callback either way — "the player
+    // is done here, begin" — so the mine hands it null for the colony and `beginMineRun` does the
+    // rest. The dev quick-start and the map list are left wired: they are gated on the dev flag and
+    // the mine's shelf does not render them, so passing them costs nothing and keeps one call site.
+    mine: isMineGame(),
     // Both normal routes CLEAR playtestLevel. It used to be settable only by the boot
     // hash, which skips the picker — now the dev map buttons below set it from inside the
     // picker, and levelDefFor() prefers it over every campaign slot, so leaving it set
     // would silently serve the authored map for the rest of the session.
-    onPick: (sp, startLevel) => { playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores(); stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel, cause: 'new' }); startRunWithLoadout(sp); },
+    onPick: (sp, startLevel) => {
+      if (isMineGame()) { beginMineRun(); return; }
+      playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores(); stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel, cause: 'new' }); startRunWithLoadout(sp);
+    },
     onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores(); startRun(); },
     // DEV: play an authored map with the dev loadout — the same thing `#level,<id>` does,
     // reachable without retyping the URL.
@@ -29988,6 +31200,42 @@ function afterDeath(hsPromise, next) {
   });
 }
 
+// THE END OF A DESCENT. Owner: "When the player runs out of water, they fruit and spore and go to
+// the upgrade store." So there is exactly one thing to say (how deep, and what it paid) and exactly
+// one place to go, and the screen is the sentence plus the button.
+//
+// THE ORE IS BANKED HERE, not when it was dug. `mineOreRewards` credits the COLONY's Phosphorus
+// during the run — which is what the HUD counts and what a worm could in principle take back — and
+// this is where it becomes money. One place, on the funnel every ending passes through, so a run
+// cannot pay twice and cannot pay for a shaft it is still in.
+function presentMineEnd(r) {
+  const depth = Math.max(0, r.depth | 0);
+  const ore = Math.max(0, r.ore | 0);
+  if (!r._minePaid) {
+    r._minePaid = true;
+    if (ore > 0) addSpores(ore);          // `addSpores` writes whichever wallet this game spends
+    _sessionRuns++;
+    logEvent('run_end', { level: 1, cause: r.cause || 'dry', turns: state && state.turn, n: ore });
+  }
+  const best = mineRecordDepth(depth);
+  showMineEnd({
+    depth, ore, best,
+    balance: sporesBalance(),
+    onDone: () => { runEndThen(() => { setGame('mine'); showPicker(); }); },
+  });
+}
+// The deepest descent on this save, in metres. Its own field rather than the high-score board:
+// that board is per MODE and ranks survival's level number, and `checkHighScore` is gated off for
+// anything that is not survival — so a depth would have to be dressed as a level to get in.
+function mineRecordDepth(depth) {
+  try {
+    const p = loadProgress();
+    const was = (typeof p.mineBest === 'number' && isFinite(p.mineBest)) ? p.mineBest : 0;
+    if (depth > was) { p.mineBest = depth; saveProgress(p); return { m: depth, isNew: was > 0 }; }
+    return { m: was, isNew: false };
+  } catch (_) { return { m: depth, isNew: false }; }
+}
+
 function presentRunOver() {
   if (!state.runOver || _runOverPresented) return;
   // Let the player's LAST action (e.g. a grow) finish ANIMATING before the win/lose
@@ -30003,6 +31251,11 @@ function presentRunOver() {
     if (state.won && cardsCampaign()) { onLevelWon(); return; }
     clearResume();   // the run is over (death / non-campaign end) — nothing to continue
     const r = state.runResult || {};
+    // THE MINE'S ENDING, and it is neither a win nor a death: the colony ran out of fuel, fruited,
+    // and what it dug out is banked. Nothing below applies to it — there is no deck to keep, no
+    // level to retry, no high score to file and no species to name — so it takes its own screen
+    // and returns.
+    if (state.substrate && state.substrate.mine) { presentMineEnd(r); return; }
     if (cardsCampaign()) {
       // A DEATH PAYS NOTHING (owner: "Let's not give players extra spores when they die on a
       // level. Right now they get half of that level - let's just not do that."). You bank the
@@ -30433,7 +31686,16 @@ function showMainMenu() {
     // resume slot being cleared is per-game: the OTHER game's half-finished run is not this
     // game's business, and clearResume reads CONFIG.game, so setGame has to come first.
     onNew: (name, mode, game) => {
-      setMode(mode); setGame(game); savePlayerName(name); resetProgress(); clearResume(); tutorialPending = true;
+      setMode(mode); setGame(game); savePlayerName(name);
+      // "NEW" DOES NOT WIPE ANYTHING IN THE MINE, and this is the one place that difference had to
+      // be made explicit or the feature would eat itself. `resetProgress()` clears the whole save
+      // — wallet, purchases, deck, clears — because in the campaign and in survival "New" means a
+      // new PLAYTHROUGH and the unlocks are that playthrough's progress. In the mine there is no
+      // playthrough: a descent is one sitting, the store IS the progression, and the button that
+      // starts a descent is the same button you press after every run. Wiping there would delete
+      // the Phosphorus the player just banked, every time, and the only symptom would be a store
+      // that never fills up.
+      if (!isMineGame()) { resetProgress(); clearResume(); tutorialPending = true; }
       // The opening goes between New and the picker, and only for the campaign — the survival
       // ladder has no story to tell and never had this screen.
       if (isCampaignGame()) showCampaignOpening(() => showPicker());
@@ -32078,6 +33340,37 @@ function begin(newState) {
     // SURVIVAL'S AUTHORED MAP ROTATION. `mapFor(n)` answers without starting anything, which is
     // the only way to assert the bag's shape (no repeat inside a cycle, none across the seam)
     // without playing a hundred levels; `play` is the counterpart to campaign.play below.
+    // THE DEEP MINE. `grow` is the one that makes the mine testable at all: the real gesture is a
+    // press-and-drag on the canvas (main.js armedDragTarget → fireAim), which a probe can only
+    // reproduce by converting world coordinates to screen ones — and a fixed-zoom camera that
+    // FOLLOWS the dig means the tip is off-screen for part of every frame it is moving, so a
+    // mouse-driven probe measures the camera rather than the rule. This is the same call `fireAim`
+    // makes, from the same tip.
+    mine: {
+      isRun: () => mineRun(),
+      seed: () => mineSeed,
+      def: () => { const d = state && state.levelDef; return d && d.mine ? d : null; },
+      stats: () => { const d = state && state.levelDef; return (d && d._stats) || null; },
+      depth: () => mineDepthReached(state),
+      band: (m) => mineBandAt(state ? state.config : CONFIG, m),
+      bands: () => (state ? state.config : CONFIG).mine.bands.map((b) => b.theme),
+      cost: () => mineGrowCost(state.config),
+      steps: () => mineGrowSegments(state.config) / 3,
+      ore: () => state.mineOre | 0,
+      // Dig from the deepest living tip, in a direction. Returns the engine's own {ok,message}.
+      grow: (dx, dy) => {
+        let tip = null;
+        for (const n of state.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+        if (!tip) return { ok: false, message: 'no living tip' };
+        const L = Math.hypot(dx || 0, dy || 1) || 1;
+        return mineGrow(state, { srcX: tip.x, srcY: tip.y,
+                                 x: tip.x + (dx || 0) / L * 400, y: tip.y + (dy || 1) / L * 400 });
+      },
+      end: () => mineEndRun(state),
+      play: () => { beginMineRun(); return true; },
+      // Pin the shaft: the only way to look at the same generated map twice.
+      playSeed: (n) => { beginMineRun(); mineSeed = (n >>> 0) || 1; startRun(); return true; },
+    },
     survival: {
       maps: () => survivalMaps().map((l) => l.id),
       order: () => survivalOrder.slice(),
@@ -32350,7 +33643,19 @@ function begin(newState) {
   // toward a point in the PREVIOUS map, straight over whichever opening view is chosen below —
   // the tutorial's pull-back is the one that can still be in flight when a level ends.
   camFocus = null;
-  if (state.mode === 'puzzle') {
+  // THE MINE'S ZOOM IS FIXED (owner: "The map zoom should be fixed... The default zoom should be
+  // what is now probably around medium zoom"), so there is no opening view to choose — the camera
+  // parks on the hill at that zoom and then follows the deepest tip for the rest of the run
+  // (`mineFollowCamera`). The phone's survey view is deliberately NOT taken: it exists because a
+  // campaign map has to be read before it can be played, and the whole point of a fixed zoom here
+  // is that the player CANNOT plan a route from above.
+  if (state.substrate.mine) {
+    const root = state.networks[0] && state.networks[0].nodes[0];
+    camera.zoom = mineZoom();
+    camera.x = root ? root.x : state.substrate.worldWidth / 2;
+    camera.y = state.substrate.surfaceY + camera.viewH / (2 * camera.zoom) * 0.6;
+    camera.clamp();
+  } else if (state.mode === 'puzzle') {
     // show the whole level so the layout (rocks, food, chest, mould) reads;
     // pad the sides so the start (far left) and chest (far right) aren't jammed
     // against the screen edges / under the HUD + dev panels.
@@ -32803,6 +34108,14 @@ function afterAction(name, res) {
 // an action, or a world tick that applies water income) so it catches every change.
 function checkWater() {
   if (!state || !state.active || state.runOver) return;
+  // NOT IN THE MINE, WHERE RUNNING DRY IS THE ENDING RATHER THAN A DEATH. This one kills the
+  // colony at water 0 with `cause: 'water'`, which lands on the death screen — and in the mine
+  // that is both the wrong screen and the wrong moment: the run is over when you can no longer
+  // AFFORD a grow (water below the cost, so before 0), and the ending is "the colony fruits and
+  // spores" with the ore banked, not a loss. `mineFuelCheck` / `mineEndRun` own it, and the modal
+  // low-water warning goes too — in a game whose whole clock is fuel, the number on the HUD is
+  // the warning, and a popup every single run is noise.
+  if (state.substrate && state.substrate.mine) return;
   const w = state.active.water || 0;
   if (w <= 0) {
     state.active.alive = false;
@@ -32905,6 +34218,11 @@ function pointerMid() {
 // The currently-armed drag target, or null. For a hand card, ref is {id,name}; for
 // an installed action, ref is its index into state.cards.actions.
 function armedDragTarget() {
+  // THE MINE'S GROW IS ALWAYS ARMED, and that is the whole of its action layer: there is nothing
+  // to select, so a press near the colony aims and a press away from it pans (beginAim's own
+  // `aimNearPx` rule, unchanged). Owner: one grow, usable as long as there is water. Nothing to
+  // arm also means nothing to forget to arm, which is what makes this playable one-handed.
+  if (mineFixedZoom()) return { kind: 'mine', ref: null };
   if (ui.pendingCard && cardUsesDragAim(ui.pendingCard.name)) return { kind: 'card', ref: ui.pendingCard };
   if (ui.pendingAction != null && state.cards) {
     const a = state.cards.actions[ui.pendingAction];
@@ -32930,14 +34248,14 @@ function beginAim(e) {
   // land exactly on a filament, which was easy to miss when zoomed out.
   const ss = camera.worldToScreen(src.x, src.y);
   if (Math.hypot(sx - ss.x, sy - ss.y) > aimNearPx()) { aim = null; return; }
-  const reachRef = t.kind === 'card' ? t.ref.name : state.cards.actions[t.ref];
+  const reachRef = t.kind === 'mine' ? null : t.kind === 'card' ? t.ref.name : state.cards.actions[t.ref];
   aim = {
     kind: t.kind, ref: t.ref,
     origin: { x: src.x, y: src.y },   // world source, snapped to a strand
     cur: { x: w.x, y: w.y },          // world drag point
     startScreen: { x: sx, y: sy },
     curScreen: { x: sx, y: sy },
-    reach: dragAimReach(state, reachRef),
+    reach: t.kind === 'mine' ? mineGrowReach(state.config) : dragAimReach(state, reachRef),
     dragged: false, cancelled: false,
   };
   uiDirty = true;
@@ -32977,6 +34295,18 @@ function fireAim(a) {
   // way, so a blocked release doesn't leave a stale line armed on the map.
   if (draftLocked()) { aim = null; if (ui.clearPendingCard) ui.clearPendingCard(); if (ui.clearPendingAction) ui.clearPendingAction(); ui.resetHint(); uiDirty = true; return; }
   const ctx = { x: a.cur.x, y: a.cur.y, srcX: a.origin.x, srcY: a.origin.y };
+  if (a.kind === 'mine') {
+    const res = mineGrow(state, ctx);
+    if (res.ok) {
+      substrateRenderer.markDirty();
+      rendererFor(state.active).markStructureDirty();
+      // No sound call here: the network renderer's reveal scheduler plays the layered grow SFX
+      // for whatever it is about to animate in (scheduleReveal -> playGrowBurst), so a mine grow
+      // is heard for the same reason a card grow is.
+    } else if (res.message) ui.toast(res.message);
+    uiDirty = true;
+    return;
+  }
   if (a.kind === 'card') {
     const idx = state.cards.hand.findIndex((h) => h.id === a.ref.id);
     ui.clearPendingCard();
@@ -33129,7 +34459,8 @@ function setupInput() {
       if (pointers.size >= 2) {
         // Pinch to zoom about the midpoint of the two fingers.
         const d = pointerSpread();
-        if (pinchDist > 0 && d > 0) {
+        // Pinch is zoom, so the mine has none of it — see the wheel handler.
+        if (pinchDist > 0 && d > 0 && !mineFixedZoom()) {
           const rect = canvas.getBoundingClientRect();
           const mid = pointerMid();
           camera.zoomAt(mid.x - rect.left, mid.y - rect.top, d / pinchDist);
@@ -33145,7 +34476,7 @@ function setupInput() {
     if (aim && mouse.down && !mouse.rightPan) { updateAim(e); return; }   // aiming a directional grow — steer, don't pan
     if (mouse.down) {
       if (Math.abs(e.clientX - mouse.startX) + Math.abs(e.clientY - mouse.startY) > 4) mouse.moved = true;
-      if (mouse.moved) camera.panByScreen(dx, dy);
+      if (mouse.moved) { camera.panByScreen(dx, dy); _minePanAt = performance.now(); }
     }
   });
   // A right-drag that panned must not also open the browser menu on release. Suppressed on the
@@ -33223,7 +34554,7 @@ function setupInput() {
       // In navigation mode a double-tap reframes the network (mobile 'F').
       const now = Date.now();
       if (now - lastTapTime < 320 && Math.hypot(e.clientX - lastTapX, e.clientY - lastTapY) < 30) {
-        camera.fitBounds(expandedBounds(), 120);
+        if (!mineFixedZoom()) camera.fitBounds(expandedBounds(), 120);
         lastTapTime = 0;
         return;
       }
@@ -33238,6 +34569,10 @@ function setupInput() {
   canvas.addEventListener('wheel', (e) => {
     noteInput();
     e.preventDefault();
+    // THE MINE'S ZOOM IS FIXED (owner), so the wheel does nothing there. Swallowed rather than
+    // left unbound: the page would otherwise scroll behind the canvas, which on a laptop reads as
+    // the game losing the input rather than as zoom being off by design.
+    if (mineFixedZoom()) return;
     const rect = canvas.getBoundingClientRect();
     camera.zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.12 : 1 / 1.12);
   }, { passive: false });
@@ -33250,7 +34585,7 @@ function setupInput() {
     const t = e.target;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || ''))) return;
     if (e.code === 'Escape') { aim = null; ui.setSelectedAction(null); ui.clearPendingCard(); if (ui.clearPendingAction) ui.clearPendingAction(); if (ui.clearArmed) ui.clearArmed(); ui.resetHint(); placingWorm = false; dismissColonyLos(); uiDirty = true; }
-    else if (e.code === 'KeyF') { camera.fitBounds(expandedBounds(), 120); }
+    else if (e.code === 'KeyF') { if (!mineFixedZoom()) camera.fitBounds(expandedBounds(), 120); }
     // DEV: step through the authored maps with [ and ]. The panel is for jumping to a
     // named map; this is for the other half of reviewing 59 of them — going along the list
     // one at a time without moving the mouse. Guarded on the dev flag like the panel, and on
@@ -33496,6 +34831,9 @@ function advanceSim(time) {
   // plans its road correctly first time — the replan above is what covers the AUTHORED nests
   // that were placed before it existed, and simply finds nothing to do for these.
   if (state && state._needLevelThreats) seedLevelThreats(state);
+  // THE MINE'S CREATURES, same frame and same reason (mineSeedThreats). Its own flag rather than
+  // the one above, because the two seed from different tables and a run must never get both.
+  if (state && state._needMineThreats) mineSeedThreats(state);
   if (_lastSimTime < 0) _lastSimTime = time;
   const dt = time - _lastSimTime;
   _lastSimTime = time;
@@ -33529,6 +34867,12 @@ function advanceSim(time) {
     tickWorld(state);
   }
   if (_simAccum > step) _simAccum = step;   // drop any backlog beyond the cap (post-stall)
+  // THE MINE'S OWN CLOCK, run EVERY FRAME rather than per tick. Three of the four things in it
+  // are wall-clock questions, not world-step ones: the camera eases toward the deepest tip, the
+  // fuel grace is measured in ms, and the depth beat has to land the moment the strand arrives.
+  // Only the ore and the water pickups could wait for a tick, and running them here costs a pair
+  // of early-outs on a frame where nothing finished.
+  if (state.substrate.mine) mineFrame(time, dt);
   if (ticks > 0) {
     // The world moved: clouds crept/ate (substrate) and the rot advanced (structure).
     substrateRenderer.markDirty();
@@ -33538,6 +34882,113 @@ function advanceSim(time) {
     if (state.runOver) presentRunOver();
     uiDirty = true;
   }
+}
+
+// =============================================================================
+// THE DEEP MINE, per frame: the camera, the ore, the fuel and the depth beat
+// =============================================================================
+
+// THE FIXED ZOOM, and the floor it cannot go under. `clamp()` raises any zoom to
+// `minZoomForBounds()` — viewW/worldW — so on a viewport wider than the shaft the camera zooms IN
+// past this number whatever it is set to. That is the right failure (you see the shaft's full
+// width, larger) and it is why the shaft's `cols` has a comment about the viewport: the number
+// here only holds while the shaft is wider than the screen at it.
+function mineZoom() {
+  const z = (CONFIG.mine && CONFIG.mine.zoom) || 0.85;
+  return Math.max(z, camera.minZoomForBounds());
+}
+// Is the zoom locked right now? Every zoom input asks this — wheel, pinch, double-tap and `F` —
+// so "fixed zoom" is one predicate rather than four places that each have to remember. Reads the
+// SUBSTRATE rather than CONFIG.game, so a mine map opened from anywhere behaves the same and a
+// menu with no run up cannot answer yes.
+function mineFixedZoom() { return !!(state && state.substrate && state.substrate.mine); }
+
+// THE CAMERA FOLLOWS THE DIG, which is what a fixed zoom demands: with no way to zoom out, a
+// player who cannot see where their deepest strand is has no way to steer at all. It eases (never
+// snaps) toward the deepest LIVING tip, held high in the frame so most of what you can see is the
+// ground you are digging into rather than the tunnel you already made.
+//
+// IT DOES NOT FIGHT THE PLAYER'S PAN. `_minePanAt` is stamped whenever a drag moves the camera,
+// and the follow stands down for `MINE_PAN_HOLD_MS` afterwards — otherwise looking sideways at a
+// water pocket is a tug of war the player always loses.
+const MINE_PAN_HOLD_MS = 2600;
+let _minePanAt = 0;
+function mineFollowCamera(time, dt) {
+  if (time - _minePanAt < MINE_PAN_HOLD_MS) return;
+  const net = state.active, sub = state.substrate;
+  if (!net) return;
+  let tip = null;
+  for (const n of net.nodes) { if (!n.infected && (!tip || n.y > tip.y)) tip = n; }
+  if (!tip) return;
+  camera.zoom = mineZoom();
+  // A third of the visible band below centre: the tip sits above the middle, so the frame is
+  // mostly undug ground. `bandH` rather than `viewH` because the HUD covers the top and bottom.
+  const ahead = (camera.bandH() / camera.zoom) * 0.18;
+  const wantY = tip.y + ahead, wantX = tip.x;
+  // Frame-rate independent easing: the same `followLerp` per 16 ms however fast the loop runs.
+  const k = 1 - Math.pow(1 - Math.min(0.9, (CONFIG.mine.followLerp || 0.12)), Math.max(0.2, Math.min(4, (dt || 16) / 16)));
+  camera.x += (wantX - camera.x) * k;
+  camera.y += (wantY - camera.y) * k;
+  camera.clamp();
+  if (sub) { /* clamp() already keeps the view inside the world box */ }
+}
+
+// The band beat: "42 m — Anthracite", once per band, the first time a strand reaches it. Owner's
+// ask, and its job is to give each new rock type a moment — a boundary you cross with nothing
+// said is a texture change nobody reads as progress.
+function mineBeat(depth) {
+  const b = mineBandAt(CONFIG, depth);
+  if (b <= mineBeatBand) return;
+  mineBeatBand = b;
+  if (b === 0) return;                    // arriving in band 1 is arriving in the mine, not crossing into it
+  const band = CONFIG.mine.bands[b];
+  showMineBeat(`${b * CONFIG.mine.bandRows} m`, band.name);
+  state.log(`${band.name} — ${b * CONFIG.mine.bandRows} m down.`, 'good');
+}
+
+// The beat's element. ONE at a time, replaced rather than stacked: two bands cannot legitimately
+// be crossed at once, but a colony with tips in two places can cross the same one twice inside a
+// frame or two, and two of these overlapping is unreadable.
+let _mineBeatEl = null, _mineBeatT = 0;
+function showMineBeat(depthText, name) {
+  try {
+    if (_mineBeatEl) { clearTimeout(_mineBeatT); _mineBeatEl.remove(); _mineBeatEl = null; }
+    const el = document.createElement('div');
+    el.className = 'minebeat';
+    el.id = 'mineBeat';
+    el.innerHTML = `<div class="mb-d">${depthText}</div><div class="mb-n">${name}</div>`;
+    document.body.appendChild(el);
+    _mineBeatEl = el;
+    // Two frames before the class, not one: a fresh element's `opacity: 0` has to have been
+    // COMPUTED for there to be anything to transition from, and one rAF is not reliably enough on
+    // a loaded page. Reading `offsetWidth` forces it, which is the trick the victory screen's
+    // fade had to learn the expensive way (a softlock) — same shape, much lower stakes.
+    void el.offsetWidth;
+    el.classList.add('in');
+    const ms = Math.max(600, (CONFIG.mine && CONFIG.mine.beatMs) || 2200);
+    _mineBeatT = setTimeout(() => {
+      el.classList.remove('in');
+      _mineBeatT = setTimeout(() => { el.remove(); if (_mineBeatEl === el) _mineBeatEl = null; }, 500);
+    }, ms);
+  } catch (_) {}
+}
+
+function mineFrame(time, dt) {
+  if (state.runOver) return;
+  mineFollowCamera(time, dt);
+  const gotOre = mineOreRewards(state);
+  const gotWater = mineWaterPickups(state);
+  if (gotOre || gotWater) uiDirty = true;
+  // The HUD reads `state.mineDepth` rather than re-walking the colony itself: the depth is asked
+  // for by the readout, the beat and the payout, and one O(nodes) pass per frame is enough for all
+  // three. A repaint that finds it missing prints 0, which is the honest answer before a frame has
+  // run rather than a wrong one.
+  const depth = mineDepthReached(state);
+  if (depth !== state.mineDepth) { state.mineDepth = depth; uiDirty = true; }
+  mineBeat(depth);
+  // OUT OF FUEL ENDS THE RUN, after a grace — see mineFuelCheck for why the grace is not
+  // optional. `presentRunOver` takes it from here, exactly as a death or a win does.
+  if (mineFuelCheck(state, time)) { mineEndRun(state); uiDirty = true; presentRunOver(); }
 }
 
 // --- the phased, animated enemy turn (TURN-BASED ONLY) -----------------------
@@ -33882,7 +35333,11 @@ function renderFrame(time, dtFrames = 1) {
   }
   substrateRenderer.draw(ctx, camera, time);
   drawMoon();                   // luminous moon high in the twilight sky
-  drawHomeBackdrop();           // half a green "home" hill hugging the LEFT frame over the colony start
+  // THE MINE'S HILL STANDS IN THE MIDDLE (owner), so it is a whole hill on the surface rather than
+  // the half-hill every other map hugs against the left frame. Goal-side draws are no-ops here
+  // anyway — `goalCol0()` is -1 with no goal columns — so only the home pair needs the branch.
+  if (state.substrate.mine) drawMineHill();
+  else drawHomeBackdrop();      // half a green "home" hill hugging the LEFT frame over the colony start
   drawGoalBackdrop();           // summery green hill band behind the goal (far backdrop)
   drawTerrainAssets();          // optional image-based textures over the earth (gated)
   drawSubstrateLeaves();        // food piles rendered as heaped leaves (gated) — UNDER rocks
@@ -33896,7 +35351,8 @@ function renderFrame(time, dtFrames = 1) {
   drawMountains();              // mountain barriers rendered as a sprite over the wall (gated)
   drawCities();                 // city skylines over the concrete barriers (gated)
   drawSurfaceProps();           // optional above-ground sprites: trees/grass/houses (gated)
-  drawHomeProps();              // one small tree on the left home hill (over its backdrop)
+  if (state.substrate.mine) drawMineProps();   // two trees on the centre hill
+  else drawHomeProps();         // one small tree on the left home hill (over its backdrop)
   drawGoalProps();              // summery bush clusters on the goal soil (over the hill backdrop)
 
   for (const net of state.networks) {
@@ -35982,6 +37438,11 @@ let _cityState = null, _cities = null;
 function cityRuns() {
   if (_cityState === state) return _cities;
   const sub = state.substrate, runs = [];
+  // NO SKYLINES OVER THE MINE. The derived runs below put a city over every wide run of
+  // 'concrete' surface, and a mine's surface is concrete from edge to edge apart from the one hill
+  // — so the shaft came up under a city on both sides of it. The mine is wilderness with a hole in
+  // it; a skyline is the campaign's own image of a world worth saving, and it belongs there.
+  if (sub.mine) { _cityState = state; _cities = []; return _cities; }
   // An AUTHORED map that placed city objects (level editor → Surface palette) owns its
   // skylines outright: return exactly those, each with the art the author picked. An
   // authored map with NO city object falls through to the derived runs below, so every
@@ -36159,6 +37620,52 @@ function drawHomeBackdrop() {
     ctx.restore();
   });
 }
+// THE MINE'S HILL — a whole green mound standing on the middle of the surface, over the shaft
+// head. Same art as the goal hill and the home hill, unmirrored and unclipped: it is the one
+// place in the mine where the world is alive, and where the colony started.
+//
+// SIZED TO THE FRUITABLE SOIL, not to a number picked for looks. `buildLevel` makes exactly the
+// home band's columns soil, and that band is the only ground the colony could ever surface
+// through — so the green has to end where the soil ends, or the hill promises ground the map does
+// not have.
+function mineHillSpan() {
+  const sub = state.substrate, cs = sub.cellSize;
+  const h = sub.mineHomeCol != null ? sub.mineHomeCol : (sub.cols >> 1);
+  const half = Math.max(2, (sub.homeCols || 12) >> 1);
+  const c0 = Math.max(0, h - half), c1 = Math.min(sub.cols - 1, h + half);
+  return { x0: c0 * cs, x1: (c1 + 1) * cs };
+}
+function drawMineHill() {
+  const hill = asset('goalhill'); if (!hill) return;
+  const sub = state.substrate, z = camera.zoom;
+  const { x0, x1 } = mineHillSpan();
+  const wWorld = x1 - x0, hWorld = wWorld * (hill.height / hill.width);
+  const sw = wWorld * z, sh = hWorld * z;
+  const left = camera.worldToScreen(x0, sub.surfaceY);
+  const by = left.y + sh * HILL_BASE_DROP;          // flat base just ON the soil line, mound above
+  if (left.x > camera.viewW || left.x + sw < 0) return;
+  withWorldClip(() => ctx.drawImage(hill, left.x, by - sh, sw, sh));
+}
+function drawMineProps() {
+  const bush = asset('goalbush'); if (!bush) return;
+  const sub = state.substrate, z = camera.zoom, cs = sub.cellSize;
+  const { x0, x1 } = mineHillSpan();
+  const aspect = bush.width / bush.height;
+  withWorldClip(() => {
+    // Two clusters, off-centre either side of the shaft head — the middle is where the colony
+    // comes out of the ground, and a bush drawn over it hides the one thing on this screen the
+    // player is looking for.
+    for (const [t, hCells] of [[0.22, 2.0], [0.78, 1.4]]) {
+      const hWorld = cs * hCells, wWorld = hWorld * aspect;
+      const s = camera.worldToScreen(x0 + (x1 - x0) * t, sub.surfaceY);
+      const sw = wWorld * z, sh = hWorld * z;
+      const by = s.y + sh * 0.05;
+      if (s.x < -sw || s.x > camera.viewW + sw) continue;
+      ctx.drawImage(bush, s.x - sw / 2, by - sh, sw, sh);
+    }
+  });
+}
+
 function drawHomeProps() {
   const bush = asset('goalbush'); if (!bush) return;
   const sub = state.substrate, z = camera.zoom, cs = sub.cellSize;
@@ -36457,6 +37964,14 @@ function enterGame() {
   else if (dest === '#notrich' || dest === '#ants') { noTrich = true; bootSandbox = true; currentLevel = 1; runStartLevel = 1; startRun(); }
   // `#dev` skips the picker AND keeps the procedural generator — see `bootSandbox`.
   else if (dest === '#dev') { chosenSpecies = null; bootSandbox = true; currentLevel = 1; runStartLevel = 1; startRun(); }
+  // THE DEEP MINE, straight in. `#mine` rolls a fresh shaft; `#mine,<n>` pins the seed, which is
+  // the only way to look at the same generated map twice — every mine check that measures the
+  // geometry needs that, and so does anyone chasing a report about one particular shaft.
+  else if (dest === '#mine') {
+    const want = parseInt(parts[1], 10);
+    beginMineRun();
+    if (want > 0) { mineSeed = want; startRun(); }   // re-roll the map on the pinned seed
+  }
   // REAL TIME, ON THE CAMPAIGN'S OWN MAPS (owner, for testing the variant again). There is no
   // route to real time from the menu at all — `OFFER_REALTIME` took its title rows away — so this
   // hash IS the route, and it exists to try the variant rather than to ship one.

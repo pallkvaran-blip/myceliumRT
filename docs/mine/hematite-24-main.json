@@ -1,0 +1,287 @@
+{
+ "format": "mycelium-level",
+ "version": 1,
+ "id": "hematite-24-main",
+ "name": "Hematite 24 main",
+ "campaignLevel": null,
+ "world": {
+  "width": 2952,
+  "height": 1467.1,
+  "surfaceY": 380,
+  "cellSize": 36
+ },
+ "layout": {
+  "startCols": 2,
+  "goalCols": 6,
+  "summerCols": 7,
+  "clearChannels": true
+ },
+ "traced": {
+  "image": "docs/maps/top-hematite-scatter-c24-1@4x.webp",
+  "threshold": 128,
+  "minArea": 9600
+ },
+ "objects": [
+  {
+   "t": "boulder",
+   "key": "hematite-c24R001",
+   "x": 498.7,
+   "y": 823.6,
+   "w": 369.8,
+   "h": 433.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R002",
+   "x": 1639.2,
+   "y": 1040.9,
+   "w": 366.3,
+   "h": 415.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R003",
+   "x": 2228.4,
+   "y": 710.5,
+   "w": 360.9,
+   "h": 363.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R004",
+   "x": 899.4,
+   "y": 709.6,
+   "w": 334.7,
+   "h": 366.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R007",
+   "x": 1339.5,
+   "y": 685.3,
+   "w": 308.9,
+   "h": 297.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R008",
+   "x": 2159.2,
+   "y": 1289.6,
+   "w": 341.9,
+   "h": 283.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R009",
+   "x": 584.7,
+   "y": 1214.1,
+   "w": 264.1,
+   "h": 291.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R010",
+   "x": 306.5,
+   "y": 1264.3,
+   "w": 268.6,
+   "h": 268.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R011",
+   "x": 1241.7,
+   "y": 955.6,
+   "w": 305.7,
+   "h": 261.3,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R012",
+   "x": 1882.7,
+   "y": 614.9,
+   "w": 241.1,
+   "h": 303.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R014",
+   "x": 1920,
+   "y": 898.5,
+   "w": 256.9,
+   "h": 241.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R019",
+   "x": 2184.8,
+   "y": 1039.5,
+   "w": 253.7,
+   "h": 199.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R020",
+   "x": 2481.8,
+   "y": 1061,
+   "w": 172.3,
+   "h": 238.8,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R023",
+   "x": 1219.3,
+   "y": 1189.2,
+   "w": 214.8,
+   "h": 159.6,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R025",
+   "x": 306.1,
+   "y": 1006.3,
+   "w": 164.6,
+   "h": 222.4,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R026",
+   "x": 1858.9,
+   "y": 1260.7,
+   "w": 193.6,
+   "h": 174.1,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R028",
+   "x": 1348.8,
+   "y": 1292.5,
+   "w": 210.7,
+   "h": 161,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R030",
+   "x": 1017.4,
+   "y": 1120.3,
+   "w": 144.7,
+   "h": 154.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R032",
+   "x": 1635.5,
+   "y": 628,
+   "w": 170,
+   "h": 121.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R035",
+   "x": 899.8,
+   "y": 1010.4,
+   "w": 144.8,
+   "h": 140.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R038",
+   "x": 1206,
+   "y": 516.5,
+   "w": 118.5,
+   "h": 125.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R039",
+   "x": 1659.1,
+   "y": 768.5,
+   "w": 148.3,
+   "h": 99.5,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R040",
+   "x": 1133.6,
+   "y": 1390,
+   "w": 113,
+   "h": 109.9,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R043",
+   "x": 1103.8,
+   "y": 448,
+   "w": 90,
+   "h": 100,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R046",
+   "x": 2346.4,
+   "y": 1156.9,
+   "w": 79.6,
+   "h": 83.2,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R048",
+   "x": 2383.7,
+   "y": 1233.3,
+   "w": 94.5,
+   "h": 75,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R049",
+   "x": 1888.5,
+   "y": 1104.8,
+   "w": 81.9,
+   "h": 68.7,
+   "rot": 0
+  },
+  {
+   "t": "boulder",
+   "key": "hematite-c24R050",
+   "x": 434.9,
+   "y": 1434.8,
+   "w": 70.5,
+   "h": 64.7,
+   "rot": 0
+  }
+ ],
+ "render": {
+  "rockFilter": {
+   "brightness": 0.66,
+   "contrast": 1.04,
+   "saturate": 0.76
+  }
+ },
+ "chapter": "Chapter 1",
+ "assetsFrom": "hematite-c24"
+}
