@@ -34,6 +34,21 @@
     #game.busy { cursor: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='22' height='26' viewBox='0 0 22 26'><g fill='none' stroke='%2305070d' stroke-width='5' stroke-linejoin='round' stroke-linecap='round'><path d='M5 3h12M5 23h12'/><path d='M6.5 4h9l-4.5 9 4.5 9h-9l4.5-9z'/></g><g fill='none' stroke='%23cfe8d6' stroke-width='2' stroke-linejoin='round' stroke-linecap='round'><path d='M5 3h12M5 23h12'/><path d='M6.5 4h9l-4.5 9 4.5 9h-9l4.5-9z'/></g><path d='M11 14.5l3.2 6.5h-6.4z' fill='%23cfe8d6'/><circle cx='11' cy='9.6' r='1.15' fill='%23cfe8d6'/></svg>") 11 13, wait; }
     #ui { position: fixed; inset: 0; pointer-events: none; }
     #ui > * { pointer-events: auto; }
+    /* THE PHONE-SHAPED PLAY SURFACE — see main.js `playSurfaceRect`. `body.boxed` is set only when
+       the window is a different shape from the box, so on a phone that already matches there is no
+       box, no border and no repaint of anything. The surround is the same void the map's bottom fade
+       ends in, so the frame reads as the world running out rather than as a UI panel. */
+    body.boxed { background: #05070d; }
+    body.boxed #game, body.boxed #ui {
+      inset: auto; left: var(--pf-l); top: var(--pf-t); width: var(--pf-w); height: var(--pf-h); }
+    /* A hairline and a soft outer shadow, so the column has an edge on a big screen instead of
+       bleeding into the void. Drawn on #ui rather than #game: the canvas is repainted every frame and
+       a border on it is one more thing for the compositor to reconcile. */
+    body.boxed #ui { box-shadow: 0 0 0 1px rgba(159,224,189,0.13), 0 0 60px rgba(0,0,0,0.75); }
+    /* The depth beat is `position: fixed` and would otherwise centre on the WINDOW, i.e. off the
+       column on a desktop. It is part of the play surface, so it goes in the box with it. */
+    body.boxed .minebeat { left: var(--pf-l); right: auto; width: var(--pf-w);
+      top: calc(var(--pf-t) + var(--pf-h) * 0.32); }
 
     /* Boot loading screen: opaque void, a tiny centered white % counter, then "Click". */
     #loadscreen { position: fixed; inset: 0; z-index: 3000; background: #05070d;
@@ -1028,6 +1043,14 @@
        front of it, so this only declares the shared block geometry — the two rules above are the
        same shape and only differ in where they START from. */
     #titleScreen .ts-third { gap:clamp(6px,1.2vh,12px); }
+    /* THE RECORD LINE, under the wordmark on the mine-only screen — where "Old" sat when there was
+       something to continue. Quiet and serif, so it reads as a fact about your save rather than as a
+       third control: the only thing on this screen you can press is Dig. */
+    #titleScreen .ts-record { font-family:"Iowan Old Style",Palatino,Georgia,serif; font-style:italic;
+      font-size:clamp(13px,2.2vw,18px); letter-spacing:.04em; color:rgba(215,230,220,0.52);
+      text-shadow:0 1px 10px rgba(0,0,0,0.9); }
+    #titleScreen .ts-record b { font-style:normal; font-weight:700; color:rgba(159,224,189,0.92); }
+    #titleScreen .ts-record-none { color:rgba(215,230,220,0.34); }
     /* The empty left-hand slot on the mine's row — see the markup. Zero-size and unclickable, so it
        holds the grid column open without being a target or affecting the row's height.
        DELIBERATELY NOT `.ts-act`: that class means "a New/Old button and its caption", and three
@@ -3211,6 +3234,15 @@ const CONFIG = {
     // untouched. If the mine ever gets a defensive action, this is the first number to put back.
     sightRadius: 300,
     // --- camera -------------------------------------------------------------
+    // THE PLAY SURFACE'S SHAPE, on every screen (owner: "the game plays the same on phone portrait
+    // and desktop"). 390/844 is the phone this project measures everything at. See main.js
+    // `playSurfaceRect` — at a fixed zoom the visible world is `viewport / zoom`, so one aspect is
+    // the only way two devices can be looking at the same game.
+    frameAspect: 390 / 844,
+    // `zoom` is the zoom at `refHeight` — see main.js `mineZoom`, which scales it so the same slab of
+    // shaft is visible whatever size surface the box came out. 993 x 459 world units, i.e. 27.6 cells
+    // deep and 12.75 across.
+    refHeight: 844,
     zoom: 0.85,                  // FIXED (owner: no zooming out to plan a route). Roughly the
                                  // campaign's medium zoom, and above the 0.62 the detail LOD
                                  // needs, so growth still animates per-strand on a phone.
@@ -3402,12 +3434,27 @@ const OFFER_REALTIME = false;
 //     `!isCampaignGame()`, so with survival withheld nothing could ever file a score and the
 //     link opened an empty ladder ("remove the high scores as that is not relevant anymore");
 //     with survival offered again there is something to rank, so the link comes back with it.
-const OFFER_SURVIVAL = true;
+const OFFER_SURVIVAL = false;   // see OFFER_CAMPAIGN below — the Deep Mine is the only game offered
 // DOES THIS BUILD OFFER THE DEEP MINE? The third game (see CONFIG.mine): a real-time depth-miner
 // with no cards, procedurally generated, water as its fuel. Same shape and same promise as the two
 // flags above — it withholds the DOOR, not the room, so `#mine` boots one whatever this says and
 // `mine-check` drives the lot either way.
 const OFFER_MINE = true;
+// DOES THIS BUILD OFFER THE CAMPAIGN AND SURVIVAL AT ALL? **NO, from 19 Aug 2026** (owner: "remove
+// the campaign and survival from the title screen - we'll only be working on this for the
+// forseeable future"). THE DEEP MINE IS THE GAME NOW.
+//
+// Withheld exactly the way survival was withheld for a release, and for the same reason it was
+// worth doing that way: these are the DOORS, not the rooms. Every rule under them is untouched —
+// the nine campaign maps, the 17 survival maps, `campaignRun()`, `survivalRun()`, the card layer,
+// the three resume slots, the species roster, the tier machinery — and `#dev`, `#dev,turn`, `#rt`
+// and `#level,<id>` all still boot them, which is how ~1300 assertions across `campaign`,
+// `survival`, `store`, `threat`, `traced` and the rest still drive both games. Turning either of
+// these back on is one line.
+//
+// NOTHING HAS BEEN DELETED AND NOTHING SHOULD BE. The mine is a third mode precisely so the card
+// layer can be removed LATER with data behind it, and that data does not exist yet.
+const OFFER_CAMPAIGN = false;
 // Is the REAL-TIME variant running? Pass a state.config from engine code; defaults to CONFIG.
 function isRealtime(cfg) {
   const c = cfg || CONFIG;
@@ -3492,7 +3539,7 @@ function setByPath(obj, path, value) {
   target[last] = value;
 }
 
-  return { CONFIG, SLIDERS, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode, setGame, isCampaignGame, isMineGame };
+  return { CONFIG, SLIDERS, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode, setGame, isCampaignGame, isMineGame };
 })();
 
 // ===================== src/cards-data.js =====================
@@ -22362,6 +22409,12 @@ const __m_render_substrate = (function () {
 // =============================================================================
 
 
+// The mottle tile: its pixel size, and how many WORLD UNITS one repeat covers. 640 puts the
+// coarsest octave's features at ~160 units, which is what the baked fbm's `wx * 0.006` gave —
+// so the soil reads as the same material rather than as a different texture at a different scale.
+const MINE_TILE_PX = 384;
+const MINE_TILE_WORLD = 640;
+
 class SubstrateRenderer {
   constructor(substrate, config, seed = 1) {
     this.substrate = substrate;
@@ -22370,6 +22423,27 @@ class SubstrateRenderer {
     this.rng = makeRng((seed ^ 0x85ebca6b) >>> 0);
     this.nutrientRef = config.substrate.foodCellNutrient;
 
+    // ===== THE MINE PAINTS ITS BACKGROUND PER FRAME, AND BAKES NOTHING =====================
+    // The two baked layers below are WORLD-SIZED canvases, and that is the one thing standing
+    // between this engine and a world you can keep walking sideways in: at the campaign's
+    // 2600 x 3660 they are 9.5 Mpx each, so a shaft wide enough that a maxed run cannot reach its
+    // edge would be hundreds of megabytes of canvas before a single rock was drawn.
+    //
+    // A mine does not need them. Everything the base layer holds is a FUNCTION OF POSITION — the
+    // soil ramp, the fbm mottle, the molten band, the surface crust — and the dynamic layer holds
+    // the mould field, which is `cell.trich` and is read per frame anyway. So the mine draws all of
+    // it straight to the frame over the visible band only (`_drawLive`), which is both unbounded and
+    // CHEAPER: two full-surface blits become one gradient, one tiled pattern and whatever mould is
+    // on screen.
+    //
+    // Gated at the four entry points that touch the buffers — `draw`, `rebake`, `_bakeBase`,
+    // `_bakeDynamic` — so every other map takes the path it always has, unchanged.
+    this.live = !!substrate.mine;
+    if (this.live) {
+      this.base = null; this.baseCtx = null; this.dyn = null; this.dynCtx = null;
+      this.dynamicDirty = false;
+      this._tile = this._bakeNoiseTile(MINE_TILE_PX);
+    } else {
     const W = Math.ceil(substrate.worldWidth);
     // Canvas spans the full VIEW height (content + bottom dirt buffer). Content
     // features (veins/rocks/flecks/etc.) stay within substrate.worldHeight; the
@@ -22380,19 +22454,20 @@ class SubstrateRenderer {
     this.dyn = makeCanvas(W, H);
     this.dynCtx = this.dyn.getContext('2d');
     this.dynamicDirty = true;
+    }
 
     this.foodLightPoints = [];   // {x, y, i} emissive nutrient pockets (for lighting)
     this.hazardLightPoints = []; // {x, y} glowing toxic pools (for lighting)
     this.particles = this._initParticles();
     this.goalMotes = this._initGoalMotes();
-    this._bakeBase();
+    if (!this.live) this._bakeBase();
   }
 
-  markDirty() { this.dynamicDirty = true; }
+  markDirty() { if (!this.live) this.dynamicDirty = true; }
 
   // Re-bake the static base layer (e.g. once art assets finish loading, so the
   // asset-gated passes like _bakeWater pick them up). Also refreshes dynamic.
-  rebake() { this._bakeBase(); this.dynamicDirty = true; }
+  rebake() { if (this.live) return; this._bakeBase(); this.dynamicDirty = true; }
 
   // --- draw (per frame) ----------------------------------------------------
   // Blit only the VISIBLE SLICE of the two world-sized buffers.
@@ -22405,6 +22480,7 @@ class SubstrateRenderer {
   // so the work scales with what you can actually see. Output is pixel-identical: same
   // world->screen mapping, just without the off-screen remainder.
   draw(ctx, camera, time) {
+    if (this.live) return this._drawLive(ctx, camera, time);
     if (this.dynamicDirty) this._bakeDynamic();
     const z = camera.zoom;
     const tl = camera.worldToScreen(0, 0);
@@ -22423,6 +22499,221 @@ class SubstrateRenderer {
     ctx.imageSmoothingEnabled = true;
     ctx.drawImage(this.base, sx, sy, sw, sh, dx, dy, dw, dh);
     ctx.drawImage(this.dyn, sx, sy, sw, sh, dx, dy, dw, dh);
+  }
+
+  // =========================================================================
+  // THE LIVE (per-frame) BACKGROUND — the mine's, and only the mine's
+  // =========================================================================
+  // Everything the baked base layer holds for a mine is a function of POSITION, so it can be drawn
+  // over the visible band instead of over the world. That is what makes a shaft you can keep walking
+  // sideways in affordable: nothing here costs anything per world unit.
+  //
+  // Drawn in SCREEN coordinates, because it goes straight to the frame rather than into a world-space
+  // buffer that gets blitted through the camera.
+  _drawLive(ctx, camera, time) {
+    const sub = this.substrate, r = this.config.render;
+    const z = camera.zoom;
+    if (!(z > 0)) return;
+    const tl = camera.screenToWorld(0, 0);
+    const br = camera.screenToWorld(camera.viewW, camera.viewH);
+    const sy = sub.surfaceY;
+    const yTop = tl.y, yBot = br.y;
+    const sxOf = (wx) => (wx - camera.x) * z + camera.viewW / 2;
+    const syOf = (wy) => (wy - camera.y) * z + camera.viewH / 2;
+
+    ctx.save();
+    // ---- SKY, if any of it is on screen ----------------------------------------------------
+    if (yTop < sy) {
+      const y0 = syOf(yTop), y1 = syOf(Math.min(sy, yBot));
+      const g = ctx.createLinearGradient(0, syOf(0), 0, syOf(sy));
+      g.addColorStop(0, r.skyTop); g.addColorStop(1, r.skyHorizon);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, y0, camera.viewW, y1 - y0 + 1);
+      // The warm haze hugging the horizon, exactly as _bakeSky lays it.
+      const hg = ctx.createLinearGradient(0, syOf(sy - 160), 0, syOf(sy));
+      hg.addColorStop(0, 'rgba(0,0,0,0)'); hg.addColorStop(1, r.horizonGlow);
+      ctx.fillStyle = hg;
+      ctx.fillRect(0, syOf(sy - 160), camera.viewW, 160 * z);
+    }
+    // ---- EARTH: the depth ramp, sampled from the same maths the bake uses -------------------
+    const eTop = Math.max(sy, yTop), eBot = Math.max(eTop, yBot);
+    if (eBot > eTop) {
+      const y0 = syOf(eTop), y1 = syOf(eBot);
+      // A GRADIENT WITH SAMPLED STOPS, not a per-pixel pass: the colour is a smooth function of
+      // depth (soil ramp, then the molten blend below the core line), so 24 stops across whatever
+      // band is visible is indistinguishable from evaluating it per row — and it is one fill.
+      const g = ctx.createLinearGradient(0, y0, 0, y1);
+      const N = 24;
+      for (let i = 0; i <= N; i++) {
+        const wy = eTop + (eBot - eTop) * (i / N);
+        g.addColorStop(i / N, this._earthColorAt(wy));
+      }
+      ctx.fillStyle = g;
+      ctx.fillRect(0, y0, camera.viewW, y1 - y0 + 1);
+      // ...and the MOTTLE, as a seamless tile locked to the world. `overlay` against a mid-grey tile
+      // brightens and darkens around the fill in the same proportion the baked version multiplied by,
+      // so the soil reads as the same material at a fraction of the cost.
+      if (this._tile) {
+        const pat = ctx.createPattern(this._tile, 'repeat');
+        let placed = false;
+        try {
+          const k = (MINE_TILE_WORLD * z) / MINE_TILE_PX;
+          const o0x = sxOf(0), o0y = syOf(0);
+          pat.setTransform(new DOMMatrix([k, 0, 0, k, o0x, o0y]));
+          placed = true;
+        } catch (_) { /* no DOMMatrix: skip the texture rather than tile it in screen space */ }
+        if (placed) {
+          ctx.globalCompositeOperation = 'overlay';
+          ctx.globalAlpha = 0.85;
+          ctx.fillStyle = pat;
+          ctx.fillRect(0, y0, camera.viewW, y1 - y0 + 1);
+          ctx.globalAlpha = 1;
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      }
+    }
+    // ---- THE VOID BELOW THE CONTENT, same shape as _bakeBottomFade --------------------------
+    const cTop = sub.worldHeight, cBot = sub.viewHeight != null ? sub.viewHeight : sub.worldHeight;
+    if (yBot > cTop && cBot > cTop + 1) {
+      const solidFrom = cTop + (cBot - cTop) * 0.7;
+      const g = ctx.createLinearGradient(0, syOf(cTop), 0, syOf(solidFrom));
+      g.addColorStop(0, 'rgba(5,7,13,0)'); g.addColorStop(1, 'rgba(5,7,13,1)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, syOf(cTop), camera.viewW, (solidFrom - cTop) * z + 1);
+      ctx.fillStyle = 'rgb(5,7,13)';
+      ctx.fillRect(0, syOf(solidFrom), camera.viewW, camera.viewH);
+    }
+    // ---- THE SOIL LINE'S CRUST, over the visible columns only -------------------------------
+    // Every branch of `_bakeSurface` draws the same crust for a mine (it has no lakes and no
+    // mountains), so this is that one branch: a short gradient band under the line and a lip on it.
+    if (yTop < sy + 20 && yBot > sy - 4) {
+      const lineY = syOf(sy);
+      const cg = ctx.createLinearGradient(0, lineY - 2 * z, 0, lineY + 16 * z);
+      cg.addColorStop(0, r.crust); cg.addColorStop(1, r.soilTop);
+      ctx.fillStyle = cg;
+      ctx.fillRect(0, lineY, camera.viewW, 18 * z + 1);
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = r.crustLip;
+      ctx.fillRect(0, lineY - 1 * z, camera.viewW, Math.max(1, 1.5 * z));
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+    // ---- THE MOULD FIELD, which is what the dynamic layer was for ---------------------------
+    this._drawLiveTrich(ctx, camera);
+  }
+
+  // The soil/molten colour at a world y, as a CSS string. Lifted from `_bakeEarth` so the two
+  // cannot drift: the ramp is compressed to finish AT the core line (black to red, not brown to
+  // red) and the molten blend is in WORLD UNITS below it, not fractions of the map's depth.
+  _earthColorAt(worldY) {
+    const sub = this.substrate, r = this.config.render;
+    const sy = sub.surfaceY;
+    const contentGh = Math.max(1, sub.worldHeight - sy);
+    const viewBot = sub.viewHeight != null ? sub.viewHeight : sub.worldHeight;
+    const top = hexToRgb(r.soilTop), mid = hexToRgb(r.soilMid), deep = hexToRgb(r.soilDeep);
+    const cEdge = hexToRgb(r.coreEdge || '#2e0a06'), cMid = hexToRgb(r.coreMid || '#7d1a08'),
+          cDeep = hexToRgb(r.coreDeep || '#d1490d');
+    const HEAT_UP = 24, HEAT_W = 100, NEAR_W = 190;
+    const smooth = (x) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
+    const cFrac = sub.coreY != null ? (sub.coreY - sy) / contentGh : null;
+    const bandW = sub.coreY != null ? Math.max(1, viewBot - sub.coreY) : 1;
+    const depth = (worldY - sy) / contentGh;
+    const dn = cFrac != null ? Math.min(1, Math.max(0, depth) / Math.max(1e-6, cFrac)) : Math.max(0, depth);
+    let col = dn < 0.35 ? lerpRgb(top, mid, dn / 0.35) : lerpRgb(mid, deep, Math.min(1, (dn - 0.35) / 0.65));
+    if (cFrac != null) {
+      const heat = smooth((worldY - (sub.coreY - HEAT_UP)) / (HEAT_W + HEAT_UP));
+      if (heat > 0) {
+        const dbW = worldY - sub.coreY;
+        const near = Math.min(1, Math.max(0, dbW) / NEAR_W);
+        const far = Math.min(1, Math.max(0, (dbW - NEAR_W) / Math.max(1, bandW - NEAR_W)));
+        const molten = far > 0 ? lerpRgb(cMid, cDeep, Math.pow(far, 1.8)) : lerpRgb(cEdge, cMid, near);
+        col = lerpRgb(col, molten, heat);
+      }
+    }
+    return 'rgb(' + (col[0] | 0) + ',' + (col[1] | 0) + ',' + (col[2] | 0) + ')';
+  }
+
+  // The mould, drawn over the VISIBLE CELLS instead of over the world. Same look as the baked
+  // version — a radial per cell plus four deterministic speckles — and the speckle hash is the same
+  // one, so a cloud sliding over a cell fades its spores rather than reshuffling them.
+  _drawLiveTrich(ctx, camera) {
+    const sub = this.substrate, r = this.config.render;
+    const cs = sub.cellSize, sy = sub.surfaceY, z = camera.zoom;
+    const tl = camera.screenToWorld(0, 0), br = camera.screenToWorld(camera.viewW, camera.viewH);
+    const c0 = Math.max(0, sub.colAtX(tl.x) - 1), c1 = Math.min(sub.cols - 1, sub.colAtX(br.x) + 1);
+    const r0 = Math.max(0, sub.rowAtY(tl.y) - 1), r1 = Math.min(sub.rows - 1, sub.rowAtY(br.y) + 1);
+    if (c1 < c0 || r1 < r0) return;
+    const trich = hexToRgb(r.trich);
+    const spk = (x, y) => { let h = Math.imul((x + 1) * 374761393 ^ (y + 1) * 668265263, 1274126177); h ^= h >>> 15; return ((h >>> 0) % 100000) / 100000; };
+    ctx.save();
+    for (let row = r0; row <= r1; row++) {
+      for (let col = c0; col <= c1; col++) {
+        const cell = sub.cellAt(col, row);
+        if (!cell || cell.trich <= 0) continue;
+        const a = Math.min(0.95, 0.5 + cell.trich * 0.5);
+        const wx = col * cs + cs / 2, wy = sy + row * cs + cs / 2;
+        const p = camera.worldToScreen(wx, wy);
+        const rad = cs * 0.85 * z;
+        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, rad);
+        g.addColorStop(0, withAlpha(trich, a));
+        g.addColorStop(0.6, withAlpha(trich, a * 0.85));
+        g.addColorStop(1, withAlpha(trich, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = withAlpha(hexToRgb(r.trichSpore), a * 0.7);
+        for (let k = 0; k < 4; k++) {
+          const q = camera.worldToScreen(col * cs + spk(col, row * 4 + k) * cs,
+                                        sy + row * cs + spk(col * 4 + k + 1, row) * cs);
+          ctx.beginPath();
+          ctx.arc(q.x, q.y, (spk(col + k, row + k * 7) * 1.3 + 0.4) * z, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  // A SEAMLESS mottle tile, generated once. Periodic value noise rather than the module's `fbm`,
+  // because fbm is not periodic and a non-wrapping tile shows its seams as a grid across the soil —
+  // the whole point here is that it can be repeated forever in both directions. The strata banding
+  // the baked version got from a sine on world y is folded in at a whole number of cycles per tile,
+  // for the same reason.
+  _bakeNoiseTile(N) {
+    const cv = makeCanvas(N, N), c = cv.getContext('2d');
+    const img = c.createImageData(N, N), d = img.data;
+    const OCT = 4;
+    const grids = [];
+    for (let o = 0; o < OCT; o++) {
+      const g = 4 << o, a = new Float32Array(g * g);
+      for (let i = 0; i < a.length; i++) a[i] = this.rng();
+      grids.push({ g, a });
+    }
+    const sm = (t) => t * t * (3 - 2 * t);
+    const at = (o, u, v) => {
+      const { g, a } = grids[o];
+      const fx = u * g, fy = v * g;
+      const x0 = ((fx | 0) % g + g) % g, y0 = ((fy | 0) % g + g) % g;
+      const x1 = (x0 + 1) % g, y1 = (y0 + 1) % g;
+      const tx = sm(fx - Math.floor(fx)), ty = sm(fy - Math.floor(fy));
+      const v0 = a[y0 * g + x0] * (1 - tx) + a[y0 * g + x1] * tx;
+      const v1 = a[y1 * g + x0] * (1 - tx) + a[y1 * g + x1] * tx;
+      return v0 * (1 - ty) + v1 * ty;
+    };
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        const u = x / N, v = y / N;
+        let n = 0, amp = 0.5, tot = 0;
+        for (let o = 0; o < OCT; o++) { n += at(o, u, v) * amp; tot += amp; amp *= 0.5; }
+        n /= tot;
+        const strata = Math.sin(v * Math.PI * 4) * 0.5 + 0.5;
+        const b = 0.5 + (n - 0.5) * 0.46 + (strata - 0.5) * 0.14;
+        const g8 = Math.max(0, Math.min(255, Math.round(b * 255)));
+        const i = (y * N + x) * 4;
+        d[i] = d[i + 1] = d[i + 2] = g8; d[i + 3] = 255;
+      }
+    }
+    c.putImageData(img, 0, 0);
+    return cv;
   }
 
   // =========================================================================
@@ -23036,6 +23327,7 @@ class SubstrateRenderer {
   // DYNAMIC LAYER (nutrient + Trichoderma)
   // =========================================================================
   _bakeDynamic() {
+    if (this.live) return;      // the mine draws the mould per frame — see _drawLiveTrich
     const octx = this.dynCtx;
     const r = this.config.render;
     const sub = this.substrate;
@@ -27866,7 +28158,7 @@ function showLoadoutSelect({ species, drafted, enginePool, fixed, maxPick, maxEn
 const __m_render_title_screen = (function () {
   // Whether this build offers the real-time variant at all — see __m_config, where it lives so
   // that this screen and the high-score board cannot disagree about it.
-  const { OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE } = __m_config;
+  const { OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN } = __m_config;
   const { playGrowBurst } = __m_render_sfx;
   const { loadProgress } = __m_species;
 // =============================================================================
@@ -27889,7 +28181,7 @@ const el = (t, c, h) => { const n = document.createElement(t); if (c) n.classNam
 const rnd = (a = 0, b = 1) => a + Math.random() * (b - a);
 const TITLE = 'MYCELIUM';
 
-function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCredits, playerName }) {
+function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onStore, onCredits, playerName }) {
   const reduce = matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const root = el('div'); root.id = 'titleScreen';
@@ -27936,9 +28228,38 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
           '</div>'
         : '') +
     '</div>';
+  // THE DEEP MINE ALONE (OFFER_CAMPAIGN / OFFER_SURVIVAL both off — owner: "remove the campaign and
+  // survival from the title screen"). One game and one button, so there is nothing to label and
+  // nothing to choose between: New takes the TOP block at `.ts-solo` size, exactly where the
+  // campaign's did when it was the only game, so the consume animation keeps the distance it was
+  // tuned against.
+  //
+  // WHAT SITS BELOW THE WORDMARK IS THE RECORD, not a second button. The mine has no "Old" — a
+  // descent is one sitting — and a screen with a word above the title and nothing below it reads as
+  // half-drawn. The deepest descent is the one number a returning player wants, and it is already
+  // stored (`p.mineBest`); before the first descent there is nothing to say, so the line is simply
+  // absent rather than reading "0 m".
+  const bestM = (() => { try { return loadProgress().mineBest | 0; } catch (_) { return 0; } })();
+  const mineMenu =
+    '<div class="ts-menu">' +
+      '<div class="ts-block ts-top">' +
+        '<div class="ts-actions ts-one">' +
+          '<span class="ts-act ts-solo"><span class="ts-cap">start a new descent</span>' +
+            '<button class="ts-btn ts-solo" id="tsNewMine" type="button">Dig</button></span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="ts-block ts-bottom">' +
+        '<div class="ts-actions ts-one">' +
+          (bestM > 0
+            ? '<div class="ts-record">deepest descent <b>' + bestM + ' m</b></div>'
+            : '<div class="ts-record ts-record-none">water is your fuel</div>') +
+        '</div>' +
+      '</div>' +
+    '</div>';
   root.innerHTML =
     '<canvas id="tsCanvas"></canvas>' +
-    (!OFFER_SURVIVAL ? soloMenu :
+    (!OFFER_CAMPAIGN && !OFFER_SURVIVAL ? mineMenu :
+    !OFFER_SURVIVAL ? soloMenu :
     // TWO GAMES, AND THE CAMPAIGN IS THE ONE ON TOP (owner: "add survival back, but put that on
     // the bottom half on the title screen while the campaign sits on the top half"). Both rows
     // existed already and in the other order — Survival was the top one for as long as the
@@ -28064,6 +28385,23 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
     hsBtn.addEventListener('click', () => { if (consuming || finished) return; onHighScores(); });
     head.appendChild(hsBtn);
     root.appendChild(head);
+  }
+  // THE STORE'S OTHER DOOR, and it exists because New no longer opens it. The loop is Dig → descend
+  // → out of fuel → "To the store" → Descend, so the store is normally reached with the ore still
+  // warm — but a player who closed the tab and came back would otherwise have banked Phosphorus and
+  // no way to spend it. Shown ONLY when there is something to spend, so it is never a link to an
+  // empty shelf, and top-centre because that slot is free now the high-score board has gone with
+  // survival.
+  if (onStore) {
+    let owed = 0;
+    try { owed = loadProgress().minerals | 0; } catch (_) {}
+    if (owed > 0) {
+      const head = el('div', 'ts-header');
+      const b = el('button', 'ts-foot-btn', 'Upgrades'); b.id = 'tsStore'; b.type = 'button';
+      b.addEventListener('click', () => { if (consuming || finished) return; onStore(); });
+      head.appendChild(b);
+      root.appendChild(head);
+    }
   }
   if (onCredits) {
     const foot = el('div', 'ts-footer');
@@ -28727,8 +29065,16 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
   // The mine's New is wired on its own because it has no Old to pair with — the loop above skips
   // any row missing either half, which is the guard that lets the real-time row stay in the table
   // while its markup is withheld, and would silently skip this one too.
+  // THE MINE'S BUTTON GOES STRAIGHT IN — no name dialog and no picker (owner: "don't start me on the
+  // upgrade store screen when I press new -- straight to the game map"). The name exists for the
+  // HIGH-SCORE BOARD, which the mine does not file to and which is off the screen entirely now, so
+  // asking for one is a dialog between the player and the game for no reason — and CLAUDE.md's
+  // standing rule about never focusing a native input the player did not tap is one less thing to
+  // get wrong. It still runs `consume()`, so the strand grows into the word the way every other
+  // entry does; that animation is the handover.
   const mineBtn = root.querySelector('#tsNewMine');
-  if (mineBtn) mineBtn.addEventListener('click', () => { newGameDialog(mineBtn, 'realtime', 'mine'); });
+  if (mineBtn) mineBtn.addEventListener('click', () =>
+    consume(mineBtn, () => onNew && onNew(playerName || '', 'realtime', 'mine')));
 
   let rt = 0;
   const onResize = () => { if (consuming || finished) return; clearTimeout(rt); rt = setTimeout(layout, 200); };
@@ -30304,7 +30650,7 @@ function showCredits({ onClose } = {}) {
 
 // ===================== src/main.js =====================
 const __m_main = (function () {
-  const { CONFIG, MODE_TUNING, OFFER_SURVIVAL, OFFER_MINE, isRealtime, setMode, setGame, isCampaignGame, isMineGame, timeify, roundsToTime } = __m_config;
+  const { CONFIG, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, isRealtime, setMode, setGame, isCampaignGame, isMineGame, timeify, roundsToTime } = __m_config;
   const { createState, createPuzzleState, createLevelState, seedLevelThreats } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
   const { mineLevelDef, mineWorldBox, mineBandAt, mineDepthM, mineDepthReached, mineSeedThreats,
@@ -30492,7 +30838,13 @@ function revealMap() {
 // Instantly hide the game canvas (no fade) — used when entering the title / picker so a
 // stale map from a finished run can't flash through as a menu overlay fades in. begin()
 // re-reveals it via revealMap() for the next run.
-function hideCanvas() { if (canvas) { canvas.style.transition = 'none'; canvas.style.opacity = '0'; } }
+function hideCanvas() {
+  if (canvas) { canvas.style.transition = 'none'; canvas.style.opacity = '0'; }
+  // ...AND DROP THE PHONE-SHAPED BOX WITH IT. `body.boxed` letterboxes `#game` and `#ui` and paints
+  // the surround; every caller of this is a full-screen MENU going up, which fills the window. Left
+  // set, the box's hairline border would sit over the title screen with no map behind it.
+  try { document.body.classList.remove('boxed'); } catch (_) {}
+}
 
 // The threats seeded into the CURRENT map, as the intro's roster (count > 0 only).
 // Counts come from the live state (== the per-level LEVEL_THREATS seed, before any
@@ -31831,6 +32183,12 @@ function showMainMenu() {
       // the Phosphorus the player just banked, every time, and the only symptom would be a store
       // that never fills up.
       if (!isMineGame()) { resetProgress(); clearResume(); tutorialPending = true; }
+      // ...AND THE MINE DOES NOT PASS THROUGH THE PICKER AT ALL (owner). There is nothing to pick —
+      // no colonies, and the shelf is upgrades you have already bought or cannot yet afford — so the
+      // store belongs AFTER a descent, where the end screen's "To the store" button puts it, and
+      // where the Phosphorus you just banked is burning a hole in your pocket. The title's own
+      // Upgrades link is how a player who came back later reaches it without digging first.
+      if (isMineGame()) { beginMineRun(); return; }
       // The opening goes between New and the picker, and only for the campaign — the survival
       // ladder has no story to tell and never had this screen.
       if (isCampaignGame()) showCampaignOpening(() => showPicker());
@@ -31847,6 +32205,11 @@ function showMainMenu() {
     // renders no link when no handler is passed. `__game.showHighScores` is untouched, so the
     // board itself is still reachable and still tested.
     onHighScores: OFFER_SURVIVAL ? () => showHighScores({}) : null,
+    // The mine's store, reachable from the title for a player who banked ore and came back later.
+    // `setGame` first, because `showPicker` renders the MINE's shelf off `isMineGame()` and reads the
+    // wallet the same way — arriving there with the game still on its default would show the
+    // campaign's seven tracks priced in Spores.
+    onStore: OFFER_MINE ? () => { setGame('mine'); showPicker(); } : null,
     onCredits: () => showCredits({}),
   });
 }
@@ -33530,6 +33893,10 @@ function begin(newState) {
     },
     campaign: {
       levels: CAMPAIGN_LEVELS, startLevel: CAMPAIGN_START_LEVEL,
+      // THE OPENING STORY SCREEN, on its own. Its real route is the title's Campaign New, and that
+      // door is shut (`OFFER_CAMPAIGN`) — but the screen and its copy are untouched and still worth
+      // asserting, so this is how `campaign-check` reaches it now. Same function the button calls.
+      opening: (done) => { showCampaignOpening(done || (() => {})); return true; },
       seeds: CAMPAIGN_SEEDS.slice(), seed: (n) => campaignSeed(n), payout: campaignPayout(),
       isRun: () => campaignRun(),
       level: () => currentLevel,
@@ -34831,14 +35198,52 @@ function renderScale() {
   return fit >= 1 ? dpr : dpr * fit;
 }
 
+// THE PLAY SURFACE IS PHONE-SHAPED ON EVERY SCREEN (owner: "let's make the game phone screen
+// dimensions so the game plays the same on phone portrait and desktop"). At a FIXED zoom the world
+// extent you can see is `viewport / zoom`, so two different viewports are two different games —
+// a 1280x720 desktop showed a 1506 x 847 slab of shaft against a phone's 459 x 993 column. Fitting
+// the surface to one portrait aspect makes them the same picture, and it also makes every layout
+// decision in the mine testable at ONE shape.
+//
+// It letterboxes `#game` and `#ui` — the play surface — and nothing else. Full-screen MENUS (the
+// title, the store, the end of a descent) still fill the window, which is the ordinary convention
+// for a boxed game and is what they were laid out and screenshotted against.
+//
+// EXACT FIT, ALWAYS, rather than "close enough is full-screen". A phone whose aspect is a few
+// percent off gets a few pixels of band and the guarantee holds everywhere; a tolerance would mean
+// two phones legitimately seeing different amounts of world, which is the thing being fixed.
+function mineFrameAspect() {
+  const a = (CONFIG.mine && CONFIG.mine.frameAspect) || (390 / 844);
+  return Math.max(0.2, Math.min(3, a));
+}
+// The play surface's rect in CSS pixels: `{x, y, w, h}`. The whole window unless the mine is up.
+function playSurfaceRect() {
+  const W = window.innerWidth, H = window.innerHeight;
+  if (!(state && state.substrate && state.substrate.mine)) return { x: 0, y: 0, w: W, h: H };
+  const a = mineFrameAspect();
+  let w = Math.min(W, H * a), h = w / a;
+  if (h > H) { h = H; w = h * a; }
+  return { x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w: Math.round(w), h: Math.round(h) };
+}
 function resize() {
   const dpr = renderScale();
-  canvas.width = Math.max(1, Math.round(window.innerWidth * dpr));
-  canvas.height = Math.max(1, Math.round(window.innerHeight * dpr));
-  canvas.style.width = window.innerWidth + 'px';
-  canvas.style.height = window.innerHeight + 'px';
+  const r = playSurfaceRect();
+  const boxed = r.w !== window.innerWidth || r.h !== window.innerHeight;
+  // The box is applied through CSS CUSTOM PROPERTIES on <body> rather than by writing `style.left`
+  // on two elements: `#ui`'s children are positioned against it, several of them off `inset`, so the
+  // box has to be something the stylesheet can see. `body.boxed` is what switches those rules on.
+  try {
+    const bs = document.body.style;
+    bs.setProperty('--pf-l', r.x + 'px'); bs.setProperty('--pf-t', r.y + 'px');
+    bs.setProperty('--pf-w', r.w + 'px'); bs.setProperty('--pf-h', r.h + 'px');
+    document.body.classList.toggle('boxed', boxed);
+  } catch (_) {}
+  canvas.width = Math.max(1, Math.round(r.w * dpr));
+  canvas.height = Math.max(1, Math.round(r.h * dpr));
+  canvas.style.width = r.w + 'px';
+  canvas.style.height = r.h + 'px';
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  camera.setViewport(window.innerWidth, window.innerHeight);
+  camera.setViewport(r.w, r.h);
 }
 
 // --- render loop ------------------------------------------------------------
@@ -35044,9 +35449,20 @@ function advanceSim(time) {
 // past this number whatever it is set to. That is the right failure (you see the shaft's full
 // width, larger) and it is why the shaft's `cols` has a comment about the viewport: the number
 // here only holds while the shaft is wider than the screen at it.
+// THE ZOOM SCALES WITH THE SURFACE, so what is VISIBLE is the same everywhere. Boxing the play area
+// to one aspect is only half of "the game plays the same on phone portrait and desktop": at a fixed
+// zoom the visible world is `viewport / zoom`, so a 333x720 desktop column and a 390x844 phone had
+// the same SHAPE and showed 392x847 against 459x993 world units — the desktop player seeing 15% less
+// of the shaft. Measured, and it is exactly the kind of difference that makes a fuel budget feel
+// different on two machines.
+//
+// `zoom` is therefore the zoom AT THE REFERENCE SURFACE (`refHeight`, the phone this project measures
+// at), scaled to whatever surface we actually got. On the reference phone it is 0.85 exactly.
 function mineZoom() {
-  const z = (CONFIG.mine && CONFIG.mine.zoom) || 0.85;
-  return Math.max(z, camera.minZoomForBounds());
+  const M = CONFIG.mine || {};
+  const z = M.zoom || 0.85, ref = Math.max(200, M.refHeight || 844);
+  const want = z * ((camera.viewH || ref) / ref);
+  return Math.max(want, camera.minZoomForBounds());
 }
 // Is the zoom locked right now? Every zoom input asks this — wheel, pinch, double-tap and `F` —
 // so "fixed zoom" is one predicate rather than four places that each have to remember. Reads the
@@ -38093,6 +38509,14 @@ setupInput();
 // Invisible boot-time debug hook: the live CONFIG, available before a run starts (unlike
 // window.__game, which begin() installs) so the chosen game mode is readable from the menus.
 window.__cfg = CONFIG;
+// WHICH GAMES THIS BUILD OFFERS AT ALL — the four build flags, readable from a check. They are not
+// in CONFIG on purpose (CONFIG is deep-cloned per run and overridable per level, and "which games
+// exist" is neither), which left every check that reads the TITLE SCREEN'S SHAPE with nothing to ask
+// and no choice but to pin whichever shape shipped that week. Four of them broke together when the
+// campaign and survival rows came off, all reporting a screen that was working exactly as intended.
+// A check can now gate its title-shape block on the door being open and keep driving the GAME behind
+// it through the boot hashes, which is what `OFFER_REALTIME` has always been tested through.
+window.__offers = { realtime: OFFER_REALTIME, survival: OFFER_SURVIVAL, mine: OFFER_MINE, campaign: OFFER_CAMPAIGN };
 // The two per-mode tuning tables, so a check can assert "this mode loaded ITS OWN table"
 // against the table itself instead of re-pinning the numbers. Three separate checks had
 // hard-coded copies of these rates, which meant a retune broke two of them with assertion

@@ -40,7 +40,22 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   };
 
   // ---------------------------------------------------------------- TITLE SCREEN
-  console.log('\nTEST 1 — the title screen offers BOTH games, campaign on top');
+  console.log('\nTEST 1 — the title screen offers whatever this build offers');
+  //
+  // GATED ON THE DOORS, NOT PINNED TO A SHAPE, and that is the whole lesson of this block. It asserted
+  // "Campaign on top, Survival below" — the shape of one particular week — and when both rows came off
+  // for the Deep Mine (owner: "remove the campaign and survival from the title screen") this check and
+  // three others went red describing a screen that was working exactly as intended. Which games EXIST
+  // is a build decision (`window.__offers`, the four OFFER_ flags), so the shape assertions ask that
+  // first and the GAMES are driven through the boot hashes either way — which is how real time has
+  // always been tested with its own door shut.
+  const offers = await (async () => {
+    const { page } = await openPage('');
+    const o = await page.evaluate(() => window.__offers);
+    await page.close();
+    return o;
+  })();
+  console.log('  note   this build offers: ' + Object.keys(offers).filter((k) => offers[k]).join(', '));
   //
   // SURVIVAL IS BACK (owner: "let's add survival back, but put that on the bottom half on the
   // title screen while the campaign sits on the top half. put the new buttons on the right and
@@ -60,6 +75,28 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     await page.waitForSelector('#titleScreen .ts-top .ts-actions', { timeout: 20000 });
     const top = await page.$$eval('#titleScreen .ts-top .ts-btn', (bs) => bs.map((b) => b.id));
     const bot = await page.$$eval('#titleScreen .ts-bottom .ts-btn', (bs) => bs.map((b) => b.id));
+    if (!offers.campaign && !offers.survival) {
+      // THE DEEP MINE ALONE. One game and one button, so there is nothing to label and nothing to
+      // choose between: the button takes the top block where the campaign's sat when it was the only
+      // game, and what goes below the wordmark is the RECORD rather than a second control (the mine
+      // has no "Old" — a descent is one sitting). Everything the two-row screen asserted about
+      // labels, sides and pairs is meaningless here and is skipped rather than reinterpreted.
+      ok('the only row is the mine\'s, and it is the top one', top.join(',') === 'tsNewMine', top.join(',') || '(none)');
+      ok('...with no button below the wordmark', bot.length === 0, bot.join(',') || '(none)');
+      ok('...and the record line in its place',
+         (await page.$('#titleScreen .ts-record')) !== null);
+      ok('no campaign or survival button anywhere',
+         (await page.$('#tsNewCamp')) === null && (await page.$('#tsNew')) === null
+         && (await page.$('#tsContCamp')) === null && (await page.$('#tsCont')) === null);
+      // ...and the CAPTION RULE still holds for the one word there is: under it, close, in flow.
+      const caps = await page.$$eval('#titleScreen .ts-act', (as) => as.map((a) => {
+        const b = a.querySelector('.ts-btn').getBoundingClientRect(), c = a.querySelector('.ts-cap').getBoundingClientRect();
+        return Math.round((c.top + c.height / 2) - (b.top + b.height / 2));
+      }));
+      ok('its caption sits UNDER the word', caps.length === 1 && caps[0] > 0, caps.join(', ') + ' px below');
+      ok('no page errors on the title screen', errs.length === 0, errs.slice(0, 2).join(' | '));
+      await page.close();
+    } else {
     // DOM ORDER, which is what decides the columns — see .ts-actions in the stylesheet. The
     // geometric assertion below is the one that would catch a CSS change reversing them anyway;
     // this one says which pair belongs to which game.
@@ -220,8 +257,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 
     ok('no page errors on the title screen', errs.length === 0, errs.slice(0, 2).join(' | '));
     await page.close();
+    }
   }
-  {
+  // THE CAMPAIGN'S ENTRY PATH, and it only exists while the campaign has a door. With
+  // `OFFER_CAMPAIGN` off there is no `#tsNewCamp` to press — the run is still reachable and still
+  // driven, by `#rt` and `__game.campaign.play`, which is what the rest of this file uses.
+  if (offers.campaign) {
     const { page } = await openPage('');
     await page.waitForSelector('#tsNewCamp', { timeout: 20000 });
     await page.click('#tsNewCamp');

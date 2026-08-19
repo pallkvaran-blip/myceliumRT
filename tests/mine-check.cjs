@@ -772,25 +772,47 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     const rows = await page.evaluate(() => {
       const box = (s) => { const e = document.querySelector(s); if (!e) return null;
         const r = e.getBoundingClientRect(); return { t: Math.round(r.top), b: Math.round(r.bottom) }; };
-      return { top: box('.ts-top'), bottom: box('.ts-bottom'), third: box('.ts-third'),
-               mineNew: box('#tsNewMine'), campNew: box('#tsNewCamp'), vh: innerHeight,
+      return { offers: window.__offers,
+               top: box('.ts-top'), bottom: box('.ts-bottom'), mineNew: box('#tsNewMine'), vh: innerHeight,
+               btns: [...document.querySelectorAll('#titleScreen .ts-btn')].map((b) => b.id),
+               label: (document.querySelector('#titleScreen .ts-btn') || {}).textContent,
+               record: (document.querySelector('#titleScreen .ts-record') || {}).textContent || null,
                // The mine has no "Old": a descent is one sitting, and what persists is the store.
-               mineOld: !!document.querySelector('#tsContMine') };
+               mineOld: !!document.querySelector('#tsContMine'),
+               // The other two games' doors are shut (owner) — nothing of them on this screen.
+               others: ['tsNewCamp', 'tsContCamp', 'tsNew', 'tsCont'].filter((id) => !!document.getElementById(id)) };
     });
-    ok('the Deep Mine has a row on the title screen', !!rows.third && !!rows.mineNew, JSON.stringify(rows.third));
-    ok('...under the other two, and on the screen',
-       rows.third.t > rows.bottom.b && rows.third.b < rows.vh,
-       `third ${rows.third.t}..${rows.third.b} of ${rows.vh}`);
+    ok('the Deep Mine is the only game on the title screen',
+       rows.btns.join(',') === 'tsNewMine' && rows.others.length === 0,
+       rows.btns.join(',') + (rows.others.length ? ' + ' + rows.others.join(',') : ''));
+    ok('...offered as the only door this build has',
+       rows.offers.mine === true && rows.offers.campaign === false && rows.offers.survival === false,
+       JSON.stringify(rows.offers));
+    ok('...its word sits above the wordmark', !!rows.mineNew && rows.mineNew.t < rows.vh * 0.5,
+       rows.mineNew ? `top ${rows.mineNew.t} of ${rows.vh}` : 'missing');
+    // WHAT SITS BELOW THE WORDMARK IS THE RECORD, not a second button. The mine has no "Old", and a
+    // screen with a word above the title and nothing below it reads as half-drawn.
     ok('...and no "Old", because a descent is one sitting', rows.mineOld === false, String(rows.mineOld));
-    // NEW lines up with the other rows' NEW — the mine's row uses the full three-column grid with
-    // an empty Old slot, or the label slides left and the row reads as a mistake.
-    ok('...with New under the other News', Math.abs(
-       (rows.mineNew.t + rows.mineNew.b) / 2 - (rows.mineNew.t + rows.mineNew.b) / 2) < 1
-       && !!rows.campNew, 'aligned');
+    ok('...with the record line where a second button would be', !!rows.record, rows.record || '(nothing)');
 
+    // STRAIGHT INTO THE SHAFT (owner: "don't start me on the upgrade store screen when I press new --
+    // straight to the game map"). No name dialog either: the name exists for the high-score board,
+    // which the mine does not file to and which is off the screen with survival.
     await page.click('#tsNewMine');
-    await sleep(500);
-    if (await page.$('#tsNameStart')) await page.click('#tsNameStart');
+    await page.waitForFunction(() => !!(window.__game && window.__game.state
+      && window.__game.state.substrate && window.__game.state.substrate.mine), { timeout: 30000 });
+    await sleep(2200);
+    const straight = await page.evaluate(() => ({
+      inShaft: window.__game.mine.isRun(), picker: !!document.getElementById('speciesSelect'),
+      nameDialog: !!document.getElementById('tsNameStart'), water: window.__game.state.active.water }));
+    ok('New goes straight into the shaft', straight.inShaft === true && straight.water > 0,
+       `${straight.water} water`);
+    ok('...with no store screen on the way', straight.picker === false, String(straight.picker));
+    ok('...and no name dialog either', straight.nameDialog === false, String(straight.nameDialog));
+
+    // ...and the store is still reachable, from the END of a descent. Driven here through the same
+    // `showPicker` the end screen's button calls, so the shelf's own shape is still asserted.
+    await page.evaluate(() => window.__menu.showPicker());
     await page.waitForSelector('#speciesSelect', { timeout: 20000 });
     await sleep(1500);
     const store = await page.evaluate(() => ({
@@ -814,7 +836,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
 
     await page.click('#ssDescend');
     await page.waitForFunction(() => !!(window.__game && window.__game.state
-      && window.__game.state.substrate && window.__game.state.substrate.mine), { timeout: 30000 });
+      && window.__game.state.substrate && window.__game.state.substrate.mine
+      && !document.getElementById('speciesSelect')), { timeout: 30000 });
     await sleep(2500);
     ok('Descend starts a mine run', await page.evaluate(() => window.__game.mine.isRun()), 'in the shaft');
 
@@ -902,10 +925,10 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     if (survived) {
       await page.waitForSelector('#tsNewMine', { timeout: 20000 }).catch(() => {});
       await page.click('#tsNewMine').catch(() => {});
-      await sleep(400);
-      if (await page.$('#tsNameStart')) await page.click('#tsNameStart');
-      await page.waitForSelector('#ssDescend', { timeout: 20000 }).catch(() => {});
-      await sleep(900);
+      // New goes straight into a run now, so what is waited for is the SHAFT rather than the shelf.
+      await page.waitForFunction(() => !!(window.__game && window.__game.state
+        && window.__game.state.substrate && window.__game.state.substrate.mine), { timeout: 30000 }).catch(() => {});
+      await sleep(1200);
       const after = await page.evaluate(() => JSON.parse(localStorage.getItem('mycelium.progress.v2')).minerals | 0);
       ok('pressing New again does not wipe the banked Phosphorus', after === survived.before,
          `${survived.before} -> ${after}`);

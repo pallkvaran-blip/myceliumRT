@@ -53,10 +53,27 @@ const startSampling = (page) => page.evaluate(() => {
   };
   requestAnimationFrame(tick);
 });
-// EXPOSED = the covering screen is effectively transparent, no level card has taken over, and
-// either the HUD's carousel or the map can be seen. That is the flash, defined.
-const exposedIn = (F) => F.filter((f) => f.tOp < 0.35 && !f.card
-  && ((f.uiVis && f.cards > 0) || (f.cvOp != null && f.cvOp > 0.05)));
+// EXPOSED = inside the HANDOVER WINDOW, the covering screen is effectively transparent and either
+// the HUD or the map can be seen. That is the flash, defined.
+//
+// THE WINDOW HAS TO END SOMEWHERE, and `!f.card` was doing that job implicitly — the level card takes
+// over and every later frame stops counting. The mine's exit has NO CARD (the map's own fade is the
+// takeover), so with the campaign's door shut every frame after a perfectly clean handover read as
+// exposed: 267 of them, the first one already showing `curtain:false, cvOp:1`, i.e. the game visible
+// because the game had legitimately started. The window ends at whichever takeover happened — the
+// card, or the curtain coming down — and frames after it are the game being played.
+const exposedIn = (F) => {
+  let end = F.findIndex((f) => f.card);
+  if (end < 0) {
+    // The curtain going UP and then DOWN again is the handover, and `revealMap` drops it at the
+    // moment something has taken over. Before it has ever gone up there is nothing to hand over.
+    const up = F.findIndex((f) => f.curtain);
+    end = up < 0 ? F.length : F.findIndex((f, i) => i > up && !f.curtain);
+    if (end < 0) end = F.length;
+  }
+  return F.slice(0, end).filter((f) => f.tOp < 0.35 && !f.card
+    && ((f.uiVis && f.cards > 0) || (f.cvOp != null && f.cvOp > 0.05)));
+};
 
 (async () => {
   const srv = await new Promise((res) => { const s = http.createServer((rq, rs) => {
@@ -101,13 +118,20 @@ const exposedIn = (F) => F.filter((f) => f.tOp < 0.35 && !f.card
     try { window.__game.ui.setHandOpen(true); } catch (_) {}
     await new Promise((r) => setTimeout(r, 600));
   });
-  const held = await page.evaluate(() => document.querySelectorAll('#ui .cardbtn').length);
-  // Without a populated carousel there is nothing for the fade to expose and the whole block
-  // would pass vacuously — this is the setup assertion, not a nicety.
-  ok('the HUD is holding a card carousel to be flashed', held > 0, `${held} cards`);
+  const held = await page.evaluate(() => ({ cards: document.querySelectorAll('#ui .cardbtn').length,
+    pills: document.querySelectorAll('#ui .res').length }));
+  // WITHOUT SOMETHING BEHIND THE TITLE THERE IS NOTHING FOR THE FADE TO EXPOSE and the whole block
+  // passes vacuously — this is the setup assertion, not a nicety. A carousel is what the bug was
+  // reported about; the resource pills are what a mine run leaves standing there instead, and either
+  // is enough for `exposedIn` (whose other arm is the MAP showing through, which covers both).
+  ok('the HUD is holding something to be flashed', held.cards > 0 || held.pills > 0,
+     `${held.cards} cards, ${held.pills} pills`);
 
   await page.evaluate(() => { window.__game.showTitle(); });
-  await page.waitForSelector('#tsContCamp', { timeout: 12000 });
+  // `.ts-btn` IS THE CLASS EVERY TITLE LAYOUT'S BUTTONS CARRY, and this wait has been broken by a
+  // layout change twice now — once when the real-time rows came off and again when the campaign and
+  // survival rows did. `#tsContCamp` was only ever standing in for "the title screen is up".
+  await page.waitForSelector('#titleScreen .ts-btn', { timeout: 12000 });
   await sleep(1200);
 
   // The curtain must be up ALREADY, while the title still covers everything — that is the whole
@@ -127,27 +151,50 @@ const exposedIn = (F) => F.filter((f) => f.tOp < 0.35 && !f.card
   ok('sitting on the title past the 4 s safety timer does not drop it', stillUp);
 
   await startSampling(page);
-  await page.click('#tsContCamp');
+  // THROUGH THE BUTTON THAT EXISTS, and the button matters here more than the destination: what this
+  // block measures is the TITLE'S OWN 560 ms FADE-OUT with a finished run's HUD standing behind it,
+  // and `consume()` — the strand growing into the pressed word, then `root.remove(); cb()` — is what
+  // plays it. Calling the handler directly leaves the title mounted at full opacity, and `exposedIn`
+  // then finds nothing and passes VACUOUSLY, which is worse than the failure it replaced.
+  //
+  // With the campaign's and survival's doors shut (`OFFER_CAMPAIGN`) the one word on the screen is the
+  // mine's, so that is the handover a player actually crosses. The curtain is the same mechanism at
+  // both ends — raised in `showMainMenu`, dropped at `revealMap`'s exits — and the mine takes the exit
+  // with NO LEVEL CARD, which is the harder of the two: there is nothing to cover the map but the
+  // curtain itself.
+  await page.click('#tsNewMine');
   await sleep(9000);
   const F = await page.evaluate(() => window.__F);
   const exposed = exposedIn(F);
   const cardAt = F.findIndex((f) => f.card);
   ok('frames were sampled across the handoff', F.length > 60, `${F.length} frames`);
-  ok('the level card came up', cardAt >= 0, cardAt >= 0 ? `frame ${cardAt}` : 'never');
-  ok('NO frame shows the game between the title and the card', exposed.length === 0,
+  ok('the map was revealed at the far end',
+     await page.evaluate(() => +getComputedStyle(document.getElementById('game')).opacity) > 0.9,
+     cardAt >= 0 ? `a card came up at frame ${cardAt}` : 'no card — the mine has none');
+  ok('NO frame shows the game between the title and the map', exposed.length === 0,
     exposed.length ? `${exposed.length} exposed, first ${JSON.stringify(exposed[0])}` : '0 of ' + F.length);
   // The curtain has to be the reason, not luck: it must have been up across the fade.
   const curtained = F.filter((f) => f.curtain).length;
   ok('the curtain covered the window rather than luck doing it', cardAt < 0 || curtained >= cardAt,
     `${curtained} curtained frames, card at ${cardAt}`);
   // And it must come down once the card is up, or the run is unplayable behind it.
-  ok('the curtain drops no later than the card', cardAt >= 0 && !F[Math.min(F.length - 1, cardAt)].curtain,
-    cardAt >= 0 ? `curtain at card frame: ${F[Math.min(F.length - 1, cardAt)].curtain}` : 'no card');
+  // THE CURTAIN MUST BE DOWN BY THE TIME SOMETHING HAS TAKEN OVER — the level card where there is
+  // one, and the map's own fade where there is not (the mine's exit). A curtain still up at the end
+  // is a black screen, which is far worse than the flash it prevents, so this is the other side of
+  // every assertion above it.
+  const lastF = F[F.length - 1] || {};
+  ok('the curtain is down once the takeover has happened',
+     cardAt >= 0 ? !F[Math.min(F.length - 1, cardAt)].curtain : lastF.curtain === false,
+     cardAt >= 0 ? `curtain at card frame: ${F[Math.min(F.length - 1, cardAt)].curtain}`
+                 : `curtain at the last sampled frame: ${lastF.curtain}`);
 
   await page.evaluate(() => { const li = document.getElementById('levelIntro'); if (li) li.remove(); });
   await sleep(700);
   const after = await page.evaluate(() => {
-    const c = document.querySelector('#ui .cardbtn');
+    // `.cardbtn` in a mine run is legitimately absent (there are no cards), so the visibility test
+    // below falls back to the resource pill — what the curtain has to hand back is the HUD, whatever
+    // that HUD is made of.
+    const c = document.querySelector('#ui .cardbtn') || document.querySelector('#ui .res');
     return {
       curtain: document.body.classList.contains('handoff'),
       uiVis: getComputedStyle(document.getElementById('ui')).visibility !== 'hidden',
@@ -166,7 +213,10 @@ const exposedIn = (F) => F.filter((f) => f.tOp < 0.35 && !f.card
   // would be a far louder bug than the one being fixed.
   console.log('\n-- title → New → the species picker --');
   await page.evaluate(() => { window.__game.showTitle(); });
-  await page.waitForSelector('#tsContCamp', { timeout: 12000 });
+  // `.ts-btn` IS THE CLASS EVERY TITLE LAYOUT'S BUTTONS CARRY, and this wait has been broken by a
+  // layout change twice now — once when the real-time rows came off and again when the campaign and
+  // survival rows did. `#tsContCamp` was only ever standing in for "the title screen is up".
+  await page.waitForSelector('#titleScreen .ts-btn', { timeout: 12000 });
   await sleep(900);
   await startSampling(page);
   await page.evaluate(() => { window.__game.showPicker(); });

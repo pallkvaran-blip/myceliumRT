@@ -228,6 +228,13 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   {
     const { page, errs } = await open('', { width: 1440, height: 900 });
     await page.waitForSelector('#titleScreen .ts-top .ts-actions', { timeout: 20000 });
+    // WHICH GAMES HAVE A DOOR. This block asserts the SHAPE of the title screen's rows, and the rows
+    // are a build decision (`window.__offers`) — with the campaign and survival withheld for the Deep
+    // Mine there is one row and one word, and "the Campaign row is a New/Old pair" is a question about
+    // a row that does not exist. It went red on a screen that was correct, along with three other
+    // checks, which is why the shape is now asked conditionally and the CAPTION RULE — the thing this
+    // block actually owns — is asserted on whatever words are there.
+    const offers = await page.evaluate(() => window.__offers);
     const geo = await page.evaluate(() => {
       const box = (el) => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, mid: r.top + r.height / 2 }; };
       const row = (sel) => {
@@ -247,12 +254,18 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
                third: document.querySelector('#titleScreen .ts-third') ? row('#titleScreen .ts-third') : null,
                acts };
     });
-    for (const r of [geo.top, geo.bot]) {
+    // A LABELLED ROW is one belonging to a game that shares the screen with another. With one game
+    // there is nothing to tell apart, so its row carries no label and its single word sits alone.
+    for (const r of (offers.campaign || offers.survival ? [geo.top, geo.bot] : [])) {
       ok(`the ${r.label} row is a New/Old pair`, r.n === 2, `${r.n} button(s)`);
       // ON the line, not floating above it. A few px of tolerance: the label and the words are
       // different sizes, so their optical centres never agree exactly.
       ok(`...with ${r.label} centred on it`, r.labMid != null && Math.abs(r.labMid - r.btnMid) <= 6,
          r.labMid == null ? '(no label)' : `label ${Math.round(r.labMid)} vs words ${Math.round(r.btnMid)}`);
+    }
+    if (!offers.campaign && !offers.survival) {
+      ok('the one game gets one word above the wordmark', geo.top.n === 1, `${geo.top.n} button(s)`);
+      ok('...and nothing below it but the record', geo.bot.n === 0, `${geo.bot.n} button(s)`);
     }
     if (geo.third) {
       ok('the Deep Mine row is a New on its own', geo.third.n === 1, `${geo.third.n} button(s)`);
@@ -260,10 +273,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
          geo.third.labMid != null && Math.abs(geo.third.labMid - geo.third.btnMid) <= 6,
          geo.third.labMid == null ? '(no label)' : `label ${Math.round(geo.third.labMid)} vs word ${Math.round(geo.third.btnMid)}`);
     }
-    // FIVE with three games, and DERIVED so a fourth does not turn a correct screen red. What is
-    // pinned is that every word has one and every one of them reads as its subtitle.
-    const wantCaps = 2 + 2 + (geo.third ? geo.third.n : 0);
-    ok('every word carries a caption', geo.acts.length === wantCaps, `${geo.acts.length} of ${wantCaps}`);
+    // DERIVED FROM WHAT IS ON THE SCREEN, not from a game count — a build offering one game has one
+    // word and a build offering three has five, and neither is a defect. What is pinned is that every
+    // word has a caption and every one of them reads as its subtitle rather than as a line of its own.
+    const wantCaps = geo.top.n + geo.bot.n + (geo.third ? geo.third.n : 0);
+    ok('every word carries a caption', geo.acts.length === wantCaps && wantCaps > 0,
+       `${geo.acts.length} of ${wantCaps}`);
     ok('...and every one of them is below its word', geo.acts.every((a) => a.cap.mid > a.btn.mid),
        geo.acts.map((a) => Math.round(a.cap.mid - a.btn.mid)).join(', ') + ' px');
     // CLOSE, not merely below: the caption belongs to that word and has to read as its subtitle

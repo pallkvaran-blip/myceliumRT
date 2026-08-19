@@ -390,23 +390,36 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // because the whole defect class here is "the screen exists but nothing reaches it": the level
   // card was hidden from every build by a dev-flag skip that no assertion could see, and this
   // screen's previous placement was reachable only through a latch that stopped re-arming.
+  // DRIVEN THROUGH `__game.campaign.opening` NOW, NOT THROUGH THE TITLE. This used to go the real
+  // route — title -> New -> name -> Start — precisely because "the screen exists but nothing reaches
+  // it" is the defect class here. The campaign's door is now shut (`OFFER_CAMPAIGN`, owner), so there
+  // is no New to press and the route cannot be walked; the screen, its copy and its typography are
+  // untouched and are what the assertions below are about, so they run against the same function the
+  // button called. If the campaign is ever offered again, the walk is worth restoring with it.
   const onNew = await page.evaluate(async () => {
     document.querySelectorAll('#levelIntro, #speciesSelect, #ssLevelComplete, #ssGameWon').forEach((n) => n.remove());
-    window.__game.showTitle();
-    for (let i = 0; i < 60 && !document.querySelector('#tsNewCamp'); i++) await new Promise((r) => setTimeout(r, 100));
-    if (!document.querySelector('#tsNewCamp')) return { reachedTitle: false };
-    document.querySelector('#tsNewCamp').click();
-    for (let i = 0; i < 40 && !document.querySelector('#tsNameStart'); i++) await new Promise((r) => setTimeout(r, 100));
-    if (!document.querySelector('#tsNameStart')) return { reachedTitle: true, reachedDialog: false };
-    document.querySelector('#tsNameInput').value = 'probe';
-    document.querySelector('#tsNameStart').click();
+    const viaTitle = !!window.__offers.campaign;
+    if (viaTitle) {
+      window.__game.showTitle();
+      for (let i = 0; i < 60 && !document.querySelector('#tsNewCamp'); i++) await new Promise((r) => setTimeout(r, 100));
+      if (!document.querySelector('#tsNewCamp')) return { reachedTitle: false };
+      document.querySelector('#tsNewCamp').click();
+      for (let i = 0; i < 40 && !document.querySelector('#tsNameStart'); i++) await new Promise((r) => setTimeout(r, 100));
+      if (!document.querySelector('#tsNameStart')) return { reachedTitle: true, reachedDialog: false };
+      document.querySelector('#tsNameInput').value = 'probe';
+      document.querySelector('#tsNameStart').click();
+    } else {
+      // `showPicker` is what the opening hands over to, exactly as it does on the real route, so the
+      // "before the picker, not after it" pair below still measures the handover.
+      window.__game.campaign.opening(() => window.__game.showPicker());
+    }
     // The title screen plays a consume animation before onNew fires, so poll rather than guess.
     for (let i = 0; i < 120 && !document.querySelector('#levelIntro.li-story'); i++) await new Promise((r) => setTimeout(r, 100));
     const st = document.querySelector('#levelIntro.li-story');
     const cs = (sel) => { const n = document.querySelector(sel); return n ? getComputedStyle(n) : null; };
     const pc = cs('.li-story-p'), ac = cs('.li-story-ask');
     const rgb = (c) => c ? (c.color.match(/\d+/g) || []).slice(0, 3).map(Number) : null;
-    const out = { reachedTitle: true, reachedDialog: true, shown: !!st,
+    const out = { reachedTitle: true, reachedDialog: true, viaTitle, shown: !!st,
                   paras: [...document.querySelectorAll('.li-story-p')].map((n) => n.textContent.trim()),
                   ask: (document.querySelector('.li-story-ask') || {}).textContent || null,
                   btns: document.querySelectorAll('#levelIntro button').length,
@@ -423,8 +436,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     document.querySelectorAll('#levelIntro, #speciesSelect').forEach((n) => n.remove());
     return out;
   });
-  ok('pressing New on the Campaign row shows the opening', onNew.shown === true,
-     `title=${onNew.reachedTitle} dialog=${onNew.reachedDialog}`);
+  ok(onNew.viaTitle ? 'pressing New on the Campaign row shows the opening'
+                   : 'the campaign opening still shows (its door is shut, so driven directly)',
+     onNew.shown === true, `title=${onNew.reachedTitle} dialog=${onNew.reachedDialog}`);
   ok('...before the species picker, not after it',
      onNew.pickerBefore === false && onNew.pickerAfter === true,
      `picker before=${onNew.pickerBefore} after=${onNew.pickerAfter}`);
@@ -1001,7 +1015,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const camp = root.querySelector('#tsNewCamp'), old = root.querySelector('#tsContCamp');
     const locked = root.querySelectorAll('.ts-locked').length;
     const soon = [...root.querySelectorAll('.ts-soon')].map((n) => n.textContent.trim());
-    return { modes, hasNew: !!camp, hasOld: !!old, locked, soon,
+    return { modes, hasNew: !!camp, hasOld: !!old, locked, soon, offers: window.__offers,
              rt: !!(root.querySelector('#tsNewRt') || root.querySelector('#tsContRt')),
              ids: ['tsNew', 'tsCont', 'tsNewRt', 'tsContRt', 'tsNewCamp', 'tsContCamp']
                .filter((id) => !!root.querySelector('#' + id)) };
@@ -1010,15 +1024,29 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // half"), so both rows carry a label. mode-check owns the LAYOUT — which row, which side, how
   // far from the wordmark; what matters HERE is that the campaign is a real entry with a pair of
   // its own, which is this file's whole subject, and that it is the one on top.
-  // THREE games now — the Deep Mine was appended as a row under the other two. What matters HERE
-  // is unchanged: the campaign is a real entry with a pair of its own and it is the one on TOP.
-  ok('the title screen names every game, campaign first',
-     !title.missing && title.modes.join(',') === 'Campaign,Survival,Deep Mine',
-     (title.modes || []).join(' / ') || '(none)');
-  ok('Campaign has its own New and Old', title.hasNew === true && title.hasOld === true,
-     (title.ids || []).join(', '));
-  ok('...and survival has its own beside them', (title.ids || []).join(',') === 'tsNew,tsCont,tsNewCamp,tsContCamp',
-     (title.ids || []).join(', '));
+  // THE CAMPAIGN'S DOOR IS SHUT (owner: "remove the campaign and survival from the title screen -
+  // we'll only be working on this for the forseeable future"), so there is no Campaign row to assert
+  // the shape of. Everything else in this file is unaffected: the ladder, the maps, the fixed seeds,
+  // the retries, the victory screen and the store are all driven through `__game.campaign.play` and
+  // `#rt`, which is how they were always driven. What is asserted here is that the door really is
+  // shut and that NOTHING UNDER IT WAS DELETED — the flag is the whole change, and the two resume
+  // slots below prove the plumbing is intact.
+  ok('the title screen was reached', !title.missing, title.missing ? 'missing' : 'up');
+  if (!title.offers.campaign) {
+    ok('the campaign has no door on the title screen',
+       title.hasNew === false && title.hasOld === false, (title.ids || []).join(', ') || 'no campaign buttons');
+    ok('...and neither does survival', (title.ids || []).length === 0, (title.ids || []).join(', ') || 'none');
+    ok('...the Deep Mine is what the screen offers', title.modes.length === 0 && title.offers.mine === true,
+       (title.modes || []).join(' / ') || 'no labels, one game');
+  } else {
+    ok('the title screen names every game, campaign first',
+       title.modes.join(',') === 'Campaign,Survival,Deep Mine',
+       (title.modes || []).join(' / ') || '(none)');
+    ok('Campaign has its own New and Old', title.hasNew === true && title.hasOld === true,
+       (title.ids || []).join(', '));
+    ok('...and survival has its own beside them', (title.ids || []).join(',') === 'tsNew,tsCont,tsNewCamp,tsContCamp',
+       (title.ids || []).join(', '));
+  }
   ok('nothing on the title screen is locked any more', title.locked === 0, String(title.locked));
   // REAL TIME IS OFF THE TITLE SCREEN for this release (owner: "not this next release"), and it
   // is a SEPARATE constant from survival's — asserted here because the two coming back together
@@ -1033,8 +1061,10 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   // `.ts-soon` is the sub-line slot under a game's label, and there are two of them now — the
   // campaign's "Chapter 1" and the mine's "dig down". Asserted in ROW ORDER so a sub-line landing
   // under the wrong game (how "coming soon" once sat under Campaign) still fails.
-  ok('...and "Chapter 1" is the CAMPAIGN\'s sub-line', (title.soon || [])[0] === 'Chapter 1',
-     (title.soon || []).join(' | ') || '(nothing there)');
+  if (title.offers.campaign) {
+    ok('...and "Chapter 1" is the CAMPAIGN\'s sub-line', (title.soon || [])[0] === 'Chapter 1',
+       (title.soon || []).join(' | ') || '(nothing there)');
+  }
   // THREE RESUME SLOTS, one per (mode, game) pair. Two are reachable from the title now and the
   // real-time one is not, but keeping all three distinct is what stops a campaign start
   // clobbering a half-finished survival run — so they are asserted whatever the title offers.
