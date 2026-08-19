@@ -391,16 +391,36 @@ const DISK = fs.readdirSync(path.join(ROOT, 'docs', 'levels')).filter((f) => f.e
   };
   await p2.goto(base + '/index.html', { waitUntil: 'domcontentloaded' }); await boot();
   await p2.waitForSelector('#titleScreen .ts-btn', { timeout: 30000 });
-  // THE DOOR IS SHUT (owner: "lets remove survival mode from the game... we may add it back
-  // sometime later, so lets keep that option"). This block used to enter through the title's
-  // Survival New; the row is gone, so the first thing asserted is that it is gone — and
-  // everything below it drives the same run through the model instead, which is what makes
-  // "kept, not deleted" a claim with evidence rather than a comment.
+  // THE DOOR IS OPEN AGAIN (owner: "let's add survival back"). It was shut for one release and
+  // the option to reopen it was one constant, `OFFER_SURVIVAL` — so the row's return is that line
+  // and nothing else, which is the claim this pair of assertions makes.
+  //
+  // Everything BELOW still drives the run through `__menu.playSurvival` rather than through the
+  // button. That was written when the row was gone and it stays: it is the shorter route, and it
+  // keeps this file measuring survival's RULES rather than the title screen's markup, which
+  // mode-check owns.
   const doors = await p2.evaluate(() => ['tsNew', 'tsCont', 'tsNewRt', 'tsContRt', 'tsNewCamp', 'tsContCamp']
     .filter((id) => !!document.getElementById(id)));
-  ok('survival has no row on the title screen', !doors.includes('tsNew') && !doors.includes('tsCont'),
+  ok('survival has a row on the title screen again', doors.includes('tsNew') && doors.includes('tsCont'),
      doors.join(', '));
-  ok('...and the campaign\'s pair is what is left', doors.join(',') === 'tsNewCamp,tsContCamp', doors.join(', '));
+  ok('...beside the campaign\'s, and real time still has none',
+     doors.join(',') === 'tsNew,tsCont,tsNewCamp,tsContCamp', doors.join(', '));
+  // AND THE DOOR OPENS ONTO SOMETHING. A row that renders is not a row that works: the survival
+  // entry path sat unexercised for a release, and `onNew` branches on the game it is handed —
+  // the campaign gets the opening screens, survival goes straight to the picker. Driven through
+  // the real clicks (New → name → Start), because the ids and the handler table are exactly what
+  // could have drifted apart while nothing was pressing them. It ends at the PICKER rather than
+  // in a run: choosing a species is the next screen either way, and this file has its own,
+  // shorter route into the run itself just below.
+  await p2.click('#tsNew');
+  await p2.waitForSelector('#tsNameStart', { timeout: 8000 });
+  await p2.click('#tsNameStart');
+  const arrived = await p2.waitForSelector('#speciesSelect', { timeout: 20000 }).then(() => true).catch(() => false);
+  ok('pressing Survival "New" reaches the species picker', arrived);
+  ok('...having set the game to survival, not the campaign',
+     await p2.evaluate(() => window.__cfg.game === 'survival' && window.__cfg.mode === 'turn'),
+     await p2.evaluate(() => window.__cfg.game + '/' + window.__cfg.mode));
+  await p2.evaluate(() => { document.querySelectorAll('#speciesSelect').forEach((n) => n.remove()); });
   const ran = await p2.evaluate(async () => {
     if (!window.__menu.playSurvival('marasmius', 1, 'turn')) return false;   // the row carried its mode
     for (let i = 0; i < 80; i++) {

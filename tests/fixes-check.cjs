@@ -206,45 +206,59 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     await page.close();
   }
 
-  // ---- 3) SURVIVAL sits on the New/Old line --------------------------------
-  // THIS ASSERTION'S SUBJECT HAS BEEN DELETED TWICE, and each time the QUESTION survived the
-  // markup. Originally: SURVIVAL floated above the New/Old line instead of sitting on it, and the
-  // probe waited on `.ts-split` — a layout that stopped shipping when real time came off the title
-  // screen, so it sat timing out on a selector for markup that had been removed. Now survival is
-  // withheld too (OFFER_SURVIVAL) and there is no mode label at all to centre on anything.
+  // ---- 3) the mode label sits ON the New/Old line, and the caption under its word ----------
+  // THIS ASSERTION'S SUBJECT HAS BEEN DELETED AND RESTORED, and the QUESTION survived every
+  // rewrite of the markup. Originally: SURVIVAL floated above the New/Old line instead of sitting
+  // on it, and the probe waited on `.ts-split` — a layout that stopped shipping when real time
+  // came off the title screen, so it sat timing out on a selector for markup that had been
+  // removed. Then survival was withheld too and there was no mode label left to centre on
+  // anything, so only the caption half of it could be asked. Survival is back (OFFER_SURVIVAL),
+  // so BOTH halves are live again, and neither is pinned to a selector that names a layout: the
+  // label is found per row, and the captions are found per `.ts-act`.
   //
-  // What is left of it is the other half of that layout and the half that can still break: where
-  // the caption sits relative to its word. It floated ABOVE the button at `bottom:84%` of the
-  // button's own box — a percentage chosen so its baseline tucked against the CAP TOPS and
-  // tracked the font across the clamp range. The owner has since moved it UNDER the word, where
-  // that trick has no equivalent (the box carries descender space the caps never use, so any
-  // `top:%` right at 64px is wrong at 34px), so `.ts-act.ts-solo` lays it out in FLOW with
-  // `column-reverse` — button first, caption after, a real gap and no number to re-tune.
-  console.log('\n3 — the New/Old captions sit under their words');
+  // The caption half: it once floated ABOVE the button at `bottom:84%` of the button's own box — a
+  // percentage chosen so its baseline tucked against the CAP TOPS and tracked the font across the
+  // clamp range. The owner moved it UNDER the word, where that trick has no equivalent (the box
+  // carries descender space the caps never use, so any `top:%` right at 64px is wrong at 34px), so
+  // `.ts-act` lays it out in FLOW with `column-reverse` — button first, caption after, a real gap
+  // and no number to re-tune. That rule was `.ts-act.ts-solo` while there was one game, so
+  // restoring the two-row screen is exactly the change that could have put three of these four
+  // captions back above their words.
+  console.log('\n3 — the mode labels sit on the New/Old line, captions under their words');
   {
     const { page, errs } = await open('', { width: 1440, height: 900 });
     await page.waitForSelector('#titleScreen .ts-top .ts-actions', { timeout: 20000 });
     const geo = await page.evaluate(() => {
       const box = (el) => { const r = el.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, mid: r.top + r.height / 2 }; };
-      const btns = [...document.querySelectorAll('#titleScreen .ts-top .ts-btn')];
-      const caps = [...document.querySelectorAll('#titleScreen .ts-top .ts-cap')];
-      return { n: btns.length, caps: caps.length,
-               btn: btns.length ? box(btns[0]) : null, cap: caps.length ? box(caps[0]) : null,
-               labels: [...document.querySelectorAll('#titleScreen .ts-mode')].map((n) => n.textContent.trim()),
-               size: btns.length ? parseFloat(getComputedStyle(btns[0]).fontSize) : 0 };
+      const row = (sel) => {
+        const r = document.querySelector(sel);
+        const btns = [...r.querySelectorAll('.ts-btn')], lab = r.querySelector('.ts-mode');
+        return { n: btns.length, label: lab ? lab.textContent.trim() : null,
+                 labMid: lab ? box(lab).mid : null, btnMid: btns.length ? box(btns[0]).mid : null };
+      };
+      const acts = [...document.querySelectorAll('#titleScreen .ts-act')].map((a) => ({
+        btn: box(a.querySelector('.ts-btn')), cap: box(a.querySelector('.ts-cap')),
+        size: parseFloat(getComputedStyle(a.querySelector('.ts-btn')).fontSize),
+      }));
+      return { top: row('#titleScreen .ts-top'), bot: row('#titleScreen .ts-bottom'), acts };
     });
-    ok('the top row is one button', geo.n === 1, `${geo.n} button(s)`);
-    ok('...with nothing labelling a mode beside it', geo.labels.length === 0, geo.labels.join(', ') || 'none');
-    ok('its caption is below it', !!geo.cap && !!geo.btn && geo.cap.mid > geo.btn.mid,
-       geo.cap ? `caption ${Math.round(geo.cap.mid)} vs button ${Math.round(geo.btn.mid)}` : '(no caption)');
+    for (const r of [geo.top, geo.bot]) {
+      ok(`the ${r.label} row is a New/Old pair`, r.n === 2, `${r.n} button(s)`);
+      // ON the line, not floating above it. A few px of tolerance: the label and the words are
+      // different sizes, so their optical centres never agree exactly.
+      ok(`...with ${r.label} centred on it`, r.labMid != null && Math.abs(r.labMid - r.btnMid) <= 6,
+         r.labMid == null ? '(no label)' : `label ${Math.round(r.labMid)} vs words ${Math.round(r.btnMid)}`);
+    }
+    ok('all four words carry a caption', geo.acts.length === 4, `${geo.acts.length} of 4`);
+    ok('...and every one of them is below its word', geo.acts.every((a) => a.cap.mid > a.btn.mid),
+       geo.acts.map((a) => Math.round(a.cap.mid - a.btn.mid)).join(', ') + ' px');
     // CLOSE, not merely below: the caption belongs to that word and has to read as its subtitle
     // rather than as a line of its own. A generous bound rather than a pixel, since both are
     // clamp()d — but it fails an absolutely-positioned caption, which lands on top of the glyphs
     // or well clear of them depending on the size.
-    ok('...and close enough to read as its subtitle',
-       !!geo.cap && !!geo.btn && (geo.cap.top - geo.btn.bottom) < geo.size * 0.35
-         && geo.cap.top >= geo.btn.bottom - 1,
-       geo.cap ? `${Math.round(geo.cap.top - geo.btn.bottom)}px gap at ${geo.size}px type` : '—');
+    ok('...close enough to read as a subtitle',
+       geo.acts.every((a) => (a.cap.top - a.btn.bottom) < a.size * 0.35 && a.cap.top >= a.btn.bottom - 1),
+       geo.acts.map((a) => `${Math.round(a.cap.top - a.btn.bottom)}px@${a.size}`).join(', '));
     ok('no page errors', errs.length === 0, errs.slice(0, 2).join(' | '));
     await page.close();
   }

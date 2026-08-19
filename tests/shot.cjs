@@ -11,7 +11,10 @@ const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
     await page.goto(base+'/index.html',{waitUntil:'domcontentloaded'});
     await page.waitForSelector('#loadscreen.ld-ready',{timeout:20000}).catch(()=>{});
     await page.click('#loadscreen',{timeout:5000}).catch(()=>{});
-    await page.waitForSelector('#titleScreen .ts-split',{timeout:20000});
+    // `.ts-actions` — the row itself, which every title layout has. It used to wait on
+    // `.ts-split`, the four-button Survival row, which has not shipped since OFFER_REALTIME went
+    // off: this tool has been timing out for releases rather than capturing anything.
+    await page.waitForSelector('#titleScreen .ts-actions',{timeout:20000});
     await sleep(4500);
     await page.screenshot({path:`title-${tag}.png`});
     await page.close();

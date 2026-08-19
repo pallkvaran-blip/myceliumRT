@@ -1,9 +1,11 @@
 /* Both games in one build: the title screen's entries, and each mode's core rules.
  *
- * Real time is no longer offered from the title screen (owner: "not this next release"), so TEST 1
- * asserts the door is shut and TEST 3 drives the variant through `#dev`, which is now its only way
- * in. The MODE itself is untouched — MODE_TUNING, setMode and every mode-gated rule are unchanged,
- * and everything TEST 3 asserts about real time still has to hold. */
+ * TEST 1 owns the title screen's SHAPE — two rows again, campaign on top and survival below it,
+ * Old on the left of each and New on the right (owner). Survival was withheld for one release and
+ * is back; REAL TIME's door is still shut (owner: "not this next release"), which is why TEST 3
+ * drives that variant through `#dev` instead. The MODE itself is untouched either way —
+ * MODE_TUNING, setMode and every mode-gated rule are unchanged, and everything TEST 3 asserts
+ * about real time still has to hold. */
 const http = require('http'); const fs = require('fs'); const path = require('path');
 const { chromium } = require('playwright');
 const ROOT = path.resolve(__dirname, '..');   // the repo root — served as-is
@@ -38,74 +40,93 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
   };
 
   // ---------------------------------------------------------------- TITLE SCREEN
-  console.log('\nTEST 1 — the title screen offers ONE game');
+  console.log('\nTEST 1 — the title screen offers BOTH games, campaign on top');
   //
-  // BOTH doors are withheld for this release and each is one constant in __m_config. Real time
-  // went first (owner: "not this next release"); SURVIVAL followed it (owner: "lets remove
-  // survival mode from the game, the retention rate is too low. we may add it back sometime
-  // later, so lets keep that option"). Neither VARIANT is gone — TEST 3 below still drives real
-  // time via #dev, and survival-check still drives survival through `__game.survival.play`. What
-  // is asserted here is the shape the screen takes with one game, and that both withdrawn doors
-  // stay shut.
+  // SURVIVAL IS BACK (owner: "let's add survival back, but put that on the bottom half on the
+  // title screen while the campaign sits on the top half. put the new buttons on the right and
+  // the old buttons on the left"). It had been withheld for one release — "the retention rate is
+  // too low. we may add it back sometime later, so lets keep that option" — and the option was
+  // `OFFER_SURVIVAL` in __m_config, so coming back is that one constant.
   //
-  // With nothing to choose between there is nothing to label, so the mode titles go with the rows
-  // and the two buttons straddle the wordmark: New above it, Old below (owner).
+  // REAL TIME'S door is still shut (owner: "not this next release"), which is a SECOND constant
+  // and the control for this block: the two flags are the same mechanism, so a screen that
+  // brought survival back and real time with it would mean the two had been confused. TEST 3
+  // below still drives the real-time variant via #dev.
+  //
+  // What is asserted here is the SHAPE — which game is which row, which word is which side, and
+  // that the door real time was withheld by is still withheld.
   {
     const { page, errs } = await openPage('');
     await page.waitForSelector('#titleScreen .ts-top .ts-actions', { timeout: 20000 });
     const top = await page.$$eval('#titleScreen .ts-top .ts-btn', (bs) => bs.map((b) => b.id));
     const bot = await page.$$eval('#titleScreen .ts-bottom .ts-btn', (bs) => bs.map((b) => b.id));
-    ok('New sits above the wordmark, alone', top.join(',') === 'tsNewCamp', top.join(',') || '(none)');
-    ok('...and Old below it, alone', bot.join(',') === 'tsContCamp', bot.join(',') || '(none)');
-    ok('survival is not offered from the title screen',
-       (await page.$('#tsNew')) === null && (await page.$('#tsCont')) === null);
-    ok('real time is not offered from the title screen',
+    // DOM ORDER, which is what decides the columns — see .ts-actions in the stylesheet. The
+    // geometric assertion below is the one that would catch a CSS change reversing them anyway;
+    // this one says which pair belongs to which game.
+    ok('the CAMPAIGN pair is the top row', top.join(',') === 'tsContCamp,tsNewCamp', top.join(',') || '(none)');
+    ok('...and the SURVIVAL pair is the bottom row', bot.join(',') === 'tsCont,tsNew', bot.join(',') || '(none)');
+    ok('real time is still not offered from the title screen',
        (await page.$('#tsNewRt')) === null && (await page.$('#tsContRt')) === null);
+    // Two games means two labels again, and the campaign is the one that carries a sub-line.
+    const modes = await page.$$eval('#titleScreen .ts-mode', (ns) => ns.map((n) => n.textContent.trim()));
+    ok('each row names its game, campaign first', modes.join(',') === 'Campaign,Survival', modes.join(',') || '(none)');
     ok('nothing is left labelling a mode that has no button',
-       (await page.$$('#titleScreen .ts-kind')).length === 0
-       && (await page.$$('#titleScreen .ts-mode')).length === 0);
-    // NOTHING BETWEEN THE WORDMARK AND THE WORDS (owner). "Chapter 1" outlived the CAMPAIGN label
-    // for one pass and has gone too, so the screen carries the wordmark, two words and Credits.
+       (await page.$$('#titleScreen .ts-kind')).length === 0);
     const soon = await page.$$eval('#titleScreen .ts-soon', (ns) => ns.map((n) => n.textContent.trim()));
-    ok('nothing is left between the wordmark and the words', soon.length === 0, soon.join(',') || '(none)');
+    ok('"Chapter 1" sits under CAMPAIGN and nowhere else', soon.join(',') === 'Chapter 1', soon.join(',') || '(none)');
     const caps = await page.$$eval('#titleScreen .ts-cap', (cs) => cs.map((c) => c.textContent));
-    ok('every button keeps its caption', caps.join(' | ') === 'start a new game | continue last game', caps.join(' | '));
-    // UNDER the word now, not above it (owner). Asserted here as well as in fixes-check because
-    // this is the file that owns the screen's shape, and "the caption exists" would pass on
-    // either side of the word.
-    const capSide = await page.evaluate(() => {
+    ok('every button keeps its caption',
+       caps.join(' | ') === 'continue last game | start a new game | continue last game | start a new game',
+       caps.join(' | '));
+
+    // OLD LEFT, NEW RIGHT, IN BOTH ROWS (owner) — measured, because the ids above only say what
+    // order they were WRITTEN in and `.ts-actions` is a grid whose columns could be reassigned
+    // from the stylesheet without touching the markup. Also that the two rows AGREE: New over New
+    // and Old over Old is the whole point of the equal 1fr side columns.
+    const side = await page.evaluate(() => {
       const mid = (s) => { const n = document.querySelector(s); if (!n) return null;
-        const r = n.getBoundingClientRect(); return r.top + r.height / 2; };
-      return { newCap: mid('#titleScreen .ts-top .ts-cap'), newBtn: mid('#titleScreen .ts-top .ts-btn'),
-               oldCap: mid('#titleScreen .ts-bottom .ts-cap'), oldBtn: mid('#titleScreen .ts-bottom .ts-btn') };
+        const r = n.getBoundingClientRect(); return r.left + r.width / 2; };
+      return { campOld: mid('#tsContCamp'), campNew: mid('#tsNewCamp'),
+               survOld: mid('#tsCont'), survNew: mid('#tsNew'), vw: innerWidth };
     });
-    ok('both captions sit UNDER their word',
-       capSide.newCap > capSide.newBtn && capSide.oldCap > capSide.oldBtn,
-       `New ${Math.round(capSide.newCap - capSide.newBtn)}px below, Old ${Math.round(capSide.oldCap - capSide.oldBtn)}px below`);
+    ok('Campaign: Old is left of New', side.campOld < side.campNew,
+       `Old ${Math.round(side.campOld)} < New ${Math.round(side.campNew)}`);
+    ok('Survival: Old is left of New', side.survOld < side.survNew,
+       `Old ${Math.round(side.survOld)} < New ${Math.round(side.survNew)}`);
+    ok('...and the two rows line up with each other',
+       Math.abs(side.campOld - side.survOld) < 40 && Math.abs(side.campNew - side.survNew) < 40,
+       `Old ${Math.round(side.campOld)}/${Math.round(side.survOld)}, New ${Math.round(side.campNew)}/${Math.round(side.survNew)}`);
 
-    // BIGGER, and the same size as each other (owner: "make both a bit bigger"). Asserted as a
-    // BAND rather than a number — the size is a clamp() and a 1400x900 page lands mid-range — but
-    // the floor matters twice over: past the old pair size (52px, which is what "bigger" means
-    // here) and well clear of ~26px, below which the consume animation's strand step stalls.
+    // UNDER the word (owner), in EVERY row. The rule used to be `.ts-act.ts-solo` only, so
+    // restoring the two-row screen would have silently put three of these four back above their
+    // words — asserted on all four for exactly that reason.
+    const capSide = await page.evaluate(() => [...document.querySelectorAll('#titleScreen .ts-act')].map((a) => {
+      const b = a.querySelector('.ts-btn').getBoundingClientRect(), c = a.querySelector('.ts-cap').getBoundingClientRect();
+      return Math.round((c.top + c.height / 2) - (b.top + b.height / 2));
+    }));
+    ok('all four captions sit UNDER their word',
+       capSide.length === 4 && capSide.every((d) => d > 0), capSide.join(', ') + ' px below');
+
+    // The two-row PAIR size, and the same on both rows. A band rather than a number (it is a
+    // clamp() and a 1280-wide page lands mid-range); the floor that matters is ~26px, below which
+    // the consume animation's strand step stalls — its first attractor lands inside the kill
+    // radius and the word never grows.
     const sizes = await page.evaluate(() => {
-      const btn = document.querySelector('#titleScreen .ts-top .ts-btn');
-      const cap = document.querySelector('#titleScreen .ts-top .ts-cap');
-      const camp = document.querySelector('#titleScreen .ts-bottom .ts-btn');
-      return { btn: parseFloat(getComputedStyle(btn).fontSize), cap: parseFloat(getComputedStyle(cap).fontSize),
-               camp: parseFloat(getComputedStyle(camp).fontSize) };
+      const f = (s) => parseFloat(getComputedStyle(document.querySelector(s)).fontSize);
+      return { camp: f('#tsNewCamp'), surv: f('#tsNew'), cap: f('#titleScreen .ts-top .ts-cap') };
     });
-    ok('New is bigger than the two-row pair size and still animatable', sizes.btn > 52 && sizes.btn <= 64, `${sizes.btn}px`);
-    ok('Old is the same size', Math.abs(sizes.camp - sizes.btn) < 0.6, `${sizes.camp}px`);
-    ok('captions stay quiet beside it', sizes.cap <= 11, `${sizes.cap}px`);
+    ok('the words are big enough for the consume animation', sizes.camp > 26 && sizes.camp <= 52, `${sizes.camp}px`);
+    ok('both rows are set at the same size', Math.abs(sizes.camp - sizes.surv) < 0.6, `${sizes.surv}px`);
+    ok('captions stay quiet beside them', sizes.cap <= 9, `${sizes.cap}px`);
 
-    // New above, Old below, and nothing running off the screen.
+    // Campaign above Survival, and nothing running off the screen.
     const geo = await page.evaluate(() => {
       const t = document.querySelector('#titleScreen .ts-top').getBoundingClientRect();
       const b = document.querySelector('#titleScreen .ts-bottom').getBoundingClientRect();
       return { t: { top: t.top, bottom: t.bottom, left: t.left, right: t.right }, b: { top: b.top, bottom: b.bottom },
                vw: innerWidth, vh: innerHeight };
     });
-    ok('New sits above Old', geo.t.bottom < geo.b.top, `${Math.round(geo.t.bottom)} < ${Math.round(geo.b.top)}`);
+    ok('Campaign sits above Survival', geo.t.bottom < geo.b.top, `${Math.round(geo.t.bottom)} < ${Math.round(geo.b.top)}`);
 
     // EQUIDISTANT FROM THE INK, NOT FROM `titleY` (owner: "the top of the old and the bottom of
     // the 'start a new game' should be roughly equally distance from the title"). `seedTitle`
@@ -137,35 +158,44 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
         else agree = 0;
         last = r;
       }
+      // THE ROWS' OWN BOXES, not one button inside them, because which element is nearest the
+      // wordmark depends on where the caption sits — and the caption has now moved to the far
+      // side of its word once already. A row's rect ends at its last IN-FLOW child, so "Chapter
+      // 1" (absolute) is excluded here exactly as it is from the `offsetHeight` positionMenu
+      // places the row by; it lands level with the captions beside it.
       const b = (s) => { const n = document.querySelector(s); const q = n.getBoundingClientRect(); return { t: q.top, b: q.bottom }; };
-      return { ink: r, cap: b('#titleScreen .ts-top .ts-cap'), old: b('#tsContCamp'), settled: agree >= 2 };
+      return { ink: r, top: b('#titleScreen .ts-top'), bot: b('#titleScreen .ts-bottom'), settled: agree >= 2 };
     });
-    const above = Math.round(sym.ink.top - sym.cap.b);
-    const below = Math.round(sym.old.t - sym.ink.bot);
+    const above = Math.round(sym.ink.top - sym.top.b);
+    const below = Math.round(sym.bot.t - sym.ink.bot);
     ok('the wordmark was measured, not guessed at mid-bloom', sym.settled && sym.ink.bot > sym.ink.top,
        `ink ${sym.ink.top}..${sym.ink.bot}${sym.settled ? '' : ' (never settled)'}`);
     // A generous tolerance on purpose: the fringe tendrils are random, so the silhouette differs
     // by ~10px between boots of the same build. It still fails the symmetric model, which was out
     // by 59px in the same measurement.
-    ok('...and New and Old are the same distance from it',
+    ok('...and the two rows are the same distance from it',
        above > 0 && below > 0 && Math.abs(above - below) <= Math.max(20, 0.2 * Math.max(above, below)),
        `${above}px above, ${below}px below`);
     ok('both are on screen', geo.t.top > 0 && geo.b.bottom < geo.vh, `top=${Math.round(geo.t.top)} bottom=${Math.round(geo.b.bottom)} vh=${geo.vh}`);
-    ok('the New row fits the width', geo.t.left >= 0 && geo.t.right <= geo.vw, `${Math.round(geo.t.left)}..${Math.round(geo.t.right)} of ${geo.vw}`);
+    ok('the Campaign row fits the width', geo.t.left >= 0 && geo.t.right <= geo.vw, `${Math.round(geo.t.left)}..${Math.round(geo.t.right)} of ${geo.vw}`);
 
-    // HIGH SCORES IS GONE WITH SURVIVAL (owner: "remove the high scores as that is not relevant
-    // anymore"), and it had to be: the board ranks how DEEP a run got and a campaign run files no
-    // score at all, so the link could only ever open an empty ladder. CREDITS stays where it was,
-    // bottom-centre, which is the control — "the link is missing" would also pass on a title
-    // screen that had lost its whole footer.
+    // HIGH SCORES COMES BACK WITH SURVIVAL, and that coupling is the point rather than a
+    // side-effect: the board ranks how DEEP a run got and `checkHighScore` is gated on
+    // `!isCampaignGame()`, so with survival withheld nothing could ever file a score and the link
+    // opened an empty ladder ("remove the high scores as that is not relevant anymore"). Both
+    // read the one `OFFER_SURVIVAL` for that reason, and asserting the link HERE is what stops
+    // them drifting apart. CREDITS at the foot is the control — "the link is there" would also
+    // pass on a screen that had grown a second footer.
     const links = await page.evaluate(() => {
       const box = (s) => { const n = document.querySelector(s); if (!n) return null;
         const r = n.getBoundingClientRect(); return { top: r.top, bottom: r.bottom, mid: (r.left + r.right) / 2 }; };
       return { hs: box('#tsHighScores'), cr: box('#tsCredits'), header: !!document.querySelector('#titleScreen .ts-header'),
                vw: innerWidth, vh: innerHeight };
     });
-    ok('High Scores is gone from the title screen', !links.hs && !links.header,
-       links.hs ? 'still there' : (links.header ? 'empty header bar left behind' : 'gone'));
+    ok('High Scores is back, at the TOP', !!links.hs && !!links.header && links.hs.top < links.vh * 0.1,
+       links.hs ? `top ${Math.round(links.hs.top)} of ${links.vh}` : 'missing');
+    ok('...centred', !!links.hs && Math.abs(links.hs.mid - links.vw / 2) < 2,
+       links.hs ? `mid ${Math.round(links.hs.mid)} vs ${links.vw / 2}` : 'missing');
     ok('Credits stays at the BOTTOM', !!links.cr && links.cr.bottom > links.vh * 0.9,
        links.cr ? `bottom ${Math.round(links.cr.bottom)} of ${links.vh}` : 'missing');
     ok('...centred', !!links.cr && Math.abs(links.cr.mid - links.vw / 2) < 2,

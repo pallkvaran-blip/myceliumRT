@@ -75,7 +75,8 @@ Music credits: [Sascha Ende](https://ende.app/en)
 |---|---|---|
 | Campaign is 9 levels | `CAMPAIGN_LEVELS` | 9 |
 | ...on hand-built maps | `campaignLevel` in `docs/levels/*.json` | slots 1–9, all named for their rock |
-| turn-based only | `OFFER_REALTIME` / `OFFER_SURVIVAL` | both false — one New/Old pair on the title |
+| turn-based only | `OFFER_REALTIME` | false — no real-time door on the title |
+| Survival is offered | `OFFER_SURVIVAL` | **true again** — its own New/Old row under the wordmark |
 | 71 cards | `CARD_DATA` | 71 (20 basic, 17 event, 9 engine, 21 action, 4 extender) |
 | **6** colonies | `STARTER_SPECIES_IDS` + `STORE_SPECIES_IDS` | pleurotus + schizophyllum, hydnellum, amanita, pruinomycena, psilocybe |
 | three currencies | `startingResources` | energy / water / phosphorus |
@@ -115,11 +116,14 @@ Two judgement calls, recorded so they are not re-litigated blind:
 - **`deckbuilder` is a slight stretch and is kept anyway.** Cards are DRAFTED from digested food and
   a deck carries between runs, but there is no shuffle-and-cycle. It is the single best discovery
   term the game has; `cards` alongside it covers the expectation gap.
-- **`real-time` is OUT, and `survival` is now a stretch.** Both variants exist in the build and
-  neither has a door on the title screen (`OFFER_REALTIME` / `OFFER_SURVIVAL`), so `real-time`
-  would be a false claim. `survival` is kept as a GENRE term — the campaign is about surviving —
-  rather than as the name of a mode, which is the reading it had when there was a Survival mode.
-  Both go back in the moment either constant does.
+- **`real-time` is OUT; `survival` IS A MODE NAME AGAIN.** `OFFER_REALTIME` is still false, so
+  `real-time` would be a false claim however live the variant is underneath. `OFFER_SURVIVAL` is
+  true again (owner: *"let's add survival back"*), so `survival` has stopped being the genre
+  stretch it was reduced to — the tag reads as the name of a mode once more, which is the stronger
+  claim and the true one. **The body text above still describes the campaign alone**: it was
+  rewritten while survival was withheld, and a mode with a door on the title screen and no mention
+  on the store page is the same defect that put this file here in the first place, in the other
+  direction. Worth a paragraph before the next upload.
 
 Spares, for a store with a larger cap: `management`, `atmospheric`, `singleplayer`, `upgrades`,
 `biology`, `fungus`.

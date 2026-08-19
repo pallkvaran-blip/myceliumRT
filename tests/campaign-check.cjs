@@ -1006,33 +1006,32 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
              ids: ['tsNew', 'tsCont', 'tsNewRt', 'tsContRt', 'tsNewCamp', 'tsContCamp']
                .filter((id) => !!root.querySelector('#' + id)) };
   });
-  // ONE GAME NOW (owner: survival withdrawn, "we may add it back sometime later"), so there is
-  // nothing to label and no mode title on the screen at all — New straddles the wordmark above,
-  // Old below. mode-check owns the layout; what matters HERE is that the campaign's own pair is
-  // the pair that survived, since this file's whole subject is the campaign being a real entry.
-  ok('the title screen names no mode, because there is only one game',
-     !title.missing && title.modes.length === 0, (title.modes || []).join(' / ') || '(none)');
+  // TWO GAMES AGAIN (owner: "let's add survival back... while the campaign sits on the top
+  // half"), so both rows carry a label. mode-check owns the LAYOUT — which row, which side, how
+  // far from the wordmark; what matters HERE is that the campaign is a real entry with a pair of
+  // its own, which is this file's whole subject, and that it is the one on top.
+  ok('the title screen names both games', !title.missing && title.modes.join(',') === 'Campaign,Survival',
+     (title.modes || []).join(' / ') || '(none)');
   ok('Campaign has its own New and Old', title.hasNew === true && title.hasOld === true,
      (title.ids || []).join(', '));
-  ok('...and they are the only doors left', (title.ids || []).join(',') === 'tsNewCamp,tsContCamp',
+  ok('...and survival has its own beside them', (title.ids || []).join(',') === 'tsNew,tsCont,tsNewCamp,tsContCamp',
      (title.ids || []).join(', '));
   ok('nothing on the title screen is locked any more', title.locked === 0, String(title.locked));
-  // REAL TIME IS OFF THE TITLE SCREEN for this release (owner: "not this next release"). The
-  // variant itself is untouched — `#dev` still boots it and mode-check still drives it — so the
-  // only thing that can be asserted, and the only thing that changed, is that the DOOR is gone.
+  // REAL TIME IS OFF THE TITLE SCREEN for this release (owner: "not this next release"), and it
+  // is a SEPARATE constant from survival's — asserted here because the two coming back together
+  // would mean they had been confused. The variant itself is untouched: `#dev` still boots it and
+  // mode-check still drives it.
   ok('real time is not offered from the title screen', title.rt === false,
      (title.ids || []).join(', '));
-  // "Chapter 1" IS GONE TOO (owner: "remove the chapter 1"). It named the CONTENT rather than the
-  // rules, which is why it outlived the CAMPAIGN label above it by one pass — but with nothing
-  // else on the screen it read as a line of its own rather than as a subtitle. The level intro's
-  // "4 of 9" is the only place left that says how long the campaign is, which is where a player
-  // asks the question anyway.
-  ok('...and nothing is left between the wordmark and the words', (title.soon || []).length === 0,
+  // "Chapter 1" is back with the CAMPAIGN label, under it. It names the CONTENT rather than the
+  // rules — the same word the in-game editor stamps on maps saved from it. It was dropped while
+  // the campaign was the only game, when with nothing else on the screen it read as a line of its
+  // own rather than as a subtitle; with a label above it, it is a subtitle again.
+  ok('...and "Chapter 1" sits under CAMPAIGN', (title.soon || []).join(',') === 'Chapter 1',
      (title.soon || []).join(' | ') || '(nothing there)');
-  // THREE RESUME SLOTS STILL, even though only one is reachable from the title. The survival
-  // slots are what a stored survival run comes back through if the door is reopened, and keeping
-  // them distinct is what stops a campaign start clobbering one — so they are asserted whether or
-  // not the title offers them.
+  // THREE RESUME SLOTS, one per (mode, game) pair. Two are reachable from the title now and the
+  // real-time one is not, but keeping all three distinct is what stops a campaign start
+  // clobbering a half-finished survival run — so they are asserted whatever the title offers.
   const slots = await page.evaluate(() => {
     const g = window.__game, cfg = window.__cfg, was = { m: cfg.mode, g: cfg.game };
     const key = (m, gm) => { cfg.mode = m; cfg.game = gm; return g.resumeKey(); };

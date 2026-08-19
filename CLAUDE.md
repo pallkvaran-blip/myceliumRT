@@ -994,10 +994,11 @@ change, which is the recommended gear — the most recent runs, each 0 failed:
 | store · campaign · rate · cele · hover · tutscript | **-** (the rating-gate / celebration set) |
 | handoff · lure · boot · hs · store · campaign · tut · ingame · hover · tutscript | **309 passed** (the menu → run handoff set, ~5 min) |
 | survival · level · core · mode · campaign · hs · store · handoff · sky · ants · ctreats · challenge | see the survival section (the authored-survival set) |
+| fixes · survival · campaign (+ `mode` on its own) | **198 + 47 passed** (the title-screen set — the four checks that read the screen's shape) |
 
-Per-check, measured: traced 1190 (76 maps) · edit 118 · threat 114 · campaign 106 · rt 69 ·
-enemy 52 · survival 56 · challenge 50 · sky 45 · tutscript 46 · mode 39 · species 38 · ctreats 31 ·
-harvest 28 · level 27 · fixes 27 · scale 26 · tut 24 · ants 22 · mould 20 · hs 19 · titlecard 16 ·
+Per-check, measured: traced 1190 (76 maps) · edit 118 · threat 114 · campaign 110 · rt 69 ·
+enemy 52 · survival 58 · challenge 50 · sky 45 · mode 47 · tutscript 46 · species 38 · ctreats 31 ·
+harvest 28 · level 27 · fixes 30 · scale 26 · tut 24 · ants 22 · mould 20 · hs 19 · titlecard 16 ·
 boot 16 · core 16 · cascade 16 · reveal 16 · victory 13 · review 13 · crazygames 13 · water 11 ·
 surface 11 · aim 9 · lure 8 · hover 6 · turn-play 5 · ingame 4 · pill 4 —
 plus **store 97** and **itchzip 22** (**23** for `crazygames`, the extra one being the SDK),
@@ -3008,42 +3009,62 @@ a real detail sheet.
 
 ## Two games on the title screen: Survival and Campaign
 
-**SURVIVAL IS WITHHELD — `OFFER_SURVIVAL = false` (owner: *"lets remove survival mode from the
-game, the retention rate is too low. we may add it back sometime later, so lets keep that
-option"*).** Same shape and the same promise as `OFFER_REALTIME` beside it: it withholds the
-DOOR, not the room. The 17 authored survival maps, `survivalRun()`, `survivalMapIdFor`, the two
-survival resume slots, the level-1 inline tips and every survival-gated rule are untouched;
-`#dev` still boots one and `survival-check` (55) still drives the lot. Everything in this section
-is still true of the code — only the title row is gone.
+**SURVIVAL IS OFFERED AGAIN — `OFFER_SURVIVAL = true` (owner: *"let's add survival back, but put
+that on the bottom half on the title screen while the campaign sits on the top half. put the new
+buttons on the right and the old buttons on the left"*).** It was withheld for one release (*"the
+retention rate is too low. we may add it back sometime later, so lets keep that option"*), and
+the option was this one constant — same shape and same promise as `OFFER_REALTIME` beside it, it
+withholds the DOOR and not the room. Nothing under it ever moved: the 17 authored survival maps,
+`survivalRun()`, `survivalMapIdFor`, the two survival resume slots, the level-1 inline tips and
+every survival-gated rule stayed live, `#dev` kept booting one and `survival-check` kept driving
+the lot. **That is why coming back was one line and four checks, not a restoration.**
 
-- **TWO screens read the flag and they have to agree.** The title screen's Survival New/Old row,
-  and the **HIGH-SCORE BOARD**, which goes with it rather than being a separate decision (owner:
-  *"remove the high scores as that is not relevant anymore"*): the board ranks how DEEP a run got
-  and `checkHighScore` is already gated on `!isCampaignGame()`, so with survival withheld nothing
-  can ever file a score and the link would open an empty ladder. Withheld at the CALL SITE
-  (`onHighScores: OFFER_SURVIVAL ? … : null`) — `showTitleScreen` renders no link without a
-  handler, and `__game.showHighScores` is untouched so `hs-check` still drives the board.
-- **THE TITLE SCREEN IS NOW `New / MYCELIUM / Old` AND NOTHING ELSE** (owner, over two passes:
-  *"put the 'new' on top of the mycelium title and the 'old' below it. make both a bit bigger"*,
-  then *"put the subtitles under the words. remove the chapter 1. move the new and old a bit
-  further away from the mycelium"*). With one game there is nothing to label, so the mode titles
-  went with the rows and "Chapter 1" followed a pass later — the level intro's "4 of 9" is the
-  only place left that says how long the campaign is. The two-block geometry is UNCHANGED —
-  `.ts-top` and `.ts-bottom` already straddled the canvas wordmark — so the consume animation is
-  untouched. Three numbers carry the look:
-  - **`.ts-solo` is clamp 34–64px** (~23% up on the two-row pair) and **must stay above ~26px**,
-    below which the consume animation's strand step stalls.
-  - **THE CAPTION IS IN FLOW UNDER ITS WORD, NOT ABSOLUTELY POSITIONED.** Above the word it sat at
-    `bottom:84%` of the button's own box — a percentage so its baseline tucked against the CAP
-    TOPS and tracked the font across the clamp range. Under the word that has no equivalent: the
-    box carries descender space the caps never use, so any `top:%` that looks right at 64px is
-    wrong at 34px. `.ts-act.ts-solo` is `column-reverse` with a real gap and no number to re-tune.
-    The absolute rule stays for `.ts-sm`, which the withheld two-row layout uses.
+- **REAL TIME'S DOOR IS STILL SHUT.** `OFFER_REALTIME` is a SEPARATE constant and stays `false`,
+  so Survival gets ONE turn-based New/Old pair rather than the old four-button `.ts-split` row.
+  `mode-check` and `campaign-check` both assert that, as the control: the two flags are the same
+  mechanism, so survival returning with real time in tow would mean they had been confused.
+- **TWO screens read `OFFER_SURVIVAL` and they have to agree, in BOTH directions.** The title
+  screen's Survival New/Old row, and the **HIGH-SCORE BOARD**, which goes with it rather than
+  being a separate decision: the board ranks how DEEP a run got and `checkHighScore` is gated on
+  `!isCampaignGame()`, so with survival withheld nothing could ever file a score and the link
+  opened an empty ladder (owner, then: *"remove the high scores as that is not relevant
+  anymore"*). Survival back means there is something to rank, so **the High Scores link is back
+  at top-centre too.** Gated at the CALL SITE (`onHighScores: OFFER_SURVIVAL ? … : null`) —
+  `showTitleScreen` renders no link without a handler, and `__game.showHighScores` is untouched
+  either way so `hs-check` always drives the board.
+- **THE SHAPE IS `Old · CAMPAIGN · New` OVER THE WORDMARK, `Old · SURVIVAL · New` UNDER IT.**
+  Both halves of the owner's ask are cheap because the layout was already there: the two-block
+  geometry (`.ts-top` / `.ts-bottom` straddling the canvas wordmark) is what Survival and
+  Campaign always used, so this is the same screen with the games SWAPPED, and Old-left/New-right
+  is pure markup ORDER — `.ts-actions` is a `1fr auto 1fr` grid whose first child leans right and
+  whose last child leans left, so both hug the mode label whichever way round they are written.
+  Nothing about the wiring moves with them: every button is found by id, and the consume
+  animation grows its strand toward the button's own rect.
+  - **"Chapter 1" comes back with the CAMPAIGN label**, under it. It was dropped while the
+    campaign was the only game — with nothing else on the screen it read as a line of its own
+    rather than as a subtitle — and with a label above it, it is a subtitle again. It is
+    absolutely positioned, so it stays out of `offsetHeight` and does not enter the gap
+    `positionMenu` measures; in the top row it tucks into the space above the wordmark and lands
+    level with the captions beside it.
+  - **`.ts-sm` is clamp 28–52px** (the two-row pair size; `.ts-solo`'s 34–64px is the one-game
+    layout, still there behind the flag) and **must stay above ~26px**, below which the consume
+    animation's strand step stalls.
+  - **THE CAPTION IS IN FLOW UNDER ITS WORD, NOT ABSOLUTELY POSITIONED — AND THAT RULE IS NOW
+    GENERAL.** Above the word it sat at `bottom:84%` of the button's own box — a percentage so its
+    baseline tucked against the CAP TOPS and tracked the font across the clamp range. Under the
+    word that has no equivalent: the box carries descender space the caps never use, so any
+    `top:%` that looks right at 64px is wrong at 34px. `.ts-act` is `column-reverse` with a real
+    gap and no number to re-tune. **It was `.ts-act.ts-solo` only**, because the one-game screen
+    was the layout the owner asked it for — so bringing the two-row screen back would have put
+    three of the four captions above their words again on nothing but which rule they happened to
+    match, an owner ask quietly undone by a relayout. `mode-check` and `fixes-check` both assert
+    all FOUR now, for that reason.
   - **AND THE GAP UNDER THE WORD IS MOSTLY THE BUTTON'S OWN BOX, not the flex `gap`.** At `normal`
     leading a 64px word carries ~13px of descender space plus half-leading below its baseline, and
     no `gap` value can claw that back — "move the subtitles closer" is `line-height:1` and
-    `padding-bottom:0` on `.ts-btn.ts-solo`, which is a fraction of the font and so holds across
-    the clamp. Measured at 1400x900: 29px → 16px.
+    `padding-bottom:0` on the `.ts-btn`, which is a fraction of the font and so holds across the
+    clamp. Measured at 1400x900: 29px → 16px. **`.ts-sm` needed it too** the moment the caption
+    moved under its word there; it had only ever been on `.ts-solo`.
   - **`gapTitle` in `positionMenu` is `max(28, H * 0.085)`**, up from `0.045`. A FRACTION of the
     viewport height, not a constant — the wordmark is sized off the viewport too, so a fixed gap
     reads generous on a laptop and cramped on a phone. Measured at 1400x900: New's top 177 → 133,
@@ -3064,28 +3085,34 @@ is still true of the code — only the title row is gone.
     68 above / 110 below and fails.
 - **`__menu` IS A BOOT-TIME HOOK, and it exists because `window.__game` does not exist on a title
   screen** (begin() installs it). It carries `continueRun` — the title's "Old", the same function
-  the button calls — and `playSurvival`, which are the only way to drive the survival start and
-  resume paths now that survival has no row. `playSurvival(id, level, mode)`'s **mode is
-  optional and inherits when omitted**; pass it or a probe standing on a fresh title gets
-  CONFIG's default (real time) and writes its resume into the OTHER slot.
-- **The tests that entered through the Survival row all had to move**, and the id is the tell:
-  `#tsNew`/`#tsCont` no longer exist. `mode-check`, `traced-check` and `itchzip-check` use
-  `#tsNewCamp`; `lure-check` waits on `#titleScreen .ts-btn` (the class every layout's New/Old
-  carries — that wait has now been broken twice by a layout change). And **the campaign's New has
-  one more screen behind it than Survival's did**: `showCampaignOpening` sits between New and the
-  picker, so a probe that clicked New and waited for `#speciesSelect` times out — click `.li-story`
-  until the picker appears.
+  the button calls — and `playSurvival`. Both were written while survival had no row and were the
+  only way in at all; they stay because they are the SHORT route, which keeps `survival-check`
+  measuring survival's rules rather than the title screen's markup (`mode-check` owns that).
+  `playSurvival(id, level, mode)`'s **mode is optional and inherits when omitted**; pass it or a
+  probe standing on a fresh title gets CONFIG's default (real time) and writes its resume into
+  the OTHER slot.
+- **A ROW THAT RENDERS IS NOT A ROW THAT WORKS**, and survival's entry path sat unpressed for a
+  release. `survival-check` drives the real clicks (New → name → Start) and asserts it lands on
+  the PICKER with `CONFIG.game === 'survival'` — because `onNew` branches on the game it is
+  handed and the two branches differ: **the campaign's New has one more screen behind it than
+  Survival's**, `showCampaignOpening` between New and the picker, so a probe that clicks the
+  CAMPAIGN New and waits for `#speciesSelect` times out (click `.li-story` until the picker
+  appears). Survival goes straight there.
+- **The tests that key off the row's ids have moved twice now** — `#tsNew`/`#tsCont` vanished with
+  the row and are back with it. `traced-check` and `itchzip-check` use `#tsNewCamp` (the campaign
+  is what they want anyway); `lure-check` waits on `#titleScreen .ts-btn`, the class every
+  layout's New/Old carries, because that wait has been broken by a layout change twice.
 
 **`CONFIG.game` is a SECOND axis, orthogonal to turn/real-time**, applied by `setGame()` and set
 before a run begins (like `setMode` — `state.config` is a deep clone taken at run start):
 
 | | Survival | Campaign |
 |---|---|---|
-| entry | **withheld** (`OFFER_SURVIVAL`) — was turn-based New/Old + real time New/Old | one New/Old, **turn-based only** (owner) |
+| entry | the **bottom** row's New/Old, **turn-based only** while `OFFER_REALTIME` is off | the **top** row's New/Old, **turn-based only** (owner) |
 | levels | 100 (`MAX_LEVEL`), unwinnable past ~35 | **9** (`CAMPAIGN_LEVELS`), and it ends |
 | maps | **17 authored maps in a shuffled bag** — see below | **an authored map per slot**, all 9 filled — the fixed seed is only the fallback |
 | threats | from the LEVEL (`threatsForLevel`), seeded procedurally onto the authored map | exactly what the map's JSON places |
-| high scores | yes, but the board is withheld with the game | **no** — see below |
+| high scores | **yes**, and the board's link is back on the title with the game | **no** — see below |
 | resume slot | `mycelium.resume.v1` / `.rt.v1` | `mycelium.resume.campaign.v1` |
 
 They share EVERYTHING meta: one Spores wallet, one store, one deck, one species roster, one

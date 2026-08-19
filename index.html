@@ -1004,23 +1004,36 @@
     #titleScreen .ts-bottom { bottom:clamp(22px,6vh,64px); gap:clamp(8px,1.6vh,16px); }
     #titleScreen .ts-mode { font-size:clamp(15px,2.3vw,22px); letter-spacing:.44em; text-indent:.44em; line-height:1;
       text-transform:uppercase; font-weight:700; color:#bfeecb; text-shadow:0 0 20px rgba(127,230,163,0.45); }
-    /* Three columns: NEW (right-aligned) · MODE (centred) · OLD (left-aligned). The MODE
-       label (SURVIVAL / CAMPAIGN) sits INLINE between the two buttons and on the screen
-       centre line; the equal 1fr side columns keep NEW/OLD aligned across both rows. */
+    /* Three columns: OLD (right-aligned) · MODE (centred) · NEW (left-aligned) — the buttons
+       hug the label from either side, so the pair reads Old · MODE · New across the row (owner:
+       "put the new buttons on the right and the old buttons on the left"). Which word lands in
+       which column is decided by MARKUP ORDER alone, not here: these two rules only say that
+       whatever comes first leans right and whatever comes last leans left. The MODE label
+       (CAMPAIGN / SURVIVAL) sits INLINE between them and on the screen centre line; the equal
+       1fr side columns keep the two rows' buttons aligned with each other. */
     #titleScreen .ts-actions { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); align-items:center;
       column-gap:clamp(20px,4vw,64px); width:min(820px,92vw); margin:0 auto; }
     #titleScreen .ts-actions > .ts-btn:first-child { justify-self:end; }
     #titleScreen .ts-actions > .ts-btn:last-child { justify-self:start; }
-    /* Survival New/Old are wrapped in .ts-act so a tiny faint caption can float above each. */
+    /* Every New/Old is wrapped in .ts-act so a tiny faint caption can sit with it. */
     #titleScreen .ts-act { position:relative; display:inline-flex; }
     #titleScreen .ts-actions > .ts-act:first-child { justify-self:end; }
     #titleScreen .ts-actions > .ts-act:last-child { justify-self:start; }
-    /* Sits just above the LETTERS, not the button box: NEW/OLD carry a band of leading + a ~0.19em
-       ink gap above the caps, so bottom:100% floated the caption well clear of the glyphs. bottom:84%
-       of the button-height containing block tucks the caption's baseline right against the cap tops
-       (~3px), and being a percentage it scales with the font across the clamp range. */
-    #titleScreen .ts-cap { position:absolute; left:50%; bottom:84%; transform:translateX(-50%); margin-bottom:0;
-      white-space:nowrap; pointer-events:none; font-size:clamp(8px,1.15vw,11px); letter-spacing:.06em;
+    /* THE CAPTION SITS UNDER ITS WORD (owner), IN EVERY LAYOUT, and it is IN FLOW rather than
+       absolutely positioned. It used to float ABOVE the button at `bottom:84%` of the button's
+       own box — a percentage chosen so the caption's baseline tucked against the CAP TOPS and
+       tracked the font across the clamp range. Under the word that trick has no equivalent: the
+       box carries descender space the caps never use, so any `top:%` that looks right at 64px is
+       wrong at 34px. `column-reverse` puts the caption after the button with a real gap and no
+       number to re-tune.
+       IT WAS `.ts-act.ts-solo` ONLY, because the one-game screen was the layout the owner asked
+       it for. Bringing the two-row screen back (see OFFER_SURVIVAL) would have put three of the
+       four captions back above their words on nothing but the accident of which rule they matched
+       — an owner ask quietly undone by a relayout — so the rule is general now and `.ts-sm` only
+       says how SMALL its caption is. */
+    #titleScreen .ts-act { flex-direction:column-reverse; align-items:center; gap:clamp(1px,0.2vh,3px); }
+    #titleScreen .ts-cap { white-space:nowrap; pointer-events:none;
+      font-size:clamp(8px,1.15vw,11px); letter-spacing:.06em;
       text-transform:none; font-weight:400; color:rgba(219,233,223,0.30); }
     #titleScreen .ts-actions > .ts-mode, #titleScreen .ts-actions > .ts-modewrap { justify-self:center; }
     /* SURVIVAL is split in two: the game ships BOTH the turn-based original and the real-time
@@ -1044,8 +1057,11 @@
     #titleScreen .ts-kind-ghost { visibility:hidden; }
     #titleScreen .ts-pair { display:flex; align-items:center; gap:clamp(10px,2vw,34px); }
     /* Smaller New/Old (and smaller captions to match). Kept above ~26px: the consume
-       animation's strand step is scaled off the font size and stalls below that. */
-    #titleScreen .ts-btn.ts-sm { font-size:clamp(28px,4.4vw,52px); padding:3px 8px; }
+       animation's strand step is scaled off the font size and stalls below that.
+       `line-height:1` and no bottom padding for the same reason .ts-solo has them — the gap
+       between a word and its caption is mostly the BUTTON'S OWN BOX (descender space plus
+       half-leading the caps never use), which no `gap` value can claw back. */
+    #titleScreen .ts-btn.ts-sm { font-size:clamp(28px,4.4vw,52px); padding:3px 8px 0; line-height:1; }
     #titleScreen .ts-act.ts-sm > .ts-cap { font-size:clamp(7px,0.85vw,9px); letter-spacing:.05em; }
     /* ONE GAME: a single centred button per row, and no three-column grid to keep New and Old
        aligned across two rows — there is one of each and they are both on the screen's centre
@@ -1059,16 +1075,9 @@
        box moves the caption up by a fraction of the font, so it scales across the clamp instead
        of being right at one size. */
     #titleScreen .ts-btn.ts-solo { font-size:clamp(34px,5.4vw,64px); padding:3px 8px 0; line-height:1; }
-    /* THE CAPTION SITS UNDER ITS WORD (owner), and it is IN FLOW here rather than absolutely
-       positioned. The two-row layout floated it above the button at `bottom:84%` of the button's
-       own box — a percentage chosen so the caption's baseline tucked against the CAP TOPS and
-       tracked the font across the clamp range. Under the word that trick has no equivalent: the
-       box carries descender space the caps never use, so any `top:%` that looks right at 64px is
-       wrong at 34px. `column-reverse` puts the caption after the button with a real gap and no
-       number to re-tune. The absolute rule stays for `.ts-sm`, which the two-row layout uses. */
-    #titleScreen .ts-act.ts-solo { flex-direction:column-reverse; align-items:center; gap:clamp(1px,0.2vh,3px); }
-    #titleScreen .ts-act.ts-solo > .ts-cap { position:static; transform:none; bottom:auto; left:auto;
-      font-size:clamp(8px,1vw,11px); letter-spacing:.05em; }
+    /* The caption-under-the-word rule itself now lives on `.ts-act` (see there) — this is only
+       the solo layout's slightly larger caption. */
+    #titleScreen .ts-act.ts-solo > .ts-cap { font-size:clamp(8px,1vw,11px); letter-spacing:.05em; }
     /* Narrow screens can't fit four buttons plus SURVIVAL across, so the row STACKS:
        SURVIVAL, then the turn-based pair, then the real-time pair. */
     @media (max-width:720px) {
@@ -1078,9 +1087,10 @@
       #titleScreen .ts-actions.ts-split > .ts-side-mid { order:-1; }
       #titleScreen .ts-side-mid > .ts-kind-ghost { display:none; }   /* stacked: nothing to line up with */
     }
-    /* Campaign in the centre column, CENTRED on the NEW/OLD midline (matching SURVIVAL
-       in the top row); "coming soon" is tucked directly beneath it (absolute, so it
-       doesn't shift CAMPAIGN off-centre). */
+    /* The mode label in the centre column, CENTRED on the OLD/NEW midline, so the two rows'
+       labels line up with each other; "Chapter 1" is tucked directly beneath CAMPAIGN
+       (absolute, so it doesn't shift the label off-centre — and so it stays out of the row's
+       offsetHeight, which positionMenu measures to place the row against the wordmark). */
     #titleScreen .ts-modewrap { position:relative; display:flex; flex-direction:column; align-items:center; }
     #titleScreen .ts-modewrap > .ts-soon { position:absolute; top:100%; left:50%; transform:translateX(-50%);
       margin-top:6px; white-space:nowrap; }
@@ -3183,21 +3193,24 @@ const MODE_TUNING = {
 // the title screen's Survival row (one New/Old pair instead of the turn/real-time split) and
 // the high-score board's game tabs (one ladder, so no tab row). Turning it on restores both.
 const OFFER_REALTIME = false;
-// DOES THIS BUILD OFFER SURVIVAL AT ALL? False (owner: "lets remove survival mode from the game,
-// the retention rate is too low. we may add it back sometime later, so lets keep that option").
-// Same shape and the same promise as OFFER_REALTIME: it withholds the DOOR, not the room. The 17
-// authored survival maps, `survivalRun()`, `survivalMapIdFor`, the survival resume slots, the
-// level-1 inline tips and every survival-gated rule are untouched, `#dev` still boots straight
-// into one, and `survival-check` still drives the lot. Turning this back on restores the row.
+// DOES THIS BUILD OFFER SURVIVAL AT ALL? **True again** (owner: "let's add survival back").
+// It was withdrawn for one release — "the retention rate is too low. we may add it back sometime
+// later, so lets keep that option" — and the option is what this constant is: the same shape and
+// the same promise as OFFER_REALTIME, it withholds the DOOR rather than the room. Nothing under
+// it ever moved while it was off — the 17 authored survival maps, `survivalRun()`,
+// `survivalMapIdFor`, the survival resume slots, the level-1 inline tips and every
+// survival-gated rule stayed live, `#dev` kept booting straight into one, and `survival-check`
+// kept driving the lot — which is why coming back is this line rather than a restoration.
 //
 // TWO screens read it and they have to agree, or the game contradicts itself:
 //   · the title screen — its Survival New/Old row, and with it the whole two-row shape (with one
 //     game there is nothing to label, so New sits above the wordmark and Old below it);
-//   · the HIGH-SCORE BOARD, which goes with it rather than being a separate decision. The board
-//     ranks how DEEP a run got, and `checkHighScore` is already gated on `!isCampaignGame()` —
-//     so with survival withheld nothing can ever file a score and the link would open an empty
-//     ladder. (Owner: "remove the high scores as that is not relevant anymore.")
-const OFFER_SURVIVAL = false;
+//   · the HIGH-SCORE BOARD, which goes with it rather than being a separate decision, in both
+//     directions. The board ranks how DEEP a run got and `checkHighScore` is gated on
+//     `!isCampaignGame()`, so with survival withheld nothing could ever file a score and the
+//     link opened an empty ladder ("remove the high scores as that is not relevant anymore");
+//     with survival offered again there is something to rank, so the link comes back with it.
+const OFFER_SURVIVAL = true;
 // Is the REAL-TIME variant running? Pass a state.config from engine code; defaults to CONFIG.
 function isRealtime(cfg) {
   const c = cfg || CONFIG;
@@ -26602,11 +26615,41 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
   root.innerHTML =
     '<canvas id="tsCanvas"></canvas>' +
     (!OFFER_SURVIVAL ? soloMenu :
+    // TWO GAMES, AND THE CAMPAIGN IS THE ONE ON TOP (owner: "add survival back, but put that on
+    // the bottom half on the title screen while the campaign sits on the top half"). Both rows
+    // existed already and in the other order — Survival was the top one for as long as the
+    // campaign was the newcomer — so this is the same two-block layout with the games swapped,
+    // and `positionMenu` measures each row's height rather than assuming which is taller.
+    //
+    // OLD ON THE LEFT, NEW ON THE RIGHT (owner), which is the other half of the same ask and is
+    // pure markup ORDER: `.ts-actions` is a `1fr auto 1fr` grid whose first child is pushed to
+    // the right of the left column and whose last child is pushed to the left of the right
+    // column, so both hug the mode label whichever way round they are written. Nothing about the
+    // wiring moves with them — every button is found by id, and the consume animation grows its
+    // strand toward the button's own rect.
     '<div class="ts-menu">' +
+      // CAMPAIGN: ten levels, one fixed map each, and it ends. TURN-BASED ONLY (owner) — with one
+      // mode there is nothing to choose between, so it keeps the single New/Old pair it was drawn
+      // with. Survival matches it while OFFER_REALTIME is off.
+      //
+      // The sub-line reads "Chapter 1" (owner), in the slot that used to say "coming soon". It
+      // names the CONTENT, not the rules: the campaign is the first chapter of several, which is
+      // the same word the in-game editor already stamps on maps saved from it (`chapter:
+      // 'Chapter 1'`), and those are the maps most likely to fill these ten slots. It hangs off
+      // the bottom of the label absolutely, so it does not shift CAMPAIGN off the New/Old line
+      // and does not enter `offsetHeight` — in the top row it tucks into the gap above the
+      // wordmark, where there is room for it several times over.
+      '<div class="ts-block ts-top">' +
+        '<div class="ts-actions">' +
+          '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsContCamp" type="button">Old</button></span>' +
+          '<div class="ts-modewrap"><div class="ts-mode">Campaign</div><div class="ts-soon">Chapter 1</div></div>' +
+          '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNewCamp" type="button">New</button></span>' +
+        '</div>' +
+      '</div>' +
       // SURVIVAL: New (a fresh run) and Old (continue the saved one). It used to offer both
       // variants side by side, turn-based left and real time right, each with its own pair —
       // see OFFER_REALTIME (in __m_config) for where that went and how to bring it back.
-      '<div class="ts-block ts-top">' +
+      '<div class="ts-block ts-bottom">' +
         // REAL TIME IS OFF THE TITLE SCREEN (owner: "not this next release"). Gated rather than
         // deleted, and gated in ONE place: the variant itself is untouched — CONFIG.mode,
         // setMode, MODE_TUNING, the two resume slots and every mode-dependent rule are exactly
@@ -26618,11 +26661,12 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
         // three-column split with an empty column where Real time used to be.
         (OFFER_REALTIME
           ? '<div class="ts-actions ts-split">' +
+              // Each side keeps its pair in the row's own order, Old then New.
               '<div class="ts-side">' +
                 '<div class="ts-kind">Turn-based</div>' +
                 '<div class="ts-pair">' +
-                  '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNew" type="button">New</button></span>' +
                   '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsCont" type="button">Old</button></span>' +
+                  '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNew" type="button">New</button></span>' +
                 '</div>' +
               '</div>' +
               // SURVIVAL gets the same two-row shape as the sides — a HIDDEN kind label above it —
@@ -26634,31 +26678,16 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
               '<div class="ts-side">' +
                 '<div class="ts-kind">Real time</div>' +
                 '<div class="ts-pair">' +
-                  '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNewRt" type="button">New</button></span>' +
                   '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsContRt" type="button">Old</button></span>' +
+                  '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNewRt" type="button">New</button></span>' +
                 '</div>' +
               '</div>' +
             '</div>'
           : '<div class="ts-actions">' +
-              '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNew" type="button">New</button></span>' +
-              '<div class="ts-modewrap"><div class="ts-mode">Survival</div></div>' +
               '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsCont" type="button">Old</button></span>' +
+              '<div class="ts-modewrap"><div class="ts-mode">Survival</div></div>' +
+              '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNew" type="button">New</button></span>' +
             '</div>') +
-      '</div>' +
-      // CAMPAIGN, the second game: ten levels, one fixed map each, and it ends. TURN-BASED ONLY
-      // (owner) — with one mode there is nothing to choose between, so it keeps the single
-      // New/Old pair it was drawn with. Survival matches it while OFFER_REALTIME is off.
-      //
-      // The sub-line reads "Chapter 1" (owner), in the slot that used to say "coming soon". It
-      // names the CONTENT, not the rules: the campaign is the first chapter of several, which is
-      // the same word the in-game editor already stamps on maps saved from it (`chapter:
-      // 'Chapter 1'`), and those are the maps most likely to fill these ten slots.
-      '<div class="ts-block ts-bottom">' +
-        '<div class="ts-actions">' +
-          '<span class="ts-act ts-sm"><span class="ts-cap">start a new game</span><button class="ts-btn ts-sm" id="tsNewCamp" type="button">New</button></span>' +
-          '<div class="ts-modewrap"><div class="ts-mode">Campaign</div><div class="ts-soon">Chapter 1</div></div>' +
-          '<span class="ts-act ts-sm"><span class="ts-cap">continue last game</span><button class="ts-btn ts-sm" id="tsContCamp" type="button">Old</button></span>' +
-        '</div>' +
       '</div>' +
     '</div>');
   document.body.appendChild(root);
@@ -27224,9 +27253,10 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onCre
 
   // Place the two menu rows SYMMETRICALLY about the title: each one is set the same gap
   // clear of the title's edge — the top row's BOTTOM and the bottom row's TOP. Measured per
-  // row rather than from a shared height, because the Survival row is taller than the
-  // Campaign one (it carries two labelled New/Old pairs). ("coming soon" tucks under the
-  // Campaign row and doesn't factor in.)
+  // row rather than from a shared height, because the two rows are not the same height and
+  // which one is taller has changed twice: with OFFER_REALTIME on, Survival carries two
+  // labelled New/Old pairs and towers over Campaign, and the games have since swapped ends.
+  // ("Chapter 1" is absolute, so it tucks under the Campaign label and doesn't factor in.)
   function positionMenu() {
     const topB = root.querySelector('.ts-top'), botB = root.querySelector('.ts-bottom');
     const topH = topB.offsetHeight || 90;
@@ -30311,10 +30341,12 @@ function showMainMenu() {
   });
 }
 
-// START A SURVIVAL RUN, as the withdrawn title row would have. Named rather than inline for the
-// same reason as `continueRun` above: with no survival door on the title screen, `survival-check`
-// has to enter through the model, and it stands on a title screen where `window.__game` does not
-// exist yet — so this hangs off `window.__menu` as well as `__game.survival.play`.
+// START A SURVIVAL RUN, exactly as the title's Survival New does. Named rather than inline for
+// the same reason as `continueRun` above: it is the short route into a survival run for a probe
+// standing on a title screen, where `window.__game` does not exist yet — so this hangs off
+// `window.__menu` as well as `__game.survival.play`. It was written while the row was withheld
+// and there was no other way in at all; the row is back (OFFER_SURVIVAL) and this stays, because
+// what `survival-check` is about is survival's RULES, not four clicks in front of them.
 // `mode` is OPTIONAL and inherits whatever is set when omitted — which is what every existing
 // caller wants (they boot `#dev,turn` first). Pass it and this is the withdrawn title row exactly:
 // that button carried its own mode, and without one a probe standing on a fresh title screen gets
@@ -31845,8 +31877,10 @@ function begin(newState) {
     // to scrape a tile.
     showPicker: () => showPicker(),
     showTitle: () => backToTitle(),
-    // The title screen's "Old", as a function — the only way to drive the SURVIVAL resume path
-    // now that survival has no title row of its own (see OFFER_SURVIVAL).
+    // The title screen's "Old", as a function. Survival has its own row again (see
+    // OFFER_SURVIVAL), so this is no longer the ONLY way into that resume path — but it stays,
+    // because it is how a check drives either game's resume without four clicks in front of it,
+    // and it is the flag's own escape hatch when the row is withheld.
     continueRun: (mode, game) => continueRun(mode || 'turn', game || 'campaign'),
     // The campaign opening, reachable without driving the title screen's New dialog. The REAL
     // route is asserted separately (title → New → name → Start); this is here so the screen's
@@ -36278,8 +36312,8 @@ window.__modeTuning = MODE_TUNING;
 // THE MENU'S OWN ENTRY POINTS, available BEFORE a run starts — `window.__game` is installed by
 // begin(), so on a title screen it does not exist yet and a check standing there has no route to
 // anything. `continueRun` is the title's "Old" (the same function the button calls, not a second
-// copy of it), and it is the only way to drive the SURVIVAL resume path now that survival has no
-// row of its own — see OFFER_SURVIVAL.
+// copy of it) — the route a check takes into either game's resume path without driving the
+// screen, and the way in at all whenever OFFER_SURVIVAL is withholding the row.
 window.__menu = { continueRun, playSurvival, showPicker: () => showPicker(), showTitle: () => showMainMenu() };
 // Route to the boot destination (menu / picker / a hash shortcut). Deferred behind the
 // loading screen's "Click" so the game always opens on a fully-decoded frame.
