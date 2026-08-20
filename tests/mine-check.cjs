@@ -516,6 +516,36 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
        `${sg.near} rings drawn for ${sg.worms} worms`);
     ok('...culled when they are off screen', sg.far === 0, `${sg.far} drawn with the camera 6000 away`);
     ok('...and the switch turns them off', sg.off === 0, `${sg.off} drawn with showSight false`);
+
+    // THE RING IS RED, AND THAT IS A PIXEL QUESTION (owner: "let's also make it red instead or
+    // green"). Green is the colony's half of the palette, so an always-on green wash reads as the
+    // thing you are growing rather than the thing hunting you.
+    //
+    // MEASURED AS A DIFFERENCE, never as an absolute. The soil is warm brown, i.e. red-dominant
+    // before anything is drawn on it, so "is this pixel reddish?" passes on bare ground with the
+    // overlay deleted. Rendering the SAME point with the rings on and off and subtracting isolates
+    // what the overlay itself contributed, whatever it was drawn over.
+    const hue = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state, cv = document.getElementById('game');
+      const c2 = cv.getContext('2d');
+      const dpr = cv.width / cv.clientWidth;
+      const w = s.nematodes[0];
+      // A point a THIRD of the way out from the worm: inside the wash, clear of the edge line, and
+      // near enough that rock is unlikely to occlude it.
+      const p = g.camera.worldToScreen(w.x, w.y);
+      const px = Math.round(p.x * dpr), py = Math.round((p.y + s.config.nematodes.sightRadius * g.camera.zoom * 0.33) * dpr);
+      const read = (on) => {
+        s.config.mine.showSight = on;
+        g.renderFrame(performance.now());
+        const d = c2.getImageData(px, py, 1, 1).data;
+        return { r: d[0], g: d[1], b: d[2] };
+      };
+      const off = read(false), on = read(true);
+      s.config.mine.showSight = true;
+      return { off, on, dr: on.r - off.r, dg: on.g - off.g, db: on.b - off.b };
+    });
+    ok('...and what the ring adds to the frame is RED', hue.dr > 4 && hue.dr > hue.dg + 3 && hue.dr > hue.db + 3,
+       `overlay adds r${hue.dr} g${hue.dg} b${hue.db} (${JSON.stringify(hue.off)} -> ${JSON.stringify(hue.on)})`);
     await b.ctx.close();
   }
 
