@@ -386,6 +386,99 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   ok('...and is refused when it cannot be paid for', grow.refusedWhenBroke && grow.refusalSaysWater, 'refused, and says water');
   ok('...with the run still live', grow.stillLive === true, String(grow.stillLive));
 
+  // ---- 4a. THE WORMS DRAIN, THEY DO NOT EAT ------------------------------------------------
+  // Owner's rule: a nematode attaches and feeds on the colony rather than consuming it, so the
+  // threat pushes on the clock the run ALREADY has instead of bringing a second way to lose.
+  //
+  // WHY THE CAMPAIGN'S NUMBERS COULD NOT BE REUSED, which is what these assertions really guard:
+  // `strandsPerBite` 4 with no cooldown against an 800-strand colony is about a hundred seconds of
+  // watching it be eaten, and `breedChance` 0.8 PER TICK to a cap of 150 makes it accelerate. As a
+  // drain, 150 worms would empty a full tank in under four seconds.
+  console.log('--- the worms drain, they do not eat');
+  {
+    const b = await bootMine(4242);
+    const w = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      s.active.water = 99999;
+      for (let i = 0; i < 10; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 120)); }
+      await new Promise((r) => setTimeout(r, 1200));
+      // A CONTROLLED POPULATION. `tickWorld` respawns worms and the chunk generator seeds more as
+      // the colony moves, so a probe that just counts what is there is measuring the world rather
+      // than the rule — the same trap `threat-check` records for the campaign.
+      s.nematodes.length = 0; s.clouds.length = 0;
+      s.config.nematodes.respawnChance = 0;
+      s.config.trichoderma.respawnChance = 0;
+      const breed0 = s.config.mine.worms.breedPerSec;
+      s.config.mine.worms.breedPerSec = 0;         // rate first, breeding measured separately below
+      let tip = null;
+      for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+      const N = 3;
+      for (let i = 0; i < N; i++) g.mine.spawnWorm(tip.x + (i - 1) * 4, tip.y);
+      const nodes0 = s.active.nodes.length;
+      s.active.water = 100;
+      const w0 = s.active.water, t0 = performance.now();
+      await new Promise((r) => setTimeout(r, 6000));
+      const secs = (performance.now() - t0) / 1000;
+      const res = {
+        N, secs, nodes0, nodesNow: s.active.nodes.length,
+        worms: s.nematodes.length, attached: g.mine.attached(),
+        drained: w0 - s.active.water,
+        want: s.config.mine.worms.waterPerSec,
+        chipHidden: (document.getElementById('hud-worms') || {}).hidden,
+        chipN: (document.getElementById('hud-wormn') || {}).textContent,
+        chipRate: (document.getElementById('hud-wormrate') || {}).textContent,
+      };
+      s.config.mine.worms.breedPerSec = breed0;
+      return res;
+    });
+    const perWorm = w.drained / w.secs / w.N;
+    ok('an attached worm drains the stated water per second',
+       Math.abs(perWorm - w.want) < w.want * 0.15,
+       `${perWorm.toFixed(3)}/s per worm against ${w.want} (${w.drained.toFixed(1)} water, ${w.N} worms, ${w.secs.toFixed(1)}s)`);
+    // THE OTHER HALF, and the one that would pass silently if the drain were simply added on top of
+    // the biting: the colony must be exactly as big as it was.
+    ok('...and eats nothing at all', w.nodesNow === w.nodes0,
+       `${w.nodes0} strands before, ${w.nodesNow} after ${w.secs.toFixed(0)}s with ${w.N} worms on it`);
+    ok('the worms are counted as attached', w.attached === w.N, `${w.attached} of ${w.N}`);
+    // A DRAIN THE PLAYER CANNOT SEE is the same defect the strand-eating worms had in a new coat:
+    // the tank just falls faster for no stated reason. The chip carries the RATE, not only the
+    // count, because "3 worms" does not tell you how long you have and "-0.6/s" does.
+    ok('...and the HUD says so, with the rate', w.chipHidden === false && w.chipN === String(w.N)
+       && /\d\.\d\/s/.test(w.chipRate || ''), `chip "${w.chipN}" "${w.chipRate}"`);
+    await b.ctx.close();
+  }
+
+  // ---- 4a-ii. BREEDING IS SLOW NOW, AND CAPPED LOW -----------------------------------------
+  {
+    const b = await bootMine(4242);
+    const br = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      s.active.water = 999999;
+      for (let i = 0; i < 10; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 120)); }
+      await new Promise((r) => setTimeout(r, 1200));
+      s.nematodes.length = 0; s.clouds.length = 0;
+      s.config.nematodes.respawnChance = 0;
+      s.config.trichoderma.respawnChance = 0;
+      let tip = null;
+      for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+      for (let i = 0; i < 4; i++) g.mine.spawnWorm(tip.x + (i - 2) * 4, tip.y);
+      const n0 = s.nematodes.length, t0 = performance.now();
+      await new Promise((r) => setTimeout(r, 8000));
+      return { n0, n1: s.nematodes.length, secs: (performance.now() - t0) / 1000,
+               cap: s.config.nematodes.maxPopulation,
+               perSec: s.config.mine.worms.breedPerSec,
+               campaignCap: 150, campaignChance: 0.8 };
+    });
+    // Four feeding worms at 5%/s over 8 s is a couple of splits, not a swarm. The bound is generous
+    // in both directions on purpose — this is a probability over a short window, and the assertion
+    // is about the ORDER of the number, not its exact value.
+    ok('feeding worms multiply slowly', br.n1 > br.n0 - 1 && br.n1 <= br.n0 + 5,
+       `${br.n0} -> ${br.n1} over ${br.secs.toFixed(0)}s at ${br.perSec}/s`);
+    ok('...and the mine caps the population far below the campaign\'s',
+       br.cap < br.campaignCap / 4, `${br.cap} against the campaign's ${br.campaignCap}`);
+    await b.ctx.close();
+  }
+
   // ---- 4b. THE WORLD STREAMS SIDEWAYS ------------------------------------------------------
   // The owner's ask, verbatim: "I want to be able to grow both left and right as well - so the map
   // needs to either generate as I go, or it needs to be much larger and have boundaries. I prefer
@@ -593,6 +686,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       // Now work SIDEWAYS, near the SURFACE — strictly horizontal, so nothing this does can become
       // the deepest strand and hand the broken camera the right answer by accident.
       const shallowY = Math.min(...s.active.nodes.filter((n) => !n.infected).map((n) => n.y));
+      let dug = 0;
       for (let i = 0; i < 10; i++) {
         let t = null;
         for (const n of s.active.nodes) {
@@ -600,7 +694,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
           if (!t || n.x < t.x) t = n;
         }
         if (!t) break;
-        g.mine.growFrom(t.x, t.y, t.x - 200, t.y);
+        if (g.mine.growFrom(t.x, t.y, t.x - 200, t.y).ok) dug++;
         await new Promise((r) => setTimeout(r, 160));
       }
       // Past MINE_PAN_HOLD_MS (2600) and the follow easing, so this is where the camera SETTLES.
@@ -619,7 +713,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       }
       const p = g.camera.worldToScreen(work.x, work.y);
       const r = document.getElementById('game').getBoundingClientRect();
-      return { camX: g.camera.x, camAfterDown, depthAfterDown, depth: g.mine.depth(),
+      return { camX: g.camera.x, camAfterDown, depthAfterDown, depth: g.mine.depth(), dug,
+               workX: work.x,
                onScreen: p.x > 0 && p.y > 0 && p.x < r.width && p.y < r.height,
                screen: [Math.round(p.x), Math.round(p.y)], view: [Math.round(r.width), Math.round(r.height)],
                dWork: Math.abs(g.camera.x - work.x), dDeep: Math.abs(g.camera.x - deep.x) };
@@ -629,9 +724,15 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     ok('what a sideways dig just grew is still on screen', cam.onScreen,
        `strand at ${cam.screen} of ${cam.view}, camera ${Math.round(cam.camX)}` +
        ` (${Math.round(cam.dWork)} from the work, ${Math.round(cam.dDeep)} from the deepest strand)`);
-    ok('...and the camera moved there rather than staying over the descent',
-       Math.abs(cam.camX - cam.camAfterDown) > 60,
-       `${Math.round(cam.camAfterDown)} -> ${Math.round(cam.camX)}`);
+    // ...AND IT TRACKED THE WORK RATHER THAN A FIXED DISTANCE. Demanding "the camera moved 60 units"
+    // was a bet on the probe's own digs landing: this read `8330 -> 8388` and failed while the
+    // camera was working perfectly, because the lateral digs had barely moved the colony and 58
+    // units was the CORRECT answer. What the camera owes is to end up on the work, wherever that
+    // turned out to be — so measure it against the work, and say out loud when the digs went nowhere.
+    ok('...and it tracked the work rather than the descent',
+       cam.dug > 0 && cam.dWork < Math.max(120, Math.abs(cam.workX - cam.camAfterDown) * 0.25),
+       `${cam.dug}/10 digs landed; camera ${Math.round(cam.camAfterDown)} -> ${Math.round(cam.camX)}, ` +
+       `work at ${Math.round(cam.workX)} (${Math.round(cam.dWork)} away)`);
     ok('no page errors digging sideways', b.errs.length === 0, b.errs.join(' | ') || 'clean');
     await b.ctx.close();
   }
@@ -794,6 +895,14 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     if (!res) return { none: true };
     const at = sub.cellCenter(res.cx, res.cy);
     const cost = g.mine.cost();
+    // NOTHING ELSE MAY TOUCH THE TANK. Worms attach and DRAIN water now, so "did the pocket pay
+    // exactly one lump?" is no longer answerable on a map with worms on it — this read
+    // `+9.8999999W, want 10` and `water sat at 98.4` the moment the drain landed, which is the
+    // probe measuring the whole water economy instead of the pocket rule. Same shape as zeroing
+    // `respawnChance`: take the variable out rather than widening the tolerance around it.
+    s.nematodes.length = 0;
+    s.config.nematodes.respawnChance = 0;
+    s.config.mine.worms.waterPerSec = 0;
     // THE GAIN IS TRACKED, NOT THE TAP COUNT. One dig fans out ~19 filaments, so a grow aimed at a
     // pocket can legitimately reach a SECOND one in the same tick — the rule is "each source pays its
     // lump once", and pinning `taps === 1` was pinning the map instead (it read 2 the moment the

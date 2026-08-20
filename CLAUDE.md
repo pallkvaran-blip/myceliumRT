@@ -3342,7 +3342,7 @@ sessions and a session that only reads CLAUDE.md must still be able to work. **N
 owner's, not suggestions.**
 
 **PROGRESS — keep this line honest, it is how the next session knows where to start:**
-`Phase 1 in progress: (01) worms drain water — building.` Nothing after it started.
+`Phase 1: (01) worms drain water — DONE. (02) sight rings — next.` Nothing after 02 started.
 
 #### The premises (settled, do not re-litigate)
 
@@ -3365,6 +3365,30 @@ owner's, not suggestions.**
    the strand and **counted in the HUD**, or it is invisible damage in a new coat.
    *Why first:* it is the live problem — 4 strands a bite with no cooldown against an 800-strand
    colony is ~100 seconds of watching, accelerating as they breed.
+
+   **BUILT.** `CONFIG.mine.worms` (`waterPerSec` 0.2, `breedPerSec` 0.05, `maxPopulation` 16), with
+   `stepNematodes` branching on `sub.mine`. Measured: **0.200 water per worm per second** against
+   0.2, and **150 strands before, 150 after** six seconds with three worms on the colony.
+   - **RATES ARE AUTHORED PER SECOND AND CONVERTED AT THE TICK**, so "1 water every 5 seconds"
+     survives a change to `realtime.stepMs` instead of silently becoming a different number. Breeding
+     converts as a PROBABILITY, not a scale: 5% a second over a half-second tick is
+     `1 - 0.95^0.5` = 2.53%, not 2.5%.
+   - **The population cap is applied in `configForLevel`, onto `cfg.nematodes.maxPopulation`** — not
+     read where the worms breed. `stepNematodes` is shared with the campaign and asks
+     `config.nematodes`, so a mine-only ceiling living in `config.mine` would never be consulted by
+     the code that enforces it.
+   - **`stepNematodes` cannot import from the mine module** — declaration order is dependency order
+     and `__m_engine_nematodes` comes first. It reads `sub.mine` and `config.mine.worms` off the
+     state instead.
+   - The drain is applied ONCE after the worm loop, not per worm: water is the number the whole run
+     is measured against, and N subtractions of a tenth is N chances to accumulate float error.
+   - **THE HUD CHIP CARRIES THE RATE, NOT ONLY THE COUNT** (`#hud-worms`, hidden at zero). "3 worms"
+     does not tell you how long you have; "−0.6/s" does.
+   - **EVERY WATER MEASUREMENT IN THE MINE NOW HAS A BACKGROUND DRAIN**, and two of `mine-check`'s
+     own assertions broke on it the moment this landed — the water-pocket probe read `+9.8999W,
+     want 10` and `water sat at 98.4`. Any probe asking "did exactly this pay exactly that?" has to
+     empty `state.nematodes` and zero `waterPerSec` first, the same way they already zero
+     `respawnChance`.
 2. **THREAT SIGHT RINGS ON BY DEFAULT.** `drawOccludedSight` / `threatSight` already exist and
    already stop at the rock face. Makes the two threats either side of it avoidable rather than
    arbitrary.

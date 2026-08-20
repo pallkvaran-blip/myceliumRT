@@ -206,6 +206,13 @@
        depth rather than as a third resource with a funny icon. */
     .res.d .rv { color: #d8d2c4; }
     .res.d .rk { color: #d8d2c4; opacity: 0.6; font-size: 10px; margin-left: -1px; }
+    /* The worm chip. Warm red rather than the row's cool greens because it is the only entry that
+       means something is being TAKEN — and `[hidden]` needs the explicit `display:none` since
+       `.res` sets display:flex, which wins over the attribute's UA rule. */
+    .res.wm { color: #e2705a; }
+    .res.wm .rv { color: #e2705a; }
+    .res.wm .rk { color: #e2705a; opacity: 0.75; font-size: 10px; margin-left: 3px; letter-spacing: 0.2px; }
+    .res.wm[hidden] { display: none; }
 
     /* THE DEPTH BEAT — "42 m / Anthracite" as a new rock layer starts (owner: a short depth beat).
        Centred over the map, pointer-transparent, and gone on its own; it names the layer rather
@@ -3266,6 +3273,25 @@ const CONFIG = {
     // PER BAND PER CHUNK, for the same reason the ore is: there is no world total any more. Halved
     // from the whole-world figures so a chunk is not a wall of creatures — a descent passes through
     // three or four chunks, which comes to about what the fixed map held.
+    // ---- the worms, which DRAIN rather than eat -----------------------------
+    // Owner's rule: a nematode attaches and feeds on the colony instead of consuming it. The point
+    // is not that it is gentler — it is that the threat pushes on the clock the run ALREADY has,
+    // so it needs no death condition of its own and the number the player is already watching is
+    // the number that moves.
+    //
+    // WHY THE CAMPAIGN'S NUMBERS COULD NOT JUST BE REUSED: `strandsPerBite` 4 with no cooldown
+    // against an 800-strand colony is about a hundred seconds of watching it be eaten, and
+    // `breedChance` 0.8 PER TICK to a cap of 150 makes that accelerate. Both were tuned for a
+    // threat that removes tissue. As a drain, 150 worms would empty a full tank in under four
+    // seconds, so the cap comes down with the rest of it.
+    //
+    // Rates are PER SECOND and converted against `realtime.stepMs` where they are used, because
+    // "1 water every 5 seconds" is a thing the owner can feel and "0.1 per tick" is not.
+    worms: {
+      waterPerSec: 0.2,          // 1 water every 5 s, per ATTACHED worm
+      breedPerSec: 0.05,         // 5% chance a feeding worm splits, per second
+      maxPopulation: 16,         // against the campaign's 150 — see above
+    },
     threatBands: [
       { worms: 0, clouds: 0 },
       { worms: 1, clouds: 0 },
@@ -17235,6 +17261,23 @@ function stepNematodes(state, phase = 'both') {
   if (!state.nematodes) state.nematodes = [];
   const net = state.active;
   const cs = sub.cellSize;
+  // THE MINE'S WORMS ATTACH AND DRAIN; THEY DO NOT EAT. Read off the SUBSTRATE and off
+  // `config.mine`, because this module is declared long before `__m_engine_mine` and cannot import
+  // from it — declaration order is dependency order here. `state.config` is a deep clone of CONFIG,
+  // so `config.mine` is present and carries the run's own numbers.
+  //
+  // The rates are authored PER SECOND and converted against the tick length here, so "1 water every
+  // 5 seconds" survives a change to `realtime.stepMs` instead of silently becoming a different
+  // number. Breeding converts as a probability, not a scale: 5% a second over a half-second tick is
+  // 1 - (1-0.05)^0.5, which is 2.53% and not 2.5%.
+  const mineWorms = !!(sub && sub.mine);
+  const mw = (config.mine && config.mine.worms) || {};
+  const tickS = Math.max(0.001, ((config.realtime && config.realtime.stepMs) || 500) / 1000);
+  const drainPerTick = mineWorms ? Math.max(0, +mw.waterPerSec || 0) * tickS : 0;
+  const breedPerTick = mineWorms
+    ? 1 - Math.pow(1 - Math.max(0, Math.min(1, +mw.breedPerSec || 0)), tickS)
+    : 0;
+  let attached = 0;
   // Worms can only sense and eat strands that have actually GROWN IN (net.grownIn): a grow
   // commits its whole path at once, so tissue still animating in isn't there to be found yet.
   const nodes = net && net.alive ? net.nodes.filter((n) => net.grownIn(n)) : [];
@@ -17267,6 +17310,7 @@ function stepNematodes(state, phase = 'both') {
 
     if (doMove) {
       w.feeding = false;
+      w.attached = false;
 
       // Each worm heads for the nearest strand it can SEE (clear LOS) that NO other worm
       // has already picked this tick — so the swarm FANS OUT across the colony instead of
@@ -17330,12 +17374,18 @@ function stepNematodes(state, phase = 'both') {
     if (Math.hypot(seen.x - w.x, seen.y - w.y) <= n.reach * cs) {
       w.feeding = true;
       // Breed EVERY tick while in contact — this is the exponential growth.
-      if (state.nematodes.length + newborns.length < n.maxPopulation && rng.chance(n.breedChance)) {
+      if (state.nematodes.length + newborns.length < n.maxPopulation
+          && rng.chance(mineWorms ? breedPerTick : n.breedChance)) {
         let bx = w.x + rng.range(-cs * 0.3, cs * 0.3), by = w.y + rng.range(-cs * 0.3, cs * 0.3);
         const bc = sub.cellAtWorld(bx, by);
         if (!bc || bc.rock) { bx = w.x; by = w.y; }   // never spawn a newborn inside rock — fall back to the parent's clear cell
         newborns.push(makeWorm(bx, by, rng.range(0, Math.PI * 2), rng.range(0, Math.PI * 2)));
       }
+      // ...AND IN THE MINE THAT IS THE WHOLE OF IT: attached, so it drains, and nothing is eaten.
+      // The drain is applied once after the loop rather than per worm, because water is one number
+      // and N subtractions of a tenth is N chances to accumulate float error in the resource the
+      // whole run is measured against.
+      if (mineWorms) { attached++; w.attached = true; continue; }
       // Eat DISTINCT strands whole on a cooldown (one worm per strand/tick), up to
       // strandsPerBite of them. Each pass re-asks for the nearest strand nobody has claimed
       // yet, so a bigger bite widens the hole around the worm rather than double-counting
@@ -17360,6 +17410,16 @@ function stepNematodes(state, phase = 'both') {
   }
 
   if (!doFeed) return;   // the MOVE phase is over — breeding, biting and respawns are attacks
+
+  // THE DRAIN. Every attached worm takes its share of the tank, which is what ends the run: the
+  // mine's fuel clock is already the thing that stops a descent, so worms accelerate it rather than
+  // bringing a second way to lose. Floored at zero — `mineFuelCheck` owns the ending, and it wants
+  // to see a tank that cannot afford a dig, not a negative one.
+  if (mineWorms && attached && net && net.alive) {
+    net.water = Math.max(0, net.water - attached * drainPerTick);
+    state.mineDrained = (state.mineDrained || 0) + attached * drainPerTick;   // diagnostics
+  }
+  state.mineAttached = mineWorms ? attached : 0;
 
   if (newborns.length) for (const b of newborns) state.nematodes.push(b);
   // WHAT A WORM EATS FADES OUT TOO (owner's ask), the same way rot that falls away does — see
@@ -25132,6 +25192,9 @@ const RES_ICON = {
   energy: '<svg class="ri" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 2 4 13.5h6L9 22l9.5-11.5h-6L13.5 2Z" fill="#f4c22e"/></svg>',
   water: '<svg class="ri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5C12 2.5 5.5 10 5.5 14.5a6.5 6.5 0 1 0 13 0C18.5 10 12 2.5 12 2.5Z" fill="currentColor"/></svg>',
   phos: '<svg class="ri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5c1 6.2 4.3 9.5 10.5 10.5C16.3 13 13 16.3 12 22.5 11 16.3 7.7 13 1.5 12 7.7 11 11 7.7 12 1.5Z" fill="currentColor"/></svg>',
+  // A NEMATODE, for the mine's "something is drinking your tank" chip: the creature's own S-curve,
+  // stroked rather than filled so it reads at 13px against the row's other two solid glyphs.
+  worm: '<svg class="ri" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 16.5c3-4 4.5 3 8-1.5s3.5-9.5 9-8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
 };
 
 // The Spores currency mark — a real mushroom SPORE PRINT (Replicate art, matted so
@@ -25277,6 +25340,12 @@ class UI {
       ? `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span></span>`
         + `<span class="res p">${RES_ICON.phos}<span class="rv" id="hud-phosphorus">0</span></span>`
         + `<span class="res d"><span class="rv" id="hud-depth">0</span><span class="rk">m</span></span>`
+        // WHAT IS EATING YOUR WATER, AND HOW MUCH OF IT. A drain the player cannot see is the same
+        // defect the strand-eating worms had, wearing a different coat — the tank simply falls
+        // faster for no stated reason. Hidden entirely at zero, so the row stays quiet until there
+        // is something to say.
+        + `<span class="res wm" id="hud-worms" hidden>${RES_ICON.worm}<span class="rv" id="hud-wormn">0</span>`
+        + `<span class="rk" id="hud-wormrate"></span></span>`
       : cardsOn
       ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span><span class="rd" id="hud-energy-inc"></span></span>`
         + `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span><span class="rd" id="hud-water-inc"></span></span>`
@@ -26050,6 +26119,20 @@ class UI {
       this._resText('hud-water', Math.floor(net.water || 0), s);
       this._resText('hud-phosphorus', Math.floor(net.phosphorus || 0), s);
       text('hud-depth', String(s.mineDepth | 0));
+      const wn = s.mineAttached | 0;
+      const chip = document.getElementById('hud-worms');
+      if (chip) {
+        // The RATE, not just the count, because "3 worms" does not tell you how long you have and
+        // "-0.6/s" does. Written only on a CHANGE: the HUD refreshes every world tick and this is
+        // two nodes inside the row the player is reading.
+        if (this._wormN !== wn) {
+          this._wormN = wn;
+          chip.hidden = wn <= 0;
+          text('hud-wormn', String(wn));
+          const per = ((s.config && s.config.mine && s.config.mine.worms) || {}).waterPerSec || 0;
+          text('hud-wormrate', wn > 0 ? `−${(wn * per).toFixed(1)}/s` : '');
+        }
+      }
     }
 
     // Card layer: resources, hand, draw/skip.
@@ -31216,6 +31299,12 @@ function configForLevel(level) {
     // where the mould sees twice as far as the worms would be arbitrary rather than designed.
     const sr = Math.max(60, cfg.mine.sightRadius | 0);
     if (sr) { cfg.nematodes.sightRadius = sr; cfg.trichoderma.sightRadius = sr; }
+    // THE POPULATION CAP IS THE MINE'S, and it has to be applied HERE rather than read where the
+    // worms breed: `stepNematodes` is shared with the campaign and asks `config.nematodes`, so a
+    // mine-only ceiling that lived in `config.mine` would simply never be consulted by the code
+    // that enforces it. See `CONFIG.mine.worms` for why 150 is catastrophic as a drain.
+    const mw = cfg.mine.worms || {};
+    if (mw.maxPopulation) cfg.nematodes.maxPopulation = Math.max(1, mw.maxPopulation | 0);
     const b = storeBonuses();
     cfg.mine.startWater = Math.max(1, (cfg.mine.startWater | 0) + (b.water | 0));
     cfg.mine.growSteps = Math.max(1, b.growSteps | 0);
@@ -34143,6 +34232,12 @@ function begin(newState) {
                  hit: bbox.map((v, b) => +(v / Math.max(1, target[b])).toFixed(3)) };
       },
       chunks: () => Object.keys((state && state.mineChunks) || {}).map(Number).sort((a, b) => a - b),
+      // Park a worm exactly where you want one. `mine-check` cannot measure a drain rate against
+      // worms that wandered in — it has to place a known number on known tissue — and pushing plain
+      // objects onto `state.nematodes` would be a check inventing its own idea of what a worm is.
+      spawnWorm: (x, y) => { spawnNematodeAt(state, x, y); return state.nematodes.length; },
+      attached: () => state.mineAttached | 0,
+      drained: () => +(state.mineDrained || 0).toFixed(2),
       chunkOf: (x) => mineChunkOfCol(state.config, state.substrate.colAtX(x)),
       chunkCount: () => mineChunkCount(state ? state.config : CONFIG),
       homeChunk: () => mineHomeChunk(state ? state.config : CONFIG),
