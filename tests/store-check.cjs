@@ -90,8 +90,8 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
      mineTracks.onCampaignShelf.length === 0, mineTracks.onCampaignShelf.join(',') || 'none');
   ok('...and cannot be bought with Spores either',
      mineTracks.boughtInCampaign === false, mineTracks.boughtInCampaign ? 'BOUGHT' : 'refused');
-  ok('the mine\'s shelf is fuel, a stronger dig, two weapons and two yields',
-     mineTracks.mineShelf.join(',') === 'water,growSteps,excreteCharges,amputateCharges,oreYield,pocketWater',
+  ok('the mine\'s shelf is fuel, a stronger dig, heat, two weapons and two yields',
+     mineTracks.mineShelf.join(',') === 'water,growSteps,excreteCharges,amputateCharges,heatTolerance,oreYield,pocketWater',
      mineTracks.mineShelf.join(','));
   // Order matters as well as membership: the three resource tracks come first, in the game's own
   // energy / water / phosphorus order, so the store reads in the order of the numbers it raises.

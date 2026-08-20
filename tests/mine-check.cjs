@@ -749,6 +749,109 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     await b.ctx.close();
   }
 
+  // ---- 4a-viii. HEAT IS PRICED, NOT ENFORCED -------------------------------------------------
+  // Owner: it gets hotter the lower you go, and below your tolerance every strand costs more water —
+  // "nothing burns off, it just costs more to grow each one the further you are from your limit".
+  // A dig the game allows always succeeds; you find out what it cost rather than being punished
+  // after the fact for a move it let you make. And it lands on the fuel clock, which is the pressure
+  // the run already has.
+  {
+    const b = await bootMine(4242);
+    const heat = await b.page.evaluate(() => {
+      const g = window.__game, s = g.state;
+      const curve = {};
+      for (const d of [0, 20, 42, 60, 84, 110, 168]) curve[d] = g.mine.cost(d);
+      return { curve, heat: g.mine.heat(), base: s.config.mine.growWaterCost | 0,
+               maxMult: s.config.mine.heat.maxMult };
+    });
+    ok('the base price reaches the tolerance limit and no further',
+       heat.curve[0] === heat.base && heat.curve[42] === heat.base && heat.curve[60] > heat.base,
+       `0m ${heat.curve[0]}, 42m ${heat.curve[42]}, 60m ${heat.curve[60]} (limit ${heat.heat.safe})`);
+    ok('...and climbs the further past it you go',
+       heat.curve[60] < heat.curve[84] && heat.curve[84] < heat.curve[110],
+       `60m ${heat.curve[60]}, 84m ${heat.curve[84]}, 110m ${heat.curve[110]}`);
+    // A CEILING, so the deepest ground is expensive rather than impossible. Without one the curve
+    // eventually exceeds any tank and the bottom stops being reachable at all — which is a wall, and
+    // a wall is exactly what heat must not be.
+    ok('...but is capped, so the bottom is never a wall',
+       heat.curve[168] <= heat.base * heat.maxMult + 0.001,
+       `168m costs ${heat.curve[168]}, cap ${heat.base * heat.maxMult}`);
+
+    // NOTHING BURNS OFF — the half that is easiest to reintroduce by accident. A dig into hot ground
+    // succeeds and keeps every strand it made; it simply charged more.
+    const hot = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      s.nematodes.length = 0; s.clouds.length = 0;
+      s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
+      s.active.water = 999999;
+      // Get well past the limit first.
+      for (let i = 0; i < 24 && g.mine.depth() < 70; i++) {
+        if (!g.mine.grow(0, 1).ok) g.mine.grow(i % 2 ? 0.5 : -0.5, 1);
+        await new Promise((r) => setTimeout(r, 90));
+      }
+      await new Promise((r) => setTimeout(r, 900));
+      const depth = g.mine.depth(), price = g.mine.costHere();
+      const before = s.active.nodes.length, w0 = s.active.water;
+      const r = g.mine.grow(0, 1);
+      await new Promise((r2) => setTimeout(r2, 1200));
+      return { depth, price, ok: r.ok, charged: +(w0 - s.active.water).toFixed(1),
+               grew: s.active.nodes.length - before, kept: s.active.nodes.length,
+               chipShown: !document.getElementById('hud-digcost').hidden,
+               chipN: document.getElementById('hud-digcostn').textContent };
+    });
+    ok('a dig below the limit still succeeds', hot.ok === true && hot.grew > 0,
+       `${hot.grew} strands at ${hot.depth} m`);
+    ok('...and simply charged the higher price', hot.charged > heat.base && Math.abs(hot.charged - hot.price) < 0.35,
+       `charged ${hot.charged} at ${hot.depth} m, price says ${hot.price}, base ${heat.base}`);
+    // A PRICE THAT SILENTLY CLIMBS IS THE INVISIBLE-DAMAGE DEFECT A THIRD TIME: the tank would just
+    // empty faster the deeper you went with nothing connecting the two.
+    ok('...with the HUD quoting what a dig costs down here',
+       hot.chipShown === true && +hot.chipN > heat.base, `chip "${hot.chipN}"`);
+    await b.ctx.close();
+  }
+
+  // ---- 4a-ix. ...AND TOLERANCE IS WHAT BUYS DEPTH --------------------------------------------
+  // The gate has to be worth money, or the track is decoration. Measured as METRES REACHED on one
+  // tank, which is the only unit the player experiences.
+  {
+    const b = await bootMine(4242);
+    const dive = async (page) => page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      s.nematodes.length = 0; s.clouds.length = 0;
+      s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
+      let digs = 0;
+      for (let i = 0; i < 220 && s.active.water >= g.mine.cheapest() && !s.runOver; i++) {
+        if (g.mine.grow(0, 1).ok) digs++;
+        else if (g.mine.grow(i % 2 ? 0.5 : -0.5, 1).ok) digs++;
+        else break;
+        await new Promise((r) => setTimeout(r, 90));
+      }
+      return { digs, depth: g.mine.depth(), safe: g.mine.heat().safe };
+    });
+    const bare = await dive(b.page);
+    const bought = await b.page.evaluate(async () => {
+      const st = window.__game.store;
+      st.credit(4000);
+      let lv = 0;
+      for (let i = 0; i < 6; i++) if (st.buy('heatTolerance').ok) lv++;
+      window.__game.mine.playSeed(4242);
+      for (let i = 0; i < 140; i++) {
+        if (window.__game.state.substrate && window.__game.state.substrate._fineSolid) break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      await new Promise((r) => setTimeout(r, 1400));
+      return lv;
+    });
+    const upped = await dive(b.page);
+    ok('the tolerance track raises the limit', upped.safe > bare.safe + 100,
+       `${bare.safe} m -> ${upped.safe} m over ${bought} purchases`);
+    // THE NUMBER THAT MATTERS. Same seed, same tank, same dig loop — the only difference is the
+    // track, so the metres are what it bought.
+    ok('...and that is worth real depth on one tank', upped.depth > bare.depth + 20,
+       `${bare.depth} m on ${bare.digs} digs -> ${upped.depth} m on ${upped.digs} digs`);
+    await b.ctx.close();
+  }
+
   // ---- 4b. THE WORLD STREAMS SIDEWAYS ------------------------------------------------------
   // The owner's ask, verbatim: "I want to be able to grow both left and right as well - so the map
   // needs to either generate as I go, or it needs to be much larger and have boundaries. I prefer
@@ -1235,7 +1338,24 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       let digs = 0;
       for (let i = 0; i < 300; i++) {
         if (g.state.runOver) break;
-        if (g.mine.grow(0, 1).ok) digs++; else break;
+        // KEEP DIGGING UNTIL THE RUN ENDS, not until the DEEP dig stops being affordable. Heat
+        // prices a dig by the depth it starts at, so a colony deep enough to be paying 12 a dig can
+        // still afford a 2 near the surface — and that is deliberate: an over-extended player can
+        // crawl sideways up top toward water they know about, which is a recovery play rather than
+        // a stuck state. Breaking on the first refused DOWNWARD dig read `75 m, over=false` and
+        // blamed the fuel curve for the affordability rule working.
+        if (g.mine.grow(0, 1).ok) { digs++; }
+        else {
+          // `mine.grow` always digs from the DEEPEST tip, and heat prices a dig by where it starts —
+          // so once the deep ground is unaffordable that call refuses for ever while the colony can
+          // still dig cheaply near the surface, which is what `mineCanGrow` correctly reports and
+          // what a player would actually do. Reach for the shallowest tip the way they would.
+          const s2 = g.state;
+          let top = null;
+          for (const n of s2.active.nodes) if (!n.infected && (!top || n.y < top.y)) top = n;
+          if (!top || !g.mine.growFrom(top.x, top.y, top.x + (i % 2 ? 200 : -200), top.y + 60).ok) break;
+          digs++;
+        }
         if (i % 5 === 4) await new Promise((r) => setTimeout(r, 60));
       }
       await new Promise((r) => setTimeout(r, 2200));   // let the out-of-fuel grace run out
@@ -1403,8 +1523,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     // list rather than a count, because what the mine SELLS is the whole of its progression and a
     // track quietly appearing or vanishing from the shelf is the kind of change that should have to
     // be typed here on purpose.
-    ok('the mine shelf is fuel, a stronger dig, two weapons and two yields',
-       shop.shelf.join(',') === 'water,growSteps,excreteCharges,amputateCharges,oreYield,pocketWater',
+    ok('the mine shelf is fuel, a stronger dig, heat, two weapons and two yields',
+       shop.shelf.join(',') === 'water,growSteps,excreteCharges,amputateCharges,heatTolerance,oreYield,pocketWater',
        shop.shelf.join(','));
     ok('the mine\'s wallet is Phosphorus (`minerals`)', shop.creditedMinerals === 500, String(shop.creditedMinerals));
     // THE TWO ECONOMIES DO NOT TOUCH. Sharing one wallet would let a campaign player's Spores buy a
@@ -1616,7 +1736,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     }));
     ok('the store screen is the mine\'s', store.title === 'The Deep Mine' && store.descend, store.title);
     ok('...with one tile per mine track and no colonies',
-       store.tiles === 6 && store.colonyTiles === 0 && store.colonySectionsHidden,
+       store.tiles === 7 && store.colonyTiles === 0 && store.colonySectionsHidden,
        `${store.tiles} tiles, ${store.colonyTiles} colony tiles`);
     ok('...no deck button', store.deckBtn === false, String(store.deckBtn));
     ok('...and it says what a descent opens with', /water/.test(store.note) && /grow/.test(store.note), store.note);

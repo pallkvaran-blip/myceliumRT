@@ -3347,8 +3347,7 @@ sessions and a session that only reads CLAUDE.md must still be able to work. **N
 owner's, not suggestions.**
 
 **PROGRESS — keep this line honest, it is how the next session knows where to start:**
-`PHASE 1 COMPLETE — (01) worms drain, (02) sight rings, (03) infection deadline,
-(04) consumables. Phase 2 (05) heat gating is next; nothing in it has started.`
+`PHASE 1 COMPLETE. Phase 2: (05) heat gating — DONE. (06) material types — next.`
 
 #### The premises (settled, do not re-litigate)
 
@@ -3470,11 +3469,31 @@ owner's, not suggestions.**
 
 #### Phase 2 — the run gets a shape
 
-5. **HEAT TOLERANCE, PRICED NOT ENFORCED.** Below the tolerance limit **every strand costs more
-   water**, and more again the further past it you go. **Nothing burns off** — a dig the game allows
-   always succeeds, so the player is never punished after the fact for a move it let them make. The
-   wall is economic. Lands on `mineGrowCost`, one function; `coreY`, `growFloorY` and the earth ramp
-   to red already exist, so this turns a picture into a rule.
+5. **HEAT TOLERANCE, PRICED NOT ENFORCED. BUILT** — `CONFIG.mine.heat` (`safeDepth` 42,
+   `perMetre` 0.06, `maxMult` 8) plus a `heatTolerance` store track at +25 m a step. Below the limit
+   every dig costs more water and more again the deeper it starts; **nothing burns off**, so a dig
+   the game allows always succeeds and the player is never punished after the fact for a move it let
+   them make. It lands on `mineGrowCost`, one function.
+   - **Measured curve at zero upgrades:** 2 water to 42 m, then **4.2 at 60, 7 at 84, 10.2 at 110,
+     capped at 16**. An unupgraded tank reaches **72 m**; buying the track out (limit 192 m, i.e. no
+     penalty anywhere) reaches **101 m** on the same seed and dig loop. **So heat is worth ~30 m of
+     depth**, which is what makes the track worth money.
+   - **`maxMult` IS WHAT STOPS IT BEING A WALL.** Without a ceiling the curve eventually exceeds any
+     tank and the bottom of the shaft stops being reachable at all — which is exactly what the owner
+     said heat must not be.
+   - **PRICED WHERE THE DIG STARTS, NOT WHERE IT AIMS.** Using the deeper of source and target read
+     `charged 7 at 72 m, price says 5.6` — a dig aimed 200 units down is ~5 m deeper than the strand
+     it starts at, so the HUD quoted one number and the tank lost another. The player cannot price a
+     gesture they have not made yet; the ground the colony is STANDING on can be shown before they
+     touch anything, and it is still a gate because to dig deep you must first BE deep.
+   - **AFFORDABILITY ASKS THE CHEAPEST GROUND (`mineCheapestCost`), NOT THE DEEPEST.** A colony deep
+     enough to be paying 12 a dig can still afford 2 near the surface, so an over-extended player can
+     crawl sideways up top toward water they know about. That is a recovery play rather than a stuck
+     state — and it is why the fuel-curve probe has to keep digging until the RUN ends rather than
+     until the downward dig is refused, which read `75 m, over=false` and blamed the fuel curve for
+     the affordability rule working.
+   - The HUD quotes the price once the heat is adding to it (`#hud-digcost`, hidden below the limit).
+     A price that silently climbs with depth is the invisible-damage defect a third time.
 6. **MORE MATERIAL TYPES** — named materials with band affinities, so an upgrade needs a
    *particular* thing. `foodKind` already carries three art kinds and `orePerPile` already varies by
    band.

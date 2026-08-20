@@ -220,6 +220,11 @@
     .res.inf .rk { color: #9ec44f; opacity: 0.7; font-size: 10px; margin-left: -1px; }
     .res.inf.urgent, .res.inf.urgent .rv, .res.inf.urgent .rk { color: #e2705a; }
     .res.inf[hidden] { display: none; }
+    /* The heat price, in the core's own red — the colour the earth is already turning around you. */
+    .res.hot { color: #e2915a; }
+    .res.hot .rv { color: #e2915a; }
+    .res.hot .rk { color: #e2915a; opacity: 0.7; font-size: 10px; margin-left: 2px; }
+    .res.hot[hidden] { display: none; }
     /* The kit. Bottom-centre and thumb-sized, because the mine is played one-handed on a phone and
        the other hand is not coming. Sits inside the boxed playfield (`--pf-*`), or on a desktop it
        would float against the window edge a long way from the map. */
@@ -3342,6 +3347,23 @@ const CONFIG = {
     // the right one — a cut that wide takes healthy tissue with it, which is the decision the enzyme
     // is supposed to pose.
     cutRadius: 220,
+    // ---- heat, which is DEPTH GATING BY PRICE ------------------------------
+    // Owner: it gets hotter the lower you go, and below your tolerance every strand costs more
+    // water — *"nothing burns off, it just costs more to grow each one the further you are from
+    // your heat tolerance limit"*. A dig the game allows always succeeds; you find out what it cost
+    // rather than being punished after the fact for a move it let you make. And it lands on the fuel
+    // clock, which is the pressure the run already has, so there is no second system to read.
+    //
+    // The art is already there: `coreY`, `growFloorY` and the earth ramping to red. This turns a
+    // picture into a rule.
+    heat: {
+      safeDepth: 42,      // metres you dig at the base price with nothing bought — one band
+      perMetre: 0.06,     // fraction of the base cost added per metre past the limit
+      // A CEILING, so the deepest ground is expensive rather than impossible. Without one the cost
+      // curve eventually exceeds any tank and the bottom of the shaft stops being reachable at all,
+      // which is a wall — exactly what the owner said this must not be.
+      maxMult: 8,
+    },
     // ...AND TWO OVERRIDES WITHOUT WHICH THE DEADLINE CANNOT BE OBSERVED AT ALL. Measured on a
     // 150-strand colony with a cloud parked on it: the breach claimed ~20 strands, every one of them
     // aged out and was REMOVED within about two seconds, and the clock armed and cleared itself
@@ -14013,6 +14035,13 @@ const STORE_UPGRADES = [
     mineOnly: true,
     effect: 'Carry <b>one more</b> dose per descent. Cuts out every strand in a small radius — the only answer to an infection.',
     costs: [20, 44, 78, 128, 195] },
+  // DEPTH GATING, sold as tolerance. It moves where the price starts climbing rather than removing
+  // the climb, so the deepest ground is always expensive and never impossible — a wall is exactly
+  // what the owner said heat must not be.
+  { id: 'heatTolerance', name: 'Heat tolerance', icon: 'climb', accent: 'gold', step: 25, unit: 'metres', unit1: 'metre',
+    mineOnly: true,
+    effect: 'Dig <b>25 m deeper</b> before the heat starts making every strand cost more water.',
+    costs: [18, 40, 72, 118, 180, 260] },
   { id: 'oreYield', name: 'Ore yield', icon: 'phos', accent: 'phos', step: 1, unit: 'phosphorus',
     mineOnly: true,
     effect: 'Every ore seam you digest pays <b>1</b> more Phosphorus.',
@@ -14028,7 +14057,7 @@ const STORE_UPGRADES = [
 // starting Phosphorus would be starting with currency, `startLevel` names levels the mine does
 // not have, the two carry tracks are cards, and Retries retries a level. What is left is fuel and
 // the three tracks written for the mine itself.
-const MINE_UPGRADE_IDS = ['water', 'growSteps', 'excreteCharges', 'amputateCharges', 'oreYield', 'pocketWater'];
+const MINE_UPGRADE_IDS = ['water', 'growSteps', 'heatTolerance', 'excreteCharges', 'amputateCharges', 'oreYield', 'pocketWater'];
 // The mine's price for a shared track. `water` is a Spores ladder upstairs (25, 50, 100 …) and
 // the mine's whole currency runs an order of magnitude smaller, so a shared track needs its own
 // ladder or its first rung is unreachable.
@@ -21866,8 +21895,6 @@ function mineGrowReach(config) {
 function mineGrow(state, ctx) {
   const net = state && state.active, sub = state && state.substrate;
   if (!net || !net.alive || state.runOver) return { ok: false, message: 'The colony is no longer alive.' };
-  const cost = mineGrowCost(state.config);
-  if (net.water < cost) return { ok: false, message: `Not enough water — a grow costs ${cost}.` };
   const hasOrigin = ctx.srcX != null && ctx.srcY != null;
   const tip = net.nearestNode(hasOrigin ? ctx.srcX : ctx.x, hasOrigin ? ctx.srcY : ctx.y);
   // YOU CANNOT DIG OUT OF ROT — and the RULE was already true before this, which is exactly why it
@@ -21886,6 +21913,15 @@ function mineGrow(state, ctx) {
       return { ok: false, message: 'That tissue is infected — dig from a clean strand.' };
     }
   }
+  // PRICED WHERE YOU DIG FROM, not where you aim. Using the deeper of source and target read
+  // `charged 7 at 72 m, price says 5.6` — a dig aimed 200 units down is ~5 m deeper than the strand
+  // it starts at, so the HUD quoted one number and the tank lost another. The player cannot be asked
+  // to price a gesture they have not made yet; the ground the colony is STANDING on is a number
+  // that can be shown before they touch anything, and it is still a depth gate, because to dig deep
+  // you first have to BE deep.
+  const cost = mineGrowCost(state.config,
+                            mineDepthM(sub, tip ? tip.y : (ctx.srcY != null ? ctx.srcY : ctx.y)));
+  if (net.water < cost) return { ok: false, message: `Not enough water — a dig here costs ${cost}.` };
   const fp = tip ? { x: tip.x, y: tip.y } : (net.frontierPoint() || { x: 0, y: sub.surfaceY });
   let dx = ctx.x - fp.x, dy = ctx.y - fp.y;
   // NO DIRECTION MEANS DOWN. A tap with no drag is a legitimate gesture on a phone and the mine
@@ -21987,10 +22023,47 @@ function mineInfectionLeft(state) {
 // --- the fuel clock ---------------------------------------------------------
 // What one grow costs right now. The store's `growSteps` track raises the STEPS, not the price,
 // so an upgraded colony digs further per unit of fuel rather than digging more often.
-function mineGrowCost(config) { return Math.max(1, mineCfg(config).growWaterCost | 0); }
+// WHAT ONE DIG COSTS AT A GIVEN DEPTH. `depthM` is optional: with none it is the base price, which
+// is what the surface costs and what the store tile quotes.
+//
+// The store's `growSteps` track raises the STEPS, not the price, so an upgraded colony digs further
+// per unit of fuel rather than digging more often; `heatTolerance` moves where the price starts
+// climbing. Both are read off the run's config clone, never off CONFIG.
+function mineGrowCost(config, depthM) {
+  const M = mineCfg(config);
+  const base = Math.max(1, M.growWaterCost | 0);
+  const h = M.heat;
+  if (!h || depthM == null) return base;
+  const safe = Math.max(0, (h.safeDepth | 0) + (M.heatBonus | 0));
+  const past = Math.max(0, (+depthM || 0) - safe);
+  if (past <= 0) return base;
+  const mult = Math.min(+h.maxMult || 8, 1 + past * (+h.perMetre || 0));
+  // Rounded to a tenth: the HUD quotes this number and "4.2" is a price a player can hold in their
+  // head, where 4.1999999 is float noise and a bare integer would hide the whole curve.
+  return Math.round(base * mult * 10) / 10;
+}
+// The cost of the dig the player is ABOUT to make, at the hottest ground it involves — the strand
+// they are digging from or the point they are aiming at, whichever is deeper. Aiming deeper is what
+// costs, which is the rule the player can see themselves obeying.
+function mineDigCost(state, srcY) {
+  const sub = state && state.substrate;
+  if (!sub) return mineGrowCost(state ? state.config : CONFIG);
+  return mineGrowCost(state.config, mineDepthM(sub, srcY == null ? sub.surfaceY : srcY));
+}
+// The CHEAPEST dig still available — the price at the shallowest living tip. This is what
+// affordability and the end of the run ask, so a colony that is deep and nearly dry ends its
+// descent rather than standing there unable to afford the only ground it is next to.
+function mineCheapestCost(state) {
+  const net = state && state.active, sub = state && state.substrate;
+  if (!net || !sub || !net.nodes.length) return mineGrowCost(state ? state.config : CONFIG);
+  let top = Infinity;
+  for (const n of net.nodes) if (!n.infected && n.y < top) top = n.y;
+  if (!isFinite(top)) top = sub.surfaceY;
+  return mineGrowCost(state.config, mineDepthM(sub, top));
+}
 function mineCanGrow(state) {
   const net = state && state.active;
-  return !!(net && net.alive && !state.runOver && net.water >= mineGrowCost(state.config));
+  return !!(net && net.alive && !state.runOver && net.water >= mineCheapestCost(state));
 }
 // OUT OF FUEL IS NOT THE SAME INSTANT AS "cannot afford a grow", and the grace is why: a strand
 // already inside a water pocket's reach pays out on the next tick, so ending the run the moment
@@ -22033,6 +22106,7 @@ function mineEndRun(state, cause) {
   return { MINE_ROCKS, mineLevelDef, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
            mineDepthReached, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
+           mineDigCost, mineCheapestCost,
            mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
            mineInfectionCheck, mineInfectionLeft,
            mineItemCount, mineUseExcrete, mineUseAmputate,
@@ -25552,6 +25626,12 @@ class UI {
         // actually infected.
         + `<span class="res inf" id="hud-infect" hidden>${RES_ICON.spore}<span class="rv" id="hud-infectn">0</span>`
         + `<span class="rk">s</span></span>`
+        // WHAT THE NEXT DIG COSTS. A price that silently climbs with depth is the invisible-damage
+        // defect a third time: the tank would just empty faster the deeper you went, with nothing
+        // on screen connecting the two. Shown only once the heat is actually adding to it, so the
+        // first 42 m stay uncluttered.
+        + `<span class="res hot" id="hud-digcost" hidden>${RES_ICON.water}<span class="rv" id="hud-digcostn">2</span>`
+        + `<span class="rk">a dig</span></span>`
       : cardsOn
       ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span><span class="rd" id="hud-energy-inc"></span></span>`
         + `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span><span class="rd" id="hud-water-inc"></span></span>`
@@ -26344,6 +26424,18 @@ class UI {
       this._resText('hud-water', Math.floor(net.water || 0), s);
       this._resText('hud-phosphorus', Math.floor(net.phosphorus || 0), s);
       text('hud-depth', String(s.mineDepth | 0));
+      const dc = document.getElementById('hud-digcost');
+      if (dc) {
+        // The price where the colony is actually working — the deepest living tip — against the
+        // base. Written on a change; this refreshes every world tick.
+        const cost = (window.__game && window.__game.mine) ? window.__game.mine.costHere() : null;
+        const base = (s.config.mine && s.config.mine.growWaterCost) | 0;
+        if (this._digCost !== cost) {
+          this._digCost = cost;
+          dc.hidden = !(cost > base);
+          if (cost > base) text('hud-digcostn', String(cost));
+        }
+      }
       const inf = document.getElementById('hud-infect');
       if (inf) {
         const left = s.mineInfect ? Math.ceil(Math.max(0, s.mineInfect.left != null
@@ -31249,7 +31341,8 @@ const __m_main = (function () {
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
   const { mineLevelDef, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
-          mineOreRewards, mineWaterPickups, mineGrowCost, mineGrowSegments, mineGrowReach, mineGrow,
+          mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost,
+          mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun,
           mineInfectionCheck, mineInfectionLeft,
           mineItemCount, mineUseExcrete, mineUseAmputate } = __m_engine_mine;
@@ -31583,6 +31676,10 @@ function configForLevel(level) {
     // it; `createLevelState` copies it onto `state.mineItems` at run start.
     cfg.mine.items = { excrete: Math.max(0, b.excreteCharges | 0),
                        amputate: Math.max(0, b.amputateCharges | 0) };
+    // ...and how deep the base price reaches. Held as a BONUS rather than folded into
+    // `heat.safeDepth`, so the config keeps saying what the unupgraded limit is — otherwise the
+    // number the tile quotes and the number the curve uses drift apart with nothing to catch it.
+    cfg.mine.heatBonus = Math.max(0, b.heatTolerance | 0);
   }
   return cfg;
 }
@@ -34541,7 +34638,19 @@ function begin(newState) {
       depth: () => mineDepthReached(state),
       band: (m) => mineBandAt(state ? state.config : CONFIG, m),
       bands: () => (state ? state.config : CONFIG).mine.bands.map((b) => b.theme),
-      cost: () => mineGrowCost(state.config),
+      cost: (depthM) => mineGrowCost(state.config, depthM),
+      // The price where the colony is working now: the deepest living tip, which is the ground the
+      // player is about to dig from.
+      costHere: () => {
+        const net = state.active, sub = state.substrate;
+        if (!net || !sub || !net.nodes.length) return mineGrowCost(state.config);
+        let deep = -Infinity;
+        for (const n of net.nodes) if (!n.infected && n.y > deep) deep = n.y;
+        return mineGrowCost(state.config, mineDepthM(sub, isFinite(deep) ? deep : sub.surfaceY));
+      },
+      cheapest: () => mineCheapestCost(state),
+      heat: () => ({ safe: ((state.config.mine.heat || {}).safeDepth | 0) + (state.config.mine.heatBonus | 0),
+                     bonus: state.config.mine.heatBonus | 0 }),
       steps: () => mineGrowSegments(state.config) / 3,
       ore: () => state.mineOre | 0,
       // Dig from the deepest living tip, in a direction. Returns the engine's own {ok,message}.
