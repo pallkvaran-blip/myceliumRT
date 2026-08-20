@@ -416,13 +416,24 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       for (let i = 0; i < N; i++) g.mine.spawnWorm(tip.x + (i - 1) * 4, tip.y);
       const nodes0 = s.active.nodes.length;
       s.active.water = 100;
-      const w0 = s.active.water, t0 = performance.now();
-      await new Promise((r) => setTimeout(r, 6000));
+      const w0 = s.active.water, t0 = performance.now(), d0 = s.mineDrained || 0;
+      // SAMPLED THROUGHOUT, not only at the ends — the whole-number rule is about what the tank
+      // reads at any moment, and a probe that looks twice cannot tell a tank that stayed whole from
+      // one that was fractional the entire time and happened to land on an integer.
+      const seen = new Set();
+      for (let i = 0; i < 30; i++) { seen.add(s.active.water); await new Promise((r) => setTimeout(r, 200)); }
       const secs = (performance.now() - t0) / 1000;
       const res = {
+        tank: [...seen], fracTank: [...seen].filter((v) => !Number.isInteger(v)),
+        debt: +(s.mineDrainDebt || 0).toFixed(3),
         N, secs, nodes0, nodesNow: s.active.nodes.length,
         worms: s.nematodes.length, attached: g.mine.attached(),
-        drained: w0 - s.active.water,
+        // THE RATE IS MEASURED OFF THE DRAIN, NOT OFF THE TANK. Since the tank only moves in whole
+        // units, the tank lags the true drain by whatever remainder is outstanding — up to 1 water,
+        // which over a 6 s window read as 0.167/s against a stated 0.2 and looked like the rate
+        // being wrong. `mineDrained` is the owed total and is what the rate is a property of; the
+        // tank's own correctness is the separate assertion below.
+        drained: (s.mineDrained || 0) - d0, tankDrop: w0 - s.active.water,
         want: s.config.mine.worms.waterPerSec,
         chipHidden: (document.getElementById('hud-worms') || {}).hidden,
         chipN: (document.getElementById('hud-wormn') || {}).textContent,
@@ -440,6 +451,25 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     ok('...and eats nothing at all', w.nodesNow === w.nodes0,
        `${w.nodes0} strands before, ${w.nodesNow} after ${w.secs.toFixed(0)}s with ${w.N} worms on it`);
     ok('the worms are counted as attached', w.attached === w.N, `${w.attached} of ${w.N}`);
+    // THE TANK IS ONLY EVER A WHOLE NUMBER (owner: "let's count water and other things only in
+    // whole numbers"), even though the drain RATE is a fraction — 0.2 a worm a second is the
+    // tuning, and rounding that up to 1 would make one worm five times deadlier. So the fraction
+    // accumulates in `mineDrainDebt` and only whole units come out of the tank. The debt is
+    // deliberately not part of the tank: a player counting digs must never find that a tank reading
+    // 6 buys two digs at 2 and then refuses the third.
+    ok('...and the tank is only ever a whole number', w.fracTank.length === 0,
+       w.fracTank.length ? `fractional: ${w.fracTank.slice(0, 5).join(' ')}`
+                         : `${w.tank.length} distinct readings, all whole (${w.tank.slice(0, 6).join(' ')}…), debt ${w.debt}`);
+    // ...AND THE FRACTION IS NOT SIMPLY LOST. The rate assertion above already measures the average
+    // over 6 s, which is what would drift if the accumulator dropped its remainder — this names the
+    // mechanism so a future "just round it" fails on the right line rather than on a rate.
+    // ...AND THE FRACTION IS CARRIED, NOT DISCARDED. This is the assertion that makes the two halves
+    // add up: everything owed has either come out of the tank or is sitting in the debt, so a
+    // "just round it down" would show up as a tank that fell short of the rate rather than as a
+    // rate that still averages out.
+    ok('...with the sub-unit remainder carried, not discarded',
+       w.debt >= 0 && w.debt < 1 && Math.abs(w.tankDrop - (w.drained - w.debt)) < 1e-6,
+       `${w.drained.toFixed(2)} owed = ${w.tankDrop} taken + ${w.debt} carried`);
     // A DRAIN THE PLAYER CANNOT SEE is the same defect the strand-eating worms had in a new coat:
     // the tank just falls faster for no stated reason. The chip carries the RATE, not only the
     // count, because "3 worms" does not tell you how long you have and "-0.6/s" does.
@@ -779,33 +809,59 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     await b.ctx.close();
   }
 
-  // ---- 4a-viii. HEAT IS PRICED, NOT ENFORCED -------------------------------------------------
+  // ---- 4a-viii. HEAT IS PRICED, NOT ENFORCED, AND THE PRICE DOUBLES AT A LINE ------------------
   // Owner: it gets hotter the lower you go, and below your tolerance every strand costs more water —
   // "nothing burns off, it just costs more to grow each one the further you are from your limit".
   // A dig the game allows always succeeds; you find out what it cost rather than being punished
   // after the fact for a move it let you make. And it lands on the fuel clock, which is the pressure
   // the run already has.
+  //
+  // A STAIRCASE, NOT A RAMP (owner: "there should be a depth line, beyond which the cost increases.
+  // Let's just always have the cost double ... Then beyond the next depth line, 8, etc."), and every
+  // price a WHOLE NUMBER. The per-metre ramp it replaced could not be counted: 4.2 here and 4.3 six
+  // metres on left the tank fractional however it was rounded, so "how many digs have I left?" — the
+  // one question the fuel clock exists to ask — had no answer a player could work out.
   {
     const b = await bootMine(4242);
     const heat = await b.page.evaluate(() => {
       const g = window.__game, s = g.state;
       const curve = {};
-      for (const d of [0, 20, 42, 60, 84, 110, 168]) curve[d] = g.mine.cost(d);
-      return { curve, heat: g.mine.heat(), base: s.config.mine.growWaterCost | 0,
-               maxMult: s.config.mine.heat.maxMult };
+      for (const d of [0, 20, 41, 42, 43, 83, 84, 85, 125, 126, 127, 168, 400]) curve[d] = g.mine.cost(d);
+      return { curve, heat: g.mine.heat(0), base: s.config.mine.growWaterCost | 0,
+               maxMult: s.config.mine.heat.maxMult,
+               next: { 0: g.mine.heat(0).nextLine, 50: g.mine.heat(50).nextLine, 400: g.mine.heat(400).nextLine } };
     });
-    ok('the base price reaches the tolerance limit and no further',
-       heat.curve[0] === heat.base && heat.curve[42] === heat.base && heat.curve[60] > heat.base,
-       `0m ${heat.curve[0]}, 42m ${heat.curve[42]}, 60m ${heat.curve[60]} (limit ${heat.heat.safe})`);
-    ok('...and climbs the further past it you go',
-       heat.curve[60] < heat.curve[84] && heat.curve[84] < heat.curve[110],
-       `60m ${heat.curve[60]}, 84m ${heat.curve[84]}, 110m ${heat.curve[110]}`);
-    // A CEILING, so the deepest ground is expensive rather than impossible. Without one the curve
-    // eventually exceeds any tank and the bottom stops being reachable at all — which is a wall, and
+    ok('the base price reaches the first line and no further',
+       heat.curve[0] === heat.base && heat.curve[42] === heat.base && heat.curve[43] > heat.base,
+       `0m ${heat.curve[0]}, 42m ${heat.curve[42]}, 43m ${heat.curve[43]} (line ${heat.heat.safe})`);
+    // THE LADDER ITSELF, by name — doubling is the rule, so assert the doubling rather than merely
+    // that it climbs. A ramp passes "it climbs"; only this fails if one comes back.
+    ok('...then DOUBLES past each line', heat.curve[43] === heat.base * 2
+       && heat.curve[85] === heat.base * 4 && heat.curve[127] === heat.base * 8,
+       `${heat.base} -> ${heat.curve[43]} -> ${heat.curve[85]} -> ${heat.curve[127]}`);
+    // EVERY LINE THE SAME WAY ROUND. `floor` was uniform only at the first line — 42 m stayed cheap
+    // while 84 m had already doubled — so the boundary the player meets second is the one that
+    // surprises them. Standing exactly ON a line is the cheap side of it, everywhere.
+    ok('...with every line on the same side of its own boundary',
+       heat.curve[41] === heat.curve[42] && heat.curve[42] < heat.curve[43]
+       && heat.curve[83] === heat.curve[84] && heat.curve[84] < heat.curve[85]
+       && heat.curve[125] === heat.curve[126] && heat.curve[126] < heat.curve[127],
+       `42:${heat.curve[42]}/${heat.curve[43]} 84:${heat.curve[84]}/${heat.curve[85]} 126:${heat.curve[126]}/${heat.curve[127]}`);
+    // WHOLE NUMBERS, which is the ask this rewrite is FOR. A price of 4.2 fails here.
+    ok('...and every price on the ladder is a whole number',
+       Object.values(heat.curve).every((c) => Number.isInteger(c)),
+       Object.entries(heat.curve).map(([d, c]) => `${d}:${c}`).join(' '));
+    // The HUD needs to name the step that is coming, or a staircase is no better than a ramp.
+    ok('...and the next line is readable ahead of time',
+       heat.next[0] === heat.heat.safe && heat.next[50] === heat.heat.safe + heat.heat.every
+       && heat.next[400] === null,
+       `at 0m -> ${heat.next[0]}, at 50m -> ${heat.next[50]}, at 400m -> ${heat.next[400]}`);
+    // A CEILING, so the deepest ground is expensive rather than impossible. Without one the price
+    // doubles past any tank and the bottom stops being reachable at all — which is a wall, and
     // a wall is exactly what heat must not be.
     ok('...but is capped, so the bottom is never a wall',
-       heat.curve[168] <= heat.base * heat.maxMult + 0.001,
-       `168m costs ${heat.curve[168]}, cap ${heat.base * heat.maxMult}`);
+       heat.curve[400] === heat.base * heat.maxMult && heat.curve[168] === heat.curve[400],
+       `400m costs ${heat.curve[400]}, cap ${heat.base * heat.maxMult}`);
 
     // NOTHING BURNS OFF — the half that is easiest to reintroduce by accident. A dig into hot ground
     // succeeds and keeps every strand it made; it simply charged more.
@@ -831,7 +887,9 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     });
     ok('a dig below the limit still succeeds', hot.ok === true && hot.grew > 0,
        `${hot.grew} strands at ${hot.depth} m`);
-    ok('...and simply charged the higher price', hot.charged > heat.base && Math.abs(hot.charged - hot.price) < 0.35,
+    // AND CHARGED EXACTLY IT, not approximately. The old ramp needed a 0.35 tolerance here because
+    // the price itself was fractional; with whole numbers an inexact charge is a defect, not noise.
+    ok('...and simply charged the higher price', hot.charged > heat.base && hot.charged === hot.price,
        `charged ${hot.charged} at ${hot.depth} m, price says ${hot.price}, base ${heat.base}`);
     // A PRICE THAT SILENTLY CLIMBS IS THE INVISIBLE-DAMAGE DEFECT A THIRD TIME: the tank would just
     // empty faster the deeper you went with nothing connecting the two.
@@ -1279,6 +1337,21 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   });
   ok('the zoom opens at CONFIG.mine.zoom', Math.abs(zoomed.rest - zoomed.want) < 0.01,
      `${zoomed.rest.toFixed(3)} vs ${zoomed.want}`);
+  // ...AND IT OPENS THREE SCROLL TICKS FURTHER OUT THAN IT USED TO (owner: "let's make the default
+  // zoom further out -- three scroll ticks on my mouse"). Pinned as the RELATIONSHIP rather than as
+  // the number 0.6, because the ask was in ticks: the wheel multiplies by 1.12 a tick, so three
+  // ticks IN from the resting zoom must land on the 0.85 this moved from. A later "one more tick
+  // out" should fail here and be updated deliberately — that is the point of pinning a decision.
+  //
+  // Read off `config.mine.zoom` rather than the live camera, since `mineZoom` scales the live one by
+  // `viewH / refHeight` and this check boots at a viewport that is not the reference height.
+  {
+    const STEP = 1.12, WAS = 0.85;
+    const threeIn = zoomed.want * Math.pow(STEP, 3);
+    ok('...three scroll ticks further out than the old framing',
+       Math.abs(threeIn - WAS) < 0.02,
+       `${zoomed.want} x ${STEP}^3 = ${threeIn.toFixed(3)}, against the previous ${WAS}`);
+  }
   ok('the wheel zooms OUT', zoomed.zOut < zoomed.rest * 0.95,
      `${zoomed.rest.toFixed(3)} -> ${zoomed.zOut.toFixed(3)}`);
   // BOUNDED BY THE STREAMING, not by taste — content is generated per chunk near the colony, so a

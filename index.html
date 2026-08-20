@@ -3388,11 +3388,21 @@ const CONFIG = {
     // The art is already there: `coreY`, `growFloorY` and the earth ramping to red. This turns a
     // picture into a rule.
     heat: {
-      safeDepth: 42,      // metres you dig at the base price with nothing bought — one band
-      perMetre: 0.06,     // fraction of the base cost added per metre past the limit
+      safeDepth: 42,      // metres you dig at the base price with nothing bought — the FIRST line
+      // ...AND EVERY `lineEvery` METRES PAST IT, THE PRICE DOUBLES AGAIN (owner: "there should be a
+      // depth line, beyond which the cost increases. Let's just always have the cost double ... Then
+      // beyond the next depth line, 8, etc."). So with `growWaterCost` 2 the ladder is 2 · 4 · 8 · 16
+      // and every rung is a WHOLE NUMBER, which is the point — see `mineGrowCost`.
+      //
+      // 42 m is one rock band, so a line falls where the band beat already announces one. The player
+      // is told "84 m — Garnet" at exactly the depth the price doubles, and the two readings agree
+      // without a second piece of furniture. Buying tolerance slides the first line down and the
+      // rest with it, so an upgraded colony gets a longer cheap stretch rather than a discount.
+      lineEvery: 42,
       // A CEILING, so the deepest ground is expensive rather than impossible. Without one the cost
-      // curve eventually exceeds any tank and the bottom of the shaft stops being reachable at all,
-      // which is a wall — exactly what the owner said this must not be.
+      // doubles past any tank and the bottom of the shaft stops being reachable at all, which is a
+      // wall — exactly what the owner said this must not be. At 8 the ladder tops out at 16 water a
+      // dig, i.e. three doublings.
       maxMult: 8,
     },
     // ...AND TWO OVERRIDES WITHOUT WHICH THE DEADLINE CANNOT BE OBSERVED AT ALL. Measured on a
@@ -3458,10 +3468,19 @@ const CONFIG = {
     refHeight: 844,
     // THE RESTING ZOOM, not a locked one (owner: "let's allow panning and zooming, but let's bring
     // the player back to the right perspective when a growth action is taken"). It was fixed
-    // outright; now the player may look wherever they like and a DIG reasserts this framing. Roughly
-    // the campaign's medium zoom, and above the 0.62 the detail LOD needs, so growth still animates
-    // per-strand on a phone.
-    zoom: 0.85,
+    // outright; now the player may look wherever they like and a DIG reasserts this framing.
+    //
+    // 0.85 -> 0.6 IS EXACTLY THREE SCROLL TICKS OUT, which is how the owner asked for it: the wheel
+    // handler multiplies by 1.12 a tick, and 0.85 / 1.12^3 = 0.605. Written as the RESULT rather
+    // than as `0.85 / Math.pow(1.12, 3)` because the two numbers are not really coupled — changing
+    // the wheel's step should not silently reframe the game.
+    //
+    // The strand LOD is a RAMP, not a cliff — `smoothstep(0.42, 0.62, zoom)` — so at 0.6 growth
+    // still animates per-strand at ~98% detail on a phone. What to watch is that `mineZoom` scales
+    // this by `viewH / refHeight`, so a SHORT viewport now sits lower on that ramp than it did:
+    // 620px tall lands at 0.44, near the bottom, where 0.85 landed at 0.62. A phone (844) is 1:1
+    // and unaffected.
+    zoom: 0.6,
     // How far out and in the player may go, as MULTIPLES of the resting zoom — not absolute numbers,
     // because the resting zoom itself scales with the surface (see main.js `mineZoom`).
     //
@@ -17626,9 +17645,22 @@ function stepNematodes(state, phase = 'both') {
   // mine's fuel clock is already the thing that stops a descent, so worms accelerate it rather than
   // bringing a second way to lose. Floored at zero — `mineFuelCheck` owns the ending, and it wants
   // to see a tank that cannot afford a dig, not a negative one.
+  //
+  // AND IT COMES OFF IN WHOLE UNITS (owner: "let's count water and other things only in whole
+  // numbers"). The RATE is still a fraction — 0.2 water per worm per second is the tuning, and
+  // rounding that up to 1 would make a single worm five times deadlier — so the fraction
+  // accumulates in `mineDrainDebt` and only whole units are taken out of the tank. The debt is
+  // deliberately NOT part of the tank: a player counting digs must never find that a tank reading 6
+  // buys two digs at 2 and then refuses the third.
   if (mineWorms && attached && net && net.alive) {
-    net.water = Math.max(0, net.water - attached * drainPerTick);
-    state.mineDrained = (state.mineDrained || 0) + attached * drainPerTick;   // diagnostics
+    const owed = attached * drainPerTick;
+    state.mineDrainDebt = (state.mineDrainDebt || 0) + owed;
+    const whole = Math.floor(state.mineDrainDebt);
+    if (whole > 0) {
+      state.mineDrainDebt -= whole;
+      net.water = Math.max(0, net.water - whole);
+    }
+    state.mineDrained = (state.mineDrained || 0) + owed;   // diagnostics — the rate, not the tank
   }
   state.mineAttached = mineWorms ? attached : 0;
 
@@ -22152,22 +22184,59 @@ function mineInfectionLeft(state) {
 // The store's `growSteps` track raises the STEPS, not the price, so an upgraded colony digs further
 // per unit of fuel rather than digging more often; `heatTolerance` moves where the price starts
 // climbing. Both are read off the run's config clone, never off CONFIG.
+// A STAIRCASE OF DOUBLINGS, NOT A RAMP, AND EVERY PRICE IS A WHOLE NUMBER (owner: "let's count
+// water and other things only in whole numbers ... there should be a depth line, beyond which the
+// cost increases. Let's just always have the cost double"). Past the first line a dig costs 2x,
+// past the next 4x, then 8x — with `growWaterCost` 2 that is 2 · 4 · 8 · 16.
+//
+// IT REPLACED A PER-METRE RAMP, and the reason is that the ramp could not be counted. At 0.06 a
+// metre a dig cost 4.2 here and 4.3 six metres on, which had to be quoted to a decimal place and
+// left the tank fractional however it was rounded — so "how many digs do I have left?" had no
+// answer a player could work out, which is the one question the fuel clock exists to ask. A
+// doubling is arithmetic anyone can do in their head, and it makes crossing a line an EVENT rather
+// than a drift.
 function mineGrowCost(config, depthM) {
   const M = mineCfg(config);
   const base = Math.max(1, M.growWaterCost | 0);
   const h = M.heat;
   if (!h || depthM == null) return base;
-  const safe = Math.max(0, (h.safeDepth | 0) + (M.heatBonus | 0));
-  const past = Math.max(0, (+depthM || 0) - safe);
-  if (past <= 0) return base;
-  const mult = Math.min(+h.maxMult || 8, 1 + past * (+h.perMetre || 0));
-  // Rounded to a tenth: the HUD quotes this number and "4.2" is a price a player can hold in their
-  // head, where 4.1999999 is float noise and a bare integer would hide the whole curve.
-  return Math.round(base * mult * 10) / 10;
+  const first = Math.max(0, (h.safeDepth | 0) + (M.heatBonus | 0));
+  const d = +depthM || 0;
+  if (d <= first) return base;
+  // Lines at `first`, `first + lineEvery`, `first + 2*lineEvery`, … — the tier is how many are
+  // behind you, and tolerance moves the whole ladder down rather than only its top rung.
+  //
+  // `Math.ceil`, SO EVERY LINE BEHAVES THE SAME WAY: the price rises strictly BEYOND a line, so
+  // standing exactly on one is still the cheaper side of it. `floor` was the first version and it
+  // was only uniform at the first line — 42 m stayed at 2 while 84 m had already doubled, because
+  // `d <= first` guards the first boundary and floor's own boundary is inclusive. Two rules, and
+  // the one the player meets second is the one that surprises them.
+  const every = Math.max(1, +h.lineEvery || 42);
+  const tier = Math.ceil((d - first) / every);
+  return base * Math.min(Math.max(1, +h.maxMult || 8), Math.pow(2, tier));
 }
-// The cost of the dig the player is ABOUT to make, at the hottest ground it involves — the strand
-// they are digging from or the point they are aiming at, whichever is deeper. Aiming deeper is what
-// costs, which is the rule the player can see themselves obeying.
+// WHERE THE NEXT PRICE RISE IS, in metres, or null past the cap. The HUD wants to name the line the
+// player is about to cross — a staircase is only better than a ramp if you can see the step coming.
+function mineNextHeatLine(config, depthM) {
+  const M = mineCfg(config), h = M.heat;
+  if (!h) return null;
+  const base = Math.max(1, M.growWaterCost | 0);
+  const first = Math.max(0, (h.safeDepth | 0) + (M.heatBonus | 0));
+  const every = Math.max(1, +h.lineEvery || 42);
+  const d = +depthM || 0;
+  const tier = d <= first ? 0 : Math.ceil((d - first) / every);
+  if (Math.pow(2, tier) >= Math.max(1, +h.maxMult || 8)) return null;   // already at the cap
+  return first + tier * every;
+}
+// The cost of the dig the player is ABOUT to make, priced at WHERE IT STARTS — the strand being dug
+// from, never the point being aimed at (owner: "it happens only if the start point is in the deeper
+// part"). So a dig that begins in cool ground and reaches into hot ground is charged the cool price,
+// and reaching DOWN out of a cheap band is the move that stays cheap.
+//
+// It was max(source, target) first, and that read as a penalty landing a dig early: standing at 70 m
+// and aiming at 74 was charged the deeper band's price for ground the colony had not reached yet —
+// measured as "charged 7 at 72 m, price says 5.6". Pricing the start also makes the HUD chip
+// honest, since the chip is written before the player has aimed at anything.
 function mineDigCost(state, srcY) {
   const sub = state && state.substrate;
   if (!sub) return mineGrowCost(state ? state.config : CONFIG);
@@ -22232,7 +22301,7 @@ function mineEndRun(state, cause) {
   return { MINE_ROCKS, mineLevelDef, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
            mineDepthReached, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
-           mineDigCost, mineCheapestCost,
+           mineDigCost, mineCheapestCost, mineNextHeatLine,
            mineMaterials, mineMaterialFor, mineMaterialById,
            mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
            mineInfectionCheck, mineInfectionLeft,
@@ -31531,7 +31600,7 @@ const __m_main = (function () {
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
   const { mineLevelDef, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
-          mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost,
+          mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost, mineNextHeatLine,
           mineMaterials, mineMaterialFor, mineMaterialById,
           mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun,
@@ -34856,8 +34925,13 @@ function begin(newState) {
         return mineGrowCost(state.config, mineDepthM(sub, isFinite(deep) ? deep : sub.surfaceY));
       },
       cheapest: () => mineCheapestCost(state),
-      heat: () => ({ safe: ((state.config.mine.heat || {}).safeDepth | 0) + (state.config.mine.heatBonus | 0),
-                     bonus: state.config.mine.heatBonus | 0 }),
+      // `safe` is the FIRST price line; `every` is the spacing of the ones after it, and `nextLine`
+      // is where the price doubles again from a given depth (null past the cap). Exposed so a check
+      // reads the staircase off the model rather than recomputing it and agreeing with itself.
+      heat: (depthM) => ({ safe: ((state.config.mine.heat || {}).safeDepth | 0) + (state.config.mine.heatBonus | 0),
+                     every: (state.config.mine.heat || {}).lineEvery | 0,
+                     bonus: state.config.mine.heatBonus | 0,
+                     nextLine: mineNextHeatLine(state.config, depthM == null ? 0 : depthM) }),
       steps: () => mineGrowSegments(state.config) / 3,
       ore: () => state.mineOre | 0,
       // Dig from the deepest living tip, in a direction. Returns the engine's own {ok,message}.
