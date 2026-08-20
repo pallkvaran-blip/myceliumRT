@@ -3347,7 +3347,8 @@ sessions and a session that only reads CLAUDE.md must still be able to work. **N
 owner's, not suggestions.**
 
 **PROGRESS — keep this line honest, it is how the next session knows where to start:**
-`Phase 1: (01) worms drain water — DONE. (02) sight rings — next.` Nothing after 02 started.
+`Phase 1: (01) worms drain, (02) sight rings, (03) infection deadline — ALL DONE.
+(04) consumables — next.` Nothing after 04 started.
 
 #### The premises (settled, do not re-litigate)
 
@@ -3397,9 +3398,41 @@ owner's, not suggestions.**
      want 10` and `water sat at 98.4`. Any probe asking "did exactly this pay exactly that?" has to
      empty `state.nematodes` and zero `waterPerSec` first, the same way they already zero
      `respawnChance`.
-2. **THREAT SIGHT RINGS ON BY DEFAULT.** `drawOccludedSight` / `threatSight` already exist and
-   already stop at the rock face. Makes the two threats either side of it avoidable rather than
-   arbitrary.
+2. **THREAT SIGHT RINGS ON BY DEFAULT.** `CONFIG.mine.showSight`, drawn through the existing
+   `drawOccludedSight`, which already stops at the rock face. **BUILT**, and two things had to
+   change for it to be usable at all:
+   - **AN AMBIENT RING IS AN EDGE, NOT A WASH.** At a 300-unit radius on a 390px phone, twenty
+     filled discs compose into a flat green veil over the whole frame with no boundary visible
+     anywhere — strictly less information than no overlay. The fill drops to a hint and the polygon
+     is STROKED; a ring the player TAPPED keeps the solid wash and its soft rim.
+   - **IT COST +9 ms OF A 40 ms FRAME AND THE FIX WAS NOT THE RAY CAST.** Memoising the visibility
+     polygon per creature changed nothing; the cost was `fillRect(2*sight)` INSIDE a clip, asking
+     the rasteriser to process 510x510 px and discard most of it, once per creature. Filling the
+     polygon path itself took it to **+0.3 ms**. Culled to the viewport as well.
+3. **TRYCH INFECTION COUNTDOWN. BUILT** — `CONFIG.mine.infectionMs` 20 s, and `mineInfectionCheck`
+   is **DERIVED from "is anything infected"** rather than stamped by the contact pass. That is what
+   makes the owner's rule fall out for free: cut one of two contact points and the clock keeps
+   running, because something is still infected.
+   - **TWO MINE-ONLY OVERRIDES WITHOUT WHICH THE DEADLINE CANNOT BE OBSERVED AT ALL**
+     (`CONFIG.mine.trych`, applied onto `cfg.trichoderma` in `configForLevel`). Measured on a
+     150-strand colony with a cloud parked on it: the breach claimed ~20 strands, every one aged out
+     and was REMOVED inside about two seconds, and the clock armed and cleared itself before the
+     player could read it. **The campaign's rot is a wound that heals**; the mine needs a liability
+     that sits there and has to be cut out. So `rotLifeTurns` 100000 (rot does not fall away) and
+     `spreadDepthPerTurn` 0.35 (the campaign's 3 a tick is 120 rings across a 20 s deadline, which
+     would take the colony well before the clock ran out and make the clock decorative).
+   - **"Cannot grow from infected strands" WAS ALREADY TRUE and that is why it needed work.**
+     `Network.nearestNode` skips infected nodes, so a press on rot never grew from it — it quietly
+     grew from the nearest CLEAN strand instead, which reads as a bad aim. `mineGrow` now asks what
+     was actually pressed and refuses with a message.
+   - The ending is `cause: 'infected'`, `died: false`, **full payout**, whole colony marked green in
+     the same breath. The end screen's copy had to be re-branched **on the CAUSE rather than on
+     `died`** — it keyed off `eaten` (= died && cause !== 'dry'), so a colony the rot had just taken,
+     drawn green behind the words, was told it had run out of water. Same defect the campaign's
+     death screen had.
+   - **`renderFrame` TAKES A TIME AND DOES NOT DEFAULT IT.** A `__game` hook that called it bare
+     killed the frame inside `createRadialGradient` — the atmosphere animates its motes off `time`,
+     so `Math.sin(undefined)` is NaN. The public `renderFrame` hook already defends against this.
 3. **TRYCH INFECTION COUNTDOWN.** The spread stays exactly as the campaign's — contact, the cloud is
    spent and fades, rot creeps along the filaments. **New: a colony-wide timer from first contact.**
    Infected strands **cannot be grown from**; clean ones still can. Timer ends → the whole colony

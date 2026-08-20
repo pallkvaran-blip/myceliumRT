@@ -213,6 +213,13 @@
     .res.wm .rv { color: #e2705a; }
     .res.wm .rk { color: #e2705a; opacity: 0.75; font-size: 10px; margin-left: 3px; letter-spacing: 0.2px; }
     .res.wm[hidden] { display: none; }
+    /* The infection countdown, in the mould's own green — and it goes RED under ten seconds, which
+       is the point at which the number stops being information and starts being a deadline. */
+    .res.inf { color: #9ec44f; }
+    .res.inf .rv { color: #9ec44f; }
+    .res.inf .rk { color: #9ec44f; opacity: 0.7; font-size: 10px; margin-left: -1px; }
+    .res.inf.urgent, .res.inf.urgent .rv, .res.inf.urgent .rk { color: #e2705a; }
+    .res.inf[hidden] { display: none; }
 
     /* THE DEPTH BEAT — "42 m / Anthracite" as a new rock layer starts (owner: a short depth beat).
        Centred over the map, pointer-transparent, and gone on its own; it names the layer rather
@@ -3287,6 +3294,45 @@ const CONFIG = {
     //
     // Rates are PER SECOND and converted against `realtime.stepMs` where they are used, because
     // "1 water every 5 seconds" is a thing the owner can feel and "0.1 per tick" is not.
+    // EVERY THREAT SHOWS WHAT IT CAN SEE, always. In the campaign a sight ring is something you tap
+    // a creature to check; here it is on by default, because the mine is a maze and routing around
+    // a worm is the skill — you cannot route around a range you have to discover by being bitten.
+    // Rock occludes it (`drawOccludedSight` walks the same mask the creature senses through), so
+    // what is shaded really is what it will see.
+    // ---- the infection deadline --------------------------------------------
+    // The spread itself is EXACTLY the campaign's — contact, the cloud is spent and fades, rot
+    // creeps along the filaments. What the mine adds is a clock: from the moment anything is
+    // infected the colony has this long, and when it runs out the whole thing turns and is forced
+    // to fruit. It is ONE timer for ONE colony, and it is DERIVED from "is anything infected",
+    // which is what makes the owner's rule fall out for free: cut one of two contact points and the
+    // clock keeps running, because something is still infected. Partial amputation buys nothing.
+    //
+    // 20 s against a ~45 s opening run. PROVISIONAL — the answer to it is Amputate, which is a
+    // Phase 1 consumable that does not exist yet, so today an early player who meets mould simply
+    // ends the run sooner. That is only acceptable because the ending is a FULL PAYOUT.
+    infectionMs: 20000,
+    // ...AND TWO OVERRIDES WITHOUT WHICH THE DEADLINE CANNOT BE OBSERVED AT ALL. Measured on a
+    // 150-strand colony with a cloud parked on it: the breach claimed ~20 strands, every one of them
+    // aged out and was REMOVED within about two seconds, and the clock armed and cleared itself
+    // before the player could read it. The campaign's rot is a WOUND THAT HEALS — it consumes a limb
+    // and burns out — and the mine needs the opposite: a liability that sits there, cannot be grown
+    // from, and has to be cut out.
+    //
+    //   rotLifeTurns          rot does not fall away on its own. Infected tissue persists, so
+    //                         "you cannot dig out of rot" is a standing cost rather than a
+    //                         two-second inconvenience, and the clock keeps running until the
+    //                         player deals with it.
+    //   spreadDepthPerTurn    "the infection starts SLOWLY spreading" (owner). The campaign's 3
+    //                         rings a tick is 120 rings across a 20 s deadline, which would take a
+    //                         whole colony well before the clock ran out and make the clock
+    //                         decorative. 0.35 is a ring every three ticks — visible creep, and the
+    //                         deadline stays the thing that ends it.
+    trych: {
+      rotLifeTurns: 100000,
+      spreadDepthPerTurn: 0.35,
+    },
+    showSight: true,
+    sightAlpha: 0.13,            // the resting wash; a TAPPED creature still brightens to 0.28
     worms: {
       waterPerSec: 0.2,          // 1 water every 5 s, per ATTACHED worm
       breedPerSec: 0.05,         // 5% chance a feeding worm splits, per second
@@ -21769,6 +21815,22 @@ function mineGrow(state, ctx) {
   if (net.water < cost) return { ok: false, message: `Not enough water — a grow costs ${cost}.` };
   const hasOrigin = ctx.srcX != null && ctx.srcY != null;
   const tip = net.nearestNode(hasOrigin ? ctx.srcX : ctx.x, hasOrigin ? ctx.srcY : ctx.y);
+  // YOU CANNOT DIG OUT OF ROT — and the RULE was already true before this, which is exactly why it
+  // needed saying out loud. `Network.nearestNode` skips infected nodes outright, so a press on a
+  // rotten strand never grew from it; it quietly grew from the nearest CLEAN one instead, possibly
+  // some way off. Silent redirection reads as the aim being wrong rather than as the tissue being
+  // dead, so this asks the question the player asked — what did I actually press? — and refuses
+  // when the answer is rot.
+  if (hasOrigin) {
+    let near = null, nd = Infinity;
+    for (const n of net.nodes) {
+      const d = (n.x - ctx.srcX) ** 2 + (n.y - ctx.srcY) ** 2;
+      if (d < nd) { nd = d; near = n; }
+    }
+    if (near && near.infected) {
+      return { ok: false, message: 'That tissue is infected — dig from a clean strand.' };
+    }
+  }
   const fp = tip ? { x: tip.x, y: tip.y } : (net.frontierPoint() || { x: 0, y: sub.surfaceY });
   let dx = ctx.x - fp.x, dy = ctx.y - fp.y;
   // NO DIRECTION MEANS DOWN. A tap with no drag is a legitimate gesture on a phone and the mine
@@ -21798,6 +21860,33 @@ function mineGrow(state, ctx) {
   return { ok: true, made, water: net.water, message: `Dug ${made} filament${made > 1 ? 's' : ''}.` };
 }
 
+// --- the infection deadline -------------------------------------------------
+// DERIVED FROM "IS ANYTHING INFECTED", never stamped by the contact pass — and that is the whole
+// design rather than an implementation detail. The owner's rule is that the clock stops only when
+// EVERY infected strand is gone, so cutting one of two contact points must not help; asking the
+// colony each tick gets exactly that, and it also means a cure, an amputation and a rotted-away
+// strand all clear it without any of them having to know the timer exists.
+//
+// Wall clock, not ticks: the mine is real time, and a deadline the player is watching should not
+// change length because the tick rate did.
+function mineInfectionCheck(state, nowMs) {
+  if (!state || state.runOver || !state.active || !state.active.alive) return false;
+  const sub = state.substrate;
+  if (!sub || !sub.mine) return false;
+  let any = false;
+  for (const n of state.active.nodes) if (n.infected) { any = true; break; }
+  if (!any) { state.mineInfect = null; return false; }
+  const ms = Math.max(1000, mineCfg(state.config).infectionMs | 0);
+  if (!state.mineInfect) state.mineInfect = { start: nowMs, ms };
+  state.mineInfect.left = Math.max(0, state.mineInfect.start + state.mineInfect.ms - nowMs);
+  return state.mineInfect.left <= 0;
+}
+// How long is left, in seconds, or null when nothing is infected. For the HUD.
+function mineInfectionLeft(state) {
+  const i = state && state.mineInfect;
+  return i ? Math.max(0, i.left != null ? i.left : i.ms) / 1000 : null;
+}
+
 // --- the fuel clock ---------------------------------------------------------
 // What one grow costs right now. The store's `growSteps` track raises the STEPS, not the price,
 // so an upgraded colony digs further per unit of fuel rather than digging more often.
@@ -21822,15 +21911,25 @@ function mineFuelCheck(state, nowMs) {
 // The run's end. Not the `fruit` ACTION: that one needs fruitable soil the colony has reached,
 // and a colony 120 m down has none — it would refuse and the run would never end. The fiction is
 // the same (owner: "they fruit and spore"), the bookkeeping is the mine's own.
-function mineEndRun(state) {
+function mineEndRun(state, cause) {
   if (!state || state.runOver) return null;
   const net = state.active;
   const depth = mineDepthReached(state);
   const ore = Math.max(0, Math.round(state.mineOre || 0));
+  // THE WHOLE COLONY TURNS, ALL AT ONCE. The deadline expiring is not "the rot finally reached
+  // everything" — it is the colony giving up — so it reads as one event rather than as the spread
+  // suddenly sprinting. Marked before `alive` goes false so the last frame drawn is green.
+  if (cause === 'infected') for (const n of net.nodes) { n.infected = true; n._infAge = 0; }
   net.fruited = true; net.alive = false;
   state.runOver = true;
-  state.runResult = { mine: true, depth, ore, spores: 0, bodies: 0, died: false, cause: 'dry' };
-  state.log(`Out of water at ${depth} m. The colony fruits and spores — ${ore} Phosphorus banked.`, 'good');
+  // FULL PAYOUT EITHER WAY, and it is load-bearing: Amputate is bought, so an early player who
+  // meets mould with nothing in the bag has no answer at all. Ending their run sooner is a fair
+  // cost; taking the ore they already dug would not be.
+  state.runResult = { mine: true, depth, ore, spores: 0, bodies: 0, died: false,
+                      cause: cause === 'infected' ? 'infected' : 'dry' };
+  state.log(cause === 'infected'
+    ? `The infection took the colony at ${depth} m. It fruits and spores — ${ore} Phosphorus banked.`
+    : `Out of water at ${depth} m. The colony fruits and spores — ${ore} Phosphorus banked.`, 'good');
   return state.runResult;
 }
 
@@ -21838,6 +21937,7 @@ function mineEndRun(state) {
            mineDepthReached, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
            mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
+           mineInfectionCheck, mineInfectionLeft,
            OUT_OF_FUEL_GRACE_MS };
 })();
 
@@ -25192,6 +25292,9 @@ const RES_ICON = {
   energy: '<svg class="ri" viewBox="0 0 24 24" aria-hidden="true"><path d="M13.5 2 4 13.5h6L9 22l9.5-11.5h-6L13.5 2Z" fill="#f4c22e"/></svg>',
   water: '<svg class="ri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5C12 2.5 5.5 10 5.5 14.5a6.5 6.5 0 1 0 13 0C18.5 10 12 2.5 12 2.5Z" fill="currentColor"/></svg>',
   phos: '<svg class="ri" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5c1 6.2 4.3 9.5 10.5 10.5C16.3 13 13 16.3 12 22.5 11 16.3 7.7 13 1.5 12 7.7 11 11 7.7 12 1.5Z" fill="currentColor"/></svg>',
+  // The infection deadline's mark — a spore burst, the mould's own shape, so the chip reads as the
+  // green thing on the colony rather than as a generic timer.
+  spore: '<svg class="ri" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.4" fill="currentColor"/><circle cx="5" cy="7" r="1.7" fill="currentColor"/><circle cx="19" cy="8" r="1.5" fill="currentColor"/><circle cx="6.5" cy="17.5" r="1.5" fill="currentColor"/><circle cx="18" cy="17" r="1.8" fill="currentColor"/></svg>',
   // A NEMATODE, for the mine's "something is drinking your tank" chip: the creature's own S-curve,
   // stroked rather than filled so it reads at 13px against the row's other two solid glyphs.
   worm: '<svg class="ri" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 16.5c3-4 4.5 3 8-1.5s3.5-9.5 9-8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>',
@@ -25346,6 +25449,11 @@ class UI {
         // is something to say.
         + `<span class="res wm" id="hud-worms" hidden>${RES_ICON.worm}<span class="rv" id="hud-wormn">0</span>`
         + `<span class="rk" id="hud-wormrate"></span></span>`
+        // THE INFECTION DEADLINE. A clock the player cannot see is the same defect as a drain they
+        // cannot see — worse, because this one ends the run outright. Hidden until something is
+        // actually infected.
+        + `<span class="res inf" id="hud-infect" hidden>${RES_ICON.spore}<span class="rv" id="hud-infectn">0</span>`
+        + `<span class="rk">s</span></span>`
       : cardsOn
       ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span><span class="rd" id="hud-energy-inc"></span></span>`
         + `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span><span class="rd" id="hud-water-inc"></span></span>`
@@ -26119,6 +26227,21 @@ class UI {
       this._resText('hud-water', Math.floor(net.water || 0), s);
       this._resText('hud-phosphorus', Math.floor(net.phosphorus || 0), s);
       text('hud-depth', String(s.mineDepth | 0));
+      const inf = document.getElementById('hud-infect');
+      if (inf) {
+        const left = s.mineInfect ? Math.ceil(Math.max(0, s.mineInfect.left != null
+          ? s.mineInfect.left : s.mineInfect.ms) / 1000) : null;
+        // Written on a CHANGE only — the HUD refreshes every world tick and this sits inside the
+        // row the player is reading. The whole-second value is what changes, not the ms.
+        if (this._infLeft !== left) {
+          this._infLeft = left;
+          inf.hidden = left == null;
+          if (left != null) {
+            text('hud-infectn', String(left));
+            inf.classList.toggle('urgent', left <= 10);
+          }
+        }
+      }
       const wn = s.mineAttached | 0;
       const chip = document.getElementById('hud-worms');
       if (chip) {
@@ -28141,10 +28264,13 @@ function showMineEnd({ depth, ore, best, balance, eaten, cause, onDone }) {
     // WHAT ENDED IT, in one line. Running dry is the ordinary ending and the one the whole design is
     // built around; being eaten or rotted out is the other kind, and saying "out of water" over a
     // colony a worm ate is the game lying about its own rules.
-    '<p class="ss-win-sub">' + (eaten
-      ? (cause === 'infected'
-          ? 'The rot took the colony. What it had spored is yours.'
-          : 'The colony was eaten. What it had spored is yours.')
+    // BRANCHED ON THE CAUSE, NOT ON `died`. It keyed off `eaten` (= died && cause !== 'dry'), and
+    // the infection DEADLINE ends the run as a fruiting rather than a death — so a colony the rot
+    // had just taken, drawn green on the screen behind the words, was told it had run out of water.
+    // Same defect the campaign's death screen had: the run ended correctly and the screen lied.
+    '<p class="ss-win-sub">' + (
+      cause === 'infected' ? 'The rot took the colony. What it had spored is yours.'
+      : eaten ? 'The colony was eaten. What it had spored is yours.'
       : 'Out of water. The colony fruits and spores.') + '</p>' +
     '<p class="ss-win-earned">+' + (ore | 0) + RI.phos + '</p>' +
     (best && best.isNew
@@ -30990,7 +31116,8 @@ const __m_main = (function () {
   const { mineLevelDef, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineGrowSegments, mineGrowReach, mineGrow,
-          mineCanGrow, mineFuelCheck, mineEndRun } = __m_engine_mine;
+          mineCanGrow, mineFuelCheck, mineEndRun,
+          mineInfectionCheck, mineInfectionLeft } = __m_engine_mine;
   const { levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
@@ -31305,6 +31432,12 @@ function configForLevel(level) {
     // that enforces it. See `CONFIG.mine.worms` for why 150 is catastrophic as a drain.
     const mw = cfg.mine.worms || {};
     if (mw.maxPopulation) cfg.nematodes.maxPopulation = Math.max(1, mw.maxPopulation | 0);
+    // The mould's two mine-only numbers, applied the same way and for the same reason: the code
+    // that reads them is shared, so an override has to land on `cfg.trichoderma` and not sit in
+    // `cfg.mine` where nothing would consult it. See `CONFIG.mine.trych`.
+    const mt = cfg.mine.trych || {};
+    if (mt.rotLifeTurns) cfg.trichoderma.rotLifeTurns = mt.rotLifeTurns;
+    if (mt.spreadDepthPerTurn != null) cfg.trichoderma.spreadDepthPerTurn = mt.spreadDepthPerTurn;
     const b = storeBonuses();
     cfg.mine.startWater = Math.max(1, (cfg.mine.startWater | 0) + (b.water | 0));
     cfg.mine.growSteps = Math.max(1, b.growSteps | 0);
@@ -34237,6 +34370,26 @@ function begin(newState) {
       // objects onto `state.nematodes` would be a check inventing its own idea of what a worm is.
       spawnWorm: (x, y) => { spawnNematodeAt(state, x, y); return state.nematodes.length; },
       attached: () => state.mineAttached | 0,
+      // How many ambient sight rings the LAST frame drew, and the switch behind them.
+      sight: () => ({ on: !!(state.config.mine && state.config.mine.showSight),
+                      drawn: state._mineSightDrawn | 0 }),
+      // Draw one frame with the counter zeroed, so `drawn` is that frame's and not a running total.
+      // `renderFrame` TAKES A TIME and does not default it — the atmosphere animates its motes off
+      // it, so a bare call makes `Math.sin(undefined)` and the frame dies inside
+      // `createRadialGradient` with "the provided double value is non-finite". The `renderFrame`
+      // hook above defends against exactly this; do the same here rather than relying on it.
+      countSight: () => {
+        state._mineSightDrawn = 0;
+        renderFrame(performance.now(), 1);
+        return state._mineSightDrawn | 0;
+      },
+      // Drop a cloud exactly where you want one, so a check can measure a REAL breach — the
+      // infection deadline is derived from the spread, and hand-setting `n.infected` on a couple of
+      // strands does not reproduce it: rot ages out in `rotLifeTurns` steps, so isolated infected
+      // strands vanish within a second and the clock correctly clears itself.
+      spawnCloud: (x, y) => { devSpawnTrichoderma(state, x, y); return state.clouds.length; },
+      infect: () => ({ on: !!state.mineInfect, left: mineInfectionLeft(state),
+                       rotten: state.active ? state.active.nodes.filter((n) => n.infected).length : 0 }),
       drained: () => +(state.mineDrained || 0).toFixed(2),
       chunkOf: (x) => mineChunkOfCol(state.config, state.substrate.colAtX(x)),
       chunkCount: () => mineChunkCount(state ? state.config : CONFIG),
@@ -36023,7 +36176,9 @@ function mineFrame(time, dt) {
   mineBeat(depth);
   // OUT OF FUEL ENDS THE RUN, after a grace — see mineFuelCheck for why the grace is not
   // optional. `presentRunOver` takes it from here, exactly as a death or a win does.
-  if (mineFuelCheck(state, time)) { mineEndRun(state); uiDirty = true; presentRunOver(); }
+  if (mineFuelCheck(state, time)) { mineEndRun(state, 'dry'); uiDirty = true; presentRunOver(); }
+  // ...and the infection's own deadline, which ends the run the same way and pays out the same.
+  else if (mineInfectionCheck(state, time)) { mineEndRun(state, 'infected'); uiDirty = true; presentRunOver(); }
 }
 
 // --- the phased, animated enemy turn (TURN-BASED ONLY) -----------------------
@@ -36623,8 +36778,22 @@ function drawChest(time) {
 // the glow never bleeds through a boulder — the visible shape ends where the
 // rock does. A faint even wash makes the seen shape (and its rock-cut edges)
 // legible; a soft rim near the sight radius marks the range. `rgb` is "r,g,b".
-function drawOccludedSight(wx, wy, radiusWorld, rgb, edgeA) {
-  const poly = state.substrate.visionPolygon(wx, wy, radiusWorld);
+// `holder` is the creature, and passing it CACHES its visibility polygon on it. That polygon is a
+// ray cast through the rock mask and depends only on where the creature is, how far it sees, and
+// what the rock is doing — none of which change more than twice a second, while this is called at
+// frame rate. Recomputing it every frame cost **+7.6 ms of a 39 ms frame** with twenty creatures on
+// a phone viewport; with the memo it is free for a creature that has not moved.
+//
+// The key carries `_solidFrom`, the streamed-rock watermark, because in the mine the mask itself
+// grows as chunks arrive — a polygon cached before a chunk landed would see through its rock.
+function drawOccludedSight(wx, wy, radiusWorld, rgb, edgeA, holder, soft) {
+  const sub = state.substrate;
+  let poly;
+  if (holder) {
+    const key = `${Math.round(wx)},${Math.round(wy)},${radiusWorld},${sub._solidFrom | 0}`;
+    if (holder._spKey === key) poly = holder._sp;
+    else { poly = sub.visionPolygon(wx, wy, radiusWorld); holder._spKey = key; holder._sp = poly; }
+  } else poly = sub.visionPolygon(wx, wy, radiusWorld);
   if (!poly || !poly.length) return;
   const sight = radiusWorld * camera.zoom;
   const s = camera.worldToScreen(wx, wy);
@@ -36638,17 +36807,57 @@ function drawOccludedSight(wx, wy, radiusWorld, rgb, edgeA) {
     ctx.lineTo(p.x, p.y);
   }
   ctx.closePath();
-  ctx.clip();
-  // Even wash over the seen area…
-  ctx.fillStyle = `rgba(${rgb},${edgeA * 0.55})`;
-  ctx.fillRect(s.x - sight, s.y - sight, sight * 2, sight * 2);
-  // …plus the original soft rim near the sight edge.
-  const g = ctx.createRadialGradient(s.x, s.y, sight * 0.78, s.x, s.y, sight);
-  g.addColorStop(0, `rgba(${rgb},0)`);
-  g.addColorStop(1, `rgba(${rgb},${edgeA})`);
-  ctx.fillStyle = g;
-  ctx.beginPath(); ctx.arc(s.x, s.y, sight, 0, Math.PI * 2); ctx.fill();
+  // FILL THE POLYGON ITSELF, don't clip-and-fill-a-square. `fillRect(2*sight)` inside a clip asks
+  // the rasteriser to process 510x510 px and throw most of it away, once per creature — and the
+  // mine draws a ring for every threat on screen rather than one the player tapped. Twenty of them
+  // was **+9 ms of a 40 ms frame**, and it is destination fill, which is exactly what a phone is
+  // short of. Memoising the polygon first changed nothing, which is what said the cost was here.
+  // AN AMBIENT RING IS AN EDGE, NOT A WASH — and that is the difference between the overlay
+  // informing and ruining the map. The mine draws one for EVERY threat on screen, and at a 300-unit
+  // radius on a 390px phone that is twenty discs each wider than the viewport: filled, they compose
+  // into a flat green veil over the whole frame with no boundary visible anywhere, which is strictly
+  // less information than no overlay at all. What the player needs is where the danger STOPS, so the
+  // fill drops to a hint and the polygon is STROKED. A ring the player tapped keeps the solid wash
+  // and its soft rim — they asked about that one creature and nothing else is competing.
+  ctx.fillStyle = `rgba(${rgb},${edgeA * (soft ? 0.30 : 0.55)})`;
+  ctx.fill();
+  if (soft) {
+    ctx.strokeStyle = `rgba(${rgb},${Math.min(0.55, edgeA * 2.6)})`;
+    ctx.lineWidth = 1.25;
+    ctx.stroke();
+  }
+  // The soft rim is for a ring the player ASKED for. An ambient one is a wash, and the gradient is
+  // a second full-disc fill for something nobody is looking straight at.
+  if (!soft) {
+    ctx.clip();
+    const g = ctx.createRadialGradient(s.x, s.y, sight * 0.78, s.x, s.y, sight);
+    g.addColorStop(0, `rgba(${rgb},0)`);
+    g.addColorStop(1, `rgba(${rgb},${edgeA})`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(s.x, s.y, sight, 0, Math.PI * 2); ctx.fill();
+  }
   ctx.restore();
+}
+
+// THE MINE SHOWS EVERY THREAT'S RANGE WITHOUT BEING ASKED — see `CONFIG.mine.showSight`.
+// Returns the alpha to draw at, or 0 for "do not draw". Tapping still means something: a tapped
+// creature brightens to the campaign's 0.28 against the resting wash.
+//
+// CULLED TO THE VIEWPORT, and that is not optional. Each ring is a `visionPolygon`, i.e. a ray cast
+// through the rock mask, and the mine can hold sixteen worms and a dozen clouds — drawing them all
+// every frame would pay for polygons nobody can see. The margin is the sight radius itself, so a
+// creature just off-screen whose range reaches into the frame still draws.
+function mineSightAlpha(wx, wy, radiusWorld) {
+  const M = (state.config && state.config.mine) || null;
+  if (!M || !M.showSight || !state.substrate || !state.substrate.mine) return 0;
+  const s = camera.worldToScreen(wx, wy);
+  const m = radiusWorld * camera.zoom;
+  if (s.x < -m || s.y < -m || s.x > camera.viewW + m || s.y > camera.viewH + m) return 0;
+  // Counted so a check can assert what the frame DID rather than what the config says — "the flag
+  // is true" passes on a build where the draw call was never reached, and the cull is the half most
+  // likely to be got wrong.
+  state._mineSightDrawn = (state._mineSightDrawn | 0) + 1;
+  return Math.max(0, +M.sightAlpha || 0);
 }
 
 // Show each roaming mould cloud's sight range — the area within which it will
@@ -36659,9 +36868,11 @@ function drawCloudSight() {
   if (!clouds || !clouds.length) return;
   const sight = state.config.trichoderma.sightRadius;
   for (const c of clouds) {
-    if (!(c.showSight || tutSightFlash === c)) continue;   // tapped by the player, or the tutorial
-    const a = c.showSight ? (c.dying ? 0.12 : 0.28) : tutSightAlpha();
-    drawOccludedSight(c.cx, c.cy, sight, '120,155,45', a);
+    const mineA = mineSightAlpha(c.cx, c.cy, sight);
+    if (!(c.showSight || tutSightFlash === c || mineA)) continue;   // tapped, the tutorial, or the mine
+    const a = c.showSight ? (c.dying ? 0.12 : 0.28) : (mineA || tutSightAlpha());
+    drawOccludedSight(c.cx, c.cy, sight, '120,155,45', c.dying ? Math.min(a, 0.12) : a, c,
+                      !c.showSight && !!mineA);
   }
 }
 
@@ -38809,8 +39020,10 @@ function drawNematodes(time) {
     for (const w of worms) {
       // Shown for any worm the player has TAPPED, plus the dev "Worm Vision" overlay, plus the
       // tutorial step that is telling them these exist.
-      if (!(w.showSight || tutSightFlash === w || (showNematodeVision && !w.sees))) continue;
-      drawOccludedSight(w.x, w.y, sight, '130,165,80', w.showSight ? 0.28 : tutSightAlpha());
+      const mineA = mineSightAlpha(w.x, w.y, sight);
+      if (!(w.showSight || tutSightFlash === w || (showNematodeVision && !w.sees) || mineA)) continue;
+      drawOccludedSight(w.x, w.y, sight, '130,165,80',
+                        w.showSight ? 0.28 : (mineA || tutSightAlpha()), w, !w.showSight && !!mineA);
     }
   }
 

@@ -479,6 +479,145 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     await b.ctx.close();
   }
 
+  // ---- 4a-iii. EVERY THREAT SHOWS WHAT IT CAN SEE ------------------------------------------
+  // In the campaign a sight ring is something you tap a creature to check. Here it is on by
+  // default, because the mine is a maze and routing around a worm is the skill — you cannot route
+  // around a range you have to discover by being bitten.
+  {
+    const b = await bootMine(4242);
+    const sg = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      s.active.water = 99999;
+      for (let i = 0; i < 8; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 120)); }
+      await new Promise((r) => setTimeout(r, 900));
+      s.nematodes.length = 0; s.clouds.length = 0;
+      s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
+      let tip = null;
+      for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+      for (let i = 0; i < 3; i++) g.mine.spawnWorm(tip.x + (i - 1) * 60, tip.y - 40);
+      await new Promise((r) => setTimeout(r, 400));
+      const near = g.mine.countSight();
+      // ...and the CULL. Park the camera a long way off and the same creatures must draw nothing:
+      // each ring is a ray cast plus a fill, and the mine can hold sixteen worms and a dozen clouds.
+      const cx = g.camera.x, cy = g.camera.y;
+      g.camera.x = cx + 6000; g.camera.clamp();
+      const far = g.mine.countSight();
+      g.camera.x = cx; g.camera.y = cy; g.camera.clamp();
+      // ...and the switch really is what turns them off.
+      s.config.mine.showSight = false;
+      const off = g.mine.countSight();
+      s.config.mine.showSight = true;
+      return { on: g.mine.sight().on, near, far, off, worms: s.nematodes.length };
+    });
+    ok('threat sight rings are on by default in the mine', sg.on === true, String(sg.on));
+    // ASSERTS WHAT THE FRAME DID, not what the flag says — "showSight is true" passes on a build
+    // where the draw call is never reached.
+    ok('...and a frame draws one per visible threat', sg.near >= sg.worms,
+       `${sg.near} rings drawn for ${sg.worms} worms`);
+    ok('...culled when they are off screen', sg.far === 0, `${sg.far} drawn with the camera 6000 away`);
+    ok('...and the switch turns them off', sg.off === 0, `${sg.off} drawn with showSight false`);
+    await b.ctx.close();
+  }
+
+  // ---- 4a-iv. THE INFECTION DEADLINE --------------------------------------------------------
+  // The spread itself is the campaign's, untouched. What the mine adds is a clock: from the moment
+  // anything is infected the colony has `infectionMs`, and when it runs out the whole thing turns
+  // and is forced to fruit — with a FULL payout, which is what keeps it fair while Amputate is a
+  // consumable that has to be bought.
+  //
+  // MEASURED WITH A REAL CLOUD, never by setting `n.infected` by hand. That was the first version
+  // and it measured nothing: rot ages out in `rotLifeTurns` steps, so two hand-infected strands
+  // vanished inside a second and the clock correctly armed and cleared itself before the probe
+  // could read it. Only the contact pass produces an infection that behaves like one.
+  {
+    const b = await bootMine(4242);
+    const inf = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      s.active.water = 999999; s.mineOre = 42;
+      for (let i = 0; i < 10; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 120)); }
+      await new Promise((r) => setTimeout(r, 1000));
+      s.nematodes.length = 0; s.clouds.length = 0;
+      s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
+      const idle = g.mine.infect();
+      let tip = null;
+      for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+      s.config.trichoderma.moveSpeed = 0;          // pin it, or it drifts off before it touches
+      g.mine.spawnCloud(tip.x, tip.y);
+      await new Promise((r) => setTimeout(r, 2000));
+      const armed = g.mine.infect();
+      const chip = { hidden: (document.getElementById('hud-infect') || {}).hidden,
+                     n: (document.getElementById('hud-infectn') || {}).textContent };
+      // Pressing rot must SAY so. The rule was already true — `nearestNode` skips infected nodes —
+      // but it was silent, and a press that quietly grows from somewhere else reads as a bad aim.
+      const rot = s.active.nodes.find((n) => n.infected);
+      const cln = s.active.nodes.find((n) => !n.infected);
+      const fromRot = rot ? g.mine.growFrom(rot.x, rot.y, rot.x, rot.y + 200) : null;
+      const fromClean = cln ? g.mine.growFrom(cln.x, cln.y, cln.x, cln.y + 200) : null;
+      // CUT HALF THE ROT. The clock must keep running — that is the owner's rule, and it is what
+      // makes "find all of it" the decision rather than "click the nearest green bit".
+      const rotten = s.active.nodes.filter((n) => n.infected);
+      for (let i = 0; i < Math.floor(rotten.length / 2); i++) rotten[i].infected = false;
+      await new Promise((r) => setTimeout(r, 1200));
+      const half = g.mine.infect();
+      // ...and cutting ALL of it stops it.
+      s.clouds.length = 0;
+      for (const n of s.active.nodes) { n.infected = false; n._infAge = 0; }
+      s.config.trichoderma.spreadDepthPerTurn = 0;
+      await new Promise((r) => setTimeout(r, 1400));
+      const clear = g.mine.infect();
+      return { idle, armed, half, clear, chip, ms: s.config.mine.infectionMs,
+               fromRot: fromRot && (fromRot.ok ? 'ALLOWED' : fromRot.message),
+               fromClean: fromClean && fromClean.ok };
+    });
+    ok('no deadline while nothing is infected', inf.idle.on === false && inf.idle.left === null,
+       JSON.stringify(inf.idle));
+    ok('a breach starts the colony-wide deadline', inf.armed.on === true && inf.armed.rotten > 0
+       && inf.armed.left > 0 && inf.armed.left <= inf.ms / 1000,
+       `${inf.armed.rotten} strands rotten, ${inf.armed.left.toFixed(1)}s of ${inf.ms / 1000} left`);
+    ok('...and the HUD shows the countdown', inf.chip.hidden === false && +inf.chip.n > 0,
+       `chip "${inf.chip.n}"`);
+    ok('a press on rot is refused, and says why', /infected/i.test(inf.fromRot || ''), String(inf.fromRot));
+    ok('...while clean tissue still digs', inf.fromClean === true, String(inf.fromClean));
+    // THE RULE THAT MAKES AMPUTATION A DECISION.
+    ok('cutting HALF the rot does not stop the clock',
+       inf.half.on === true && inf.half.rotten > 0 && inf.half.left < inf.armed.left,
+       `${inf.half.rotten} still rotten, ${inf.half.left.toFixed(1)}s left (was ${inf.armed.left.toFixed(1)})`);
+    ok('...and cutting all of it does', inf.clear.on === false && inf.clear.rotten === 0,
+       JSON.stringify(inf.clear));
+    await b.ctx.close();
+  }
+
+  // ---- 4a-v. ...AND WHEN IT RUNS OUT, THE COLONY FRUITS AND KEEPS EVERYTHING ------------------
+  {
+    const b = await bootMine(4242);
+    const end = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      s.active.water = 999999; s.mineOre = 42;
+      for (let i = 0; i < 10; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 120)); }
+      await new Promise((r) => setTimeout(r, 900));
+      s.nematodes.length = 0; s.config.nematodes.respawnChance = 0;
+      s.config.mine.infectionMs = 2500;            // a deadline the probe can wait out
+      let tip = null;
+      for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+      s.config.trichoderma.moveSpeed = 0;
+      g.mine.spawnCloud(tip.x, tip.y);
+      await new Promise((r) => setTimeout(r, 5200));
+      const nodes = s.active.nodes.length;
+      return { over: !!s.runOver, r: s.runResult, nodes,
+               greenAll: s.active.nodes.filter((n) => n.infected).length === nodes };
+    });
+    ok('the deadline ends the descent', end.over === true && end.r && end.r.cause === 'infected',
+       `over=${end.over} cause=${end.r && end.r.cause}`);
+    // A FULL PAYOUT, and it is load-bearing: Amputate is bought, so an early player who meets mould
+    // with nothing in the bag has no answer. Ending their run sooner is fair; taking the ore is not.
+    ok('...paying out the ore in full', end.r && end.r.ore === 42, `${end.r && end.r.ore} P of 42`);
+    ok('...as a fruiting, not a death', end.r && end.r.died === false, String(end.r && end.r.died));
+    // THE WHOLE COLONY TURNS AT ONCE — it reads as the colony giving up, not as the rot suddenly
+    // sprinting the length of the map.
+    ok('...with the whole colony green', end.greenAll === true, `${end.nodes} strands`);
+    await b.ctx.close();
+  }
+
   // ---- 4b. THE WORLD STREAMS SIDEWAYS ------------------------------------------------------
   // The owner's ask, verbatim: "I want to be able to grow both left and right as well - so the map
   // needs to either generate as I go, or it needs to be much larger and have boundaries. I prefer
