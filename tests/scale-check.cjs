@@ -101,6 +101,15 @@ ok('the seed sprout is startDepth deep', Math.abs(seed.span-g.startDepth) < 1.5,
 const grown=await p.evaluate(() => {
   const G=window.__game, s=G.state, sub=s.substrate, net=s.active;
   net.water=99; net.energy=5000;
+  // NOTHING MAY EAT WHAT THIS IS COUNTING. The block measures GROWTH GEOMETRY — segment length
+  // against `CONFIG.growth.scale` — and it boots a procedural map, which comes with worms and
+  // clouds that consume the very strands the sample is built from. Five runs of the same build read
+  // 29 / 35 / 31 / **18** / 20 against a floor of 20 before this, and the 18 is a colony that was
+  // being eaten faster than it grew. Same fix `turn-play` needed: delete the variable the check was
+  // never asserting on, rather than widening the tolerance around it.
+  s.nematodes.length = 0; s.clouds.length = 0; s.ants.length = 0;
+  s.config.nematodes.respawnChance = 0;
+  s.config.trichoderma.respawnChance = 0;
   const nd=net.nodes[0], c0=sub.colAtX(nd.x), r0=sub.rowAtY(nd.y);
   // A SPARSE LATTICE, re-seeded before every grow. The count below is space-colonisation
   // strands only — mat and pile-runner hyphae are excluded because they deliberately step
@@ -133,27 +142,56 @@ const grown=await p.evaluate(() => {
   // on the second. Bounded, so a genuinely broken grow still trips that guard instead of
   // spinning here.
   //
+  // 400 ITERATIONS, NOT 80, AND THE BUDGET IS THE FIX RATHER THAN THE FLOOR. The probe stamps food
+  // across the whole field every pass to keep the colony growing, so most of what it grows is
+  // COLONISATION — mat and runner nodes, which `sample()` deliberately excludes. On a map where that
+  // dominates, 80 passes ran out before 30 free-growth strands existed and the guard read 19 and 16.
+  // Raising the ceiling costs nothing (the block runs in about six seconds) and it fixes the reason
+  // rather than lowering the bar it failed to clear.
+  //
   // AND IT SETTLES INSIDE THE LOOP, so `d` is always the sample the assertion will actually see.
   // Settling once at the END was the bug behind the last round of this: the loop stopped as soon as
   // it had 30 samples, and the world step it then settled REMOVES strands (starvation prunes, a worm
   // bite), so the final count came in under the floor on a map where the loop had been satisfied.
   // Same build, four boots: 37 / 21 / 18 / 18 — which reads as a regression and is a fixed count
   // being a bet about the map, the seed being `Date.now()`.
-  let d=[];
-  for (let i=0;i<80 && d.length<30;i++) {
-    for (const j of idx) { const cell=sub.cells[j]; cell.nutrient=50; cell.maxNutrient=50; }
-    G.performAction(s,'grow',{});
+  let d=[], iters=0, refused=0, lastMsg='';
+  for (let i=0;i<400 && d.length<30;i++) {
+    iters++;
+    // RESTOCK AROUND THE FRONTIER, NOT AROUND THE ROOT — and release the claim as well as the food.
+    // Two independent reasons the old fixed lattice went blind, and INSTRUMENTING was the only way
+    // to see either: the loop was running 400 iterations of which **398 were refused** with "No food
+    // within sensing range", so it claimed 400 grows and measured two, and the 17-to-39 spread
+    // across runs was simply how big those two happened to be.
+    //   1. the colony grows AWAY from the root, so a lattice pinned there falls outside
+    //      `sensingRadius` (202.5) within a couple of passes;
+    //   2. re-stamping `nutrient` is not enough — `cell.colonized` stays set once claimed and food
+    //      TARGETING skips colonised cells, so a restocked cell stays invisible.
+    // `cell.rock` has to be cleared every pass too: on a procedural map `solidifyRock` reconciles it
+    // from the sprite cover on any frame it runs, which quietly buries the lattice again.
+    let fr=net.nodes[0];
+    for (const n of net.nodes) if (!n.infected && n.y > fr.y) fr=n;
+    const fc=sub.colAtX(fr.x), frow=sub.rowAtY(fr.y);
+    for (let c=fc-4; c<=fc+4; c+=2) for (let r=frow-2; r<=frow+4; r+=2) {
+      if (!sub.inBounds(c,r)) continue;
+      const cell=sub.cells[sub.index(c,r)];
+      cell.rock=0; cell.rockFill=0; cell.hazard=0; cell.colonized=0;
+      cell.nutrient=50; cell.maxNutrient=50; cell.foodKind=cell.foodKind||'cache';
+    }
+    const r=G.performAction(s,'grow',{});
+    if (r && r.ok===false) { refused++; lastMsg=r.message||''; }
     G.settleEnemyTurn();   // turn-based QUEUES each action's world step for the frame loop
     d=sample();
   }
   d.sort((a,b)=>a-b);
-  return { before, after:net.nodes.length, n:d.length,
+  return { before, after:net.nodes.length, n:d.length, iters, refused, lastMsg,
            med:d.length?d[Math.floor(d.length/2)]:0, max:d.length?d[d.length-1]:0 };
 });
 ok('a grow still grows', grown.after > grown.before, `${grown.before} → ${grown.after} nodes`);
 // The floor guards against a VACUOUS pass (a probe that measured nothing prints 0/0 and the
 // runner counts it green), not statistical power — a median over 20 samples is plenty.
-ok('it measured enough fresh strands to mean something', grown.n >= 20, `${grown.n} strands`);
+ok('it measured enough fresh strands to mean something', grown.n >= 20,
+   `${grown.n} strands after ${grown.iters} grows (${grown.refused} refused${grown.lastMsg?': '+grown.lastMsg:''}), nodes ${grown.before}→${grown.after}`);
 
 // The step is the strand length. A hair of slack for the tip that stops short on its
 // attractor; nothing may EXCEED the segment length, which is what a stale hard-coded 17

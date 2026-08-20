@@ -13,20 +13,15 @@ the stuff that bites.
 > still live and all still covered by their checks, exactly as `OFFER_SURVIVAL` was withheld and
 > restored once before. Flipping either constant brings its game back in one line.
 >
-> **TWO CHECKS LOSE COVERAGE WHILE THE DOORS ARE SHUT, and they say so rather than going quiet.**
-> `mode` drops **48 → 25** (it prints `note this build offers: mine`) and `survival` skips its
-> click-through, because the buttons those blocks press are not on screen — the RULES either game
-> owns are still driven through the model (`__menu.playSurvival`, `__game.campaign.play`,
-> `__game.survival.play`). Both files now **read `window.__offers` and require the markup to agree
-> with it in both directions**, rather than pinning one layout: `OFFER_SURVIVAL` has been closed,
-> reopened and closed again inside a fortnight, and a check that pins either state is a red line
-> the next time the owner changes their mind about the front door. Don't "fix" the lower count.
+> **AND AS OF 20 AUG THEY ARE NO LONGER CHECKED EITHER.** Owner: *"stop checking survival mode and
+> campaign — those are not a part of the game anymore and they won't be in the future. If we want to
+> bring them back later, that will be fully separate work."* So a campaign or survival regression is
+> **not** a reason to stop; run **`node tests/run.mjs --mine`** and nothing else.
 >
-> What that means in practice: **new work goes into the mine unless the owner says otherwise**,
-> and a change that would cost the campaign or survival something is still a regression — the
-> ~1,450 assertions guarding them are the reason this pivot could be made without a rewrite, and
-> they are what makes going back cheap if the mine does not land. Do not start deleting the card
-> game to tidy up.
+> **Still do not delete the card game.** That was not asked for, it is a large destructive change,
+> and one part of it is load-bearing: the mine's trichoderma reuses the gradual infection spread, so
+> `infectNetwork` and its tuning are a dependency rather than dead weight. The other 45 checks stay
+> in `run.mjs` and still work if `node tests/run.mjs campaign` is ever wanted.
 
 ## Shape of the codebase
 
@@ -1022,7 +1017,17 @@ worth each, 76 maps). Plus the PROBES and PERF TOOLS, which print and never fail
 Performance section and tests/README.md. **Run them; don't verify by re-reading your own diff.**
 
 
+**RUN `node tests/run.mjs --mine`. That is the loop now** — 10 checks, **518 assertions in 5m39s**,
+against 27 minutes for everything. It is the mine's own check plus the ENGINE checks a mine run
+actually executes (`threat` and `mould` for the infection spread its trichoderma reuses, `harvest`
+for how an ore seam is claimed and paid, `scale` for the growth every dig goes through, `core` for
+the molten floor, `level` for `buildLevel`, `aim` for the drag gesture that IS its action layer,
+`store`, `boot`). Several of those boot a campaign map; they are in the set because the machinery
+under them is machinery the mine runs, not out of loyalty to the card game. The list is `MINE_SET`
+in `run.mjs`, commented with why each one earns its place.
+
 ```bash
+node tests/run.mjs --mine    # THE ONE TO USE (~5m40, 518 assertions)
 node tests/run.mjs           # everything, one summary (~27 min)
 node tests/run.mjs --fast    # skip rt/tut/lure (~25 min — `traced` alone is ~20)
 node tests/run.mjs hs lure   # by name
@@ -3352,8 +3357,11 @@ owner's, not suggestions.**
   ends; the player **advances** rather than comes back. This is the genre position, not a gap.
 - **Run 1 is under a minute** and already is: `startWater` 44 at 2 a dig is **22 digs**, measured dry
   at 52-60 m. Late runs 3-5 minutes, tuned at the end.
-- **Every threat change is MINE-ONLY.** The campaign keeps its gradual mould and the 116 assertions
-  that guard it. Add beside; never replace.
+- **Threat changes go BESIDE the existing machinery, never over it** — and the reason is no longer
+  the campaign. The mine's own trichoderma design **reuses the gradual spread wholesale** (contact,
+  the cloud is spent, rot creeps along the filaments) and only adds a deadline on top, so
+  `infectNetwork` and its ring/depth/rot-lifespan tuning are a **dependency of the mine**, not
+  legacy to be cleared away. Ripping them out would break the thing being built.
 
 #### Phase 1 — threats become a system (fixes what is broken now)
 

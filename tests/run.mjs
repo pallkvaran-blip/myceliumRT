@@ -2,6 +2,7 @@
  *
  *   node tests/run.mjs              every check
  *   node tests/run.mjs hs lure      only those whose name contains "hs" or "lure"
+ *   node tests/run.mjs --mine       THE ONE TO USE: the mine and the engine it runs
  *   node tests/run.mjs --fast       skip the slow ones (rt-test, tut-check, lure-check)
  *
  * Playwright is expected on NODE_PATH; see tests/README.md.
@@ -75,11 +76,37 @@ const CHECKS = [
   ['rt',        'rt-test.cjs',       180, true],
 ];
 
+// THE MINE SUBSET. Owner, 20 Aug: "stop checking survival mode and campaign — those are not a part
+// of the game anymore and they won't be in the future. If we want to bring them back later, that
+// will be fully separate work."
+//
+// So this is not "the fast ones", it is **everything the mine actually runs**: its own check, plus
+// the ENGINE checks whose code a mine run executes. That distinction is the whole list — several of
+// these boot a campaign map, and they are here because the machinery under it is the machinery the
+// mine uses, not out of loyalty to the card game:
+//
+//   threat, mould  the trichoderma spread and the worm movement. The mine's own infection design
+//                  reuses the gradual spread wholesale, so this is a dependency, not legacy.
+//   harvest        `colonizeReachablePiles` / `cleanCover` — how an ore seam is claimed and paid.
+//   scale          `CONFIG.growth.scale` and the wall-hop rule that every dig goes through.
+//   core           the molten floor, which the mine sets `coreDepthFrac` against.
+//   level          `buildLevel` / `createLevelState`, the path every generated mine map goes down.
+//   aim            the drag-aim gesture, which IS the mine's entire action layer.
+//   store          the shelf, wallets and upgrade tracks, including the mine's own four.
+//   boot           the game still starts.
+//
+// Everything else in CHECKS is the card game and is no longer run. Nothing has been DELETED — the
+// code is untouched and the checks still work if `node tests/run.mjs campaign` is ever wanted.
+const MINE_SET = ['mine', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
+
 const args = process.argv.slice(2);
 const fast = args.includes('--fast');
+const mineOnly = args.includes('--mine');
 const pats = args.filter((a) => !a.startsWith('--'));
 const picked = CHECKS.filter(([name, , , slow]) =>
-  (!fast || !slow) && (!pats.length || pats.some((p) => name.includes(p))));
+  (!fast || !slow)
+  && (!mineOnly || MINE_SET.includes(name))
+  && (!pats.length || pats.some((p) => name.includes(p))));
 
 if (!picked.length) {
   console.error('No checks matched. Names: ' + CHECKS.map((c) => c[0]).join(', '));
