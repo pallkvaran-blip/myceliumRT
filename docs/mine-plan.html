@@ -1,0 +1,432 @@
+<title>Mine Build Order</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  /* Palette taken from the game's own world: mint-cyan is the colony, amber the ore, the core is
+     red, and the neutrals carry the soil's warm brown bias so they read as chosen rather than
+     inherited. The four band hues are the real rock types, in depth order. */
+  :root {
+    --bg:        #EBE8E0;
+    --surface:   #F6F4EE;
+    --surface-2: #E2DED4;
+    --ink:       #1B1712;
+    --ink-2:     #4A4239;
+    --muted:     #7A7063;
+    --rule:      #D3CDC1;
+    --accent:    #0C7D5F;   /* mycelium */
+    --accent-dim:#0C7D5F1A;
+    --core:      #A83A22;   /* the molten floor */
+    --ore:       #9A6A22;
+    --band-1:    #55697D;   /* magnetite  */
+    --band-2:    #33302E;   /* anthracite */
+    --band-3:    #7A2E3A;   /* garnet     */
+    --band-4:    #6B3A2E;   /* hematite   */
+    --shadow:    0 1px 2px rgba(27,23,18,.06), 0 6px 20px rgba(27,23,18,.05);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg:        #14100C;
+      --surface:   #1D1813;
+      --surface-2: #262019;
+      --ink:       #EFE9DE;
+      --ink-2:     #CFC5B6;
+      --muted:     #988C7C;
+      --rule:      #332C24;
+      --accent:    #6FDCB4;
+      --accent-dim:#6FDCB41F;
+      --core:      #E4694B;
+      --ore:       #DFA24C;
+      --band-1:    #7C93AB;
+      --band-2:    #6E6862;
+      --band-3:    #B8586A;
+      --band-4:    #B0705A;
+      --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 26px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg:        #14100C;
+    --surface:   #1D1813;
+    --surface-2: #262019;
+    --ink:       #EFE9DE;
+    --ink-2:     #CFC5B6;
+    --muted:     #988C7C;
+    --rule:      #332C24;
+    --accent:    #6FDCB4;
+    --accent-dim:#6FDCB41F;
+    --core:      #E4694B;
+    --ore:       #DFA24C;
+    --band-1:    #7C93AB;
+    --band-2:    #6E6862;
+    --band-3:    #B8586A;
+    --band-4:    #B0705A;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 26px rgba(0,0,0,.35);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Newsreader", Georgia, "Times New Roman", serif;
+    font-size: 17px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0 20px 96px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 780px; margin: 0 auto; }
+
+  /* ---- masthead ---------------------------------------------------------- */
+  header { padding: 72px 0 0; }
+  .eyebrow {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 18px;
+  }
+  h1 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 800; font-size: clamp(34px, 6.2vw, 52px);
+    line-height: 1.02; letter-spacing: -.022em;
+    margin: 0 0 18px; text-wrap: balance;
+  }
+  .standfirst {
+    font-size: 19px; line-height: 1.55; color: var(--ink-2);
+    margin: 0 0 34px; max-width: 60ch;
+  }
+
+  /* ---- premises ---------------------------------------------------------- */
+  .premises {
+    background: var(--surface); border: 1px solid var(--rule);
+    border-radius: 10px; padding: 22px 24px; margin: 0 0 54px;
+    box-shadow: var(--shadow);
+  }
+  .premises h2 {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 14px;
+  }
+  .premises ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+  .premises li { display: flex; gap: 12px; align-items: baseline; font-size: 16px; color: var(--ink-2); }
+  .premises li::before {
+    content: ""; flex: 0 0 auto; width: 6px; height: 6px; margin-top: 8px;
+    border-radius: 50%; background: var(--accent);
+  }
+  .premises strong { color: var(--ink); font-weight: 600; }
+
+  /* ---- phases: a descending column, because the plan descends ------------ */
+  .phase { margin: 0 0 46px; }
+  .phase-head {
+    display: flex; align-items: baseline; gap: 14px;
+    padding-bottom: 12px; margin-bottom: 22px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .phase-n {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12px; font-weight: 500; letter-spacing: .1em;
+    color: var(--bandc); flex: 0 0 auto;
+  }
+  .phase-head h2 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 700; font-size: 21px; letter-spacing: -.012em;
+    margin: 0; color: var(--ink); flex: 1 1 auto;
+  }
+  .phase-aim { font-size: 14.5px; color: var(--muted); font-style: italic; flex: 0 0 auto; }
+
+  /* The rule down the left of each item group carries that phase's rock colour — the four bands
+     the player actually digs through, in depth order. The plan is a sequence and it goes down, so
+     the numbering and the descent are both true rather than decorative. */
+  .items { display: grid; gap: 18px; padding-left: 22px; border-left: 2px solid var(--bandc); }
+
+  .item {
+    position: relative;
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 10px;
+    padding: 20px 22px; box-shadow: var(--shadow);
+  }
+  .item::before {
+    content: ""; position: absolute; left: -27px; top: 26px;
+    width: 9px; height: 9px; border-radius: 50%;
+    background: var(--bandc); border: 2px solid var(--bg);
+  }
+  .item h3 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 700; font-size: 17.5px; letter-spacing: -.008em;
+    margin: 0 0 10px; display: flex; gap: 10px; align-items: baseline;
+  }
+  .num {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 13px; font-weight: 500; color: var(--muted); flex: 0 0 auto;
+  }
+  .item p { margin: 0 0 10px; color: var(--ink-2); }
+  .item p:last-child { margin-bottom: 0; }
+  .spec { margin: 0 0 12px; padding: 0; list-style: none; display: grid; gap: 6px; }
+  .spec li {
+    font-size: 15.5px; color: var(--ink-2);
+    padding-left: 16px; position: relative;
+  }
+  .spec li::before {
+    content: "—"; position: absolute; left: 0; color: var(--muted);
+  }
+  code, .mono {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: .84em; background: var(--surface-2);
+    padding: 1px 5px; border-radius: 4px; color: var(--ink);
+  }
+  .meta {
+    display: grid; gap: 7px; margin-top: 14px; padding-top: 13px;
+    border-top: 1px solid var(--rule);
+  }
+  .meta div { display: flex; gap: 10px; font-size: 14.5px; line-height: 1.45; }
+  .meta dt {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); flex: 0 0 82px; margin: 0; padding-top: 3px;
+  }
+  .meta dd { margin: 0; color: var(--ink-2); flex: 1 1 auto; }
+  .meta dd .mono { background: none; padding: 0; color: var(--accent); }
+
+  .flag {
+    display: inline-block; font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 4px; vertical-align: 2px;
+    background: var(--accent-dim); color: var(--accent); font-weight: 500;
+  }
+  .flag.warn { background: color-mix(in srgb, var(--core) 13%, transparent); color: var(--core); }
+
+  /* ---- open decisions ---------------------------------------------------- */
+  .open { margin-top: 62px; }
+  .open > h2 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 700; font-size: 21px; margin: 0 0 8px; letter-spacing: -.012em;
+  }
+  .open > p.lead { margin: 0 0 22px; color: var(--muted); font-size: 16px; }
+  .q {
+    border-left: 2px solid var(--core); padding: 2px 0 2px 18px; margin: 0 0 20px;
+  }
+  .q h3 {
+    font-family: "Archivo", system-ui, sans-serif;
+    font-weight: 600; font-size: 16px; margin: 0 0 5px; color: var(--ink);
+  }
+  .q p { margin: 0; color: var(--ink-2); font-size: 15.5px; }
+
+  footer {
+    margin-top: 64px; padding-top: 20px; border-top: 1px solid var(--rule);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 11.5px; letter-spacing: .04em; color: var(--muted); line-height: 1.7;
+  }
+
+  a { color: var(--accent); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+  @media (max-width: 560px) {
+    body { font-size: 16px; padding: 0 16px 72px; }
+    header { padding-top: 48px; }
+    .phase-head { flex-wrap: wrap; gap: 8px 14px; }
+    .phase-aim { flex-basis: 100%; }
+    .meta div { flex-direction: column; gap: 2px; }
+    .meta dt { flex-basis: auto; padding-top: 0; }
+  }
+</style>
+
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">The Deep Mine · build order</p>
+  <h1>What we build, and in what order</h1>
+  <p class="standfirst">
+    Everything settled in the design conversation, sequenced so each piece lands on
+    machinery that already exists and fixes something live before the next one needs it.
+  </p>
+</header>
+
+<section class="premises">
+  <h2>Settled premises</h2>
+  <ul>
+    <li><strong>Rock is a wall, not a material.</strong> Mycelium doesn't eat rock, so this is a maze-runner, not a digger.</li>
+    <li><strong>There are no return trips</strong> — you <em>are</em> the map. The run ends where it ends; you advance rather than come back.</li>
+    <li><strong>Run 1 is under a minute</strong> and already is: 44 water at 2 a dig is 22 digs, measured dry at 52–60&nbsp;m. Late runs 3–5 minutes, tuned later.</li>
+    <li><strong>Every threat change is mine-only.</strong> The campaign keeps its gradual mould and the 116 assertions that guard it.</li>
+  </ul>
+</section>
+
+<section class="phase" style="--bandc: var(--band-1)">
+  <div class="phase-head">
+    <span class="phase-n">PHASE 1</span>
+    <h2>Threats become a system</h2>
+    <span class="phase-aim">fixes what's broken now</span>
+  </div>
+
+  <div class="items">
+
+    <article class="item">
+      <h3><span class="num">01</span> Worms drain water instead of eating</h3>
+      <p>They attach and feed on the colony rather than consuming it, so the threat pushes on the clock the run already has instead of needing a death condition of its own.</p>
+      <ul class="spec">
+        <li><strong>1 water per 5 seconds</strong> per attached worm</li>
+        <li><strong>5% chance per second</strong> of multiplying while feeding — drastically down from today's 0.8 per tick to a cap of 150</li>
+        <li>Attachment is drawn on the strand and <strong>counted in the HUD</strong>, or it's invisible damage in a new coat</li>
+      </ul>
+      <div class="meta">
+        <div><dt>Builds on</dt><dd><span class="mono">stepNematodes</span>, <span class="mono">placeNematodes</span>; retires <span class="mono">strandsPerBite</span> and <span class="mono">breedChance</span> for the mine</dd></div>
+        <div><dt>Why first</dt><dd>It's the live problem. Four strands a bite with no cooldown against an 800-strand colony is roughly a hundred seconds of watching, and breeding makes it accelerate.</dd></div>
+      </div>
+    </article>
+
+    <article class="item">
+      <h3><span class="num">02</span> Threat sight rings on by default</h3>
+      <p>Show what each worm and cloud can actually sense, so routing around them is a skill rather than a surprise.</p>
+      <div class="meta">
+        <div><dt>Builds on</dt><dd><span class="mono">drawOccludedSight</span>, <span class="mono">threatSight</span> — rays already stop at the rock face, so what you see is what it sees</dd></div>
+        <div><dt>Why here</dt><dd>Small, and it makes the two threats either side of it avoidable instead of arbitrary.</dd></div>
+      </div>
+    </article>
+
+    <article class="item">
+      <h3><span class="num">03</span> Trych infection countdown</h3>
+      <p>The spread stays exactly as it works in the campaign — contact, the cloud is spent and fades, rot creeps along the filaments. What's new is a deadline on top of it.</p>
+      <ul class="spec">
+        <li>A colony-wide timer starts on first contact</li>
+        <li>Infected strands <strong>can't be grown from</strong>; clean ones still can</li>
+        <li>Timer ends → the whole colony turns green at once, forced to fruit, run over</li>
+        <li><strong>The ending is a full payout</strong> — everything banked is kept, exactly like running dry</li>
+        <li>Amputating the infected tissue cancels it</li>
+      </ul>
+      <div class="meta">
+        <div><dt>Builds on</dt><dd><span class="mono">infectNetwork</span>, <span class="mono">infectStrandsInMould</span>, <span class="mono">amputateAt</span>, <span class="mono">mineEndRun</span></dd></div>
+        <div><dt>Careful</dt><dd><span class="flag warn">mine-gated</span> The gradual spread is heavily tuned and the campaign depends on all of it. Add the timer beside it; don't replace it.</dd></div>
+      </div>
+    </article>
+
+    <article class="item">
+      <h3><span class="num">04</span> Consumables</h3>
+      <p>Bought or constructed between runs, and the answer to both threats. Without them the timer in 03 is a sentence rather than a problem, so these two ship close together.</p>
+      <div class="meta">
+        <div><dt>Builds on</dt><dd><span class="mono">excrete()</span> and <span class="mono">amputateAt()</span> are <strong>already fully implemented</strong> — they belonged to the card layer and never came across, which is why the mine currently has no counterplay at all</dd></div>
+        <div><dt>Consequence</dt><dd>Anti-trych items must be <strong>preventative</strong>, used at range: the cloud is spent the moment it touches you and fades away, so there's nothing left to kill. Anti-worm items are reactive. Different textures, worth leaning into.</dd></div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<section class="phase" style="--bandc: var(--band-2)">
+  <div class="phase-head">
+    <span class="phase-n">PHASE 2</span>
+    <h2>The run gets a shape</h2>
+    <span class="phase-aim">depth means something</span>
+  </div>
+
+  <div class="items">
+
+    <article class="item">
+      <h3><span class="num">05</span> Heat tolerance, as depth gating</h3>
+      <p>It gets hotter as you descend. Strands grown below your tolerance burn off. Upgrading tolerance is what buys you the next layer.</p>
+      <div class="meta">
+        <div><dt>Builds on</dt><dd><span class="mono">coreY</span>, <span class="mono">growFloorY</span> and the earth ramp to red — the molten floor and its art <strong>already exist</strong>. This turns a picture into a rule.</dd></div>
+        <div><dt>Why here</dt><dd>It's the cheapest real gate available, and it gives the shop something to sell that isn't just "more of the same".</dd></div>
+      </div>
+    </article>
+
+    <article class="item">
+      <h3><span class="num">06</span> More material types</h3>
+      <p>Named materials with band affinities, so an upgrade needs a <em>particular</em> thing and the maze is worth reading.</p>
+      <div class="meta">
+        <div><dt>Builds on</dt><dd><span class="mono">foodKind</span> already carries three art kinds; <span class="mono">orePerPile</span> already varies by band</dd></div>
+        <div><dt>Depends on</dt><dd><span class="flag">pairs with 08</span> Without a compass, "find garnet" is a random walk. These two hold each other up — don't ship this one alone.</dd></div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<section class="phase" style="--bandc: var(--band-3)">
+  <div class="phase-head">
+    <span class="phase-n">PHASE 3</span>
+    <h2>The journey east</h2>
+    <span class="phase-aim">the game gets a point</span>
+  </div>
+
+  <div class="items">
+
+    <article class="item">
+      <h3><span class="num">07</span> Green islands and the promised land</h3>
+      <p>Islands scattered eastward. Reach one, resurface and spore, and the next run starts from there. Surface resources barely fund the next leg, so the first runs have to go <em>down</em> to afford going <em>right</em>.</p>
+      <div class="meta">
+        <div><dt>Why it matters</dt><dd>It gives the world a second axis — depth is currently the only one — and it turns "no return trip" from a missing feature into the structure of the game.</dd></div>
+        <div><dt>Biggest lift</dt><dd><span class="flag warn">decide first</span> One continuous world extended east, or a fresh streamed world per leg? See below.</dd></div>
+      </div>
+    </article>
+
+    <article class="item">
+      <h3><span class="num">08</span> Compasses, bought per resource</h3>
+      <p>A needle for the next island, and separately purchased tech for each material you want to track. Selling <em>information</em> rather than power is the most distinctive progression idea here.</p>
+      <ul class="spec">
+        <li>Rungs fall out of one feature: direction → direction and distance → points at the <em>biggest</em> deposit rather than the nearest</li>
+        <li><strong>It must point through rock.</strong> A bearing keeps the maze — "I know it's that way, now find the corridor". A route would make the maze stop mattering.</li>
+      </ul>
+      <div class="meta">
+        <div><dt>Why last</dt><dd>It's what makes 06 and 07 legible, so it wants both of them to exist first.</dd></div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<section class="phase" style="--bandc: var(--band-4)">
+  <div class="phase-head">
+    <span class="phase-n">PHASE 4</span>
+    <h2>Economy and progression</h2>
+    <span class="phase-aim">dial it in</span>
+  </div>
+
+  <div class="items">
+    <article class="item">
+      <h3><span class="num">09</span> Price everything against the journey</h3>
+      <p>One pass over costs, yields and upgrade ladders once the shape is real.</p>
+      <ul class="spec">
+        <li>Run 1 stays around <strong>45 seconds</strong> and banks <strong>one upgrade</strong> — band-1 ore pays 3&nbsp;P a seam against a 10&nbsp;P cheapest buy, so this is already close</li>
+        <li>Late runs land at <strong>3–5 minutes</strong></li>
+        <li>The key ratio is shallow-to-deep material value: get it wrong either way and one of the two axes dies</li>
+      </ul>
+    </article>
+  </div>
+</section>
+
+<section class="open">
+  <h2>Open decisions</h2>
+  <p class="lead">Five things worth settling before the phase that needs them.</p>
+
+  <div class="q">
+    <h3>Is Amputate free, or bought?</h3>
+    <p>The trych timer is unfair without it, so I'd make it a second basic action that costs water rather than a purchased consumable. Blocks 03.</p>
+  </div>
+
+  <div class="q">
+    <h3>One world extended east, or a fresh world per leg?</h3>
+    <p>The map is currently 504 columns with a hard edge either side. A world per leg — seeded by journey and leg index, hill at the west, island at the east — keeps everything that already works and makes "how far east am I" a small integer. Blocks 07.</p>
+  </div>
+
+  <div class="q">
+    <h3>Is the island compass free?</h3>
+    <p>You said bought. My worry is that the very first run then has no direction at all and reads as aimless — so perhaps the first one is given and the rest are bought. Blocks 08.</p>
+  </div>
+
+  <div class="q">
+    <h3>Does heat fail hard, or ramp?</h3>
+    <p>Strands burning off outright is clear but punishes after the fact. A band where digs simply cost more water first would warn before it bites. Blocks 05.</p>
+  </div>
+
+  <div class="q">
+    <h3>Is the infection timer per cloud or per colony?</h3>
+    <p>Per cloud, two clouds means two bars and it stops reading. One colony-wide deadline, driven by whether any cloud is in contact, reads as one deadline. Blocks 03.</p>
+  </div>
+</section>
+
+<footer>
+  Numbers quoted are measured from the current build, not estimated.<br>
+  Source: docs/mine-plan.html · branch claude/hello-cy7nf3
+</footer>
+
+</div>
