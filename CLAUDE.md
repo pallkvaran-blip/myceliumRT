@@ -3347,8 +3347,8 @@ sessions and a session that only reads CLAUDE.md must still be able to work. **N
 owner's, not suggestions.**
 
 **PROGRESS — keep this line honest, it is how the next session knows where to start:**
-`Phase 1: (01) worms drain, (02) sight rings, (03) infection deadline — ALL DONE.
-(04) consumables — next.` Nothing after 04 started.
+`PHASE 1 COMPLETE — (01) worms drain, (02) sight rings, (03) infection deadline,
+(04) consumables. Phase 2 (05) heat gating is next; nothing in it has started.`
 
 #### The premises (settled, do not re-litigate)
 
@@ -3441,12 +3441,32 @@ owner's, not suggestions.**
    - **It stops only when EVERY infected strand is gone.** Two contact points, cut one, and the
      clock keeps running. Partial amputation buys nothing, which is what makes "find all of it"
      the decision.
-4. **CONSUMABLES**, bought between runs. `excrete()` (kills worms) and `amputateAt()` are **already
-   fully implemented** — they belonged to the card layer and never came across, which is why the
-   mine has no counterplay at all today.
-   - **Anti-trych items must be PREVENTATIVE, used at range.** The cloud is spent the moment it
-     touches you and fades, so after contact there is nothing left to kill. Anti-worm items are
-     reactive. Different textures; lean into it.
+4. **CONSUMABLES. BUILT** — two store tracks, `excreteCharges` (Mucus flasks) and `amputateCharges`
+   (Cutting enzyme). Both mechanics were already written and never came across from the card layer,
+   which is why the mine had no counterplay at all; what is new is the delivery.
+   - **SOLD AS HOW MANY YOU CARRY, not as charges that deplete across runs.** A capacity track
+     restocks every descent (`cfg.mine.items` → `state.mineItems`), which is Retries' shape and
+     needs no new persistence — and it prices the decision the owner cares about without adding an
+     inventory that has to be saved, migrated and reasoned about when a run is abandoned.
+   - **A MISS COSTS NOTHING.** There is no hand to re-draw from: a flask is something the player
+     paid Phosphorus for and carried down, so burning one on a tap that landed on empty soil would
+     be the game taking their money. Both functions return the underlying result untouched on a miss
+     and only decrement on success.
+   - **`CONFIG.mine.cutRadius` 220, AGAINST THE CARD'S 60, AND WITHOUT IT THE ENZYME CANNOT CURE.**
+     Measured against a real breach: `firstTouchRings` 12 claims ~29 strands spread along the
+     filaments, and three doses at radius 60 took three strands each and left **13 still rotten with
+     the bag empty** — the only answer to the deadline could not answer it. At 220 a breach costs
+     **2 doses** and ~57 strands including healthy tissue caught in the cuts, which is the decision
+     the enzyme is meant to pose. 280 also costs 2 doses and 10 more strands, so 220 is the better
+     value.
+   - The flask is INSTANT (no target — worms attach where they like and the player should not have
+     to aim at each); the dose ARMS and the next tap on the map is the cut. `mineArmedTap` is
+     checked at the start of BOTH commit paths, because on a phone a tap and a tiny drag are the
+     same gesture and a press meant as "cut here" arrives as a released aim about as often as a
+     click.
+   - **The kit is `position: fixed`.** It lives inside the HUD element, whose containing block is
+     not the playfield and has no height — so `bottom` resolved against the wrong box and put the
+     kit at the TOP of the screen, over the resource pill.
 
 #### Phase 2 — the run gets a shape
 
@@ -4946,6 +4966,13 @@ which is the real lift for a landscape-first game.
   - **`rt` loses one worm assertion** ("once the tissue has appeared the worm can find and eat
     it — eaten=false"), on its long-lived page. Reproduced on the pre-fix build too, so it is
     the harness, not the arrival gate.
+  - **`threat`'s map-roll flakes are MORE frequent than the old note says.** Observed across one
+    session on an unchanged build: `116/116`, `115/116`, `114/116`, a harness break, `116/116` —
+    call it one run in three rather than one in four. Every symptom seen belongs to the documented
+    family (`ate N, want 4`, `no clear spot to measure a crawl from`, `no open ground`, `a blind
+    pack does not converge`), and all of them are the probe not finding the geometry it needs on a
+    fresh roll. The lever remains the one already written down: boot these probes on a fixed-seed
+    map instead of a procedural one. Re-run before believing any of them.
   - **`turn-play` — FIXED, and worth reading as a pattern.** Its long-session probe kept dying
     on a map roll (`over: true, alive: false` at ~25 of the 30 acts it needs), failing in two
     consecutive sweeps and ~1 run in 3 standalone. The assertion is about the ACTION LOOP — one

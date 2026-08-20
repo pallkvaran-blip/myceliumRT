@@ -220,6 +220,29 @@
     .res.inf .rk { color: #9ec44f; opacity: 0.7; font-size: 10px; margin-left: -1px; }
     .res.inf.urgent, .res.inf.urgent .rv, .res.inf.urgent .rk { color: #e2705a; }
     .res.inf[hidden] { display: none; }
+    /* The kit. Bottom-centre and thumb-sized, because the mine is played one-handed on a phone and
+       the other hand is not coming. Sits inside the boxed playfield (`--pf-*`), or on a desktop it
+       would float against the window edge a long way from the map. */
+    /* FIXED, not absolute. It lives inside the HUD element, whose containing block is not the
+       playfield and has no height of its own — so `bottom` resolved against the wrong box and put
+       the kit at the TOP of the screen, straight over the resource pill. Positioning against the
+       viewport and then insetting by the letterboxed playfield's own bottom edge is the only thing
+       that lands in the same place on a phone and inside the box on a desktop. */
+    .minekit { position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: 22px; display: flex; gap: 10px; z-index: 6; }
+    body.boxed .minekit {
+      left: calc(var(--pf-l, 0px) + var(--pf-w, 100vw) / 2);
+      bottom: calc(100vh - var(--pf-t, 0px) - var(--pf-h, 100vh) + 22px); }
+    .minekit.hidden { display: none; }
+    .kitbtn { display: flex; align-items: center; gap: 6px; padding: 9px 14px 9px 11px;
+      border-radius: 999px; border: 1px solid rgba(150,190,120,0.35);
+      background: rgba(14,20,12,0.82); color: #cfe3b4; cursor: pointer;
+      font: 600 15px/1 ui-sans-serif, system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    .kitbtn .ri { width: 17px; height: 17px; }
+    .kitbtn .kitn { font-variant-numeric: tabular-nums; opacity: 0.95; }
+    .kitbtn:disabled { opacity: 0.35; cursor: default; }
+    /* ARMED is a state the player must be able to see — the next tap does something irreversible. */
+    .kitbtn.armed { border-color: #9ec44f; box-shadow: 0 0 0 2px rgba(158,196,79,0.35); color: #e6f3cf; }
 
     /* THE DEPTH BEAT — "42 m / Anthracite" as a new rock layer starts (owner: a short depth beat).
        Centred over the map, pointer-transparent, and gone on its own; it names the layer rather
@@ -3311,6 +3334,14 @@ const CONFIG = {
     // Phase 1 consumable that does not exist yet, so today an early player who meets mould simply
     // ends the run sooner. That is only acceptable because the ending is a FULL PAYOUT.
     infectionMs: 20000,
+    // HOW WIDE A DOSE CUTS. The campaign's Amputate is 60 units — about 1.7 cells — which is sized
+    // for snipping a strand off a card-game colony. Measured against a real breach it is useless as
+    // a cure: `firstTouchRings` 12 claims ~20 strands spread along the filaments, three doses at 60
+    // took 3 strands each and left **13 still rotten with the bag empty**, so the only answer to the
+    // deadline could not answer it. 170 takes most of a fresh breach in one dose, and the cost is
+    // the right one — a cut that wide takes healthy tissue with it, which is the decision the enzyme
+    // is supposed to pose.
+    cutRadius: 220,
     // ...AND TWO OVERRIDES WITHOUT WHICH THE DEADLINE CANNOT BE OBSERVED AT ALL. Measured on a
     // 150-strand colony with a cloud parked on it: the breach claimed ~20 strands, every one of them
     // aged out and was REMOVED within about two seconds, and the clock armed and cleared itself
@@ -13966,6 +13997,22 @@ const STORE_UPGRADES = [
     mineOnly: true,
     effect: 'Each grow digs <b>one step further</b>, for the same water.',
     costs: [12, 30, 60, 110, 190] },
+  // THE TWO WEAPONS, sold as HOW MANY YOU CARRY rather than as charges that deplete across runs.
+  // A capacity track restocks at the start of every descent (`stockRun`), which is the same shape as
+  // Retries and needs no new persistence — and it prices the decision the owner cares about ("can I
+  // afford to answer mould yet?") without adding an inventory that has to be saved, migrated and
+  // reasoned about when a run is abandoned mid-way.
+  //
+  // NOTHING IS GIVEN. Amputate is bought (owner), which is what makes the infection deadline a real
+  // question early on — and it is only fair because that ending pays out in full.
+  { id: 'excreteCharges', name: 'Mucus flasks', icon: 'worm', accent: 'water', step: 1, unit: 'flasks', unit1: 'flask',
+    mineOnly: true,
+    effect: 'Carry <b>one more</b> flask per descent. Bursts sticky mucus over the colony, hitting every nematode near it.',
+    costs: [15, 34, 60, 100, 155] },
+  { id: 'amputateCharges', name: 'Cutting enzyme', icon: 'spore', accent: 'mint', step: 1, unit: 'doses', unit1: 'dose',
+    mineOnly: true,
+    effect: 'Carry <b>one more</b> dose per descent. Cuts out every strand in a small radius — the only answer to an infection.',
+    costs: [20, 44, 78, 128, 195] },
   { id: 'oreYield', name: 'Ore yield', icon: 'phos', accent: 'phos', step: 1, unit: 'phosphorus',
     mineOnly: true,
     effect: 'Every ore seam you digest pays <b>1</b> more Phosphorus.',
@@ -13981,7 +14028,7 @@ const STORE_UPGRADES = [
 // starting Phosphorus would be starting with currency, `startLevel` names levels the mine does
 // not have, the two carry tracks are cards, and Retries retries a level. What is left is fuel and
 // the three tracks written for the mine itself.
-const MINE_UPGRADE_IDS = ['water', 'growSteps', 'oreYield', 'pocketWater'];
+const MINE_UPGRADE_IDS = ['water', 'growSteps', 'excreteCharges', 'amputateCharges', 'oreYield', 'pocketWater'];
 // The mine's price for a shared track. `water` is a Spores ladder upstairs (25, 50, 100 …) and
 // the mine's whole currency runs an order of magnitude smaller, so a shared track needs its own
 // ladder or its first rung is unreachable.
@@ -19415,7 +19462,14 @@ function createLevelState(config, seed, level) {
   // are placed by `mineGenerateChunk`, which runs DURING play, so the fine mask already exists by
   // the time any of them is placed and there is nothing to defer. The mine's level def zeroes every
   // threat ceiling and sets `respawn: false`, so the procedural seeders find nothing to do here.
-  if (level && level.mine) state.mineOre = 0;
+  if (level && level.mine) {
+    state.mineOre = 0;
+    // A FRESH SET EVERY DESCENT — the tracks are a capacity, not a stockpile. Copied rather than
+    // referenced, or spending one in a run would edit the config and the next descent would start
+    // short.
+    const it = (config.mine && config.mine.items) || {};
+    state.mineItems = { excrete: it.excrete | 0, amputate: it.amputate | 0 };
+  }
   return state;
 }
 
@@ -21002,7 +21056,7 @@ EFFECTS['Cordyceps Bloom'] = grow((s) => eruptNearestNest(s));
 // 3b. Cordyceps Stroma — installed ACTION (engine): destroy a sensed ant nest every 10 rounds.
 EFFECTS['Cordyceps Stroma'] = action({ effect: 'destroy a sensed ant nest', every: 10 }, (s) => eruptNearestNest(s));
 
-  return { cardDeckAdditions, initCards, rebuildCardsFromSnapshot, checkPileRewards, chooseOffer, drawCost, cardBlockedReason, cardNeedsTarget, cardUsesDragAim, dragAimReach, drawCard, skipRound, playCard, cardAbilityInfo, produceCardEngines, actionUsable, activateAction, checkGoalReached, waterSourcesNear, WATER_SOURCE_NAME, EFFECTS, isArchived, playable };
+  return { cardDeckAdditions, initCards, rebuildCardsFromSnapshot, checkPileRewards, chooseOffer, drawCost, cardBlockedReason, cardNeedsTarget, cardUsesDragAim, dragAimReach, drawCard, skipRound, playCard, cardAbilityInfo, produceCardEngines, actionUsable, activateAction, checkGoalReached, waterSourcesNear, WATER_SOURCE_NAME, EFFECTS, isArchived, playable, amputateAt };
 })();
 
 // ===================== src/engine/mine.js =====================
@@ -21012,7 +21066,8 @@ const __m_engine_mine = (function () {
   const { LEVEL_FORMAT, LEVEL_VERSION, stampFood, stampReservoir } = __m_engine_level;
   const { placeClouds, stampCloudField } = __m_engine_threats;
   const { placeNematodes } = __m_engine_nematodes;
-  const { waterSourcesNear } = __m_engine_cards;
+  const { waterSourcesNear, amputateAt } = __m_engine_cards;
+  const { excrete } = __m_engine_nematodes;
 // =============================================================================
 // THE DEEP MINE — the third game's world, economy and clock (CONFIG.mine).
 //
@@ -21860,6 +21915,48 @@ function mineGrow(state, ctx) {
   return { ok: true, made, water: net.water, message: `Dug ${made} filament${made > 1 ? 's' : ''}.` };
 }
 
+// -----------------------------------------------------------------------------
+// THE TWO WEAPONS (owner: consumables that let you fight nematodes and trych)
+// -----------------------------------------------------------------------------
+// Both mechanics were ALREADY WRITTEN — `excrete` and `amputateAt` belonged to the card layer and
+// simply never came across, which is why the mine has had no counterplay at all. What is new here
+// is the delivery: a per-descent allowance from the store, and the rule that a charge is only spent
+// when it does something.
+//
+// A MISS COSTS NOTHING, and that matters more here than it would in the card game. There is no hand
+// to re-draw from and no second copy — a flask is a thing you paid Phosphorus for and carried down,
+// so burning one because a tap landed on empty soil would be the game taking your money. Both of
+// these return the underlying result untouched on a miss, and the count only moves on success.
+function mineItemCount(state, id) {
+  return ((state && state.mineItems && state.mineItems[id]) | 0);
+}
+// Sticky mucus over the whole colony: every worm within `actions.excrete.range` of ANY strand takes
+// a hit and is stuck, and dies at `killHits`. No target — it is the panic button, which is right for
+// the threat it answers: worms attach where they like and the player should not have to aim at each.
+function mineUseExcrete(state) {
+  if (!state || state.runOver || !state.active || !state.active.alive) return { ok: false, message: 'The colony is no longer alive.' };
+  if (mineItemCount(state, 'excrete') <= 0) return { ok: false, message: 'No mucus flasks left.' };
+  const r = excrete(state);
+  if (!r || !r.hit) return { ok: false, message: 'No nematodes close enough to the colony.' };
+  state.mineItems.excrete -= 1;
+  return { ok: true, hit: r.hit, killed: r.killed,
+           message: r.killed
+             ? `Mucus burst — ${r.hit} hit, ${r.killed} killed.`
+             : `Mucus burst — ${r.hit} stuck fast.` };
+}
+// Cut out every strand in a radius. THE ONLY ANSWER TO AN INFECTION, and it has to take all of the
+// rot to stop the clock — `mineInfectionCheck` asks whether ANYTHING is still infected, so a dose
+// spent on half a breach buys nothing but the tissue it removed.
+function mineUseAmputate(state, x, y) {
+  if (!state || state.runOver || !state.active || !state.active.alive) return { ok: false, message: 'The colony is no longer alive.' };
+  if (mineItemCount(state, 'amputate') <= 0) return { ok: false, message: 'No cutting enzyme left.' };
+  const r = amputateAt(state, { x, y },
+                       (mineCfg(state.config).cutRadius | 0) || state.config.actions.amputate.radius);
+  if (!r || !r.ok) return r || { ok: false, message: 'Nothing there to cut.' };
+  state.mineItems.amputate -= 1;
+  return r;
+}
+
 // --- the infection deadline -------------------------------------------------
 // DERIVED FROM "IS ANYTHING INFECTED", never stamped by the contact pass — and that is the whole
 // design rather than an implementation detail. The owner's rule is that the clock stops only when
@@ -21938,6 +22035,7 @@ function mineEndRun(state, cause) {
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
            mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
            mineInfectionCheck, mineInfectionLeft,
+           mineItemCount, mineUseExcrete, mineUseAmputate,
            OUT_OF_FUEL_GRACE_MS };
 })();
 
@@ -25479,8 +25577,27 @@ class UI {
       // does end the run — but "abandon" was the ladder's word for it.
       +   `<button class="setitem setitem-danger" id="set-forcefruit" type="button" role="menuitem">End run</button>`
       + `</div>`
-      + `<div class="logdrop hidden" id="logdrop"><div class="loglist" id="loglist"></div></div>`;
+      + `<div class="logdrop hidden" id="logdrop"><div class="loglist" id="loglist"></div></div>`
+      // THE KIT — the mine's only screen furniture besides the resource row, and it appears only if
+      // the player actually carries something. Two buttons at the bottom, thumb-height on a phone:
+      // a flask (instant, no target) and a dose (arm, then tap where to cut). Nothing here when both
+      // counts are zero, which is every run until the store has been used.
+      + (mineOn
+        ? `<div class="minekit hidden" id="minekit">`
+          + `<button class="kitbtn" id="kit-excrete" type="button" title="Mucus flask — hits every nematode near the colony">`
+          +   `${RES_ICON.worm}<span class="kitn" id="kit-excrete-n">0</span></button>`
+          + `<button class="kitbtn" id="kit-amputate" type="button" title="Cutting enzyme — tap the map to cut out a patch of strands">`
+          +   `${RES_ICON.spore}<span class="kitn" id="kit-amputate-n">0</span></button>`
+          + `</div>`
+        : '');
     root.appendChild(hud);
+    // THE KIT'S BUTTONS. The flask fires on the spot (no target — worms attach where they like and
+    // the player should not have to aim at each one); the dose ARMS and the next tap on the map is
+    // the cut. `onMineItem` is the handler table's, so the engine call and the toast live with every
+    // other commit rather than inside the HUD.
+    const kx = hud.querySelector('#kit-excrete'), ka = hud.querySelector('#kit-amputate');
+    if (kx) kx.addEventListener('click', (e) => { e.stopPropagation(); this.handlers.onMineItem && this.handlers.onMineItem('excrete'); });
+    if (ka) ka.addEventListener('click', (e) => { e.stopPropagation(); this.handlers.onMineItem && this.handlers.onMineItem('amputate'); });
     this.el.hudtop = hud.querySelector('.hudtop');   // _syncTopRow measures this against the Actions pill
     this.el.logdrop = hud.querySelector('#logdrop');
     this.el.loglist = hud.querySelector('#loglist');
@@ -26240,6 +26357,23 @@ class UI {
             text('hud-infectn', String(left));
             inf.classList.toggle('urgent', left <= 10);
           }
+        }
+      }
+      // THE KIT'S COUNTS, and the whole strip hides when the player carries nothing — which is every
+      // run until the store has been used, and the mine's screen should stay empty until it has
+      // something to say. Written on a change; this refreshes every world tick.
+      const kit = document.getElementById('minekit');
+      if (kit) {
+        const items = s.mineItems || {};
+        const ex = items.excrete | 0, am = items.amputate | 0;
+        const sig = ex + ':' + am + ':' + (s._mineArmed || '');
+        if (this._kitSig !== sig) {
+          this._kitSig = sig;
+          kit.classList.toggle('hidden', ex <= 0 && am <= 0);
+          const bx = document.getElementById('kit-excrete'), ba = document.getElementById('kit-amputate');
+          text('kit-excrete-n', String(ex)); text('kit-amputate-n', String(am));
+          if (bx) { bx.disabled = ex <= 0; bx.classList.toggle('armed', s._mineArmed === 'excrete'); }
+          if (ba) { ba.disabled = am <= 0; ba.classList.toggle('armed', s._mineArmed === 'amputate'); }
         }
       }
       const wn = s.mineAttached | 0;
@@ -31117,7 +31251,8 @@ const __m_main = (function () {
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun,
-          mineInfectionCheck, mineInfectionLeft } = __m_engine_mine;
+          mineInfectionCheck, mineInfectionLeft,
+          mineItemCount, mineUseExcrete, mineUseAmputate } = __m_engine_mine;
   const { levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
@@ -31443,6 +31578,11 @@ function configForLevel(level) {
     cfg.mine.growSteps = Math.max(1, b.growSteps | 0);
     cfg.mine.reservoirWater = Math.max(1, (cfg.mine.reservoirWater | 0) + (b.pocketWater | 0));
     cfg.mine.oreBonus = Math.max(0, b.oreYield | 0);
+    // WHAT THE DESCENT SETS OFF CARRYING. On the config rather than straight onto state, so it goes
+    // through the same deep clone every other mine number does and a per-level override could tune
+    // it; `createLevelState` copies it onto `state.mineItems` at run start.
+    cfg.mine.items = { excrete: Math.max(0, b.excreteCharges | 0),
+                       amputate: Math.max(0, b.amputateCharges | 0) };
   }
   return cfg;
 }
@@ -34388,6 +34528,10 @@ function begin(newState) {
       // strands does not reproduce it: rot ages out in `rotLifeTurns` steps, so isolated infected
       // strands vanish within a second and the clock correctly clears itself.
       spawnCloud: (x, y) => { devSpawnTrichoderma(state, x, y); return state.clouds.length; },
+      items: () => Object.assign({}, state.mineItems || {}),
+      armed: () => state._mineArmed || null,
+      useExcrete: () => mineUseExcrete(state),
+      useAmputate: (x, y) => mineUseAmputate(state, x, y),
       infect: () => ({ on: !!state.mineInfect, left: mineInfectionLeft(state),
                        rotten: state.active ? state.active.nodes.filter((n) => n.infected).length : 0 }),
       drained: () => +(state.mineDrained || 0).toFixed(2),
@@ -34858,6 +35002,23 @@ function expandedBounds() {
 // --- input handlers (passed to UI) -----------------------------------------
 const handlers = {
   // Settings menu (gear button, ui.js): replay the tutorial + toggle sensing-range lighting.
+  // THE MINE'S TWO WEAPONS. The flask resolves here; the dose only ARMS, and `fireAim` /
+  // `onCanvasClick` spend it wherever the player taps next. Tapping an armed button again disarms
+  // it, because an armed cut is one tap from removing tissue and there has to be a way out.
+  onMineItem: (id) => {
+    if (!state || state.runOver) return;
+    if (id === 'amputate') {
+      state._mineArmed = state._mineArmed === 'amputate' ? null : 'amputate';
+      ui.toast(state._mineArmed ? 'Tap where to cut.' : 'Cut cancelled.');
+      uiDirty = true;
+      return;
+    }
+    state._mineArmed = null;
+    const r = mineUseExcrete(state);
+    if (r.message) ui.toast(r.message);
+    if (r.ok) { state.log(r.message, 'good'); rendererFor(state.active).markStructureDirty(); }
+    uiDirty = true;
+  },
   onReplayTutorial: () => beginTutorial(),
   onForceFruit: () => forceFruitAbandon(),
   onColonyLos: () => toggleColonyLos(),
@@ -35239,6 +35400,7 @@ function botToGoal(budget = 900) {
 
 // --- canvas interaction -----------------------------------------------------
 function onCanvasClick(worldX, worldY) {
+  if (mineArmedTap(worldX, worldY)) return;
   const sel = ui.selectedAction;
   if (!sel) return;
   if (draftLocked()) return;          // the tap that COMMITS a targeted action is an action
@@ -35343,12 +35505,30 @@ function updateAim(e) {
 
 // Commit a completed aim: grow from the pressed source toward the drag point.
 // ctx.srcX/srcY tell the engine to start growth exactly where the player pressed.
+// AN ARMED CUT OWNS THE NEXT TAP, ahead of the dig. Checked at the START of both commit paths
+// rather than inside one of them: on a phone a tap and a tiny drag are the same gesture, so a press
+// meant as "cut here" arrives as a released aim about as often as it arrives as a click.
+function mineArmedTap(wx, wy) {
+  if (!state || !state.substrate || !state.substrate.mine || state._mineArmed !== 'amputate') return false;
+  state._mineArmed = null;
+  const r = mineUseAmputate(state, wx, wy);
+  if (r && r.message) ui.toast(r.message);
+  if (r && r.ok) {
+    state.log(r.message, 'good');
+    rendererFor(state.active).markStructureDirty();
+    substrateRenderer.markDirty();
+  }
+  uiDirty = true;
+  return true;
+}
+
 function fireAim(a) {
   // The RELEASE is the commit, and a gesture can be started before the turn ends and let go
   // after — so the gate belongs here rather than only at beginAim. The aim is dropped either
   // way, so a blocked release doesn't leave a stale line armed on the map.
   if (draftLocked()) { aim = null; if (ui.clearPendingCard) ui.clearPendingCard(); if (ui.clearPendingAction) ui.clearPendingAction(); ui.resetHint(); uiDirty = true; return; }
   const ctx = { x: a.cur.x, y: a.cur.y, srcX: a.origin.x, srcY: a.origin.y };
+  if (mineArmedTap(a.cur.x, a.cur.y)) { aim = null; return; }
   if (a.kind === 'mine') {
     const res = mineGrow(state, ctx);
     if (res.ok) {

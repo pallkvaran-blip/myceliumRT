@@ -618,6 +618,137 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     await b.ctx.close();
   }
 
+  // ---- 4a-vi. THE TWO WEAPONS ---------------------------------------------------------------
+  // Owner: consumables that let you fight nematodes and trych, bought between runs. Both mechanics
+  // were already written — `excrete` and `amputateAt` belonged to the card layer and never came
+  // across, which is why the mine has had no counterplay at all. What is new is the delivery: a
+  // per-descent allowance from the store, and the rule that a charge is only spent when it works.
+  {
+    const b = await bootMine(4242);
+    const zero = await b.page.evaluate(() => ({
+      items: window.__game.mine.items(),
+      kitHidden: document.getElementById('minekit')
+        ? document.getElementById('minekit').classList.contains('hidden') : 'no kit',
+    }));
+    // NOTHING IS GIVEN — Amputate is bought (owner), which is what makes the infection deadline a
+    // real question early on. The strip stays off the screen entirely until something is carried.
+    ok('a descent carries nothing before the store is used',
+       zero.items.excrete === 0 && zero.items.amputate === 0 && zero.kitHidden === true,
+       JSON.stringify(zero));
+
+    const carried = await b.page.evaluate(async () => {
+      const st = window.__game.store;
+      st.credit(2000);
+      const buys = [st.buy('excreteCharges').ok, st.buy('amputateCharges').ok, st.buy('amputateCharges').ok];
+      window.__game.mine.playSeed(4242);
+      for (let i = 0; i < 120; i++) {
+        if (window.__game.state.substrate && window.__game.state.substrate._fineSolid) break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      await new Promise((r) => setTimeout(r, 1200));
+      const k = document.getElementById('minekit');
+      return { buys, items: window.__game.mine.items(), kitHidden: k.classList.contains('hidden'),
+               exN: document.getElementById('kit-excrete-n').textContent,
+               amN: document.getElementById('kit-amputate-n').textContent,
+               top: Math.round(k.getBoundingClientRect().top),
+               hudBottom: Math.round(document.querySelector('.hudtop').getBoundingClientRect().bottom) };
+    });
+    ok('...and a bought allowance is carried into the next descent',
+       carried.items.excrete === 1 && carried.items.amputate === 2,
+       JSON.stringify(carried.items));
+    ok('...with the kit on screen showing both counts',
+       carried.kitHidden === false && carried.exN === '1' && carried.amN === '2',
+       `flasks "${carried.exN}", doses "${carried.amN}"`);
+    // IT LIVES INSIDE THE HUD ELEMENT, whose containing block is not the playfield — the first
+    // version resolved `bottom` against the wrong box and put the kit at the TOP of the screen,
+    // straight over the resource pill.
+    ok('...at the bottom, clear of the resource pill', carried.top > carried.hudBottom + 200,
+       `kit top ${carried.top}, HUD bottom ${carried.hudBottom}`);
+
+    // A MISS COSTS NOTHING. There is no hand to re-draw from — a flask is something the player paid
+    // Phosphorus for and carried down, so burning one on a tap that landed on empty soil would be
+    // the game taking their money.
+    const use = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      s.active.water = 99999;
+      for (let i = 0; i < 8; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 120)); }
+      await new Promise((r) => setTimeout(r, 900));
+      s.nematodes.length = 0; s.config.nematodes.respawnChance = 0;
+      const missFlask = g.mine.useExcrete(), afterMissFlask = g.mine.items().excrete;
+      let tip = null;
+      for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+      g.mine.spawnWorm(tip.x + 8, tip.y);
+      await new Promise((r) => setTimeout(r, 600));
+      const hitFlask = g.mine.useExcrete(), afterHitFlask = g.mine.items().excrete;
+      const stuck = s.nematodes.some((w) => w.stuck > 0);
+      const missCut = g.mine.useAmputate(tip.x + 4000, tip.y), afterMissCut = g.mine.items().amputate;
+      const n0 = s.active.nodes.length;
+      const hitCut = g.mine.useAmputate(tip.x, tip.y);
+      return { missFlask: missFlask.ok, afterMissFlask, hitFlask: hitFlask.ok, afterHitFlask, stuck,
+               missCut: missCut.ok, afterMissCut, hitCut: hitCut.ok,
+               afterHitCut: g.mine.items().amputate, removed: n0 - s.active.nodes.length };
+    });
+    ok('a flask that finds no worms costs nothing',
+       use.missFlask === false && use.afterMissFlask === 1, `ok=${use.missFlask}, ${use.afterMissFlask} left`);
+    ok('...and one that lands hits them and spends a charge',
+       use.hitFlask === true && use.stuck === true && use.afterHitFlask === 0,
+       `hit=${use.hitFlask}, stuck=${use.stuck}, ${use.afterHitFlask} left`);
+    ok('a dose that cuts nothing costs nothing',
+       use.missCut === false && use.afterMissCut === 2, `ok=${use.missCut}, ${use.afterMissCut} left`);
+    ok('...and one that lands removes strands and spends a charge',
+       use.hitCut === true && use.removed > 0 && use.afterHitCut === 1,
+       `${use.removed} strands cut, ${use.afterHitCut} left`);
+    await b.ctx.close();
+  }
+
+  // ---- 4a-vii. ...AND CUTTING OUT THE ROT IS WHAT STOPS THE CLOCK ----------------------------
+  // The reason the enzyme exists at all. Without this the infection deadline has no answer, and
+  // buying the track buys the player nothing they can point at.
+  {
+    const b = await bootMine(4242);
+    const cure = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      const st = window.__game.store;
+      st.credit(3000); for (let i = 0; i < 3; i++) st.buy('amputateCharges');
+      g.mine.playSeed(4242);
+      for (let i = 0; i < 120; i++) {
+        if (s.substrate && s.substrate._fineSolid) break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      const s2 = g.state;
+      await new Promise((r) => setTimeout(r, 1200));
+      s2.active.water = 999999;
+      for (let i = 0; i < 8; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 120)); }
+      await new Promise((r) => setTimeout(r, 900));
+      s2.nematodes.length = 0; s2.clouds.length = 0;
+      s2.config.nematodes.respawnChance = 0; s2.config.trichoderma.respawnChance = 0;
+      let tip = null;
+      for (const n of s2.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+      s2.config.trichoderma.moveSpeed = 0;
+      g.mine.spawnCloud(tip.x, tip.y);
+      await new Promise((r) => setTimeout(r, 1800));
+      const armed = g.mine.infect();
+      // Cut at the breach until nothing is infected, or the doses run out. A breach is wider than
+      // one cut radius, which is exactly the decision the enzyme is meant to pose.
+      let cuts = 0;
+      for (let i = 0; i < 3 && g.mine.infect().rotten > 0; i++) {
+        const rot = s2.active.nodes.find((n) => n.infected);
+        if (!rot) break;
+        if (g.mine.useAmputate(rot.x, rot.y).ok) cuts++;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      await new Promise((r) => setTimeout(r, 1200));
+      return { armed, cuts, after: g.mine.infect(), left: g.mine.items().amputate, over: !!s2.runOver };
+    });
+    ok('a breach arms the clock, with doses in the bag',
+       cure.armed.on === true && cure.armed.rotten > 0,
+       `${cure.armed.rotten} rotten, ${cure.armed.left && cure.armed.left.toFixed(1)}s`);
+    ok('...and cutting the rot out stops it', cure.after.on === false && cure.after.rotten === 0,
+       `${cure.cuts} cut(s) spent, ${cure.after.rotten} still rotten, ${cure.left} dose(s) left`);
+    ok('...with the descent still alive', cure.over === false, String(cure.over));
+    await b.ctx.close();
+  }
+
   // ---- 4b. THE WORLD STREAMS SIDEWAYS ------------------------------------------------------
   // The owner's ask, verbatim: "I want to be able to grow both left and right as well - so the map
   // needs to either generate as I go, or it needs to be much larger and have boundaries. I prefer
@@ -1268,8 +1399,13 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       S.reset();
       return out;
     });
-    ok('the mine shelf is fuel plus its own three tracks',
-       shop.shelf.join(',') === 'water,growSteps,oreYield,pocketWater', shop.shelf.join(','));
+    // SIX NOW: fuel, grow strength, the two weapons, and the two yield tracks. Pinned as an exact
+    // list rather than a count, because what the mine SELLS is the whole of its progression and a
+    // track quietly appearing or vanishing from the shelf is the kind of change that should have to
+    // be typed here on purpose.
+    ok('the mine shelf is fuel, a stronger dig, two weapons and two yields',
+       shop.shelf.join(',') === 'water,growSteps,excreteCharges,amputateCharges,oreYield,pocketWater',
+       shop.shelf.join(','));
     ok('the mine\'s wallet is Phosphorus (`minerals`)', shop.creditedMinerals === 500, String(shop.creditedMinerals));
     // THE TWO ECONOMIES DO NOT TOUCH. Sharing one wallet would let a campaign player's Spores buy a
     // mine player's fuel; sharing one ledger would put the mine's tracks in a save nothing can spend.
@@ -1479,8 +1615,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       rate: !!document.querySelector('#ssRate') && document.querySelector('#ssRate').innerHTML.trim().length > 0,
     }));
     ok('the store screen is the mine\'s', store.title === 'The Deep Mine' && store.descend, store.title);
-    ok('...with four upgrade tiles and no colonies',
-       store.tiles === 4 && store.colonyTiles === 0 && store.colonySectionsHidden,
+    ok('...with one tile per mine track and no colonies',
+       store.tiles === 6 && store.colonyTiles === 0 && store.colonySectionsHidden,
        `${store.tiles} tiles, ${store.colonyTiles} colony tiles`);
     ok('...no deck button', store.deckBtn === false, String(store.deckBtn));
     ok('...and it says what a descent opens with', /water/.test(store.note) && /grow/.test(store.note), store.note);
@@ -1512,7 +1648,14 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     await sleep(1400);
     const afterDrag = await page.evaluate(() => {
       const h = document.querySelector('#ui .hint');
-      return { nodes: window.__game.state.active.nodes.length, water: window.__game.state.active.water,
+      const g = window.__game, s = g.state;
+      // The dig's own charge, measured across the call and nothing else.
+      const w0 = s.active.water;
+      let tip = null;
+      for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+      const r = g.mine.growFrom(tip.x, tip.y, tip.x, tip.y + 200);
+      const dug = r.ok ? w0 - s.active.water : null;
+      return { nodes: s.active.nodes.length, water: s.active.water, dug,
                hintShown: !!(h && h.style.display !== 'none' && h.textContent.trim()),
                hint: h ? h.textContent : '' };
     });
@@ -1524,8 +1667,13 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     ok('a first descent says how to dig', /drag/i.test(dragged.hint || ''), dragged.hint || '(nothing)');
     ok('...and the hint clears once they have dug', !afterDrag.hintShown,
        afterDrag.hint || '(gone)');
-    ok('...and it cost water', afterDrag.water === dragged.water - 2,
-       `${dragged.water} -> ${afterDrag.water}`);
+    // NET OF EVERYTHING ELSE THAT TOUCHES THE TANK. `water === before - 2` was an exact equality on a
+    // number three separate systems now move: a dig costs 2, a water pocket the growth reached pays
+    // +10, and attached worms drain continuously. It read `44 -> 52` — a dig that also tapped a
+    // pocket, i.e. the feature working. What is actually being asserted is that the dig CHARGED, so
+    // the probe reads the tank on either side of the engine call and ignores the rest.
+    ok('...and it cost water', afterDrag.dug === 2,
+       `the dig charged ${afterDrag.dug} (tank ${dragged.water} -> ${afterDrag.water}, which pockets and worms also move)`);
 
     // ...run it dry and follow the ending through to the store.
     await page.evaluate(async () => {
