@@ -3347,7 +3347,7 @@ sessions and a session that only reads CLAUDE.md must still be able to work. **N
 owner's, not suggestions.**
 
 **PROGRESS — keep this line honest, it is how the next session knows where to start:**
-`PHASE 1 COMPLETE. Phase 2: (05) heat gating — DONE. (06) material types — next.`
+`PHASES 1 AND 2 COMPLETE. Phase 3: (07) green islands and the journey east — next.`
 
 #### The premises (settled, do not re-litigate)
 
@@ -3494,9 +3494,36 @@ owner's, not suggestions.**
      the affordability rule working.
    - The HUD quotes the price once the heat is adding to it (`#hud-digcost`, hidden below the limit).
      A price that silently climbs with depth is the invisible-damage defect a third time.
-6. **MORE MATERIAL TYPES** — named materials with band affinities, so an upgrade needs a
-   *particular* thing. `foodKind` already carries three art kinds and `orePerPile` already varies by
-   band.
+6. **MORE MATERIAL TYPES. BUILT** — `CONFIG.mine.materials`, **one per band**: Phosphorus (band 0),
+   Anthracite (1), Garnet (2), Hematite (3), each with a `per` (yield per seam) and a `tint`. The
+   deep rungs of three tracks are priced in them, which is the owner's *"looking for the right
+   materials for upgrades"*: `heatTolerance` runs `[18, 40, 4 anthracite, 9 anthracite, 6 garnet,
+   12 garnet]`, `amputateCharges` `[20, 44, 5 anthracite, 5 garnet, 5 hematite]`, `growSteps`
+   `[12, 30, 60, 8 garnet, 8 hematite]`.
+   - **THE BAND DECIDES THE MATERIAL, so a seam cannot be mis-tagged.** `mineGenerateChunk` stamps
+     `pile.mineMat` from the band it carved the seam in — there is no second table to keep in step,
+     and "where do I find Garnet?" has exactly one answer: at Garnet's depth. That is the navigation
+     problem the compass (08) is later meant to solve, so it has to be real now.
+   - **A PRICE IS EITHER A NUMBER OR `{ m, n }`**, and `costParts` is the one place that decides
+     which. `12` stays 12 Phosphorus — the whole existing store keeps its prices untouched — and
+     `{ m: 'garnet', n: 3 }` is three Garnet and **nothing else will do**. `buyUpgrade` returns
+     `need` on a refusal and `paid` on success, so a check reads which wallet moved rather than
+     inferring it from a balance.
+   - **PHOSPHORUS IS STILL THE GENERAL CURRENCY AND THE SHALLOW BAND'S MATERIAL AT ONCE.** That dual
+     role is what lets the other three exist without re-pricing anything: `minerals` in the save
+     *is* the Phosphorus balance, and only a phosphorus seam credits `net.phosphorus`/`state.mineOre`
+     as well. **A deep seam pays its own material and NO Phosphorus** — if it paid both there would
+     be no reason to go looking for anything in particular.
+   - The other three live in `progress.mats` (`matBalance`/`addMats`/`takeMats`), banked from
+     `state.mineMats` at the end of a run.
+   - **THE HUD, THE STORE HEADER AND THE END SCREEN ALL HAD TO LEARN THEM.** A material you cannot
+     see the balance of is a currency the player cannot plan against — `matMark`/`matName` render the
+     tinted dot and the name from the same table the generator reads, so a fifth material is one
+     CONFIG entry. Note the picker's `RI` icon set and the HUD's `RES_ICON` are **separate sets**;
+     adding a glyph to one does not put it in the other.
+   - **A CHECK THAT CREDITS ONLY PHOSPHORUS NOW BUYS TWO RUNGS OF SIX.** `mine-check`'s tolerance
+     probe failed exactly this way (`42 m -> 92 m over 2 purchases`) — it reads `nextCost` and stocks
+     whatever that rung asks for now, which is the shape any future track-walking probe wants.
 
 #### Phase 3 — the journey east
 

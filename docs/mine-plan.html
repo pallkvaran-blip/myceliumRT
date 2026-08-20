@@ -195,6 +195,17 @@
   }
   .flag.warn { background: color-mix(in srgb, var(--core) 13%, transparent); color: var(--core); }
 
+  /* A shipped item still has to read as part of the plan, so the badge marks it rather than
+     restyling the whole card — the plan is the argument, and the argument does not change once
+     the thing is built. */
+  .done {
+    margin-left: auto; flex: 0 0 auto; align-self: center;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 10px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600;
+    padding: 3px 8px; border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent);
+  }
+
   /* ---- open decisions ---------------------------------------------------- */
   .open { margin-top: 62px; }
   .open > h2 {
@@ -261,7 +272,7 @@
   <div class="items">
 
     <article class="item">
-      <h3><span class="num">01</span> Worms drain water instead of eating</h3>
+      <h3><span class="num">01</span> Worms drain water instead of eating<span class="done">built</span></h3>
       <p>They attach and feed on the colony rather than consuming it, so the threat pushes on the clock the run already has instead of needing a death condition of its own.</p>
       <ul class="spec">
         <li><strong>1 water per 5 seconds</strong> per attached worm</li>
@@ -275,7 +286,7 @@
     </article>
 
     <article class="item">
-      <h3><span class="num">02</span> Threat sight rings on by default</h3>
+      <h3><span class="num">02</span> Threat sight rings on by default<span class="done">built</span></h3>
       <p>Show what each worm and cloud can actually sense, so routing around them is a skill rather than a surprise.</p>
       <div class="meta">
         <div><dt>Builds on</dt><dd><span class="mono">drawOccludedSight</span>, <span class="mono">threatSight</span> — rays already stop at the rock face, so what you see is what it sees</dd></div>
@@ -284,7 +295,7 @@
     </article>
 
     <article class="item">
-      <h3><span class="num">03</span> Trych infection countdown</h3>
+      <h3><span class="num">03</span> Trych infection countdown<span class="done">built</span></h3>
       <p>The spread stays exactly as it works in the campaign — contact, the cloud is spent and fades, rot creeps along the filaments. What's new is a deadline on top of it.</p>
       <ul class="spec">
         <li>A colony-wide timer starts on first contact</li>
@@ -301,7 +312,7 @@
     </article>
 
     <article class="item">
-      <h3><span class="num">04</span> Consumables</h3>
+      <h3><span class="num">04</span> Consumables<span class="done">built</span></h3>
       <p>Bought between runs, including Amputate — there is no free answer to the mould. These ship close to 03, because they are what the timer is asking a question about.</p>
       <div class="meta">
         <div><dt>Builds on</dt><dd><span class="mono">excrete()</span> and <span class="mono">amputateAt()</span> are <strong>already fully implemented</strong> — they belonged to the card layer and never came across, which is why the mine currently has no counterplay at all</dd></div>
@@ -323,7 +334,7 @@
   <div class="items">
 
     <article class="item">
-      <h3><span class="num">05</span> Heat tolerance, as depth gating</h3>
+      <h3><span class="num">05</span> Heat tolerance, as depth gating<span class="done">built</span></h3>
       <p>It gets hotter as you descend, and heat is priced rather than enforced: below your tolerance limit, <strong>every strand costs more water</strong>, and more again the further past the limit you go.</p>
       <ul class="spec">
         <li><strong>Nothing burns off.</strong> A dig below tolerance succeeds — it just costs more, so the player is never punished after the fact for a move the game let them make</li>
@@ -337,7 +348,7 @@
     </article>
 
     <article class="item">
-      <h3><span class="num">06</span> More material types</h3>
+      <h3><span class="num">06</span> More material types<span class="done">built</span></h3>
       <p>Named materials with band affinities, so an upgrade needs a <em>particular</em> thing and the maze is worth reading.</p>
       <div class="meta">
         <div><dt>Builds on</dt><dd><span class="mono">foodKind</span> already carries three art kinds; <span class="mono">orePerPile</span> already varies by band</dd></div>

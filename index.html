@@ -225,6 +225,21 @@
     .res.hot .rv { color: #e2915a; }
     .res.hot .rk { color: #e2915a; opacity: 0.7; font-size: 10px; margin-left: 2px; }
     .res.hot[hidden] { display: none; }
+    /* A deep material's mark: a dot in the band's own colour. Deliberately not an icon per
+       material — four more glyphs to draw and read at 13px, when what the player needs is only to
+       tell them apart and match them to the rock they were standing in. */
+    .ss-matwallet { display:inline-flex; gap:9px; align-items:center; margin-left:9px; }
+    .ss-matheld { display:inline-flex; align-items:center; gap:4px; font:700 13px/1 ui-sans-serif, system-ui, sans-serif;
+      color:#e8e2d6; padding:4px 9px; border-radius:999px; background:rgba(255,255,255,0.06); }
+    .ss-win-mat { margin-left: 10px; font-size: 0.82em; opacity: 0.95; }
+    .ss-matdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+      vertical-align: -1px; margin-right: 1px; box-shadow: 0 0 0 1px rgba(0,0,0,0.35) inset; }
+    /* The mine's carried materials, under the resource pill. */
+    .matrow { display: flex; gap: 9px; align-items: center; margin-top: 5px; padding-left: 4px; }
+    .matrow.hidden { display: none; }
+    .matchip { display: flex; align-items: center; gap: 4px; font: 600 12px/1 ui-sans-serif, system-ui, sans-serif;
+      color: #d8d2c4; opacity: 0.92; }
+    .matchip .ss-matdot { width: 8px; height: 8px; }
     /* The kit. Bottom-centre and thumb-sized, because the mine is played one-handed on a phone and
        the other hand is not coming. Sits inside the boxed playfield (`--pf-*`), or on a desktop it
        would float against the window edge a long way from the map. */
@@ -3287,6 +3302,22 @@ const CONFIG = {
     // A pile pays PHOSPHORUS, banked at run end and spent in the store (owner). Nothing drafts,
     // because there are no cards; `energyPerNutrient` still carries the Energy the engine's own
     // harvest maths wants, and the mine HUD simply does not show Energy.
+    // ---- WHAT AN ORE SEAM ACTUALLY IS ---------------------------------------
+    // Owner: more material types, so the maze is about "looking for the right materials for
+    // upgrades" rather than about one number going up. Each BAND yields its own, which needs no new
+    // art or naming — the rock the player is digging through is already called this, and a garnet
+    // seam sits in the garnet band by construction.
+    //
+    // PHOSPHORUS STAYS, and it is the shallow band's. It is the general currency the whole store is
+    // already priced in, it has a HUD slot, an end screen and a saved balance; making the deeper
+    // three ADDITIONAL rather than a replacement is what lets "an upgrade needs a particular thing"
+    // exist without re-pricing everything that already works.
+    materials: [
+      { id: 'phosphorus', name: 'Phosphorus', band: 0, per: 3, tint: '#c9a2e8' },
+      { id: 'anthracite', name: 'Anthracite', band: 1, per: 2, tint: '#d8b36a' },
+      { id: 'garnet',     name: 'Garnet',     band: 2, per: 2, tint: '#d8566a' },
+      { id: 'hematite',   name: 'Hematite',   band: 3, per: 2, tint: '#d98a5a' },
+    ],
     orePerPile: [3, 5, 8, 12],   // P per pile, by band — deeper ore is worth more
     // PER BAND PER CHUNK now, not per world: a chunked world has no total to divide up. 2 and 1 keep
     // roughly the density the fixed 48-column map had (18 seams and 12 pockets across it).
@@ -13554,6 +13585,11 @@ function loadProgress() {
   // Phosphorus banked out of the shaft and `mineUpgrades` the steps it bought. See `walletField`.
   if (typeof p.minerals !== 'number' || !isFinite(p.minerals)) p.minerals = 0;
   if (!p.mineUpgrades) p.mineUpgrades = {};
+  // THE DEEP MATERIALS, one balance each. `minerals` stays the Phosphorus balance rather than
+  // becoming `mats.phosphorus`: every existing store rung, the HUD slot, the end screen and ~40
+  // assertions are priced in it, and two sources of truth for the same number is the failure that
+  // would be hardest to see. So this holds the three that are NEW, and an older save reads as none.
+  if (!p.mats || typeof p.mats !== 'object') p.mats = {};
   if (migrateProgress(p)) saveProgress(p);   // one-time roster-swap migrations; persist if anything changed
   return p;
 }
@@ -13747,6 +13783,33 @@ function endRunSpores() {
 }
 
 // Credit the wallet (e.g. for clearing a level); persists and returns new balance.
+// The banked balance of one DEEP material (never Phosphorus — that is `minerals`, see loadProgress).
+function matBalance(id, progress) {
+  const p = progress || loadProgress();
+  return Math.max(0, (p.mats && p.mats[id]) | 0);
+}
+// Bank a haul. Takes the whole `{ id: n }` map a descent came back with and routes Phosphorus to
+// the wallet it has always used, so a caller never has to know which of the two stores a material
+// lives in.
+function addMats(mats) {
+  if (!mats) return;
+  const p = loadProgress();
+  let touched = false;
+  for (const id of Object.keys(mats)) {
+    const n = Math.max(0, mats[id] | 0);
+    if (!n) continue;
+    if (id === 'phosphorus') continue;              // banked by addSpores, which writes `minerals`
+    p.mats[id] = Math.max(0, (p.mats[id] | 0) + n);
+    touched = true;
+  }
+  if (touched) saveProgress(p);
+}
+function takeMats(id, n) {
+  const p = loadProgress();
+  p.mats[id] = Math.max(0, (p.mats[id] | 0) - Math.max(0, n | 0));
+  saveProgress(p);
+  return p.mats[id];
+}
 function addSpores(amount) {
   const p = loadProgress();
   const f = walletField();
@@ -14018,7 +14081,7 @@ const STORE_UPGRADES = [
   { id: 'growSteps', name: 'Grow strength', icon: 'climb', accent: 'mint', step: 1, base: 2, unit: 'steps', unit1: 'step',
     mineOnly: true,
     effect: 'Each grow digs <b>one step further</b>, for the same water.',
-    costs: [12, 30, 60, 110, 190] },
+    costs: [12, 30, 60, { m: 'garnet', n: 8 }, { m: 'hematite', n: 8 }] },
   // THE TWO WEAPONS, sold as HOW MANY YOU CARRY rather than as charges that deplete across runs.
   // A capacity track restocks at the start of every descent (`stockRun`), which is the same shape as
   // Retries and needs no new persistence — and it prices the decision the owner cares about ("can I
@@ -14034,14 +14097,19 @@ const STORE_UPGRADES = [
   { id: 'amputateCharges', name: 'Cutting enzyme', icon: 'spore', accent: 'mint', step: 1, unit: 'doses', unit1: 'dose',
     mineOnly: true,
     effect: 'Carry <b>one more</b> dose per descent. Cuts out every strand in a small radius — the only answer to an infection.',
-    costs: [20, 44, 78, 128, 195] },
+    costs: [20, 44, { m: 'anthracite', n: 5 }, { m: 'garnet', n: 5 }, { m: 'hematite', n: 5 }] },
   // DEPTH GATING, sold as tolerance. It moves where the price starts climbing rather than removing
   // the climb, so the deepest ground is always expensive and never impossible — a wall is exactly
   // what the owner said heat must not be.
   { id: 'heatTolerance', name: 'Heat tolerance', icon: 'climb', accent: 'gold', step: 25, unit: 'metres', unit1: 'metre',
     mineOnly: true,
     effect: 'Dig <b>25 m deeper</b> before the heat starts making every strand cost more water.',
-    costs: [18, 40, 72, 118, 180, 260] },
+    // THE LATER RUNGS ASK FOR WHAT THE DEEP BANDS YIELD, which is the whole of "looking for the
+    // right materials for upgrades": you cannot buy your way deeper with surface Phosphorus alone,
+    // you have to have BEEN down there and brought some back. Anthracite is band 2's, garnet
+    // band 3's — each rung asks for the material of roughly the depth it unlocks.
+    costs: [18, 40, { m: 'anthracite', n: 4 }, { m: 'anthracite', n: 9 },
+            { m: 'garnet', n: 6 }, { m: 'garnet', n: 12 }] },
   { id: 'oreYield', name: 'Ore yield', icon: 'phos', accent: 'phos', step: 1, unit: 'phosphorus',
     mineOnly: true,
     effect: 'Every ore seam you digest pays <b>1</b> more Phosphorus.',
@@ -14120,6 +14188,23 @@ function upgradeNextCost(id, progress) {
   const lvl = upgradeLevel(id, progress);
   return lvl >= upgradeMax(u) ? null : upgradeCosts(u)[lvl];
 }
+// A RUNG'S PRICE IS EITHER A NUMBER OR A NAMED MATERIAL. `12` is 12 Phosphorus, the currency the
+// whole store was priced in; `{ m: 'garnet', n: 3 }` is three Garnet and nothing else will do.
+// That is the owner's "looking for the right materials for upgrades" — the later rungs of the deep
+// tracks ask for what the deep bands yield, so the maze is worth reading rather than worth grinding.
+//
+// Normalised HERE rather than at each caller, because the price is read in five places (the tile,
+// the affordability test, the purchase, the sell-back and the checks) and a shape that has to be
+// remembered five times is a shape that will be got wrong in one of them.
+function costParts(cost) {
+  if (cost == null) return null;
+  if (typeof cost === 'number') return { m: 'phosphorus', n: cost };
+  return { m: cost.m || 'phosphorus', n: cost.n | 0 };
+}
+// What that price costs against the right wallet, and whether it can be paid.
+function costBalance(m, progress) {
+  return m === 'phosphorus' ? sporesBalance(progress) : matBalance(m, progress);
+}
 // Buy ONE step. { ok, spores, level } — ok=false if the track is maxed or the wallet is short.
 function buyUpgrade(id) {
   const p = loadProgress();
@@ -14131,13 +14216,17 @@ function buyUpgrade(id) {
   // then reads. `mine-check` and `store-check` both assert the refusal.
   const u = upgradeById(id);
   if (!upgradeInGame(u)) return { ok: false, spores: sporesBalance(p), level: lvl };
-  if (cost == null || sporesBalance(p) < cost) return { ok: false, spores: sporesBalance(p), level: lvl };
-  const uf = upgradeField(), wf = walletField();
+  const c = costParts(cost);
+  if (!c || costBalance(c.m, p) < c.n) {
+    return { ok: false, spores: sporesBalance(p), level: lvl, need: c };
+  }
+  const uf = upgradeField();
   if (!p[uf]) p[uf] = {};
   p[uf][id] = lvl + 1;
-  p[wf] = sporesBalance(p) - cost;
+  if (c.m === 'phosphorus') p[walletField()] = sporesBalance(p) - c.n;
+  else p.mats[c.m] = Math.max(0, (p.mats[c.m] | 0) - c.n);
   saveProgress(p);
-  return { ok: true, spores: p[wf], level: p[uf][id] };
+  return { ok: true, spores: sporesBalance(p), level: p[uf][id], paid: c };
 }
 // What selling the TOP rung back would pay, or null at level 0. The price of the rung being
 // handed in — `costs[lvl - 1]` — which is the mirror of `upgradeNextCost`'s `costs[lvl]`.
@@ -14333,7 +14422,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, sporesBalance, addSpores, takeSpores, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, sporesBalance, addSpores, takeSpores, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -19498,6 +19587,7 @@ function createLevelState(config, seed, level) {
     // short.
     const it = (config.mine && config.mine.items) || {};
     state.mineItems = { excrete: it.excrete | 0, amputate: it.amputate | 0 };
+    state.mineMats = {};
   }
   return state;
 }
@@ -21603,6 +21693,13 @@ function mineGenerateChunk(state, ci) {
       stampFood(sub, { kind: sp.band >= 2 ? 'cache-engine' : 'cache',
                        x: (sp.c + 0.5) * cs, y: sub.surfaceY + (sp.r + 0.5) * cs, r: 1,
                        energy: orePer[Math.min(orePer.length - 1, sp.band)] }, N);
+      // WHICH MATERIAL THIS SEAM IS, tagged on the pile `stampFood` just registered — the last one
+      // in the list, since that call appends. Carried on the pile rather than re-derived from the
+      // seam's depth at reward time, so a pile whose mat cells straddle a band boundary pays one
+      // material rather than whichever cell the colony happened to finish on.
+      const pile = sub.foodPiles[sub.foodPiles.length - 1];
+      const mat = mineMaterialFor(cfg, sp.band);
+      if (pile && mat) { pile.mineMat = mat.id; pile.mineBand = sp.band; }
       placed.ore++;
     } else {
       stampReservoir(sub, { x: (sp.c + 0.5) * cs, y: sub.surfaceY + (sp.r + 0.5) * cs, r: sp.rad * cs });
@@ -21841,11 +21938,21 @@ function mineOreRewards(state) {
     // `energyValue` is what the level def wrote as this pile's worth — the band's own ore value —
     // plus whatever the store's Ore yield track adds, PER SEAM. Per seam rather than per run is
     // the point of that track: it rewards digging sideways for more of them.
-    const p = Math.max(1, Math.round(pile.energyValue || 1) + (mineCfg(state.config).oreBonus | 0));
-    net.phosphorus += p;
-    state.mineOre = (state.mineOre || 0) + p;
+    // WHAT THIS SEAM PAYS, AND IN WHICH MATERIAL. Phosphorus keeps the `energyValue` the level def
+    // wrote (the band's own ore value) plus the Ore yield track; the deeper three pay their own
+    // smaller per-seam count, because they are the thing being HUNTED rather than the thing being
+    // accumulated — a garnet seam is worth going out of your way for, not worth twice as much.
+    const mat = mineMaterialById(state.config, pile.mineMat) || mineMaterials(state.config)[0];
+    const bonus = mineCfg(state.config).oreBonus | 0;
+    const isP = !mat || mat.id === 'phosphorus';
+    const p = isP
+      ? Math.max(1, Math.round(pile.energyValue || 1) + bonus)
+      : Math.max(1, (mat.per | 0) + bonus);
+    const mats = (state.mineMats = state.mineMats || {});
+    mats[mat ? mat.id : 'phosphorus'] = (mats[mat ? mat.id : 'phosphorus'] | 0) + p;
+    if (isP) { net.phosphorus += p; state.mineOre = (state.mineOre || 0) + p; }
     paid += p;
-    state.log(`Ore seam digested: +${p} Phosphorus.`, 'good');
+    state.log(`${mat ? mat.name : 'Ore'} seam digested: +${p} ${mat ? mat.name : 'Phosphorus'}.`, 'good');
   }
   return paid;
 }
@@ -21949,6 +22056,22 @@ function mineGrow(state, ctx) {
   }
   net.recomputeVitality();
   return { ok: true, made, water: net.water, message: `Dug ${made} filament${made > 1 ? 's' : ''}.` };
+}
+
+// -----------------------------------------------------------------------------
+// THE MATERIALS — one per band (owner: more material types)
+// -----------------------------------------------------------------------------
+// The band a seam sits in decides what it yields, so a garnet seam is in the garnet band by
+// construction and needs no separate placement rule. `phosphorus` is the shallow band's and remains
+// the general currency; the deeper three are what specific store rungs ask for.
+function mineMaterials(config) { return mineCfg(config).materials || []; }
+function mineMaterialFor(config, band) {
+  const ms = mineMaterials(config);
+  if (!ms.length) return null;
+  return ms[Math.max(0, Math.min(ms.length - 1, band | 0))];
+}
+function mineMaterialById(config, id) {
+  return mineMaterials(config).find((m) => m.id === id) || null;
 }
 
 // -----------------------------------------------------------------------------
@@ -22096,6 +22219,9 @@ function mineEndRun(state, cause) {
   // meets mould with nothing in the bag has no answer at all. Ending their run sooner is a fair
   // cost; taking the ore they already dug would not be.
   state.runResult = { mine: true, depth, ore, spores: 0, bodies: 0, died: false,
+                      // EVERY MATERIAL THE DESCENT DUG, not just the Phosphorus. A copy, because
+                      // `presentMineEnd` banks from this after the state has moved on.
+                      mats: Object.assign({}, state.mineMats || {}),
                       cause: cause === 'infected' ? 'infected' : 'dry' };
   state.log(cause === 'infected'
     ? `The infection took the colony at ${depth} m. It fruits and spores — ${ore} Phosphorus banked.`
@@ -22107,6 +22233,7 @@ function mineEndRun(state, cause) {
            mineDepthReached, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
            mineDigCost, mineCheapestCost,
+           mineMaterials, mineMaterialFor, mineMaterialById,
            mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
            mineInfectionCheck, mineInfectionLeft,
            mineItemCount, mineUseExcrete, mineUseAmputate,
@@ -25643,6 +25770,10 @@ class UI {
     hud.innerHTML =
       `<div class="hudtop">`
       + `<div class="resrow">${resRow}</div>`
+      // WHAT THIS DESCENT HAS DUG, by material. Phosphorus already has its slot in the row above;
+      // this is the deep three, which are the things a player goes looking for. Hidden until one is
+      // found, so the first 42 m stay uncluttered.
+      + (mineOn ? `<div class="matrow hidden" id="matrow"></div>` : '')
       + `<button class="losbtn hidden" id="losbtn" type="button" aria-pressed="false" title="Show where your colony can drop a decoy — its line of sight">Colony line of sight</button>`
       + `<button class="gearbtn" id="gearbtn" type="button" aria-label="Settings" title="Settings" aria-expanded="false">${GEAR_SVG}</button>`
       + `</div>`
@@ -26424,6 +26555,22 @@ class UI {
       this._resText('hud-water', Math.floor(net.water || 0), s);
       this._resText('hud-phosphorus', Math.floor(net.phosphorus || 0), s);
       text('hud-depth', String(s.mineDepth | 0));
+      // The carried deep materials. Rebuilt only when the SET of them changes — this refreshes every
+      // world tick and the row sits under the pill the player is reading.
+      const mr = document.getElementById('matrow');
+      if (mr) {
+        const mats = s.mineMats || {};
+        const list = ((s.config.mine && s.config.mine.materials) || [])
+          .filter((m) => m.id !== 'phosphorus' && (mats[m.id] | 0) > 0);
+        const sig = list.map((m) => m.id + ':' + (mats[m.id] | 0)).join(',');
+        if (this._matSig !== sig) {
+          this._matSig = sig;
+          mr.classList.toggle('hidden', !list.length);
+          mr.innerHTML = list.map((m) =>
+            `<span class="matchip"><span class="ss-matdot" style="background:${m.tint}"></span>`
+            + `${mats[m.id] | 0}</span>`).join('');
+        }
+      }
       const dc = document.getElementById('hud-digcost');
       if (dc) {
         // The price where the colony is actually working — the deepest living tip — against the
@@ -27654,8 +27801,8 @@ function growMyceliumTitle(container, opts = {}) {
 
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
-  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, highestCleared, startLevelFor, startLevelForGame, loadDeck, deckBucketFor, deckBuckets, deckSize,
-    STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, matBalance, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, highestCleared, startLevelFor, startLevelForGame, loadDeck, deckBucketFor, deckBuckets, deckSize,
+    STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
   // `isCampaignGame` rather than a `game` argument threaded down from main: this screen is shared
@@ -27704,6 +27851,12 @@ const RI = {
   energy: '<svg class="ss-ri" viewBox="0 0 24 24" fill="#e6b45c" aria-hidden="true"><path d="M13 2L4 14h6l-1 8 9-12h-6l1-8z"/></svg>',
   water: '<svg class="ss-ri" viewBox="0 0 24 24" fill="#7fd0e0" aria-hidden="true"><path d="M12 2s7 7.6 7 12a7 7 0 1 1-14 0c0-4.4 7-12 7-12z"/></svg>',
   phos: '<svg class="ss-ri" viewBox="0 0 24 24" fill="#c79be6" aria-hidden="true"><path d="M12 2 L14 10 L22 12 L14 14 L12 22 L10 14 L2 12 L10 10 Z"/></svg>',
+  // --- the mine's two weapons --------------------------------------------------
+  // `RI` is the PICKER's icon set and `RES_ICON` the HUD's; they are separate lists that happen to
+  // share three names, so a tile asking for an icon only the HUD has renders with a blank space
+  // where its glyph should be — which is what the mine's two weapon tiles did.
+  worm: '<svg class="ss-ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M3.5 16.5c3-4 4.5 3 8-1.5s3.5-9.5 9-8"/></svg>',
+  spore: '<svg class="ss-ri" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="3.4"/><circle cx="5" cy="7" r="1.7"/><circle cx="19" cy="8" r="1.5"/><circle cx="6.5" cy="17.5" r="1.5"/><circle cx="18" cy="17" r="1.8"/></svg>',
   // --- the three carry tracks --------------------------------------------------
   // The two MEMORY glyphs are the game's own DRAFT icon (`.draftmorph`): three card frames fanned
   // out of the pile, reading as glowing OUTLINES before the faces reveal. Same shape here, so a
@@ -28090,15 +28243,31 @@ const currencyName = () => (isMineGame() ? 'Phosphorus' : 'Spores');
 
 // One upgrade track's tile: name, what it is currently granting, the effect, a pip per step,
 // and the price of the next one. Rebuilt whole on every purchase — see `refresh` below.
+// A MATERIAL'S MARK AND NAME. A rung priced in Garnet that renders the Phosphorus glyph is a price
+// the player cannot read and cannot meet — the worst kind of shop bug, because it looks like the
+// button is simply broken. Coloured from the material's own `tint`, which is the band's colour.
+function matMark(id) {
+  if (id === 'phosphorus') return currencyMark();
+  const m = ((CONFIG.mine && CONFIG.mine.materials) || []).find((x) => x.id === id);
+  return '<span class="ss-matdot" style="background:' + (m ? m.tint : '#aaa') + '"></span>';
+}
+function matName(id) {
+  if (id === 'phosphorus') return currencyName();
+  const m = ((CONFIG.mine && CONFIG.mine.materials) || []).find((x) => x.id === id);
+  return m ? m.name : id;
+}
 function upgradeTile(u, progress, onBuy) {
   const lvl = upgradeLevel(u.id, progress);
   const max = upgradeMax(u);
   const cost = upgradeNextCost(u.id, progress);       // null = maxed
+  const cp = costParts(cost);                          // { m, n } — Phosphorus or a deep material
   // What the top rung would pay back, or null — at level 0, or on a track that cannot be sold.
   const sellVal = u.sellable ? upgradeSellValue(u.id, progress) : null;
   const have = upgradeValue(u.id, progress);
-  const bal = sporesBalance(progress);
-  const afford = cost != null && bal >= cost;
+  // AGAINST THE RIGHT WALLET. `sporesBalance` is Phosphorus; a garnet rung has to be measured in
+  // garnet or every deep rung reads as affordable and refuses on click.
+  const bal = cp ? costBalance(cp.m, progress) : sporesBalance(progress);
+  const afford = cp != null && bal >= cp.n;
   const node = el('div', 'ss-upg ' + (u.accent || 'mint') + (cost == null ? ' maxed' : ''));
   let pips = '';
   for (let i = 0; i < max; i++) pips += '<span class="ss-upg-pip' + (i < lvl ? ' on' : '') + '"></span>';
@@ -28156,9 +28325,9 @@ function upgradeTile(u, progress, onBuy) {
       (cost == null
         ? '<span class="ss-upg-max">Maxed</span>'
         : '<button class="ss-upg-btn" type="button" data-upg="' + esc(u.id) + '"' + (afford ? '' : ' disabled') +
-          ' aria-label="Buy one step of ' + esc(u.name) + ' for ' + cost + ' ' + currencyName() + '"' +
-          ' title="' + (afford ? 'Buy the next step' : 'You need ' + (cost - bal) + ' more ' + currencyName()) + '">' +
-          currencyMark() + '<span class="ss-buyn">' + cost + '</span></button>') +
+          ' aria-label="Buy one step of ' + esc(u.name) + ' for ' + cp.n + ' ' + matName(cp.m) + '"' +
+          ' title="' + (afford ? 'Buy the next step' : 'You need ' + (cp.n - bal) + ' more ' + matName(cp.m)) + '">' +
+          matMark(cp.m) + '<span class="ss-buyn">' + cp.n + '</span></button>') +
     '</div>';
   const btn = node.querySelector('.ss-upg-btn');
   // The PRICE goes to the caller too — `cost` is the next step's price and is only in scope
@@ -28215,6 +28384,10 @@ function showSpeciesSelect({ onPick, onDev, onLevel, mine }) {
             '<span class="ss-spores ss-wallet" id="ssWallet" title="'
               + (mineOn ? 'Phosphorus — dug out of the ore seams, spent here'
                         : 'Spores — earned by finishing levels, spent here') + '"></span>' +
+            // THE DEEP MATERIALS SIT BESIDE THE WALLET, because rungs are priced in them and a
+            // price you cannot check your balance against is a price you cannot plan for. Filled by
+            // `refresh`, and empty until a descent has brought one back.
+            (mineOn ? '<span class="ss-matwallet" id="ssMatWallet"></span>' : '') +
           '</span></div>' +
       '</header>' +
       '<div class="ss-body">' +
@@ -28331,6 +28504,18 @@ function showSpeciesSelect({ onPick, onDev, onLevel, mine }) {
     // with a heading on it. `RI` is this module's own set and is what the upgrade tiles already use,
     // so the wallet's spark matches the prices under it.
     wallet.innerHTML = currencyMark() + '<span class="ss-sp-n">' + bal + '</span>';
+    // ...and the deep materials beside it, only the ones actually held. A row of four zeroes before
+    // the player has been deep enough to find any of them is four things to read that say nothing.
+    const matW = root.querySelector('#ssMatWallet');
+    if (matW) {
+      const p2 = loadProgress();
+      const held = ((CONFIG.mine && CONFIG.mine.materials) || [])
+        .filter((m) => m.id !== 'phosphorus' && matBalance(m.id, p2) > 0);
+      matW.innerHTML = held.map((m) =>
+        '<span class="ss-matheld" title="' + esc(m.name) + '">'
+        + '<span class="ss-matdot" style="background:' + m.tint + '"></span>'
+        + matBalance(m.id, p2) + '</span>').join('');
+    }
     if (mineOn) {
       // What a descent will actually open with, off the same functions the run reads
       // (`storeBonuses`) — so the note cannot promise a number the run does not get.
@@ -28475,7 +28660,7 @@ function showLevelComplete({ level, maxLevel, unlocked, earned, base, mult, bala
 // `.ss-win`'s family rather than a screen of its own, for the reason the death screen was moved
 // into it: the run has ended, here is what happened, here is what you do next. The map stays
 // visible through it, and in the mine that map is the shaft you just dug, which is the picture.
-function showMineEnd({ depth, ore, best, balance, eaten, cause, onDone }) {
+function showMineEnd({ depth, ore, mats, best, balance, eaten, cause, onDone }) {
   const root = el('div', 'ss-win ss-mineend'); root.id = 'ssMineEnd';
   // THE GROWN WORDMARK IS A WORD, AND THE DEPTH IS PLAIN TYPE UNDER IT. Growing the NUMBER was the
   // first version and it is the obvious idea — the depth IS the achievement, so it should take the
@@ -28498,7 +28683,12 @@ function showMineEnd({ depth, ore, best, balance, eaten, cause, onDone }) {
       cause === 'infected' ? 'The rot took the colony. What it had spored is yours.'
       : eaten ? 'The colony was eaten. What it had spored is yours.'
       : 'Out of water. The colony fruits and spores.') + '</p>' +
-    '<p class="ss-win-earned">+' + (ore | 0) + RI.phos + '</p>' +
+    '<p class="ss-win-earned">+' + (ore | 0) + RI.phos +
+      // ...AND THE DEEP MATERIALS BESIDE IT. Banking something the end screen never mentions is the
+      // same defect as a drain the HUD never shows: the player would have to open the store to find
+      // out whether the detour they made was worth anything.
+      (mats ? Object.keys(mats).filter((k) => k !== 'phosphorus' && (mats[k] | 0) > 0).map((k) =>
+        ' <span class="ss-win-mat">+' + (mats[k] | 0) + matMark(k) + '</span>').join('') : '') + '</p>' +
     (best && best.isNew
       ? '<p class="ss-mineend-best ss-new">Your deepest descent yet</p>'
       : (best && best.m > depth ? '<p class="ss-mineend-best">Deepest so far ' + (best.m | 0) + ' m</p>' : '')) +
@@ -31342,6 +31532,7 @@ const __m_main = (function () {
   const { mineLevelDef, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost,
+          mineMaterials, mineMaterialFor, mineMaterialById,
           mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun,
           mineInfectionCheck, mineInfectionLeft,
@@ -31365,7 +31556,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro, showVictory, VICT_FADE_MS } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, hasAsset, asset, pattern, assetMeta, assetUrl, preloadImages, assetState } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx } = __m_render_sfx;
@@ -32418,6 +32609,9 @@ function presentMineEnd(r) {
   if (!r._minePaid) {
     r._minePaid = true;
     if (ore > 0) addSpores(ore);          // `addSpores` writes whichever wallet this game spends
+    // ...AND THE DEEP MATERIALS, which `addSpores` knows nothing about. Same rule as the ore above:
+    // you dug it out, and what killed the colony afterwards does not unmake that.
+    addMats((r.mats && Object.keys(r.mats).length ? r.mats : (state && state.mineMats)) || null);
     _sessionRuns++;
     // `n` is the ore banked and `level` the DEPTH in metres — the mine has no levels, and depth is
     // the one number that answers "did people play this longer", which is the whole reason the mode
@@ -32426,7 +32620,8 @@ function presentMineEnd(r) {
   }
   const best = mineRecordDepth(depth);
   showMineEnd({
-    depth, ore, best, eaten, cause: r.cause,
+    depth, ore, mats: (r.mats && Object.keys(r.mats).length ? r.mats : (state && state.mineMats)) || null,
+    best, eaten, cause: r.cause,
     balance: sporesBalance(),
     onDone: () => { runEndThen(() => { setGame('mine'); showPicker(); }); },
   });
@@ -34547,6 +34742,16 @@ function begin(newState) {
       // The wallet and the roster. A probe needs to fund itself and name a species, and doing
       // that by hand-building `mycelium.progress.v2` skips loadProgress's migrations.
       balance: () => sporesBalance(),
+      // The DEEP materials' banked balances — Phosphorus is `balance()`, see loadProgress for why
+      // the two live apart.
+      mats: () => {
+        const p = loadProgress(), out = {};
+        for (const m of ((CONFIG.mine && CONFIG.mine.materials) || [])) {
+          out[m.id] = m.id === 'phosphorus' ? sporesBalance(p) : matBalance(m.id, p);
+        }
+        return out;
+      },
+      creditMat: (id, n) => { const o = {}; o[id] = n | 0; addMats(o); return matBalance(id); },
       credit: (n) => addSpores(n),
       reset: () => resetProgress(),
       speciesById: (id) => SPECIES.find((s) => s.id === id) || null,
@@ -34626,6 +34831,8 @@ function begin(newState) {
       // strands vanish within a second and the clock correctly clears itself.
       spawnCloud: (x, y) => { devSpawnTrichoderma(state, x, y); return state.clouds.length; },
       items: () => Object.assign({}, state.mineItems || {}),
+      mats: () => Object.assign({}, state.mineMats || {}),
+      matTable: () => mineMaterials(state ? state.config : CONFIG).map((m) => ({ id: m.id, band: m.band, per: m.per })),
       armed: () => state._mineArmed || null,
       useExcrete: () => mineUseExcrete(state),
       useAmputate: (x, y) => mineUseAmputate(state, x, y),

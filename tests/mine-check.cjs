@@ -832,8 +832,15 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     const bought = await b.page.evaluate(async () => {
       const st = window.__game.store;
       st.credit(4000);
+      // STOCK WHATEVER THE NEXT RUNG ASKS FOR, rather than assuming Phosphorus. The deep rungs are
+      // priced in deep materials since 06, so a wallet full of Phosphorus buys two of the six and
+      // this probe would then be measuring a third of the track it means to measure.
       let lv = 0;
-      for (let i = 0; i < 6; i++) if (st.buy('heatTolerance').ok) lv++;
+      for (let i = 0; i < 6; i++) {
+        const c = st.nextCost('heatTolerance');
+        if (c && typeof c === 'object' && c.m) st.creditMat(c.m, (c.n | 0) + 10);
+        if (st.buy('heatTolerance').ok) lv++;
+      }
       window.__game.mine.playSeed(4242);
       for (let i = 0; i < 140; i++) {
         if (window.__game.state.substrate && window.__game.state.substrate._fineSolid) break;
@@ -849,6 +856,103 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     // track, so the metres are what it bought.
     ok('...and that is worth real depth on one tank', upped.depth > bare.depth + 20,
        `${bare.depth} m on ${bare.digs} digs -> ${upped.depth} m on ${upped.digs} digs`);
+    await b.ctx.close();
+  }
+
+  // ---- 4a-x. MATERIALS, ONE PER BAND ---------------------------------------------------------
+  // Owner: more material types, so the maze is about "looking for the right materials for upgrades"
+  // rather than one number going up. The BAND a seam sits in decides what it yields, so a garnet
+  // seam is in the garnet band by construction; Phosphorus stays the shallow band's and the general
+  // currency, which is what lets the deeper three exist without re-pricing the whole store.
+  {
+    const b = await bootMine(4242);
+    const seams = await b.page.evaluate(() => {
+      const g = window.__game, s = g.state, sub = s.substrate, M = s.config.mine;
+      const by = {};
+      for (const p of (sub.foodPiles || [])) {
+        const idx = p.cells[0], c = idx % sub.cols, r = (idx - c) / sub.cols;
+        const band = Math.min(M.bands.length - 1, Math.floor(r / M.bandRows));
+        const k = band + ':' + (p.mineMat || '?');
+        by[k] = (by[k] || 0) + 1;
+      }
+      return { by, table: g.mine.matTable(), bands: M.bands.length };
+    });
+    // EVERY seam carries its band's material and no other. A single mis-tagged seam is a material
+    // appearing at a depth it should not, which is the whole navigation problem the compass is
+    // later meant to solve.
+    const wrong = Object.keys(seams.by).filter((k) => {
+      const [band, mat] = k.split(':');
+      const t = seams.table.find((m) => m.band === +band);
+      return !t || t.id !== mat;
+    });
+    ok('every ore seam yields its own band\'s material', wrong.length === 0,
+       wrong.length ? 'mis-tagged: ' + wrong.join(', ') : Object.keys(seams.by).sort().join('  '));
+    ok('...and there is one material per band', seams.table.length === seams.bands,
+       seams.table.map((m) => m.id + '@b' + m.band).join(', '));
+
+    const dug = await b.page.evaluate(async () => {
+      const g = window.__game, s = g.state, sub = s.substrate;
+      s.nematodes.length = 0; s.clouds.length = 0;
+      s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
+      s.active.water = 999999;
+      const deep = (sub.foodPiles || []).filter((p) => p.mineMat && p.mineMat !== 'phosphorus')
+        .sort((a, b2) => a.cells[0] - b2.cells[0])[0];
+      if (!deep) return { none: true };
+      const idx = deep.cells[0], c = idx % sub.cols, r = (idx - c) / sub.cols;
+      const tx = (c + 0.5) * sub.cellSize, ty = sub.surfaceY + (r + 0.5) * sub.cellSize;
+      for (let i = 0; i < 90; i++) {
+        let best = null, bd = Infinity;
+        for (const n of s.active.nodes) {
+          if (n.infected) continue;
+          const d = (n.x - tx) ** 2 + (n.y - ty) ** 2;
+          if (d < bd) { bd = d; best = n; }
+        }
+        if (!best || Math.sqrt(bd) < 40) break;
+        if (!g.mine.growFrom(best.x, best.y, tx, ty).ok
+            && !g.mine.growFrom(best.x, best.y, tx + 120, ty).ok) break;
+        await new Promise((x) => setTimeout(x, 140));
+      }
+      await new Promise((x) => setTimeout(x, 2500));
+      return { want: deep.mineMat, mats: g.mine.mats(), ore: s.mineOre };
+    });
+    if (dug.none) console.log('  note   no deep seam within reach on this roll — payout unmeasured');
+    else {
+      ok('digging a deep seam pays that material', (dug.mats[dug.want] | 0) > 0,
+         `${dug.want}: ${dug.mats[dug.want] | 0} (${JSON.stringify(dug.mats)})`);
+      // ...AND NOT PHOSPHORUS. If a deep seam also paid the general currency there would be no
+      // reason to go looking for anything in particular, which is the whole point of the change.
+      ok('...and not Phosphorus as well', (dug.ore | 0) === 0, `${dug.ore | 0} P from a deep seam`);
+    }
+
+    // BANKED, AND SPENDABLE ON A RUNG THAT ASKS FOR IT.
+    const shop = await b.page.evaluate(async () => {
+      const g = window.__game, st = g.store;
+      g.mine.end();
+      await new Promise((r) => setTimeout(r, 900));
+      const banked = st.mats();
+      st.credit(500);
+      st.buy('heatTolerance'); st.buy('heatTolerance');     // the two Phosphorus rungs
+      const need = st.nextCost('heatTolerance');
+      const short = st.buy('heatTolerance');                 // now priced in a deep material
+      st.creditMat('anthracite', 20);
+      const rich = st.buy('heatTolerance');
+      return { banked, need, shortOk: short.ok, shortNeed: short.need,
+               richOk: rich.ok, richPaid: rich.paid, after: st.mats() };
+    });
+    // ONLY ASSERTED WHEN THERE WAS SOMETHING TO BANK. An `|| dug.none` escape here read as a PASS
+    // on a build with the band tagging broken — every seam came back Phosphorus, no deep seam was
+    // found to dig, and "no data" scored as "it worked". A skip says so out loud instead.
+    if (dug.none) console.log('  note   nothing deep was dug — banking unmeasured');
+    else ok('a descent banks what it dug', (shop.banked[dug.want] | 0) > 0, JSON.stringify(shop.banked));
+    // A RUNG PRICED IN A MATERIAL CANNOT BE PAID FOR IN PHOSPHORUS, however much of it there is.
+    ok('a deep rung is priced in a deep material', shop.need && shop.need.m && shop.need.m !== 'phosphorus',
+       JSON.stringify(shop.need));
+    ok('...and Phosphorus alone will not buy it',
+       shop.shortOk === false && shop.shortNeed && shop.shortNeed.m !== 'phosphorus',
+       `refused, needing ${JSON.stringify(shop.shortNeed)}`);
+    ok('...while having the material does', shop.richOk === true && shop.richPaid
+       && shop.richPaid.m === shop.shortNeed.m,
+       `paid ${JSON.stringify(shop.richPaid)}`);
     await b.ctx.close();
   }
 
