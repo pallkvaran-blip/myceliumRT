@@ -3334,6 +3334,30 @@ right 0 → 2076**.
   the assertion passed. It digs strictly horizontally now, and asserts the player-facing property
   instead: **is what I just grew still on screen?** On a fixed-zoom screen that is the whole of it.
 
+### WHAT THE MINE IS BECOMING — read `docs/mine-plan.html` first
+
+**The agreed build order lives in `docs/mine-plan.html`** (published as an Artifact). It is the
+product of a long design conversation and it is the thing to read before starting mine work — it
+carries the sequence, what each piece is built on, and the reasoning behind every decision so none
+of it gets re-litigated. The short version:
+
+- The game is a **maze-runner, not a digger**: rock is a WALL, mycelium does not eat it, and there
+  are **no return trips** because the colony *is* the map. The run ends where it ends and you
+  advance rather than come back.
+- **Phase 1, threats become a system.** Worms **drain water** (1 per 5 s each, 5%/s multiply while
+  feeding) instead of eating the colony — so the threat pushes on the clock the run already has.
+  Sight rings on by default. A **trych infection countdown** BESIDE the campaign's gradual spread,
+  never replacing it. Consumables, built on `excrete()` and `amputateAt()`, which are already
+  implemented and are why the mine currently has no counterplay at all.
+- **Phase 2.** Heat tolerance as a **priced** gate — below the limit each strand costs more water
+  and nothing burns off — then named materials.
+- **Phase 3.** Green islands east, **a fresh world per leg**, then compasses sold per resource.
+- **Phase 4.** Price it all: run 1 stays ~45 s and banks one upgrade; late runs 3-5 minutes.
+
+**Two interlocks that are easy to break by touching one side:** Amputate is BOUGHT and the forced
+fruiting pays out IN FULL — change either alone and early mould becomes brutal. And materials want
+the compass, because without one "find garnet" is a random walk.
+
 ### LOOK ANYWHERE; A DIG BRINGS YOU BACK
 
 Owner: *"let's allow panning and zooming, but let's bring the player back to the right perspective

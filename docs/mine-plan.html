@@ -291,7 +291,8 @@
         <li>Infected strands <strong>can't be grown from</strong>; clean ones still can</li>
         <li>Timer ends → the whole colony turns green at once, forced to fruit, run over</li>
         <li><strong>The ending is a full payout</strong> — everything banked is kept, exactly like running dry</li>
-        <li>Amputating the infected tissue cancels it</li>
+        <li><strong>One timer, per colony</strong>, and there is only ever one colony</li>
+        <li>It stops only when <strong>every</strong> infected strand is gone. Two contact points and you cut one — the clock keeps running. Partial amputation buys nothing.</li>
       </ul>
       <div class="meta">
         <div><dt>Builds on</dt><dd><span class="mono">infectNetwork</span>, <span class="mono">infectStrandsInMould</span>, <span class="mono">amputateAt</span>, <span class="mono">mineEndRun</span></dd></div>
@@ -301,10 +302,11 @@
 
     <article class="item">
       <h3><span class="num">04</span> Consumables</h3>
-      <p>Bought or constructed between runs, and the answer to both threats. Without them the timer in 03 is a sentence rather than a problem, so these two ship close together.</p>
+      <p>Bought between runs, including Amputate — there is no free answer to the mould. These ship close to 03, because they are what the timer is asking a question about.</p>
       <div class="meta">
         <div><dt>Builds on</dt><dd><span class="mono">excrete()</span> and <span class="mono">amputateAt()</span> are <strong>already fully implemented</strong> — they belonged to the card layer and never came across, which is why the mine currently has no counterplay at all</dd></div>
-        <div><dt>Consequence</dt><dd>Anti-trych items must be <strong>preventative</strong>, used at range: the cloud is spent the moment it touches you and fades away, so there's nothing left to kill. Anti-worm items are reactive. Different textures, worth leaning into.</dd></div>
+        <div><dt>Consequence</dt><dd>Anti-trych items must be <strong>preventative</strong>, used at range: the cloud is spent the moment it touches you and fades away, so there's nothing left to kill. Anti-worm items are reactive.</dd></div>
+        <div><dt>Interlock</dt><dd><span class="flag">load-bearing</span> Because Amputate is bought, an early player who meets mould with nothing in the bag simply loses the run — which is <em>fine only because the ending is a full payout</em>. Those two decisions hold each other up; changing either one alone makes early mould brutal.</dd></div>
       </div>
     </article>
 
@@ -322,10 +324,15 @@
 
     <article class="item">
       <h3><span class="num">05</span> Heat tolerance, as depth gating</h3>
-      <p>It gets hotter as you descend. Strands grown below your tolerance burn off. Upgrading tolerance is what buys you the next layer.</p>
+      <p>It gets hotter as you descend, and heat is priced rather than enforced: below your tolerance limit, <strong>every strand costs more water</strong>, and more again the further past the limit you go.</p>
+      <ul class="spec">
+        <li><strong>Nothing burns off.</strong> A dig below tolerance succeeds — it just costs more, so the player is never punished after the fact for a move the game let them make</li>
+        <li>The wall is economic: you can always go one layer deeper than you can afford to, and find out what that costs</li>
+        <li>It lands on the fuel clock, which is the pressure the run already has — no second system</li>
+      </ul>
       <div class="meta">
-        <div><dt>Builds on</dt><dd><span class="mono">coreY</span>, <span class="mono">growFloorY</span> and the earth ramp to red — the molten floor and its art <strong>already exist</strong>. This turns a picture into a rule.</dd></div>
-        <div><dt>Why here</dt><dd>It's the cheapest real gate available, and it gives the shop something to sell that isn't just "more of the same".</dd></div>
+        <div><dt>Builds on</dt><dd><span class="mono">coreY</span>, <span class="mono">growFloorY</span> and the earth ramp to red — the molten floor and its art <strong>already exist</strong>, and <span class="mono">mineGrowCost</span> is a single function. This turns a picture into a rule.</dd></div>
+        <div><dt>Why here</dt><dd>The cheapest real gate available, and it gives the shop something to sell that isn't just more of the same.</dd></div>
       </div>
     </article>
 
@@ -355,13 +362,14 @@
       <p>Islands scattered eastward. Reach one, resurface and spore, and the next run starts from there. Surface resources barely fund the next leg, so the first runs have to go <em>down</em> to afford going <em>right</em>.</p>
       <div class="meta">
         <div><dt>Why it matters</dt><dd>It gives the world a second axis — depth is currently the only one — and it turns "no return trip" from a missing feature into the structure of the game.</dd></div>
-        <div><dt>Biggest lift</dt><dd><span class="flag warn">decide first</span> One continuous world extended east, or a fresh streamed world per leg? See below.</dd></div>
+        <div><dt>Shape</dt><dd><strong>A fresh world per leg</strong>, seeded by journey and leg index, hill at the west and island at the east. Keeps the 504-column map that already works and makes "how far east am I" a small integer rather than a coordinate.</dd></div>
       </div>
     </article>
 
     <article class="item">
       <h3><span class="num">08</span> Compasses, bought per resource</h3>
-      <p>A needle for the next island, and separately purchased tech for each material you want to track. Selling <em>information</em> rather than power is the most distinctive progression idea here.</p>
+      <p>A needle for the next island, and separately purchased tech for each material you want to track. <strong>Both are bought</strong> — nothing here is given. Selling <em>information</em> rather than power is the most distinctive progression idea in the game.</p>
+      <p>A player with no compass is not lost, because <strong>east is the standing instruction</strong>: the promised land is that way and always was. What the compass sells is precision — exact bearing and distance — which is a much easier thing to price than the difference between having a direction and having none.</p>
       <ul class="spec">
         <li>Rungs fall out of one feature: direction → direction and distance → points at the <em>biggest</em> deposit rather than the nearest</li>
         <li><strong>It must point through rock.</strong> A bearing keeps the maze — "I know it's that way, now find the corridor". A route would make the maze stop mattering.</li>
@@ -395,32 +403,52 @@
 </section>
 
 <section class="open">
-  <h2>Open decisions</h2>
-  <p class="lead">Five things worth settling before the phase that needs them.</p>
+  <h2>Decisions taken</h2>
+  <p class="lead">Settled, with the reasoning, so none of it gets re-litigated.</p>
 
   <div class="q">
-    <h3>Is Amputate free, or bought?</h3>
-    <p>The trych timer is unfair without it, so I'd make it a second basic action that costs water rather than a purchased consumable. Blocks 03.</p>
+    <h3>Heat is priced, not enforced</h3>
+    <p>Below your tolerance limit every strand costs more water, and more again the deeper you go. Nothing burns off. A dig the game allows always succeeds — you simply find out what it cost, rather than being punished after the fact for a move it let you make.</p>
   </div>
 
   <div class="q">
-    <h3>One world extended east, or a fresh world per leg?</h3>
-    <p>The map is currently 504 columns with a hard edge either side. A world per leg — seeded by journey and leg index, hill at the west, island at the east — keeps everything that already works and makes "how far east am I" a small integer. Blocks 07.</p>
+    <h3>Amputate is bought</h3>
+    <p>There is no free answer to the mould. This is only fair because the forced fruiting pays out in full — meeting mould with an empty bag ends the run early rather than taking anything away. The two decisions are a pair.</p>
   </div>
 
   <div class="q">
-    <h3>Is the island compass free?</h3>
-    <p>You said bought. My worry is that the very first run then has no direction at all and reads as aimless — so perhaps the first one is given and the rest are bought. Blocks 08.</p>
+    <h3>A fresh world per leg</h3>
+    <p>Seeded by journey and leg index, hill at the west, island at the east. The 504-column streamed map stays exactly as it is, and eastward progress is a small integer instead of a coordinate in an ever-wider world.</p>
   </div>
 
   <div class="q">
-    <h3>Does heat fail hard, or ramp?</h3>
-    <p>Strands burning off outright is clear but punishes after the fact. A band where digs simply cost more water first would warn before it bites. Blocks 05.</p>
+    <h3>The island compass is bought too</h3>
+    <p>Nothing is given. A player without one still knows to go east — that is the goal and always was — so what is being sold is precision, not the difference between having a direction and having none.</p>
   </div>
 
   <div class="q">
-    <h3>Is the infection timer per cloud or per colony?</h3>
-    <p>Per cloud, two clouds means two bars and it stops reading. One colony-wide deadline, driven by whether any cloud is in contact, reads as one deadline. Blocks 03.</p>
+    <h3>One infection timer, per colony</h3>
+    <p>There is only ever one colony, so one deadline. It stops only when every infected strand is gone: cut one of two contact points and the clock keeps running. Partial amputation buys nothing, which is what makes "cut all of it" a real decision.</p>
+  </div>
+</section>
+
+<section class="open" style="margin-top: 48px">
+  <h2>Still to settle</h2>
+  <p class="lead">Tuning rather than design — none of it blocks starting.</p>
+
+  <div class="q">
+    <h3>The heat cost curve</h3>
+    <p>Linear per metre past the limit, or accelerating? Accelerating gives a sharper felt edge to each tolerance upgrade; linear is easier to price against the ore ladder.</p>
+  </div>
+
+  <div class="q">
+    <h3>How a leg escalates</h3>
+    <p>Each leg east presumably runs deeper bands and heavier threats. Whether that is a curve or a hand-authored table is the same question the campaign answered with <span class="mono">LEVEL_THREATS</span>, and the answer there was a table for the first eleven.</p>
+  </div>
+
+  <div class="q">
+    <h3>How long a late run is</h3>
+    <p>Three to five minutes, roughly. Worth leaving open until the costs pass, since it is the output of the economy rather than an input to it.</p>
   </div>
 </section>
 
