@@ -3390,6 +3390,19 @@ owner's, not suggestions.**
      state instead.
    - The drain is applied ONCE after the worm loop, not per worm: water is the number the whole run
      is measured against, and N subtractions of a tenth is N chances to accumulate float error.
+   - **THE RATE STAYS FRACTIONAL; THE TANK DOES NOT** (owner: *"let's count water and other things
+     only in whole numbers"*). 0.2 a worm a second is the tuning and rounding it up to 1 would make
+     one worm five times deadlier, so the fraction accumulates in **`state.mineDrainDebt`** and only
+     whole units leave `net.water`. **The debt is deliberately NOT part of the tank** — a player
+     counting digs must never find that a tank reading 6 buys two digs at 2 and then refuses the
+     third.
+     - **THIS BREAKS ANY PROBE THAT MEASURES THE RATE OFF THE TANK**, and it broke the existing one:
+       the tank lags the true drain by up to 1 water, which over a 6 s window read **0.167/s against
+       a stated 0.2** and looked like the rate being wrong. Measure `state.mineDrained` — the owed
+       total, which is what the rate is a property of — and assert the tank separately.
+     - The pair that makes it add up: everything owed is either in the tank or in the debt
+       (`tankDrop === drained − debt`), so a "just round it down" shows up as a tank falling short
+       rather than as a rate that still averages out.
    - **THE HUD CHIP CARRIES THE RATE, NOT ONLY THE COUNT** (`#hud-worms`, hidden at zero). "3 worms"
      does not tell you how long you have; "−0.6/s" does.
    - **EVERY WATER MEASUREMENT IN THE MINE NOW HAS A BACKGROUND DRAIN**, and two of `mine-check`'s
@@ -3488,14 +3501,36 @@ owner's, not suggestions.**
 #### Phase 2 — the run gets a shape
 
 5. **HEAT TOLERANCE, PRICED NOT ENFORCED. BUILT** — `CONFIG.mine.heat` (`safeDepth` 42,
-   `perMetre` 0.06, `maxMult` 8) plus a `heatTolerance` store track at +25 m a step. Below the limit
-   every dig costs more water and more again the deeper it starts; **nothing burns off**, so a dig
-   the game allows always succeeds and the player is never punished after the fact for a move it let
-   them make. It lands on `mineGrowCost`, one function.
-   - **Measured curve at zero upgrades:** 2 water to 42 m, then **4.2 at 60, 7 at 84, 10.2 at 110,
-     capped at 16**. An unupgraded tank reaches **72 m**; buying the track out (limit 192 m, i.e. no
-     penalty anywhere) reaches **101 m** on the same seed and dig loop. **So heat is worth ~30 m of
-     depth**, which is what makes the track worth money.
+   `lineEvery` 42, `maxMult` 8) plus a `heatTolerance` store track at +25 m a step. Past each depth
+   line every dig costs more water; **nothing burns off**, so a dig the game allows always succeeds
+   and the player is never punished after the fact for a move it let them make. It lands on
+   `mineGrowCost`, one function.
+   - **A STAIRCASE OF DOUBLINGS, AND EVERY PRICE A WHOLE NUMBER** (owner: *"let's count water and
+     other things only in whole numbers. So there should be a depth line, beyond which the cost
+     increases. Let's just always have the cost double ... Then beyond the next depth line, 8,
+     etc."*). Lines at 42 m and every 42 after, so the ladder is **2 · 4 · 8 · 16**, capped.
+     42 m is one rock band, so a line falls exactly where the band beat already announces one — the
+     player is told "84 m — Garnet" at the depth the price doubles and the two readings agree with
+     no second piece of furniture. Tolerance slides the whole ladder down, so it buys a longer cheap
+     stretch rather than a discount.
+   - **IT REPLACED A PER-METRE RAMP (`perMetre` 0.06), AND THE REASON IS THAT THE RAMP COULD NOT BE
+     COUNTED.** A dig cost 4.2 here and 4.3 six metres on, which had to be quoted to a decimal and
+     left the tank fractional however it was rounded — so *"how many digs do I have left?"*, the one
+     question the fuel clock exists to ask, had no answer a player could work out. The negative
+     control prints the symptom exactly: a tank reading **99.10000000000001**. Don't reintroduce a
+     rate here; a doubling is arithmetic anyone can do in their head, and it makes crossing a line
+     an EVENT rather than a drift.
+   - **EVERY LINE ON THE SAME SIDE OF ITS OWN BOUNDARY — use `Math.ceil`, not `Math.floor`.** With
+     floor the rule was uniform only at the FIRST line: 42 m stayed at 2 while 84 m had already
+     doubled, because `d <= first` guards the first boundary and floor's own boundary is inclusive.
+     Two rules, and the one the player meets second is the one that surprises them. Standing exactly
+     ON a line is now the cheap side of it, everywhere. `mine-check` pins all three boundaries.
+   - **Measured before the rewrite**, and still the shape of the thing: an unupgraded tank reached
+     **72 m**; buying the track out (limit 192 m, i.e. no penalty anywhere) reached **101 m** on the
+     same seed and dig loop. **So heat is worth ~30 m of depth**, which is what makes the track worth
+     money. Re-measure after any retune — the staircase is coarser than the ramp it replaced.
+   - **`mineNextHeatLine(config, depthM)`** is where the next rise is, or null past the cap. A
+     staircase is only better than a ramp if the step can be seen coming.
    - **`maxMult` IS WHAT STOPS IT BEING A WALL.** Without a ceiling the curve eventually exceeds any
      tank and the bottom of the shaft stops being reachable at all — which is exactly what the owner
      said heat must not be.
@@ -3510,8 +3545,16 @@ owner's, not suggestions.**
      state — and it is why the fuel-curve probe has to keep digging until the RUN ends rather than
      until the downward dig is refused, which read `75 m, over=false` and blamed the fuel curve for
      the affordability rule working.
-   - The HUD quotes the price once the heat is adding to it (`#hud-digcost`, hidden below the limit).
-     A price that silently climbs with depth is the invisible-damage defect a third time.
+   - **THE HUD ALWAYS QUOTES THE PRICE** (`#hud-digcost`), with `.hot` — the orange — marking that
+     heat is adding to it. A price that silently climbs with depth is the invisible-damage defect a
+     third time. It used to be HIDDEN below the first line to keep the opening 42 m uncluttered, and
+     that stopped being right once the price became a countable staircase: "how many digs have I
+     left?" is tank ÷ this, so hiding the divisor for the first band hid it in the one stretch where
+     the arithmetic is easiest. The chip owns the number; the opening hint owns the instruction.
+   - **AND THE OPENING HINT MUST NOT QUOTE A PRICE.** It is written once, at the surface, and then
+     sits on screen while the player digs — so past the first line it read *"2 water a dig"* three
+     centimetres under a chip reading 4. Caught in a rendered FRAME, invisible in the diff, and
+     `mine-check` now asserts nothing else on screen says "water a dig".
 6. **MORE MATERIAL TYPES. BUILT** — `CONFIG.mine.materials`, **one per band**: Phosphorus (band 0),
    Anthracite (1), Garnet (2), Hematite (3), each with a `per` (yield per seam) and a `tint`. The
    deep rungs of three tracks are priced in them, which is the owner's *"looking for the right
@@ -3580,6 +3623,16 @@ long a late run really is, which is an output of the costs pass rather than an i
 Owner: *"let's allow panning and zooming, but let's bring the player back to the right perspective
 when a growth action is taken."* So `CONFIG.mine.zoom` is the **RESTING** zoom, not a locked one.
 
+- **`zoom` IS 0.6, AND THAT IS 0.85 / 1.12³ — EXACTLY THREE SCROLL TICKS OUT** (owner: *"let's make
+  the default zoom further out -- three scroll ticks on my mouse"*). The wheel multiplies by 1.12 a
+  tick. Written as the RESULT rather than as an expression, because the two are not really coupled:
+  changing the wheel's step must not silently reframe the game. `mine-check` pins the RELATIONSHIP
+  (three ticks in from rest lands on the old 0.85), so a later "one more tick out" fails there and
+  gets updated deliberately.
+  - **The strand LOD is a RAMP, not a cliff** — `smoothstep(0.42, 0.62, zoom)` — so 0.6 still
+    animates growth per-strand at ~98% detail. What to watch is that `mineZoom` scales this by
+    `viewH / refHeight`, so a SHORT viewport now sits near the BOTTOM of that ramp where 0.85 put it
+    at the top: 620 px tall lands at 0.44. A phone at 844 is 1:1 and unaffected.
 - **The camera is RELEASED by a pan or a zoom and RE-ARMED by a dig**, and that state is explicit
   (`_mineCamFree`) rather than a timer. It used to be `MINE_PAN_HOLD_MS`, a 2.6 s hold-off — so the
   view crept back on its own while the player was still reading it, which is a tug of war they lose
@@ -4861,7 +4914,10 @@ which is the real lift for a landscape-first game.
   growth step passes the endpoint test while crossing rock), `breach-probe.cjs` (what the
   first-touch DISC costs on real tissue, radius by radius) and `infect-probe.cjs` (how far one
   breach reaches). Plus `rock-audit.cjs` (mask vs art, per map), `mine-probe.cjs` (the shaft, as an
-  ASCII ground map), and the three perf tools — now four, with **`sight-perf.cjs`** (what the mine's
+  ASCII ground map), **`heat-probe.cjs`** (the whole dig-price ladder as one column, plus whether the
+  tank ever reads fractional while worms drain — the table is how the `floor`/`ceil` boundary
+  inconsistency was caught, which asserting your way to would have taken several rounds),
+  and the three perf tools — now four, with **`sight-perf.cjs`** (what the mine's
   always-on sensing rings cost per frame, A/B'd in one page at the 16-worm cap; its header carries
   the three treatments and their numbers) and its companion **`sight-shot.cjs`**, which renders the
   rings so the question "does the edge read?" can be answered by looking. They
