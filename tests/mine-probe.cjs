@@ -210,6 +210,38 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log(`rewards    ${reach.pilesOk}/${reach.piles} ore seams and ${reach.pocketsOk}/${reach.pockets} water pockets reachable` +
               (reach.pilesOk === reach.piles && reach.pocketsOk === reach.pockets ? '' : '   !! something is walled in'));
 
+  // ---- 4b. THE GROUND AROUND THE START, as a picture -----------------------------------------
+  // The cheapest diagnostic in this file and the one that has earned its place twice. It prints the
+  // top rows as ASCII around the home column, plus the contiguous OPEN RUN either side at each row —
+  // which is the number that says whether a new player can travel sideways at all.
+  //
+  // It is what made "it's not letting me grow to the left or right" obvious in one glance: the first
+  // gallery sat at `galleryEvery / 2`, so rows 1-6 read `2/8` cells of room either side of an
+  // 11-column cap, and the most constrained ground on the map was the ground the player starts on.
+  // A number in a test says that too; a picture says it immediately.
+  const ground = await page.evaluate(() => {
+    const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize;
+    const home = sub.mineHomeCol, SPAN = 26, ROWS = 22;
+    const solid = (c, r) => sub.solidAtWorld((c + 0.5) * cs, sub.surfaceY + (r + 0.5) * cs);
+    const rows = [];
+    for (let r = 0; r < ROWS; r++) {
+      let line = '';
+      for (let c = home - SPAN; c <= home + SPAN; c++) line += solid(c, r) ? '#' : '.';
+      rows.push(String(r).padStart(2) + ' ' + line);
+    }
+    const runs = [];
+    for (let r = 0; r < 12; r++) {
+      let L = 0, R = 0;
+      while (L < 40 && !solid(home - L - 1, r)) L++;
+      while (R < 40 && !solid(home + R + 1, r)) R++;
+      runs.push(r + ':' + L + '/' + R);
+    }
+    return { rows, runs, home, span: SPAN };
+  });
+  console.log(`\nopen run left/right of the home column, by row:\n  ${ground.runs.join('  ')}`);
+  console.log(`\nrows 0-21, cols home±${ground.span}   (# solid, . open)`);
+  for (const r of ground.rows) console.log('  ' + r);
+
   // ---- 5. renderFrame on the wide world -----------------------------------------------------
   // `__game.renderFrame` draws one frame SYNCHRONOUSLY, which is the only way to time a render
   // here: headless throttles rAF toward 1-2 Hz, so a stopwatch on the real loop measures the

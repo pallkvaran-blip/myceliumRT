@@ -3334,29 +3334,97 @@ right 0 → 2076**.
   the assertion passed. It digs strictly horizontally now, and asserts the player-facing property
   instead: **is what I just grew still on screen?** On a fixed-zoom screen that is the whole of it.
 
-### WHAT THE MINE IS BECOMING — read `docs/mine-plan.html` first
+### WHAT THE MINE IS BECOMING — THE AGREED PLAN
 
-**The agreed build order lives in `docs/mine-plan.html`** (published as an Artifact). It is the
-product of a long design conversation and it is the thing to read before starting mine work — it
-carries the sequence, what each piece is built on, and the reasoning behind every decision so none
-of it gets re-litigated. The short version:
+**`docs/mine-plan.html` is the plan** (also published as an Artifact) and carries the reasoning
+behind every decision. This section carries the SPEC, in full, because the plan will take many
+sessions and a session that only reads CLAUDE.md must still be able to work. **Numbers here are the
+owner's, not suggestions.**
 
-- The game is a **maze-runner, not a digger**: rock is a WALL, mycelium does not eat it, and there
-  are **no return trips** because the colony *is* the map. The run ends where it ends and you
-  advance rather than come back.
-- **Phase 1, threats become a system.** Worms **drain water** (1 per 5 s each, 5%/s multiply while
-  feeding) instead of eating the colony — so the threat pushes on the clock the run already has.
-  Sight rings on by default. A **trych infection countdown** BESIDE the campaign's gradual spread,
-  never replacing it. Consumables, built on `excrete()` and `amputateAt()`, which are already
-  implemented and are why the mine currently has no counterplay at all.
-- **Phase 2.** Heat tolerance as a **priced** gate — below the limit each strand costs more water
-  and nothing burns off — then named materials.
-- **Phase 3.** Green islands east, **a fresh world per leg**, then compasses sold per resource.
-- **Phase 4.** Price it all: run 1 stays ~45 s and banks one upgrade; late runs 3-5 minutes.
+**PROGRESS — keep this line honest, it is how the next session knows where to start:**
+`Phase 1 in progress: (01) worms drain water — building.` Nothing after it started.
 
-**Two interlocks that are easy to break by touching one side:** Amputate is BOUGHT and the forced
-fruiting pays out IN FULL — change either alone and early mould becomes brutal. And materials want
-the compass, because without one "find garnet" is a random walk.
+#### The premises (settled, do not re-litigate)
+
+- **Rock is a WALL, not a material.** Mycelium does not eat rock. This is a **maze-runner**, not a
+  digger, and every "why not dig through it" idea is answered by that.
+- **There are NO RETURN TRIPS** — the colony *is* the map, spread across it. A run ends where it
+  ends; the player **advances** rather than comes back. This is the genre position, not a gap.
+- **Run 1 is under a minute** and already is: `startWater` 44 at 2 a dig is **22 digs**, measured dry
+  at 52-60 m. Late runs 3-5 minutes, tuned at the end.
+- **Every threat change is MINE-ONLY.** The campaign keeps its gradual mould and the 116 assertions
+  that guard it. Add beside; never replace.
+
+#### Phase 1 — threats become a system (fixes what is broken now)
+
+1. **WORMS DRAIN WATER INSTEAD OF EATING.** They attach and feed rather than consuming tissue, so
+   the threat pushes on the clock the run already has instead of needing a death condition of its
+   own. **1 water per 5 seconds per attached worm. 5% chance per second of multiplying while
+   feeding** — drastically down from today's `breedChance` 0.8 per tick to a cap of 150, which was
+   tuned for a threat that ate strands and would be instant death as a drain. Attachment is drawn on
+   the strand and **counted in the HUD**, or it is invisible damage in a new coat.
+   *Why first:* it is the live problem — 4 strands a bite with no cooldown against an 800-strand
+   colony is ~100 seconds of watching, accelerating as they breed.
+2. **THREAT SIGHT RINGS ON BY DEFAULT.** `drawOccludedSight` / `threatSight` already exist and
+   already stop at the rock face. Makes the two threats either side of it avoidable rather than
+   arbitrary.
+3. **TRYCH INFECTION COUNTDOWN.** The spread stays exactly as the campaign's — contact, the cloud is
+   spent and fades, rot creeps along the filaments. **New: a colony-wide timer from first contact.**
+   Infected strands **cannot be grown from**; clean ones still can. Timer ends → the whole colony
+   turns green at once, forced to fruit, run over, **FULL PAYOUT**.
+   - **ONE timer, per COLONY** — there is only ever one colony, so one deadline.
+   - **It stops only when EVERY infected strand is gone.** Two contact points, cut one, and the
+     clock keeps running. Partial amputation buys nothing, which is what makes "find all of it"
+     the decision.
+4. **CONSUMABLES**, bought between runs. `excrete()` (kills worms) and `amputateAt()` are **already
+   fully implemented** — they belonged to the card layer and never came across, which is why the
+   mine has no counterplay at all today.
+   - **Anti-trych items must be PREVENTATIVE, used at range.** The cloud is spent the moment it
+     touches you and fades, so after contact there is nothing left to kill. Anti-worm items are
+     reactive. Different textures; lean into it.
+
+#### Phase 2 — the run gets a shape
+
+5. **HEAT TOLERANCE, PRICED NOT ENFORCED.** Below the tolerance limit **every strand costs more
+   water**, and more again the further past it you go. **Nothing burns off** — a dig the game allows
+   always succeeds, so the player is never punished after the fact for a move it let them make. The
+   wall is economic. Lands on `mineGrowCost`, one function; `coreY`, `growFloorY` and the earth ramp
+   to red already exist, so this turns a picture into a rule.
+6. **MORE MATERIAL TYPES** — named materials with band affinities, so an upgrade needs a
+   *particular* thing. `foodKind` already carries three art kinds and `orePerPile` already varies by
+   band.
+
+#### Phase 3 — the journey east
+
+7. **GREEN ISLANDS AND THE PROMISED LAND.** Islands scattered eastward; reach one, resurface and
+   spore, and the next run starts from there. Surface resources barely fund the next leg, so the
+   first runs must go DOWN to afford going RIGHT. **A FRESH WORLD PER LEG**, seeded by journey and
+   leg index, hill at the WEST and island at the EAST — the 504-column streamed map stays as it is
+   and eastward progress is a small integer rather than an ever-wider world.
+8. **COMPASSES, BOUGHT PER RESOURCE.** A needle for the next island and separately purchased tech
+   per material. **Nothing is given, including the island compass** — a player without one still
+   knows to go east, because that is the goal, so what is sold is *precision*. Rungs: direction →
+   direction and distance → points at the BIGGEST deposit rather than the nearest.
+   **IT MUST POINT THROUGH ROCK.** A bearing keeps the maze ("I know it is that way, now find the
+   corridor"); a route would make the maze stop mattering.
+
+#### Phase 4 — price everything against the journey
+
+9. Run 1 stays ~45 s and banks **one** upgrade (band-1 ore pays 3 P a seam against a 10 P cheapest
+   buy, so this is already close). Late runs 3-5 minutes. The key ratio is shallow-to-deep material
+   value: wrong either way and one of the two axes dies.
+
+#### Two interlocks that break if you touch one side
+
+- **Amputate is BOUGHT and the forced fruiting pays out IN FULL.** Meeting mould with an empty bag
+  ends the run early rather than taking anything away. Change either alone and early mould is brutal.
+- **Materials want the compass.** Without one, "find garnet" is a random walk. Do not ship 6 alone.
+
+#### Still open, and all of it is tuning rather than design
+
+The heat cost curve (linear per metre past the limit, or accelerating); how a leg escalates east
+(a curve, or a hand-authored table as `LEVEL_THREATS` does for the campaign's first eleven); and how
+long a late run really is, which is an output of the costs pass rather than an input to it.
 
 ### LOOK ANYWHERE; A DIG BRINGS YOU BACK
 
