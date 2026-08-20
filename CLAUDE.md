@@ -3400,14 +3400,32 @@ owner's, not suggestions.**
 2. **THREAT SIGHT RINGS ON BY DEFAULT.** `CONFIG.mine.showSight`, drawn through the existing
    `drawOccludedSight`, which already stops at the rock face. **BUILT**, and two things had to
    change for it to be usable at all:
-   - **AN AMBIENT RING IS AN EDGE, NOT A WASH.** At a 300-unit radius on a 390px phone, twenty
-     filled discs compose into a flat green veil over the whole frame with no boundary visible
-     anywhere — strictly less information than no overlay. The fill drops to a hint and the polygon
-     is STROKED; a ring the player TAPPED keeps the solid wash and its soft rim.
-   - **IT COST +9 ms OF A 40 ms FRAME AND THE FIX WAS NOT THE RAY CAST.** Memoising the visibility
-     polygon per creature changed nothing; the cost was `fillRect(2*sight)` INSIDE a clip, asking
-     the rasteriser to process 510x510 px and discard most of it, once per creature. Filling the
-     polygon path itself took it to **+0.3 ms**. Culled to the viewport as well.
+   - **THE AMBIENT RING IS THE CAMPAIGN'S RING — WASH PLUS EDGE — ONLY FAINTER AND HARDER-EDGED.**
+     Owner, after looking at both: *"make it look the same as that except always on and a bit
+     fainter and less gradient-y so its clearer where the range ends. let's also make it red instead
+     or green."* So `soft` does not select a different treatment, only how faint and how tight;
+     `CONFIG.mine.sightAlpha` (0.13 against a tapped ring's 0.28) is what keeps twenty of them
+     reading as ground rather than fog. **An earlier version dropped the fill to a hint and stroked
+     the outline instead** — the theory being that filled discs compose into a veil — and that is
+     the version the ask above replaced. Don't re-derive it.
+   - **RED (`MINE_SIGHT_RGB`), BECAUSE GREEN IS THE COLONY'S HALF OF THE PALETTE.** An always-on
+     green wash reads as the thing you are GROWING rather than the thing hunting you. Amber is the
+     ants' and mint the player's (STYLE_GUIDE), so red is the danger hue left. One colour for
+     "something in here is hunting", whichever creature drew it. A TAPPED ring keeps the creature's
+     own green — that one is a question about a specific animal.
+   - **THE EDGE IS A LINE, NOT A BAND — AND THAT IS THE PERF FIX AS WELL AS THE CLEARER ANSWER.**
+     Measured at 16 worms on a 390x844 phone against a 26.8 ms frame with the rings off: the
+     campaign's **full-disc radial gradient +36.6 ms** (35.4/36.3/38.0), a **clipped double-width rim
+     stroke +20.2**, a **2 px boundary line +7.4** (7.5/7.7/6.9). Splitting the middle number is what
+     settled the design — the **wash alone is +12.6 and the wide rim alone +18.2**, so the band cost
+     more than the wash it decorated. A gradient rasterises the WHOLE disc and the clip discards the
+     middle; so does `fillRect(2*sight)` inside a clip, which is the same defect and cost +9 ms of a
+     40 ms frame on the first version. Memoising the visibility polygon changed nothing either time
+     — the ray cast has never been the cost here. Culled to the viewport as well.
+   - **THE COLOUR IS ASSERTED AS A DIFFERENCE, NOT AN ABSOLUTE.** Soil is warm brown, i.e.
+     red-dominant before anything is drawn on it, so "is this pixel reddish?" passes with the
+     overlay deleted. `mine-check` renders the same point with the rings on and off and subtracts:
+     **r28 g3 b4** shipped, against **r11 g23 b10** with the colour reverted to the worm's green.
 3. **TRYCH INFECTION COUNTDOWN. BUILT** — `CONFIG.mine.infectionMs` 20 s, and `mineInfectionCheck`
    is **DERIVED from "is anything infected"** rather than stamped by the contact pass. That is what
    makes the owner's rule fall out for free: cut one of two contact points and the clock keeps
@@ -4842,7 +4860,11 @@ which is the real lift for a landscape-first game.
   (what share of worms can move, and WHY the stuck ones are stuck), `hop-probe.cjs` (how often a
   growth step passes the endpoint test while crossing rock), `breach-probe.cjs` (what the
   first-touch DISC costs on real tissue, radius by radius) and `infect-probe.cjs` (how far one
-  breach reaches). Plus `rock-audit.cjs` (mask vs art, per map) and the three perf tools. They
+  breach reaches). Plus `rock-audit.cjs` (mask vs art, per map), `mine-probe.cjs` (the shaft, as an
+  ASCII ground map), and the three perf tools — now four, with **`sight-perf.cjs`** (what the mine's
+  always-on sensing rings cost per frame, A/B'd in one page at the 16-worm cap; its header carries
+  the three treatments and their numbers) and its companion **`sight-shot.cjs`**, which renders the
+  rings so the question "does the edge read?" can be answered by looking. They
   print numbers rather than PASS/FAIL and are **not in the runner** — several are minutes long.
   Each found a real defect; each header says which, and `worm-probe`'s and `infect-probe`'s
   headers record how their first versions misled me (`infect-probe`'s 4-unit-spaced colony
@@ -4977,6 +4999,14 @@ which is the real lift for a landscape-first game.
   can rot for weeks, so run them by name after anything that touches a screen they drive.
 - Five checks are unreliable and all five are harness-side, not game-side. Re-run before
   believing any of them. (`turn-play` was a sixth and is fixed — see below.)
+  - **`mine`'s LAST block times out on some runs**, waiting on `#ssMineEnd` — seen once, 178/178 on
+    the run either side of it, same build. Its run-dry loop `break`s the moment a grow is refused,
+    and a colony boxed in by rock stops digging with water still in the tank, so no ending is
+    reached and no end screen appears. Reads as a hang at `tests/mine-check.cjs:1941` with **171
+    assertions passed and none failed** — a truncated tally rather than a failure, which is the tell.
+    Same family as `threat`'s map-roll flakes and the same lever: a fixed seed does not help while
+    the probe digs straight down into whatever that seed put there. If it wants fixing, it should
+    dig in the cheapest legal direction rather than only down.
   - **`tut`'s real-time assertions fail on some runs** — the starter pile hasn't finished
     digesting when the assertion fires, so it reads "0 offer(s), 50 nutrient left" or a bare
     `null`. Three of its 19 failed on the last sweep, five on an earlier one. **`tutscript` has the
