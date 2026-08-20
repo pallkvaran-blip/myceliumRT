@@ -605,10 +605,16 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       }
       // Past MINE_PAN_HOLD_MS (2600) and the follow easing, so this is where the camera SETTLES.
       await new Promise((r) => setTimeout(r, 3600));
-      let work = null, deep = null;
+      // THE STRAND THE CAMERA CLAIMS TO BE ON — `state._mineFocus`, the one the last dig ended on.
+      // Picking "the leftmost shallow strand" instead was the first version and it asserted about a
+      // strand nothing had promised anything about: `growDirected` fans, so a horizontal dig still
+      // makes tissue below the probe's own shallow band, and the two disagreed by 1,198 units on a
+      // build where the camera was working. Read the contract, not a proxy for it.
+      const fid = s._mineFocus && s._mineFocus.id;
+      let work = (fid != null && s.active.byId.get(fid)) || null, deep = null;
       for (const n of s.active.nodes) {
         if (n.infected) continue;
-        if (n.y <= shallowY + 90 && (!work || n.x < work.x)) work = n;
+        if (!work && n.y <= shallowY + 90 && (!work || n.x < work.x)) work = n;
         if (!deep || n.y > deep.y) deep = n;
       }
       const p = g.camera.worldToScreen(work.x, work.y);
@@ -630,21 +636,66 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     await b.ctx.close();
   }
 
-  // ---- 5. THE ZOOM IS FIXED ----------------------------------------------------------------
-  console.log('--- the fixed zoom');
+  // ---- 5. LOOK ANYWHERE; A DIG BRINGS YOU BACK -----------------------------------------------
+  // Owner: "let's allow panning and zooming, but let's bring the player back to the right
+  // perspective when a growth action is taken." So the zoom is a RESTING one, not a locked one, and
+  // the thing to assert is the round trip — that the player can leave it, that leaving STAYS left
+  // (the previous rule was a 2.6 s hold-off, which crept back while they were still reading), and
+  // that a dig eases it home.
+  //
+  // ON A FRESH PAGE — THIRD TIME IN THIS FILE. The grow block above deliberately drains the tank to
+  // prove a dig is refused when it cannot be paid for, and `mineFuelCheck` ends the descent
+  // `OUT_OF_FUEL_GRACE_MS` later. On a dead run every dig is refused, so nothing stamps
+  // `_mineFocus`, so the camera is never re-armed and the zoom sits where the probe left it —
+  // which reads as "the fix does not work" and is a dead run. `runOver` is reported below for
+  // exactly that reason.
+  console.log('--- look anywhere, a dig brings you back');
+  await m.ctx.close();
+  m = await bootMine(4242);
   const zoomed = await m.page.evaluate(async () => {
     const g = window.__game, cv = document.getElementById('game');
-    const z0 = g.camera.zoom;
-    cv.dispatchEvent(new WheelEvent('wheel', { deltaY: -300, bubbles: true, cancelable: true, clientX: 200, clientY: 400 }));
-    cv.dispatchEvent(new WheelEvent('wheel', { deltaY: 300, bubbles: true, cancelable: true, clientX: 200, clientY: 400 }));
-    const zWheel = g.camera.zoom;
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyF', bubbles: true }));
-    return { z0, zWheel, zKey: g.camera.zoom, want: g.state.config.mine.zoom };
+    const rest = g.camera.zoom;
+    const wheel = (dy) => cv.dispatchEvent(new WheelEvent('wheel',
+      { deltaY: dy, bubbles: true, cancelable: true, clientX: 200, clientY: 400 }));
+    for (let i = 0; i < 6; i++) wheel(300);            // pull back
+    const zOut = g.camera.zoom, xOut = g.camera.x;
+    // ...and it STAYS pulled back. Well past the 2.6 s the old hold-off used, so a regression to a
+    // timer fails here rather than passing on a short sample.
+    await new Promise((r) => setTimeout(r, 4200));
+    const zHeld = g.camera.zoom;
+    for (let i = 0; i < 14; i++) wheel(-300);          // and in, past the resting zoom
+    const zIn = g.camera.zoom;
+    const range = g.state.config.mine.zoomRange;
+    return { rest, zOut, zHeld, zIn, xOut, range,
+             want: g.state.config.mine.zoom, floor: rest * range[0], ceil: rest * range[1] };
   });
-  ok('the zoom opens at CONFIG.mine.zoom', Math.abs(zoomed.z0 - zoomed.want) < 0.01,
-     `${zoomed.z0.toFixed(3)} vs ${zoomed.want}`);
-  ok('the wheel does not zoom', Math.abs(zoomed.zWheel - zoomed.z0) < 1e-6, `${zoomed.z0.toFixed(3)} -> ${zoomed.zWheel.toFixed(3)}`);
-  ok('...nor does the fit-to-map key', Math.abs(zoomed.zKey - zoomed.z0) < 1e-6, `${zoomed.z0.toFixed(3)} -> ${zoomed.zKey.toFixed(3)}`);
+  ok('the zoom opens at CONFIG.mine.zoom', Math.abs(zoomed.rest - zoomed.want) < 0.01,
+     `${zoomed.rest.toFixed(3)} vs ${zoomed.want}`);
+  ok('the wheel zooms OUT', zoomed.zOut < zoomed.rest * 0.95,
+     `${zoomed.rest.toFixed(3)} -> ${zoomed.zOut.toFixed(3)}`);
+  // BOUNDED BY THE STREAMING, not by taste — content is generated per chunk near the colony, so a
+  // free zoom-out frames ground that has not been built and shows it as bare soil.
+  ok('...but not past `zoomRange`', zoomed.zOut >= zoomed.floor - 1e-6,
+     `${zoomed.zOut.toFixed(3)} against a floor of ${zoomed.floor.toFixed(3)}`);
+  ok('...and the view STAYS where the player left it', Math.abs(zoomed.zHeld - zoomed.zOut) < 1e-6,
+     `${zoomed.zOut.toFixed(3)} -> ${zoomed.zHeld.toFixed(3)} over 4.2 s`);
+  ok('the wheel zooms IN, up to the same bound', zoomed.zIn > zoomed.rest && zoomed.zIn <= zoomed.ceil + 1e-6,
+     `${zoomed.zIn.toFixed(3)} against a ceiling of ${zoomed.ceil.toFixed(3)}`);
+  // AND A DIG PUTS IT BACK. The whole of the owner's ask, and the half that a "can you zoom?" test
+  // would miss entirely.
+  const homed = await m.page.evaluate(async () => {
+    const g = window.__game, s = g.state;
+    const zBefore = g.camera.zoom;
+    s.active.water = 9999;
+    const r = g.mine.grow(0, 1);
+    await new Promise((r2) => setTimeout(r2, 2600));   // the ease is ~1 s at followLerp 0.12
+    return { zBefore, zAfter: g.camera.zoom, dug: !!r.ok, why: r.message || '',
+             over: !!s.runOver, alive: !!(s.active && s.active.alive) };
+  });
+  ok('a dig brings the zoom back to the resting one',
+     homed.dug && Math.abs(homed.zAfter - zoomed.rest) < zoomed.rest * 0.02,
+     `${homed.zBefore.toFixed(3)} -> ${homed.zAfter.toFixed(3)}, resting ${zoomed.rest.toFixed(3)}` +
+     (homed.dug ? '' : ` — THE DIG WAS REFUSED (${homed.why}); run over=${homed.over} alive=${homed.alive}`));
 
   // THE CAMERA FOLLOWS THE DIG, which is what a fixed zoom demands: with no way to zoom out, a
   // player who cannot see their deepest strand cannot steer at all.

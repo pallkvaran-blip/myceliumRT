@@ -1045,8 +1045,8 @@ the 30 it wants, `over:false alive:true`, the queued-step stall) and `core`'s ro
 (31 against a tolerance of 30) — and both went **5/5 and 18/18 on three consecutive re-runs**, same
 build. Re-run before believing either of them.
 
-**`mine` IS 126 NOW** (from 107) — fourteen for the STREAMING WORLD and five more for digging
-sideways from the start (see the report above): ten in its own block
+**`mine` IS 129 NOW** (from 107) — fourteen for the STREAMING WORLD, five for digging sideways from
+the start, and the fixed-zoom block rewritten as the pan/zoom round trip (see above): ten in its own block
 (chunks arrive in both directions and ahead of the colony, every streamed-in sprite is collided, the
 new ground carries its own ore/water/creatures, the seams meet as one connected space reachable to
 both far edges, no page errors) plus four in the shaft block (the grid is every chunk, only a few
@@ -3333,6 +3333,41 @@ right 0 → 2076**.
   the broken build the camera chased a NEW deepest strand that happened to be over on the left and
   the assertion passed. It digs strictly horizontally now, and asserts the player-facing property
   instead: **is what I just grew still on screen?** On a fixed-zoom screen that is the whole of it.
+
+### LOOK ANYWHERE; A DIG BRINGS YOU BACK
+
+Owner: *"let's allow panning and zooming, but let's bring the player back to the right perspective
+when a growth action is taken."* So `CONFIG.mine.zoom` is the **RESTING** zoom, not a locked one.
+
+- **The camera is RELEASED by a pan or a zoom and RE-ARMED by a dig**, and that state is explicit
+  (`_mineCamFree`) rather than a timer. It used to be `MINE_PAN_HOLD_MS`, a 2.6 s hold-off — so the
+  view crept back on its own while the player was still reading it, which is a tug of war they lose
+  by waiting. Looking around now lasts exactly as long as they want.
+- **THE RE-ARM IS DERIVED FROM THE DIG, NOT WRITTEN WHERE THE DIG WAS ORDERED.** `mineGrow` stamps
+  `state._mineFocus` on every successful dig whoever asked for it, so `mineNoteDig()` watching that
+  id move is one rule covering the drag-aim, the tap and the `__game.mine` hooks alike. Writing
+  `mineArmCamera()` into `fireAim` was the first version and it is the familiar defect: the camera
+  came home from a dragged dig and sat still for every other route. `mine-check` caught it as
+  `1.870 -> 1.870`.
+- **Only a SUCCESSFUL dig moves it.** A refusal ("solid rock that way") leaves the view where it
+  was, or the message arrives at the same moment its context slides away.
+- **The zoom EASES back, and lands exactly.** The player may be anywhere in `zoomRange` when they
+  dig, and snapping from a pulled-back overview in one frame reads as the game losing its place.
+  Landed once within a fifth of a percent, or it creeps for ever and nothing can assert it arrived.
+- **`zoomRange` [0.4, 2.2] IS BOUNDED BY THE STREAMING, not by taste.** Content is generated per
+  chunk near the colony and ungenerated ground is bare SOIL, so a free zoom-out frames a clean brown
+  void — which reads as the world ending rather than as streaming. Two things make it safe:
+  `mineClampZoom()` after every zoom input, and **`mineEnsureChunks` also generating what the CAMERA
+  can see**. Measured at the 0.343 floor on a phone: 32 columns visible, `ungenerated: []`.
+- **`mineFixedZoom()` is now `mineMap()`.** It meant "the zoom is locked" and was asked by the
+  wheel, the pinch, the double-tap and `F`; those four wanted the clamp instead. The one caller that
+  wanted the IDENTITY — "the mine's grow is always armed" — is why the predicate still exists.
+- **`F` and double-tap frame `expandedBounds()`, which is the COLONY's box**, so they mean "show me
+  the whole tunnel" rather than "show me 18,000 units of soil". They release the camera like any
+  other look.
+
+Measured on a phone viewport: pan **HELD** after 5 s (the old build crept back at 2.6), wheel out to
+**0.343** and in to **1.870**, and a dig home to **0.850**.
 
 ### THE CARVE IS THE DENSITY, AND ALMOST NOTHING ELSE IS
 
