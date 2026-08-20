@@ -25824,9 +25824,17 @@ class UI {
         + `<span class="rk">s</span></span>`
         // WHAT THE NEXT DIG COSTS. A price that silently climbs with depth is the invisible-damage
         // defect a third time: the tank would just empty faster the deeper you went, with nothing
-        // on screen connecting the two. Shown only once the heat is actually adding to it, so the
-        // first 42 m stay uncluttered.
-        + `<span class="res hot" id="hud-digcost" hidden>${RES_ICON.water}<span class="rv" id="hud-digcostn">2</span>`
+        // on screen connecting the two.
+        //
+        // ALWAYS SHOWN, not only once heat is adding to it. It was hidden below the first line to
+        // keep the opening 42 m uncluttered, and that stopped being right when the price became a
+        // staircase of whole numbers: "how many digs have I left?" is the question the fuel clock
+        // exists to ask, and it is tank ÷ this. Hiding the divisor for the first band means the one
+        // stretch where the arithmetic is easiest is the one stretch the player cannot do it in —
+        // and it made the opening hint quote a price that then went stale on screen beside a live
+        // chip saying something else. `.hot` is added only when the price is ABOVE base, so the
+        // colour still marks heat while the number is always there.
+        + `<span class="res" id="hud-digcost">${RES_ICON.water}<span class="rv" id="hud-digcostn">2</span>`
         + `<span class="rk">a dig</span></span>`
       : cardsOn
       ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span><span class="rd" id="hud-energy-inc"></span></span>`
@@ -26648,8 +26656,10 @@ class UI {
         const base = (s.config.mine && s.config.mine.growWaterCost) | 0;
         if (this._digCost !== cost) {
           this._digCost = cost;
-          dc.hidden = !(cost > base);
-          if (cost > base) text('hud-digcostn', String(cost));
+          // Always visible; `.hot` is what says the heat is adding to it. Written on a CHANGE, since
+          // this refreshes every world tick and sits in the row the player is reading.
+          text('hud-digcostn', String(cost == null ? base : cost));
+          dc.classList.toggle('hot', cost > base);
         }
       }
       const inf = document.getElementById('hud-infect');
@@ -36729,7 +36739,11 @@ function mineFrame(time, dt) {
     state._mineHinted = true;
     try {
       if (!(loadProgress().mineBest > 0) && ui && ui.setHint) {
-        ui.setHint(`Drag from the colony to dig — ${mineGrowCost(state.config)} water a dig`, true);
+        // NO PRICE IN HERE ANY MORE. It is written once, at the surface, and then sits on screen
+        // while the player digs — so past the first line it contradicted the HUD chip three
+        // centimetres above it ("2 water a dig" against a chip reading 4). The chip is live and now
+        // always shown, so it owns the number and this owns the instruction.
+        ui.setHint('Drag from the colony to dig', true);
       }
     } catch (_) {}
   }

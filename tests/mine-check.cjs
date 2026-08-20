@@ -883,7 +883,9 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       return { depth, price, ok: r.ok, charged: +(w0 - s.active.water).toFixed(1),
                grew: s.active.nodes.length - before, kept: s.active.nodes.length,
                chipShown: !document.getElementById('hud-digcost').hidden,
-               chipN: document.getElementById('hud-digcostn').textContent };
+               chipHot: document.getElementById('hud-digcost').classList.contains('hot'),
+               chipN: document.getElementById('hud-digcostn').textContent,
+               hint: (document.querySelector('.hint, #hint') || {}).textContent || '' };
     });
     ok('a dig below the limit still succeeds', hot.ok === true && hot.grew > 0,
        `${hot.grew} strands at ${hot.depth} m`);
@@ -892,9 +894,16 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     ok('...and simply charged the higher price', hot.charged > heat.base && hot.charged === hot.price,
        `charged ${hot.charged} at ${hot.depth} m, price says ${hot.price}, base ${heat.base}`);
     // A PRICE THAT SILENTLY CLIMBS IS THE INVISIBLE-DAMAGE DEFECT A THIRD TIME: the tank would just
-    // empty faster the deeper you went with nothing connecting the two.
+    // empty faster the deeper you went with nothing connecting the two. The chip carries the LIVE
+    // price and `.hot` marks that heat is adding to it.
     ok('...with the HUD quoting what a dig costs down here',
-       hot.chipShown === true && +hot.chipN > heat.base, `chip "${hot.chipN}"`);
+       hot.chipShown === true && +hot.chipN === hot.price && hot.chipHot === true,
+       `chip "${hot.chipN}" against a price of ${hot.price}, hot=${hot.chipHot}`);
+    // NOTHING ON SCREEN MAY CONTRADICT IT. The opening hint used to quote the base price and then
+    // sit there while the player dug, so past the first line it said "2 water a dig" three
+    // centimetres under a chip reading 4 — invisible in a diff and obvious in a frame.
+    ok('...and nothing else on screen quotes a stale one',
+       !/water a dig/.test(hot.hint), `hint "${hot.hint.trim().slice(0, 60)}"`);
     await b.ctx.close();
   }
 
