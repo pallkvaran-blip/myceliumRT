@@ -3538,8 +3538,29 @@ owner's, not suggestions.**
      **72 m**; buying the track out (limit 192 m, i.e. no penalty anywhere) reached **101 m** on the
      same seed and dig loop. **So heat is worth ~30 m of depth**, which is what makes the track worth
      money. Re-measure after any retune — the staircase is coarser than the ramp it replaced.
-   - **`mineNextHeatLine(config, depthM)`** is where the next rise is, or null past the cap. A
-     staircase is only better than a ramp if the step can be seen coming.
+   - **`mineNextHeatLine(config, depthM)`** is where the next rise is, or null past the cap, and
+     **`mineHeatLines(config)`** is all of them. A staircase is only better than a ramp if the step
+     can be seen coming.
+   - **AND THE SOIL IS MARKED AT EVERY LINE** (owner: *"add a bump in the soil gradient to red every
+     depth step so it's clear where the line is"*). `SubstrateRenderer._heatBump` warms the earth
+     ramp toward `coreMid` on approach and drops it sharply past the line. The renderer takes the
+     depths from `mineHeatLines` rather than repeating the arithmetic, so the marking and the price
+     cannot drift apart.
+     - **ASYMMETRIC ON PURPOSE**: a 150-unit climb, the peak ON the line, then a 34-unit fall-away.
+       Symmetric reads as a stripe painted on the wall; a slow warming that BREAKS says the ground
+       changed here, and it tells you which side of the line you are on from inside the band.
+     - **THE UNIFORM GRADIENT STOPS COULD NOT RESOLVE IT, and this is the part that nearly shipped
+       broken.** `_drawLive` fills the earth with ONE linear gradient sampled at 24 uniform stops —
+       ~58 world units apart on a phone — against a 34-unit fall-off, so the sharp side landed
+       BETWEEN two stops and the canvas interpolated past it. Perfect in the model, invisible on
+       screen, at exactly the depths it exists to mark. `_heatStopYs` now injects explicit stops at
+       each line's peak and both ends of its fall-off. **Read `tests/bump-probe.cjs`'s PIXEL profile
+       rather than its model profile after touching either.**
+     - The line list is memoised **keyed on `heatBonus`**, since buying tolerance slides every line
+       down — a one-shot cache marks the ground in the wrong place for the one player most likely
+       to be reading it.
+     - Mine-only: `mineHeatLines` returns `[]` with no `heat` block, so the campaign and the
+       authored maps pay one array check.
    - **`maxMult` IS WHAT STOPS IT BEING A WALL.** Without a ceiling the curve eventually exceeds any
      tank and the bottom of the shaft stops being reachable at all — which is exactly what the owner
      said heat must not be.
@@ -4926,6 +4947,8 @@ which is the real lift for a landscape-first game.
   ASCII ground map), **`heat-probe.cjs`** (the whole dig-price ladder as one column, plus whether the
   tank ever reads fractional while worms drain — the table is how the `floor`/`ceil` boundary
   inconsistency was caught, which asserting your way to would have taken several rounds),
+  **`bump-probe.cjs`** (whether the heat-line soil marking is visible — model profile AND drawn
+  pixels, because the gradient's uniform stops lost it once),
   **`wash-probe.cjs`** (what the sensing-range wash does to the soil, swept over colour+alpha pairs
   — its header carries the table, and the point it makes is that darkening the colour at a fixed
   alpha costs CONTRAST and half-deletes the overlay),

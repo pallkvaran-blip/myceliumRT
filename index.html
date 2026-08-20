@@ -22228,6 +22228,22 @@ function mineGrowCost(config, depthM) {
   const tier = Math.ceil((d - first) / every);
   return base * Math.min(Math.max(1, +h.maxMult || 8), Math.pow(2, tier));
 }
+// EVERY DEPTH AT WHICH THE PRICE RISES, in metres, ascending, ending where the cap does. Derived
+// from the same `first`/`every`/`maxMult` the price is, so the soil marking and the price cannot
+// disagree — the renderer draws its bumps from THIS rather than repeating the arithmetic, which is
+// the failure mode a "just compute it there too" would have.
+function mineHeatLines(config) {
+  const M = mineCfg(config), h = M.heat;
+  if (!h) return [];
+  const first = Math.max(0, (h.safeDepth | 0) + (M.heatBonus | 0));
+  const every = Math.max(1, +h.lineEvery || 42);
+  const cap = Math.max(1, +h.maxMult || 8);
+  const out = [];
+  // One line per doubling that is still under the cap: at maxMult 8 that is x2, x4 and x8, so
+  // three lines and then the ground stops getting worse.
+  for (let tier = 1; Math.pow(2, tier) <= cap; tier++) out.push(first + (tier - 1) * every);
+  return out;
+}
 // WHERE THE NEXT PRICE RISE IS, in metres, or null past the cap. The HUD wants to name the line the
 // player is about to cross — a staircase is only better than a ramp if you can see the step coming.
 function mineNextHeatLine(config, depthM) {
@@ -22314,7 +22330,7 @@ function mineEndRun(state, cause) {
   return { MINE_ROCKS, mineLevelDef, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
            mineDepthReached, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
-           mineDigCost, mineCheapestCost, mineNextHeatLine,
+           mineDigCost, mineCheapestCost, mineNextHeatLine, mineHeatLines,
            mineMaterials, mineMaterialFor, mineMaterialById,
            mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
            mineInfectionCheck, mineInfectionLeft,
@@ -23184,6 +23200,11 @@ const __m_render_substrate = (function () {
   const { makeNoise } = __m_render_noise;
   const { makeRng } = __m_engine_rng;
   const { hasAsset } = __m_render_assets;
+  // The mine's price lines, so the soil can be marked where a dig gets dearer. Declaration order is
+  // dependency order and `__m_engine_mine` is well ahead of the renderers, so this is legal — and
+  // taking the DEPTHS from the engine rather than recomputing them here is what stops the marking
+  // and the price drifting apart.
+  const { mineHeatLines } = __m_engine_mine;
 // =============================================================================
 // SubstrateRenderer — the cross-section terrain (A4, A8, B1/B2).
 //
@@ -23336,9 +23357,22 @@ class SubstrateRenderer {
       // band is visible is indistinguishable from evaluating it per row — and it is one fill.
       const g = ctx.createLinearGradient(0, y0, 0, y1);
       const N = 24;
-      for (let i = 0; i <= N; i++) {
-        const wy = eTop + (eBot - eTop) * (i / N);
-        g.addColorStop(i / N, this._earthColorAt(wy));
+      // UNIFORM STOPS CANNOT RESOLVE THE HEAT BUMP, and that is the whole reason this list is built
+      // rather than looped. 24 stops across a ~1400-unit visible band is ~58 world units apart,
+      // while the bump's fall-off is 34 — so the sharp side of it lands BETWEEN two stops and the
+      // canvas interpolates straight past it. The marking was invisible at exactly the depths it
+      // exists to mark. Explicit stops go in at each line's peak and at both ends of its fall-off,
+      // then everything is sorted; the smooth ramp above the line is wide enough that the uniform
+      // sampling covers it on its own.
+      const offs = [];
+      for (let i = 0; i <= N; i++) offs.push(i / N);
+      for (const wy of this._heatStopYs(eTop, eBot)) offs.push((wy - eTop) / (eBot - eTop));
+      offs.sort((a, b) => a - b);
+      let prev = -1;
+      for (const o of offs) {
+        if (o < 0 || o > 1 || o === prev) continue;   // addColorStop throws outside [0,1]
+        prev = o;
+        g.addColorStop(o, this._earthColorAt(eTop + (eBot - eTop) * o));
       }
       ctx.fillStyle = g;
       ctx.fillRect(0, y0, camera.viewW, y1 - y0 + 1);
@@ -23422,7 +23456,66 @@ class SubstrateRenderer {
         col = lerpRgb(col, molten, heat);
       }
     }
+    col = this._heatBump(col, worldY);
     return 'rgb(' + (col[0] | 0) + ',' + (col[1] | 0) + ',' + (col[2] | 0) + ')';
+  }
+
+  // A BUMP TOWARD RED AT EVERY DEPTH LINE, so the player can SEE where a dig gets dearer (owner:
+  // "add a bump in the soil gradient to red every depth step so it's clear where the line is").
+  // The price is a staircase of doublings and the ground is the only place it can be read off
+  // before you pay it — the HUD chip tells you what a dig costs HERE, not where the next step is.
+  //
+  // ASYMMETRIC, and that is the whole of the design: the ramp climbs over `HOT_UP` above the line
+  // and falls away over `HOT_DN` below it, with the peak exactly ON the line. Symmetric reads as a
+  // stripe painted on the wall — decoration — where a slow warming that breaks sharply says the
+  // ground CHANGED here, which is the true thing. It is also what makes the direction legible from
+  // inside the band: below a line you are on the shallow side of the next warming, not lost in one.
+  //
+  // Mine-only. `mineHeatLines` returns [] whenever there is no `heat` block, so the campaign and
+  // the authored maps take an untouched colour and this costs them one array check.
+  // The line depths in metres, memoised. KEYED ON THE TOLERANCE BONUS, because buying the store's
+  // `heatTolerance` track slides every line down — a plain one-shot cache would keep drawing the
+  // previous run's lines, i.e. mark the ground in the wrong place for anyone who bought the
+  // upgrade, which is precisely the player most likely to be reading them.
+  _heatLineList() {
+    const M = (this.config && this.config.mine) || null;
+    if (!M) return [];
+    const key = (M.heatBonus | 0) + ':' + (M.heat ? (M.heat.safeDepth | 0) + ':' + (M.heat.lineEvery | 0) : 'x');
+    if (this._heatKey !== key) { this._heatKey = key; this._heatLines = mineHeatLines(this.config); }
+    return this._heatLines;
+  }
+  // The world Ys the earth gradient must place an explicit stop at, within a visible band — the
+  // peak of each bump and both ends of its fall-off. See the note at the caller for why uniform
+  // sampling cannot be trusted with these.
+  _heatStopYs(yTop, yBot) {
+    const sub = this.substrate;
+    if (!sub || !sub.mine) return [];
+    const out = [];
+    for (const m of this._heatLineList()) {
+      const ly = sub.surfaceY + m * sub.cellSize;
+      for (const y of [ly - 150, ly, ly + 17, ly + 34]) if (y >= yTop && y <= yBot) out.push(y);
+    }
+    return out;
+  }
+  _heatBump(col, worldY) {
+    const sub = this.substrate;
+    if (!sub || !sub.mine) return col;
+    const lines = this._heatLineList();
+    if (!lines.length) return col;
+    const HOT_UP = 150, HOT_DN = 34, AMT = 0.3;
+    const HOT = hexToRgb((this.config.render || {}).coreMid || '#7d1a08');
+    const d = worldY - sub.surfaceY;
+    let t = 0;
+    for (const m of lines) {
+      const ly = m * sub.cellSize;
+      // Only the NEAREST line contributes — `max`, not a sum. With `lineEvery` 42 and a 36-unit
+      // cell the lines are ~1512 apart, so they cannot overlap today; adding is one retune away
+      // from stacking two ramps into a band that never cools and reads as no marking at all.
+      const k = d <= ly ? (d - (ly - HOT_UP)) / HOT_UP : 1 - (d - ly) / HOT_DN;
+      if (k > t) t = k;
+    }
+    if (t <= 0) return col;
+    return lerpRgb(col, HOT, Math.min(1, t) * AMT);
   }
 
   // The mould, drawn over the VISIBLE CELLS instead of over the world. Same look as the baked
@@ -31624,6 +31717,7 @@ const __m_main = (function () {
   const { mineLevelDef, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost, mineNextHeatLine,
+          mineHeatLines,
           mineMaterials, mineMaterialFor, mineMaterialById,
           mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun,
@@ -34951,6 +35045,11 @@ function begin(newState) {
       // `safe` is the FIRST price line; `every` is the spacing of the ones after it, and `nextLine`
       // is where the price doubles again from a given depth (null past the cap). Exposed so a check
       // reads the staircase off the model rather than recomputing it and agreeing with itself.
+      // Every depth the price rises at, in metres. The soil's red bumps are drawn from this same
+      // list, so a check can assert the MARKING lands on the PRICE rather than on a repeat of the
+      // arithmetic — and `substrateRenderer` is beside it so the drawn colour can be read too.
+      heatLines: () => mineHeatLines(state.config),
+      earthColorAt: (worldY) => (substrateRenderer ? substrateRenderer._earthColorAt(worldY) : null),
       heat: (depthM) => ({ safe: ((state.config.mine.heat || {}).safeDepth | 0) + (state.config.mine.heatBonus | 0),
                      every: (state.config.mine.heat || {}).lineEvery | 0,
                      bonus: state.config.mine.heatBonus | 0,

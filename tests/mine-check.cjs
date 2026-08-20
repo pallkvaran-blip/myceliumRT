@@ -856,6 +856,34 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
        heat.next[0] === heat.heat.safe && heat.next[50] === heat.heat.safe + heat.heat.every
        && heat.next[400] === null,
        `at 0m -> ${heat.next[0]}, at 50m -> ${heat.next[50]}, at 400m -> ${heat.next[400]}`);
+    // THE SOIL IS MARKED AT EVERY LINE (owner: "add a bump in the soil gradient to red every depth
+    // step so it's clear where the line is"). The ground is the only place the NEXT price step can
+    // be read before you pay it — the HUD chip says what a dig costs here, not where the next one
+    // is. Asserted on the model colour rather than on pixels: rock, food and the mottle all land on
+    // the drawn frame, and the question is about the ramp underneath them.
+    const bump = await b.page.evaluate(() => {
+      const g = window.__game, sub = g.state.substrate;
+      const lines = g.mine.heatLines();
+      const rd = (y) => { const c = g.mine.earthColorAt(y).match(/\d+/g).map(Number);
+                          return { r: c[0], g: c[1], warm: c[0] - c[1] }; };
+      return lines.map((m) => {
+        const ly = sub.surfaceY + m * sub.cellSize;
+        return { m, far: rd(ly - 220), at: rd(ly), below: rd(ly + 40) };
+      });
+    });
+    // ONE PER PRICE STEP, and at the price steps — not a decorative stripe on a timer.
+    ok('every price line is marked in the soil', bump.length === 3
+       && bump.every((x, i) => x.m === heat.heat.safe + i * heat.heat.every),
+       bump.map((x) => x.m + 'm').join(', '));
+    // WARMEST EXACTLY ON THE LINE. Measured as red-minus-green, since the soil is a warm brown
+    // already and raw red climbs with depth on its own.
+    ok('...warmest exactly at the line', bump.every((x) => x.at.warm > x.far.warm + 6),
+       bump.map((x) => `${x.m}m ${x.far.warm}->${x.at.warm}`).join('  '));
+    // ...AND BREAKING SHARPLY BELOW IT. This is what makes it read as the ground CHANGING rather
+    // than as a stripe painted on the wall, and it is the half a symmetric ramp would lose.
+    ok('...and breaking sharply below it', bump.every((x) => x.below.warm < x.at.warm - 8),
+       bump.map((x) => `${x.m}m ${x.at.warm}->${x.below.warm} over 40u`).join('  '));
+
     // A CEILING, so the deepest ground is expensive rather than impossible. Without one the price
     // doubles past any tank and the bottom stops being reachable at all — which is a wall, and
     // a wall is exactly what heat must not be.
