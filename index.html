@@ -3426,7 +3426,20 @@ const CONFIG = {
       spreadDepthPerTurn: 0.35,
     },
     showSight: true,
-    sightAlpha: 0.13,            // the resting wash; a TAPPED creature still brightens to 0.28
+    // The resting wash; a TAPPED creature still brightens to 0.28. 0.13 -> 0.2 WHEN THE RED WAS
+    // DARKENED, and the two moves are one decision: measured against the soil, the old bright red
+    // at 0.13 shifted the ground by r+10 and the darker red at the same alpha only r+7, so keeping
+    // the alpha would have answered "darken it" by half-deleting it. At 0.2 the darker red shifts
+    // it r+11 — as findable as before — while the LUMINANCE lift drops from +3 to +2.4, which is
+    // the part that reads as "darker".
+    sightAlpha: 0.2,
+    // THE HAZARD RED, and it only means anything together with `sightAlpha` above — the wash is
+    // this colour at `sightAlpha * 0.55`, over warm brown soil that is itself dark and red-biased,
+    // so darkening the colour costs CONTRAST and not only brightness. Both were retuned together
+    // on the owner's "darken the red in the range a bit"; the numbers behind the pair are in
+    // `tests/wash-probe.cjs`. Red rather than the creature's own green because green is the
+    // colony's half of the palette — see `drawOccludedSight`.
+    sightRgb: '165,44,36',
     worms: {
       waterPerSec: 0.2,          // 1 water every 5 s, per ATTACHED worm
       breedPerSec: 0.05,         // 5% chance a feeding worm splits, per second
@@ -37407,26 +37420,21 @@ function drawOccludedSight(wx, wy, radiusWorld, rgb, edgeA, holder, soft) {
   // about 0.07 and twenty of them still read as ground rather than fog.
   ctx.fillStyle = `rgba(${rgb},${edgeA * 0.55})`;
   ctx.fill();
-  // THE EDGE IS THE INFORMATION. What the player needs from an always-on overlay is where the
-  // danger STOPS, and a 22%-wide fade does not answer that — it is a glow, and glows have no
-  // boundary. So the ambient rim is a narrow band with a thin line on the outside of it, and the
-  // ring ends somewhere nameable.
+  // THE AMBIENT RING IS THE FILL AND NOTHING ELSE — no rim, no outline (owner: "get rid of the
+  // lines that show the border of the enemy sensing range"). It does not need one: a flat wash ends
+  // in a STEP of alpha at the polygon edge, which is already a hard boundary, and the drawn line
+  // was a second edge sitting on top of an edge that was there anyway. THREE treatments have now
+  // been tried on this boundary and the plain fill is the one that survived; do not add a fourth.
   //
-  // AND THE EDGE IS A LINE, NOT A BAND — which is both the clearer answer and by far the cheaper
-  // one. Measured at 16 worms on a 390x844 phone viewport, against a 26.8 ms frame with the rings
-  // off: the full-disc radial gradient the tapped ring uses costs **+36 ms** (three runs,
-  // 35.4/36.3/38.0), because it rasterises the whole disc and the clip then throws the middle away
-  // — the same defect as the `fillRect`-inside-a-clip note above, in a different shape. Replacing
-  // it with a clipped double-width stroke took that to +20.2, and SPLITTING THAT number is what
-  // settled the design: the wash alone is +12.6 and the wide rim alone is **+18.2**, so the band
-  // was costing more than the wash it decorated. A 2 px line is free by comparison and says exactly
-  // one thing — the range ends HERE — where a 7% band still has to be interpreted.
-  // Unclipped on purpose: the outer half of the line is the half that draws the boundary.
-  if (soft) {
-    ctx.strokeStyle = `rgba(${rgb},${Math.min(0.62, edgeA * 3.4)})`;
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  } else {
+  // Measured at 16 worms on a 390x844 phone viewport, against a 26.8 ms frame with the rings off:
+  // the full-disc radial gradient the tapped ring uses cost **+36 ms** (three runs, 35.4/36.3/38.0)
+  // because it rasterises the whole disc and the clip then throws the middle away — the same defect
+  // as the `fillRect`-inside-a-clip note above, in a different shape. A clipped double-width rim
+  // stroke took that to +20.2, and splitting THAT number is what killed the rim: the wash alone was
+  // +12.6 and the rim alone **+18.2**, so the band cost more than the wash it decorated. The 2 px
+  // line that replaced it was +7.4 total. So the fill alone is the cheapest of the four as well as
+  // the one the owner picked, which is a coincidence rather than an argument — the look decided it.
+  if (!soft) {
     // A TAPPED RING KEEPS ITS SOFT GLOW UNCHANGED. It is one creature the player asked about, so
     // there is no fleet of discs to pay for, and the owner's note was about the always-on ones.
     ctx.clip();
@@ -37446,7 +37454,11 @@ function drawOccludedSight(wx, wy, radiusWorld, rgb, edgeA, holder, soft) {
 // worm and the cloud stop being told apart by a ring nobody was comparing side by side anyway.
 // Warm amber belongs to the ants and mint to the player (STYLE_GUIDE), so red is the one danger
 // hue the palette has left free.
-const MINE_SIGHT_RGB = '208,66,52';
+// Falls back to the shipped value so a config with no `sightRgb` still draws; it lives in CONFIG
+// beside `sightAlpha` because the two only mean anything together — see the note there.
+function mineSightRgb() {
+  return ((state && state.config && state.config.mine) || CONFIG.mine || {}).sightRgb || '165,44,36';
+}
 
 // THE MINE SHOWS EVERY THREAT'S RANGE WITHOUT BEING ASKED — see `CONFIG.mine.showSight`.
 // Returns the alpha to draw at, or 0 for "do not draw". Tapping still means something: a tapped
@@ -37481,7 +37493,7 @@ function drawCloudSight() {
     if (!(c.showSight || tutSightFlash === c || mineA)) continue;   // tapped, the tutorial, or the mine
     const a = c.showSight ? (c.dying ? 0.12 : 0.28) : (mineA || tutSightAlpha());
     const amb = !c.showSight && !!mineA;
-    drawOccludedSight(c.cx, c.cy, sight, amb ? MINE_SIGHT_RGB : '120,155,45',
+    drawOccludedSight(c.cx, c.cy, sight, amb ? mineSightRgb() : '120,155,45',
                       c.dying ? Math.min(a, 0.12) : a, c, amb);
   }
 }
@@ -39633,7 +39645,7 @@ function drawNematodes(time) {
       const mineA = mineSightAlpha(w.x, w.y, sight);
       if (!(w.showSight || tutSightFlash === w || (showNematodeVision && !w.sees) || mineA)) continue;
       const amb = !w.showSight && !!mineA;
-      drawOccludedSight(w.x, w.y, sight, amb ? MINE_SIGHT_RGB : '130,165,80',
+      drawOccludedSight(w.x, w.y, sight, amb ? mineSightRgb() : '130,165,80',
                         w.showSight ? 0.28 : (mineA || tutSightAlpha()), w, amb);
     }
   }

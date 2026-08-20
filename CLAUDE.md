@@ -3413,28 +3413,37 @@ owner's, not suggestions.**
 2. **THREAT SIGHT RINGS ON BY DEFAULT.** `CONFIG.mine.showSight`, drawn through the existing
    `drawOccludedSight`, which already stops at the rock face. **BUILT**, and two things had to
    change for it to be usable at all:
-   - **THE AMBIENT RING IS THE CAMPAIGN'S RING — WASH PLUS EDGE — ONLY FAINTER AND HARDER-EDGED.**
-     Owner, after looking at both: *"make it look the same as that except always on and a bit
-     fainter and less gradient-y so its clearer where the range ends. let's also make it red instead
-     or green."* So `soft` does not select a different treatment, only how faint and how tight;
-     `CONFIG.mine.sightAlpha` (0.13 against a tapped ring's 0.28) is what keeps twenty of them
-     reading as ground rather than fog. **An earlier version dropped the fill to a hint and stroked
-     the outline instead** — the theory being that filled discs compose into a veil — and that is
-     the version the ask above replaced. Don't re-derive it.
-   - **RED (`MINE_SIGHT_RGB`), BECAUSE GREEN IS THE COLONY'S HALF OF THE PALETTE.** An always-on
-     green wash reads as the thing you are GROWING rather than the thing hunting you. Amber is the
-     ants' and mint the player's (STYLE_GUIDE), so red is the danger hue left. One colour for
-     "something in here is hunting", whichever creature drew it. A TAPPED ring keeps the creature's
-     own green — that one is a question about a specific animal.
-   - **THE EDGE IS A LINE, NOT A BAND — AND THAT IS THE PERF FIX AS WELL AS THE CLEARER ANSWER.**
-     Measured at 16 worms on a 390x844 phone against a 26.8 ms frame with the rings off: the
-     campaign's **full-disc radial gradient +36.6 ms** (35.4/36.3/38.0), a **clipped double-width rim
-     stroke +20.2**, a **2 px boundary line +7.4** (7.5/7.7/6.9). Splitting the middle number is what
-     settled the design — the **wash alone is +12.6 and the wide rim alone +18.2**, so the band cost
-     more than the wash it decorated. A gradient rasterises the WHOLE disc and the clip discards the
-     middle; so does `fillRect(2*sight)` inside a clip, which is the same defect and cost +9 ms of a
-     40 ms frame on the first version. Memoising the visibility polygon changed nothing either time
-     — the ray cast has never been the cost here. Culled to the viewport as well.
+   - **THE AMBIENT RING IS A PLAIN FILL — NO OUTLINE, NO RIM, NO GRADIENT.** FOUR treatments have
+     been tried on this boundary and the owner has now picked the simplest; **do not add a fifth.**
+     In order: (1) a hint-fill with a STROKED outline, on the theory that filled discs compose into a
+     veil; (2) the campaign's full-disc gradient, when the owner asked for the wash back; (3) a
+     clipped double-width rim band; (4) a 2 px boundary line. Then: *"get rid of the lines that show
+     the border of the enemy sensing range and darken the red in the range a bit."* A flat wash ends
+     in a STEP of alpha at the polygon edge, which is already a hard boundary — every drawn edge was
+     a second edge on top of one that was there anyway.
+   - **RED (`CONFIG.mine.sightRgb`), BECAUSE GREEN IS THE COLONY'S HALF OF THE PALETTE.** An
+     always-on green wash reads as the thing you are GROWING rather than the thing hunting you.
+     Amber is the ants' and mint the player's (STYLE_GUIDE), so red is the danger hue left. One
+     colour for "something in here is hunting", whichever creature drew it. A TAPPED ring keeps the
+     creature's own green and its soft glow — that one is a question about a specific animal, and
+     there is no fleet of discs to pay for.
+   - **`sightRgb` AND `sightAlpha` ARE ONE SETTING AND MUST MOVE TOGETHER.** The wash is drawn at
+     `sightAlpha * 0.55` over soil that is ITSELF dark and red-biased, so darkening the colour costs
+     **contrast**, not just brightness. Darkening 208,66,52 → 165,44,36 at a fixed 0.13 took the
+     red delta over bare soil from **+10 to +7 and the luminance lift from +3 to +0.8** — i.e. it
+     answered "darken it" by half-deleting it, which is what the frame showed. Shipped is
+     **165,44,36 @0.2**: red delta **+11** (as findable as the bright version) with the luminance
+     lift down to **+2.4**, which is the part that reads as darker. `tests/wash-probe.cjs` sweeps the
+     pair and its header carries the table.
+   - **THE PERF ORDER OF THE FOUR TREATMENTS**, measured at 16 worms on a 390x844 phone against a
+     26.8 ms frame with the rings off: **full-disc radial gradient +36.6 ms** (35.4/36.3/38.0),
+     **clipped rim band +20.2**, **2 px line +7.4** (7.5/7.7/6.9). Splitting the middle number is
+     what killed the rim — the **wash alone is +12.6 and the rim alone +18.2**, so the band cost more
+     than the wash it decorated. A gradient rasterises the WHOLE disc and the clip discards the
+     middle; so does `fillRect(2*sight)` inside a clip, the same defect, which cost +9 ms of a 40 ms
+     frame on the first version. Memoising the visibility polygon changed nothing any time — the ray
+     cast has never been the cost here. Culled to the viewport as well. The shipped fill-only version
+     is the cheapest of the four, which is a coincidence rather than an argument: the look decided it.
    - **THE COLOUR IS ASSERTED AS A DIFFERENCE, NOT AN ABSOLUTE.** Soil is warm brown, i.e.
      red-dominant before anything is drawn on it, so "is this pixel reddish?" passes with the
      overlay deleted. `mine-check` renders the same point with the rings on and off and subtracts:
@@ -4917,6 +4926,9 @@ which is the real lift for a landscape-first game.
   ASCII ground map), **`heat-probe.cjs`** (the whole dig-price ladder as one column, plus whether the
   tank ever reads fractional while worms drain — the table is how the `floor`/`ceil` boundary
   inconsistency was caught, which asserting your way to would have taken several rounds),
+  **`wash-probe.cjs`** (what the sensing-range wash does to the soil, swept over colour+alpha pairs
+  — its header carries the table, and the point it makes is that darkening the colour at a fixed
+  alpha costs CONTRAST and half-deletes the overlay),
   and the three perf tools — now four, with **`sight-perf.cjs`** (what the mine's
   always-on sensing rings cost per frame, A/B'd in one page at the 16-worm cap; its header carries
   the three treatments and their numbers) and its companion **`sight-shot.cjs`**, which renders the
@@ -5055,14 +5067,25 @@ which is the real lift for a landscape-first game.
   can rot for weeks, so run them by name after anything that touches a screen they drive.
 - Five checks are unreliable and all five are harness-side, not game-side. Re-run before
   believing any of them. (`turn-play` was a sixth and is fixed — see below.)
-  - **`mine`'s LAST block times out on some runs**, waiting on `#ssMineEnd` — seen once, 178/178 on
-    the run either side of it, same build. Its run-dry loop `break`s the moment a grow is refused,
-    and a colony boxed in by rock stops digging with water still in the tank, so no ending is
-    reached and no end screen appears. Reads as a hang at `tests/mine-check.cjs:1941` with **171
-    assertions passed and none failed** — a truncated tally rather than a failure, which is the tell.
-    Same family as `threat`'s map-roll flakes and the same lever: a fixed seed does not help while
-    the probe digs straight down into whatever that seed put there. If it wants fixing, it should
-    dig in the cheapest legal direction rather than only down.
+  - **`mine`'s run-dry block — FIXED, after the OBVIOUS fix failed too. Worth reading in full.**
+    It timed out waiting on `#ssMineEnd`, with a truncated tally (171 and 178 assertions passed,
+    NONE failed) rather than a failure — a hang, not a break, which is the tell.
+    - **Cause: `mine.grow` digs from the DEEPEST tip while `mineCanGrow` asks the CHEAPEST.** A
+      colony paying 16 a dig down deep can still afford 2 near the surface, on purpose — so a
+      refused dig is not the end of the run, and a loop that `break`s on one bails with the run
+      still ALIVE and no end screen ever built. The doubling price made it far likelier by jumping
+      the deep price to 16 in one step instead of ramping there.
+    - **"Keep digging until `runOver`" — the fix CLAUDE.md already prescribed for the fuel-curve
+      probe — DOES NOT TERMINATE HERE.** A colony walled in below sits refused for ever with water
+      in the tank and the run legitimately alive: measured at **22 digs / 578 refusals, tank 2**.
+      Adding more directions only moves the wall; any fixed set of angles is a bet that one of them
+      is open on every map roll. (Not a player-facing gap — a player drags from ANY strand at ANY
+      angle, and the probe only asks the deepest tip.)
+    - **So the block empties the tank directly** and lets `mineFuelCheck` end the run on its own
+      grace timer. It still digs first, so the ending has a real depth and real ore to report. What
+      this block asserts is the ENDING and the screen's numbers; that a dig charges water is
+      asserted above it, so spending the tank by hand costs no coverage and is deterministic on any
+      map. **When a probe's termination depends on the map, stop driving it through the map.**
   - **`tut`'s real-time assertions fail on some runs** — the starter pile hasn't finished
     digesting when the assertion fires, so it reads "0 offer(s), 50 nutrient left" or a bare
     `null`. Three of its 19 failed on the last sweep, five on an earlier one. **`tutscript` has the

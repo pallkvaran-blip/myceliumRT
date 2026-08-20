@@ -2012,14 +2012,40 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
        `the dig charged ${afterDrag.dug} (tank ${dragged.water} -> ${afterDrag.water}, which pockets and worms also move)`);
 
     // ...run it dry and follow the ending through to the store.
-    await page.evaluate(async () => {
+    //
+    // DIG UNTIL THE RUN ENDS, NOT UNTIL A DOWNWARD DIG IS REFUSED — the same trap CLAUDE.md already
+    // records for the fuel-curve probe, landing on a second site. `mine.grow` digs from the DEEPEST
+    // tip, i.e. the most expensive ground, while `mineCanGrow` asks the CHEAPEST (a colony paying 16
+    // a dig down deep can still afford 2 near the surface, deliberately, so an over-extended player
+    // can crawl sideways toward water). So one refusal is not the end of the run, and breaking on it
+    // left the run ALIVE with no end screen — which surfaces as this block hanging on `#ssMineEnd`
+    // with a truncated tally rather than as a failure. The doubling price made it far likelier by
+    // jumping the deep price to 16 in one step instead of ramping there.
+    const dry = await page.evaluate(async () => {
       const g = window.__game;
-      for (let i = 0; i < 300; i++) {
-        if (g.state.runOver) break;
-        if (!g.mine.grow(0, 1).ok) break;
+      // Dig a while first, so the ending has a real depth and real ore to report...
+      let digs = 0;
+      for (let i = 0; i < 40 && !g.state.runOver; i++) {
+        if (g.mine.grow(0, 1).ok || g.mine.grow(i % 2 ? 0.9 : -0.9, 0.4).ok) digs++;
         if (i % 5 === 4) await new Promise((r) => setTimeout(r, 60));
       }
+      // ...then EMPTY THE TANK and let `mineFuelCheck` end the run on its own grace timer.
+      //
+      // DIGGING UNTIL IT ENDS DOES NOT TERMINATE, and two hangs here proved it. `mine.grow` digs
+      // from the DEEPEST tip while `mineCanGrow` asks the CHEAPEST — a colony paying 16 a dig deep
+      // can still afford 2 near the surface, on purpose — so a colony walled in below sits refused
+      // for ever with water in the tank and the run legitimately ALIVE. One roll read `22 digs /
+      // 578 refusals, tank 2`. Trying more directions only moves the wall; the loop is betting that
+      // some fixed set of angles is open on every map roll, which is not a bet this block needs to
+      // make. What it asserts is the ENDING and the screen's numbers, and that a dig charges water
+      // is already asserted above — so running the tank dry directly tests the real path
+      // (`mineFuelCheck`, its grace window, `presentRunOver`) deterministically on any map.
+      g.state.active.water = 0;
+      for (let i = 0; i < 60 && !g.state.runOver; i++) await new Promise((r) => setTimeout(r, 120));
+      return { digs, over: g.state.runOver, depth: g.mine.depth() };
     });
+    ok('running the tank dry ends the descent', dry.over === true,
+       `over=${dry.over} after ${dry.digs} digs, ${dry.depth} m`);
     await page.waitForSelector('#ssMineEnd', { timeout: 30000 });
     const end = await page.evaluate(() => {
       const r = document.getElementById('ssMineEnd');
