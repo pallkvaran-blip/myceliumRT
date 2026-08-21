@@ -3247,10 +3247,10 @@ const CONFIG = {
       // box must miss the carved channels), so scaling the deep bands UP made them run out of room
       // and land BELOW the shallow ones. Measured: 0.46 / 0.52 / 0.42 / 0.39 against targets that
       // rose the whole way. More, smaller rock packs, which also reads as deep rock being fractured.
-      { theme: 'magnetite',  name: 'Magnetite',  assetsFrom: 'magnetite-c24',  scale: [0.48, 0.92], fill: 0.86 },
-      { theme: 'anthracite', name: 'Anthracite', assetsFrom: 'anthracite-c24', scale: [0.46, 0.86], fill: 0.91 },
-      { theme: 'garnet',     name: 'Garnet',     assetsFrom: 'garnet-c24',     scale: [0.43, 0.80], fill: 0.96 },
-      { theme: 'hematite',   name: 'Hematite',   assetsFrom: 'hematite-c24',   scale: [0.40, 0.74], fill: 1.00 },
+      { theme: 'magnetite',  name: 'Magnetite',  assetsFrom: 'magnetite-c24',  scale: [0.66, 1.12], fill: 1.95 },
+      { theme: 'anthracite', name: 'Anthracite', assetsFrom: 'anthracite-c24', scale: [0.64, 1.06], fill: 2.15 },
+      { theme: 'garnet',     name: 'Garnet',     assetsFrom: 'garnet-c24',     scale: [0.62, 1.02], fill: 2.45 },
+      { theme: 'hematite',   name: 'Hematite',   assetsFrom: 'hematite-c24',   scale: [0.62, 1.02], fill: 2.90 },
     ],
     // THE SOIL COLOUR PER DEPTH LEVEL — one entry per band, `top` at its ceiling and `bot` at its
     // floor, so the ground ramps gently through a band and CHANGES at the crossing. The owner's
@@ -3332,8 +3332,8 @@ const CONFIG = {
     // was not an aesthetic choice, it was how a chunked world guaranteed connectivity with no
     // cross-chunk state (every chunk carves the same rows, so galleries meet at the seams). Break it
     // and sealed pockets appear, which was previously the one thing the carve could not do.
-    gallerySeg: [6, 13],
-    galleryGap: [6, 13],
+    gallerySeg: [8, 16],
+    galleryGap: [5, 11],
     // ...AND VERTICAL LINKS, which are what stop the maze being a set of disconnected shelves. Short
     // passages between one gallery row and the next, at random columns — several per gap rather than
     // the single shaft, so moving down has CHOICES and some of them are wrong. A maze is defined by
@@ -3344,6 +3344,23 @@ const CONFIG = {
     // Kept modest: every one of these is fuel spent for no return, and the run is already on a clock.
     deadEndsPerBand: 2,
     deadEndCells: [4, 9],
+    // ...AND THE WALLS. `plugsPerChunk` closes ground that was already carved, which is the only way
+    // this generator can express a corridor that is BLOCKED rather than one that was never dug — see
+    // the plug pass in `mineGenerateChunk`. Segmenting alone left connectivity at ~99.7%: shorter
+    // corridors, but never a route you cannot get past. This is the knob for "less measured
+    // connectivity"; the spine and the head are exempt, so the run is always playable.
+    plugsPerChunk: 26,
+    // HOW OFTEN A GALLERY IS WALLED AT A SEAM, per side — see the seam note in `mineGenerateChunk`.
+    // Each neighbour decides its own side, so the effective rate is roughly double this.
+    //
+    // KEPT LOW, AND MEASURED DOWN FROM 0.55: this was meant to be the "less measured connectivity"
+    // knob and it is not one. Raising it 0.4 -> 0.55 -> 0.8 moved connectivity by **0.1 of a point**
+    // (98.5% -> 98.6%) while cutting LATERAL TRAVEL roughly in half — twelve digs reached 775 left
+    // and 673 right against 1348 and 2076 before. That is the owner's original bug report coming
+    // back ("it's not letting me grow to the left or right") and it is the direction Phase 3's
+    // journey east has to run in, so it is close to the worst thing to spend for nothing. What
+    // actually made the map read as a maze was DENSITY and the plugs; this stays low.
+    gallerySealChance: 0.12,
     // The corridors NARROW WITH DEPTH, and that is where the banding the owner asked for actually
     // bites: a deeper band is the same rock library at a tighter squeeze, which is a thing the player
     // feels, where a `fill` number they cannot see is not. Radii are in CELLS; growth needs a corridor
@@ -21615,6 +21632,11 @@ function mineGenerateChunk(state, ci) {
   // `onRoute` is WIDER than the carve, and it is what keeps the rewards off the way through — a seam
   // one cell off a corridor's edge is on the route for anything with a 25.5-unit segment.
   const onRoute = new Uint8Array(W * rows);
+  // Ground the plug pass must leave alone: the descent spine and the head. See the plug pass below.
+  const noPlug = new Uint8Array(W * rows);
+  // ...and the ground it should PREFER: the vertical connectors. See the plug pass for why targeting
+  // them is the only thing that moves connectivity.
+  const vertCell = new Uint8Array(W * rows);
   const markRoute = (c, r, rad) => {
     const k = Math.ceil(rad), r2 = rad * rad;
     for (let dr = -k; dr <= k; dr++)
@@ -21656,8 +21678,23 @@ function mineGenerateChunk(state, ci) {
   // Which rows each gallery actually left open, per column — the vertical links below need somewhere
   // real to start and end, and after segmenting "the gallery row" is no longer a safe answer.
   const galleryAt = galleryRows.map(() => new Int16Array(W).fill(-1));
+  // SEALING A SEAM IS WHAT ACTUALLY CUTS CONNECTIVITY, and nothing else here does. Segmenting the
+  // galleries and then plugging corridors got cover to 35% and left the world **99.4% connected**,
+  // which is the measurement that says why: every gallery row that reaches both seams is a corridor
+  // spanning the WHOLE world, because each chunk carves the same rows and they meet by construction.
+  // Those crossings are the articulation points. A plug in the middle of a segment only shortens it;
+  // a gap over a seam separates two chunks at that row.
+  //
+  // Decided per gallery PER SIDE, and derived from the chunk's own rng, so the same chunk re-entered
+  // later seals the same way. Note the neighbour decides its own side independently: a seam sealed
+  // from one side is sealed, and a row open on both sides is a genuine through-route. That asymmetry
+  // is fine — it is the same wall either way — and it doubles the effective seal rate, which is why
+  // `gallerySealChance` is well under a half.
+  const sealCh = Math.max(0, Math.min(0.95, +M.gallerySealChance || 0));
+  const SEAM_W = 3;               // how many columns at a seam a seal covers
   for (let gi = 0; gi < galleryRows.length; gi++) {
     const gr = galleryRows[gi];
+    const sealL = rng() < sealCh, sealR = rng() < sealCh;
     let r = gr;
     let c = c0;
     // Start on a random phase so every gallery does not begin its first wall at the same column,
@@ -21665,8 +21702,14 @@ function mineGenerateChunk(state, ci) {
     let run = Math.max(1, Math.round(rf(seg[0], seg[1]) * rf(0.3, 1)));
     let solid = false;
     while (c <= c1) {
+      // A sealed side is simply not carved. The corridor runs up to `SEAM_W` short of the seam and
+      // stops, so what the neighbour meets there is rock — a clean wall, never a corridor that
+      // continues one cell out of line, which is the confusing case the seam pin exists to prevent.
+      const inSealL = sealL && (c - c0) < SEAM_W;
+      const inSealR = sealR && (c1 - c) < SEAM_W;
+      if (inSealL || inSealR) { c++; continue; }
       if (!solid) {
-        const nearSeam = (c - c0) < 2 || (c1 - c) < 2;
+        const nearSeam = (c - c0) < SEAM_W + 2 || (c1 - c) < SEAM_W + 2;
         if (nearSeam) r = gr;
         else if (rng() < 0.22) r = clamp(r + (rng() < 0.5 ? -1 : 1), Math.max(1, gr - 2), Math.min(rows - 2, gr + 2));
         carve(c, r, radAt(M.galleryRadius, r));
@@ -21712,6 +21755,15 @@ function mineGenerateChunk(state, ci) {
       if (!vSolid) {
         carve(col, r, radAt(M.shaftRadius, r));
         markRoute(col, r, 4.0);
+        // THE SPINE IS RECORDED SO THE PLUG PASS CANNOT WALL IT OFF. It is the only guaranteed route
+        // from the surface to the floor, so a plug landing on it does not make a maze — it makes an
+        // unplayable run, and one that looks identical to a playable one.
+        if (!spine) vertCell[at(col, r)] = 1;
+        if (spine) {
+          const k = 3;
+          for (let dr = -k; dr <= k; dr++) for (let dc = -k; dc <= k; dc++)
+            if (inChunk(col + dc, r + dr)) noPlug[at(col + dc, r + dr)] = 1;
+        }
       }
       if (!spine && --vRun <= 0) {
         vSolid = !vSolid;
@@ -21721,7 +21773,15 @@ function mineGenerateChunk(state, ci) {
       // BOUNDED AROUND ITS HOME COLUMN. Unbounded (`clamp(col + dir, c0 + 1, c1 - 1)`) a ±1 walk
       // over 168 rows drifts right across the chunk, so a "shaft" erodes most of its width and the
       // solid slabs the rock needs never exist. ±4 keeps it a shaft that leans.
-      col = clamp(col + dir, Math.max(c0 + 1, home0 - 4), Math.min(c1 - 1, home0 + 4));
+      //
+      // THE SPINE IS HELD MUCH STRAIGHTER (±1), and that is what lets the rock get heavy. `mine.grow`
+      // digs from the DEEPEST tip, so on a ±4 shaft a straight-down dive drifts off the spine into
+      // rock and spends the rest of the tank dodging — measured as seed 11 reaching 24 m against
+      // seed 909's 45 on the same build and tank, which is a spread no `startWater` can be tuned
+      // against. Held to ±1 a dive stays in the one corridor that is guaranteed to go all the way
+      // down, so depth-per-dig stops depending on the roll and density becomes a knob again.
+      const lean = spine ? 1 : 4;
+      col = clamp(col + dir, Math.max(c0 + 1, home0 - lean), Math.min(c1 - 1, home0 + lean));
     }
   }
   // --- vertical links: the maze's junctions ---------------------------------
@@ -21751,6 +21811,7 @@ function mineGenerateChunk(state, ci) {
       for (let r = Math.min(rA, rB); r <= Math.max(rA, rB); r++) {
         carve(cc, r, radAt(M.galleryRadius, r));
         markRoute(cc, r, 3.2);
+        if (inChunk(cc, r)) vertCell[at(cc, r)] = 1;
         // A LINK LEANS RATHER THAN DROPPING STRAIGHT. A plumb line reads as a manufactured chute and,
         // stacked over four bands, as a second grid; ±1 with a hard bound keeps it a passage.
         if (rng() < 0.35) cc = clamp(cc + (rng() < 0.5 ? -1 : 1), Math.max(c0 + 1, col - 2), Math.min(c1 - 1, col + 2));
@@ -21765,6 +21826,9 @@ function mineGenerateChunk(state, ci) {
       for (let c = home - 5; c <= home + 5; c++) if (inChunk(c, r)) { open[at(c, r)] = 1; onRoute[at(c, r)] = 1; }
     const firstGallery = galleryRows.length ? galleryRows[0] : 6;
     for (let r = 0; r <= firstGallery; r++) { carve(home, r, 1.8); markRoute(home, r, 4.0); }
+    // The head is never plugged either — it is the mouth of the spine.
+    for (let r = 0; r <= firstGallery + 2; r++)
+      for (let c = home - 7; c <= home + 7; c++) if (inChunk(c, r)) noPlug[at(c, r)] = 1;
   }
 
   // --- the rewards, at the end of a SPUR ------------------------------------
@@ -21819,7 +21883,7 @@ function mineGenerateChunk(state, ci) {
   // the only way to ask why a chunk came out the way it did once it is on screen. `bbox` / `target`
   // are the rock loop's own arithmetic: a chunk that failed to reach its band targets and one that
   // reached them and still looks thin are different bugs, and the drawn mask cannot tell them apart.
-  const placed = { rocks: 0, ore: 0, water: 0, worms: 0, clouds: 0,
+  const placed = { rocks: 0, ore: 0, water: 0, worms: 0, clouds: 0, stranded: 0, plugged: 0,
                    cells: 0, open: 0, bbox: null, target: null, closed: null };
   const spots = [];
   const orePer = M.orePerPile;
@@ -21862,12 +21926,91 @@ function mineGenerateChunk(state, ci) {
     }
   }
 
+  // NOTE ON ORDER: this runs AFTER the reward spurs and the dead ends, and that is a correctness
+  // requirement rather than a preference. `carveSpur` opens ground without asking what was there, so
+  // with the plugs laid first a spur could tunnel straight through one and quietly re-open it —
+  // measured as connectivity refusing to budge off 99.3% however many plugs were set. Running last
+  // also means a plug can wall off a reward, which is now the point: a sealed seam is content for
+  // the rock-eating consumables, not a bug.
+  // --- plugs: the walls that make it read as a maze -------------------------
+  // CLOSED CORRIDORS (owner: "they don't read properly like a maze yet. we need some closed
+  // corridors. less measured connectivity. yes fine that some areas are only reachable with
+  // upgrades"). Segmenting the galleries got the SHAPE right and left connectivity at ~99.7%,
+  // because a segment that reaches a seam still joins its neighbour's and the links rejoin the rest.
+  // Breaking the structure further only made corridors shorter; it did not make any of them a
+  // dead end you cannot get past.
+  //
+  // So this closes ground that was already carved: pick corridor cells and put the rock back. A plug
+  // is a WALL ACROSS A PASSAGE, which is the one thing the carve could not previously express — the
+  // corridor still runs up to it and stops, so what the player meets is a route that is blocked
+  // rather than a route that was never dug. That is what reads as a maze.
+  //
+  // IT RUNS AFTER EVERYTHING ELSE IS CARVED, and it has to: plugging before the links would let a
+  // link be carved straight back through the plug, and plugging before the spine was recorded would
+  // let the descent route be walled off. `noPlug` protects the spine and the head; nothing else is
+  // sacred, which is the point.
+  const plugSpots = [];
+  const plugN = Math.max(0, (M.plugsPerChunk | 0));
+  if (plugN) {
+    // Only ON-ROUTE ground is plugged — the galleries, links and shafts. A spur is a dead end
+    // already, so walling one adds nothing a player can tell apart from the rock beside it.
+    // TWO POOLS, AND THE FIRST ONE IS THE WHOLE POINT. Plugging uniformly over the corridors barely
+    // moves connectivity — measured at 45 plugs a chunk closing ~470 cells and taking the world from
+    // 99.2% connected to 98.5% — because a maze stays connected unless you cut an ARTICULATION point,
+    // and a random cell mid-gallery almost always has a way round. The vertical connectors (the
+    // links, and the broken shafts outside the home chunk) are the articulation points: they are the
+    // only things joining one gallery level to the next, so closing one isolates whatever hung off it.
+    const vert = [], flat = [];
+    for (let r = 3; r < rows - 2; r++)
+      for (let c = c0 + 1; c <= c1 - 1; c++) {
+        const i = at(c, r);
+        if (!open[i] || !onRoute[i] || noPlug[i]) continue;
+        (vertCell[i] ? vert : flat).push(i);
+      }
+    for (let k = 0; k < plugN && (vert.length || flat.length); k++) {
+      // Weighted toward the connectors while any remain, but never exclusively: a map whose only
+      // walls are at the junctions reads as a set of floors with the stairs removed, where the
+      // gallery plugs are what make a corridor itself dead-end.
+      const useVert = vert.length && (!flat.length || rng() < 0.85);
+      const pool = useVert ? vert : flat;
+      const pick = pool[ri(pool.length)];
+      const pr = Math.floor(pick / W), pc = (pick % W) + c0;
+      if (noPlug[at(pc, pr)]) continue;
+      // A plug has to be WIDER THAN THE CORRIDOR IT CLOSES or growth simply steps around it: a
+      // corridor is ~2.5 cells across and a growth segment is 25.5 units against a 36-unit cell,
+      // so a one-cell wall is a gap. 2.4 cells of radius seals a gallery and reads as a rock mass
+      // sitting in the passage rather than as a suspiciously neat door.
+      const rad = 2.4, kk = Math.ceil(rad), r2 = rad * rad;
+      plugSpots.push({ c: pc, r: pr, rad });
+      for (let dr = -kk; dr <= kk; dr++)
+        for (let dc = -kk; dc <= kk; dc++) {
+          if (dc * dc + dr * dr > r2) continue;
+          const cc = pc + dc, rr = pr + dr;
+          if (!inChunk(cc, rr)) continue;
+          const j = at(cc, rr);
+          if (noPlug[j]) continue;          // never eat into the spine, even at a plug's edge
+          if (open[j]) placed.plugged = (placed.plugged | 0) + 1;
+          open[j] = 0;
+        }
+    }
+  }
+
   // --- the connectivity sweep, chunk-local ---------------------------------
   // Carving guarantees the ROUTES but not the rewards: a water pocket carved across the neck of
   // something can sever what is beyond it, which cost an unreachable ore seam on the fixed-width
   // build (19 of 20 on one seed). Flood the carve MINUS the water from the galleries at both seams —
-  // the cells every neighbour is guaranteed to meet — and drop anything stranded. Dropping rather
-  // than moving: a reward you can see and cannot reach is worse than one that is not there.
+  // the cells every neighbour is guaranteed to meet — and see what is stranded.
+  //
+  // IT NO LONGER DROPS WHAT IT FINDS, AND THE OWNER'S RULE IS WHY: *"yes fine that some areas are
+  // only reachable with upgrades."* This used to delete a stranded reward, on the reasoning that "a
+  // reward you can see and cannot reach is worse than one that is not there" — and that reasoning
+  // was right only while there was no way to ever reach it. With the rock-eating consumables coming,
+  // a sealed seam is CONTENT: the pocket is carved, so its ore is drawn, so it is visible bait
+  // sitting behind a wall, which is the best thing a maze can offer a player who has just seen the
+  // store. Deleting it would have quietly removed the reason to buy anything.
+  //
+  // It is still COUNTED (`placed.stranded`), because the number is the difference between a maze with
+  // some locked content and a map whose economy has silently fallen through the floor.
   {
     const water = new Uint8Array(W * rows);
     for (const sp of spots) {
@@ -21894,7 +22037,9 @@ function mineGenerateChunk(state, ci) {
           if (inChunk(sp.c + dc, sp.r + dr) && seen[at(sp.c + dc, sp.r + dr)]) return true;
       return false;
     };
-    for (let i = spots.length - 1; i >= 0; i--) if (!reach(spots[i])) spots.splice(i, 1);
+    let stranded = 0;
+    for (const sp of spots) if (!reach(sp)) { sp.stranded = true; stranded++; }
+    placed.stranded = stranded;
   }
 
   // --- stamp the rewards into the LIVE substrate ---------------------------
@@ -21921,7 +22066,7 @@ function mineGenerateChunk(state, ci) {
   // `OVERLAP` is how much ALREADY-COVERED ground a new sprite may sit on, and it wants to be high:
   // a boulder's alpha fills ~35% of its box, so filling a slab means OVERLAPPING boxes whose alphas
   // union — spacing them out leaves the soil showing between them, which is the look this had.
-  const OVERLAP = 0.88;
+  const OVERLAP = 0.94;
   const libFor = (b) => (MINE_ROCKS[bands[b].theme] || []);
   const bandCover = new Array(bands.length).fill(0);
   // `fill` IS A SHARE OF THE CLOSED GROUND, NOT OF THE BAND. Against the whole band, three of the
@@ -22022,6 +22167,37 @@ function mineGenerateChunk(state, ci) {
         done = true;
       }
     }
+  }
+  // A PLUG NEEDS ITS OWN SPRITE, and without one it is not a wall at all. The lattice loop above
+  // refuses any sprite whose whole bounding box sits in closed ground, which is right for slabs and
+  // wrong for a plug: a plug is a ~5-cell disc with corridor on both sides, so nothing large enough
+  // to seal it can ever fit the test, and the cell stayed CLOSED IN THE CARVE BUT PASSABLE ON THE
+  // MAP. Collision comes from sprite alpha, not from `open` — which is why 236 plugged cells a chunk
+  // moved the measured connectivity by 0.1 point and the walls could be walked straight through.
+  //
+  // Placed here rather than in the pass that cuts them because `libAtRow` and the band tables live
+  // in this scope, and because a plug must be able to overlap its neighbours' boxes freely — the
+  // `OVERLAP` budget is about filling slabs and has no business vetoing a wall.
+  for (const p of plugSpots) {
+    const { b, lib } = libAtRow(p.r);
+    if (!lib.length) continue;
+    const src = lib[ri(lib.length)];
+    // Sized to the plug and a little over, so the alpha (which fills ~35% of its own box) actually
+    // spans the corridor rather than leaving a gap at each shoulder.
+    const want = (p.rad * 2 + 1.6) * cs;
+    const sc = want / Math.max(src.w, src.h);
+    const w = src.w * sc, h = src.h * sc;
+    const x = (p.c + 0.5) * cs, y = sub.surfaceY + (p.r + 0.5) * cs;
+    if (x - w / 2 < x0World || x + w / 2 > x1World) continue;
+    if (y - h / 2 < sub.surfaceY + cs * 0.5 || y + h / 2 > contentBottom) continue;
+    sub.levelSprites.push({ key: src.k, style: 'boulder', x: +x.toFixed(1), y: +y.toFixed(1),
+                            w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
+    placed.rocks++;
+    const bc0 = Math.floor((x - w / 2) / cs), bc1 = Math.floor((x + w / 2) / cs);
+    const br0 = Math.floor((y - h / 2 - sub.surfaceY) / cs), br1 = Math.floor((y + h / 2 - sub.surfaceY) / cs);
+    for (let rr = br0; rr <= br1; rr++)
+      for (let cc = bc0; cc <= bc1; cc++)
+        if (inChunk(cc, rr) && !taken[at(cc, rr)]) { taken[at(cc, rr)] = 1; bandCover[b]++; }
   }
   for (let i = 0; i < open.length; i++) if (open[i]) placed.open++;
   placed.cells = W * rows;
@@ -35127,6 +35303,10 @@ function begin(newState) {
         return out;
       },
       creditMat: (id, n) => { const o = {}; o[id] = n | 0; addMats(o); return matBalance(id); },
+      // `addMats` clamps negatives away (it is the banking path), so SPENDING needs its own door —
+      // the same split `addSpores`/`takeSpores` already has. A check that needs a wallet to be short
+      // has to be able to empty it.
+      takeMat: (id, n) => takeMats(id, n),
       credit: (n) => addSpores(n),
       reset: () => resetProgress(),
       speciesById: (id) => SPECIES.find((s) => s.id === id) || null,

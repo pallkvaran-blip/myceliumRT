@@ -3275,6 +3275,81 @@ Four changes, and they trade against each other, so **read the numbers before to
 - **The radii floor at 1.15 is not style.** It is the width a 25.5-unit growth segment needs to pass
   at all; below it a corridor is a wall that looks like a corridor.
 
+**ROUND TWO: "THEY DON'T READ PROPERLY LIKE A MAZE YET. WE NEED SOME CLOSED CORRIDORS. LESS MEASURED
+CONNECTIVITY."** Segmenting the galleries got the shape right and the map still read as boulders in
+soil. Four findings, in the order they cost time — **read these before touching the carve again**:
+
+- **THE COMPLAINT WAS DENSITY, AND THE NUMBERS SAID SO ALL ALONG.** At 32% solid, 83% of the ground
+  was *meant* to be rock and only 32% actually blocked: the colony threads between boulders, so open
+  ground was the rule and passages did not exist. **`open` (the carve) and the FINE MASK (the drawn
+  alpha) are different numbers, and the gap between them is the whole bug.** Compare them first.
+- **`fill` CAN EXCEED 1 AND THAT IS THE LEVER I WRONGLY CALLED SATURATED.** It is a share of the
+  CLOSED ground, so >1 means overlapping boxes whose alphas union into continuous wall — a boulder's
+  alpha is only ~35% of its box, which is why one layer never seals. Shipped 1.95-2.90 by band.
+- **...BUT `OVERLAP` IS WHAT ACTUALLY BINDS IT.** With `OVERLAP` 0.88 the loop refuses a sprite
+  sitting on mostly-covered ground, so bbox saturates near 100% of closed ground and raising `fill`
+  does nothing (targets hit 0.36-0.49 and cover stuck at ~100%). **Raising OVERLAP is how density
+  moves, and it is paid for in sprites and fill-rate**: 1.01 gave **63% solid, 94.6% connected,
+  genuinely walled-in ore — and 12,288 sprites at 38 ms against ~10**. Shipped 0.94.
+- **A PLUG NEEDS ITS OWN SPRITE OR IT IS NOT A WALL.** `plugsPerChunk` closes carved corridor cells,
+  which is the only way this generator can say "blocked" rather than "never dug". But the lattice rock
+  loop refuses any sprite whose whole bbox is in closed ground, and a plug is a ~5-cell disc with
+  corridor either side — so nothing that could seal it ever fit, and **236 plugged cells a chunk moved
+  connectivity by 0.1 of a point** while the walls could be walked straight through. Each plug now gets
+  a guaranteed sprite sized to span it, placed in the rock loop's scope (where `libAtRow` lives).
+  - **ORDER MATTERS: plugs run AFTER the reward spurs and dead ends.** `carveSpur` opens ground
+    without asking, so plugs laid first were quietly tunnelled back open.
+  - Plugs are weighted **0.85 toward the vertical connectors** (links, and the broken shafts outside
+    the home chunk), because those are the ARTICULATION points — a random cell mid-gallery almost
+    always has a way round. Control: plugs off reads 33.1% open / 35.9% solid against 26.1% / 44.3%.
+
+**TWO KNOBS THAT LOOK RIGHT AND ARE TRAPS:**
+
+- **`gallerySealChance` IS NOT A CONNECTIVITY KNOB.** Walling galleries at chunk seams *sounds* like
+  the way to separate regions. Raising it 0.4 → 0.55 → 0.8 moved connectivity by **0.1 of a point**
+  (98.5% → 98.6%) and **halved lateral travel** — twelve digs reached 775 left / 673 right against
+  1348 / 2076. That is the owner's original bug report coming back ("it's not letting me grow to the
+  left or right") *and* the direction Phase 3's journey east runs in. Held at 0.12.
+- **DENSITY MUST COME FROM THE SLABS, NOT FROM CARVING FEWER CORRIDORS.** Widening `galleryGap` to
+  [12,26] got solid to 49% and took lateral travel to **490 units**. Corridors are the maze; slabs are
+  the walls. Gaps are back at [5,11] and the density comes from `fill`/`OVERLAP`.
+
+**THE SHAPE THAT RESOLVES IT IS ASYMMETRIC: long east-west corridors, scarce north-south links.**
+That is a maze *and* it suits a game about journeying east while descending. Lateral routes stay
+mostly continuous; the plugs fall on the ways DOWN, so finding the descent is the puzzle.
+
+**SHIPPED, MEASURED:** 26.1% open, **44.3% solid** (from 38.0% / 29.2%), 2 of 24 ore seams and 1 of 12
+pockets **walled in as upgrade-gated content**, descent intact at 167 m of 168.
+
+- **THE STRAIGHT SPINE IS WHAT MADE DENSITY TUNABLE AT ALL.** `mine.grow` digs from the DEEPEST tip,
+  so on a ±4 leaning shaft a straight dive drifts off the spine into rock and spends the tank dodging
+  — seed 11 read **24 m against seed 909's 45** on the same build and tank, a spread no `startWater`
+  could be tuned against. Held to ±1 the dive reads **82 m and 71 m**. Any future density change
+  depends on this.
+- **THE COST IS RENDER FILL: ~27 ms against ~10 ms baseline** (mine-probe, two runs each, software
+  raster — not a phone number). It is inherent to the mechanism: unioning alphas means stacking
+  sprites, and every overlapping sprite pays full destination fill. **`perf-probe` cannot measure
+  this — it boots the procedural map, not the mine.** If a phone struggles, the dial-back order is
+  `OVERLAP` first, then the band `fill` tables.
+- **`amputateCharges` MAY NOW BE TOO SMALL: two doses left 28 strands rotten** on a dense map, because
+  narrower passages pack the colony tighter and one breach claims more of it. The mechanism assertion
+  stocks its own bag so it tests the mechanism; **the balance question is the owner's.**
+
+**FOUR ASSERTIONS CHANGED, AND TWO WERE MEASURING A QUANTITY THAT NO LONGER VARIES:**
+
+- `'the rock loop met its band targets'` → **`'packed the ground full'`**. `fill` above 1 is a "keep
+  packing" instruction, not a target, so "did it hit its target" has no meaningful answer.
+- `'rock closes in with depth'` now reads the **drawn mask per band, not bbox** (bbox saturates
+  everywhere, so the trend vanished and it failed at `1.03 / 1.033 / 1.018 / 0.974`). **Band 3 is
+  excluded and the reason is structural**: a sprite must fit inside `contentBottom`, so the last
+  sprite-height of the map cannot be filled however high its `fill` goes.
+- `'every ore seam is reachable'` → **`'most ore seams are reachable, and the rest are gated'`**. The
+  generator no longer DELETES what its sweep finds stranded — a sealed seam is visible bait for the
+  rock-eating consumables, and deleting it would have removed the reason to buy them.
+- The lateral bound went **900 → 650 units**. What it really guards is the broken value, **430**; a
+  phone frame is ~460 world units, so 650 is still clear of the starting frame. If it drops toward 430
+  the carve has gone too far, and the lever is `fill`, not this bound.
+
 **CONNECTIVITY IS NO LONGER BY CONSTRUCTION, AND TWO ASSERTIONS CHANGED TO SAY SO.**
 `'...and essentially no open ground is walled off'` (`connectedFrac > 0.97`) is now
 `'...and most of the shaft is still one connected space'` (`> 0.8`) — a maze with no sealed ground is
