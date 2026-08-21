@@ -1122,7 +1122,11 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
       s.active.water = 999999;
       // Get well past the limit first.
-      await window.__digTo(70, 140);
+      // 140 -> 700 ITERATIONS. Its subject is PRICING and it was reading `charged 2 at 28 m`, i.e.
+      // failing because it never reached the first price line. With no reserved corridor a descent
+      // spends many digs working around rock — the band-beat probe reaches 141 m on the same map given
+      // the iterations, so the depth is there and 140 was simply not enough of them.
+      await window.__digTo(70, 700);
       await new Promise((r) => setTimeout(r, 900));
       const depth = g.mine.depth(), price = g.mine.costHere();
       const before = s.active.nodes.length, w0 = s.active.water;
@@ -1174,15 +1178,23 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       // reading by nothing and looked like the track being worthless. When down is blocked a player
       // goes SIDEWAYS and tries again; so does this, bounded so a genuinely sealed pocket still ends
       // the loop.
+      // A TANK BIG ENOUGH THAT *HEAT* IS THE LIMIT. On the opening 84 this dive is geometry-bound
+      // short of the first price line, so the track cannot show anything and the reading was
+      // `28 m -> 28 m` whatever it did. Whether the OPENING tank clears band 2 is the fuel-curve
+      // block's question, asked there. `blocked` also had to stop counting successful sideways digs
+      // against itself — 14 of them ended the dive with half the tank unspent.
+      s.active.water = 600;
       let digs = 0, blocked = 0;
-      for (let i = 0; i < 220 && s.active.water >= g.mine.cheapest() && !s.runOver; i++) {
+      for (let i = 0; i < 400 && s.active.water >= g.mine.cheapest() && !s.runOver; i++) {
+        const d0 = g.mine.depth();
         const dx = window.__aimDown();
-        if (dx !== null && g.mine.grow(dx, 1).ok) { digs++; blocked = 0; }
+        if (dx !== null && g.mine.grow(dx, 1).ok) { digs++; if (g.mine.depth() > d0) blocked = 0; else blocked++; }
         else {
-          if (!g.mine.grow(blocked % 2 ? 1.6 : -1.6, 0.35).ok) { if (++blocked > 8) break; }
-          else { digs++; blocked++; }
-          if (blocked > 14) break;
+          const side = (Math.floor(blocked / 4) % 2) ? 1 : -1;
+          if (g.mine.grow(side * 2.2, blocked > 16 ? -0.5 : 0.12).ok) digs++;
+          blocked++;
         }
+        if (blocked > 90) break;
         if (i % 4 === 3) await new Promise((r) => setTimeout(r, 70));
       }
       return { digs, depth: g.mine.depth(), safe: g.mine.heat().safe };
@@ -1747,8 +1759,13 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     // engine announces the band it ARRIVED in, so a two-band jump legitimately shows one beat; in
     // real play a dig is ~4 m against a 42 m band and that cannot happen, which is why the probe
     // has to dig at something like a player's pace rather than the check widening its expectation.
+    // AIMS (see `__digTo`/`__aimDown`). Digging blindly reached 78 m and so crossed ONE band
+    // boundary, which read as "a beat fires for every band below the first" failing while the beats
+    // were working perfectly. Blind descent stopped being viable when the reserved shaft went.
+    await window.__digTo(M.bandRows * M.bands.length - 4, 900);
     for (let i = 0; i < 260 && g.mine.depth() < M.bandRows * M.bands.length - 4; i++) {
-      g.mine.grow(0, 1);
+      const dxb = window.__aimDown();
+      g.mine.grow(dxb === null ? 0 : dxb, 1);
       await new Promise((r) => setTimeout(r, 34));
     }
     await new Promise((r) => setTimeout(r, 600));

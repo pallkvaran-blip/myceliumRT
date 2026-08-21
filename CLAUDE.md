@@ -3344,6 +3344,42 @@ copying:
   everything and the run ENDED mid-probe — which is what `...with the descent still alive` was
   reporting. It descends and spreads first now.
 
+**AND THE CORRIDOR HAD TO GO ENTIRELY — a snaking one is still a corridor.** Reported twice: first
+*"a vertical line from where the colony starts, straight down, that is totally void of rocks"*, then,
+after the shaft was made to wander, *"that corridor is still there, just not directly below the colony
+anymore."* Rock is only placed where the carve left ground CLOSED, so ANY reserved full-depth shaft is
+a guaranteed rock-free line down the map, however it is shaped.
+
+- **THE FIRST FIX MEASURED AS A FIX AND WAS NOT.** Making the shaft wander took the start column from
+  0 of 168 rows of rock to 47-69, which looks conclusive — and the corridor was untouched, just moved.
+  **`tests/void-probe.cjs` is the metric that sees it**: the longest DESCENDING channel at least 3
+  cells wide. A per-column run cannot see a snaking chute (it read the same 61 rows before and after),
+  and an any-width descending path reads 168 on any solvable map. Committed as a probe because the
+  defect was invisible in a diff twice.
+- **THERE IS NO RESERVED SPINE NOW.** Every shaft is broken like the galleries, and the descent
+  guarantee moved to a **flood-and-repair pass** at the end of the carve: flood from the head, and if
+  the floor is unreachable open the shortest connector toward existing passage, repeat. It opens
+  14-17 short connectors on the home chunk and nothing anywhere else, and they read like any other
+  passage. That is the difference between RESERVING a route and CHECKING there is one.
+- Measured: wide descending channel **168 → 44-79 of 168 rows** across three seeds, density unchanged
+  at 45% solid, the floor still reachable, lateral travel 740 → **1680 units**.
+- **REPAIR CONNECTORS MUST BE FOLLOWABLE, NOT MERELY PASSABLE** (radius 1.7). At 1.35 a greedy descent
+  could not thread them and sat at 25 m on a full tank while the pass had certified a route to the
+  floor.
+
+**FOUR PROBES WERE NAVIGATING BY THAT CHUTE**, and the fixes generalise — `__aimDown` LOOKS BEFORE
+DIGGING (scoring each ray on `solidAtWorld`, which is free, instead of paying a dig per attempt), and
+`__digTo` TRAVELS along the wall when blocked and backs UP when boxed in, because a greedy walk sees
+one grow ahead and enters pockets whose only exit is upward.
+
+**STILL OPEN, AND IT IS A DESIGN QUESTION RATHER THAN A PROBE ONE: A COLONY CAN BOX ITSELF IN.** Three
+assertions on SHARED pages sit at hard ceilings — 28 m on **98 digs**, and 78 m — where earlier blocks
+had already spread the colony. Fuel is not the limit and iterations are not the limit; that tissue
+simply cannot reach anything new. The fuel curve itself is healthy (both seeds clear band 2 on the
+opening tank, 54 m and 64 m), so this is not the run-1 economy. What it says is that at 45% solid a
+colony can dig itself into a pocket it cannot leave, which the rock-eating consumables would answer
+and nothing currently does. Do not "fix" it by relaxing those three; they are reporting something.
+
 **TWO KNOBS THAT LOOK RIGHT AND ARE TRAPS:**
 
 - **`gallerySealChance` IS NOT A CONNECTIVITY KNOB.** Walling galleries at chunk seams *sounds* like

@@ -3294,7 +3294,13 @@ const CONFIG = {
     // most of a dense band dodging. Measured across three seeds at 30 water, a straight dive that
     // found no fuel stopped at 40-45 m — inside band 1, with nothing having happened yet. At 44 it
     // reaches the low 60s, which is band 2, which is where the worms start.
-    startWater: 44,
+    // 44 -> 84, AND THE REASON IS THE ROCK AGAIN, not the tank — the third time this lever has moved
+    // for that reason (20 -> 30 -> 44 -> 84). Removing the reserved descent corridor roughly halved
+    // depth-per-dig: an aimed dive now buys ~1.1-1.6 m where a corridor bought 2.5-4, so 44 water (22
+    // digs) reached 25-35 m against a 42 m first band. What makes raising it SAFE this time is that
+    // aiming normalised the seed spread from 3.6x (25 m vs 68 m) to 1.4x, so one number can serve
+    // both tails; at 44 the worst seed needed a tank the best seed would have ridden to the floor.
+    startWater: 84,
     // ---- the carve, per chunk ----------------------------------------------
     // GALLERIES AT FIXED ROWS ARE WHAT MAKES A CHUNKED WORLD CONNECTED WITHOUT ANY CROSS-CHUNK STATE.
     // Every chunk carves a lateral corridor spanning its full width at the same rows as every other
@@ -21732,40 +21738,34 @@ function mineGenerateChunk(state, ci) {
     // galleries were segmented, that full-width corridor guaranteed the head met the shaft wherever
     // the shaft happened to be. It no longer does — the first gallery can be solid at `home` — so
     // without this a seed can seal the colony into the top three rows and the run is over before it
-    // starts, with nothing on screen to say why. Descent has to be structural, not probabilistic.
+    // starts, with nothing on screen to say why.
+    //
+    // THERE IS NO RESERVED SPINE ANY MORE, and that is the third and last version of this. A full-
+    // depth shaft — plumb OR snaking — is a CONTINUOUS ROCK-FREE CORRIDOR running the whole map,
+    // because rock is only placed where the carve left ground closed. Making it wander only moved it:
+    // *"that corridor is still there, just not directly below the colony anymore."* A snaking corridor
+    // is still a corridor.
+    //
+    // The descent guarantee does not need a corridor, it needs a PATH TO EXIST — and a path made of
+    // ordinary gallery segments, links and short vertical runs is indistinguishable from the rest of
+    // the maze. So every shaft is now broken like the galleries, and the guarantee moved to a
+    // flood-and-repair pass at the end of the carve (`mineEnsureDescent` below) which opens only the
+    // short connectors a real blockage needs. That is the difference between reserving a route and
+    // checking there is one.
     const atHome = sI === 0 && c0 <= home && home <= c1;
     const home0 = atHome ? clamp(home, c0 + 1, c1 - 1)
                          : clamp(c0 + Math.round(W * (sI + 0.5) / shafts) + ri(5) - 2, c0 + 1, c1 - 1);
     let col = home0;
     let dir = 0, hold = 0;
-    // ONLY THE HOME CHUNK'S FIRST SHAFT RUNS THE WHOLE DEPTH. Everywhere else it is broken like the
-    // galleries, and that is both the mazier shape and where most of the extra rock comes from: a
-    // full-depth shaft is ~10% of a chunk on its own, and there are twenty other chunks paying for
-    // one nobody promised them.
-    //
-    // WHAT STILL HAS TO HOLD is that the run is never dead on arrival — the colony roots in the home
-    // chunk, so one guaranteed spine from the surface to the floor is the whole of the descent
-    // guarantee. A chunk you travel sideways into may have no way down at all; you descend on the
-    // spine and spread out at depth, which is the owner's release ("totally fine if some areas are
-    // not reachable") applied to the one structure that was load-bearing.
-    const spine = atHome;
-    let vRun = spine ? rows : Math.round(rf(10, 26));
+    let vRun = Math.round(rf(10, 26));
     let vSolid = false;
     for (let r = 0; r < rows; r++) {
       if (!vSolid) {
         carve(col, r, radAt(M.shaftRadius, r));
         markRoute(col, r, 4.0);
-        // THE SPINE IS RECORDED SO THE PLUG PASS CANNOT WALL IT OFF. It is the only guaranteed route
-        // from the surface to the floor, so a plug landing on it does not make a maze — it makes an
-        // unplayable run, and one that looks identical to a playable one.
-        if (!spine) vertCell[at(col, r)] = 1;
-        if (spine) {
-          const k = 3;
-          for (let dr = -k; dr <= k; dr++) for (let dc = -k; dc <= k; dc++)
-            if (inChunk(col + dc, r + dr)) noPlug[at(col + dc, r + dr)] = 1;
-        }
+        vertCell[at(col, r)] = 1;
       }
-      if (!spine && --vRun <= 0) {
+      if (--vRun <= 0) {
         vSolid = !vSolid;
         vRun = Math.round(vSolid ? rf(8, 20) : rf(10, 26));
       }
@@ -21773,19 +21773,7 @@ function mineGenerateChunk(state, ci) {
       // BOUNDED AROUND ITS HOME COLUMN. Unbounded (`clamp(col + dir, c0 + 1, c1 - 1)`) a ±1 walk
       // over 168 rows drifts right across the chunk, so a "shaft" erodes most of its width and the
       // solid slabs the rock needs never exist.
-      //
-      // THE SPINE WANDERS WIDEST OF ALL, and holding it straight was a mistake worth recording.
-      // It was pinned to ±1 so a probe digging blindly straight down would stay inside it, i.e. it
-      // was shaped for a TEST rather than for the player — and the owner saw the result immediately:
-      // "there is still a vertical line from where the colony starts, straight down, that is totally
-      // void of rocks." Of course there was. Rock is only placed where the carve left ground closed,
-      // so a straight full-depth shaft under the start column is a guaranteed rock-free chute, and
-      // pinning it to the home column put it exactly where the player is looking.
-      //
-      // The guarantee that matters is that the spine REACHES the floor, not that it is plumb. ±7
-      // makes it a crack that snakes; the probe that needed it straight was fixed instead (it aims
-      // into open ground now, and its pockets are removed so it measures the tank).
-      const lean = spine ? 7 : 4;
+      const lean = 4;
       col = clamp(col + dir, Math.max(c0 + 1, home0 - lean), Math.min(c1 - 1, home0 + lean));
     }
   }
@@ -21888,7 +21876,7 @@ function mineGenerateChunk(state, ci) {
   // the only way to ask why a chunk came out the way it did once it is on screen. `bbox` / `target`
   // are the rock loop's own arithmetic: a chunk that failed to reach its band targets and one that
   // reached them and still looks thin are different bugs, and the drawn mask cannot tell them apart.
-  const placed = { rocks: 0, ore: 0, water: 0, worms: 0, clouds: 0, stranded: 0, plugged: 0,
+  const placed = { rocks: 0, ore: 0, water: 0, worms: 0, clouds: 0, stranded: 0, plugged: 0, repairs: 0,
                    cells: 0, open: 0, bbox: null, target: null, closed: null };
   const spots = [];
   const orePer = M.orePerPile;
@@ -21976,7 +21964,11 @@ function mineGenerateChunk(state, ci) {
       // Weighted toward the connectors while any remain, but never exclusively: a map whose only
       // walls are at the junctions reads as a set of floors with the stairs removed, where the
       // gallery plugs are what make a corridor itself dead-end.
-      const useVert = vert.length && (!flat.length || rng() < 0.85);
+      // 0.85 -> 0.55. Weighting plugs hard onto the vertical connectors closed almost every way
+      // down, and with no reserved corridor left that made the descent findable only by luck: a
+      // greedy dive sat at 25 m on a full tank while the repair pass had certified a route to the
+      // floor. A maze needs the ways down to be FEW, not nearly absent.
+      const useVert = vert.length && (!flat.length || rng() < 0.55);
       const pool = useVert ? vert : flat;
       const pick = pool[ri(pool.length)];
       const pr = Math.floor(pick / W), pc = (pick % W) + c0;
@@ -21997,6 +21989,77 @@ function mineGenerateChunk(state, ci) {
           if (open[j]) placed.plugged = (placed.plugged | 0) + 1;
           open[j] = 0;
         }
+    }
+  }
+
+  // --- the descent guarantee, as a REPAIR rather than a reservation --------
+  // THE RUN MUST NEVER BE DEAD ON ARRIVAL, and this is what promises it now that no full-depth shaft
+  // is reserved. The colony roots in the home chunk, so the only thing that has to hold is that the
+  // floor is reachable from the head; every other chunk may legitimately have no way down at all
+  // (owner: "totally fine if some areas are not reachable").
+  //
+  // WHY A REPAIR AND NOT A CORRIDOR: a reserved route is a continuous rock-free line however it is
+  // shaped, which is the defect this replaces — reported twice, once plumb and once snaking. A repair
+  // opens only what an ACTUAL blockage needs, so on most seeds it opens nothing at all and on the rest
+  // it adds a few short connectors that read like any other passage.
+  //
+  // It runs LAST, after the plugs, or a plug could wall off the route it just certified.
+  if (c0 <= home && home <= c1) {
+    const seen = new Uint8Array(W * rows);
+    const flood = () => {
+      seen.fill(0);
+      const stack = [];
+      // From the head, which is the only ground the colony actually starts on.
+      for (let r = 0; r < 3; r++)
+        for (let c = home - 5; c <= home + 5; c++)
+          if (inChunk(c, r) && open[at(c, r)] && !seen[at(c, r)]) { seen[at(c, r)] = 1; stack.push(c, r); }
+      while (stack.length) {
+        const r = stack.pop(), c = stack.pop();
+        for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const cc = c + dc, rr = r + dr;
+          if (!inChunk(cc, rr)) continue;
+          const j = at(cc, rr);
+          if (!open[j] || seen[j]) continue;
+          seen[j] = 1; stack.push(cc, rr);
+        }
+      }
+      let deepest = -1, dc2 = home;
+      for (let r = 0; r < rows; r++)
+        for (let c = c0; c <= c1; c++)
+          if (seen[at(c, r)] && r > deepest) { deepest = r; dc2 = c; }
+      return { deepest, col: dc2 };
+    };
+    // Bounded: each pass must gain depth or the loop ends. 60 is far above what any seed has needed
+    // and exists so a pathological map cannot spin here.
+    for (let guard = 0; guard < 60; guard++) {
+      const f = flood();
+      if (f.deepest >= rows - 2) break;
+      // The nearest UNREACHED open ground below the frontier — joining to existing passage is what
+      // keeps the repair short and keeps it looking like the maze rather than like a tunnel.
+      let best = null, bd = Infinity;
+      for (let r = f.deepest + 1; r < rows && r <= f.deepest + 22; r++)
+        for (let c = Math.max(c0, f.col - 14); c <= Math.min(c1, f.col + 14); c++) {
+          const j = at(c, r);
+          if (!open[j] || seen[j]) continue;
+          const d = (c - f.col) * (c - f.col) + (r - f.deepest) * (r - f.deepest);
+          if (d < bd) { bd = d; best = [c, r]; }
+        }
+      // Nothing open below within reach: dig a short run downward and try again. Short on purpose —
+      // a long one would be the corridor this whole pass exists to avoid.
+      const to = best || [clamp(f.col + ri(5) - 2, c0 + 1, c1 - 1), Math.min(rows - 1, f.deepest + 7)];
+      const steps = Math.max(1, Math.abs(to[0] - f.col) + Math.abs(to[1] - f.deepest));
+      for (let k = 0; k <= steps; k++) {
+        const t = k / steps;
+        const cc = Math.round(f.col + (to[0] - f.col) * t), rr = Math.round(f.deepest + (to[1] - f.deepest) * t);
+        // 1.2 -> 1.7. A repair connector has to be comfortably FOLLOWABLE, not merely passable: the
+        // route it certifies is the only guaranteed way down, and a greedy descent that can see one
+        // grow ahead cannot thread a 2.4-cell winding gap — a dive sat at 25 m on a full tank while
+        // this pass had certified a path to the floor. Still SHORT (a few cells at a time, joined to
+        // existing passage), which is what keeps it out of the wide-channel reading.
+        carve(cc, rr, 1.7);
+        if (inChunk(cc, rr)) { markRoute(cc, rr, 3.0); noPlug[at(cc, rr)] = 1; }
+      }
+      placed.repairs = (placed.repairs | 0) + 1;
     }
   }
 
