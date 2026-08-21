@@ -574,7 +574,13 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       s.config.mine.showSight = true;
       return { off, on, dr: on.r - off.r, dg: on.g - off.g, db: on.b - off.b };
     });
-    ok('...and what the ring adds to the frame is RED', hue.dr > 4 && hue.dr > hue.dg + 3 && hue.dr > hue.db + 3,
+    // GREEN (owner: "lets change the threat sensing range to green"). Asserted as a channel
+    // ORDERING against the same pixel with the overlay off, which is the only way to ask the
+    // question on soil that is itself strongly coloured: the ground here is warm brown, so the
+    // wash's absolute red still outweighs its green — what says "green" is that turning the ring on
+    // moves GREEN the most. Read the raw numbers in the message before retuning `sightRgb`.
+    ok('...and what the ring adds to the frame is GREEN',
+       hue.dg > 4 && hue.dg > hue.dr + 3 && hue.dg > hue.db + 3,
        `overlay adds r${hue.dr} g${hue.dg} b${hue.db} (${JSON.stringify(hue.off)} -> ${JSON.stringify(hue.on)})`);
     await b.ctx.close();
   }
@@ -856,33 +862,70 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
        heat.next[0] === heat.heat.safe && heat.next[50] === heat.heat.safe + heat.heat.every
        && heat.next[400] === null,
        `at 0m -> ${heat.next[0]}, at 50m -> ${heat.next[50]}, at 400m -> ${heat.next[400]}`);
-    // THE SOIL IS MARKED AT EVERY LINE (owner: "add a bump in the soil gradient to red every depth
-    // step so it's clear where the line is"). The ground is the only place the NEXT price step can
-    // be read before you pay it — the HUD chip says what a dig costs here, not where the next one
-    // is. Asserted on the model colour rather than on pixels: rock, food and the mottle all land on
-    // the drawn frame, and the question is about the ramp underneath them.
-    const bump = await b.page.evaluate(() => {
-      const g = window.__game, sub = g.state.substrate;
-      const lines = g.mine.heatLines();
-      const rd = (y) => { const c = g.mine.earthColorAt(y).match(/\d+/g).map(Number);
-                          return { r: c[0], g: c[1], warm: c[0] - c[1] }; };
-      return lines.map((m) => {
-        const ly = sub.surfaceY + m * sub.cellSize;
-        return { m, far: rd(ly - 220), at: rd(ly), below: rd(ly + 40) };
-      });
+    // EVERY DEPTH LEVEL HAS ITS OWN SOIL COLOUR, brown -> black -> red (owner: "every time we
+    // enter a new depth level, all of the soil should change color. lets start with brown, that
+    // turns eventually to black, and then the black eventually turns to red"). Crossing a boundary
+    // recolours the whole screen, so nothing has to be painted on the line itself.
+    //
+    // Asserted on the MODEL colour, not on pixels: rock, food, the sight wash and the mottle all
+    // land on the drawn frame, and the question is about the ramp underneath them. What the model
+    // cannot answer is whether the gradient's stops resolve a crossing — that is
+    // `tests/bump-probe.cjs`, and it is the reading that matters after any change here.
+    const soil = await b.page.evaluate(() => {
+      const g = window.__game, s2 = g.state, sub = s2.substrate;
+      const rows = s2.config.mine.bandRows, n = s2.config.mine.soilBands.length;
+      const rd = (m) => { const c = g.mine.earthColorAt(sub.surfaceY + m * sub.cellSize).match(/\d+/g).map(Number);
+                          return { r: c[0], g: c[1], b: c[2], lum: c[0] * 0.30 + c[1] * 0.59 + c[2] * 0.11,
+                                   warm: c[0] - c[2] }; };
+      const cross = [];
+      for (let i = 1; i < n; i++) cross.push({ at: i * rows, above: rd(i * rows - 3), below: rd(i * rows + 3) });
+      // The MIDDLE of each band, which is where its own colour lives — clear of the crossing blend
+      // at the top and of the next one below.
+      const mid = [];
+      for (let i = 0; i < n; i++) mid.push({ band: i, c: rd(i * rows + rows * 0.5) });
+      return { n, rows, cross, mid, top: rd(1), black: rd(rows * 2 - 2), deep: rd(rows * n - 2) };
     });
-    // ONE PER PRICE STEP, and at the price steps — not a decorative stripe on a timer.
-    ok('every price line is marked in the soil', bump.length === 3
-       && bump.every((x, i) => x.m === heat.heat.safe + i * heat.heat.every),
-       bump.map((x) => x.m + 'm').join(', '));
-    // WARMEST EXACTLY ON THE LINE. Measured as red-minus-green, since the soil is a warm brown
-    // already and raw red climbs with depth on its own.
-    ok('...warmest exactly at the line', bump.every((x) => x.at.warm > x.far.warm + 6),
-       bump.map((x) => `${x.m}m ${x.far.warm}->${x.at.warm}`).join('  '));
-    // ...AND BREAKING SHARPLY BELOW IT. This is what makes it read as the ground CHANGING rather
-    // than as a stripe painted on the wall, and it is the half a symmetric ramp would lose.
-    ok('...and breaking sharply below it', bump.every((x) => x.below.warm < x.at.warm - 8),
-       bump.map((x) => `${x.m}m ${x.at.warm}->${x.below.warm} over 40u`).join('  '));
+    // THE JOURNEY, at its three named stops. Brown is warm and mid-bright; the deepest anthracite is
+    // the darkest ground in the game; the bottom is red. Checked as an ORDERING rather than against
+    // literal colours, so re-tinting the palette does not have to come here too — only reversing the
+    // journey does.
+    ok('the soil walks brown -> black -> red down the shaft',
+       soil.top.lum > soil.black.lum + 25 && soil.deep.lum > soil.black.lum + 10
+       && soil.deep.warm > soil.top.warm && soil.top.warm > 20,
+       `brown lum ${soil.top.lum.toFixed(0)} warm ${soil.top.warm} | black lum `
+       + `${soil.black.lum.toFixed(0)} | red lum ${soil.deep.lum.toFixed(0)} warm ${soil.deep.warm}`);
+    // ...AND IT CHANGES AT EVERY BOUNDARY, which is the owner's "all of the soil should change
+    // color". The one that needs this most is the black-to-black crossing in the middle: with four
+    // bands and a three-stop journey one boundary lands inside the black, and it reads only because
+    // band 1 ends WARM and band 2 opens COOL. So the test is luminance OR warmth, not luminance
+    // alone — an earlier palette passed a brightness test at that crossing while showing nothing.
+    //
+    // ...AND IT IS THE MID-BAND COLOURS THAT ARE COMPARED, NOT THE PIXELS EITHER SIDE OF A LINE.
+    // Testing the crossing alone PASSES ON A BUILD WITH NO PALETTE AT ALL, which the negative
+    // control caught: every band ramps `top`->`bot` internally, so a boundary always jumps from one
+    // band's bottom back to the next one's top and something always "changes". With the palette
+    // flattened all three crossings read an identical dLum 21.5 / dWarm 16 — a change at every line
+    // and no journey anywhere. Comparing band CENTRES is the question that was meant.
+    const same = [];
+    for (let i = 1; i < soil.mid.length; i++) {
+      const a = soil.mid[i - 1].c, c = soil.mid[i].c;
+      if (Math.abs(a.lum - c.lum) < 5 && Math.abs(a.warm - c.warm) < 5) same.push(i);
+    }
+    ok('...and every depth level has its own colour', same.length === 0,
+       soil.mid.map((m) => `b${m.band} lum ${m.c.lum.toFixed(0)}/warm ${m.c.warm}`).join('  '));
+    // The crossing itself still has to be perceptible — a distinct colour reached by an imperceptible
+    // slide is not "all of the soil changes". The one that needs this is the black-to-black boundary
+    // in the middle: with four bands and a three-stop journey one lands inside the black, and it
+    // reads only because band 1 ends WARM and band 2 opens COOL. So: luminance OR warmth, never
+    // luminance alone.
+    const dull = soil.cross.filter((c) => Math.abs(c.above.lum - c.below.lum) < 4
+                                       && Math.abs(c.above.warm - c.below.warm) < 4);
+    ok('...and the change is perceptible at the crossing itself', dull.length === 0,
+       soil.cross.map((c) => `${c.at}m dLum ${(c.below.lum - c.above.lum).toFixed(1)} `
+         + `dWarm ${c.below.warm - c.above.warm}`).join('  '));
+    // ONE PER BAND, so a fifth band cannot quietly inherit the fourth's colour.
+    ok('...one colour per depth level', soil.cross.length === soil.n - 1 && soil.n === 4,
+       `${soil.n} bands of ${soil.rows} m, ${soil.cross.length} crossings`);
 
     // A CEILING, so the deepest ground is expensive rather than impossible. Without one the price
     // doubles past any tank and the bottom stops being reachable at all — which is a wall, and

@@ -3252,6 +3252,31 @@ const CONFIG = {
       { theme: 'garnet',     name: 'Garnet',     assetsFrom: 'garnet-c24',     scale: [0.43, 0.80], fill: 0.96 },
       { theme: 'hematite',   name: 'Hematite',   assetsFrom: 'hematite-c24',   scale: [0.40, 0.74], fill: 1.00 },
     ],
+    // THE SOIL COLOUR PER DEPTH LEVEL — one entry per band, `top` at its ceiling and `bot` at its
+    // floor, so the ground ramps gently through a band and CHANGES at the crossing. The owner's
+    // journey, in their words: "lets start with brown, that turns eventually to black, and then the
+    // black eventually turns to red."
+    //
+    // It reads as the rock it is cut through, which is why the sequence needed no invention:
+    // magnetite is ordinary earth, anthracite IS coal, and hematite is iron oxide. Brown, black,
+    // rust. Garnet is the turn between the last two and carries the first red.
+    //
+    // A LEVEL MAY OVERRIDE THIS and a non-mine map has none, in which case `soilTop/Mid/Deep` and
+    // the old map-wide ramp are used exactly as before — see `_soilBandColorAt`.
+    soilBands: [
+      { top: '#6b4c2e', bot: '#4a3520' },   // magnetite  — brown earth, the colour the game opens on
+      { top: '#38281c', bot: '#191411' },   // anthracite — into the coal: this is where it goes black
+      { top: '#0e1116', bot: '#3a1014' },   // garnet     — see below, then the first red
+      { top: '#571610', bot: '#7a2109' },   // hematite   — rust, handed to the molten core blend
+    ],
+    // THE BLACK-TO-BLACK CROSSING HAD TO BECOME A HUE SHIFT, and it is the one entry here that is
+    // not simply "the next colour along". With four bands and a three-stop journey, one boundary
+    // inevitably falls in the middle of the black — measured at 84 m, `rgb(23,18,15)` above against
+    // `rgb(20,16,14)` below, which is no change at all on a screen. So band 1 ends on a WARM
+    // near-black and band 2 opens on a COOL one: same darkness, opposite bias, so the crossing
+    // reads as the rock changing rather than as a lamp dimming. Cool black into red is also the
+    // stronger walk of the two — a warm black is already halfway there and arrives at rust with
+    // nothing to travel.
     // How far into a band the previous band's rock keeps appearing, as a fraction of the band.
     // "The deeper you go, different rock types START appearing" — so a boundary is a blend
     // rather than a line, and the depth beat lands on the first cell of the new band's name.
@@ -3426,20 +3451,23 @@ const CONFIG = {
       spreadDepthPerTurn: 0.35,
     },
     showSight: true,
-    // The resting wash; a TAPPED creature still brightens to 0.28. 0.13 -> 0.2 WHEN THE RED WAS
-    // DARKENED, and the two moves are one decision: measured against the soil, the old bright red
-    // at 0.13 shifted the ground by r+10 and the darker red at the same alpha only r+7, so keeping
-    // the alpha would have answered "darken it" by half-deleting it. At 0.2 the darker red shifts
-    // it r+11 — as findable as before — while the LUMINANCE lift drops from +3 to +2.4, which is
-    // the part that reads as "darker".
-    sightAlpha: 0.2,
-    // THE HAZARD RED, and it only means anything together with `sightAlpha` above — the wash is
-    // this colour at `sightAlpha * 0.55`, over warm brown soil that is itself dark and red-biased,
-    // so darkening the colour costs CONTRAST and not only brightness. Both were retuned together
-    // on the owner's "darken the red in the range a bit"; the numbers behind the pair are in
-    // `tests/wash-probe.cjs`. Red rather than the creature's own green because green is the
-    // colony's half of the palette — see `drawOccludedSight`.
-    sightRgb: '165,44,36',
+    // The resting wash; a TAPPED creature still brightens to 0.28. RE-MEASURED FOR GREEN — see
+    // `sightRgb` below and `tests/wash-probe.cjs` for the sweep. It has now been retuned twice
+    // alongside the colour, and that pairing is the whole lesson: the wash lands at about
+    // `sightAlpha * 0.55` over warm brown soil, so a colour change moves the contrast and the alpha
+    // has to answer it. Red-on-red-brown needed 0.2 to be findable at all; green is near the soil's
+    // complement, so it reads at less.
+    sightAlpha: 0.15,
+    // THE THREAT COLOUR (owner: "lets change the threat sensing range to green"). This is the
+    // CAMPAIGN's own sensing-range green, so the two games mark danger the same way and the mine
+    // stops having a private convention.
+    //
+    // It was red for a while, on the reasoning that green is the colony's half of the palette. That
+    // reasoning was wrong about WHICH green: the colony is mint — cyan-biased, `#7FE6A3` — and this
+    // is a yellow-olive, far enough round the hue circle that nobody reads it as tissue. It also
+    // has the practical edge over red, which is that the soil is warm and red-biased, so a red wash
+    // fights its own background while green sits near its complement.
+    sightRgb: '120,155,45',
     worms: {
       waterPerSec: 0.2,          // 1 water every 5 s, per ATTACHED worm
       breedPerSec: 0.05,         // 5% chance a feeding worm splits, per second
@@ -23445,7 +23473,12 @@ class SubstrateRenderer {
     const bandW = sub.coreY != null ? Math.max(1, viewBot - sub.coreY) : 1;
     const depth = (worldY - sy) / contentGh;
     const dn = cFrac != null ? Math.min(1, Math.max(0, depth) / Math.max(1e-6, cFrac)) : Math.max(0, depth);
-    let col = dn < 0.35 ? lerpRgb(top, mid, dn / 0.35) : lerpRgb(mid, deep, Math.min(1, (dn - 0.35) / 0.65));
+    // THE MINE TAKES ITS SOIL FROM THE DEPTH-LEVEL PALETTE, everything else keeps the map-wide
+    // ramp. Substituted rather than blended onto it: the palette's own brown-to-black-to-red walk
+    // already covers the whole descent, so keeping `soilTop/Mid/Deep` underneath would be two
+    // depth ramps fighting and neither's endpoints would land where they were written.
+    let col = this._soilBandColorAt(worldY)
+      || (dn < 0.35 ? lerpRgb(top, mid, dn / 0.35) : lerpRgb(mid, deep, Math.min(1, (dn - 0.35) / 0.65)));
     if (cFrac != null) {
       const heat = smooth((worldY - (sub.coreY - HEAT_UP)) / (HEAT_W + HEAT_UP));
       if (heat > 0) {
@@ -23456,66 +23489,85 @@ class SubstrateRenderer {
         col = lerpRgb(col, molten, heat);
       }
     }
-    col = this._heatBump(col, worldY);
     return 'rgb(' + (col[0] | 0) + ',' + (col[1] | 0) + ',' + (col[2] | 0) + ')';
   }
 
-  // A BUMP TOWARD RED AT EVERY DEPTH LINE, so the player can SEE where a dig gets dearer (owner:
-  // "add a bump in the soil gradient to red every depth step so it's clear where the line is").
-  // The price is a staircase of doublings and the ground is the only place it can be read off
-  // before you pay it — the HUD chip tells you what a dig costs HERE, not where the next step is.
+  // EVERY DEPTH LEVEL HAS ITS OWN SOIL COLOUR, and the sequence is brown -> black -> red (owner:
+  // "every time we enter a new depth level, all of the soil should change color. lets start with
+  // brown, that turns eventually to black, and then the black eventually turns to red"). So a
+  // boundary needs no marking painted on it: crossing one recolours the whole screen, which is a
+  // far stronger signal than the local bump this replaced and says the same thing.
   //
-  // ASYMMETRIC, and that is the whole of the design: the ramp climbs over `HOT_UP` above the line
-  // and falls away over `HOT_DN` below it, with the peak exactly ON the line. Symmetric reads as a
-  // stripe painted on the wall — decoration — where a slow warming that breaks sharply says the
-  // ground CHANGED here, which is the true thing. It is also what makes the direction legible from
-  // inside the band: below a line you are on the shallow side of the next warming, not lost in one.
+  // IT LANDS ON THE ROCK BANDS, NOT THE PRICE LINES, and the two are worth telling apart. The bands
+  // are fixed at `bandRows` and are what the game already NAMES on the way down ("84 m — Garnet"),
+  // so a colour change is that announcement in the ground. The price lines start on the same depths
+  // but slide down as `heatTolerance` is bought, so tying the soil to them would recolour the world
+  // differently per save and stop matching the beat. What a dig costs is the HUD's chip; where you
+  // ARE is the ground.
   //
-  // Mine-only. `mineHeatLines` returns [] whenever there is no `heat` block, so the campaign and
-  // the authored maps take an untouched colour and this costs them one array check.
-  // The line depths in metres, memoised. KEYED ON THE TOLERANCE BONUS, because buying the store's
-  // `heatTolerance` track slides every line down — a plain one-shot cache would keep drawing the
-  // previous run's lines, i.e. mark the ground in the wrong place for anyone who bought the
-  // upgrade, which is precisely the player most likely to be reading them.
-  _heatLineList() {
+  // The palette is also the rock: magnetite, anthracite (coal — black), garnet then hematite (iron
+  // oxide — rust). Brown to black to red was already the journey the material bands describe, so
+  // this is the soil agreeing with the stone rather than a scheme laid over it.
+  _soilBandCols() {
     const M = (this.config && this.config.mine) || null;
-    if (!M) return [];
-    const key = (M.heatBonus | 0) + ':' + (M.heat ? (M.heat.safeDepth | 0) + ':' + (M.heat.lineEvery | 0) : 'x');
-    if (this._heatKey !== key) { this._heatKey = key; this._heatLines = mineHeatLines(this.config); }
-    return this._heatLines;
+    const pal = (M && M.soilBands) || null;
+    if (!pal || !pal.length) return null;
+    const key = pal.map((p) => p.top + p.bot).join('|');
+    if (this._sbKey !== key) {
+      this._sbKey = key;
+      this._sbCols = pal.map((p) => ({ top: hexToRgb(p.top), bot: hexToRgb(p.bot) }));
+    }
+    return this._sbCols;
   }
-  // The world Ys the earth gradient must place an explicit stop at, within a visible band — the
-  // peak of each bump and both ends of its fall-off. See the note at the caller for why uniform
-  // sampling cannot be trusted with these.
+  // The colour at a depth, from the band palette: a gentle ramp WITHIN a band, and a short blend
+  // across the boundary so the change is definite without being an aliased paint line. Returns null
+  // off a mine map or with no palette, and the caller keeps its own ramp.
+  _soilBandColorAt(worldY) {
+    const sub = this.substrate;
+    if (!sub || !sub.mine) return null;
+    const cols = this._soilBandCols();
+    if (!cols) return null;
+    const rows = Math.max(1, ((this.config.mine || {}).bandRows | 0) || 42);
+    const bandH = rows * sub.cellSize;
+    const d = Math.max(0, worldY - sub.surfaceY);
+    const last = cols.length - 1;
+    const i = Math.min(last, Math.floor(d / bandH));
+    const f = Math.min(1, Math.max(0, (d - i * bandH) / bandH));
+    const here = lerpRgb(cols[i].top, cols[i].bot, f);
+    // THE BLEND IS AT THE TOP OF A BAND, not the bottom, so the ramp inside a band runs its full
+    // length and only the crossing is softened. `BLEND` in world units rather than a fraction of
+    // the band: it has to stay a crossing at any `bandRows`, and a fraction would make it a
+    // different-looking transition every time that number moved.
+    const BLEND = 46;
+    if (i > 0 && d - i * bandH < BLEND) {
+      const prev = lerpRgb(cols[i - 1].top, cols[i - 1].bot, 1);
+      const k = (d - i * bandH) / BLEND;
+      return lerpRgb(prev, here, k * k * (3 - 2 * k));
+    }
+    return here;
+  }
+  // The world Ys the earth gradient must place an explicit stop at, within a visible band — both
+  // sides of every band boundary.
+  //
+  // UNIFORM STOPS CANNOT RESOLVE A BOUNDARY, and this is the second time that has nearly deleted a
+  // feature here. `_drawLive` fills the earth with ONE linear gradient sampled at 24 even stops —
+  // ~58 world units apart on a phone — against a 46-unit blend, so a crossing lands BETWEEN two
+  // stops and the canvas interpolates straight past it: the palette is perfect in the model and the
+  // screen shows one long smear. Read `tests/bump-probe.cjs`'s PIXEL profile, never its model
+  // profile, after touching either end of this.
   _heatStopYs(yTop, yBot) {
     const sub = this.substrate;
     if (!sub || !sub.mine) return [];
+    const cols = this._soilBandCols();
+    if (!cols) return [];
+    const rows = Math.max(1, ((this.config.mine || {}).bandRows | 0) || 42);
+    const bandH = rows * sub.cellSize;
     const out = [];
-    for (const m of this._heatLineList()) {
-      const ly = sub.surfaceY + m * sub.cellSize;
-      for (const y of [ly - 150, ly, ly + 17, ly + 34]) if (y >= yTop && y <= yBot) out.push(y);
+    for (let i = 1; i < cols.length; i++) {
+      const by = sub.surfaceY + i * bandH;
+      for (const y of [by - 2, by + 23, by + 46]) if (y >= yTop && y <= yBot) out.push(y);
     }
     return out;
-  }
-  _heatBump(col, worldY) {
-    const sub = this.substrate;
-    if (!sub || !sub.mine) return col;
-    const lines = this._heatLineList();
-    if (!lines.length) return col;
-    const HOT_UP = 150, HOT_DN = 34, AMT = 0.3;
-    const HOT = hexToRgb((this.config.render || {}).coreMid || '#7d1a08');
-    const d = worldY - sub.surfaceY;
-    let t = 0;
-    for (const m of lines) {
-      const ly = m * sub.cellSize;
-      // Only the NEAREST line contributes — `max`, not a sum. With `lineEvery` 42 and a 36-unit
-      // cell the lines are ~1512 apart, so they cannot overlap today; adding is one retune away
-      // from stacking two ramps into a band that never cools and reads as no marking at all.
-      const k = d <= ly ? (d - (ly - HOT_UP)) / HOT_UP : 1 - (d - ly) / HOT_DN;
-      if (k > t) t = k;
-    }
-    if (t <= 0) return col;
-    return lerpRgb(col, HOT, Math.min(1, t) * AMT);
   }
 
   // The mould, drawn over the VISIBLE CELLS instead of over the world. Same look as the baked

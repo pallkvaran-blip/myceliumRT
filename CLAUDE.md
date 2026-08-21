@@ -3421,12 +3421,16 @@ owner's, not suggestions.**
      the border of the enemy sensing range and darken the red in the range a bit."* A flat wash ends
      in a STEP of alpha at the polygon edge, which is already a hard boundary — every drawn edge was
      a second edge on top of one that was there anyway.
-   - **RED (`CONFIG.mine.sightRgb`), BECAUSE GREEN IS THE COLONY'S HALF OF THE PALETTE.** An
-     always-on green wash reads as the thing you are GROWING rather than the thing hunting you.
-     Amber is the ants' and mint the player's (STYLE_GUIDE), so red is the danger hue left. One
-     colour for "something in here is hunting", whichever creature drew it. A TAPPED ring keeps the
-     creature's own green and its soft glow — that one is a question about a specific animal, and
-     there is no fleet of discs to pay for.
+   - **GREEN (`CONFIG.mine.sightRgb` = `120,155,45`), which is the CAMPAIGN'S OWN sensing-range
+     olive** (owner: *"lets change the threat sensing range to green"*), so the two games mark danger
+     the same way and the mine keeps no private convention. A TAPPED ring is unchanged.
+     - It was red for a while, on the argument that green is the colony's half of the palette. **That
+       argument was wrong about WHICH green**: the colony is mint, cyan-biased (`#7FE6A3`), and this
+       is a yellow-olive far enough round the hue circle that nobody reads it as tissue. Green also
+       has the practical edge, because the soil is warm and red-biased — a red wash fights its own
+       background where green sits near its complement. Don't re-derive the red argument.
+     - **`sightAlpha` CAME DOWN WITH IT, 0.2 -> 0.15**, for the reason in the next note: green needs
+       less alpha than red to be equally findable on brown.
    - **`sightRgb` AND `sightAlpha` ARE ONE SETTING AND MUST MOVE TOGETHER.** The wash is drawn at
      `sightAlpha * 0.55` over soil that is ITSELF dark and red-biased, so darkening the colour costs
      **contrast**, not just brightness. Darkening 208,66,52 → 165,44,36 at a fixed 0.13 took the
@@ -3434,7 +3438,9 @@ owner's, not suggestions.**
      answered "darken it" by half-deleting it, which is what the frame showed. Shipped is
      **165,44,36 @0.2**: red delta **+11** (as findable as the bright version) with the luminance
      lift down to **+2.4**, which is the part that reads as darker. `tests/wash-probe.cjs` sweeps the
-     pair and its header carries the table.
+     pair and its header carries the table. **Retuned a second time when the colour went green** —
+     same rule, opposite direction: measured on the frame, the green wash adds **r+12 g+24 b+3** at
+     0.15, where the red needed 0.2 to shift the ground at all.
    - **THE PERF ORDER OF THE FOUR TREATMENTS**, measured at 16 worms on a 390x844 phone against a
      26.8 ms frame with the rings off: **full-disc radial gradient +36.6 ms** (35.4/36.3/38.0),
      **clipped rim band +20.2**, **2 px line +7.4** (7.5/7.7/6.9). Splitting the middle number is
@@ -3541,26 +3547,39 @@ owner's, not suggestions.**
    - **`mineNextHeatLine(config, depthM)`** is where the next rise is, or null past the cap, and
      **`mineHeatLines(config)`** is all of them. A staircase is only better than a ramp if the step
      can be seen coming.
-   - **AND THE SOIL IS MARKED AT EVERY LINE** (owner: *"add a bump in the soil gradient to red every
-     depth step so it's clear where the line is"*). `SubstrateRenderer._heatBump` warms the earth
-     ramp toward `coreMid` on approach and drops it sharply past the line. The renderer takes the
-     depths from `mineHeatLines` rather than repeating the arithmetic, so the marking and the price
-     cannot drift apart.
-     - **ASYMMETRIC ON PURPOSE**: a 150-unit climb, the peak ON the line, then a 34-unit fall-away.
-       Symmetric reads as a stripe painted on the wall; a slow warming that BREAKS says the ground
-       changed here, and it tells you which side of the line you are on from inside the band.
-     - **THE UNIFORM GRADIENT STOPS COULD NOT RESOLVE IT, and this is the part that nearly shipped
-       broken.** `_drawLive` fills the earth with ONE linear gradient sampled at 24 uniform stops —
-       ~58 world units apart on a phone — against a 34-unit fall-off, so the sharp side landed
-       BETWEEN two stops and the canvas interpolated past it. Perfect in the model, invisible on
-       screen, at exactly the depths it exists to mark. `_heatStopYs` now injects explicit stops at
-       each line's peak and both ends of its fall-off. **Read `tests/bump-probe.cjs`'s PIXEL profile
-       rather than its model profile after touching either.**
-     - The line list is memoised **keyed on `heatBonus`**, since buying tolerance slides every line
-       down — a one-shot cache marks the ground in the wrong place for the one player most likely
-       to be reading it.
-     - Mine-only: `mineHeatLines` returns `[]` with no `heat` block, so the campaign and the
-       authored maps pay one array check.
+   - **AND EVERY DEPTH LEVEL HAS ITS OWN SOIL COLOUR — brown, then black, then red** (owner: *"every
+     time we enter a new depth level, all of the soil should change color. lets start with brown,
+     that turns eventually to black, and then the black eventually turns to red"*).
+     `CONFIG.mine.soilBands` is one `{top, bot}` per band and `SubstrateRenderer._soilBandColorAt`
+     REPLACES the map-wide `soilTop/Mid/Deep` ramp on a mine map — not blended onto it, since the
+     palette already covers the whole descent and two depth ramps would land neither's endpoints
+     where they were written. A crossing recolours the entire screen, so nothing is painted on the
+     line. **This replaced a local red bump at each price line**, which said the same thing far more
+     weakly.
+     - **It lands on the ROCK BANDS, not the price lines.** The bands are fixed at `bandRows` and are
+       what the game already NAMES on the way down ("84 m — Garnet"), so the colour change *is* that
+       announcement. The price lines start on the same depths but slide down as `heatTolerance` is
+       bought, so tying the soil to them would recolour the world differently per save and stop
+       matching the beat. What a dig costs is the HUD chip; where you are is the ground.
+     - The palette needed no invention because it IS the rock: magnetite is earth, anthracite is
+       coal, hematite is iron oxide. Brown, black, rust.
+     - **THE BLACK-TO-BLACK CROSSING HAD TO BECOME A HUE SHIFT.** Four bands against a three-stop
+       journey puts one boundary inside the black, measured at 84 m as `rgb(23,18,15)` above against
+       `rgb(20,16,14)` below — no change at all on a screen. Band 1 now ends WARM near-black and
+       band 2 opens COOL: same darkness, opposite bias. Cool-black into red is the stronger walk
+       anyway; a warm black is already halfway to rust.
+     - **UNIFORM GRADIENT STOPS CANNOT RESOLVE A CROSSING, and that has now nearly deleted this
+       feature twice.** `_drawLive` fills the earth with ONE linear gradient sampled at 24 even
+       stops — ~58 world units apart on a phone — against a 46-unit blend, so a crossing lands
+       BETWEEN two stops and the canvas interpolates past it: perfect in the model, one long smear
+       on screen. `_heatStopYs` injects explicit stops either side of every boundary. **Read
+       `tests/bump-probe.cjs`'s PIXEL profile, never its model profile, after touching either end.**
+     - **ASSERT MID-BAND COLOURS, NOT THE PIXELS EITHER SIDE OF A LINE.** Testing the crossing alone
+       **passes on a build with no palette at all** — every band ramps `top`->`bot` internally, so a
+       boundary always jumps one band's bottom to the next one's top and something always "changes".
+       With the palette flattened all three crossings read an identical dLum 21.5 / dWarm 16: a
+       change at every line and no journey anywhere. Caught by the negative control, not by review.
+     - Mine-only, and per-level overridable: no `soilBands` means the old ramp, unchanged.
    - **`maxMult` IS WHAT STOPS IT BEING A WALL.** Without a ceiling the curve eventually exceeds any
      tank and the bottom of the shaft stops being reachable at all — which is exactly what the owner
      said heat must not be.
