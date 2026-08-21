@@ -158,7 +158,10 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // (1 - open) x 0.35 — measured at 53% open the ceiling was 16% and the shaft was swimmable at 12%,
   // with the rock loop already covering 72% of everything left. No placement change can beat this
   // number, so it is the one to look at first if the mine ever reads too open again.
-  ok('the carve leaves room for rock', shaft.stats.openFrac < 0.45, `${(shaft.stats.openFrac * 100).toFixed(1)}% open`);
+  // 0.45 -> 0.38 WITH THE MAZE CARVE. The gallery gaps, the spine-only shaft and the tighter radii
+  // took the measured figure from 38.0% open to about 32%, which is where the extra rock came from
+  // (fill was already saturated at 87-96% of its targets, so the carve was the only lever left).
+  ok('the carve leaves room for rock', shaft.stats.openFrac < 0.38, `${(shaft.stats.openFrac * 100).toFixed(1)}% open`);
   // ...and the rock loop reached the band targets it was given. Separate from the mask assertions
   // below because they are different failures: a chunk that missed its targets and a chunk that hit
   // them and still looks thin want opposite fixes, and the drawn mask cannot tell them apart.
@@ -299,10 +302,17 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // to land there, and this is what would notice them drifting back out.
   ok('...and the shaft is neither hollow nor solid', flood.reachedFrac > 0.2 && flood.reachedFrac < 0.8,
      `${(flood.reachedFrac * 100).toFixed(1)}% of the ${flood.chunks} generated chunk(s) reachable`);
-  // CONNECTIVITY IS THE CARVE'S WHOLE PROMISE, and it is a different assertion from the three above:
-  // those ask whether specific things are reachable, this asks whether ANY open ground is walled off.
-  // A sealed pocket is where a run dies for no reason the player can see.
-  ok('...and essentially no open ground is walled off', flood.connectedFrac > 0.97,
+  // SEALED POCKETS ARE ALLOWED NOW, AND THAT IS AN OWNER DECISION, not a relaxed standard: "it's
+  // totally fine if some areas are not reachable - we will have consumables later that allow people
+  // to grow through rocks when needed." So this used to demand `> 0.97` and cannot any more — a
+  // maze with no sealed ground is a maze with no walls in it.
+  //
+  // WHAT REPLACES IT IS A FLOOR, not nothing. Most of the shaft still has to be one connected space,
+  // or the map is a scatter of caves and the reachable game is a fraction of what was generated —
+  // and the two assertions that matter for playability are separate and unchanged: the open space
+  // REACHES THE BOTTOM (above), and every surviving reward is reachable. Those are what stop a run
+  // dying for no visible reason; this one is now about the shape being a maze rather than rubble.
+  ok('...and most of the shaft is still one connected space', flood.connectedFrac > 0.8,
      `${(flood.connectedFrac * 100).toFixed(1)}% of open ground connected`);
 
   // ---- 4. NO CARDS ON THE SCREEN -----------------------------------------------------------
@@ -347,7 +357,20 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     for (const n of net.nodes) if (!n.infected && n.y > sub0) sub0 = n.y;
     net.water = 20;
     const before = net.nodes.length, w0 = net.water;
+    // DID THIS DIG CLAIM A SEAM? A pile claim lays a BRIDGE RUNNER of up to 30 nodes on top of the
+    // grow's own segments, so it can carry the deepest tip far past the segment budget and the reach
+    // assertion below has no honest ceiling for that case. Recorded rather than prevented: which
+    // ground the first dig lands next to is the map's business, and the maze carve moved a seam
+    // within reach of it (measured 253 units against a 153 ceiling, on a grow-2).
+    // COUNTED AS CELLS CLAIMED, NOT AS ORE BANKED. `g.mine.ore()` read straight after the grow is
+    // too early: the claim is stamped inside the grow but the ore is credited by `mineOreRewards` on
+    // the next world tick, so the ore reading is still zero and the case looks like it did not
+    // happen. That misdetection is exactly how this came back as `253 units of a possible 153` with
+    // no explanation attached.
+    const colon = () => { let k = 0; for (const c of s.substrate.cells) if (c.colonized) k++; return k; };
+    const cl0 = colon();
     const r1 = g.mine.grow(0, 1);
+    out.claimed = colon() > cl0;
     out.grewNodes = net.nodes.length - before;
     out.deepestGain = (() => { let d = sub0; for (const n of net.nodes) if (!n.infected && n.y > d) d = n.y; return d - sub0; })();
     out.spent = w0 - net.water;
@@ -379,9 +402,30 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // A generous floor, because the shaft is dense on purpose and a dig that has to dodge legitimately
   // gains less than a dig in open soil — the assertion is that a grow-2 reaches roughly a grow-2's
   // distance and not, say, one segment.
+  // THE CEILING WAS ROCK, NOT THE SEGMENT BUDGET, and the maze carve is what revealed it. This used
+  // to bound the reach at `seg * 6 * 1.05` — the 6 segments a grow-2 is made of — and it passed only
+  // because the ground below the colony was obstructed. Putting a guaranteed shaft under the home
+  // column gave the fan a clear line and it reached **253 units, 9.9 segments**, on a budget of 6.
+  //
+  // NOT A REGRESSION, and the diff is the proof: this change touches the carve and nothing in
+  // `growDirected`, `_growStep` or `growth.*`. `growDirected` lays SIDE BRANCHES, and a branch tip
+  // can finish deeper than the six-segment spine it came off — so the true unobstructed reach of a
+  // grow-2 has always been most of ten segments and rock was hiding it.
+  //
+  // WORTH THE OWNER'S ATTENTION SEPARATELY: `mineGrowReach` draws the aim arrow at exactly
+  // `segments * segmentLength` = 153 units, so in open ground the arrow under-promises by about 40%.
+  // Deliberately NOT fixed here — the fix is in shared growth code the campaign also uses, which is
+  // not what "make the levels mazier" bought.
+  //
+  // A pile claim widens it further again (a bridge runner is up to 30 nodes), which is why
+  // `out.claimed` is measured — and measured as CELLS CLAIMED, since ore banks a tick later.
+  // The FLOOR is unchanged and is the real guard: a grow-2 reaches a grow-2's distance, not one
+  // segment.
   ok('...and reaches about 2 steps of ground',
-     grow.deepestGain >= grow.seg * 1.5 && grow.deepestGain <= grow.seg * 6 * 1.05,
-     `${Math.round(grow.deepestGain)} units of a possible ${Math.round(grow.seg * 6)} (${grow.grewNodes} filaments)`),
+     grow.deepestGain >= grow.seg * 1.5
+     && grow.deepestGain <= grow.seg * (grow.claimed ? 40 : 12) * 1.05,
+     `${Math.round(grow.deepestGain)} units on a ${Math.round(grow.seg * 6)}-unit budget `
+     + `(${grow.grewNodes} filaments${grow.claimed ? ', and it claimed a seam — bridge runner' : ''})`),
   ok('it can be used as long as there is water', grow.playsWithWater >= 8, `${grow.playsWithWater} digs on 18 water`);
   ok('...and is refused when it cannot be paid for', grow.refusedWhenBroke && grow.refusalSaysWater, 'refused, and says water');
   ok('...with the run still live', grow.stillLive === true, String(grow.stillLive));
@@ -1550,44 +1594,64 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // does not creep up on its own for as long as a strand is sitting in the pocket.
   const pocket = await m.page.evaluate(async () => {
     const g = window.__game, s = g.state, sub = s.substrate;
-    // Grow to the nearest pocket and park there.
-    const res = (sub.reservoirs || [])[0];
-    if (!res) return { none: true };
-    const at = sub.cellCenter(res.cx, res.cy);
+    // A POCKET IS PUT NEXT TO THE COLONY RATHER THAN NAVIGATED TO. This block's subject is the
+    // PAYMENT rule — one lump per source, and nothing afterwards — and it used to dig toward
+    // `reservoirs[0]` for up to 60 digs to get there. The maze carve broke that: the pocket the
+    // generator recorded first can be behind rock, the dig loop timed out, and the block bailed with
+    // a printed note, i.e. **two assertions silently stopped running while the check still read
+    // green**. Clearing a corridor to it was the first fix and does not work either —
+    // `solidifyMineRock` re-stamps the fine mask from the sprites on the next frame and puts the rock
+    // straight back.
+    //
+    // So the geometry comes out of the measurement entirely, which is the same move as zeroing the
+    // worm drain below: `waterSourcesNear` finds a source by `cell.water` plus `cell.reservoir` and
+    // nothing else, so a cell stamped beside a living strand IS a pocket as far as every rule under
+    // test is concerned. Navigation is covered by the reachability flood in section 1; it does not
+    // need covering twice, and covering it here is what made it lapse.
+    let host = null;
+    for (const n of s.active.nodes) if (!n.infected && (!host || n.y > host.y)) host = n;
+    if (!host) return { none: true };
+    // THE STRAND'S OWN CELL, not a neighbour. `waterContactDist` is 21 units against a 36-unit cell,
+    // so a node sitting anywhere but hard against the shared edge is TOO FAR from the cell next door
+    // — `waterSourcesNear` measures to the cell rect and wants <= 441 units², and a neighbour can be
+    // 36 away. Its own cell is distance zero and cannot be got wrong.
+    const cell = sub.cellAtWorld(host.x, host.y);
+    if (!cell) return { none: true };
+    // ...AND THE RUN HAS TO BE LIVE. This page is shared with the depth-beat dive, which digs to
+    // ~166 m and runs the tank dry on the way — `mineWaterPickups` returns at its first line on
+    // `runOver`, so every later probe on this page silently measures nothing. That is what the
+    // "could not reach a water pocket" note was really reporting, not the maze at all.
+    s.runOver = false;
+    s.runResult = null;
+    if (s.active) s.active.alive = true;
+    // A FRESH reservoir object, so `_tappedWater` cannot already hold it from the dive that shares
+    // this page — that is what the `taps0` baseline below is for on the generator's own pockets, and
+    // a new object needs no baseline at all.
     const cost = g.mine.cost();
-    // NOTHING ELSE MAY TOUCH THE TANK. Worms attach and DRAIN water now, so "did the pocket pay
-    // exactly one lump?" is no longer answerable on a map with worms on it — this read
-    // `+9.8999999W, want 10` and `water sat at 98.4` the moment the drain landed, which is the
-    // probe measuring the whole water economy instead of the pocket rule. Same shape as zeroing
-    // `respawnChance`: take the variable out rather than widening the tolerance around it.
+    // NOTHING ELSE MAY TOUCH THE TANK. Worms attach and DRAIN water, so "did the pocket pay exactly
+    // one lump?" is not answerable on a map with worms on it — this read `+9.8999999W, want 10` and
+    // `water sat at 98.4` the moment the drain landed, which is the probe measuring the whole water
+    // economy instead of the pocket rule. Take the variable out rather than widening the tolerance.
     s.nematodes.length = 0;
     s.config.nematodes.respawnChance = 0;
     s.config.mine.worms.waterPerSec = 0;
-    // THE GAIN IS TRACKED, NOT THE TAP COUNT. One dig fans out ~19 filaments, so a grow aimed at a
-    // pocket can legitimately reach a SECOND one in the same tick — the rule is "each source pays its
-    // lump once", and pinning `taps === 1` was pinning the map instead (it read 2 the moment the
-    // spurs moved). `gain` is what the tank got beyond what the digging cost.
     const w0 = 100000;
-    s.active.water = w0;
-    // ...AND FROM WHERE THE PAGE ALREADY IS. This block shares its page with the depth-beat dive,
-    // which digs to ~166 m and taps a pocket of its own on the way — counted from zero the probe
-    // charged this measurement for a payment made before it set the tank, and read `2 sources, +10W`.
     const taps0 = (s._tappedWater || { size: 0 }).size;
-    let digs = 0;
-    for (let i = 0; i < 60; i++) {
-      let tip = null, bd = Infinity;
-      for (const n of s.active.nodes) {
-        if (n.infected) continue;
-        const d = (n.x - at.x) ** 2 + (n.y - at.y) ** 2;
-        if (d < bd) { bd = d; tip = n; }
-      }
-      if (!tip) break;
-      if (g.mine.growFrom(tip.x, tip.y, at.x, at.y).ok) digs++;
-      await new Promise((r) => setTimeout(r, 200));
+    s.active.water = w0;
+    // The stamp goes in AFTER the tank is set, or the tick that pays can land first and the gain is
+    // charged against a tank that already had it.
+    cell.water = true;
+    cell.reservoir = { probe: true };
+    // `mineWaterPickups` runs on a world tick, so the payment needs a tick to happen in. Polled
+    // rather than slept a fixed time — a fixed sleep is a bet about the machine, and this one is
+    // cheap to get right.
+    for (let i = 0; i < 40; i++) {
       if ((s._tappedWater || { size: 0 }).size > taps0) break;
+      await new Promise((r) => setTimeout(r, 100));
     }
     const taps = (s._tappedWater || { size: 0 }).size - taps0;
-    if (!taps) return { reached: false };
+    if (!taps) return { reached: false, why: `runOver ${s.runOver} alive ${s.active && s.active.alive} water ${s.active && s.active.water}` };
+    const digs = 0;                    // nothing was dug: the pocket was brought to the colony
     const gain = s.active.water - (w0 - digs * cost);
     // The lump has landed. Now sit still for several world ticks with a strand in the water and
     // check the tank does not move — no income, no second tap.
@@ -1597,7 +1661,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
              want: s.config.mine.reservoirWater };
   });
   if (pocket.none || pocket.reached === false) {
-    console.log('  note   could not reach a water pocket in the probe window — pocket rules unmeasured');
+    console.log('  note   NO POCKET MEASUREMENT — pocket rules unmeasured. ' + (pocket.why || 'no pocket found'));
   } else {
     ok('a water pocket pays one lump, once', pocket.gain === pocket.taps * pocket.want,
        `${pocket.taps} source(s) tapped, +${pocket.gain}W over ${pocket.digs} dig(s) — want ${pocket.taps * pocket.want}`);

@@ -3228,15 +3228,87 @@ even though `start()` now generates the home chunk and its two neighbours — 1,
 first frame, which it does on purpose: the frame the map is revealed on is the one the player looks at
 hardest, and arriving on bare soil while the rock appears is the whole cost of streaming.
 
-**CONNECTIVITY IS BY CONSTRUCTION AND NEEDS NO CROSS-CHUNK STATE** — the one load-bearing idea:
+**IT IS A MAZE NOW, NOT A LADDER, AND THE OWNER RELEASED THE CONSTRAINT THAT MADE IT ONE.** Verbatim:
+*"organize the levels so the rock cover is a bit heavier and arranged more like a maze. it's totally
+fine if some areas are not reachable - we will have consumables later that allow people to grow
+through rocks when needed."* The ground map before this said the problem out loud — a full-width
+corridor every 18 rows with one shaft piercing them, i.e. wide open bands and no decisions.
 
-- **GALLERIES at rows every chunk agrees on** (`galleryEvery`, 18), spanning each chunk's full width,
-  pinned to the exact gallery row **within 2 cells of each seam** so a gallery meets its neighbours'
-  at both ends. They wander ±2 rows through the middle so the result does not read as a grid.
-- **A SHAFT running the full depth**, which therefore crosses every one of its own chunk's galleries.
-- So any point connects to any other, and **a chunk can be generated in any order at any time** —
-  which is what lets `mineChunkRng(seed, ci)` make a chunk re-entered later be the one that was there
-  before. Same seed, same chunk, whether it was generated first or fifth.
+Four changes, and they trade against each other, so **read the numbers before touching any one**:
+
+- **GALLERIES ARE SEGMENTED** (`gallerySeg` [6,13] / `galleryGap` [6,13]) instead of running wall to
+  wall. The gaps become rock, which is most of the extra cover, and a lateral route now ENDS
+  somewhere. Seam cells are still carved at the agreed row *when a segment reaches them* — what is no
+  longer promised is that one does.
+- **ONLY THE HOME CHUNK'S SHAFT RUNS THE FULL DEPTH** (`spine`); everywhere else it is broken like the
+  galleries. A full-depth shaft is ~10% of a chunk on its own and twenty other chunks were paying for
+  one nobody promised them. **This is also now the whole descent guarantee**, so it is load-bearing:
+  the colony roots in the home chunk, and its first shaft is pinned to the HOME COLUMN because the
+  head carves straight down there — before segmenting, the full-width first gallery guaranteed the
+  head met the shaft wherever it was, and it no longer does. Without the pin a seed can seal the
+  colony into the top three rows.
+- **VERTICAL LINKS** between adjacent galleries (`linksPerGap` [0,1]) are what stop the maze being a
+  stack of shelves. Both ends must land on ground a gallery ACTUALLY opened (`galleryAt` records it) —
+  a link between two row numbers can otherwise run rock to rock and add a sealed slot.
+- **DEAD ENDS THAT PAY NOTHING** (`deadEndsPerBand` 2). Every reward already sits at the end of a
+  spur, so before these there was no such thing as a wrong turn. Note they are **free cover in
+  reverse** — an alley is carved out of ground the rock loop would have filled, so raising the count
+  makes the map MORE open. Shape knob, not a density one.
+
+**THE MEASUREMENTS, because three of these went the wrong way first:**
+
+- Shipped: **33.0% open, 32.3% solid mean**, against **38.0% / 29.2%** before. Descent intact at
+  167 m of 168, all surviving rewards reachable, ~7 ore and 4 pockets per chunk.
+- **`fill` IS NOT THE DENSITY LEVER ANY MORE — it is saturated.** The band targets were already being
+  hit at 87-96%, so the carve is the only thing left that can move cover. Look at `openFrac` first.
+- **LINKS COST ABOUT A POINT OF SOLID EACH.** The first attempt used `linksPerGap` [2,4], which over
+  ~9 gaps is a link in nearly every column of a 24-column chunk: **52.6% open, 19.1% solid** — the
+  exact opposite of the ask. Segmenting and narrowing ALONE give 30.6% / 34.9%; every link spent
+  after that buys maze at the price of cover.
+- **HEAVIER ROCK COSTS DEPTH PER DIG, and that is the second time it has.** `growDirected` spends more
+  of each dig dodging, so the opening tank buys less descent — at `galleryGap` [8,16] (29.6% open,
+  34.2% solid) seed 11's straight dive reached **24 m against a 42 m gate**, i.e. band 2 and the worms
+  became unreachable on a first run. Density backed off to [6,13] and it reads 43 m. The previous time
+  this happened the lever was `startWater` (30 → 44); this time it was the carve, because the m/dig
+  spread between seeds (**1.09 vs 2.25**) meant a tank big enough for the worst seed over-rewarded the
+  best.
+- **The radii floor at 1.15 is not style.** It is the width a 25.5-unit growth segment needs to pass
+  at all; below it a corridor is a wall that looks like a corridor.
+
+**CONNECTIVITY IS NO LONGER BY CONSTRUCTION, AND TWO ASSERTIONS CHANGED TO SAY SO.**
+`'...and essentially no open ground is walled off'` (`connectedFrac > 0.97`) is now
+`'...and most of the shaft is still one connected space'` (`> 0.8`) — a maze with no sealed ground is
+a maze with no walls. What is deliberately UNCHANGED is the pair that decides playability: the open
+space **reaches the bottom**, and **every surviving reward is reachable**. Those are what stop a run
+dying for no visible reason. (Measured connectivity is still ~99.7%, so sealed pockets are rarer than
+the licence allows.)
+
+**Two things the retune exposed that were NOT caused by it:**
+
+- **A GROW-2 REACHES ~10 SEGMENTS IN OPEN GROUND, ON A BUDGET OF 6.** `mine-check` bounded the reach
+  at `seg * 6` and passed only because the ground below the colony was obstructed; a guaranteed shaft
+  under the home column gave the fan a clear line and it read **253 units against a 153 ceiling**. The
+  diff proves it is pre-existing — the change touches the carve and nothing in `growDirected`,
+  `_growStep` or `growth.*` — and side branches are the mechanism: a branch tip can finish deeper than
+  the six-segment spine it came off. **`mineGrowReach` draws the aim arrow at exactly
+  `segments * segmentLength`, so in open ground the arrow under-promises by about 40%.** Left alone
+  deliberately: the fix is in growth code the campaign shares.
+- **THE WATER-POCKET BLOCK HAD BEEN SILENTLY ASSERTING NOTHING.** It printed a note and skipped two
+  assertions, which the runner counts as green. The cause was not the maze: it shares a page with the
+  depth-beat dive, that dive runs the tank dry, and **`mineWaterPickups` returns at its first line on
+  `runOver`**. It now revives the run, stamps a pocket on the host strand's OWN cell — `waterContactDist`
+  is 21 units against a 36-unit cell, so the cell NEXT DOOR can be too far — and polls for the tick
+  instead of sleeping. 188 → 190 assertions. Clearing a corridor to a real pocket was the first fix
+  and does not work: `solidifyMineRock` re-stamps the fine mask from the sprites on the next frame.
+
+**WHAT STILL HOLDS BY CONSTRUCTION** — the part the chunked design cannot give up:
+
+- Galleries are still at rows every chunk agrees on (`galleryEvery`, 18), and a segment that reaches a
+  seam is pinned to the exact gallery row **within 2 cells of it**, so where two chunks meet they meet
+  at the same row. They wander ±2 rows through the middle so the result does not read as a grid.
+- **A chunk can still be generated in any order at any time** — which is what lets
+  `mineChunkRng(seed, ci)` make a chunk re-entered later be the one that was there before. Same seed,
+  same chunk, whether it was generated first or fifth.
 - **A SPRITE MUST FIT INSIDE ITS OWN CHUNK** (`x ± w/2` within the seams). Not tidiness: a sprite
   reaching into the neighbour would be collided there before that chunk was carved, so a corridor
   could be walled off by a rock belonging to a chunk generated earlier — the one failure the whole

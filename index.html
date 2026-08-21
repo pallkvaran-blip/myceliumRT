@@ -3317,12 +3317,43 @@ const CONFIG = {
     // starts, which is what "it's not letting me grow to the left or right" actually was).
     galleryEvery: 18,            // rows between galleries (fixed world-wide, or the seams miss)
     shaftsPerChunk: 1,           // one is enough — a shaft crosses every gallery in its own chunk
+    // --- WHAT MAKES IT A MAZE RATHER THAN A LADDER --------------------------
+    // Owner: "organize the levels so the rock cover is a bit heavier and arranged more like a maze.
+    // it's totally fine if some areas are not reachable - we will have consumables later that allow
+    // people to grow through rocks when needed."
+    //
+    // The structure before this was a LADDER, and the ground map said so: a full-width corridor every
+    // 18 rows with one shaft piercing them, i.e. wide open bands and no decisions. Two knobs turn it
+    // into a maze, and they work against each other on purpose.
+    //
+    // BROKEN GALLERIES. A gallery is now a run of `gallerySeg` cells, then a wall of `galleryGap`
+    // cells, repeating — so a lateral route ENDS somewhere and the gaps become rock, which is most of
+    // where the extra cover comes from. THIS IS WHAT THE OWNER'S RELEASE BUYS: a full-width corridor
+    // was not an aesthetic choice, it was how a chunked world guaranteed connectivity with no
+    // cross-chunk state (every chunk carves the same rows, so galleries meet at the seams). Break it
+    // and sealed pockets appear, which was previously the one thing the carve could not do.
+    gallerySeg: [6, 13],
+    galleryGap: [6, 13],
+    // ...AND VERTICAL LINKS, which are what stop the maze being a set of disconnected shelves. Short
+    // passages between one gallery row and the next, at random columns — several per gap rather than
+    // the single shaft, so moving down has CHOICES and some of them are wrong. A maze is defined by
+    // which links are absent, so this is deliberately far below the number of columns available.
+    linksPerGap: [0, 1],
+    // DEAD ENDS WITH NOTHING IN THEM. The reward spurs are already blind alleys, but they all pay, so
+    // exploring was never a risk. These pay nothing — the cost of a wrong turn is the water it took.
+    // Kept modest: every one of these is fuel spent for no return, and the run is already on a clock.
+    deadEndsPerBand: 2,
+    deadEndCells: [4, 9],
     // The corridors NARROW WITH DEPTH, and that is where the banding the owner asked for actually
     // bites: a deeper band is the same rock library at a tighter squeeze, which is a thing the player
     // feels, where a `fill` number they cannot see is not. Radii are in CELLS; growth needs a corridor
     // wider than one 25.5-unit segment, so nothing here may go below ~1.15 (2.3 cells across).
-    galleryRadius: [[1.15, 1.55], [1.1, 1.45], [1.05, 1.35], [1.0, 1.25]],
-    shaftRadius: [[1.35, 1.9], [1.3, 1.75], [1.25, 1.6], [1.2, 1.5]],
+    //
+    // TIGHTENED FOR THE MAZE, and the floor above is why they did not tighten further: 1.15 is not
+    // style, it is the width a 25.5-unit growth segment needs to get through at all. A corridor under
+    // it is a wall that looks like a corridor — the worst failure this generator has.
+    galleryRadius: [[1.15, 1.35], [1.15, 1.30], [1.15, 1.25], [1.15, 1.22]],
+    shaftRadius: [[1.25, 1.55], [1.22, 1.45], [1.20, 1.38], [1.18, 1.32]],
     // --- ore ----------------------------------------------------------------
     // A pile pays PHOSPHORUS, banked at run end and spent in the store (owner). Nothing drafts,
     // because there are no cards; `energyPerNutrient` still carries the Energy the engine's own
@@ -21612,32 +21643,118 @@ function mineGenerateChunk(state, ci) {
   // and stopped, ten right drags moved NOTHING.
   const FIRST_GALLERY_ROW = 3;
   for (let r = FIRST_GALLERY_ROW; r < rows - 1; r += every) galleryRows.push(r);
-  for (const gr of galleryRows) {
+  // A GALLERY IS BROKEN INTO SEGMENTS NOW, not run wall to wall. See `gallerySeg`/`galleryGap` in the
+  // config for why that is the change that makes this a maze — the short version is that a full-width
+  // corridor was how connectivity was guaranteed without cross-chunk state, and the owner has
+  // released that requirement ("totally fine if some areas are not reachable").
+  //
+  // THE SEAM CELLS ARE STILL CARVED AT THE AGREED ROW WHENEVER A SEGMENT REACHES THEM. Two chunks
+  // still have to meet at the same row where they meet at all, or a corridor that looks continuous
+  // across a seam is severed by a one-cell step nothing on screen explains. What is no longer
+  // promised is that a segment reaches the seam in the first place.
+  const seg = M.gallerySeg || [7, 16], gap = M.galleryGap || [4, 9];
+  // Which rows each gallery actually left open, per column — the vertical links below need somewhere
+  // real to start and end, and after segmenting "the gallery row" is no longer a safe answer.
+  const galleryAt = galleryRows.map(() => new Int16Array(W).fill(-1));
+  for (let gi = 0; gi < galleryRows.length; gi++) {
+    const gr = galleryRows[gi];
     let r = gr;
-    for (let c = c0; c <= c1; c++) {
-      // Back to the agreed row at both seams — the wander is only allowed in the middle, or two
-      // neighbours' galleries meet at different rows and the world stops being connected.
-      const nearSeam = (c - c0) < 2 || (c1 - c) < 2;
-      if (nearSeam) r = gr;
-      else if (rng() < 0.22) r = clamp(r + (rng() < 0.5 ? -1 : 1), Math.max(1, gr - 2), Math.min(rows - 2, gr + 2));
-      carve(c, r, radAt(M.galleryRadius, r));
-      markRoute(c, r, 3.4);
+    let c = c0;
+    // Start on a random phase so every gallery does not begin its first wall at the same column,
+    // which would stack the gaps into vertical slabs and read as a grid again.
+    let run = Math.max(1, Math.round(rf(seg[0], seg[1]) * rf(0.3, 1)));
+    let solid = false;
+    while (c <= c1) {
+      if (!solid) {
+        const nearSeam = (c - c0) < 2 || (c1 - c) < 2;
+        if (nearSeam) r = gr;
+        else if (rng() < 0.22) r = clamp(r + (rng() < 0.5 ? -1 : 1), Math.max(1, gr - 2), Math.min(rows - 2, gr + 2));
+        carve(c, r, radAt(M.galleryRadius, r));
+        markRoute(c, r, 3.4);
+        galleryAt[gi][c - c0] = r;
+      }
+      if (--run <= 0) {
+        solid = !solid;
+        run = Math.round(solid ? rf(gap[0], gap[1]) : rf(seg[0], seg[1]));
+        if (!solid) r = gr;      // a new segment starts on the agreed row, not wherever the last ended
+      }
+      c++;
     }
   }
   // --- shafts: the vertical routes, crossing every gallery ------------------
   const shafts = Math.max(1, M.shaftsPerChunk | 0);
   for (let sI = 0; sI < shafts; sI++) {
-    const home0 = clamp(c0 + Math.round(W * (sI + 0.5) / shafts) + ri(5) - 2, c0 + 1, c1 - 1);
+    // IN THE HOME CHUNK THE FIRST SHAFT STARTS ON THE HOME COLUMN, and that is now load-bearing
+    // rather than tidy. The head carves straight down `home` to the first gallery; before the
+    // galleries were segmented, that full-width corridor guaranteed the head met the shaft wherever
+    // the shaft happened to be. It no longer does — the first gallery can be solid at `home` — so
+    // without this a seed can seal the colony into the top three rows and the run is over before it
+    // starts, with nothing on screen to say why. Descent has to be structural, not probabilistic.
+    const atHome = sI === 0 && c0 <= home && home <= c1;
+    const home0 = atHome ? clamp(home, c0 + 1, c1 - 1)
+                         : clamp(c0 + Math.round(W * (sI + 0.5) / shafts) + ri(5) - 2, c0 + 1, c1 - 1);
     let col = home0;
     let dir = 0, hold = 0;
+    // ONLY THE HOME CHUNK'S FIRST SHAFT RUNS THE WHOLE DEPTH. Everywhere else it is broken like the
+    // galleries, and that is both the mazier shape and where most of the extra rock comes from: a
+    // full-depth shaft is ~10% of a chunk on its own, and there are twenty other chunks paying for
+    // one nobody promised them.
+    //
+    // WHAT STILL HAS TO HOLD is that the run is never dead on arrival — the colony roots in the home
+    // chunk, so one guaranteed spine from the surface to the floor is the whole of the descent
+    // guarantee. A chunk you travel sideways into may have no way down at all; you descend on the
+    // spine and spread out at depth, which is the owner's release ("totally fine if some areas are
+    // not reachable") applied to the one structure that was load-bearing.
+    const spine = atHome;
+    let vRun = spine ? rows : Math.round(rf(10, 26));
+    let vSolid = false;
     for (let r = 0; r < rows; r++) {
-      carve(col, r, radAt(M.shaftRadius, r));
-      markRoute(col, r, 4.0);
+      if (!vSolid) {
+        carve(col, r, radAt(M.shaftRadius, r));
+        markRoute(col, r, 4.0);
+      }
+      if (!spine && --vRun <= 0) {
+        vSolid = !vSolid;
+        vRun = Math.round(vSolid ? rf(8, 20) : rf(10, 26));
+      }
       if (hold-- <= 0) { dir = ri(3) - 1; hold = 2 + ri(4); }
       // BOUNDED AROUND ITS HOME COLUMN. Unbounded (`clamp(col + dir, c0 + 1, c1 - 1)`) a ±1 walk
       // over 168 rows drifts right across the chunk, so a "shaft" erodes most of its width and the
       // solid slabs the rock needs never exist. ±4 keeps it a shaft that leans.
       col = clamp(col + dir, Math.max(c0 + 1, home0 - 4), Math.min(c1 - 1, home0 + 4));
+    }
+  }
+  // --- vertical links: the maze's junctions ---------------------------------
+  // A FEW SHORT PASSAGES BETWEEN EACH PAIR OF GALLERIES, at random columns. Without these, breaking
+  // the galleries leaves a stack of shelves joined only by the one shaft, which is not a maze — it is
+  // the ladder again with narrower rungs. A maze is defined by which links are ABSENT, so
+  // `linksPerGap` is deliberately a handful against the chunk's ~24 columns.
+  //
+  // BOTH ENDS MUST LAND ON GROUND A GALLERY ACTUALLY LEFT OPEN. After segmenting, "the gallery row"
+  // is not necessarily open at a given column, so a link carved between two row numbers can run from
+  // rock to rock and simply add a sealed slot. `galleryAt` records what each gallery really opened,
+  // and a column with no segment on either side is skipped rather than linked to nothing.
+  const links = M.linksPerGap || [2, 4];
+  for (let gi = 0; gi + 1 < galleryRows.length; gi++) {
+    const n = Math.round(rf(links[0], links[1]));
+    for (let k = 0; k < n; k++) {
+      // Try a few columns before giving up: a gap with no legal column is a legitimate maze feature
+      // (that pair of galleries is joined elsewhere, or not at all), not a failure to work around.
+      let col = -1;
+      for (let t = 0; t < 8; t++) {
+        const cand = c0 + 1 + ri(Math.max(1, W - 2));
+        if (galleryAt[gi][cand - c0] >= 0 && galleryAt[gi + 1][cand - c0] >= 0) { col = cand; break; }
+      }
+      if (col < 0) continue;
+      const rA = galleryAt[gi][col - c0], rB = galleryAt[gi + 1][col - c0];
+      let cc = col;
+      for (let r = Math.min(rA, rB); r <= Math.max(rA, rB); r++) {
+        carve(cc, r, radAt(M.galleryRadius, r));
+        markRoute(cc, r, 3.2);
+        // A LINK LEANS RATHER THAN DROPPING STRAIGHT. A plumb line reads as a manufactured chute and,
+        // stacked over four bands, as a second grid; ±1 with a hard bound keeps it a passage.
+        if (rng() < 0.35) cc = clamp(cc + (rng() < 0.5 ? -1 : 1), Math.max(c0 + 1, col - 2), Math.min(c1 - 1, col + 2));
+      }
     }
   }
   // --- the head, in the HOME chunk only -------------------------------------
@@ -21722,6 +21839,26 @@ function mineGenerateChunk(state, ci) {
       // rather than a hole: the colony has to be able to reach round it and touch the water face.
       carve(spot[0], spot[1], 2.8);
       spots.push({ kind: 'water', c: spot[0], r: spot[1], rad: 1 });
+    }
+    // --- and the BLIND ALLEYS, which pay nothing ---------------------------
+    // Every spur above ends in a reward, so before these there was no such thing as a wrong turn:
+    // any passage leading off the corridor was worth following, which is a maze with the maze taken
+    // out. These use the same machinery and place nothing at the end.
+    //
+    // They are the one feature here that costs the player outright — a dead end is water spent for
+    // no return — so the count is small and deliberately not scaled with depth. Note they are also
+    // free cover: an alley is carved out of ground the rock loop would otherwise have filled, so
+    // raising `deadEndsPerBand` makes the map MORE open, not less. It is a shape knob, not a
+    // density one; the density knobs are the gallery gaps and the radii.
+    const deLen = M.deadEndCells || [4, 9];
+    for (let i = 0; i < (M.deadEndsPerBand | 0); i++) {
+      const r = rLo + ri(Math.max(1, rHi - rLo)), c = c0 + 2 + ri(Math.max(1, W - 4));
+      if (open[at(c, r)] || onRoute[at(c, r)]) continue;
+      const from = routeNear(c, r, Math.max(3, deLen[1] | 0));
+      if (!from) continue;
+      const d = Math.abs(c - from[0]) + Math.abs(r - from[1]);
+      if (d < (deLen[0] | 0)) continue;
+      carveSpur(from, [c, r], 1.2);
     }
   }
 
