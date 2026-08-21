@@ -89,6 +89,60 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     // which are seeded off it — is answerable before a frame has run.
     await b.page.waitForFunction(() => !!window.__game.state.substrate._fineSolid, { timeout: 20000 });
     await sleep(1200);
+    // A DESCENT THAT FOLLOWS THE PASSAGE, shared by every probe whose setup is "get to depth N".
+    //
+    // It exists because the DESCENT SPINE STOPPED BEING A STRAIGHT CHUTE. Several probes reached
+    // depth by digging `(0, 1)` with a ±0.5 fallback, which worked only while there was a plumb
+    // rock-free shaft under the start column — the one the owner spotted ("a vertical line from
+    // where the colony starts, straight down, that is totally void of rocks"). With the spine
+    // snaking they stalled at 31-40 m and four assertions failed for want of depth rather than for
+    // anything they were testing. Shaping the world so a blind probe works is backwards; this is the
+    // other half of that fix.
+    //
+    // It tries progressively wider angles and keeps whichever actually GAINED depth — a dig into a
+    // wall still succeeds (the fan finds open ground sideways) while buying nothing, so "did it
+    // grow?" is the wrong question and "are we deeper?" is the right one.
+    await b.page.evaluate(() => {
+      // LOOK BEFORE DIGGING — one dig per step, never a fan of paid attempts. Trying seven angles and
+      // keeping whichever gained depth costs SEVEN DIGS a step, which empties the tank probing: the
+      // tolerance dive read `26 m on 22 digs` (the whole opening tank for 1.2 m a dig) while the fuel
+      // probe managed 45 m on 19. `solidAtWorld` is free, so the aim is chosen against the mask and
+      // then paid for once.
+      window.__aimDown = () => {
+        const g = window.__game, s = g.state, sub = s.substrate;
+        let tip = null;
+        for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+        if (!tip) return 0;
+        const reach = (s.config.growth.segmentLength || 25.5) * 3;
+        let best = 0, bestGain = -1;
+        for (const dx of [0, 0.35, -0.35, 0.7, -0.7, 1.1, -1.1, 1.6, -1.6]) {
+          const nrm = Math.hypot(dx, 1);
+          // Walk the ray and score how far down it stays clear — the aim that buys the most depth,
+          // not merely one that is legal.
+          let clear = 0;
+          for (let t = 0.25; t <= 1.0001; t += 0.25) {
+            const x = tip.x + (dx / nrm) * reach * t, y = tip.y + (1 / nrm) * reach * t;
+            if (sub.solidAtWorld(x, y)) break;
+            clear = (1 / nrm) * reach * t;
+          }
+          if (clear > bestGain) { bestGain = clear; best = dx; }
+        }
+        return bestGain > 0 ? best : null;
+      };
+      window.__digTo = async (targetM, iters) => {
+        const g = window.__game, s = g.state;
+        let stuck = 0;
+        for (let i = 0; i < (iters || 140) && g.mine.depth() < targetM && !s.runOver; i++) {
+          const d0 = g.mine.depth();
+          const dx = window.__aimDown();
+          if (dx === null) { if (++stuck > 10) break; }
+          else if (!g.mine.grow(dx, 1).ok) { if (++stuck > 10) break; }
+          if (g.mine.depth() <= d0) { if (++stuck > 14) break; } else stuck = 0;
+          if (i % 4 === 3) await new Promise((r) => setTimeout(r, 60));
+        }
+        return g.mine.depth();
+      };
+    });
     return b;
   };
 
@@ -894,7 +948,16 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       const s2 = g.state;
       await new Promise((r) => setTimeout(r, 1200));
       s2.active.water = 999999;
-      for (let i = 0; i < 8; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 120)); }
+      // A COLONY WITH TISSUE TO SPARE, and this is not padding. Eight blind digs built a small
+      // colony, and on the dense maze carve one breach claims a large share of a small colony — so
+      // cutting the rot out removed nearly everything and the run ENDED mid-probe (`over: true`,
+      // which is what `...with the descent still alive` was reporting). `__digTo` also actually
+      // descends now that the spine snakes, where `grow(0, 1)` stalled.
+      await window.__digTo(48, 90);
+      for (let i = 0; i < 10; i++) {
+        g.mine.grow(i % 2 ? 1.4 : -1.4, 0.5);
+        if (i % 3 === 2) await new Promise((r) => setTimeout(r, 80));
+      }
       await new Promise((r) => setTimeout(r, 900));
       s2.nematodes.length = 0; s2.clouds.length = 0;
       s2.config.nematodes.respawnChance = 0; s2.config.trichoderma.respawnChance = 0;
@@ -912,9 +975,9 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       // passages, so one breach claims more strands and two cuts at `cutRadius` left 28 rotten with
       // `0 dose(s) left`. That is a real balance observation about `amputateCharges` and it belongs
       // to the owner, not to a mechanism test that would fail on it and hide both.
-      s2.mineItems = Object.assign({}, s2.mineItems, { amputate: 12 });
+      s2.mineItems = Object.assign({}, s2.mineItems, { amputate: 8 });
       let cuts = 0;
-      for (let i = 0; i < 12 && g.mine.infect().rotten > 0; i++) {
+      for (let i = 0; i < 8 && g.mine.infect().rotten > 0 && !s2.runOver; i++) {
         const rot = s2.active.nodes.find((n) => n.infected);
         if (!rot) break;
         if (g.mine.useAmputate(rot.x, rot.y).ok) cuts++;
@@ -1059,10 +1122,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
       s.active.water = 999999;
       // Get well past the limit first.
-      for (let i = 0; i < 24 && g.mine.depth() < 70; i++) {
-        if (!g.mine.grow(0, 1).ok) g.mine.grow(i % 2 ? 0.5 : -0.5, 1);
-        await new Promise((r) => setTimeout(r, 90));
-      }
+      await window.__digTo(70, 140);
       await new Promise((r) => setTimeout(r, 900));
       const depth = g.mine.depth(), price = g.mine.costHere();
       const before = s.active.nodes.length, w0 = s.active.water;
@@ -1104,12 +1164,26 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       const g = window.__game, s = g.state;
       s.nematodes.length = 0; s.clouds.length = 0;
       s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
-      let digs = 0;
+      // FOLLOWS THE PASSAGE (see `__digTo` in bootMine). Digging blindly straight down measured 31 m
+      // both before and after buying the whole tolerance track, which reads as the track doing
+      // nothing and was really the probe failing to descend at all once the spine stopped being a
+      // plumb chute.
+      // IT HAS TO END ON FUEL, NOT ON A WALL, or the measurement cannot see heat at all. Breaking at
+      // the first blocked aim stopped the dive at `43 m on 12 digs` — a quarter of the tank unspent,
+      // and only a metre past the first price line, so buying the whole tolerance track changed the
+      // reading by nothing and looked like the track being worthless. When down is blocked a player
+      // goes SIDEWAYS and tries again; so does this, bounded so a genuinely sealed pocket still ends
+      // the loop.
+      let digs = 0, blocked = 0;
       for (let i = 0; i < 220 && s.active.water >= g.mine.cheapest() && !s.runOver; i++) {
-        if (g.mine.grow(0, 1).ok) digs++;
-        else if (g.mine.grow(i % 2 ? 0.5 : -0.5, 1).ok) digs++;
-        else break;
-        await new Promise((r) => setTimeout(r, 90));
+        const dx = window.__aimDown();
+        if (dx !== null && g.mine.grow(dx, 1).ok) { digs++; blocked = 0; }
+        else {
+          if (!g.mine.grow(blocked % 2 ? 1.6 : -1.6, 0.35).ok) { if (++blocked > 8) break; }
+          else { digs++; blocked++; }
+          if (blocked > 14) break;
+        }
+        if (i % 4 === 3) await new Promise((r) => setTimeout(r, 70));
       }
       return { digs, depth: g.mine.depth(), safe: g.mine.heat().safe };
     });
@@ -1180,8 +1254,23 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       s.nematodes.length = 0; s.clouds.length = 0;
       s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
       s.active.water = 999999;
-      const deep = (sub.foodPiles || []).filter((p) => p.mineMat && p.mineMat !== 'phosphorus')
-        .sort((a, b2) => a.cells[0] - b2.cells[0])[0];
+      // THE NEAREST SEAM, RETAGGED — navigation is not what this measures. Picking the shallowest
+      // DEEP seam and digging to it worked only while a plumb chute ran under the start column; with
+      // the spine snaking the dig wandered into a band-0 pile instead and the probe read
+      // `anthracite: 0 ({phosphorus: 3})`, i.e. it failed about the wrong thing. That the BAND decides
+      // the material is asserted directly above, off the generator's own tags; what is left to test
+      // here is that a pile tagged X pays X and not Phosphorus, and for that any reachable pile does.
+      let deep = null, dbest = Infinity;
+      for (const p of (sub.foodPiles || [])) {
+        const idx = p.cells[0], c = idx % sub.cols, r = (idx - c) / sub.cols;
+        const px = (c + 0.5) * sub.cellSize, py = sub.surfaceY + (r + 0.5) * sub.cellSize;
+        for (const n of s.active.nodes) {
+          if (n.infected) continue;
+          const d = (n.x - px) ** 2 + (n.y - py) ** 2;
+          if (d < dbest) { dbest = d; deep = p; }
+        }
+      }
+      if (deep) { deep.mineMat = 'anthracite'; deep.mineBand = 1; }
       if (!deep) return { none: true };
       const idx = deep.cells[0], c = idx % sub.cols, r = (idx - c) / sub.cols;
       const tx = (c + 0.5) * sub.cellSize, ty = sub.surfaceY + (r + 0.5) * sub.cellSize;
@@ -1775,6 +1864,18 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     const b = await bootMine(seed);
     const dive = await b.page.evaluate(async () => {
       const g = window.__game;
+      // THE POCKETS COME OUT, because this measures the TANK. A dive that follows open ground —
+      // which is what the loop below does now, and what a player does — wanders into water pockets
+      // and refuels, and then "a straight dive runs out of fuel" is measuring the map's generosity
+      // rather than the fuel curve. Same move as zeroing the worm drain in the pocket probe: take
+      // the variable out rather than widening the tolerance around it.
+      //
+      // It is also what let the DESCENT SPINE stop being straight. The loop used to dig blindly
+      // `(0, 1)` and so needed a plumb shaft under the start column to have anywhere to go — which
+      // is the rock-free vertical line the owner spotted. Shaping the world for a probe is backwards;
+      // the probe aims into the passage now and the spine snakes.
+      (g.state.substrate.reservoirs || []).length = 0;
+      for (const c of g.state.substrate.cells) if (c.water && c.reservoir) { c.water = false; c.reservoir = null; }
       let digs = 0;
       for (let i = 0; i < 300; i++) {
         if (g.state.runOver) break;
@@ -1784,7 +1885,18 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
         // crawl sideways up top toward water they know about, which is a recovery play rather than
         // a stuck state. Breaking on the first refused DOWNWARD dig read `75 m, over=false` and
         // blamed the fuel curve for the affordability rule working.
-        if (g.mine.grow(0, 1).ok) { digs++; }
+        // AIM INTO THE PASSAGE WHEN STRAIGHT DOWN STOPS PAYING. A straight dig into a wall still
+        // SUCCEEDS — the fan finds some open ground sideways — while buying almost no depth, so a
+        // blind loop empties the tank going nowhere and measures the roll rather than the economy.
+        const d0 = g.mine.depth();
+        let moved = false;
+        if (g.mine.grow(0, 1).ok) { digs++; moved = g.mine.depth() > d0; }
+        if (!moved) {
+          for (const dx of (i % 2 ? [0.7, -0.7] : [-0.7, 0.7])) {
+            if (g.mine.grow(dx, 1).ok) { digs++; if (g.mine.depth() > d0) { moved = true; break; } }
+          }
+        }
+        if (moved) { /* progress this step */ }
         else {
           // `mine.grow` always digs from the DEEPEST tip, and heat prices a dig by where it starts —
           // so once the deep ground is unaffordable that call refuses for ever while the colony can

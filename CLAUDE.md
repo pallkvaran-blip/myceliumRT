@@ -3303,6 +3303,47 @@ soil. Four findings, in the order they cost time — **read these before touchin
     the home chunk), because those are the ARTICULATION points — a random cell mid-gallery almost
     always has a way round. Control: plugs off reads 33.1% open / 35.9% solid against 26.1% / 44.3%.
 
+**AND THE SPINE MUST NOT BE STRAIGHT — SHAPING THE WORLD FOR A PROBE IS BACKWARDS.** The owner, on
+the very next look: *"there is still a vertical line from where the colony starts, straight down, that
+is totally void of rocks."* Of course there was. Rock is only placed where the carve left ground
+CLOSED, so a plumb full-depth shaft pinned to the home column is a guaranteed rock-free chute placed
+exactly where the player is looking.
+
+- **It was pinned to ±1 to make a PROBE work**, not for the game: the fuel-curve dive dug blindly
+  `grow(0, 1)`, so it needed a plumb shaft to have anywhere to go. Measured before/after on the same
+  seed, the home column is solid on **0 of 168 rows** with the pin and **47-69 of 168** without it
+  (three seeds). `tests/mine-check.cjs`'s `__digTo`/`__aimDown` is the other half of the fix.
+- **The guarantee is that the spine REACHES THE FLOOR, not that it is plumb.** ±7 makes it a crack
+  that snakes and costs the guarantee nothing.
+- **It also gave back everything the straightening had cost**: lateral travel went 740 → **1680
+  units** left, and render fill dropped **27 ms → 18.5 ms** (a straight chute concentrates the rock
+  it displaces into the slabs either side).
+
+**FOUR PROBES WERE SECRETLY NAVIGATING BY THAT CHUTE**, and all four failed the moment it went — at
+31-43 m, about depth rather than about anything they test. The fixes are all the same shape and worth
+copying:
+
+- **`__digTo(targetM)` in `bootMine` is the shared descent**, and **`__aimDown()` LOOKS BEFORE
+  DIGGING**. Trying seven angles and keeping whichever gained depth costs SEVEN DIGS a step and
+  empties the tank probing — the tolerance dive read `26 m on 22 digs` (1.2 m a dig, the whole opening
+  tank) against the fuel probe's 45 m on 19. `solidAtWorld` is free: score each ray for how far down
+  it stays clear, then pay for one dig.
+- **A DIVE MUST END ON FUEL, NOT ON A WALL**, or it cannot see heat at all. Breaking at the first
+  blocked aim stopped at `43 m on 12 digs` with a quarter of the tank unspent and one metre past the
+  first price line — so buying the whole tolerance track changed the reading by NOTHING and looked
+  like the track being worthless. Going sideways and trying again reads **55 m → 76 m**.
+- **The fuel-curve probe REMOVES THE WATER POCKETS.** A dive that follows open ground wanders into
+  them and refuels, and then "a straight dive runs out of fuel" measures the map's generosity rather
+  than the tank. Same idiom as zeroing the worm drain: take the variable out.
+- **The materials probe RETAGS THE NEAREST SEAM** instead of digging to the shallowest deep one, which
+  wandered into a band-0 pile and read `anthracite: 0 ({phosphorus: 3})`. That the BAND decides the
+  material is asserted directly off the generator's tags; what is left here is "a pile tagged X pays X
+  and not Phosphorus", and any reachable pile answers it.
+- **The amputate probe needed a BIGGER COLONY, and the reason is a real balance signal.** On the dense
+  carve one breach claims a large share of a small colony, so cutting the rot out removed nearly
+  everything and the run ENDED mid-probe — which is what `...with the descent still alive` was
+  reporting. It descends and spreads first now.
+
 **TWO KNOBS THAT LOOK RIGHT AND ARE TRAPS:**
 
 - **`gallerySealChance` IS NOT A CONNECTIVITY KNOB.** Walling galleries at chunk seams *sounds* like

@@ -21772,15 +21772,20 @@ function mineGenerateChunk(state, ci) {
       if (hold-- <= 0) { dir = ri(3) - 1; hold = 2 + ri(4); }
       // BOUNDED AROUND ITS HOME COLUMN. Unbounded (`clamp(col + dir, c0 + 1, c1 - 1)`) a ±1 walk
       // over 168 rows drifts right across the chunk, so a "shaft" erodes most of its width and the
-      // solid slabs the rock needs never exist. ±4 keeps it a shaft that leans.
+      // solid slabs the rock needs never exist.
       //
-      // THE SPINE IS HELD MUCH STRAIGHTER (±1), and that is what lets the rock get heavy. `mine.grow`
-      // digs from the DEEPEST tip, so on a ±4 shaft a straight-down dive drifts off the spine into
-      // rock and spends the rest of the tank dodging — measured as seed 11 reaching 24 m against
-      // seed 909's 45 on the same build and tank, which is a spread no `startWater` can be tuned
-      // against. Held to ±1 a dive stays in the one corridor that is guaranteed to go all the way
-      // down, so depth-per-dig stops depending on the roll and density becomes a knob again.
-      const lean = spine ? 1 : 4;
+      // THE SPINE WANDERS WIDEST OF ALL, and holding it straight was a mistake worth recording.
+      // It was pinned to ±1 so a probe digging blindly straight down would stay inside it, i.e. it
+      // was shaped for a TEST rather than for the player — and the owner saw the result immediately:
+      // "there is still a vertical line from where the colony starts, straight down, that is totally
+      // void of rocks." Of course there was. Rock is only placed where the carve left ground closed,
+      // so a straight full-depth shaft under the start column is a guaranteed rock-free chute, and
+      // pinning it to the home column put it exactly where the player is looking.
+      //
+      // The guarantee that matters is that the spine REACHES the floor, not that it is plumb. ±7
+      // makes it a crack that snakes; the probe that needed it straight was fixed instead (it aims
+      // into open ground now, and its pockets are removed so it measures the tank).
+      const lean = spine ? 7 : 4;
       col = clamp(col + dir, Math.max(c0 + 1, home0 - lean), Math.min(c1 - 1, home0 + lean));
     }
   }
