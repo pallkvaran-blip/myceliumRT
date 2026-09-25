@@ -1,0 +1,1329 @@
+{
+ "0": {
+  "runs": [
+   {
+    "n": 1,
+    "seconds": 51.5,
+    "depthM": 82,
+    "digs": 36,
+    "endCause": "dry",
+    "earned": "+9 Phosphorus",
+    "bought": "nothing (every item costs 10 P or more; all 7 tiles greyed out)",
+    "notes": "First-ever run from the plain URL. The opening hint 'Drag from the colony to dig' was set but never shown (display:none on phones). Found 3 P seams, all at 11-20 m, and 2 water pockets. The price doubled to 4 at 42 m and the run ran dry cleanly at 82 m. Shots: shots/run1/b_runstart.png, d_first_ore.png, d_first_water.png, g_midrun.png, h_end.png, i_store.png"
+   },
+   {
+    "n": 2,
+    "seconds": 44.6,
+    "depthM": 112,
+    "digs": 24,
+    "endCause": "dry, after a soft lock",
+    "earned": "+12 P, +6 anthracite, +2 garnet",
+    "bought": "Mucus flasks rung 1 (15 P)",
+    "notes": "A worm attached at 71 m (21.3 s) before any worm was on screen (22.8 s), draining -0.2/s. The price went to 8 at 84 m. SOFT LOCK at 37.9 s: 3-5 water, 'Not enough water - a dig here costs 8', and the run did not end. A worm drained the last water at 44.6 s, which ended it. The HUD pill overflowed and pushed the material count under the gear. Shots: run2/e_worm_attached.png, run2/x_softlock.png"
+   },
+   {
+    "n": 3,
+    "seconds": 62,
+    "depthM": 96,
+    "digs": 30,
+    "endCause": "infected (rot deadline)",
+    "earned": "+9 P, +2 garnet",
+    "bought": "Grow strength rung 1 (12 P)",
+    "notes": "Used the flask on an attached worm; the worm stayed attached. Mould hit at 42.4 s (96 m, 16 strands). Soft lock at 46.7 s with 5-6 water. The rot deadline ended the run at about 61.5 s; the harness logged 120 s because the End-run click timed out as the end screen took over. On the end screen the P sparkle rendered about 100 px tall. Shots: run3/k_flask.png, run3/e_infected.png, run3/h_end.png"
+   },
+   {
+    "n": 4,
+    "seconds": 54.1,
+    "depthM": 101,
+    "digs": 38,
+    "endCause": "dry",
+    "earned": "+12 P, +8 anthracite, +2 garnet",
+    "bought": "Water rung 1 (10 P; +5 start water)",
+    "notes": "From this run on, the player routes around mould clouds. The flask again did not detach the worm. 9 seams and 4 pockets. Ended cleanly. The end screen showed the materials as unlabeled coloured dots. Shots: run4/h_end.png, run4/j_store_bottom.png"
+   },
+   {
+    "n": 5,
+    "seconds": 79.7,
+    "depthM": 89,
+    "digs": 43,
+    "endCause": "soft lock, then Settings > End run",
+    "earned": "+18 P, +6 anthracite",
+    "bought": "Heat tolerance rung 1 (18 P)",
+    "notes": "Soft lock at 65.7 s with 5 water against a price of 8. Waited 13.5 s with nothing happening, then found gear > End run. The end screen then said 'The colony was eaten' (wrong copy for an abandon). The unused kit (flask 1) sat under the end screen. Shots: run5/x_softlock.png, run5/x_gear_menu.png, run5/h_end.png"
+   },
+   {
+    "n": 6,
+    "seconds": 50.5,
+    "depthM": 103,
+    "digs": 34,
+    "endCause": "dry",
+    "earned": "+12 P, +6 anthracite",
+    "bought": "Ore yield rung 1 (10 P)",
+    "notes": "Infected at 31 s even though the player avoided the clouds (clouds hunt the colony within their 300-unit sight). It ran dry just before the rot deadline. Heat tolerance kept digs at 2 down to 67 m."
+   },
+   {
+    "n": 7,
+    "seconds": 58.7,
+    "depthM": 112,
+    "digs": 40,
+    "endCause": "dry",
+    "earned": "+12 P, +6 anthracite, +3 garnet",
+    "bought": "Water pockets rung 1 (14 P)",
+    "notes": "Worm attached and mould infection both at 39.8 s; it ran dry at 58.7 s, one second before the rot would have ended it. Drained 7.2 water to worms."
+   },
+   {
+    "n": 8,
+    "seconds": 77.9,
+    "depthM": 132,
+    "digs": 48,
+    "endCause": "dry, after a soft lock",
+    "earned": "+24 P, +9 anthracite, +6 garnet",
+    "bought": "Water rung 2 (24 P)",
+    "notes": "New best. The soft lock began at 74.1 s; worm drain ended it at 77.9 s. Best payout of the ten runs. Shot: run8/g_midrun2.png"
+   },
+   {
+    "n": 9,
+    "seconds": 51.2,
+    "depthM": 132,
+    "digs": 32,
+    "endCause": "infected (rot deadline)",
+    "earned": "+8 P, +6 anthracite",
+    "bought": "nothing (13 P; the cheapest next rung is 22)",
+    "notes": "Infected at 31.8 s. The deadline ended the run with water still in the tank. The first dead store visit since run 1."
+   },
+   {
+    "n": 10,
+    "seconds": 49,
+    "depthM": 144,
+    "digs": 32,
+    "endCause": "infected (rot deadline)",
+    "earned": "+16 P, +6 anthracite, +6 garnet, +6 hematite",
+    "bought": "Cutting enzyme rung 1 (20 P)",
+    "notes": "New best, 144 m. Infected at 29 s with 74 water in the tank, and the run was over 20 s later. 5 worms by the end (-1.0/s). Bank after the store: 9 P, 53 anthracite, 21 garnet, 6 hematite, and nothing buys the materials. Shots: run10/e_infected.png, run10/h_end.png, run10/i_store.png"
+   },
+   {
+    "n": 11,
+    "seconds": 63.5,
+    "depthM": 119,
+    "digs": 37,
+    "endCause": "dry",
+    "earned": "+12 P, +9 anthracite, +3 garnet",
+    "bought": "nothing (21 P)",
+    "notes": "Extra run as a returning player: the title now shows UPGRADES and 'deepest descent 144 m'. Used the enzyme on a 46-strand breach: 'Amputated 40 strands', but rot remained and the clock kept running (1 s left when the tank ran dry). The flask worked this time (attached 1 -> 0). Shots: run11/a_title.png, run11/b_runstart.png, run11/k_amp_armed.png, run11/h_end.png"
+   },
+   {
+    "n": 12,
+    "seconds": 68.1,
+    "depthM": 79,
+    "digs": 29,
+    "endCause": "run destroyed by the 'Dev: maps' button",
+    "earned": "nothing (16 P and 9 anthracite lost)",
+    "bought": "nothing",
+    "notes": "A drag near the top-right corner hit 'Dev: maps', and a later press chose a map from its list. That loaded an amethyst campaign map inside the mine HUD: 0 m, cannot dig, no end screen, no payout. Shot: run12/x_stuck.png"
+   }
+  ],
+  "problems": [
+   {
+    "title": "Most deep runs end in a soft lock: the run is not over, but no dig you can see is affordable",
+    "severity": "blocker",
+    "evidence": "`mineFuelCheck`/`mineCanGrow` compare the tank with `mineCheapestCost`, which is priced at the SHALLOWEST strand (2), while every dig at the working front costs 4-8. So a tank of 2-7 water at 84 m or deeper gives endless 'Not enough water - a dig here costs 8' toasts and the run never ends. Hit in runs 2, 3, 5, 8 and 11, and in 3 of 4 exploratory runs. Controlled probe (probe_softlock.cjs): 6 water at 93 m, idle 60 s, runOver=false (shots/softlock_probe_60s.png). The only exits are a worm draining the rest (runs 2 and 8), the rot deadline (run 3), or gear > End run (run 5, after 13.5 s of dead time). The intended recovery, digging from a surface strand, needs about 2000 px of panning at zoom 0.6, and nothing on screen suggests it.",
+    "suggestion": "End the run (after the grace period) when the tank cannot pay for a dig at the colony's working front: price it at the deepest tip or the camera-focus strand, not the shallowest. At minimum, show a large 'Spore now' button whenever water < costHere, so the ending is one tap."
+   },
+   {
+    "title": "The game's only instruction is invisible on every phone, and a tap does nothing",
+    "severity": "blocker",
+    "evidence": "mineFrame (~line 37295) calls ui.setHint('Drag from the colony to dig'), but the CSS at ~lines 1011 and 693 sets `.hint { display: none; }` for max-width 760px. On a fresh run with isMobile and touch the hint's computed display is 'none' at 1.5, 4 and 8 s (probe_hint.cjs; run1/b_runstart.png shows no text). With true touch taps (probe_tap.cjs), tapping the colony and tapping open ground change nothing: no dig, no toast. Only a drag digs. A brand-new phone player sees a 10 px root under a hill and no words.",
+    "suggestion": "Give the mine hint its own element, or override the phone rule for the mine. Also make a plain tap on or near the colony dig downward (mineGrow already treats no direction as down), or at least toast 'drag to dig'."
+   },
+   {
+    "title": "Run 1 cannot buy anything: the first store visit is seven greyed-out tiles",
+    "severity": "major",
+    "evidence": "First-run payouts on fresh saves were 9 P (run 1), 6, 12, 6 and 9 (exploratory saves). The cheapest item is 10 P (Water, Ore yield). 4 of 5 first runs could afford nothing (run1/i_store.png, every button disabled). CLAUDE.md Phase 4 says 'Run 1 ... banks one upgrade'. Runs 9 and 11 also bought nothing (13 P and 21 P against second rungs of 22-45 P).",
+    "suggestion": "Price the first rung of 2-3 tracks at 5-6 P, or give a first-descent bonus, so the first store visit always ends in a purchase. Keep the second rungs within about 1.5 runs of income."
+   },
+   {
+    "title": "Only the first 42 m pays spendable money; depth pays unnamed materials with nothing to buy",
+    "severity": "major",
+    "evidence": "Every Phosphorus seam in all 11 runs was claimed at 10-46 m (strand depth). Below 42 m, seams pay anthracite, garnet or hematite and no P (mineOreRewards `isP`). `orePerPile` [3,5,8,12] ('deeper ore is worth more') is effectively dead for bands 1-3. The materials only buy heat rung 3 and above, enzyme rung 3 and above, or grow rung 4 and above, each behind 58+ P of earlier rungs. After run 11 the bank held 62 anthracite, 24 garnet and 6 hematite with nothing to spend them on. They appear as bare coloured dots with no name: the store header reads '\u272629 \u25cf53 \u25cf21 \u25cf6' (run10/i_store.png), the end screen '+8\u25cf +2\u25cf' (run4/h_end.png), and the HUD '\u25cf6' is clipped at the edge. Seams are drawn as the same orange leaf litter in every band, so a garnet seam looks like a phosphorus one. The game celebrates depth ('YOUR DEEPEST DESCENT YET', heat tolerance) while the money sits in the first band.",
+    "suggestion": "Let deep seams also pay P scaled by band (orePerPile already exists), or put a deep material on rung 1-2 of something desirable, so a first anthracite seam has an immediate use. Name the materials on the end screen, the store header and the HUD, and tint the seam art per material. The plan's own interlock ('materials want the compass; do not ship 6 alone') is showing."
+   },
+   {
+    "title": "Upgrades are too small to feel, and progression is slower than the variance between seeds",
+    "severity": "major",
+    "evidence": "Water +5 on 84 (6%, 2.5 digs) for 10 P. After 10 runs and 8 purchases, start water went 84 -> 94. Depth by run: 82, 112, 96, 101, 89, 103, 112, 132, 132, 144. Runs 1-3 on identical upgrades already spread 82-112 m. Income was 8-24 P a run (132 P over 10 runs), about one small purchase per run, and none in runs 9 and 11. Every run felt the same: same hill, same ~100 m wall of 8-water digs.",
+    "suggestion": "Make early rungs visibly change a run (for example Water +15-20, Grow strength as the headline). Consider fewer, chunkier rungs, plus one per-run surprise (a modifier, a bonus seam, or a goal such as 'bring back 2 garnet')."
+   },
+   {
+    "title": "The Mucus flask is almost worthless at the level a player can buy",
+    "severity": "major",
+    "evidence": "excrete() gives one hit and `stickTurns` 1 (one 500 ms tick), and `killHits` is 3. Controlled probe (probe_counter.cjs): 2.0 water drained in the 10 s before the flask, 1.9 in the 10 s after, the worm still attached, toast 'Mucus burst - 1 stuck fast'. In runs 3 and 4 the worm was still attached after the flask (attached 1 -> 1). It is the first purchase a bitten player makes (15 P) and it saved 0.1 water. Worms also attach from off screen (run 2: attached at 21.3 s, first seen at 22.8 s) and are 16 px pale squiggles at the resting zoom (shots/look_worm.png, look_worm_zoom.png).",
+    "suggestion": "In the mine, have one flask detach or kill every worm within range (for example killHits 1, or a long stick that stops feeding). Draw attached worms larger or pulsing, and make the HUD worm chip point toward them."
+   },
+   {
+    "title": "Mould ends about half the later runs early, avoiding it barely helps, and one enzyme dose often cannot cure",
+    "severity": "major",
+    "evidence": "Infections in 7 of 11 runs, at 29-42 s, including 5 of the 7 runs (6, 7, 9, 10, 11) after the player learned to route around cloud bodies: clouds hunt the colony within a 300-unit sight radius and also eat ore seams. Run 10 was infected at 29 s with 74 water in the tank and was over 20 s later. The enzyme cured a fresh 7-strand breach in the probe, but in the real run 11 the breach was already 46 strands at first detection; one centred cut took 40 and the clock ran on (run11/k_amp_armed.png, h_end.png shows 1 s left).",
+    "suggestion": "Sell two doses at rung 1, or make the cut radius follow the rotten filaments. Give the first infection of a save a longer clock. Make cloud sight rings readable enough, and routes wide enough, that avoidance is a real skill."
+   },
+   {
+    "title": "Dev buttons are live on the plain URL and destroyed a run",
+    "severity": "major",
+    "evidence": "CONFIG.dev.enabled + inGameButtons: 'Dev: maps \u25be' and 'Dev: edit rocks' sit top-right in every run (for example run1/b_runstart.png). 'Dev quick-start', 'Dev: unlock all' and 'Dev: +10,000 spores' float over the store, covering the MYCELIUM title and hovering over the tiles when scrolled (run4/j_store_bottom.png). In run 12 a drag near the top-right opened Dev: maps and loaded an amethyst campaign map inside the mine HUD. The run was lost (16 P, 9 anthracite): 0 m, cannot dig, no end screen (run12/x_stuck.png).",
+    "suggestion": "Gate the dev buttons behind a hash or query flag, not the release config, before anyone outside plays it."
+   },
+   {
+    "title": "The HUD overflows the phone width, pushing the Settings gear (the only End run) off screen",
+    "severity": "major",
+    "evidence": "With the worm chip and the rot countdown both showing at 106 m, the resource pill is 423 px wide in a 390 px viewport. The dig price is clipped, the material row sits at x=439 and the gear at x=502, and elementFromPoint at the gear's centre returns null (probe_hud.cjs, shots/hud_full.png). The same crowding shows in run3/e_infected.png and run10/e_infected.png. Worms plus a deep soft lock is exactly when the player needs End run.",
+    "suggestion": "Wrap the pill onto two rows on narrow screens, or move depth and materials to a second row. Keep the gear pinned independently of the pill."
+   },
+   {
+    "title": "'Replay tutorial' in the mine silently restarts the run with no tutorial and no payout",
+    "severity": "minor",
+    "evidence": "probe_menu.cjs: 13 m into a run with 3 P dug, gear > Replay tutorial left the player at 84 water and 1 m on a fresh map, with no tutorial and nothing banked (shots/menu_after_tutorial.png). It is the most natural tap for a confused newcomer.",
+    "suggestion": "Hide 'Replay tutorial' in the mine, or make it show the mine's instruction overlay without touching the run."
+   },
+   {
+    "title": "Wrong or confusing copy at the edges",
+    "severity": "minor",
+    "evidence": "End run from the menu gives cause 'abandon', and the end screen says 'The colony was eaten' (run5/h_end.png; eaten = died && cause !== 'dry'). After Save & exit, the title still reads 'DIG - start a new descent', but DIG resumes the old run. The load gate says 'CLICK' on a phone (shots/00a_loading.png). The 42 m band beat 'ANTHRACITE' does not say that digs now cost 4; only the chip's colour changes (explore1/f_heat_line.png).",
+    "suggestion": "Give the abandon its own end line ('You called the colony up'). Say 'continue your descent' when a resume exists. Use 'Tap' on touch devices. Add '- digs now cost 4' to the beat when a heat line coincides."
+   },
+   {
+    "title": "End screen layout breaks when deep materials are present",
+    "severity": "minor",
+    "evidence": "Run 1's end screen shows a small \u2726. With any material present the Phosphorus sparkle renders about 100 px tall, and the unlabeled material dots drop to a second line (run4/h_end.png, run10/h_end.png, run11/h_end.png). The red all-caps call to action reads like an error.",
+    "suggestion": "Constrain the icon size and lay the earnings out as one labelled row ('+12 Phosphorus \u00b7 +8 Anthracite \u00b7 +2 Garnet')."
+   },
+   {
+    "title": "No collection feedback on the map",
+    "severity": "minor",
+    "evidence": "Seams and pockets pay out with no floating number, pop or flash at the site; only the HUD digit changes (run1/d_first_ore.png: \u27263 with nothing marking which seam paid). Tapped water pockets look the same as untapped ones, so a player cannot tell which are spent.",
+    "suggestion": "Float '+3 \u2726' or '+10 \ud83d\udca7' at the seam or pocket, and dim or drain a pocket's art once tapped."
+   },
+   {
+    "title": "A dig can grow from a different strand than the one pressed",
+    "severity": "minor",
+    "evidence": "growDirected (~line 16290) falls through to 'any tip that can take a first step' when the pressed strand is walled in along the aim. So a dig aimed into rock can appear somewhere else and still charge, and it is priced at the pressed strand's depth rather than where it grew. In exploratory run 0, a simple always-dig-down bot spent 30 successful digs (60 water) stuck at 31-33 m, each one 'succeeding'.",
+    "suggestion": "In the mine, refuse ('Solid rock that way') when the pressed strand cannot step within the dodge fan, rather than growing from another tip."
+   },
+   {
+    "title": "Nothing at the bottom: no goal once the depth record stops moving",
+    "severity": "major",
+    "evidence": "probe_bottom.cjs dug to 167 m of 168 with unlimited water: no reward, no message, no ending; digs just cost 16 (shots/bottom.png). The player's best went 112 -> 144 m over runs 2-10, so at this rate a player reaches the floor within roughly 15-20 runs, and then the one goal the game has is gone. Phase 3 (islands, journey east) is the plan's answer and is not built.",
+    "suggestion": "Until Phase 3 exists, make the floor a destination: a core event, a large one-time payout, or a reward for the first time you touch 168 m. Add a per-run objective so a run that doesn't beat the record still counts."
+   }
+  ],
+  "positives": [
+   "The core gesture is good: a drag from the colony grows immediately, the growth looks organic, and the camera keeps the tip in the upper third with the route below visible (run1/g_midrun.png).",
+   "The descent is beautiful and reads as a journey: brown earth, then coal black, then garnet, then rust, each band with its own rock set, and a '42 m ANTHRACITE' beat at each band line (explore1/f_heat_line.png, run8/g_midrun2.png, shots/bottom.png).",
+   "Runs are short and restarting is fast: 45-80 s at a brisk pace, and end screen -> 'To the store' -> 'DESCEND' is two taps. The returning title shows 'deepest descent 144 m' and an UPGRADES link (run11/a_title.png).",
+   "The HUD numbers are honest whole numbers: water, the dig price (orange once heat applies), the worm drain rate ('1 -0.2/s') and the rot countdown are always stated.",
+   "Full payout on every ending, including the rot deadline, so no run feels wasted in currency.",
+   "No unwinnable seeds: 12 seeds flood-filled from the colony root all reach the 168 m floor, with 82-99% of open ground connected (probe_reach.cjs).",
+   "Run 1 lands close to the owner's target: a first descent reached 82 m in 51 s and ended cleanly without a soft lock.",
+   "The enzyme works cleanly on a fresh breach (7 rotten strands -> 0 with one cut, and the clock cleared) and the arm-then-tap flow is clear ('Tap where to cut.').",
+   "Store tiles are plain and each says exactly what it does, with DESCEND above the fold.",
+   "Performance is fine in headless Chromium: 60 fps at the start, about 50 fps with 700 strands and 16 worms (p95 33 ms)."
+  ],
+  "loopVerdict": "There is a decent 45-60 second arcade descent here for the first two or three runs. It is pretty, the price is readable, there is a band beat every 42 m, and the drag feels good. But nothing yet pulls a player into run 11, let alone run 100.\n\n(1) Most deep runs do not end. They soft-lock at 2-7 water against an 8-water dig, and the only escape (gear > End run) is often pushed off the phone screen by the HUD.\n(2) A new phone player gets no instruction: the one hint is hidden by CSS, and a tap does nothing.\n(3) The first store visit sells nothing (9 P against a 10 P minimum). Later visits sell 6% improvements: start water went 84 -> 94 over ten runs, and depth went 82 -> 144 m, less than the run-to-run spread between seeds.\n(4) All spendable money is in the first 42 m, while the game celebrates depth. What depth pays out is unnamed coloured dots (62 anthracite banked by run 11) that the store will not take for several more rungs.\n(5) The two counterplay items do little at the level you can afford. The flask saved 0.1 water. One enzyme dose failed on a real 46-strand breach. Meanwhile mould ended about half the later runs early (7 of 11 runs infected), even when the player routed around the clouds.\n(6) Depth is the only goal, it caps at 168 m, and there is nothing at the floor.\n\nAs a returning player I was bored by about run 5 or 6: the purchases dry up, every run is the same hill, the same drag and the same ~100 m wall, and the last seconds are dead time.\n\nWhat would make someone play run 11:\n- A clean ending (auto-spore, or a big 'Spore now' button, when the front can't afford a dig) and a visible first instruction.\n- A guaranteed first purchase, and early rungs you can feel.\n- Deep seams paying Phosphorus by band (the unused orePerPile), with named materials that have an early use.\n- A flask and enzyme that actually solve their threat at rung 1.\n\nWhat would make someone play run 100: a destination and variety. That means the Phase 3 journey east plus the compass so the maze becomes decisions, a payoff at the floor, and per-run objectives or modifiers so a run that does not beat the depth record still counts.\n\nCaveat: these runs were played by a sighted route-planning bot using real drag gestures at about 1.4 s per dig. A human is probably 1.5-2x slower, which makes worm drain and the 20 s rot clock proportionally harsher, not kinder.",
+  "screens": [
+   "Load gate ('CLICK' on a phone), tap 1: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/playtest10/shots/00a_loading.png",
+   "First-time title (DIG / 'start a new descent' / MYCELIUM / 'water is your fuel' / CREDITS), tap 2 on DIG: .../playtest10/shots/00c_after_first_tap.png",
+   "DIG animation (the word grows for about 2.5 s; playable about 6.9 s after the tap): .../playtest10/shots/01_dig_1000.png, 01_dig_2500.png",
+   "Mine opening with dev buttons visible and no instruction: .../playtest10/shots/01_dig_5000.png, shots/run1/b_runstart.png",
+   "First ore (HUD +3, no map feedback): .../playtest10/shots/run1/d_first_ore.png; first water pocket: shots/run1/d_first_water.png",
+   "42 m band beat and the price chip turning orange: .../playtest10/shots/explore1/f_heat_line.png",
+   "First worm on screen (tiny squiggle and olive sensing wash): .../playtest10/shots/explore1/c_first_threat.png, shots/look_worm.png, shots/look_worm_zoom.png",
+   "Mould cloud before contact: .../playtest10/shots/look_cloud.png, look_cloud_zoom.png",
+   "Worm attached (red HUD chip, worm not visible): .../playtest10/shots/run2/e_worm_attached.png",
+   "Infection (rot countdown, toast 'That tissue is infected'): .../playtest10/shots/run3/e_infected.png, shots/run10/e_infected.png, shots/explore1/e_infected.png",
+   "Mid-run: .../playtest10/shots/run1/g_midrun.png, shots/run8/g_midrun2.png",
+   "Soft lock ('Not enough water - a dig here costs 8'): .../playtest10/shots/run2/x_softlock.png, shots/run5/x_softlock.png, shots/explore1/x_stuck.png, shots/softlock_probe_60s.png",
+   "Settings menu (Event log / Music / Sound / Replay tutorial / Save & exit / End run): .../playtest10/shots/explore1/x_gear_menu.png",
+   "HUD overflow pushing the gear off screen: .../playtest10/shots/hud_full.png",
+   "Kit at run start (unlabeled flask and enzyme buttons): .../playtest10/shots/run11/b_runstart.png; enzyme armed ('Tap where to cut.'): shots/run11/k_amp_armed.png; flask toast: shots/run3/k_flask.png",
+   "End screen, clean: .../playtest10/shots/run1/h_end.png; with materials (oversized sparkle, unlabeled dots): shots/run4/h_end.png, shots/run10/h_end.png; rot ending: shots/run3/h_end.png; End run mislabelled 'eaten': shots/run5/h_end.png",
+   "Store, first visit, all disabled: .../playtest10/shots/run1/i_store.png; after purchases: shots/run2/j_store_after.png (explore profile), shots/run10/i_store.png (material wallet dots); scrolled with dev buttons overlapping: shots/run4/j_store_bottom.png",
+   "Returning-player title (UPGRADES, 'deepest descent 144 m'): .../playtest10/shots/run11/a_title.png",
+   "Title after Save & exit: .../playtest10/shots/menu_after_saveexit.png; after 'Replay tutorial' (run restarted): shots/menu_after_tutorial.png",
+   "Dev: maps accident, campaign map loaded inside the mine: .../playtest10/shots/run12/x_stuck.png",
+   "The floor at 167 m, where nothing happens: .../playtest10/shots/bottom.png",
+   "Flow and taps: load gate (1 tap) -> title DIG (1 tap, about 7 s to playable) -> drag to dig (a tap does nothing) -> run ends -> 'To the store' (1 tap) -> buy (1 tap per rung) -> DESCEND (1 tap). Per-run data and logs: .../playtest10/shots/run<N>/summary.json and log.txt; scripts: .../playtest10/play10.cjs, bot.js, probe_*.cjs"
+  ]
+ },
+ "1": {
+  "summary": "The Deep Mine is a third CONFIG.game that runs on the old campaign engine. Everything that makes it a mine is in two places: __m_engine_mine (index.html 21309-22750: generation, economy, grow, heat, weapons, infection deadline, run end) and a set of mine branches in __m_main (32146-40557: configForLevel mine block 32461-32493, beginMineRun 32747, advanceSim streaming 37068-37074, mineFrame 37281, camera 37143-37239, presentMineEnd 33215). Everything else is borrowed: the substrate, growDirected, stepNematodes and infectNetwork, buildLevel/stampFood, the store and the HUD. setGame('mine') (3823) forces real time and turns off cards.enabled, and that one switch removes the card layer.\n\nThe world is a grid allocated once at 504x168 cells. Its content streams in per chunk (mineEnsureChunks, called every frame, runs mineGenerateChunk: carve first, then place rock sprites). Collision is drawn from sprite alpha into a fine mask during render (solidifyRock, then solidifyMineRock adds new sprites incrementally).\n\nThe plain URL shows a mine-only title screen: a \"Dig\" button (#tsNewMine), \"deepest descent N m\" or \"water is your fuel\", Upgrades (only when minerals > 0) and Credits. Dig goes straight into a run; the store appears only after a descent ends.\n\nMeasured in this container (headless, software raster, 390x844):\n- Boot to Click: 1.1 s, 159 requests. Fine mask ready 1.4 s after the click.\n- renderFrame: 8.5 ms fresh, 12 ms at 120 strands, 24 ms at 5000 strands.\n- tickWorld: about 4-6 ms, flat, set by five full passes over all 85k cells per tick.\n- Generating 3 chunks at once made one 95 ms long task.\n- mine-check baseline: 186 passed, 4 failed in 4m58s. Three are the documented box-in ceilings (\"28 m on 98 digs\"). The fourth: the band-beat dive only reached 78 m.\n\nBlocking problems I confirmed while mapping:\n1. Release pipeline. A copy of make-web-zip's prune logic (run against the repo, nothing written) drops assets/magnetite-c24 and assets/garnet-c24, so a zip would ship bands 0 and 2 without rock art or collision. itchzip-check still clicks #tsNewCamp/#tsNew, which the mine-only title does not render. With dev.enabled=false, which is what a zip ships, the campaign's black \"Level\" card appears before every descent and pauses the game until clicked.\n2. Collision before the mask. On a throttled link (about 1.6 Mbps), the map is playable 4.1 s after Dig but the rock mask lands at 39.8 s. Three digs in that window left 11 of 50 strands inside rock.\n3. Node cap. growth.maxNodes 6000 is shared with the card game. At the cap every dig fails with \"Solid rock that way\" while water remains, so the run cannot end on fuel.\n4. Taps are dead in the mine. endPointer returns at 36700, so a plain tap never digs, never commits an armed enzyme cut (only a drag does), and double-tap never reframes. CLAUDE.md says tap = dig down; that only works through the hooks.\n5. Wrong end-screen copy and a lost run. The settings \"End run\" ends the descent as cause 'abandon' and the end screen says \"The colony was eaten\". \"Save & exit\" drops to the title with the run still alive and the ore not banked; the mine has no resume. \"Replay tutorial\" does nothing.\n6. End-screen icon. The Phosphorus icon on the end screen renders full-width because .ss-win-earned has no .ss-ri size rule.\n\nFor Phase 3, the hooks are all there: the home-column logic (buildLevel 19412, mineGenerateChunk `home` 21620/21755/21817/22007), mineLevelDef, the startRun seed, mineEndRun causes, presentMineEnd, and loadProgress defaults. The hard parts are a guaranteed lateral route that does not turn into a visible corridor, and compass data for chunks that have not been generated yet.\n\nProbes, screenshots and the mine-check log are in /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/architect/:\n- probe.cjs, probe2.cjs, probe3.cjs, probe4.cjs, prune-sim.mjs\n- A-title.png, A-firstframe.png, C-release-first-frame.png, D-endrun.png, D-store.png, E-slownet.png\n- mine-check.log",
+  "modules": [
+   {
+    "name": "<style> block (not a module)",
+    "lines": "9-2409",
+    "role": "All CSS. Mine rules: body.boxed phone-shaped play surface; .minekit 251-256; .minebeat 272-281; #titleScreen .ts-record 1106-1110; .ss-mineend-* 1720-1728; .ss-win-earned 1760-1767, which sizes .spore-ic but not .ss-ri, hence the giant P icon on the end screen; .ss-wallet/.ss-upg-btn .ss-ri 1702.",
+    "keyFunctions": "n/a"
+   },
+   {
+    "name": "__m_config",
+    "lines": "2423-3881",
+    "role": "CONFIG, the single tuning source, deep-cloned per run. CONFIG.mine 3208-3590 holds chunks, bands, soilBands, grow, startWater 84, carve knobs, materials, ore, pockets, infectionMs, cutRadius, heat, trych overrides, sight, worms, threatBands, zoom and camera, beatMs. growth.maxNodes 6000 at 2718 is shared. dev.enabled 3597 is patched to false by the zip build. Also the OFFER_* doors (OFFER_MINE 3780, OFFER_CAMPAIGN/OFFER_SURVIVAL false).",
+    "keyFunctions": "setMode 3801; setGame 3823 (mine: realtime + cards.enabled=false); isMineGame 3836; MODE_TUNING 3706; SLIDERS 3651"
+   },
+   {
+    "name": "__m_cards_data",
+    "lines": "3884-5176",
+    "role": "Generated CARD_DATA JSON (71 cards). Card-layer residue. The mine touches it only through main's boot preload (_bootImgs, 40486), which fetches all 71 card faces.",
+    "keyFunctions": "CARD_DATA, CARD_BY_NAME"
+   },
+   {
+    "name": "__m_levels_data",
+    "lines": "5177-13042",
+    "role": "Generated LEVELS: the 9 campaign, 17 survival and traced maps. About 7.9k lines of residue; no mine run loads one. docs/levels/magnetite-c24.json and garnet-c24.json exist here as traced maps, which is exactly why the zip prune treats those folders as level folders and drops them.",
+    "keyFunctions": "allLevels, levelForNumber, saveLevelAs"
+   },
+   {
+    "name": "__m_species",
+    "lines": "13043-14542",
+    "role": "Three things: the species roster and campaign ladder (residue); PERSISTENCE for all games; and the STORE. The mine's wallet is p.minerals (Phosphorus), its ledger p.mineUpgrades, and deep materials live in p.mats.",
+    "keyFunctions": "PROGRESS_KEY 'mycelium.progress.v2' 13683; loadProgress 13685 (mine defaults 13698-13706); saveProgress 13710; migrateProgress 13719 (flag-per-migration pattern); resetProgress 13735; sporesBalance 13814; recordRunFinished 13849; matBalance/addMats/takeMats 13901-13926; addSpores/takeSpores 13927-13943; STORE_UPGRADES 14129 (mine-only tracks 14186-14234); MINE_UPGRADE_IDS 14242; MINE_COSTS 14246; upgradeInGame 14249; upgradeCosts 14259; walletField/upgradeField 14275-14276; upgradeLevel 14284; upgradeValue 14293; upgradeNextCost 14299; costParts 14313; costBalance 14319; buyUpgrade 14323; sellUpgrade 14368; startingResources 14386 (mine branch 14394); storeBonuses 14410"
+   },
+   {
+    "name": "__m_highscores",
+    "lines": "14543-14641",
+    "role": "Local top-10 boards keyed by mode (normMode 14594 coerces anything to 'turn' or 'realtime'). The mine files no score; this is unused.",
+    "keyFunctions": "loadPlayerName 14573, recordScore 14615, qualifies 14609"
+   },
+   {
+    "name": "__m_net_scores",
+    "lines": "14642-14962",
+    "role": "Supabase leaderboard and anonymous telemetry. The mine uses only telemetry: run_start, run_end with level=depth and n=ore, upgrade, perf, boot, session_end. The scores RLS policy caps level at 100 (docs/leaderboard-setup.md 45) and submitGlobalScore coerces mode, so a depth board needs a migration.",
+    "keyFunctions": "SUPABASE_URL/KEY 14655; cfg() 14664 (window.MYCELIUM_SUPABASE override); getBoard 14699; fetchGlobalBoards 14716; submitGlobalScore 14732; EVENT_BASE_COLS 14860; BUILD_ID 14896; buildEventRow 14898; logEvent 14937; window.__telemetry 14957"
+   },
+   {
+    "name": "__m_engine_rng",
+    "lines": "14963-14986",
+    "role": "Seeded RNG. mineChunkRng (21587) derives one per chunk from it.",
+    "keyFunctions": "makeRng"
+   },
+   {
+    "name": "__m_engine_substrate",
+    "lines": "14987-15841",
+    "role": "The Substrate cell grid and collision queries. solidAtWorld reads the fine mask, but falls back to coarse cell.rock when there is no mask; on a mine map cell.rock is empty until the sprites are stamped (this is the slow-network through-rock bug). Also contains the procedural generator (residue).",
+    "keyFunctions": "solidAtWorld 15109; rockNear; forEachCell 15190; cellAt/colAtX/rowAtY/cellAtWorld; generateSubstrate"
+   },
+   {
+    "name": "__m_engine_network",
+    "lines": "15842-17494",
+    "role": "The colony. The mine's dig is growDirected. It also holds the harvest claim, rot bookkeeping and the maxNodes cap. digThrough/punchThrough are card-layer rock breakers that work on coarse cell.rock only, so they do nothing on a sprite-alpha mine map.",
+    "keyFunctions": "constructor 15861 (mine start water 15889); seed 15936; nearestNode 16097 (skips infected); growDirected 16249 (dodge fan, maxNodes 16298); _segmentClear 16570; reachForWater 16622; digThrough 16752; punchThrough 16805; amputateAt 16931; _removeNodes 16943; grownIn 16974; cleanCover 17041; colonizeReachablePiles 17087; recomputeVitality 17422; bounds 17478"
+   },
+   {
+    "name": "__m_engine_nematodes",
+    "lines": "17495-17954",
+    "role": "Worms. In the mine they attach and drain water instead of eating: 0.2 water/s per worm, carried in state.mineDrainDebt so the tank stays whole numbers. Breeding is 5% per second, the cap is set in configForLevel, and the attached count goes to state.mineAttached. Also holds excrete (the mucus flask) and spawnNematodeAt. It cannot import the mine module, so it reads sub.mine and config.mine instead.",
+    "keyFunctions": "stepNematodes 17560 (mine branch 17598-17760); placeNematodes; excrete; spawnNematodeAt"
+   },
+   {
+    "name": "__m_engine_threats",
+    "lines": "17955-18671",
+    "role": "Trichoderma. The mine reuses the gradual spread wholesale, which makes infectNetwork a hard dependency. Mine-only overrides are rotLifeTurns 100000 and spreadDepthPerTurn 0.35, applied in configForLevel.",
+    "keyFunctions": "spreadTrichoderma 18125 (full-grid pass over food); stampCloudField (~18291, clears every cell); infectNetwork 18330 (full-grid pass at 18454); placeClouds; infectDescendants"
+   },
+   {
+    "name": "__m_engine_ants",
+    "lines": "18672-19061",
+    "role": "Residue: the mine has no ants. stepAnts still runs every tick and returns early with no nests (18790-18805).",
+    "keyFunctions": "stepAnts 18785; replanAntTrailsForFineMask"
+   },
+   {
+    "name": "__m_engine_puzzle",
+    "lines": "19062-19163",
+    "role": "Residue.",
+    "keyFunctions": "buildPuzzle"
+   },
+   {
+    "name": "__m_engine_level",
+    "lines": "19164-19637",
+    "role": "Turns a level def into a Substrate. The mine goes down this path with an empty objects list and stamps piles and pockets per chunk.",
+    "keyFunctions": "configForLevelDef 19280 (mine keeps its own box, coreDepthFrac 1 at 19306-19308; threats respawn:false 19367-19384); buildLevel 19392 (mine layout 19398-19444: goalCols 0, sub.mine, sub.mineHomeCol = cols>>1 at 19412, hill soil 19440-19444; startCol 19548); stampReservoir 19581; stampFood 19606 (returns WITHOUT pushing a pile if every cell is refused, and the caller at 22123 then retags the previous pile)"
+   },
+   {
+    "name": "__m_engine_state",
+    "lines": "19638-19827",
+    "role": "Run state construction. A mine run is createLevelState on the generated def.",
+    "keyFunctions": "createLevelState 19685 (mine: mineOre, mineItems from cfg.mine.items, mineMats 19710-19718); assembleState 19785 (mine opening log 19811); seedLevelThreats 19740 (survival only)"
+   },
+   {
+    "name": "__m_engine_cards",
+    "lines": "19828-21308",
+    "role": "The card layer (residue), but two exports are mine dependencies: waterSourcesNear (called every frame by mineWaterPickups, O(nodes*25)) and amputateAt (the cutting enzyme).",
+    "keyFunctions": "waterSourcesNear 20710; amputateAt 20767; cureRadius; checkPileRewards, produceCardEngines (card-only)"
+   },
+   {
+    "name": "__m_engine_mine",
+    "lines": "21309-22750",
+    "role": "THE DEEP MINE: rock library, world geometry, chunked generation, streaming, economy, the grow, materials, weapons, infection deadline, heat pricing, fuel clock, run end.",
+    "keyFunctions": "MINE_ROCKS 21347 (generated by scripts/gen-mine-rocks.mjs); mineWorldBox 21502; mineDepthM 21513; mineBandAt 21519; mineDepthReached 21527; mineLevelDef 21545; mineChunkCount/mineHomeChunk 21575-21576; mineChunkRange 21577; mineChunkRng 21587; mineGenerateChunk 21610 (FIRST_GALLERY_ROW 21672, galleries 21655-21732, shafts 21733-21779, links 21780-21813, home head 21814-21825, reward spurs + dead ends 21827-21920, plugs 21922-21993, descent flood-repair 21995-22064 (home chunk only), stranded sweep 22066-22111, stamp ore/pockets 22113-22131 (pile.mineMat), rock loop with OVERLAP 0.94 22133-22238, plug sprites 22239-22269, creatures 22276-22311, record in state.mineChunks[ci]); mineEnsureChunks 22325; mineOreRewards 22376; mineWaterPickups 22418; mineGrowSegments 22441; mineGrowReach 22444; mineGrow 22456; mineMaterials/For/ById 22521-22529; mineItemCount 22543; mineUseExcrete 22549; mineUseAmputate 22563; mineInfectionCheck 22582; mineInfectionLeft 22595; mineGrowCost 22620; mineHeatLines 22644; mineNextHeatLine 22658; mineDigCost 22678; mineCheapestCost 22686; mineCanGrow 22694; OUT_OF_FUEL_GRACE_MS 22702; mineFuelCheck 22703; mineEndRun 22714"
+   },
+   {
+    "name": "__m_engine_turn",
+    "lines": "22751-23043",
+    "role": "The world tick, twice a second in real time. Runs threats, the real-time pile colonisation window, income (with a mine fast path), aging, rot, death checks, then an O(cells) ward-aging loop. The turn-based enemy-turn machine is residue.",
+    "keyFunctions": "tickWorld 22780 (colonise-in-flight 22828, death -> cause 'infected'/'devoured' 22852-22874, ward aging 22881); resolveIncome 23003 (mine foodPiles fast path 23030); queueEnemyTurn/flushEnemyTurn (residue)"
+   },
+   {
+    "name": "__m_engine_actions",
+    "lines": "23044-23254",
+    "role": "performAction/ACTIONS for the card and sandbox layer. mineGrow deliberately bypasses it. devSpawnTrichoderma backs __game.mine.spawnCloud.",
+    "keyFunctions": "performAction, ACTIONS, devSpawnTrichoderma"
+   },
+   {
+    "name": "__m_render_camera",
+    "lines": "23255-23376",
+    "role": "The generic Camera. The mine clamps and follows it from main.",
+    "keyFunctions": "bandH 23283; setWorldBounds 23291; minZoomForBounds 23298; clamp 23307; worldToScreen/screenToWorld 23328-23334; panByScreen 23341; zoomAt 23349; fitBounds 23360"
+   },
+   {
+    "name": "__m_render_noise",
+    "lines": "23377-23430",
+    "role": "Noise helpers for the renderers.",
+    "keyFunctions": "fbm etc."
+   },
+   {
+    "name": "__m_render_assets",
+    "lines": "23431-23607",
+    "role": "Asset manifest loader. 'level'-kind entries (map sprite folders) are held back from the boot preload; start() calls loadLevelAssets for each of the four band folders.",
+    "keyFunctions": "loadAssets, loadLevelAssets, asset, hasAsset, assetState, preloadImages"
+   },
+   {
+    "name": "__m_render_substrate",
+    "lines": "23608-24819",
+    "role": "SubstrateRenderer. A mine map takes the LIVE path (this.live 23663): nothing world-sized is baked; sky, earth gradient, noise tile, crust and trich cells are drawn per frame.",
+    "keyFunctions": "constructor 23641; draw 23704; _drawLive 23735; _earthColorAt 23843; _soilBandCols 23892; _soilBandColorAt 23906; _heatStopYs 23939; _drawLiveTrich 23957; drawAtmosphere 24776"
+   },
+   {
+    "name": "__m_render_sfx",
+    "lines": "24820-24988",
+    "role": "Web Audio SFX. Only playGrowBurst (triggered by the reveal scheduler) and card clicks exist; there are no ore, water, beat, heat, worm, infection, run-end or buy sounds.",
+    "keyFunctions": "initSfx, playGrowBurst 94(rel), click, toggleSfx, isSfxMuted"
+   },
+   {
+    "name": "__m_render_network",
+    "lines": "24989-25817",
+    "role": "Colony renderer: strand batching, reveal animation, infection fade, and the LOD ramp that the mine zoom sits on.",
+    "keyFunctions": "draw 25529; redrawBright 25221 (drawn every frame when lighting is on); scheduleReveal 25700; isRevealing 25746; markStructureDirty 25023"
+   },
+   {
+    "name": "__m_render_lighting",
+    "lines": "25818-26030",
+    "role": "Ambient dim plus colony glow, composed every frame.",
+    "keyFunctions": "Lighting.compose 25852"
+   },
+   {
+    "name": "__m_render_music",
+    "lines": "26031-26165",
+    "role": "The menu track and a random level track per run. The mine gets the generic level playlist.",
+    "keyFunctions": "playMenuMusic, playLevelMusic, toggleMusic"
+   },
+   {
+    "name": "__m_render_ui",
+    "lines": "26166-28195",
+    "role": "The DOM HUD. The mine has a third HUD variant: water, P, depth, a worm drain chip, an infection countdown, the dig-cost chip, a deep-materials row, and the kit (flask and enzyme). The settings menu is shared with the card game.",
+    "keyFunctions": "HUD build mine branch 26341-26427; settings menu markup 26396-26406, wiring 26718-26720; setHint 26960; resetHint 26977; toast 26982; update() mine branch 27170-27250 (dig-cost chip calls window.__game.mine.costHere() at 27194)"
+   },
+   {
+    "name": "__m_render_mycelium_title",
+    "lines": "28196-28420",
+    "role": "growMyceliumTitle: the grown-filament wordmark (MYCELIUM on the title, SPORED on the mine end screen).",
+    "keyFunctions": "growMyceliumTitle"
+   },
+   {
+    "name": "__m_render_species_select",
+    "lines": "28421-29419",
+    "role": "The store is this species picker with its colony sections hidden (mine flag, .ss-mine). Also holds the mine end screen. Species, death, level-complete and deck screens are residue.",
+    "keyFunctions": "RI icons 28468; currencyMark/currencyName 28859-28860; matMark/matName 28867-28876; upgradeTile 28877; showSpeciesSelect 28961 (mine header/Descend 28995-29028, render mine branch 29137-29150, renderUpgrades 29200, Descend click 29220); showMineEnd 29281"
+   },
+   {
+    "name": "__m_render_loadout_select",
+    "lines": "29420-29651",
+    "role": "Residue.",
+    "keyFunctions": "showLoadoutSelect"
+   },
+   {
+    "name": "__m_render_title_screen",
+    "lines": "29652-30612",
+    "role": "The title screen. With both OFFER_CAMPAIGN and OFFER_SURVIVAL false it renders mineMenu: a Dig button (#tsNewMine) above the wordmark and the depth record below it.",
+    "keyFunctions": "showTitleScreen 29678; mineMenu 29737-29752; layout choice 29755; Upgrades header button 29889-29899 (only when p.minerals > 0); #tsNewMine wiring 30569-30571 -> onNew(name,'realtime','mine')"
+   },
+   {
+    "name": "__m_render_tutorial",
+    "lines": "30613-31386",
+    "role": "The card-game walkthrough. Its step engine is data-driven ({text, focus, target, gate, demo, place, live}), but the step list (MAIN_STEPS 30682) is card-bound, and beginTutorial returns without state.cards, so the mine never reaches it.",
+    "keyFunctions": "startTutorial 30664"
+   },
+   {
+    "name": "__m_render_level_intro",
+    "lines": "31387-31856",
+    "role": "The black 'Level N' card (#levelIntro). Residue, but a dev-off build shows it before every mine run because revealMap only skips it when dev.enabled is true.",
+    "keyFunctions": "showLevelIntro, showStoryIntro, showVictory"
+   },
+   {
+    "name": "__m_render_loading",
+    "lines": "31857-31905",
+    "role": "Boot loader (#loadscreen, 'Click').",
+    "keyFunctions": "showLoading"
+   },
+   {
+    "name": "__m_render_highscores",
+    "lines": "31906-32076",
+    "role": "Board UI. Unused because OFFER_SURVIVAL is false.",
+    "keyFunctions": "showHighScores, checkHighScore, recordHighScore"
+   },
+   {
+    "name": "__m_render_credits",
+    "lines": "32077-32145",
+    "role": "Credits screen from the title footer.",
+    "keyFunctions": "showCredits"
+   },
+   {
+    "name": "__m_main",
+    "lines": "32146-40557",
+    "role": "All the wiring: settings, run lifecycle, the mine's per-frame clock and camera, input, the render loop, every world draw pass, the debug hooks and boot. The mine lives in scattered branches here.",
+    "keyFunctions": "SETTINGS_KEY 32206; revealMap 32266; configForLevel 32432 (mine block 32461-32493); mineSeed/mineBeatBand 32515-32518; mineRun 32605; levelDefFor 32607; start 32635; stockRun 32675; startRun 32735; beginMineRun 32747; showPicker 32774; runEndThen 32930; forceFruitAbandon 33063; presentMineEnd 33215; mineRecordDepth 33251; presentRunOver 33260; startCelebration 33442; showMainMenu 33691; begin 35184 (window.__game 35217, mine hooks 35401-35516, mine camera park 35799-35804, pendingLevelIntro 35869-35904); handlers 35952 (onMineItem 35957, onSaveExit 35976); checkWater 36273 (mine returns 36282); armedDragTarget 36385; beginAim 36402; updateAim 36433; mineArmedTap 36460; fireAim 36474; setupInput 36522 (pointerdown 36624, pointermove 36645, endPointer 36675, tap early-return 36700, wheel 36761, keys 36771); playSurfaceRect 36893; resize 36901; advanceSim 37047; mineZoom 37143; mineMap 37156; mineClampZoom 37161; mineReleaseCamera/mineArmCamera 37176-37177; mineNoteDig 37185; mineFollowCamera 37198; mineBeat 37244; showMineBeat 37258; mineFrame 37281; frame 37561; renderFrame 37631; drawOccludedSight 37922; mineSightAlpha 38007; drawCloudSight 38023; addEnergyFloater 38540; drawFloaters 38612 (hard-coded bolt icon); solidifyRock 39091; solidifyMineRock 39234; drawLevelRocks 39288; mineHillSpan 40096; drawMineHill 40103; drawMineProps 40114; drawNematodes 40150; drawAimLine 40341; window.__cfg 40400; window.__menu 40420; enterGame 40423 (#mine 40446); boot preload 40485-40553"
+   }
+  ],
+  "runLifecycle": "BOOT. __m_main runs at load. It calls showLoading (40485) and preloads the eager manifest plus _bootImgs (40486: all 71 card faces, 19 species portraits, gnome layers, tutorial portraits; 159 requests, 1.1 s locally) through Promise.all at 40548, with a 12 s safety net. requestAnimationFrame(frame) starts at 40554, and frame idles while state is null. _bootReady (40526) logs 'boot', and the loader's click runs initMusic, initSfx and enterGame (40423). enterGame parses the hash: '#mine[,seed]' calls beginMineRun, then, if a seed was given, sets mineSeed and calls startRun again (40446-40450); anything else calls showMainMenu (33691).\n\nMENU (plain URL). showTitleScreen (29678) renders mineMenu (29737) because OFFER_CAMPAIGN and OFFER_SURVIVAL are both false: a 'Dig' button (#tsNewMine), then 'deepest descent N m' (p.mineBest) or 'water is your fuel', an 'Upgrades' header button (only if p.minerals > 0, 29889; it calls setGame('mine') and showPicker), and Credits. There is no mine resume or 'Old'. CONFIG.game is still 'survival' on the title. Dig calls onNew(name,'realtime','mine') (30571 -> 33709): setMode, setGame('mine') (3823: realtime on, cards.enabled off), no resetProgress for the mine (33719), then beginMineRun (33725).\n\nRUN START. beginMineRun (32747) sets game, clears the playtest/species/sandbox globals, sets mineSeed = Date.now()&0x7fffffff (32751), mineBeatBand = -1, runs stockRun (retries, irrelevant to the mine), logs run_start {level 1, cause 'new'}, and calls startRun (32735). startRun raises the handoff curtain and calls start(mineSeed) (32742). start (32635) does four things:\n1. configForLevel(currentLevel) (32432) deep-clones CONFIG and, in the mine block (32461-32493), writes sightRadius 300 onto both threats, nematodes.maxPopulation 16, the trych overrides, then store bonuses from storeBonuses() (14410): startWater += water track, growSteps, reservoirWater += pocketWater, oreBonus, items {excrete, amputate}, heatBonus.\n2. levelDefFor (32607) returns mineLevelDef(CONFIG, mineSeed) (21545): world box 504x168 cells, layout.mine, zero threat ceilings with respawn:false, no objects, assetsFromAll for the 4 bands.\n3. loadLevelAssets for each band folder (32650), not awaited.\n4. begin(createLevelState(cfg, seed, def)). createLevelState (19685) runs configForLevelDef (19280: mine box, coreDepthFrac 1), then buildLevel (19392: sub.mine, mineHomeCol = cols>>1, hill soil, no goal columns), Network.seed at the home column (the Network constructor sets water = mine.startWater, 15889), mineOre/mineItems/mineMats (19710), then assembleState.\nbegin (35184) builds the renderers (SubstrateRenderer goes live), reassigns window.__game (35217, mine hooks at 35401), builds or points the UI at the mine HUD, parks the camera on the root at mineZoom() (35799), and arms pendingLevelIntro (35869). revealMap (32266) skips that card only when dev.enabled is true, so a release build shows 'Level ...' here. start() then calls mineArmCamera and mineEnsureChunks(state) (32657-32660), which generates the home chunk and its neighbours (about 2k sprites) before the first frame. solidifyRock (39091) runs inside renderFrame once every sprite has decoded, publishing _fineSolid and keeping _coarseCover and _solidFrom for the mine.\n\nCHUNKS. mineEnsureChunks (22325) runs from advanceSim every frame (37068-37074) along with mineNoteDig and solidifyMineRock. It wants the home chunk, every chunk within preloadCols (26) of the colony's x extent, and every chunk inside the camera span. For each missing chunk it calls mineGenerateChunk(state, ci) (21610), seeded by mineChunkRng(seed, ci) (21587), in this order: galleries at rows 3+18k in segments with seam seals (21655-21732); broken shafts, the home one starting at the home column (21733-21779); links (21780-21813); the home head (21814-21825); per-band ore spurs, pocket spurs and dead ends (21827-21920); plugs (21922-21993); the flood-and-repair descent guarantee, home chunk only (21995-22064); the stranded sweep, which counts and does not delete (22066-22111). Then it stamps ore with stampFood (tagged pile.mineMat by band) and pockets with stampReservoir (22113-22131), pushes rock sprites onto sub.levelSprites (OVERLAP 0.94, sized to slabs) plus a guaranteed sprite per plug (22133-22269), and places worms and clouds from threatBands (22276-22311). The chunk record goes to state.mineChunks[ci], and the dirty column range is recorded for solidifyMineRock (39234), which stamps the new sprites incrementally and reconciles cell.rock and water over that range.\n\nTICK. advanceSim (37047) accumulates wall time and calls tickWorld(state) every 500 ms (37102-37106, up to 3 catch-up ticks, paused while any menu, intro or tutorial is up: simPaused 36981). tickWorld (22780) runs:\n- spreadTrichoderma (18125): clouds creep and eat.\n- stepAnts (18785): no-op.\n- stepNematodes (17560): the mine branch attaches worms, drains 0.2 W/s each through mineDrainDebt, breeds at 5%/s capped at 16, and sets state.mineAttached.\n- resolveTraps (card residue).\n- Per network: colonizeReachablePiles while a grow is in flight (22828); resolveIncome (the mine fast path over foodPiles, 23030); agePass; infectNetwork (18330, the rot creeping with the mine's overrides); starvation; the vitality and death checks (cause 'infected' or 'devoured' builds its own runResult without depth).\n- Ward aging over every cell (22881). State.cards is absent, so no card engines run.\nAfter the tick: renderer dirty flags, checkWater (a no-op in the mine), and presentRunOver if the run is over.\nEVERY FRAME, mineFrame (37281) runs while unpaused:\n- A one-time hint 'Drag from the colony to dig', shown until p.mineBest > 0.\n- mineFollowCamera (37198).\n- mineOreRewards (22376): a claimed, empty pile under clean cover pays its material, and Phosphorus also credits net.phosphorus and state.mineOre.\n- mineWaterPickups (22418): +reservoirWater once per pocket.\n- mineDepthReached into state.mineDepth.\n- mineBeat (37244, 'NN m / Band' through showMineBeat).\n- mineFuelCheck (22703: cannot afford the CHEAPEST dig (mineCheapestCost) for 1600 ms) leads to mineEndRun(state,'dry'). Otherwise mineInfectionCheck (22582: a 20 s wall-clock deadline that runs while anything is infected) leads to mineEndRun(state,'infected').\n\nGROW GESTURE. pointerdown (36624) calls beginAim (36402). armedDragTarget (36385) always returns {kind:'mine'}. A press within aimNearPx of a strand starts an aim snapped to it; a press farther away pans (pointermove 36645 -> panByScreen + mineReleaseCamera). pointermove updates the aim with updateAim (36433). Release (endPointer 36675) calls fireAim(a) (36474), but only if the pointer dragged at least 12 px and did not go out and back; a plain tap returns at 36691 or 36700 and does nothing. fireAim runs mineArmedTap (36460, the armed enzyme cut) first, else mineGrow(state, {srcX, srcY, x, y}) (22456). mineGrow refuses when the pressed strand is infected, prices the dig at the source strand's depth with mineGrowCost (22620: base 2, doubling past heat lines at 42 m plus heatBonus and every 42 m after, capped at x8), refuses when water is short, calls net.growDirected(sub, rng, dx, dy, growSteps*3, false, tip) (16249), deducts water, and stamps state._mineFocus. mineNoteDig then re-arms the camera. The aim arrow is drawAimLine (40341) at mineGrowReach. The kit buttons (26425-26427) go to handlers.onMineItem (35957): the flask calls mineUseExcrete (22549); the enzyme arms state._mineArmed, and the next DRAG release calls mineUseAmputate (22563, cutRadius 220).\n\nCAMERA. mineZoom (37143) is 0.6 x viewH/844. Wheel, pinch and F go through mineClampZoom (37161) to zoomRange [0.4, 2.2] x rest, and mineReleaseCamera. mineFollowCamera (37198) does nothing while the camera is released; otherwise it eases zoom back to rest and x/y to the _mineFocus node (falling back to the deepest clean tip), with a downward look-ahead scaled by the dig's dy. The play surface is boxed to the 390:844 aspect (playSurfaceRect 36893, resize 36901).\n\nRUN END. mineEndRun (22714) computes depth and ore, turns every strand infected if the cause was 'infected', sets fruited, alive=false, runOver, and runResult {mine, depth, ore, mats copy, died:false, cause 'dry'|'infected'}. Other endings reach presentRunOver too: tickWorld deaths (cause 'devoured' or 'infected', died:true) and the settings 'End run' button (forceFruitAbandon 33063, cause 'abandon', died:true). presentRunOver (33260) waits for the last reveal (at most 2.8 s), then calls clearResume and presentMineEnd(r) (33215). presentMineEnd takes depth and ore from r or else from state, banks once (_minePaid): addSpores(ore) writes p.minerals, addMats writes p.mats. It logs run_end {level: depth, cause, n: ore}, records mineRecordDepth (33251, p.mineBest), and calls showMineEnd (29281). The end screen grows 'SPORED', prints the depth, one cause line (branched on the cause, but 'abandon' falls into the 'eaten' copy), and +P and +mats (the P icon is unsized), with a 'To the store' button. That button calls runEndThen (32930: endRunSpores, recordRunFinished), then setGame('mine') and showPicker().\n\nSTORE. showPicker (32774) calls showSpeciesSelect({mine:true}) (28961): the header 'The Deep Mine', a P wallet plus held mats, a Descend button with the note '84 water to start \u00b7 grow 2 \u00b7 2 water a dig', and a shelf of STORE_UPGRADES filtered by upgradeInGame (14249: MINE_UPGRADE_IDS = water, growSteps, heatTolerance, excreteCharges, amputateCharges, oreYield, pocketWater). Each tile's price comes from upgradeCosts (MINE_COSTS re-prices water); costParts (14313) reads a number as P and {m,n} as n of material m. buyUpgrade (14323) checks costBalance, then writes p.mineUpgrades[id] and debits p.minerals or p.mats, returning {ok, paid|need}. The 'upgrade' event is logged in renderUpgrades (29204). Purchases reach the next run only through configForLevel.\n\nNEXT RUN. Descend (29220) calls onPick(null,1), then beginMineRun with a fresh Date.now seed. Every run is a new random shaft; only a URL seed pins one.\n\nPERSISTENCE. Everything lives in localStorage 'mycelium.progress.v2' (13683), shared with the retired games: minerals, mineUpgrades, mats, mineBest, runsDone, and the campaign fields (spores, upgrades, deck, clears, purchased...). loadProgress (13685) fills defaults and migrateProgress (13719) runs flag-guarded migrations. Other keys: mycelium.settings.v1 (32206, lighting only), mycelium.tutorial.v1, mycelium.clientid.v1, mycelium.playername.v1, and the campaign/survival resume keys (14063-14069). The mine has no resume: 'Save & exit' (onSaveExit 35976) just shows the title.\n\nLEADERBOARD. The mine files no score. Supabase is used for telemetry only (logEvent 14937, POSTs to /rest/v1/events, and does nothing when MYCELIUM_SUPABASE is blanked). The high-score board is not reachable (onHighScores is null because OFFER_SURVIVAL is false, 33741).",
+  "extensionPoints": [
+   {
+    "feature": "Phase 3 (07): a fresh world per leg, hill at the WEST, island at the EAST",
+    "where": "mineChunkCount/mineHomeChunk 21575-21576 and mineWorldBox 21502 (symmetric chunksEachWay); mineLevelDef 21545; buildLevel 19412 (sub.mineHomeCol = cols>>1) and hill soil 19440-19444; mineGenerateChunk's `home` 21620 and the home-only branches 21755, 21817, 22007, 22096; levelDefFor 32613; startRun seed 32741; beginMineRun 32751; mineHillSpan/drawMineHill 40096-40113; the camera park in begin 35799-35804",
+    "how": "1. Add CONFIG.mine.journey {homeChunk: 1, islandChunkByLeg: [...], islandCols: 12, legs: N}.\n2. Make mineHomeChunk read it and keep the 21-chunk, 504-column grid as CLAUDE.md requires. Put the home column in the def (layout.homeCol, layout.islandC0/C1) and have buildLevel read it instead of cols>>1; mark the island's surface columns as soil too.\n3. Seed each leg deterministically: mineSeed = hash(journeySeed, leg), using the same mixing as mineChunkRng. The same leg then replays the same map, which makes a leg learnable. mineLevelDef(config, seed, leg) puts the leg in the id.\n4. In the island's chunk, carve a mirror of the home head (21814-21825) and run the flood-and-repair pass (21995-22064) generalized to flood from the island head down to a gallery row.\n5. Generalize drawMineHill/mineHillSpan to a list of hills and draw the island with the goal-hill art ('goalhill'/'goalbush' already load).\n6. Keep the resting camera on the colony; clamp is unchanged.",
+    "risks": "- A visible reserved route is exactly what the owner rejected twice (CLAUDE.md 3306-3369), so reachability of the island must come from repair connectors, not a reserved corridor.\n- mine-check pins 'colony roots in the middle' (tests/mine-check.cjs 215), the home chunk index and the lateral-travel bounds; these will break on purpose.\n- mineEnsureChunks' want-set keys on the home chunk.\n- tests/void-probe.cjs only measures vertical channels; a lateral analogue is needed.\n- The per-run Date.now seed disappears for legs, which changes run-to-run variety. Decide whether retrying a leg replays the same world."
+   },
+   {
+    "feature": "Phase 3 (07): guaranteed lateral route home -> island",
+    "where": "mineGenerateChunk seam and galleries 21683-21732 (gallerySealChance 0.12, SEAM_W), plugs 21922-21993, repair 21995-22064",
+    "how": "Add a per-chunk seam-to-seam repair that stays chunk-local and order-independent. For chunks strictly between home and island: flood from the left-seam gallery cells, and if no right-seam gallery cell is reached, open the shortest connectors (radius 1.7, markRoute and noPlug) exactly as the descent repair does. Force no seam seal on at least one agreed gallery row per band ('trunk rows') in those chunks. Both seams already meet at the agreed rows, so any chunk generation order stays valid.",
+    "risks": "- gallerySealChance and plugs were measured to halve lateral travel (CLAUDE.md 3385-3389). Deterministic per-chunk repair must use the chunk rng in a fixed call order, or every seed's layout shifts and seed-pinned assertions move.\n- A sprite must stay inside its own chunk (22189-22193)."
+   },
+   {
+    "feature": "Phase 3 (07): reach the island -> resurface, spore, bank, advance the leg",
+    "where": "mineFrame 37281 (after mineDepthReached); mineEndRun 22714; presentMineEnd 33215; showMineEnd 29281; startCelebration 33442 ('goal'/'home' sides); loadProgress defaults 13685-13706; the title's mineMenu 29737",
+    "how": "1. Add mineIslandReached(state) in __m_engine_mine: any clean node with x inside the island span and y <= surfaceY + ~1.5 cells. When true, call mineEndRun(state, 'island'), with runResult {island: true, leg}.\n2. In presentMineEnd, bank as today, set p.mineJourney.leg++ with a best-leg record, and call showMineEnd with island copy.\n3. Reuse startCelebration with an 'island' side: its hill-profile code already handles the goal hill, via hillRiseAtX 33429.\n4. Default p.mineJourney = {seed, leg: 1, bestLeg} in loadProgress; no migration flag is needed because absent means leg 1.\n5. Show 'Leg N' on the title and the store note.\n6. beginMineRun reads the leg; configForLevel receives it (currentLevel could carry it) for escalation.",
+    "risks": "- run_end uses `level` for depth; put the leg in `detail`.\n- The 'full payout either way' interlock must stay.\n- A worm or rot death that builds its own runResult has no leg or depth, and presentMineEnd reads state as a fallback; keep that pattern.\n- CLAUDE.md: 'surface resources barely fund the next leg', so pricing is coupled (Phase 4)."
+   },
+   {
+    "feature": "Leg escalation (still open: curve or table)",
+    "where": "configForLevel mine block 32461-32493; CONFIG.mine.threatBands 3530, worms 3525, infectionMs 3451, heat 3469; the campaign precedent LEVEL_THREATS 13349 / threatsForLevel 13579",
+    "how": "Add CONFIG.mine.legs: an array of overrides such as {threatBands, bandsOrder or scale, islandChunk, heat.safeDepth, orePerPile}, applied onto the cfg clone in configForLevel by leg index, with the last row repeating. This is the same shape as the store bonuses, so nothing reads it at point of use.",
+    "risks": "mineBeat reads CONFIG, not state.config (37245-37250), and SubstrateRenderer soilBands reads config.mine, so any per-leg band change must be read from state.config everywhere or the beat will name the wrong band."
+   },
+   {
+    "feature": "Phase 3 (08): island compass (bought; direction -> direction + distance)",
+    "where": "STORE_UPGRADES 14129 and MINE_UPGRADE_IDS 14242; storeBonuses 14410; configForLevel 32461; the HUD row 26346-26377 / update 27170; renderFrame after drawNematodes 37720",
+    "how": "1. Add a mineOnly track 'compassIsland' with rungs [bearing, bearing+distance] and add it to MINE_UPGRADE_IDS.\n2. In configForLevel, fold cfg.mine.compass = {island: lvl}.\n3. Draw a screen-edge needle in a new drawMineCompass() pass, or as a DOM chip in the HUD. Bearing = atan2 from the _mineFocus node (or the deepest tip) to the island centre, taken from the def; distance in metres (cells). The owner says it must point through rock, so no pathfinding.\n4. Without the purchase show nothing: the premise is that east is the standing instruction.",
+    "risks": "- HUD real estate on a 390 px row.\n- Assert the needle as a model value through a __game.mine hook rather than pixels (the wash-probe lesson)."
+   },
+   {
+    "feature": "Phase 3 (08): per-material compass (direction -> distance -> BIGGEST deposit)",
+    "where": "mineGenerateChunk rewards 21827-21920 and stamping 22113-22131 (pile.mineMat, pile.mineBand); sub.foodPiles; mineMaterials 22521; STORE_UPGRADES",
+    "how": "1. Generate one track per CONFIG.mine.materials entry (compass_<id>, 3 rungs) programmatically, so a fifth material is still one config entry; RI and RES_ICON glyph sets are separate (CLAUDE.md 3856).\n2. The target source is the problem: piles only exist in GENERATED chunks. Split mineGenerateChunk into a pure mineChunkPlan(seed, ci), covering carve, spots and the stranded flags, which consumes the rng in exactly the current order, and a stamp phase. Cache plans. The compass reads plans for every chunk, lazily or in idle time; the plan is pure, so it could also run in a Worker.\n3. 'Biggest' needs deposits that differ in size. Today every seam is r:1 with a fixed per-band `per`; add cluster size or richness to the generator and carry it on pile and plan.\n4. Stamp a pile.center when tagging (stampFood does not set one).",
+    "risks": "- Determinism: the plan/stamp split must not change rng call order, or every seed, every mine-check pin and the measured fuel curve change.\n- Cost: about 30 ms per chunk measured (95 ms long task for 3 chunks), so 21 plans synchronously on the main thread is a visible hitch.\n- Interlock: 'materials want the compass'; 06 shipped alone and is a random walk until this lands.\n- stampFood can return without pushing a pile, after which 22123 retags the PREVIOUS pile; fix before anything reads pile.mineMat as truth."
+   },
+   {
+    "feature": "Phase 4: price everything against the journey",
+    "where": "CONFIG.mine: startWater 3303, growWaterCost 3286, reservoirWater 3413, orePerPile 3400, materials.per 3394-3399, spurCells 3409, pilesPerBand/reservoirsPerBand 3410-3412, heat 3469-3486, infectionMs 3451, cutRadius 3459, worms 3525, threatBands 3530; store ladders 14195-14234 and MINE_COSTS 14246; the leg table (new)",
+    "how": "Tune by measurement, never feel. tests/mine-probe.cjs gives shape, density and reachability; tests/heat-probe.cjs gives the price ladder; the fuel-curve block in mine-check measures depth per tank; write a leg-to-island probe (digs toward the island, reports runs needed). Targets: run 1 about 45 s and one upgrade bought; late runs 3-5 min; the key ratio is shallow-to-deep material value. Change prices in both the STORE_UPGRADES costs and MINE_COSTS where shared.",
+    "risks": "- Every density change has moved depth-per-dig and forced startWater to move (20 -> 30 -> 44 -> 84).\n- upgradeLevel clamps to the ladder length (14284), so shortening a ladder silently strips paid rungs with no refund; add a migrateProgress flag that refunds.\n- The tank must stay whole numbers (mineDrainDebt).\n- Interlock: Amputate is bought and a forced fruiting pays in full."
+   },
+   {
+    "feature": "Onboarding / tutorial for the mine",
+    "where": "mineFrame hint 37287-37298 (ui.setHint, gated on p.mineBest); fireAim resetHint 36490; startTutorial 30664 (data-driven steps, demo drag, `live` steps keep the clock running); beginTutorial 35139 (returns without state.cards); tutorialDeps 35004; simPaused 36996",
+    "how": "Cheapest: contextual one-shot tips through ui.setHint/toast, keyed on first events and persisted in p.mineTips:\n- first dig (fireAim ok)\n- first ore paid (mineOreRewards > 0 in mineFrame)\n- first pocket\n- first heat line (the mineDigCost value changes)\n- first worm attach (state.mineAttached rises)\n- first infection (state.mineInfect set)\n- first store visit\nRicher: pass a steps array into startTutorial (make MAIN_STEPS a parameter) with mine deps (deepest tip, nearest seam, nearest pocket) and let beginTutorial accept mine state. Separately, taps currently do nothing (36700). Either make a tap near the colony dig down (mineGrow already defaults no-direction to down) or teach 'drag' explicitly, and make an armed enzyme commit on a tap by calling mineArmedTap before the early return.",
+    "risks": "- CLAUDE.md 5103-5109: campaign onboarding polish 'did nothing' by the owner's data. Keep the mine's onboarding minimal and measure it with telemetry (a 'tutorial' event with detail).\n- The tutorial freezes the sim unless the step is live.\n- The 'Replay tutorial' settings item is currently a dead button in the mine."
+   },
+   {
+    "feature": "Meta goals: achievements, unlocks, run modifiers",
+    "where": "presentMineEnd 33215 (sees depth, ore, mats, cause); mineFrame for in-run counters; loadProgress 13685; showMineEnd 29281; the store shelf renderUpgrades 29200 / upgradeInGame 14249; configForLevel 32461",
+    "how": "- Achievements: p.mineAch {id: ts}, evaluated in presentMineEnd from runResult plus counters kept on state (pockets tapped, worms flasked, rot cut, band reached, leg reached). Toast or list them on showMineEnd; add a list on the title or store.\n- Unlocks: gate a track's visibility in upgradeInGame on progress (for example mineBest >= 84, or a leg) so the shelf grows. The shelf and the buy path share that predicate, so gating in one place is safe.\n- Run modifiers: a pick on the store screen before Descend (29027), stored for the next run and folded into the cfg clone in configForLevel (for example 'no pockets, +50% ore').",
+    "risks": "Everything that changes a run must enter through configForLevel; reading localStorage at point of use breaks the 'mid-run purchase cannot change a run' rule (CLAUDE.md 4159-4163)."
+   },
+   {
+    "feature": "Daily seed + depth leaderboard",
+    "where": "beginMineRun 32747 (mineSeed = Date.now); enterGame #mine,<n> 40446; __game.mine.playSeed 35515 (calls beginMineRun and then startRun again, i.e. two starts); the title mineMenu 29737; __m_net_scores submitGlobalScore 14732 / fetchGlobalBoards 14716; __m_highscores normMode 14594; docs/leaderboard-setup.md RLS 40-48",
+    "how": "1. Add a 'Daily' button to mineMenu that calls beginMineRun with a seed option, seed = hash(UTC yyyymmdd), fixed across players (and, with legs, the journey seed).\n2. Record a per-day best in p.mineDaily.\n3. For a global board, send mode 'mine-daily'/'mine' and depth as level. That needs a Supabase migration: the policy caps level <= 100 while the shaft is 168 m, and submitGlobalScore coerces mode to turn/realtime (14745), as do fetchGlobalBoards (14718) and local normMode (14594). Reuse showHighScores with a mine tab.",
+    "risks": "- The owner must run the SQL; until then posts are rejected.\n- Anti-cheat is nil: the anon key and __game hooks are public, so treat the board as casual.\n- Fix playSeed's double start before using it for anything real."
+   },
+   {
+    "feature": "Audio and juice",
+    "where": "__m_render_sfx 24820 (only playGrowBurst and clicks); mineFrame 37300-37314 (ore, water, beat, end); mineBeat/showMineBeat 37244-37279; stepNematodes' state.mineAttached 17760; mineInfectionCheck 22582 plus the HUD .urgent at 10 s (27215); mineEndRun 22714; renderUpgrades onBuy 29204; addEnergyFloater 38540 / drawFloaters 38612; startCelebration 33442; mineFollowCamera 37198 (camera offset)",
+    "how": "1. Add synthesized cues to __m_render_sfx following the click() pattern (Web Audio oscillators, respecting isSfxMuted) and export them: ore 'ping' per material pitch, water 'glug', band-beat gong, heat-line 'hiss' when the dig price changes, worm-attach tick, an infection heartbeat under 10 s, a run-end chord, a buy chime.\n2. Call them from the mine hook sites listed. mineOreRewards/mineWaterPickups return totals, not piles, so return {pile, mat, amount} lists to spawn floaters at the pile.\n3. Give drawFloaters an icon/colour option; it hard-codes the green text and the energy bolt.\n4. Shake: add an offset in mineFollowCamera or renderFrame.\n5. Celebrate a new depth record or an island with startCelebration.\n6. Optional navigator.vibrate on phones.",
+    "risks": "- Headless checks cannot hear; assert calls through a counter, as sight() does.\n- Keep every cue behind toggleSfx.\n- The music is the generic random level playlist (playLevelMusic); a mine track is an asset question (the itch zip entry cap is noted in CLAUDE.md shipping)."
+   },
+   {
+    "feature": "Settings (mine-specific)",
+    "where": "settings markup 26396-26406, wiring 26718-26720; handlers onReplayTutorial/onForceFruit/onSaveExit 35971-35976; SETTINGS_KEY/loadSettings/saveSettings 32206-32209 (only `lighting` persisted)",
+    "how": "When mineOn:\n- Hide 'Replay tutorial', or point it at the mine onboarding.\n- Make 'Save & exit' either end the descent and bank (mineEndRun with a new 'quit' cause, then presentMineEnd), or confirm that the run will be lost.\n- Make 'End run' use a cause the end screen words correctly.\nAdd toggles: sensing rings (CONFIG.mine.showSight, read at draw time), reduced motion, kit side, and optionally the resting zoom. Persist them in mycelium.settings.v1 by extending saveSettings.",
+    "risks": "Settings that change run rules must go through configForLevel, or they apply only from the next run (the config clone is taken at run start). Draw-only settings can read CONFIG live."
+   },
+   {
+    "feature": "Save migration / versioning",
+    "where": "loadProgress 13685 (default-on-read), migrateProgress 13719 (flag per migration, written in the same save), resetProgress 13735; buyUpgrade/upgradeLevel clamp 14284",
+    "how": "Keep the pattern: every new field defaults in loadProgress, so absent reads as none. Every reprice or retrack gets a named flag (for example p.migratedMinePricesV2) that refunds P and mats for rungs that no longer exist. Optionally move the mine to its own key (mycelium.mine.v1) to stop the campaign's deck, species and spores fields riding along; if so, migrate minerals, mineUpgrades, mats and mineBest once under a flag.",
+    "risks": "- The file shares one progress key with retired games, and resetProgress wipes it (only non-mine New calls it today).\n- Rollbacks restore old tree snapshots, so a migration written but not pushed can vanish, and a half-shipped schema is worse than none."
+   },
+   {
+    "feature": "Mid-run resume (optional)",
+    "where": "buildResumeSnapshot 32989 / saveResumeSnapshot 32976 (card-shaped); onSaveExit 35976; begin 35207-35213 (resume only when cards.enabled)",
+    "how": "Prefer 'quit banks the run' over a resume. If a resume is wanted, snapshot: seed, leg, generated chunk ids (content regenerates from the seed), consumed piles (rewarded), _tappedWater, net nodes (x, y, parent, infected, rotAge), water, mineOre, mineMats, mineItems, mineInfect, worms and clouds. Restore by regenerating the chunks and then re-applying pile and pocket consumption before the first tick.",
+    "risks": "The network's node graph and reveal timing (_liveAt, grownIn) are not serialisable today; a partial restore produces invisible or unreachable tissue. The owner's premise, 'no return trips; a descent is one sitting', argues against it."
+   },
+   {
+    "feature": "Telemetry for the mine",
+    "where": "logEvent calls: beginMineRun 32754 (run_start), presentMineEnd 33238 (run_end level=depth n=ore), renderUpgrades 29205 (upgrade), _perfSample 37620; docs/analytics.html has no mine column",
+    "how": "Add detail on run_end (the band or leg) and ms (run duration, from the run start timestamp). Log 'island' and 'leg' events, and first-event tips as 'tutorial' with detail. Add a mine column and depth histograms to docs/analytics.html via scripts/gen-analytics.mjs.",
+    "risks": "PostgREST rejects a row with an unknown column (_slimEvents); stay within the existing carriers n/ms/detail."
+   },
+   {
+    "feature": "Release pipeline for a mine-only build",
+    "where": "scripts/make-web-zip.mjs prune 163-242 (reachable = campaign levels + survival if offered); tests/itchzip-check.cjs 202 (clicks #tsNewCamp/#tsNew); revealMap devSkip 32287-32302 with begin pendingLevelIntro 35869-35904",
+    "how": "1. Have make-web-zip read CONFIG.mine.bands[].assetsFrom out of index.html and add those folders to `reachable` (fail-fast anchored, like OFFER_SURVIVAL).\n2. Once the mine is the only game, optionally stop staging campaign map folders.\n3. Rewrite itchzip-check to drive #tsNewMine through a descent, the end screen and the store with dev.enabled false, asserting no 404s and that the band sprites are collided.\n4. In begin, do not arm pendingLevelIntro for a mine map (or set realRun and skip it), so a dev-off build goes straight to the map.",
+    "risks": "Today a zip would ship band 0 (the whole first run) and band 2 without rock art or collision, and put a 'Level' card in front of every descent. None of this shows in the repo's checks, which run with dev.enabled true against the full asset tree."
+   },
+   {
+    "feature": "Rock-breaking consumable (the generator treats sealed seams as bait for one)",
+    "where": "mineGenerateChunk stranded sweep 22066-22111 (comments: 'a sealed seam is CONTENT' for rock-eating consumables); Network.digThrough 16752 / punchThrough 16805; solidifyMineRock 39234 (append-only watermark _solidFrom)",
+    "how": "If the owner wants one, it must remove or clip sprites in sub.levelSprites and rebuild _fineSolid and _coarseCover over a column range; that needs a new 're-stamp region' function because the incremental path is append-only. digThrough and punchThrough edit coarse cell.rock only, which the mine's collision ignores and solidifyMineRock overwrites.",
+    "risks": "This contradicts the settled premise 'Rock is a WALL, not a material' (CLAUDE.md 3578). Get an explicit owner decision; otherwise stranded seams are permanently unreachable bait, and the 'colony can box itself in' problem (3 standing mine-check failures) has no counterplay."
+   },
+   {
+    "feature": "Long runs: node cap and per-frame O(nodes) work",
+    "where": "CONFIG.growth.maxNodes 2718 (6000, shared); growDirected 16298; mineGrow refusal message 22495; mineFuelCheck/mineCanGrow 22694-22709; per-frame O(nodes) passes in mineFrame (mineDepthReached, mineCheapestCost, mineInfectionCheck, mineFollowCamera, mineEnsureChunks extent, waterSourcesNear O(25*nodes))",
+    "how": "1. Set a mine-specific maxNodes in configForLevel. Better: thin or merge old interior tissue, or stop side-strands in dug-out corridors.\n2. Make mineGrow return a distinct message and flag when the colony is at the cap.\n3. Have mineFuelCheck end the run when nothing can grow.\n4. Cache the colony x extent, shallowest tip and deepest tip incrementally in mineGrow, instead of walking all nodes 6+ times per frame.",
+    "risks": "Measured: at 6000 nodes every dig fails with 'Solid rock that way' while the tank is full, so the run cannot end on fuel. Render went 9 -> 24 ms at 5000 nodes (software raster); phones will be worse."
+   }
+  ],
+  "residue": [
+   "RELEASE LEVEL CARD: begin() arms pendingLevelIntro for every non-puzzle run (35869-35904). revealMap (32287) skips it only when dev.enabled is true, and the mine is neither campaignRun nor survivalRun. A zip build (dev.enabled patched false) therefore shows the black campaign 'Level' card with 'Click anywhere to begin' before every descent, with the sim paused. CONFIRMED with dev.enabled=false at runtime (C-release-first-frame.png).",
+   "ZIP PRUNE: make-web-zip.mjs 163-242 ships only campaign-level (and, if offered, survival) folders. The campaign uses magnetite-c40 and garnet-c40, not -c24, and survival is withdrawn, so assets/magnetite-c24 and assets/garnet-c24 are PRUNED: mine bands 0 and 2 would have no rock art and no collision. CONFIRMED by replicating the prune (prune-sim.mjs). CLAUDE.md 4218-4221 predicted this.",
+   "ZIP GATE: tests/itchzip-check.cjs 202 clicks #tsNewCamp and #tsNew. The mine-only title renders only #tsNewMine (mineMenu 29737), so the release gate cannot reach the only game.",
+   "SETTINGS MENU (26396-26406) is the card game's. 'Replay tutorial' does nothing in the mine (beginTutorial 35140 returns without state.cards). 'Save & exit to menu' (35976) shows the title with the run still live, and that run's ore is never banked: minerals 7 -> 7 measured, and the mine has no resume. 'End run' calls forceFruitAbandon (33063) with cause 'abandon', died:true, so the end screen says 'The colony was eaten' (presentMineEnd's eaten = died && cause !== 'dry', 33227). CONFIRMED.",
+   "END SCREEN ICON: showMineEnd prints RI.phos (.ss-ri) inside .ss-win-earned, which only sizes .spore-ic (CSS 1760-1767), so the Phosphorus spark renders full-width and the '+2 anthracite' wraps under it. CONFIRMED (D-endrun.png).",
+   "TAP PATHS ARE DEAD IN THE MINE: endPointer returns at `if (armedDragTarget()) return;` (36700) because armedDragTarget always returns a mine target. So: a plain tap never digs (CLAUDE.md 4109 says 'no direction means down', which only works through hooks); an armed Cutting enzyme is only committed by a >=12 px DRAG, never a tap (the kit says 'tap the map'); double-tap reframe and tap-a-worm-for-its-sight-ring never run. CONFIRMED (probe2: nodes 3 -> 3 on tap; enzyme stayed armed after a tap; zoom unchanged after a double-tap; F works).",
+   "ORE LOOKS LIKE CARD-GAME LEAF LITTER: seams are stampFood kind 'cache' / 'cache-engine' (22116), drawn by drawSubstrateLeaves as orange or red autumn leaf heaps (visible in A-firstframe.png). There is no mineral seam art.",
+   "BOOT PRELOADS THE CARD GAME: _bootImgs (40486) blocks the 'Click' on all 71 card faces (3.3 MB), 19 species portraits (1.7 MB), gnome layers and tutorial portraits, none of which the mine shows. The mine's own rock art (about 7 MB) is loaded only after Dig.",
+   "THE HUD DEPENDS ON A DEBUG HOOK: the dig-cost chip reads window.__game.mine.costHere() (27194). __game is described as 'remove for a public release' (35215), and stripping it would silently freeze the chip at the base price.",
+   "STORE = SPECIES PICKER: showSpeciesSelect with hidden colony sections (29012-29019). Dev quick-start, unlock-all and +10,000 spores buttons overlay the MYCELIUM wordmark in dev builds. The rating ask is disabled in the mine (`if (!mineOn) renderRate()`, 29114). The title's Upgrades button appears only when p.minerals > 0, not when only deep materials are held (29889-29899).",
+   "The mine's card-free HUD still carries the dev 'Dev: maps \u25be' / 'Dev: edit rocks' buttons over the map in dev builds (dev.inGameButtons).",
+   "Per-tick O(cells) passes inherited from the card game run in the mine on 85k cells: stepNematodes' ant-trail forEachCell (17624), spreadTrichoderma's food forEachCell (18135), stampCloudField's clear (~18293), infectNetwork's all-cell loop (18454), tickWorld's ward aging (22881), plus stepAnts and resolveTraps no-ops. Together about 4-6 ms per tick.",
+   "The growth constants are the campaign's: growth.maxNodes 6000 (2718), side strands and colonisation bursts (entryBurst 9). At the cap every mine dig fails with the misleading 'Solid rock that way' while water remains (CONFIRMED, probe3).",
+   "checkWater, the low-water modal, seedLevelThreats, replanAntTrails, placeRockface, the card draft intro, spawnFinishFloaters and showPileEnergyAt all run and early-out in the mine. The floater system is hard-wired to an energy bolt icon.",
+   "Telemetry and board: run_end packs depth into `level`. The high-score module coerces mode to turn/realtime, and the Supabase RLS caps level <= 100, so a depth board cannot be filed without a migration.",
+   "Persistence: the mine shares mycelium.progress.v2 with the retired games' fields (spores, upgrades, deck, clears, purchased, loadouts...). minerals is simultaneously 'the mine wallet' and 'Phosphorus' (13698-13706), and addSpores/takeSpores route to it by CONFIG.game, so any call made while CONFIG.game is not 'mine' hits the wrong wallet.",
+   "mineBeat reads CONFIG.mine instead of state.config (37244-37251), and mineZoom and mineClampZoom read CONFIG.mine, so per-level or per-leg overrides of bands, zoom or beat are ignored there.",
+   "__game.mine.playSeed (35515) runs beginMineRun (a full start on a Date seed) and then startRun again: two world builds per call.",
+   "Stale docs that will mislead: CLAUDE.md 'The action layer' (4097-4127) still describes a camera that follows the deepest tip, MINE_PAN_HOLD_MS and mineFixedZoom, all superseded (3894-3937). CONFIG.mine's header comment (3200-3207) talks about world-sized canvases and cols 48. startingResources' comment says startWater 40 (it is 84). The sightRadius comment assumes zoom 0.85.",
+   "Load-bearing card-layer code the mine depends on and that must NOT be deleted with the card layer: infectNetwork and its tuning (__m_engine_threats), excrete (__m_engine_nematodes), waterSourcesNear 20710 and amputateAt 20767 (__m_engine_cards), buildLevel/stampFood/stampReservoir, growDirected/colonizeReachablePiles, and the store table in __m_species."
+  ],
+  "risks": [
+   "RELEASE IS BROKEN FOR THE MINE, and nothing in the repo's gates can see it: (a) the prune drops two of the four band folders; (b) itchzip-check drives title rows that no longer exist; (c) the dev-off build shows a campaign 'Level' card before every run. All the checks run with dev.enabled true against the full asset tree. Fix all three before any upload.",
+   "COLLISION IS NOT READY WHEN THE MAP IS: solidAtWorld falls back to cell.rock, which is empty on a mine map until solidifyRock has every sprite decoded, and revealMap does not wait for _rockSolidified. Measured on a ~1.6 Mbps throttled link: map visible and diggable 4.1 s after Dig, mask at 39.8 s; three digs left 11 of 50 strands inside rock (E-slownet.png). Gate the reveal, or mineGrow, on sub._rockSolidified, and/or preload the four band folders during the boot loader instead of the card faces.",
+   "LONG-RUN SCALING: growth.maxNodes 6000 soft-locks a run that still has water (every dig refused). Render cost grows with strands (8.5 ms fresh -> 24 ms at 5000 in software raster). There are about 7 O(nodes) passes per frame plus waterSourcesNear at O(25*nodes) per frame. Late runs of 3-5 minutes with upgraded grow (up to 7 steps = 21 segments a dig) will reach thousands of nodes.",
+   "STREAMING HITCHES: mineGenerateChunk is synchronous on the main thread, about 30 ms per chunk (95 ms long task for 3 chunks when the camera jumped), and it runs on exactly the frames the player is watching. Compass work that needs plans for ungenerated chunks makes this worse; a pure plan/stamp split (possibly in a Worker) is the lever, but it must preserve rng call order.",
+   "GENERATOR INVARIANTS ARE LOAD-BEARING and easy to break silently. Galleries sit at world-fixed rows 3+18k and are pinned at the seams. Sprites must fit inside their own chunk. The rock centre is clamped to its band. Plugs run after spurs, and the repair runs after plugs. Chunk generation must be order-independent. Rng call order defines every seed, so any reorder changes every pinned-seed assertion and every measured fuel curve. Density changes have moved startWater three times (20->30->44->84).",
+   "BOX-IN WITH NO COUNTERPLAY: at 44% solid a colony can dig itself into a pocket it cannot leave. mine-check has three standing failures for this ('28 m on 98 digs'); baseline today is 186 passed / 4 failed in 4m58s (the fourth is the band-beat dive stopping at 78 m). The premise 'rock is a wall' forbids rock-eating, while the generator's comments keep sealed seams as bait for exactly that; the owner must resolve it.",
+   "40k-LINE SINGLE FILE WITH DECLARATION-ORDER DEPENDENCIES: modules can only import from earlier IIFEs, so stepNematodes reads sub.mine and config.mine instead of the mine module, and a const in one IIFE is invisible in another (BUILD_ID once crashed boot). window.__game is rebuilt in every begin(), and the HUD calls it (27194). About 25% of the file (cards data, levels data, tutorial, loadout, highscores, campaign screens) is residue, but threaded through it are hard dependencies (infectNetwork, amputateAt, waterSourcesNear, excrete, buildLevel). Edits need grep-before-touch and a full `node tests/run.mjs --mine` (about 5-6 min).",
+   "CONTAINER ROLLBACKS (CLAUDE.md 4871-4981): the working tree, local refs and scratchpad are periodically restored to hours- or days-old snapshots, sometimes mid-edit or disguised as uncommitted work. Commit and push each piece as it stands up. Before resetting, `git fetch origin <branch>` first; `git rev-parse HEAD origin/<branch> && ls tests/ | wc -l` is the tell; never commit a dirty tree you did not write.",
+   "TEST BRITTLENESS: mine-check is 2460 lines of long-lived shared pages whose probes navigate a maze (__digTo/__aimDown). Once-per-run events (the band beat, pockets) can only be measured from a fresh page. Probes that measure water must zero the worm drain and the respawns. run.mjs treats '0 passed 0 failed' as green (aim can silently assert nothing in a sweep). Several assertions pin world shape (root at cols>>1, lateral bounds, chunk counts) and will break on purpose with Phase 3; change them deliberately and record why, as CLAUDE.md does. Never widen a tolerance to pass; remove the variable instead.",
+   "ECONOMY INTERLOCKS: (1) Amputate is bought AND forced fruiting pays in full; change one alone and early mould becomes brutal. (2) Materials want the compass; 06 shipped without 08, so 'find garnet' is a random walk. (3) Shortening or repricing a ladder strips paid rungs without refund (the upgradeLevel clamp 14284). (4) Whole-number water: fractional drains go through mineDrainDebt, never the tank.",
+   "DETERMINISM AND SEEDS: every run is currently a new Date.now seed; legs and daily seeds need fixed seeds; state.rng (growth jitter, worm breeding) is shared and advanced by the player's actions, so only the map, not the run, is reproducible. stampFood can return without a pile, and mineGenerateChunk then tags the previous pile with the wrong material (22123).",
+   "ASSET AND SAVE SIZE: the itch zip was 19 entries under the 1,000 cap at the last cut. Moving the mine's four folders in while the campaign's nine still ship needs the prune rethought. The shared progress key carries retired-game data, and resetProgress wipes it all."
+  ]
+ },
+ "2": {
+  "suiteResult": "`NODE_PATH=/opt/node22/lib/node_modules node tests/run.mjs --mine`, full log at /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/test-audit/run.txt. Wall time 7m39s (sum of check times 459 s). Another agent's browser (speeddig.cjs) was running during the sweep and the load average was about 4 on 4 CPUs. No timing failures appeared despite that.\n\n\u25b8 boot       (~60s) 8/16 in 43s  \u2190 FAILURES\n    FAIL  #dev boots clean  \u2014 mode=realtime booted=true picker=false errs=console:Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED\n    FAIL  #dev,turn boots clean  \u2014 mode=turn booted=true picker=false errs=console:Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED\n    FAIL  #puzzle boots clean  \u2014 mode=realtime ... ERR_TUNNEL_CONNECTION_FAILED | ...ERR_TUNNEL_CONNECTION_FAILED\n    FAIL  #puzzle,turn boots clean  \u2014 mode=turn ... ERR_TUNNEL_CONNECTION_FAILED | ...\n    FAIL  #notrich boots clean  \u2014 mode=realtime ... ERR_TUNNEL_CONNECTION_FAILED\n    FAIL  #notrich,turn boots clean  \u2014 mode=turn ... ERR_TUNNEL_CONNECTION_FAILED\n    FAIL  #tutorial boots clean  \u2014 mode=realtime booted=false picker=true ... ERR_TUNNEL_CONNECTION_FAILED | ...\n    FAIL  #tutorial,turn boots clean  \u2014 mode=turn booted=false picker=true ... ERR_TUNNEL_CONNECTION_FAILED | ...\n\u25b8 store      (~35s) 124/124 in 11s\n\u25b8 mine       (~240s) 186/190 in 298s  \u2190 FAILURES\n    FAIL  ...and simply charged the higher price  \u2014 charged 2 at 28 m, price says 2, base 2\n    FAIL  ...with the HUD quoting what a dig costs down here  \u2014 chip \"2\" against a price of 2, hot=false\n    FAIL  ...and that is worth real depth on one tank  \u2014 28 m on 98 digs -> 28 m on 98 digs\n    FAIL  a beat fires for every band below the first  \u2014 1 beats at 78 m: 42 mAnthracite\n\u25b8 level      (~50s) 27/27 in 32s\n\u25b8 aim        (~45s) 9/9 in 5s\n\u25b8 scale      (~85s) 26/26 in 6s\n\u25b8 threat     (~90s) 116/116 in 42s\n\u25b8 harvest    (~40s) 28/28 in 3s\n\u25b8 mould      (~40s) 20/20 in 4s\n\u25b8 core       (~75s) 18/18 in 15s\n\u2550\u2550\u2550\u2550 562 passed, 12 failed \u2014 across 10 check(s) \u2550\u2550\u2550\u2550\n\nReproduction: I ran mine-check a second time on its own (4m52s) and got the same four failures with the same numbers (186 passed, 4 failed). Log: scratchpad/test-audit/mine-full.txt. The threat check's known map-roll flake did not appear this run (116/116).",
+  "failures": [
+   {
+    "check": "boot",
+    "assertion": "#dev boots clean (and the same line for #dev,turn, #puzzle, #puzzle,turn, #notrich, #notrich,turn, #tutorial, #tutorial,turn \u2014 8 assertions)",
+    "cause": "boot-check.cjs does not set the MYCELIUM_SUPABASE stub, and it counts every console error as a failure. The page's boot telemetry POSTs to https://daebrdzdoewpuedhxwud.supabase.co/rest/v1/events. This container's proxy refuses that host (a 502 on CONNECT, logged in /__agentproxy/status as connect_rejected, and it was the only rejected host). Chromium then logs 'Failed to load resource: net::ERR_TUNNEL_CONNECTION_FAILED'. scratchpad/test-audit/netfail.cjs confirms the failed request is the only one, on every hash including #mine and the title screen, and that it disappears with the stub. A copy of boot-check with the stub added (boot-stubbed.cjs) went 16/16 in 45 s. Every 'runs in the right mode' assertion passed, so the game itself boots correctly. A second problem: without the stub, boot-check writes real boot events to the live analytics table wherever the host is reachable.",
+    "kind": "environment"
+   },
+   {
+    "check": "mine",
+    "assertion": "...and simply charged the higher price \u2014 charged 2 at 28 m, price says 2, base 2",
+    "cause": "The dive `__digTo(70, 700)` (mine-check.cjs:1129) stops at 28 m, which is above the first price line at 42 m, so the price here really is 2. `__digTo` only digs from the deepest living tip, and `__aimDown` only looks at rays from that one tip. It gives up after 6 consecutive null aims, because each null step adds 2 to `stuck` and `stuck > 10` breaks. It stopped after 12 of its 700 allowed iterations, identically in 3 of 3 fresh trials, so raising the budget to 700 had no effect. The commit message says `__digTo` travels along the wall when blocked and backs up when boxed in; the committed code (lines 132-144) does neither. The colony is not boxed in: starting from the exact stalled state, a navigator that follows a path through the real fine mask (scratchpad/test-audit/navdive.cjs) reached 154 m in 36 digs, and the fine-mask flood reaches 167 m. This block also runs on a fresh page; the commit's 'shared pages' explanation is wrong.",
+    "kind": "probe-weakness"
+   },
+   {
+    "check": "mine",
+    "assertion": "...with the HUD quoting what a dig costs down here \u2014 chip \"2\" against a price of 2, hot=false",
+    "cause": "Same stalled dive at 28 m. The chip correctly shows 2 and not hot, because the colony never went below the 42 m line. Nothing is wrong with the HUD. In the same block, the passing line 'a dig below the limit still succeeds \u2014 2 strands at 28 m' is a false PASS: it was measured above the limit, so it tested nothing.",
+    "kind": "probe-weakness"
+   },
+   {
+    "check": "mine",
+    "assertion": "...and that is worth real depth on one tank \u2014 28 m on 98 digs -> 28 m on 98 digs",
+    "cause": "The tolerance dive (mine-check.cjs:1186-1199) is also deepest-tip-only: `__aimDown` plus `grow(\u00b12.2, \u2026)`, both always from the deepest tip. It stalls in the same pocket at 28 m whether or not the track is bought, spending 98 digs on sideways growth that gains no depth. The track itself works: the same run shows 'the tolerance track raises the limit \u2014 42 m -> 192 m'. The dive also runs on a fresh page, not a shared one. When fixing it, drop the 600-water tank. My navigator reaches the floor in 32-43 digs, which is only about 270 water at bare heat prices, so on 600 both the bare and upgraded dives would hit the floor and the difference would vanish. Use the opening tank or about 150 water. On the opening 84 water, the navigator reached 86-103 m bare (seeds 4242/11/909).",
+    "kind": "probe-weakness"
+   },
+   {
+    "check": "mine",
+    "assertion": "a beat fires for every band below the first \u2014 1 beats at 78 m: 42 mAnthracite",
+    "cause": "The beat probe (`__digTo(164, 900)` plus 260 greedy aims) only reaches 78 m on a fresh #mine,4242 page, so it crosses one band line (42 m) and not the three the assertion needs (42/84/126). The one beat that fired has the right text. The cause is the same deepest-tip-only descent. Across seeds 4242/11/909/7/31337, `__digTo` stalls at 28/51/6/21/34 m, while the path-following navigator reaches 154-167 m on every seed with no replanning. The colony is not boxed in, and no design change such as rock-eating consumables is needed. That idea also contradicts the settled premise in CLAUDE.md that rock is a wall and mycelium does not eat rock.",
+    "kind": "probe-weakness"
+   }
+  ],
+  "coverage": "WHAT THE MINE SET COVERS. mine-check (190 assertions, all at a 390x844 viewport, mostly driven through the `__game.mine` debug hooks):\n- the shaft: size, chunked streaming in both directions, collision stamping, the seams connecting\n- rock banded by depth and checked against the docs/mine libraries on disk\n- a fine-mask flood: the floor is reachable, and most seams and pockets are reachable\n- density bounds\n- the no-cards HUD\n- dig cost, reach and refusal\n- worm drain, breeding, the HUD chip, and that worms eat no strands\n- sight rings: on by default, culled off screen, the switch, and a green pixel difference\n- the infection deadline and the forced fruiting with full payout\n- the flask and the dose, through the hooks only\n- the heat staircase, soil colours and the price chip\n- the tolerance track\n- one material per band and deep-rung pricing\n- sideways travel from the start, camera follow, the zoom round trip, the depth beat\n- a water pocket pays one lump\n- the fuel curve on seeds 11 and 909\n- detouring to ore, and the devoured ending still paying\n- the store's separate wallet and ledger, and purchases reaching the run's config\n- threats by band\n- one click-through: title \u2192 New \u2192 store (via `__menu.showPicker`) \u2192 Descend \u2192 one real mouse drag \u2192 run dry \u2192 end screen \u2192 store \u2192 New does not wipe the save\n\nThe other checks in the set test shared engine code only:\n- threat, mould, harvest, scale, core and level boot #dev or #level campaign maps with campaign tuning. None of them boots #mine.\n- aim drives a CARD aim (`armAim('Apical Drive')` on #dev), never the mine's always-armed `{kind:'mine'}` path, pan-vs-aim, or fireAim\u2192mineGrow.\n- store-check is campaign-picker assertions plus 3 on the mine shelf's track list.\n- boot-check boots only retired destinations (#dev, #puzzle, #notrich, #tutorial). It never boots #mine or the bare title, which are the only public entry points.\n\nWHAT IS NOT COVERED. Where I say \"reproduced\", I drove it with a probe:\n- **The release artefact.** make-web-zip.mjs keeps only folders used by campaignLevel maps, so it prunes magnetite-c24 and garnet-c24, which are mine bands 1 and 3. With that prune emulated in the server (zipprune.cjs), the mine booted with 0/606 magnetite and 0/535 garnet sprites loaded, the fine mask was never built, every band read 0% solid, and the screenshot shows no rock at all (zipprune-pruned.png against zipprune-full.png). The public build's mine would have no walls. itchzip-check does not play the mine and is not in the runner.\n- **Settings-menu exits** (exits.cjs):\n  - 'Save & exit to menu' mid-descent throws the run away: 25 P of dug ore not banked, mineBest not recorded, and New starts fresh at 1 m.\n  - 'End run' banks correctly, but the end screen says 'The colony was eaten.' (cause 'abandon').\n- The mine store by clicking: buying and selling tiles, material prices, the wallet's material display.\n- The kit buttons by clicking, and the dose's arm-then-tap flow.\n- Touch input. Only the mouse and wheel are driven; no hasTouch context, pinch or double-tap.\n- Onboarding beyond one hint string.\n- The end screen's materials line and best-depth line.\n- Multi-run progression and pacing: run 1 under a minute, and banking one upgrade.\n- Performance. There is no gate; perf-probe boots #dev, and sight-perf only prints.\n- Any viewport other than 390x844, resize and orientation.\n- Far-chunk and world-edge streaming.\n- Audio.\n- The mine's run_end telemetry row.\n\nWeak spots inside mine-check:\n- Several probes still descend with a blind `grow(0,1)`: 'the camera follows the dig downward' reached 1 -> 33 m against a +30 m target, and the run-dry loop made 10 m in 40 digs. Both pass, but with little margin.\n- run.mjs counts a check that prints 0 passed, 0 failed as green.",
+  "fastLoop": "Timings measured here:\n\n| check | time |\n|---|---|\n| boot | 43 s (45 s with the stub) |\n| store | 11 s |\n| mine | 293-298 s |\n| level | 32 s |\n| aim | 5 s |\n| scale | 6 s |\n| threat | 42 s |\n| harvest | 3 s |\n| mould | 4 s |\n| core | 15 s |\n\n1. **After each change to mine code** (generator, HUD, economy, screens): `cd /home/user/myceliumRT && NODE_PATH=/opt/node22/lib/node_modules node tests/run.mjs mine store`. About 5m10s, and mine-check is the only check that boots #mine.\n2. **If the change touches shared engine code** (growDirected or collision, threats or infection, pile claim, buildLevel, the aim gesture): add `threat mould harvest scale core aim level`, about 1m50s more. `node tests/run.mjs --mine` is 7m40s in total.\n3. **To trust the result:** first apply the boot stub and fix the four probe-weakness assertions (recommendations 1 and 3). Then `--mine` should read 574/574, and any red is real. The one exception is threat's documented map-roll flake (about 1 run in 3 historically, not seen this run): re-run `node tests/run.mjs threat` (42 s) before believing it.\n4. **To get under 5 minutes:** mine-check is one big script, but every block already boots its own browser context. An env-var block filter would let a heat, tolerance or beat change run in well under a minute; that figure is an estimate, not measured.\n5. **Generator changes** also want the print-only probes run by hand: `tests/void-probe.cjs` and `tests/mine-probe.cjs`.\n6. **Before a release cut** (`itchzip-check` is not in the runner): run it, and until it has a mine leg, also a static check that make-web-zip keeps every `CONFIG.mine.bands[].assetsFrom` folder.\n\nRun one browser at a time and wait on the runner with a Monitor until-loop. run.txt fills in line by line as each check finishes, so it is readable while the run is going.",
+  "recommendations": [
+   "boot-check.cjs (one line): add `await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });` after newPage. A scratch copy with this change went 16/16 in 45 s. It also stops every boot-check run from POSTing boot telemetry to the live Supabase events table wherever the host is reachable. aim-check.cjs needs the same line; it passes only because it ignores console errors.",
+   "boot-check.cjs: add `#mine,4242` and '' (the bare title screen) to the hash list. Those are the only entry points the public build offers, and today the check boots only retired modes. Both boot with zero console or page errors once stubbed (netfail.cjs).",
+   "mine-check.cjs: replace `__aimDown`/`__digTo` (lines 111-144) with a navigator that follows a path through the fine mask. Flood from every living strand over `_fineSolid`, prefer cells away from walls, rebuild the path, then `growFrom(nearest strand to the path frontier, a waypoint about 14 fine cells ahead)`. Working version: scratchpad/test-audit/navdive.cjs, the `plan()` function and the loop after it. From states where `__digTo` stalls at 6-51 m, it reached 154-167 m in 32-43 digs on seeds 4242/11/909/7/31337, deterministically, with no replanning. Use it in the heat block (line 1129), the tolerance dive (lines 1186-1199) and the beat block (line 1765, keeping at least one frame between digs so each band crossing is observed). That clears all four mine failures.",
+   "Tolerance dive: after switching to the navigator, use the opening tank or about 150 water instead of 600, and keep the threats cleared. The navigator reaches the floor for about 270 water at bare prices, so on 600 both the bare and upgraded dives would hit the floor and 'worth real depth' would fail for the opposite reason. On the opening 84 water the navigator reached 86-103 m bare.",
+   "mine-check.cjs: before each depth-dependent assertion, assert first that the probe actually reached the depth it needs, so a stall reports itself instead of posing as a pricing or HUD bug. Remove or repoint the false PASS 'a dig below the limit still succeeds \u2014 2 strands at 28 m', which was measured above the 42 m line.",
+   "run.mjs: treat `passed + failed === 0` as BROKEN. CLAUDE.md already proposes this and holds it for the owner's approval. Also print a check's `note` lines, so skipped measurements show up in the summary.",
+   "Correct the record in CLAUDE.md, the next commit message, and any design decision built on it. The four failures do not come from shared pages or a colony boxed in at 45% solid. All four blocks run on fresh pages, and the colony can reach the floor from the exact stalled state. It is a probe that only digs from the deepest tip, and the committed `__digTo` does not do the wall-following or backing up the commit message claims. The proposed remedy, rock-eating consumables, also contradicts the settled premise that rock is a wall.",
+   "RELEASE BLOCKER, currently untested: scripts/make-web-zip.mjs:178-182 and 257-258 keep only folders used by campaign maps (survival is withdrawn), so the public zip drops magnetite-c24 and garnet-c24, the mine's first and third bands. Emulated, the mine had no rock and no collision mask at all (zipprune.cjs, zipprune-pruned.png). Fix: add every `CONFIG.mine.bands[].assetsFrom` read from index.html to `reachable`, and give itchzip-check a #mine leg that asserts the fine mask exists and no requests fail.",
+   "Two gameplay defects the checks cannot see, both reproduced by clicking the settings menu mid-descent (exits.cjs). (a) 'Save & exit to menu' calls showMainMenu, which banks nothing, records no best depth and offers no resume: 25 P lost, and New starts fresh. Either route it through mineEndRun and presentMineEnd, or rename it and warn. (b) 'End run' goes through forceFruitAbandon (cause 'abandon', died true), so showMineEnd prints 'The colony was eaten.' It needs a line for the abandon cause. Add one mine-check assertion for each.",
+   "Coverage worth adding to mine-check, cheapest first. (1) Click a mine store tile to buy and sell, including a rung priced in a material. (2) Click the kit: #kit-excrete, then #kit-amputate followed by a tap on the map. (3) A touch context (`hasTouch: true`) driving a drag and a pinch. (4) The end screen's materials line and 'Deepest so far' / 'new best' line. (5) A small multi-run pacing assertion: run 1 reaches past band 1 and banks enough for the cheapest upgrade. (6) A frame-time or pixel budget for the mine at 390x844; nothing gates mine performance today."
+  ]
+ },
+ "3": {
+  "runs": [
+   {
+    "n": 1,
+    "seconds": 38,
+    "digs": 34,
+    "depthM": 56,
+    "earned": "15 P + 8 anthracite",
+    "endCause": "dry",
+    "bought": "-",
+    "notes": "RUN 1, fresh save, seed 4242, route-planning bot (BFS on the fine mask, detours to visible ore/pockets, 0.9 s per dig, real growFrom = the drag's engine call). 2 worms attached late, drained 7.6 water."
+   },
+   {
+    "n": 2,
+    "seconds": 60,
+    "digs": 37,
+    "depthM": 95,
+    "earned": "12 P + 4 anthracite",
+    "endCause": "dry (only because a worm drained 2->1)",
+    "notes": "Run 1, seed 909. Rot took the deepest strands so the end screen said 87 m, not 95. Stuck on 'Not enough water - a dig here costs 8' with 2 water. The run ended only because an attached worm drained the last unit."
+   },
+   {
+    "n": 3,
+    "seconds": 38,
+    "digs": 34,
+    "depthM": 76,
+    "earned": "9 P + 12 anthracite",
+    "endCause": "dry",
+    "notes": "Run 1, seed 11. 9 P is 1 short of the cheapest rung (10), so the first store visit can buy nothing (store-fresh.png)."
+   },
+   {
+    "n": 4,
+    "seconds": 55,
+    "digs": 43,
+    "depthM": 77,
+    "earned": "12 P + 8 anthracite",
+    "endCause": "dry",
+    "notes": "Run 1, seed 1234."
+   },
+   {
+    "n": 5,
+    "seconds": 45,
+    "digs": 41,
+    "depthM": 82,
+    "earned": "18 P + 10 anthracite",
+    "endCause": "dry",
+    "notes": "Run 1, seed 777. 18 P means all 6 band-0 seams in the 3 home chunks were taken. That is the ceiling for a diver."
+   },
+   {
+    "n": 6,
+    "seconds": 65,
+    "digs": 36,
+    "depthM": 105,
+    "earned": "18 P + 8 anthracite + 4 garnet",
+    "endCause": "NONE - run never ended",
+    "notes": "Run 1, seed 31337. Deep strands cost 8, tank 4. The run stayed live and was still sitting after 8 s (run1-31337-refused.png). Re-run with worms removed: rot ended it 20 s later."
+   },
+   {
+    "n": 7,
+    "seconds": 65,
+    "digs": 34,
+    "depthM": 107,
+    "earned": "15 P + 6 anthracite",
+    "endCause": "NONE - run never ended",
+    "notes": "Run 1, seed 5. Stuck at 'costs 8' with 5 water. Re-run without worms at water 2 / '4 a dig': no end after 30 s, 0 affordable strands on screen (drysit-5-b.png)."
+   },
+   {
+    "n": 8,
+    "seconds": 65,
+    "digs": 36,
+    "depthM": 85,
+    "earned": "12 P + 6 anthracite",
+    "endCause": "NONE - run never ended",
+    "notes": "Run 1, seed 2024. Re-run without worms at 102 m, water 2, '8 a dig': no end after 30 s, no end screen (drysit-2024-b.png)."
+   },
+   {
+    "n": 9,
+    "seconds": 38,
+    "digs": 33,
+    "depthM": 60,
+    "earned": "18 P + 8 A",
+    "endCause": "dry",
+    "bought": "water@1",
+    "notes": "CAREER (one save, real end screen -> To the store -> buy cheapest affordable -> Descend, random seeds) R1."
+   },
+   {
+    "n": 10,
+    "seconds": 38,
+    "digs": 33,
+    "depthM": 89,
+    "earned": "6 P + 10 A",
+    "endCause": "dry",
+    "bought": "oreYield@1",
+    "notes": "Career R2. The deeper dive paid less P. After 2 runs the bank holds 18 anthracite, which is the store's entire anthracite demand."
+   },
+   {
+    "n": 11,
+    "seconds": 46,
+    "digs": 33,
+    "depthM": 86,
+    "earned": "8 P + 15 A",
+    "endCause": "dry (worm drained 2->1 during a dry-for-deep stall)",
+    "bought": "growSteps@1",
+    "notes": "Career R3."
+   },
+   {
+    "n": 12,
+    "seconds": 53,
+    "digs": 39,
+    "depthM": 100,
+    "earned": "20 P + 15 A + 3 garnet",
+    "endCause": "dry (worm drained 5->1 during a stall)",
+    "bought": "pocketWater@1",
+    "notes": "Career R4. Garnet came in 3s, not 2s: Ore yield also boosts deep materials."
+   },
+   {
+    "n": 13,
+    "seconds": 53,
+    "digs": 50,
+    "depthM": 91,
+    "earned": "32 P + 6 A",
+    "endCause": "dry",
+    "bought": "excreteCharges@1, heatTolerance@1",
+    "notes": "Career R5. Best P run of the career."
+   },
+   {
+    "n": 14,
+    "seconds": 52,
+    "digs": 38,
+    "depthM": 123,
+    "earned": "16 P + 9 A + 6 G",
+    "endCause": "dry (worm drained during a stall)",
+    "bought": "amputateCharges@1",
+    "notes": "Career R6. Used its single flask: 'Mucus burst - 1 stuck fast', no kill."
+   },
+   {
+    "n": 15,
+    "seconds": 55,
+    "digs": 42,
+    "depthM": 121,
+    "earned": "20 P + 12 A + 9 G",
+    "endCause": "dry (stall)",
+    "bought": "nothing affordable (21 P)",
+    "notes": "Career R7. Its one enzyme dose cut 82 strands and covered 79 of 150 rotten."
+   },
+   {
+    "n": 16,
+    "seconds": 40,
+    "digs": 38,
+    "depthM": 107,
+    "earned": "8 P + 9 A + 6 G",
+    "endCause": "infected",
+    "bought": "oreYield@2",
+    "notes": "Career R8. End screen said 99 m against 107 reached (career-cheap-r8-end.png). One dose covered 37 of 44 rotten, not enough."
+   },
+   {
+    "n": 17,
+    "seconds": 43,
+    "digs": 40,
+    "depthM": 107,
+    "earned": "20 P + 12 A",
+    "endCause": "dry",
+    "bought": "water@2",
+    "notes": "Career R9."
+   },
+   {
+    "n": 18,
+    "seconds": 50,
+    "digs": 35,
+    "depthM": 126,
+    "earned": "15 P + 12 A + 8 G",
+    "endCause": "infected (during a stall)",
+    "bought": "nothing affordable (18 P)",
+    "notes": "Career R10."
+   },
+   {
+    "n": 19,
+    "seconds": 40,
+    "digs": 35,
+    "depthM": 118,
+    "earned": "20 P + 12 A + 8 G",
+    "endCause": "dry",
+    "bought": "growSteps@2",
+    "notes": "Career R11."
+   },
+   {
+    "n": 20,
+    "seconds": 43,
+    "digs": 37,
+    "depthM": 140,
+    "earned": "20 P + 12 A + 12 G + 4 hematite",
+    "endCause": "dry",
+    "bought": "nothing affordable (28 P; cheapest rung 32)",
+    "notes": "Career R12. Deepest of the career. First hematite."
+   },
+   {
+    "n": 21,
+    "seconds": 61,
+    "digs": 43,
+    "depthM": 126,
+    "earned": "20 P + 16 A",
+    "endCause": "infected",
+    "bought": "pocketWater@2",
+    "notes": "Career R13. Dry-for-deep stall with 6 water that did NOT end. The bot had to dig twice from the 0 m root to finish it."
+   },
+   {
+    "n": 22,
+    "seconds": 40,
+    "digs": 36,
+    "depthM": 92,
+    "earned": "15 P + 12 A + 4 G",
+    "endCause": "infected",
+    "bought": "nothing affordable (31 P)",
+    "notes": "Career R14. After 14 runs (~12 min of play): 238 P earned in total, P per run flat (mean 17), 4 of 14 store visits bought nothing, 160 anthracite and 56 garnet banked with almost nothing to spend them on."
+   },
+   {
+    "n": 23,
+    "seconds": 79,
+    "digs": 72,
+    "depthM": 167,
+    "earned": "108 P + 32 A + 32 G + 40 H",
+    "endCause": "infected",
+    "bought": "store maxed (credited)",
+    "notes": "MAX LOADOUT, seed 4242. 134 starting water, grow 7, heat +150 m (so no heat anywhere in a 168 m shaft). Reached the floor with 242 water unspent; the dig cost 2 at 149 m (tier-max-4242-s02.png). All 5 doses used and it still ended infected."
+   },
+   {
+    "n": 24,
+    "seconds": 48,
+    "digs": 44,
+    "depthM": 167,
+    "earned": "36 P + 16 A + 8 G + 32 H",
+    "endCause": "infected",
+    "bought": "store maxed (credited)",
+    "notes": "MAX LOADOUT, seed 909. Floor in 48 s."
+   },
+   {
+    "n": 25,
+    "seconds": 47,
+    "digs": 35,
+    "depthM": 94,
+    "earned": "avg 17 P",
+    "endCause": "dry (2 of 3 stalled)",
+    "bought": "growSteps x3 (102 P)",
+    "notes": "TIER: grow strength 3 rungs, seeds 4242/909/11. Depths 110/67/105, P 33/9/9."
+   },
+   {
+    "n": 26,
+    "seconds": 48,
+    "digs": 39,
+    "depthM": 90,
+    "earned": "avg 13 P",
+    "endCause": "dry",
+    "bought": "water x4 (154 P)",
+    "notes": "TIER: water 4 rungs. Depths 82/106/83 against a base of about 80. The worst value per P on the shelf."
+   },
+   {
+    "n": 27,
+    "seconds": 54,
+    "digs": 48,
+    "depthM": 115,
+    "earned": "avg 13 P",
+    "endCause": "dry",
+    "bought": "heatTolerance x2 (58 P)",
+    "notes": "TIER: heat tolerance 2 rungs. Depths 103/141/102. The best depth per P."
+   },
+   {
+    "n": 28,
+    "seconds": 49,
+    "digs": 38,
+    "depthM": 86,
+    "earned": "avg 26 P + 20 A",
+    "endCause": "dry",
+    "bought": "oreYield x3 + pocketWater x2 (118 P)",
+    "notes": "TIER: Ore yield doubles P (36/24/18) and gives 2.5x anthracite (5 per seam, not 2)."
+   },
+   {
+    "n": 29,
+    "seconds": 58,
+    "digs": 51,
+    "depthM": 34,
+    "earned": "avg 26 P (21/42/15)",
+    "endCause": "dry",
+    "bought": "none",
+    "notes": "FARMER bot: stays in band 0 and goes sideways. With no upgrades it banks about 2x the P of the diver on the same seeds (seed 909: 42 P at 34 m). Not descending is the better P strategy."
+   },
+   {
+    "n": 30,
+    "seconds": 29,
+    "digs": 42,
+    "depthM": 28,
+    "earned": "0-6 P",
+    "endCause": "dry",
+    "notes": "NAIVE NEW PLAYER, 8 runs (tap straight down, or aim at the most open ray, always from the deepest tip), seeds 4242/909/11/5. Depths 14-75 (median ~28). It stalled by dig 12-20 with 44-60 water left, then burned it on digs that 'succeed' sideways. 8/8 runs banked under 10 P, so none can buy anything after run 1 (naive-aim-4242.png)."
+   }
+  ],
+  "problems": [
+   {
+    "title": "The run never ends when the tank covers a surface dig but not a deep one (dry-for-deep softlock)",
+    "severity": "blocker",
+    "evidence": "mineFuelCheck ends the run only when water < mineCheapestCost, the price at the SHALLOWEST strand (always 2 at the root), while the HUD and every deep strand quote 4, 8 or 16. So a tank of 2-7 at depth leaves a live run in which every drag answers 'Not enough water - a dig here costs 8.' 14 of 39 sensible-bot runs hit this, including 3 of 8 first runs (seeds 31337, 5, 2024) that were still live after 8 s. With worms removed, seeds 5 (67 m, 2 water, '4 a dig') and 2024 (102 m, 2 water, '8 a dig') sat 30 s with no end screen and 0 affordable strands on screen. The only strand cheap enough was at 0 m, 67-102 cells above. Most other stalls ended only because an attached worm happened to drain the last unit (909 run 1, career R3/R4/R6/R7). Career R13 sat with 6 water until the bot dug twice from the root. Screens: drysit-2024-b.png, drysit-5-b.png, run1-5-refused.png, run1-31337-refused.png, run1-2024-refused.png.",
+    "suggestion": "End the run (after the existing 1.6 s grace) when water is below the price at the deepest living tip, or below the cheapest strand within the camera's view. At minimum, when water < costHere, swap the price chip for a 'Fruit now' button. Nobody crawls back to the surface to spend 2 water; the 'recovery play' mineCheapestCost was written for does not happen in practice."
+   },
+   {
+    "title": "Heat pricing can be bypassed: a walled-in shallow strand digs at the deepest tip for the shallow price",
+    "severity": "major",
+    "evidence": "mineGrow prices the PRESSED strand. growDirected then falls through to 'any tip that can step', sorted by projection on the aim, when the pressed strand is walled on all 11 dodge angles. heatx.cjs on 3 of 3 seeds: pressing a strand at 6-36 m that touches rock and dragging down grew filaments at 137-142 m and charged 2 water, where the fair price is 16 (an 8x discount). Every seed had 1-10 such strands. The reverse also happens (heatx-up.cjs, seed 4242): a strand pressed at 120 m and aimed up-left into rock was charged 8 and the growth appeared at 1 m. Either way the dig lands 100+ m from where the player pressed, and the camera jumps there.",
+    "suggestion": "Price the dig at the node that actually grows (the parent growDirected picks), not the pressed one. Also, in the mine, cap the fall-through to tips within about one reach of the pressed strand, or refuse with 'Solid rock that way'. Add a mine-check assertion: a walled shallow strand aimed down must not create nodes below the heat line at the base price."
+   },
+   {
+    "title": "Depth pays in currency you cannot spend: P comes only from 0-42 m, deep materials pile up",
+    "severity": "major",
+    "evidence": "Only band-0 seams pay Phosphorus: 2 per chunk, 3 P each. The deep seams pay 2 of their own material and CONFIG orePerPile [3,5,8,12] is never used for them. A diver's P is therefore capped by the ~6 home seams (18 P). Over the 14-run career, P per run stayed flat at 6-32 (mean 17, no upward trend) and 4 of 14 store visits bought nothing (R7, R10, R12, R14). Meanwhile 160 anthracite (store demand 18 in total, and gated behind P rungs) and 56 garnet (demand 31) piled up. With no upgrades, a shallow sideways 'farmer' banked about 2x the diver's P on the same seeds (26 vs 13 average; seed 909: 42 P at 34 m). The optimal play is to NOT descend, which inverts the premise that the first runs go DOWN to afford going RIGHT.",
+    "suggestion": "Make deep seams pay P scaled by band (use orePerPile) on top of or instead of the material, or let deep materials convert to P. Give each deep material real sinks: more rungs priced in it, and a track only it can buy. Re-measure P per run across a career. The metric to watch is store visits that buy nothing (currently 29%)."
+   },
+   {
+    "title": "Ore yield also multiplies deep materials, and its tile does not say so",
+    "severity": "major",
+    "evidence": "mineOreRewards pays `(mat.per | 0) + oreBonus` for deep seams. The tile reads 'Every ore seam you digest pays 1 more Phosphorus.' Seen in play: garnet arriving in 3s at yield 1, and anthracite at 5 per seam at yield 3 (tier-yield3: 20/10/30 anthracite). At yield 6 a deep seam pays 8 instead of 2 (4x), so every material-priced rung becomes 1-2 seams and the 'hunt for the right material' gate stops existing. Combined with its P effect (P doubled: 36/24/18 against about 13), Ore yield is the dominant purchase.",
+    "suggestion": "Decide deliberately whether it should apply to deep materials. If not, apply the bonus to phosphorus only. If so, rewrite the tile ('every seam pays 1 more of its material') and re-price the material rungs."
+   },
+   {
+    "title": "A single mucus flask is a 0.5 s stun; a kill takes 3, and the tile doesn't say so",
+    "severity": "major",
+    "evidence": "excrete: 1 hit and stickTurns 1 (a single 500 ms tick); killHits is 3. With 3 worms parked on the colony for 20 s: no flask drained 27.2 water (they bred 3 -> 8); one flask drained 25.1 (2.1 water saved, about one dig, for 15 P); three flasks 0.6 s apart killed all 3 (drain 0.0). Every career run from R5 fired its single flask and got 'Mucus burst - 1 stuck fast', never a kill. Rungs 1-2 (49 P) are traps. The tile says 'hitting every nematode near it' and nothing about hits stacking.",
+    "suggestion": "Make one flask decisive: kill everything in range, or detach worms and stun them for about 5 s. Otherwise state '3 bursts kill' on the tile and in the toast, and show hits on the worm."
+   },
+   {
+    "title": "The cutting enzyme usually cannot cure a breach, and ignoring the infection costs almost nothing",
+    "severity": "major",
+    "evidence": "A real breach at 60 m claimed 41-55 strands. 1 dose left 12 rotten and the run ended. 2 doses left 4 rotten and it ended; the second cut removed 118 strands to catch 6. 3 doses cleared it but cost 170 of 524 strands (32%) and dropped the recorded depth from 62 to 45 m. Only the first two dose rungs are P-priced (64 P). Max loadout (5 doses) still ended infected in 2 of 2 runs, and 4 of 14 career runs ended infected. Meanwhile the infection is nearly free: full payout, and mineGrow has no rate limit. speeddig.cjs dumped the whole 84-water tank in 7 s of the 20 s window (23 digs). The rot also never creeps: 50 rotten strands stayed at 50 for 17 s, against the spec's 'rot creeps along the filaments'.",
+    "suggestion": "Give the deadline teeth: forfeit part of the haul, or freeze digging while infected. Or make the answer affordable: one dose cures one contact and cuts only rotten tissue plus a small margin. Consider a per-dig cooldown or animation lock so '20 s' means something. Re-check spreadDepthPerTurn, since no creep was observed."
+   },
+   {
+    "title": "An infected ending under-reports depth, on the end screen and in the record",
+    "severity": "major",
+    "evidence": "mineDepthReached skips infected strands, and mineEndRun reads it at the deadline, when the deepest tissue is often rotten. Career R8 reached 107 m and the end screen said 99 m (career-cheap-r8-end.png). The threat probe reached 63 m and the screen said 50 m (threat-rot-end.png). The deepest-descent record (p.mineBest) is saved from the same number.",
+    "suggestion": "Track the maximum clean depth reached during the run (a running max in mineFrame) and pay and record that. Rot should not erase progress already made."
+   },
+   {
+    "title": "'Save & exit to menu' in the mine deletes the run and its haul",
+    "severity": "major",
+    "evidence": "menu.cjs: 45 m in, holding 9 P + 2 anthracite, pressed Save & exit. The title offered only 'Dig' (the mine has no 'Old'), and the wallet stayed at 0. Dig started a fresh descent at 84 water. Everything dug was lost, and nothing was banked. Screens: menu-set-saveexit.png, menu-saveexit-dig.png.",
+    "suggestion": "In the mine, either bank the haul and end the run (rename the item 'Fruit and exit') or hide the item. A 'Save' that deletes is the worst kind of button."
+   },
+   {
+    "title": "The HUD overflows a 390 px phone and pushes the settings gear off screen",
+    "severity": "major",
+    "evidence": "hud.cjs, with worm, infection and material chips all showing: #gearbtn at x=530-562, #hud-digcost at 348-410 and .matchip at 431-461, on a 390 px viewport. The gear is the only way to reach 'End run', and it disappears exactly when worms or rot are in play. Even with no extra chips the cost chip wraps to '8 / a dig'. Screens: hud-full.png, threat-worms-attached.png, run1-4242-end.png (HUD cut at the right edge).",
+    "suggestion": "Wrap the pill onto a second row or collapse chips to icon + number. Keep the gear outside the pill's flow (position: fixed). Add a mine-check assertion that every HUD rect sits inside the viewport with all chips on."
+   },
+   {
+    "title": "A new player's natural gesture burns the tank for nothing",
+    "severity": "major",
+    "evidence": "naive.cjs, 8 runs, always digging from the deepest tip (straight down, or toward the most open ray): median 28 m, range 14-75. It stalled by dig 12-20 with 44-60 water left, then spent the rest on digs that 'succeed' because the dodge fan finds sideways ground, gaining 0 m each. 8 of 8 runs banked 0-6 P, so the first store visit has nothing affordable (naive-aim-4242.png shows '+0'). This is what the tests' own greedy probes see (mine-probe copy: 1 -> 37 m over 40 digs on seed 909). The sensible router made 56-107 m on the same budget, so there is skill in the maze, but nothing teaches the player to back up and pick another strand.",
+    "suggestion": "Warn or refuse when a dig gains no new ground ('dead end - try another strand'), or refund part of a dig that made fewer than N new cells. Highlight the three best frontier strands for the first few runs. Guarantee run 1 at least 10 P, for example with a seam near the start column."
+   },
+   {
+    "title": "The content runs out: the floor is reachable in under 80 s, and the store is a dead end",
+    "severity": "major",
+    "evidence": "The shaft is 168 m. Maxed runs reached 167 m in 48 s and 79 s, with 242 water unspent and a dig costing 2 at 149 m: heat tolerance of +150 m moves the first line to 192 m, deleting heat from a 168 m shaft. A greedy-buy model at 5-8 P seams per run exhausts the store in 56-89 runs (about 1-1.5 h at 1 min per run); from run 36-57 onward only the water track is left, at 225-500 P a rung for +5 water, which cannot matter to a player finishing runs with 200+ water. With the store exhausted: 6772 P and about 190 of each material, all unspendable (store-exhausted.png). Runs never lengthen either: 38-61 s from run 1 to run 14, against the plan's 3-5 minutes.",
+    "suggestion": "Ship Phase 3 (legs and islands) as the endless axis, with threat and density escalation per leg. Cap heat tolerance below the shaft depth, or deepen the shaft per leg. Cut the water track to about 5 rungs. Add a long-term sink or prestige for leftover currency, plus daily seeds and a depth-and-time board so run 100 has a reason."
+   },
+   {
+    "title": "Dev buttons are live on the shipped branch; one credits 10,000 Phosphorus",
+    "severity": "minor",
+    "evidence": "CONFIG.dev.enabled and dev.inGameButtons are both true. 'Dev: maps' and 'Dev: edit rocks' sit on the play screen in every screenshot. The store shows 'Dev quick-start', 'Dev: unlock all' and 'Dev: +10,000 spores' over the wordmark (store-fresh.png). The last one calls addSpores(DEV_SPORES), which in the mine writes the minerals wallet: one tap buys every P rung. The CONFIG comment says the Pages build serves this branch as-is.",
+    "suggestion": "Turn dev.enabled off for any public build. Relabel the button 'P' in the mine, or hide it there."
+   },
+   {
+    "title": "'End run' in the mine says 'The colony was eaten'",
+    "severity": "minor",
+    "evidence": "forceFruitAbandon writes cause 'abandon' with died: true, so showMineEnd's `eaten` branch fires: '45m The colony was eaten. What it had spored is yours.' after a voluntary end with 56 water in the tank (menu-set-forcefruit.png). The payout itself is correct (9 P + 2 anthracite banked).",
+    "suggestion": "Give 'abandon' its own line, e.g. 'You ended the descent.' Or route the mine's End run through mineEndRun(state, 'abandon')."
+   },
+   {
+    "title": "End-screen glyphs: the Phosphorus star balloons and the materials are unlabelled",
+    "severity": "minor",
+    "evidence": "RI.phos (class ss-ri) has no size rule inside .ss-win-earned, so the star renders about 55 px at +9 and about 170 px at +108 (tier-max-4242-end.png, career-cheap-r8-end.png). Deep materials show as '+32 dot', a tiny tinted dot with no name. The 'SPORED' wordmark is clipped at both edges at 390 px.",
+    "suggestion": "Size .ss-win-earned .ss-ri the way .spore-ic is sized (0.95em). Add the material name, or a 3-letter tag, next to each dot."
+   },
+   {
+    "title": "Worms are barely visible at the resting zoom",
+    "severity": "minor",
+    "evidence": "A worm is a roughly 10 px white squiggle on a 390x844 phone at zoom 0.6, and its olive sight wash barely shifts the soil (worm-crop.png, worm-frame.png). In mid-run frames an attached worm cannot be found by eye; only the '1 -0.2/s' chip says it is there (run1-1234-s02.png).",
+    "suggestion": "Draw worms at 2-3x in the mine (or add a pulsing ring when locked on), and mark the strand each attached worm is feeding on."
+   },
+   {
+    "title": "Worm breeding switches off once the colony has explored four chunks",
+    "severity": "minor",
+    "evidence": "maxPopulation 16 is checked against the global nematode count, but seeding is 4 worms per chunk (1+1+2). 3 chunks gives 12 worms, so breeding can happen. 4+ chunks gives 16+ (24 observed on run 1), so no worm ever breeds again. Isolated, the breeding is brutal: 3 -> 8 worms in 20 s, draining 27 water (one base tank in about 60 s). Exploring sideways silently turns breeding off.",
+    "suggestion": "Cap breeding per chunk, or cap it by attached worms rather than the world population. Then tune breedPerSec against the real number."
+   },
+   {
+    "title": "Store copy doesn't match play",
+    "severity": "minor",
+    "evidence": "The store note always says '2 water a dig' (ssMineNote), whatever the heat. The enzyme tile promises 'a small radius', but cutRadius is 220 units (6 cells) and one cut removed 118 strands. The flask tile says nothing about needing 3 hits.",
+    "suggestion": "Quote the heat ladder on the note ('2 / 4 / 8 / 16 past 42 / 84 / 126 m'). Describe the enzyme's cut as wide, and state the flask's 3-hit rule."
+   },
+   {
+    "title": "First-run variance decides whether the store opens",
+    "severity": "minor",
+    "evidence": "Sensible first runs: 56-107 m (1.9x spread) and 9-18 P (2x). Seed 11 banked 9 P, one short of the cheapest rung. The spread is driven by which pockets are found and whether worms attach (drained 0-7.6 water) or rot touches.",
+    "suggestion": "Guarantee the first descent at least one full rung, for example with a floor on run-1 P or a 5-P first rung."
+   }
+  ],
+  "positives": [
+   "Run 1 meets its time target: 38-65 s and 33-43 digs on 8 seeds with a route-planning player.",
+   "Routing is a real skill: a player who plans a route reaches 56-107 m on run 1, against 14-75 m for one who drags from the bottom on the same 84 water.",
+   "No sealed pockets in practice. 0 of 39 route-planning runs found themselves boxed (the flood always found reachable ground), and the copied mine-probe measured 99.2-99.3% connectivity with 48 of 48 and 40 of 40 ore seams reachable. The '28 m on 98 digs' ceiling is the greedy deepest-tip probe, not the map.",
+   "The HUD makes the numbers readable: whole-number water, a live price chip that turns orange with heat, a worm chip that shows the drain rate, and an infection countdown in seconds.",
+   "Ore seams (orange) and water pockets (blue) are easy to spot on screen, and keeping them off the direct route makes detours a real decision.",
+   "Depth progression is felt early: the career's deepest run went from 60 m to 140 m in 12 runs, and each band change (brown, black, red, rust) is a visible milestone.",
+   "Full payout on every ending means no run feels stolen (every ending tested banked its ore, except Save & exit).",
+   "Stable: 0 page errors and 0 console errors across about 50 boots and 60+ descents. renderFrame measured 10-16 ms median, p90 up to 25 ms, at 800-1600 strands in headless software raster (copied mine-probe: 15.0 / 17.6 ms)."
+  ],
+  "loopVerdict": "The 45-second dive works as a core: a counted tank, a doubling price, a maze to route through, and off-route rewards give each run 30-40 real decisions, and a player who plans beats one who doesn't by about 2x in depth. The loop around it is broken in ways that will show within the first 10-15 minutes.\n\n**1. Runs can refuse to end.** In 36% of runs the player ends up holding 2-7 water in front of a '4 or 8 a dig' chip, and the run stays live. Nothing on screen explains why, and only a stray worm or a trip to the gear menu (which the HUD can push off screen) ends it. That is the first thing to fix.\n\n**2. The currency comes from the wrong place.** Only the top 42 m pays Phosphorus, so P per run was flat at about 17 across 14 runs and 4 of 14 store visits bought nothing. Anthracite and garnet piled up at 160 and 56 against demands of 18 and 31. Staying shallow and going sideways earns about 2x more P than descending.\n\n**3. The purchases are unbalanced.**\n- Heat tolerance and Ore yield are the strong buys: 58 P buys about +35 m, and Ore yield doubles income while also quietly quadrupling deep materials.\n- The water track is the weak buy: 1849 P, 57% of the shelf.\n- Flask and enzyme rungs 1-2 are traps: one flask is a 0.5 s stun, and 1-2 doses cannot clear a breach.\n- The infection costs almost nothing, because the tank can be dumped inside its 20 s window.\n- Heat can be bypassed for 8x cheaper digs by pressing a strand that touches rock.\n\n**4. There is no long game.** Fully upgraded runs hit the 168 m floor in 48-79 s with 240 water unspent. The store exhausts in about 56-89 runs, the last 20-30 of them buying water that cannot matter. After that there are thousands of unspendable P and nothing to chase except a depth record already at the cap.\n\n**What would bring players back for run 11:**\n- Fix the dry-for-deep softlock and the heat bypass.\n- Make depth pay P, scaled by band, and give the deep materials real sinks.\n- Make one flask or one dose decisive.\n- Make the infection cost part of the haul.\n- Cut the water track.\n\n**What would bring them back for run 100:** an endless axis. Phase 3's legs east are the natural one: each leg a fresh shaft with rising density and threats and a deeper floor, the heat cap tied to the leg, plus daily seeds and a depth-and-time board. As built, a dedicated player sees everything in about an hour.\n\nAll scripts and screenshots are in /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/. The bot harness is lib.cjs and botrun.cjs; run1.json, career-cheap.json and the tier-*.json files hold the per-dig traces.",
+  "screens": [
+   "Opening frame, run 1 (HUD: 84 water, 0 P, 1 m, 2 a dig; dev buttons on the map): /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/look-start.png",
+   "Mid-run, worm attached but the worm itself is hard to find: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/run1-1234-s02.png",
+   "Dry-for-deep softlock, 102 m, 2 water, '8 a dig' toast, no end: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/drysit-2024-b.png",
+   "The same state 30 s later, still live: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/drysit-2024-c.png",
+   "Dry-for-deep, seed 5: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/drysit-5-b.png",
+   "Dry-for-deep during run 1, seeds 31337 / 5 / 2024: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/run1-31337-refused.png, run1-5-refused.png, run1-2024-refused.png",
+   "Normal end screen (Out of water; oversized P star; unlabelled material dot): /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/run1-4242-end.png",
+   "Infected end screen reporting 99 m after 107 m was reached: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/career-cheap-r8-end.png",
+   "Maxed run ending at 167 m with 242 water left and a 170 px P star: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/tier-max-4242-end.png",
+   "Maxed run at 149 m, dig cost 2, 240 water: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/tier-max-4242-s02.png",
+   "Naive player's end, 28 m, +0 P: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/naive-aim-4242.png",
+   "Rot countdown on the HUD (18 s) with rotten strands drawn: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/threat-rot.png",
+   "Rot end screen (50 m reported after 63 m reached): /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/threat-rot-end.png",
+   "8 worms attached, -1.6/s, gear pushed to the edge: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/threat-worms-attached.png",
+   "HUD with every chip on, gear off screen: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/hud-full.png",
+   "Worm size at the resting zoom (120 px crop): /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/worm-crop.png and worm-frame.png",
+   "End run from the gear menu: 'The colony was eaten': /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/menu-set-forcefruit.png",
+   "Save & exit lands on the title with the run and its ore gone: /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/menu-set-saveexit.png, then menu-saveexit-dig.png (fresh 84-water descent)",
+   "Store after a 9 P first run (nothing affordable; dev buttons including '+10,000 spores'): /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/store-fresh.png",
+   "Store exhausted (every tile MAXED, 6772 P + ~190 of each material unspendable): /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/store-exhausted.png",
+   "Copied mine-probe frame (perf/connectivity run, seed 4242): /tmp/claude-0/-home-user-myceliumRT/a2f5e2e3-decc-5856-aa55-dec16f4b83e6/scratchpad/qa-breaker/mineprobe-4242.png"
+  ]
+ },
+ "4": {
+  "premises": [
+   "The Deep Mine (CONFIG.game === 'mine') is the only game. Campaign and survival are retired from the title screen and from the checks but are NOT deleted. infectNetwork and its ring/depth/rot tuning are a dependency of the mine, so threat changes go BESIDE the existing machinery, never over it.",
+   "Rock is a WALL, not a material. Mycelium does not eat rock, so this is a maze-runner, not a digger. Every 'why not dig through it' idea is answered by that. The one owner-sanctioned exception is a later bought consumable, in the owner's words: 'it's totally fine if some areas are not reachable - we will have consumables later that allow people to grow through rocks when needed.'",
+   "There are NO RETURN TRIPS. The colony IS the map, spread across it. A run ends where it ends and the player advances rather than coming back. This is the genre position, not a gap.",
+   "Run 1 is under a minute (the plan says ~45 s) and banks ONE upgrade. Late runs are 3-5 minutes, tuned at the end. How long a late run is comes out of the costs pass; it is not an input to it.",
+   "No cards, no drafting, no deck. Real time. Portrait phone. One grow, always armed: drag from the colony to dig, and a tap with no direction digs down. Brief: start with grow 2 at 2 water, keep digging while there is water, hill in the middle, go deeper, rock types by depth. Running dry means the colony fruits and spores and the player goes to the upgrade store.",
+   "The owner's own reasons for the pivot: the cards 'made it too complex', there was 'too much card drafting', and dying 'felt like you lost too much'. They also want shorter initial loops. More onboarding polish is NOT the fix: it was tested and did nothing ('I've checked the data and the changes did nothing').",
+   "Count water and everything else only in whole numbers. Fractional rates such as the worm drain build up as a debt, and only whole units leave the tank.",
+   "Worms drain water instead of eating: 1 water per 5 s per attached worm, a 5%/s breed chance while feeding, population cap 16. Attachment is drawn on the strand and counted in the HUD along with its rate.",
+   "Threat sight rings are on by default: a plain flat fill, green 120,155,45 at alpha 0.15, with no outline, rim or gradient. Four treatments have been tried; do not add a fifth. sightRgb and sightAlpha move together. Creature sight radius is 300, so nothing senses the colony from off-screen.",
+   "Band 1 (the first 42 m) is threat-free on purpose. Worms appear from band 2, mould from band 3, no ants, and NOTHING RESPAWNS.",
+   "Trichoderma: ONE infection timer per colony (20 s) from first contact, derived from 'is anything infected'. It stops only when EVERY infected strand is gone; cutting one of two contact points keeps the clock running. Infected strands cannot be grown from. When the timer ends, the whole colony turns green, fruits, and the run pays out IN FULL.",
+   "Consumables are BOUGHT, and nothing is given. Mucus flasks and Cutting enzyme are sold as how many you carry, restocked every descent, not as charges that deplete across runs. A miss costs nothing.",
+   "Interlock: Amputate is bought AND forced fruiting pays out in full. Meeting mould with an empty bag ends the run early without taking anything away. Changing either one alone makes early mould brutal.",
+   "Heat is PRICED, NOT ENFORCED. Every dig past a depth line costs more water on a doubling staircase (lines at 42 m and every 42 m after, so 2, 4, 8, 16, capped by maxMult 8). Nothing burns off, and a dig the game allows always succeeds. Heat tolerance slides the ladder down. The price is set where the dig starts, affordability asks the cheapest ground, and the HUD always quotes the price.",
+   "Every depth band has its own soil colour: brown, then black, then red. The colour changes on the rock bands, not on the price lines.",
+   "Materials: one per band (Phosphorus, Anthracite, Garnet, Hematite), and the band decides the material. Phosphorus is the general currency. Deep rungs are priced in deep materials ('looking for the right materials for upgrades').",
+   "Interlock: materials want the compass. Without one, 'find garnet' is a random walk. Do not ship 06 alone.",
+   "Nothing worth having is on the way down. Ore and water pockets sit at the far ends of lateral galleries and spurs, off the descent route. A water pocket is a one-off +10 burst, not an annuity.",
+   "The maze is asymmetric: long east-west corridors and scarce north-south links, with plugs on the ways down. Heavier rock is fine, and some unreachable areas are fine.",
+   "A FRESH WORLD PER LEG, seeded by journey and leg index, with the hill at the WEST and the island at the EAST. The 504-column streamed map stays as it is, and eastward progress is a small integer rather than an ever-wider world.",
+   "Compasses are BOUGHT PER RESOURCE. Nothing is given, including the island compass, because the player already knows to go east; what is sold is precision. The rungs are direction, then direction and distance, then pointing at the BIGGEST deposit rather than the nearest. A compass MUST POINT THROUGH ROCK: a bearing, never a route.",
+   "Look anywhere, and a dig brings you back. Resting zoom is 0.6 and zoomRange [0.4, 2.2] is bounded by streaming. A pan releases the camera and a successful dig re-arms it.",
+   "The mine has New and no Old (no resume). The store is the persistence, and 'New' must never wipe the save. The mine's store is its own wallet (minerals) and ledger (mineUpgrades)."
+  ],
+  "planRemaining": [
+   "PROGRESS line (CLAUDE.md): `PHASES 1 AND 2 COMPLETE. Phase 3: (07) green islands and the journey east \u2014 next.`",
+   "7. **GREEN ISLANDS AND THE PROMISED LAND.** Islands scattered eastward; reach one, resurface and spore, and the next run starts from there. Surface resources barely fund the next leg, so the first runs must go DOWN to afford going RIGHT. **A FRESH WORLD PER LEG**, seeded by journey and leg index, hill at the WEST and island at the EAST \u2014 the 504-column streamed map stays as it is and eastward progress is a small integer rather than an ever-wider world.",
+   "07 (docs/mine-plan.html): Islands scattered eastward. Reach one, resurface and spore, and the next run starts from there. Surface resources barely fund the next leg, so the first runs have to go down to afford going right. Why it matters: It gives the world a second axis \u2014 depth is currently the only one \u2014 and it turns \"no return trip\" from a missing feature into the structure of the game. Shape: A fresh world per leg, seeded by journey and leg index, hill at the west and island at the east. Keeps the 504-column map that already works and makes \"how far east am I\" a small integer rather than a coordinate.",
+   "8. **COMPASSES, BOUGHT PER RESOURCE.** A needle for the next island and separately purchased tech per material. **Nothing is given, including the island compass** \u2014 a player without one still knows to go east, because that is the goal, so what is sold is *precision*. Rungs: direction \u2192 direction and distance \u2192 points at the BIGGEST deposit rather than the nearest. **IT MUST POINT THROUGH ROCK.** A bearing keeps the maze (\"I know it is that way, now find the corridor\"); a route would make the maze stop mattering.",
+   "08 (docs/mine-plan.html): A needle for the next island, and separately purchased tech for each material you want to track. Both are bought \u2014 nothing here is given. Selling information rather than power is the most distinctive progression idea in the game. A player with no compass is not lost, because east is the standing instruction: the promised land is that way and always was. What the compass sells is precision \u2014 exact bearing and distance \u2014 which is a much easier thing to price than the difference between having a direction and having none. Rungs fall out of one feature: direction \u2192 direction and distance \u2192 points at the biggest deposit rather than the nearest. It must point through rock. ... Why last: It's what makes 06 and 07 legible, so it wants both of them to exist first.",
+   "9. Run 1 stays ~45 s and banks **one** upgrade (band-1 ore pays 3 P a seam against a 10 P cheapest buy, so this is already close). Late runs 3-5 minutes. The key ratio is shallow-to-deep material value: wrong either way and one of the two axes dies.",
+   "Still open, and all of it is tuning rather than design: The heat cost curve (linear per metre past the limit, or accelerating); how a leg escalates east (a curve, or a hand-authored table as `LEVEL_THREATS` does for the campaign's first eleven); and how long a late run really is, which is an output of the costs pass rather than an input to it. [The heat curve has since been settled as the built doubling staircase, so only leg escalation and late-run length remain open.]",
+   "06 as shipped (docs/mine-plan.html, half of a pair): the band decides the material, so depth tells you which seam you are looking for, but finding one is a random walk along that band until 08 lands. Expect it to feel unrewarding until then \u2014 that is the missing half, not a tuning problem.",
+   "STILL OPEN (CLAUDE.md): **A COLONY CAN BOX ITSELF IN.** ... at 45% solid a colony can dig itself into a pocket it cannot leave, which the rock-eating consumables would answer and nothing currently does. Do not \"fix\" it by relaxing those three [assertions]; they are reporting something.",
+   "What is NOT in it yet (CLAUDE.md): **No secrets and no new resource types below** \u2014 the owner said they would develop that later, and the bands' `orePerPile` is where the value curve lives when they do.",
+   "What is NOT in it yet (CLAUDE.md): **The mine records no high score.** `p.mineBest` is a field of its own \u2014 the board is per MODE and ranks survival's level number, so a depth would have to be dressed as a level to get in. (Also: the global leaderboard needs one migration to split by mode.)",
+   "What is NOT in it yet (CLAUDE.md): **No `#mine` route in `make-web-zip`'s level prune.** ... the first mine band whose theme the campaign does NOT use will ship as rock you can grow through. Check before the next cut.",
+   "Telemetry (CLAUDE.md): What it needs next is TELEMETRY \u2014 the whole point of the exercise is \"do people play this longer\", and `logEvent` currently files a mine run as `game: 'mine'` with no depth on it. The obvious addition is depth reached on `run_end` ... either way `docs/analytics.html` needs a mine column before the first upload can be read.",
+   "Balance question left to the owner (CLAUDE.md): **`amputateCharges` MAY NOW BE TOO SMALL: two doses left 28 strands rotten** on a dense map, because narrower passages pack the colony tighter and one breach claims more of it."
+  ],
+  "mechanisms": [
+   {
+    "name": "Fruiting pays for reach: a guaranteed payout on every run, set by how far the colony got",
+    "exemplars": "Downwell (every gem collected, even spent ones, counts toward unlocks); Rogue Legacy (gold always goes into the manor); Motherload (deeper ore sells for more); idle-game rule of thumb: first upgrade within 60 s",
+    "whyItRetains": "Every run pays something visible, and run 1 buys its one upgrade because of how the payout is built rather than seam luck. Measured with a bot on the current build: run 1 paid 9 P and 3 P on two saves against a 10 P cheapest rung. One save's first purchase came on run 6; another save had none after 5 runs. The payout also makes depth, the stated goal, the thing that earns. Today deep seams pay zero Phosphorus, so descending earns less of the currency that buys most of the store.",
+    "fitWithPremises": "It is literally 'the colony fruits and spores', and it matches the full-payout ending. It banks in presentMineEnd with the ore, in whole numbers, e.g. +1 P per 5 m, plus P per 100 m east once legs exist. It refuels nothing, so 'nothing worth having on the way down' still holds. Keep it to roughly 30-40% of a typical run's P so lateral seams still matter, and show it as its own line on the end screen.",
+    "cost": "small",
+    "value": "high"
+   },
+   {
+    "name": "A purchase on every early run: price pass sized to the journey (plan 09)",
+    "exemplars": "Idle/incremental pacing (first buy under 60 s, a new layer every 3-5 min); Vampire Survivors (an unlock or gold spend after nearly every run); Brotato (a shop between every wave); Dome Keeper (every upgrade must feel meaningfully different)",
+    "whyItRetains": "A store visit that buys nothing teaches the player the store is not for them. A buy on every one of the first ~10 runs, then one every 2-3, keeps the 'one more run' pull alive through the first hour. CrazyGames benchmarks a 10+ minute average session.",
+    "fitWithPremises": "This is plan item 09. Today about 3,237 P of Phosphorus-priced rungs (the water track alone is 1,849) face roughly 6 P per chunk of band-0 seams (about 126 P in a whole 21-chunk world). Shrink the Phosphorus ladders, or let the reach payout carry supply. Size the whole store to be mostly bought near the promised land. Keep the deep rungs in deep materials and keep run 1 at one upgrade.",
+    "cost": "small",
+    "value": "high"
+   },
+   {
+    "name": "The journey east: legs, islands, and the promised land as a real ending (plan 07)",
+    "exemplars": "Slay the Spire acts; Archero chapters; FTL sectors; Hades' escape to the surface; Dome Keeper's relic ending; Loop Hero chapters",
+    "whyItRetains": "It gives a goal that ENDS, a checkpoint so a failed run still leaves the player further along, and a second axis. Every run then poses one real decision: go down for materials, or right toward the island. That is Dome Keeper's lesson about systems that feed each other. Reaching an island is the win moment the game lacks today: resurface, spore, a big payout, and the next leg revealed on a journey strip.",
+    "fitWithPremises": "This is premise-plan 07 as written: a fresh world per leg seeded by (journey, leg), hill west, island east, the next run starts from the island, no return trips, the 504-column map unchanged. Within the premise: (a) keep each leg's seed fixed across attempts so a retry is mastery, not a reroll; (b) scale the hill-to-island distance by leg index (leg 1 about 5-6 chunks, the full width only on late legs), because the far edge is ~125 lateral digs (~250 water) before maze overhead; (c) answer the open question 'how a leg escalates' with a hand-authored table for legs 1-10, as LEVEL_THREATS did for the campaign.",
+    "cost": "large",
+    "value": "high"
+   },
+   {
+    "name": "Island compass and per-resource compasses: sell information, not power (plan 08)",
+    "exemplars": "Terraria Metal Detector (shows the most valuable ore nearby); Spelunky Spectacles/Udjat Eye (reveal treasure in walls); Hollow Knight Cornifer maps and the Wayward Compass; Subnautica scanner room",
+    "whyItRetains": "Each rung changes how the player plays, not just a number, and turns a random walk into a plan. The bot data shows why this matters: a bot that chased every visible seam did WORSE (6-24 m, 0-3 P) than one that just dove, because reaching things through the maze is where water gets wasted.",
+    "fitWithPremises": "Premise verbatim: bought, nothing given, per resource, rungs direction \u2192 +distance \u2192 biggest deposit, and it points THROUGH rock as a bearing, never a route. Water is a resource and the fuel, so a water dowser is the natural fifth compass. It completes the 06 pair.",
+    "cost": "medium",
+    "value": "high"
+   },
+   {
+    "name": "Your best, drawn in the world",
+    "exemplars": "Hill Climb Racing best-distance flag; Trials and Mario Kart time-trial ghosts; high-score lines in endless runners",
+    "whyItRetains": "Self-competition with a target inside the frame. Near-misses ('4 m short') are the strongest reason to retry, and crossing the line is a free celebration moment.",
+    "fitWithPremises": "p.mineBest is already stored. Draw one labelled line at the deepest depth ever and, on a leg, one at the farthest east, and flash a beat plus a sound when either is crossed. The ground already carries the band beat, so this is the same idea.",
+    "cost": "small",
+    "value": "high"
+   },
+   {
+    "name": "The previous attempt's colony left as a fossil on the same leg",
+    "exemplars": "Dark Souls bloodstains and ghosts; Trials ghosts; Rogue Legacy ancestors and graves; Spelunky seeded runs",
+    "whyItRetains": "Failure becomes map knowledge ('every run counts', the Hades rule). Progress between attempts is visible at a glance, and learning the maze becomes a skill the player can feel growing.",
+    "fitWithPremises": "It is 'the colony IS the map' taken literally, and fixed per-leg seeds make the fossil line up with the world. It is visual only, so there is no return trip and no reuse of tissue. Store a downsampled polyline per (journey, leg) in the save.",
+    "cost": "medium",
+    "value": "high"
+   },
+   {
+    "name": "An end screen that counts up the payout, names the next goal, and buys in one tap",
+    "exemplars": "Downwell's 'next unlock is close' bar; Balatro's score count-up; the Hades post-death room; Brotato's between-wave shop",
+    "whyItRetains": "It plants the next goal at the moment motivation peaks ('3 P short of Grow strength', 'island 180 m past your best') and cuts dead time between runs. Today the screen says only '+9' and 'To the store'.",
+    "fitWithPremises": "The end screen stays one sentence plus one button. Add a count-up by source (seams, pockets, reach), the next affordable or nearest rung with an inline Buy, and Descend. The full payout is unchanged.",
+    "cost": "small",
+    "value": "high"
+   },
+   {
+    "name": "Progressive shelf reveal (unlock cadence)",
+    "exemplars": "Vampire Survivors' unlock drip; Balatro's growing collection; idle games' revealed layers; Dome Keeper gadgets",
+    "whyItRetains": "Each reveal is a novelty beat and a reason to come back to the store. It also shrinks the first store to a two-choice decision, against an owner who found the card layer 'too complex'.",
+    "fitWithPremises": "Show Water and Grow strength first. Heat tolerance appears the first time 42 m is crossed, Mucus flasks at the first worm contact, Cutting enzyme at the first mould sighting, and compasses at the first island or deep seam. upgradeInGame is already the single predicate for both the shelf and the buy path. Consumables stay bought.",
+    "cost": "small",
+    "value": "high"
+   },
+   {
+    "name": "Juice on every payout and every threshold",
+    "exemplars": "Vampire Survivors chests (slot-machine cadence, from a former slot designer); Balatro scoring; Mr. Driller air capsules worth 100, 200, 300 in sequence",
+    "whyItRetains": "Moment-to-moment reward is what makes a one-minute run feel full. Today a seam digest or pocket tap only changes a HUD number (mineFrame just sets uiDirty), and the mine's only sound is the grow sample.",
+    "fitWithPremises": "Presentation only. Add sounds for seam, pocket, line crossing, new best, worm attach and an infection tick; +3 P and +10 water floaters using the existing `floaters` system; navigator.vibrate on phones; rising pitch for consecutive seams in one descent.",
+    "cost": "small",
+    "value": "high"
+   },
+   {
+    "name": "Leg modifiers from a hand-authored table",
+    "exemplars": "Hades biomes; Slay the Spire acts and bosses; Balatro boss blinds; Brotato danger levels",
+    "whyItRetains": "It stops ten legs from feeling like one leg ten times. Every new leg is a new 'first', and each one can teach one system: a dry leg teaches pockets, a worm leg teaches flasks, a rot leg teaches the enzyme.",
+    "fitWithPremises": "It answers the plan's open question (a curve or a table like LEVEL_THREATS) with a table. Modifiers use existing knobs only: threatBands, reservoirsPerBand, heat.safeDepth, gallery shape, material richness. Nothing respawns and band 1 stays threat-free on leg 1.",
+    "cost": "medium",
+    "value": "high"
+   },
+   {
+    "name": "Oxalic-acid vial: a bought way through ONE rock, plus an obvious Fruit now",
+    "exemplars": "Motherload dynamite and C4; Spelunky bombs; SteamWorld Dig's wall-jump, which turned 'stuck' from a binary state into a grey zone",
+    "whyItRetains": "The box-in dead end becomes a decision instead of dead air. The generator already leaves some seams and pockets walled in as 'visible bait', and this gives the player a reason to buy for them. A Fruit now chip after several refused digs in a row ends a stuck run with a full payout, instead of leaving End run buried in the gear menu.",
+    "fitWithPremises": "The owner said verbatim: 'we will have consumables later that allow people to grow through rocks when needed.' It is scarce, bought, and sold as carry capacity like flasks, so rock stays a wall by default. It is also real biology: fungi weather rock with oxalic acid.",
+    "cost": "medium",
+    "value": "high"
+   },
+   {
+    "name": "Three active missions",
+    "exemplars": "Jetpack Joyride missions (three at a time); Subway Surfers; Archero daily tasks; Brotato and Vampire Survivors achievement unlocks",
+    "whyItRetains": "Each run gets its own small story. Missions steer players into systems they would skip (pockets, lateral seams, flasks, curing rot), and they give a near goal while the island is still far off.",
+    "fitWithPremises": "They are goals, not cards, and nothing is drafted. Rewards are Phosphorus or deep materials. Examples: 'tap 2 pockets in one descent', 'reach Anthracite', 'cure an infection before the clock', 'get 300 m east on leg 2'.",
+    "cost": "medium",
+    "value": "medium"
+   },
+   {
+    "name": "Secrets in some dead ends, plus a field journal",
+    "exemplars": "Motherload artifacts (dinosaur bones, treasure); Spelunky secrets and journal; the Hades codex; SteamWorld Dig caves",
+    "whyItRetains": "A variable reward makes optional spurs worth a gamble. Lore lines about the promised land give the journey a narrative drip at almost no art cost, and the journal is a completion goal once the store is done.",
+    "fitWithPremises": "CLAUDE.md says the owner will develop secrets 'later'. Dead ends currently 'pay nothing' by design, so let a small share hold a rare motherlode seam or a spore relic, still off the descent route.",
+    "cost": "medium",
+    "value": "medium"
+   },
+   {
+    "name": "Daily descent on a shared seed",
+    "exemplars": "Spelunky Daily Challenge; Balatro and Dead Cells seeded runs; the Wordle-style daily ritual",
+    "whyItRetains": "A reason to come back tomorrow, and a result that can be compared. CrazyGames targets 10-15% day-1 retention and names daily quests and login bonuses as the levers.",
+    "fitWithPremises": "#mine,<seed> is already deterministic. It needs the per-mode leaderboard migration. It is a bonus run, never a gate on normal play.",
+    "cost": "medium",
+    "value": "medium"
+   },
+   {
+    "name": "New Journey (ascension) after the promised land",
+    "exemplars": "Slay the Spire Ascension; Peglin Cruciball; Hades Heat; Brotato Danger 1-5",
+    "whyItRetains": "A long tail for players who finished, reusing all existing content. It is the answer to store exhaustion.",
+    "fitWithPremises": "Legs are already 'seeded by journey and leg index', so journey N+1 means new seeds plus one added rule each time (drier, hotter lines, earlier worms). Unlock one cosmetic strand tint per journey completed.",
+    "cost": "medium",
+    "value": "medium"
+   },
+   {
+    "name": "Island colonies fruit while you are away",
+    "exemplars": "Archero Hero Patrol; idle games' offline earnings (about 50% rate, capped)",
+    "whyItRetains": "Reopening the game is rewarded, and being away is never punished.",
+    "fitWithPremises": "'The colony IS the map, spread across it': every island reached is a colony left behind. Keep it small and capped (e.g. 8 h) so it never replaces playing, and pay in Phosphorus only.",
+    "cost": "small",
+    "value": "medium"
+   },
+   {
+    "name": "Desktop side panels",
+    "exemplars": "Balatro and Luck be a Landlord side HUDs; portrait games that fill their landscape gutters",
+    "whyItRetains": "Itch traffic is 81% desktop, and on 1280x720 the portrait column leaves two thirds of the screen black, which reads as unfinished. The panels keep the journey strip, the missions, your best and your compasses always in view.",
+    "fitWithPremises": "The portrait playfield is untouched; only the empty gutters change.",
+    "cost": "small",
+    "value": "medium"
+   }
+  ],
+  "sessionStructure": "A GREAT 5-MINUTE SESSION, first or twentieth: one tap from the portal to the first dig (the title already offers a single DIG door). Then 3-5 descents of 45 s to 2 min each. Every end screen counts the payout up by source (seams, pockets, reach) and names the next goal. Every store visit buys at least one thing. Each session holds at least one 'first': a new band beat, the first worm, a newly revealed track, a leg modifier, or an island reached or visibly closer (the best-line and the fossil of the last attempt show it). The session ends on a near goal ('island 1 is 180 m past your best', '2 Garnet to Grow 5'), so closing the tab feels like pausing, not finishing.\n\nA GREAT FIRST HOUR. 0:00-1:00: run 1 teaches drag-to-dig by doing it, reaches about 45 m, and ends right after the '42 m / Anthracite' beat and the dig price doubling to 4, as a tease. SPORED, the reach payout, one affordable rung highlighted, buy. 1:00-5:00: runs 2-4 buy one thing each; the first worm is met in band 2 and Mucus flasks appear on the shelf. 5:00-12:00: the short leg 1 island is reached: resurface, spore, a big payout, and the journey strip reveals the islands to the promised land; the island compass appears. 12:00-30:00: legs 2-3, each with one named modifier; the first material-priced rung (Anthracite heat tolerance); the first mould breach and its 20 s deadline, cured or taken with a full payout; missions start adding side goals. 30:00-60:00: legs 4-5, the Garnet band visited with a Garnet compass, 20-30 purchases in total, runs now 2-3 minutes, each retry visibly passing the last attempt's fossil.\n\nA GREAT FIRST WEEK. Day 1 return: a daily descent on a shared seed with the best recorded, three fresh missions, and the island colonies' small overnight fruiting to collect; a leg or two per session. Days 2-5: a journey of about 10 legs finishes after roughly 3-5 hours in total. The promised land is a real ending: credits, and every island reached fruiting at once. The store is mostly bought by then, so it never becomes the goal on its own. After: New Journey with one added rule per journey (ascension-style), a cosmetic per journey, field-journal completion and the daily board carry the long tail through mastery rather than grind.",
+  "pitfalls": [
+   "GRIND WALL IN THE CURRENCY. Phosphorus only comes from band-0 seams: 2 per chunk at 3 P, about 6 P per chunk and about 126 P in the whole 21-chunk world. Deep seams pay zero P. Against that, the Phosphorus-priced rungs total about 3,237 P (water track 1,849, ore yield 422, pockets 378, flasks 364). Unfixed, the late game becomes farming the shallowest band, the opposite of 'go deeper' and of 'go down to afford going right'. This is the shallow-to-deep ratio plan 09 warns about; fix it before tuning anything else.",
+   "A FIRST STORE VISIT WITH NOTHING TO BUY. A bot on the current build (84 water, 42 digs, 25-37 s at bot pace) banked 9 P and 3 P on run 1 against a 10 P cheapest rung. One save's first purchase came on run 6 of 8; another save bought nothing in 5 runs. Only about 3 band-0 P seams lie within reach of the start. Make run 1's one upgrade a certainty by construction.",
+   "STORE EXHAUSTION WITH NOTHING AFTER. Once the tracks cap there is no sink and no goal. The promised-land ending, New Journey, the journal and cosmetics must exist before a player can max the store.",
+   "EARLY RUNS ALL LOOK THE SAME. The first 42 m is threat-free on purpose, and 8 bot runs ended at 20-56 m, so the first ten minutes can be the same brown band ten times. Over those runs worms drained 0 to 1.2 water in total and no infection happened, so flasks and the enzyme have no reason to exist yet. Front-load a 'first' into every early run and reveal each track when its threat is met.",
+   "OPAQUE REACHABILITY THROUGH THE MAZE. A visible seam can cost the whole tank to reach: a bot that chased seams up to about 950 units away scored worse (6-24 m, 0-3 P) than one that dove. Players read wasted water as unfairness. The compasses (bearing, not route) and a readable 'this is sealed' state are the answer. Do not solve it by selling a route or by opening the maze.",
+   "THE BOXED-IN RUN THAT NEVER ENDS. A colony walled in with water left sits refusing digs forever, and End run is buried in the settings gear. Surface a Fruit now chip (full payout) after several refused digs, and plan the owner-sanctioned rock consumable.",
+   "SILENT REWARDS. Seam digest and pocket tap only change a HUD number: no sound, no floater, no haptic, even though a floaters system exists. A payout the player does not notice does not work as a reward.",
+   "RE-INTRODUCING THE COMPLEXITY THE OWNER REJECTED. No drafting, no deck, no pick-1-of-3 each run ('too complex', 'too much card drafting'). Depth has to come from the map, the two axes (down vs east) and the threats, not from build-crafting. Keep the store's first screen to a couple of choices.",
+   "MAKING LOSS HURT. The owner said dying 'felt like you lost too much'. Every ending stays a full payout. Do not add push-your-luck 'lose your haul' mechanics, and never gate play behind energy timers the way Archero does.",
+   "REROLLING A FAILED LEG. If a leg's world changes on every attempt, the player cannot learn it and each retry feels like a lottery. Keep leg seeds fixed per (journey, leg) as the premise says, and keep the per-seed depth-per-dig spread small (CLAUDE.md measured 1.4x after aiming).",
+   "A FIRST ISLAND THAT ARRIVES AN HOUR IN. Reaching the far east edge of a 504-column world takes about 125 lateral digs (about 250 water) before maze overhead. If leg 1 is that long, the game's first real win lands long after most portal players have left (CrazyGames benchmarks a 10+ min average session). Scale the hill-to-island distance by leg index, and put the first island inside the first 5-12 minutes.",
+   "RUN LENGTH DRIFTING OFF ITS PREMISE. startWater has moved 20 \u2192 30 \u2192 44 \u2192 84 as the carve changed, so run 1 is now 42 digs: roughly 55-90 s at a human drag pace against 'under a minute / ~45 s'. Re-measure with a human-paced drag, not the probe. Lock the leg geometry before pricing the economy, because every carve change has moved the tank.",
+   "DESKTOP DEAD SPACE. At 1280x720 the portrait column uses about a third of the screen and the rest is black. Itch traffic is 81% desktop. Use the gutters for the journey strip, missions and best instead of leaving them empty.",
+   "SHIPPING BLIND. run_end still carries no depth, leg or purchase data, so 'do people play this longer' cannot be answered after the upload. Ship depth/leg/purchase telemetry with the journey. Never average itch and CrazyGames: they behave like different games.",
+   "MINOR: on a 390 px phone the grown 'SPORED' wordmark touches or clips both screen edges on the end screen."
+  ]
+ }
+}
