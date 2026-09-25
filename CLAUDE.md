@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE. Next: M3 (a phone player can see and use every control).`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). Next: M3 (a phone player can see and use every control).`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -4465,7 +4465,11 @@ Numbers here are measured, not planned.
     starts, 0 failed requests.
 - **`--mine` after M2: 727 passed, 0 failed across 13 checks** — boot 20, store 124, mine 190, ending
   86, ship 40 (new), zip 23 (new), level 27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18.
-- **CHECKS:** `tests/ship-check.cjs` ('ship', in `--mine`; `SHIP_ONLY=dev,card,...` runs blocks);
+  **After the verifier fixes: 738 passed, 0 failed** — ship 40 -> 51 (key 2, '#mine' single build 1,
+  forced retag 1, settle note 1, never-decoding band 3, accept-in-search 2, every-dig audit 1; the
+  twig allowance assertion rewritten to the plan's bound); every other check unchanged.
+- **CHECKS:** `tests/ship-check.cjs` ('ship', in `--mine`; `SHIP_ONLY=dev,key,zipdry,card,seed,retag,gate,heat,aim`
+  runs blocks); `tests/bots/heatbound.cjs` (bot, not in the runner: the heat bound in real play);
   the harness serves `/index-nodev.html` (dev flag patched off through make-web-zip's anchor) and
   takes `opts.file` / `opts.before(page)`.
 
