@@ -11,6 +11,11 @@ const ok=(n,c,x)=>{c?(pass++,console.log('  PASS  '+n+(x?'  — '+x:''))):(fail+
   const browser=await chromium.launch({headless:true});
   for(const hash of ['#dev','#dev,turn','#puzzle','#puzzle,turn','#notrich','#notrich,turn','#tutorial','#tutorial,turn']){
     const page=await browser.newPage({viewport:{width:1280,height:800}});
+    // STUB THE LEADERBOARD HOST. Without this every boot POSTs telemetry to the live Supabase events
+    // table, and wherever that host is unreachable (it is refused by some dev-container proxies) the
+    // failed request is a console error this check counts — eight red lines about the network, none
+    // about the game. mine-check already does exactly this.
+    await page.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
     const errs=[];page.on('pageerror',e=>errs.push(String(e&&e.message)));
     page.on('console',m=>{if(m.type()==='error')errs.push('console:'+m.text());});
     await page.goto(base+'/index.html'+hash,{waitUntil:'domcontentloaded'});
@@ -27,6 +32,26 @@ const ok=(n,c,x)=>{c?(pass++,console.log('  PASS  '+n+(x?'  — '+x:''))):(fail+
     ok(`${hash} boots clean`,(st.booted||st.picker)&&errs.length===0,
        `mode=${st.mode} booted=${st.booted} picker=${st.picker} errs=${errs.slice(0,2).join(' | ')||'none'}`);
     ok(`${hash} runs in the right mode`, wantTurn ? (st.mode==='turn'&&st.rt===false) : (st.mode==='realtime'&&st.rt===true), `mode=${st.mode} rt=${st.rt}`);
+    await page.close();
+  }
+  // THE PUBLIC ENTRY POINTS. The list above is the retired games' destinations; the build people
+  // actually open offers exactly two doors — the bare URL (the mine's title screen) and a seeded
+  // descent — and until now neither was booted by any check.
+  for(const [hash,label] of [['','the title screen (bare URL)'],['#mine,4242','a seeded descent']]){
+    const page=await browser.newPage({viewport:{width:390,height:844}});
+    await page.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
+    const errs=[];page.on('pageerror',e=>errs.push(String(e&&e.message)));
+    page.on('console',m=>{if(m.type()==='error')errs.push('console:'+m.text());});
+    await page.goto(base+'/index.html'+hash,{waitUntil:'domcontentloaded'});
+    await page.waitForSelector('#loadscreen.ld-ready',{timeout:20000}).catch(()=>{});
+    await page.click('#loadscreen',{timeout:5000}).catch(()=>{});
+    await sleep(4000);
+    const st=await page.evaluate(()=>({
+      title:!!document.getElementById('tsNewMine'),
+      mine:!!(window.__game&&window.__game.state&&window.__game.state.substrate&&window.__game.state.substrate.mine),
+    }));
+    ok(`${label} boots clean`, errs.length===0, `errs=${errs.slice(0,2).join(' | ')||'none'}`);
+    ok(hash ? `${label} is in the mine` : `${label} offers the Dig door`, hash ? st.mine : st.title, JSON.stringify(st));
     await page.close();
   }
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);

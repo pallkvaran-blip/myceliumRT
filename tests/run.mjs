@@ -131,12 +131,16 @@ for (const [name, file, secs] of picked) {
   const { code, out } = await run(file);
   const m = /==== (\d+) passed, (\d+) failed ====/.exec(out);
   const took = ((Date.now() - t0) / 1000).toFixed(0);
-  const r = { name, code, took, passed: m ? +m[1] : 0, failed: m ? +m[2] : 0, out, parsed: !!m };
+  // "0 passed, 0 failed" IS NOT GREEN. A check that asserted nothing — a probe that bailed, a block
+  // that skipped — used to sum into the total as a clean pass. It is counted as not reporting.
+  const empty = !!m && +m[1] === 0 && +m[2] === 0;
+  const r = { name, code, took, passed: m ? +m[1] : 0, failed: m ? +m[2] : 0, out, parsed: !!m && !empty };
   results.push(r);
-  console.log(m ? `${r.passed}/${r.passed + r.failed} in ${took}s${r.failed ? '  ← FAILURES' : ''}`
-                : `did not report (exit ${code}) in ${took}s  ← BROKEN`);
+  console.log(empty ? `0/0 in ${took}s  ← BROKEN (asserted nothing)`
+              : m ? `${r.passed}/${r.passed + r.failed} in ${took}s${r.failed ? '  ← FAILURES' : ''}`
+                  : `did not report (exit ${code}) in ${took}s  ← BROKEN`);
   // Only the failing lines — the whole log would bury the summary.
-  if (r.failed || !m) {
+  if (r.failed || !r.parsed) {
     for (const line of out.split('\n')) if (/FAIL|HARNESS ERROR|Error/.test(line)) console.log('    ' + line.trim());
   }
 }

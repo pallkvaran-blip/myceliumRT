@@ -3372,13 +3372,18 @@ DIGGING (scoring each ray on `solidAtWorld`, which is free, instead of paying a 
 `__digTo` TRAVELS along the wall when blocked and backs UP when boxed in, because a greedy walk sees
 one grow ahead and enters pockets whose only exit is upward.
 
-**STILL OPEN, AND IT IS A DESIGN QUESTION RATHER THAN A PROBE ONE: A COLONY CAN BOX ITSELF IN.** Three
-assertions on SHARED pages sit at hard ceilings — 28 m on **98 digs**, and 78 m — where earlier blocks
-had already spread the colony. Fuel is not the limit and iterations are not the limit; that tissue
-simply cannot reach anything new. The fuel curve itself is healthy (both seeds clear band 2 on the
-opening tank, 54 m and 64 m), so this is not the run-1 economy. What it says is that at 45% solid a
-colony can dig itself into a pocket it cannot leave, which the rock-eating consumables would answer
-and nothing currently does. Do not "fix" it by relaxing those three; they are reporting something.
+**CORRECTION — A COLONY DOES NOT BOX ITSELF IN; THAT CONCLUSION WAS WRONG.** An earlier version of
+this entry said the four standing mine-check failures (`28 m on 98 digs`, the band beat stopping at
+78 m) showed that at 45% solid a colony digs itself into pockets it cannot leave. Two independent
+agents disproved it on `claude/deep-mine-finish`: a route-planning bot was boxed in on **0 of 39**
+runs, and a path-following navigator (`tests/bots/navdive.cjs`) reaches the floor from the exact
+stalled states. All four blocks run on FRESH pages (so not shared-page staleness either). The cause
+is the probe: `__digTo`/`__aimDown` only ever dig from the DEEPEST tip, and a greedy one-grow
+lookahead from one tip walks into dead ends a player simply routes around. **Lesson: when a probe
+stalls, check that a smarter probe also stalls before calling it a property of the game.** The REAL
+end-of-run defect is different and is fixed separately: the dry-for-deep soft lock, where the run
+does not end because `mineCheapestCost` prices the SHALLOWEST strand while every visible dig costs
+4-8.
 
 **TWO KNOBS THAT LOOK RIGHT AND ARE TRAPS:**
 
