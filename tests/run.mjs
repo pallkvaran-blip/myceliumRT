@@ -39,6 +39,7 @@ const CHECKS = [
   ['hs',        'hs-check.cjs',      35,  false],
   ['store',     'store-check.cjs',   35,  false],
   ['mine',      'mine-check.cjs',   240,  false],
+  ['ending',    'ending-check.cjs', 110,  false],
   ['rate',      'rate-check.cjs',    40,  false],
   ['cele',      'cele-check.cjs',    35,  false],
   ['handoff',   'handoff-check.cjs', 60,  false],
@@ -94,10 +95,11 @@ const CHECKS = [
 //   aim            the drag-aim gesture, which IS the mine's entire action layer.
 //   store          the shelf, wallets and upgrade tracks, including the mine's own four.
 //   boot           the game still starts.
+//   ending         every way a descent ends, and that every exit banks (finishing plan M1).
 //
 // Everything else in CHECKS is the card game and is no longer run. Nothing has been DELETED — the
 // code is untouched and the checks still work if `node tests/run.mjs campaign` is ever wanted.
-const MINE_SET = ['mine', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
+const MINE_SET = ['mine', 'ending', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
 
 const args = process.argv.slice(2);
 const fast = args.includes('--fast');

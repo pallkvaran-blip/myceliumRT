@@ -225,6 +225,19 @@
     .res.hot .rv { color: #e2915a; }
     .res.hot .rk { color: #e2915a; opacity: 0.7; font-size: 10px; margin-left: 2px; }
     .res.hot[hidden] { display: none; }
+    #hud-digcost[hidden] { display: none; }
+    /* FRUIT NOW (M1): the price chip's slot, when the tank cannot pay the price here. Mint, the
+       colony's colour, because it is the colony fruiting — not an error. The ring is the stuck
+       countdown, a conic sweep driven by --fn (1 = full, 0 = the colony fruits). */
+    .res.fruitnow { cursor: pointer; font: 700 11px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .04em;
+      color: #0d1a12; background: #7fe6a3; border: 0; border-radius: 999px; padding: 4px 9px 4px 5px; gap: 5px;
+      box-shadow: 0 0 12px rgba(127,230,163,0.45); pointer-events: auto; white-space: nowrap; }
+    .res.fruitnow[hidden] { display: none; }
+    .res.fruitnow .fn-ring { --fn: 1; width: 13px; height: 13px; border-radius: 50%; flex: 0 0 auto;
+      background: conic-gradient(#0d1a12 calc(var(--fn) * 1turn), rgba(13,26,18,0.18) 0);
+      -webkit-mask: radial-gradient(circle, transparent 3px, #000 3.5px); mask: radial-gradient(circle, transparent 3px, #000 3.5px); }
+    .res.fruitnow .fn-sep { opacity: .55; }
+    .res.fruitnow .fn-p { font-weight: 800; }
     /* A deep material's mark: a dot in the band's own colour. Deliberately not an icon per
        material — four more glyphs to draw and read at 13px, when what the player needs is only to
        tell them apart and match them to the rock they were standing in. */
@@ -1108,6 +1121,7 @@
       text-shadow:0 1px 10px rgba(0,0,0,0.9); }
     #titleScreen .ts-record b { font-style:normal; font-weight:700; color:rgba(159,224,189,0.92); }
     #titleScreen .ts-record-none { color:rgba(215,230,220,0.34); }
+    #titleScreen .ts-banked { font-style:normal; margin-top:6px; color:rgba(159,224,189,0.95); }
     /* The empty left-hand slot on the mine's row — see the markup. Zero-size and unclickable, so it
        holds the grid column open without being a target or affecting the row's height.
        DELIBERATELY NOT `.ts-act`: that class means "a New/Old button and its caption", and three
@@ -1761,6 +1775,12 @@
       font-size:clamp(22px,3.4vw,34px); color:#eaf7ff; line-height:1;
       text-shadow:0 1px 4px rgba(0,0,0,0.85), 0 0 26px rgba(127,230,163,0.28); }
     .ss-win-earned .spore-ic { width:0.95em; height:0.95em; vertical-align:-0.11em; margin-left:6px; }
+    /* THE PHOSPHORUS MARK ON THE END SCREEN (M1). `.ss-ri` had no rule here, so the SVG took the
+       paragraph's width and rendered 55-170 px tall. Sized to the text it sits in. */
+    .ss-win-earned .ss-ri { width:0.95em; height:0.95em; vertical-align:-0.11em; margin-left:4px; display:inline-block; }
+    /* THE SPORED WORDMARK FITS THE PHONE (M1): the viewport less a 16 px gutter each side, and the
+       grower sizes the word to that box by measured ink (`fitWidth`). */
+    .ss-mineend .ss-win-title { width:min(680px, calc(100vw - 32px)); }
     /* "+100 × 2 = 200" — the working, shown only while the rating boon is being spent. The
        operator is smaller and dimmer than the two numbers because it is punctuation between them,
        not part of the reward. */
@@ -3449,6 +3469,18 @@ const CONFIG = {
     // Phase 1 consumable that does not exist yet, so today an early player who meets mould simply
     // ends the run sooner. That is only acceptable because the ending is a FULL PAYOUT.
     infectionMs: 20000,
+    // ---- EVERY RUN ENDS (the finishing plan, M1) -----------------------------
+    // THE SOFT-LOCK RULE. `mineFuelCheck` asks whether the SHALLOWEST strand is affordable (always
+    // 2), while the working front costs 4-16 — so a colony with 3 water at 90 m sat live and idle
+    // for 30-60 s on 36% of measured runs. `mineStuckCheck` ends the run this long after the tank
+    // cannot pay the price where the player is working (the number the HUD chip quotes), counted
+    // only while nothing is revealing, no menu is open and no pointer is held, and reset by any
+    // successful dig or any water gained.
+    stuckFruitMs: 6000,
+    // THE MINE'S NODE CAP, applied onto `cfg.growth.maxNodes` in `configForLevel` (the shared 6000
+    // is the campaign's). At the cap every dig was refused as 'Solid rock' and the run never ended;
+    // now `mineGrow` ends it with cause 'full' within 30 nodes of it.
+    maxNodes: 9000,
     // HOW WIDE A DOSE CUTS. The campaign's Amputate is 60 units — about 1.7 cells — which is sized
     // for snipping a strand off a card-game colony. Measured against a real breach it is useless as
     // a cure: `firstTouchRings` 12 claims ~20 strands spread along the filaments, three doses at 60
@@ -22490,10 +22522,20 @@ function mineGrow(state, ctx) {
   // toward the goal it was written for), which here would send the colony sideways along the
   // surface on the player's very first tap.
   if (Math.hypot(dx, dy) < 1) { dx = 0; dy = 1; }
+  // THE NODE CAP ENDS THE RUN (M1). At `growth.maxNodes` every growth primitive quietly makes
+  // nothing, so a colony at the cap was refused every dig as 'Solid rock' with the run still live.
+  // Within 30 of the cap the colony has filled what it can reach: it fruits, cause 'full'.
+  if (mineAtNodeCap(state)) {
+    mineEndRun(state, 'full');
+    return { ok: false, full: true, message: 'The colony fills every passage it can reach, and fruits.' };
+  }
   const before = net.nextNodeId;
   const made = net.growDirected(sub, state.rng, dx, dy, mineGrowSegments(state.config), false, tip);
   if (!made) return { ok: false, message: 'Solid rock that way — aim into open ground.' };
   net.water -= cost;
+  // A SUCCESSFUL DIG RESETS THE STUCK COUNTDOWN — the recovery play the old affordability rule was
+  // written for (a cheap dig from shallower ground) keeps working, and moves the focus with it.
+  if (state._mineStuck) state._mineStuck.acc = 0;
   // WHERE THE CAMERA SHOULD BE LOOKING — the strand this dig ended on, furthest along the direction
   // asked for, plus the direction itself (the look-ahead is only meaningful downward). Held as a
   // node ID rather than a point so the camera stops chasing tissue a worm has eaten. See
@@ -22509,7 +22551,16 @@ function mineGrow(state, ctx) {
     if (best) state._mineFocus = { id: best.id, dy: uy };
   }
   net.recomputeVitality();
+  if (mineAtNodeCap(state)) mineEndRun(state, 'full');
   return { ok: true, made, water: net.water, message: `Dug ${made} filament${made > 1 ? 's' : ''}.` };
+}
+// Within 30 nodes of the run's own cap (`cfg.growth.maxNodes`, 9000 in the mine via
+// CONFIG.mine.maxNodes). 30 is more than one grow-2 fan makes, so the run ends on the dig that
+// reaches it rather than on the next one being refused.
+function mineAtNodeCap(state) {
+  const net = state && state.active, g = state && state.config && state.config.growth;
+  if (!net || !g || !(g.maxNodes > 0)) return false;
+  return net.nodes.length >= g.maxNodes - 30;
 }
 
 // -----------------------------------------------------------------------------
@@ -22691,6 +22742,25 @@ function mineCheapestCost(state) {
   if (!isFinite(top)) top = sub.surfaceY;
   return mineGrowCost(state.config, mineDepthM(sub, top));
 }
+// THE STRAND THE PLAYER IS WORKING: the one the last dig ended on (`state._mineFocus`, stamped by
+// `mineGrow`), else the deepest clean tip. The camera follows it, the HUD chip prices it and the
+// stuck rule asks whether the tank can pay for it — one answer to "where am I digging?".
+function mineFocusNode(state) {
+  const net = state && state.active;
+  if (!net) return null;
+  const f = state._mineFocus;
+  const n = f && net.byId ? net.byId.get(f.id) : null;
+  if (n && !n.infected) return n;
+  let tip = null;
+  for (const m of net.nodes) if (!m.infected && (!tip || m.y > tip.y)) tip = m;
+  return tip;
+}
+// WHAT A DIG COSTS WHERE THE PLAYER IS WORKING — the number the HUD chip shows.
+function mineCostHere(state) {
+  const n = mineFocusNode(state);
+  if (!state || !state.substrate || !n) return mineGrowCost(state ? state.config : CONFIG);
+  return mineDigCost(state, n.y);
+}
 function mineCanGrow(state) {
   const net = state && state.active;
   return !!(net && net.alive && !state.runOver && net.water >= mineCheapestCost(state));
@@ -22707,19 +22777,75 @@ function mineFuelCheck(state, nowMs) {
   if (nowMs - state._mineDry < OUT_OF_FUEL_GRACE_MS) return false;
   return true;
 }
+// THE SOFT-LOCK RULE (finishing plan M1). `mineFuelCheck` ends a run when the CHEAPEST ground is
+// unaffordable, and the cheapest ground is the shallowest strand — always 2 — while the working
+// front costs 4-16. That left 36% of measured runs live and idle for 30-60 s at 2-7 water against
+// an 8-water dig. So a run is also STUCK when the tank cannot pay the price where the player is
+// working (`mineCostHere`, the number the HUD chip quotes), and it fruits after
+// `CONFIG.mine.stuckFruitMs` of that.
+//
+// - The countdown ACCUMULATES only while `hold` is false: the caller holds it while a reveal is in
+//   flight (so a pocket the last dig is about to reach still pays first), a menu is open or a
+//   pointer is down. The frame loop only runs this while the sim is not paused.
+// - It RESETS on any successful dig (`mineGrow`) and whenever the tank rises.
+// - `dtMs` is the frame's own delta, clamped, so a tab-away cannot bank the whole countdown.
+function mineStuckLimit(state) {
+  return Math.max(500, (mineCfg(state.config).stuckFruitMs | 0) || 6000);
+}
+function mineStuckCheck(state, dtMs, hold) {
+  if (!state || state.runOver || !state.active || !state.active.alive) return false;
+  const w = state.active.water;
+  let st = state._mineStuck;
+  if (!st) st = state._mineStuck = { acc: 0, water: w, on: false, cost: 0 };
+  if (w > st.water) st.acc = 0;
+  st.water = w;
+  st.cost = mineCostHere(state);
+  st.on = w < st.cost;
+  if (!st.on) { st.acc = 0; return false; }
+  if (!hold) st.acc += Math.max(0, Math.min(250, +dtMs || 0));
+  return st.acc >= mineStuckLimit(state);
+}
+// {on, leftMs}: whether the tank is short of the price here, and how long until the colony fruits.
+function mineStuckState(state) {
+  const limit = state && state.config ? mineStuckLimit(state) : 6000;
+  const st = state && state._mineStuck;
+  if (!st || !st.on || (state && state.runOver)) return { on: false, leftMs: limit, cost: st ? st.cost : null };
+  return { on: true, leftMs: Math.max(0, limit - st.acc), cost: st.cost };
+}
 
 // The run's end. Not the `fruit` ACTION: that one needs fruitable soil the colony has reached,
 // and a colony 120 m down has none — it would refuse and the run would never end. The fiction is
 // the same (owner: "they fruit and spore"), the bookkeeping is the mine's own.
+// EVERY WAY A DESCENT ENDS, and they all pay IN FULL (finishing plan M1). `died` is false for every
+// one of them: the mine has no death, only a colony that fruits.
+//   dry       the tank cannot pay: the cheapest ground (after the 1.6 s grace) or the price where
+//             the player is working (after the 6 s stuck countdown)
+//   fruit     the player tapped FRUIT NOW
+//   infected  the rot clock ran out
+//   abandon   Settings > End descent
+//   quit      Settings > Exit to title
+//   full      the node cap
+const MINE_END_CAUSES = ['dry', 'fruit', 'infected', 'abandon', 'quit', 'full'];
+// The run's DEPTH is the running maximum of clean depth (`state.mineMaxDepth`, kept by the frame
+// loop), not where the deepest living strand is at the moment it ends: rot is not progress, but it
+// does not unmake the metres already reached either. An infected ending used to report 99 m after
+// the colony had reached 107.
+function mineRunDepth(state) {
+  const now = mineDepthReached(state);
+  const was = (state && state.mineMaxDepth) | 0;
+  return Math.max(was, now);
+}
 function mineEndRun(state, cause) {
   if (!state || state.runOver) return null;
   const net = state.active;
-  const depth = mineDepthReached(state);
+  const why = MINE_END_CAUSES.includes(cause) ? cause : 'dry';
+  const depth = mineRunDepth(state);
+  state.mineMaxDepth = depth;
   const ore = Math.max(0, Math.round(state.mineOre || 0));
   // THE WHOLE COLONY TURNS, ALL AT ONCE. The deadline expiring is not "the rot finally reached
   // everything" — it is the colony giving up — so it reads as one event rather than as the spread
   // suddenly sprinting. Marked before `alive` goes false so the last frame drawn is green.
-  if (cause === 'infected') for (const n of net.nodes) { n.infected = true; n._infAge = 0; }
+  if (why === 'infected') for (const n of net.nodes) { n.infected = true; n._infAge = 0; }
   net.fruited = true; net.alive = false;
   state.runOver = true;
   // FULL PAYOUT EITHER WAY, and it is load-bearing: Amputate is bought, so an early player who
@@ -22729,10 +22855,18 @@ function mineEndRun(state, cause) {
                       // EVERY MATERIAL THE DESCENT DUG, not just the Phosphorus. A copy, because
                       // `presentMineEnd` banks from this after the state has moved on.
                       mats: Object.assign({}, state.mineMats || {}),
-                      cause: cause === 'infected' ? 'infected' : 'dry' };
-  state.log(cause === 'infected'
-    ? `The infection took the colony at ${depth} m. It fruits and spores — ${ore} Phosphorus banked.`
-    : `Out of water at ${depth} m. The colony fruits and spores — ${ore} Phosphorus banked.`, 'good');
+                      cause: why,
+                      // How long the descent lasted, for `run_end` telemetry.
+                      ms: state.mineStartedAt ? Math.max(1, Date.now() - state.mineStartedAt) : 0 };
+  const LOG = {
+    dry: `Out of water at ${depth} m. The colony fruits and spores — ${ore} Phosphorus banked.`,
+    fruit: `You called it at ${depth} m. The colony fruits and spores — ${ore} Phosphorus banked.`,
+    infected: `The infection took the colony at ${depth} m. It fruits and spores — ${ore} Phosphorus banked.`,
+    abandon: `You ended the descent at ${depth} m — ${ore} Phosphorus banked.`,
+    quit: `You left the descent at ${depth} m — ${ore} Phosphorus banked.`,
+    full: `The colony fills every passage it can reach at ${depth} m, and fruits — ${ore} Phosphorus banked.`,
+  };
+  if (state.log) state.log(LOG[why], 'good');
   return state.runResult;
 }
 
@@ -22742,6 +22876,8 @@ function mineEndRun(state, cause) {
            mineDigCost, mineCheapestCost, mineNextHeatLine, mineHeatLines,
            mineMaterials, mineMaterialFor, mineMaterialById,
            mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
+           mineFocusNode, mineCostHere, mineStuckCheck, mineStuckState, mineRunDepth, mineAtNodeCap,
+           MINE_END_CAUSES,
            mineInfectionCheck, mineInfectionLeft,
            mineItemCount, mineUseExcrete, mineUseAmputate,
            OUT_OF_FUEL_GRACE_MS };
@@ -26170,6 +26306,7 @@ const __m_render_ui = (function () {
   const { cardDeckAdditions, actionUsable, cardBlockedReason } = __m_engine_cards;
   const { toggleMusic, isMusicMuted } = __m_render_music;
   const { toggleSfx, isSfxMuted, playCardSelect, playCardDeselect } = __m_render_sfx;
+  const { mineCostHere, mineStuckState } = __m_engine_mine;
 // =============================================================================
 // UI — HUD, action buttons, event log, dev tools, "what we're testing" panel.
 //
@@ -26375,6 +26512,14 @@ class UI {
         // colour still marks heat while the number is always there.
         + `<span class="res" id="hud-digcost">${RES_ICON.water}<span class="rv" id="hud-digcostn">2</span>`
         + `<span class="rk">a dig</span></span>`
+        // FRUIT NOW (finishing plan M1), in the price chip's slot and shown INSTEAD of it whenever
+        // the tank cannot pay the price here. It says what ending now banks, and its ring is the
+        // stuck countdown (`mineStuckState`), so the soft lock is one obvious tap rather than dead
+        // time. A <button>, because it is the one thing in the row that does something.
+        + `<button class="res fruitnow" id="fruitnow" type="button" hidden aria-label="Fruit now and bank the descent">`
+        + `<span class="fn-ring" id="fruitnow-ring" aria-hidden="true"></span>`
+        + `<span class="fn-t">FRUIT NOW</span><span class="fn-sep"> · </span>`
+        + `<span class="fn-p" id="fruitnow-p">+0 P</span></button>`
       : cardsOn
       ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span><span class="rd" id="hud-energy-inc"></span></span>`
         + `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span><span class="rd" id="hud-water-inc"></span></span>`
@@ -26397,12 +26542,16 @@ class UI {
       +   `<button class="setitem" id="set-log" type="button" role="menuitem">Event log<span class="setchev">▾</span></button>`
       +   `<button class="setitem" id="set-mute" type="button" role="menuitemcheckbox">Music<span class="settoggle" id="set-mute-state"></span></button>`
       +   `<button class="setitem" id="set-sfx" type="button" role="menuitemcheckbox">Sound effects<span class="settoggle" id="set-sfx-state"></span></button>`
-      +   `<button class="setitem" id="set-tutorial" type="button" role="menuitem">Replay tutorial</button>`
-      +   `<button class="setitem" id="set-saveexit" type="button" role="menuitem">Save &amp; exit to menu</button>`
+      // IN THE MINE THE TWO EXITS SAY WHAT THEY BANK, and the tutorial is not offered (M1). 'Replay
+      // tutorial' restarted the run behind the player's back; 'Save & exit' dropped to the title and
+      // threw the haul away (a descent has no resume); 'End run' told a mine player the colony was
+      // eaten. Both exits now go through `mineEndRun` and pay in full.
+      +   (mineOn ? '' : `<button class="setitem" id="set-tutorial" type="button" role="menuitem">Replay tutorial</button>`)
+      +   `<button class="setitem" id="set-saveexit" type="button" role="menuitem">${mineOn ? 'Exit to title (banks everything)' : 'Save &amp; exit to menu'}</button>`
       // The campaign's deliberate exit, not a rage-quit: ending a run is how you BANK a deck, so
       // the label says what you get rather than what you give up. Still `setitem-danger` — it
       // does end the run — but "abandon" was the ladder's word for it.
-      +   `<button class="setitem setitem-danger" id="set-forcefruit" type="button" role="menuitem">End run</button>`
+      +   `<button class="setitem setitem-danger" id="set-forcefruit" type="button" role="menuitem">${mineOn ? 'End descent (banks everything)' : 'End run'}</button>`
       + `</div>`
       + `<div class="logdrop hidden" id="logdrop"><div class="loglist" id="loglist"></div></div>`
       // THE KIT — the mine's only screen furniture besides the resource row, and it appears only if
@@ -26422,6 +26571,8 @@ class UI {
     // the player should not have to aim at each one); the dose ARMS and the next tap on the map is
     // the cut. `onMineItem` is the handler table's, so the engine call and the toast live with every
     // other commit rather than inside the HUD.
+    const fnow = hud.querySelector('#fruitnow');
+    if (fnow) fnow.addEventListener('click', (e) => { e.stopPropagation(); this.handlers.onFruitNow && this.handlers.onFruitNow(); });
     const kx = hud.querySelector('#kit-excrete'), ka = hud.querySelector('#kit-amputate');
     if (kx) kx.addEventListener('click', (e) => { e.stopPropagation(); this.handlers.onMineItem && this.handlers.onMineItem('excrete'); });
     if (ka) ka.addEventListener('click', (e) => { e.stopPropagation(); this.handlers.onMineItem && this.handlers.onMineItem('amputate'); });
@@ -26715,7 +26866,8 @@ class UI {
     hud.querySelector('#set-log').onclick = (e) => { e.stopPropagation(); close(); this.toggleLog(); };
     hud.querySelector('#set-mute').onclick = (e) => { e.stopPropagation(); toggleMusic(); refresh(); };
     hud.querySelector('#set-sfx').onclick = (e) => { e.stopPropagation(); toggleSfx(); refresh(); };
-    hud.querySelector('#set-tutorial').onclick = (e) => { e.stopPropagation(); close(); if (this.handlers.onReplayTutorial) this.handlers.onReplayTutorial(); };
+    const tut = hud.querySelector('#set-tutorial');
+    if (tut) tut.onclick = (e) => { e.stopPropagation(); close(); if (this.handlers.onReplayTutorial) this.handlers.onReplayTutorial(); };
     hud.querySelector('#set-saveexit').onclick = (e) => { e.stopPropagation(); close(); if (this.handlers.onSaveExit) this.handlers.onSaveExit(); };
     hud.querySelector('#set-forcefruit').onclick = (e) => { e.stopPropagation(); close(); if (this.handlers.onForceFruit) this.handlers.onForceFruit(); };
     const los = hud.querySelector('#losbtn');
@@ -27159,6 +27311,34 @@ class UI {
     pill.classList.add(v > prev ? 'rgain' : 'rspend');
   }
 
+  // THE FRUIT NOW PILL (M1). Called from `update` and ALSO every frame by the mine's own clock,
+  // because its ring is a 6 s countdown and `update` only runs on a dirty tick. Writes only on a
+  // change: the visibility, the bankable figure, and the ring to the nearest 1%.
+  mineFruitTick() {
+    if (!this.mineOn) return;
+    const s = this.state;
+    const pill = document.getElementById('fruitnow'), chip = document.getElementById('hud-digcost');
+    if (!pill) return;
+    const st = mineStuckState(s);
+    const on = !!st.on && !s.runOver;
+    if (this._fnOn !== on) {
+      this._fnOn = on;
+      pill.hidden = !on;
+      if (chip) chip.hidden = on;
+    }
+    if (!on) return;
+    // THE RUN'S ORE until the reach payout lands (M5), which is exactly what ending now banks.
+    const bank = Math.max(0, Math.round(s.mineOre || 0));
+    if (this._fnBank !== bank) { this._fnBank = bank; text('fruitnow-p', `+${bank} P`); }
+    const limit = Math.max(1, (s.config.mine && s.config.mine.stuckFruitMs) || 6000);
+    const frac = Math.round(Math.max(0, Math.min(1, st.leftMs / limit)) * 100) / 100;
+    if (this._fnFrac !== frac) {
+      this._fnFrac = frac;
+      const ring = document.getElementById('fruitnow-ring');
+      if (ring) ring.style.setProperty('--fn', String(frac));
+    }
+  }
+
   update() {
     const s = this.state;
     const net = s.active;
@@ -27189,9 +27369,11 @@ class UI {
       }
       const dc = document.getElementById('hud-digcost');
       if (dc) {
-        // The price where the colony is actually working — the deepest living tip — against the
-        // base. Written on a change; this refreshes every world tick.
-        const cost = (window.__game && window.__game.mine) ? window.__game.mine.costHere() : null;
+        // The price where the colony is actually working — the strand the last dig ended on, else
+        // the deepest living tip (`mineCostHere`, the same number the stuck rule asks) — against the
+        // base. Called directly: this used to read a debug hook off `window.__game`. Written on a
+        // change; this refreshes every world tick.
+        const cost = mineCostHere(s);
         const base = (s.config.mine && s.config.mine.growWaterCost) | 0;
         if (this._digCost !== cost) {
           this._digCost = cost;
@@ -27201,6 +27383,7 @@ class UI {
           dc.classList.toggle('hot', cost > base);
         }
       }
+      this.mineFruitTick();
       const inf = document.getElementById('hud-infect');
       if (inf) {
         const left = s.mineInfect ? Math.ceil(Math.max(0, s.mineInfect.left != null
@@ -28397,6 +28580,14 @@ function growMyceliumTitle(container, opts = {}) {
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
     ink = document.createElement('canvas'); ink.width = canvas.width; ink.height = canvas.height; ictx = ink.getContext('2d');
     titleSize = Math.min(H * 0.72, (W * 0.9) / (WORD.length * 0.62));
+    // FIT BY MEASURED INK (opt-in, M1). The 0.62 em a glyph above is an estimate, and an 800-weight
+    // SPORED runs wider than that, so on a phone the word overran its canvas and clipped both edges.
+    // The fringe the grower sprays reaches ~0.12 em past each end, so that is budgeted too.
+    if (opts.fitWidth) {
+      ictx.font = font(100);
+      const per = ictx.measureText(WORD).width / 100;
+      if (per > 0) titleSize = Math.min(titleSize, W / (per + 0.26));
+    }
     cx = W / 2; cy = H * 0.52;
     seed();
     composite();
@@ -29278,7 +29469,25 @@ function showLevelComplete({ level, maxLevel, unlocked, earned, base, mult, bala
 // `.ss-win`'s family rather than a screen of its own, for the reason the death screen was moved
 // into it: the run has ended, here is what happened, here is what you do next. The map stays
 // visible through it, and in the mine that map is the shaft you just dug, which is the picture.
-function showMineEnd({ depth, ore, mats, best, balance, eaten, cause, onDone }) {
+// WHAT ENDED A DESCENT, in one honest line per cause (M1). Every one of them is a fruiting that
+// banked everything; the line says which door the run left by. There is no 'eaten' line: a mine
+// worm drains water and cannot eat the colony, and 'End descent' used to borrow the campaign's
+// death copy. A colony stripped to nothing some other way ('devoured', or anything unknown) gets
+// the plain fruiting line rather than a death.
+const MINE_RUN_ENDING = {
+  dry: (m) => 'Out of water at ' + m + ' m. The colony fruits and spores.',
+  fruit: (m) => 'You called it at ' + m + ' m. Every spore is yours.',
+  infected: (m) => 'The rot took the colony at ' + m + ' m. What it spored is yours.',
+  abandon: (m) => 'You ended the descent at ' + m + ' m. Everything dug is banked.',
+  quit: (m) => 'You left the descent at ' + m + ' m. Everything dug is banked.',
+  full: () => 'The colony fills every passage it can reach, and fruits.',
+  other: (m) => 'The colony fruits and spores at ' + m + ' m. Everything dug is banked.',
+};
+function mineEndingLine(cause, depth) {
+  const f = MINE_RUN_ENDING[cause] || MINE_RUN_ENDING.other;
+  return f(depth | 0);
+}
+function showMineEnd({ depth, ore, mats, best, balance, cause, onDone }) {
   const root = el('div', 'ss-win ss-mineend'); root.id = 'ssMineEnd';
   // THE GROWN WORDMARK IS A WORD, AND THE DEPTH IS PLAIN TYPE UNDER IT. Growing the NUMBER was the
   // first version and it is the obvious idea — the depth IS the achievement, so it should take the
@@ -29287,26 +29496,17 @@ function showMineEnd({ depth, ore, mats, best, balance, eaten, cause, onDone }) 
   // you read it) and a digit does not — a grown 3 and a grown 8 are the same smudge, and this is
   // the one number on the screen the player wants to know EXACTLY. So the word carries the beat and
   // the number carries the fact.
+  const matList = mats ? Object.keys(mats).filter((k) => k !== 'phosphorus' && (mats[k] | 0) > 0) : [];
   root.innerHTML =
     '<div class="ss-win-title" role="img" aria-label="Spored"></div>' +
     '<p class="ss-mineend-depth">' + (depth | 0) + '<span class="ss-mineend-m">m</span></p>' +
-    // WHAT ENDED IT, in one line. Running dry is the ordinary ending and the one the whole design is
-    // built around; being eaten or rotted out is the other kind, and saying "out of water" over a
-    // colony a worm ate is the game lying about its own rules.
-    // BRANCHED ON THE CAUSE, NOT ON `died`. It keyed off `eaten` (= died && cause !== 'dry'), and
-    // the infection DEADLINE ends the run as a fruiting rather than a death — so a colony the rot
-    // had just taken, drawn green on the screen behind the words, was told it had run out of water.
-    // Same defect the campaign's death screen had: the run ended correctly and the screen lied.
-    '<p class="ss-win-sub">' + (
-      cause === 'infected' ? 'The rot took the colony. What it had spored is yours.'
-      : eaten ? 'The colony was eaten. What it had spored is yours.'
-      : 'Out of water. The colony fruits and spores.') + '</p>' +
+    // WHAT ENDED IT, in one line, BRANCHED ON THE CAUSE (never on `died`) — see MINE_RUN_ENDING.
+    '<p class="ss-win-sub ss-mineend-why">' + esc(mineEndingLine(cause, depth)) + '</p>' +
     '<p class="ss-win-earned">+' + (ore | 0) + RI.phos +
-      // ...AND THE DEEP MATERIALS BESIDE IT. Banking something the end screen never mentions is the
-      // same defect as a drain the HUD never shows: the player would have to open the store to find
-      // out whether the detour they made was worth anything.
-      (mats ? Object.keys(mats).filter((k) => k !== 'phosphorus' && (mats[k] | 0) > 0).map((k) =>
-        ' <span class="ss-win-mat">+' + (mats[k] | 0) + matMark(k) + '</span>').join('') : '') + '</p>' +
+      // ...AND THE DEEP MATERIALS BESIDE IT, NAMED IN FULL (M1). A tinted dot alone is a currency
+      // the player cannot name; the store prices rungs in these words.
+      matList.map((k) =>
+        ' <span class="ss-win-mat">+' + (mats[k] | 0) + matMark(k) + ' ' + esc(matName(k)) + '</span>').join('') + '</p>' +
     (best && best.isNew
       ? '<p class="ss-mineend-best ss-new">Your deepest descent yet</p>'
       : (best && best.m > depth ? '<p class="ss-mineend-best">Deepest so far ' + (best.m | 0) + ' m</p>' : '')) +
@@ -29314,8 +29514,10 @@ function showMineEnd({ depth, ore, mats, best, balance, eaten, cause, onDone }) 
     '<button class="ss-win-btn" id="ssMineDone" type="button">To the store</button>';
   document.body.appendChild(root);
   // `stepRate` 3.2 is the family's own — the wordmark grows at the same pace on every one of these
-  // screens, so they read as one moment repeated rather than three animations.
-  const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: 'SPORED', stepRate: 3.2 });
+  // screens, so they read as one moment repeated rather than three animations. `fitWidth` sizes the
+  // word to its box by MEASURED ink width: the shared estimate (0.62 em a glyph) under-sizes an
+  // 800-weight SPORED, which clipped both edges at 390 px (M1).
+  const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: 'SPORED', stepRate: 3.2, fitWidth: true });
   function hide() { title.destroy(); root.remove(); }
   root.querySelector('#ssMineDone').addEventListener('click', () => { hide(); onDone && onDone(); });
   return { hide, root };
@@ -29675,7 +29877,7 @@ const el = (t, c, h) => { const n = document.createElement(t); if (c) n.classNam
 const rnd = (a = 0, b = 1) => a + Math.random() * (b - a);
 const TITLE = 'MYCELIUM';
 
-function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onStore, onCredits, playerName }) {
+function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onStore, onCredits, playerName, note }) {
   const reduce = matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const root = el('div'); root.id = 'titleScreen';
@@ -29748,6 +29950,8 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
             ? '<div class="ts-record">deepest descent <b>' + bestM + ' m</b></div>'
             : '<div class="ts-record ts-record-none">water is your fuel</div>') +
         '</div>' +
+        // WHAT WAS JUST BANKED (M1) — an exit's '+23 P banked', or a closed tab's leftover.
+        (note ? '<div class="ts-record ts-banked" id="tsBanked">' + String(note).replace(/[&<>"]/g, '') + '</div>' : '') +
       '</div>' +
     '</div>';
   root.innerHTML =
@@ -32154,6 +32358,7 @@ const __m_main = (function () {
           mineMaterials, mineMaterialFor, mineMaterialById,
           mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun,
+          mineCostHere, mineStuckCheck, mineStuckState, mineRunDepth, mineAtNodeCap,
           mineInfectionCheck, mineInfectionLeft,
           mineItemCount, mineUseExcrete, mineUseAmputate } = __m_engine_mine;
   const { levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
@@ -32490,6 +32695,10 @@ function configForLevel(level) {
     // `heat.safeDepth`, so the config keeps saying what the unupgraded limit is — otherwise the
     // number the tile quotes and the number the curve uses drift apart with nothing to catch it.
     cfg.mine.heatBonus = Math.max(0, b.heatTolerance | 0);
+    // THE MINE'S OWN NODE CAP (M1). The shared 6000 is the campaign's; a long mine run reached it
+    // and then every dig was refused as 'Solid rock' with the run still live. `mineGrow` ends the
+    // run with cause 'full' near this.
+    if (cfg.mine.maxNodes) cfg.growth.maxNodes = Math.max(100, cfg.mine.maxNodes | 0);
   }
   return cfg;
 }
@@ -33062,6 +33271,12 @@ function maybeFinalizePendingWin() {
 // the __game.killColony debug hook.
 function forceFruitAbandon() {
   if (!state || !state.active || state.runOver) return;
+  // IN THE MINE IT IS 'End descent', and it pays in full (M1). The campaign path below sets
+  // `died: true`, which put 'The colony was eaten' on a mine player who chose to stop.
+  if (state.substrate && state.substrate.mine) {
+    mineEndRun(state, 'abandon'); uiDirty = true; presentRunOver();
+    return;
+  }
   state.active.alive = false;
   state.runOver = true;
   state.won = false;
@@ -33212,38 +33427,104 @@ function afterDeath(hsPromise, next) {
 // during the run — which is what the HUD counts and what a worm could in principle take back — and
 // this is where it becomes money. One place, on the funnel every ending passes through, so a run
 // cannot pay twice and cannot pay for a shaft it is still in.
-function presentMineEnd(r) {
-  // THE FIGURES COME OFF THE STATE WHEN THE RESULT DOES NOT CARRY THEM, and that is not belt and
-  // braces — it is the only thing that makes a DEATH in the mine pay out. `mineEndRun` writes
-  // `depth`/`ore`, but running dry is not the only way a descent can end: a worm eating the last
-  // strand sets `cause: 'devoured'` inside `tickWorld` and rot reaching everything sets `infected`,
-  // and both build their own `runResult` with neither field on it. Read from `r` alone, a player
-  // eaten at 90 m with 30 P dug out came here reading "0 m" and banked nothing — every scrap of a
-  // run's work lost to the one ending they did not choose.
-  const depth = Math.max(0, (r.depth != null ? r.depth : (state && state.mineDepth)) | 0);
+// THE BANK, idempotent (M1). Every ending pays through here exactly once — the end screen, the
+// title exit ('quit') and a closed tab's pending payout all call it — guarded by `r._minePaid`, so
+// a run cannot pay twice whichever doors it passes. Returns what it banked.
+//
+// THE FIGURES COME OFF THE STATE WHEN THE RESULT DOES NOT CARRY THEM, and that is not belt and
+// braces: `mineEndRun` writes `depth`/`ore`, but a colony stripped to nothing ends inside
+// `tickWorld` with `cause: 'devoured'` and a `runResult` carrying neither. Read from `r` alone that
+// arrived here reading "0 m" and banked nothing.
+function mineBank(r) {
+  r = r || {};
+  const depth = Math.max(0, (r.depth != null ? r.depth
+    : (state ? Math.max(state.mineMaxDepth | 0, state.mineDepth | 0) : 0)) | 0);
   const ore = Math.max(0, (r.ore != null ? r.ore : (state && state.mineOre)) | 0);
-  // ...and the ore is banked either way. You dug it out; what killed the colony afterwards does not
-  // unmake that. The line on the screen changes, the payout does not.
-  const eaten = !!r.died && r.cause !== 'dry';
+  const mats = (r.mats && Object.keys(r.mats).length ? r.mats : (state && state.mineMats)) || null;
   if (!r._minePaid) {
     r._minePaid = true;
     if (ore > 0) addSpores(ore);          // `addSpores` writes whichever wallet this game spends
-    // ...AND THE DEEP MATERIALS, which `addSpores` knows nothing about. Same rule as the ore above:
-    // you dug it out, and what killed the colony afterwards does not unmake that.
-    addMats((r.mats && Object.keys(r.mats).length ? r.mats : (state && state.mineMats)) || null);
+    // ...AND THE DEEP MATERIALS, which `addSpores` knows nothing about. You dug them out, and what
+    // ended the descent afterwards does not unmake that.
+    addMats(mats);
+    r._mineBest = mineRecordDepth(depth);
+    // The payout is banked, so a closed tab has nothing left to recover.
+    minePendingClear();
     _sessionRuns++;
-    // `n` is the ore banked and `level` the DEPTH in metres — the mine has no levels, and depth is
-    // the one number that answers "did people play this longer", which is the whole reason the mode
-    // exists. `docs/analytics.html` has no mine column yet; this is the row it will read.
-    logEvent('run_end', { level: depth, cause: r.cause || 'dry', turns: state && state.turn, n: ore });
+    // `n` is the ore banked and `level` the DEPTH in metres. `ms` is how long the descent lasted and
+    // `detail` its cause, so the funnel can tell a soft lock from a choice (M1).
+    const ms = r.ms || (state && state.mineStartedAt ? Date.now() - state.mineStartedAt : 0);
+    logEvent('run_end', { level: depth, cause: r.cause || 'dry', turns: state && state.turn, n: ore,
+                          ms, detail: r.cause || 'dry' });
   }
-  const best = mineRecordDepth(depth);
+  return { depth, ore, mats, best: r._mineBest || mineRecordDepth(depth) };
+}
+// THE END OF A DESCENT. Owner: "When the player runs out of water, they fruit and spore and go to
+// the upgrade store." So there is exactly one thing to say (how deep, and what it paid) and exactly
+// one place to go, and the screen is the sentence plus the button.
+function presentMineEnd(r) {
+  const paid = mineBank(r);
   showMineEnd({
-    depth, ore, mats: (r.mats && Object.keys(r.mats).length ? r.mats : (state && state.mineMats)) || null,
-    best, eaten, cause: r.cause,
+    depth: paid.depth, ore: paid.ore, mats: paid.mats,
+    best: paid.best, cause: r.cause,
     balance: sporesBalance(),
     onDone: () => { runEndThen(() => { setGame('mine'); showPicker(); }); },
   });
+}
+// SETTINGS > EXIT TO TITLE (M1). It used to be 'Save & exit', which dropped to the title without
+// ending anything — and a descent has no resume, so the haul was simply gone. It ends the descent
+// ('quit'), banks it through the same `mineBank`, and says so on the title.
+function mineExitToTitle() {
+  if (!state || !state.substrate || !state.substrate.mine) { showMainMenu(); return; }
+  if (!state.runOver) mineEndRun(state, 'quit');
+  _runOverPresented = true;   // the title replaces the end screen; `renderFrame` must not raise it
+  const paid = mineBank(state.runResult || {});
+  showMainMenu({ note: '+' + paid.ore + ' P banked' });
+}
+// CLOSING THE TAB NEVER LOSES A HAUL (M1). On `visibilitychange -> hidden` and on `pagehide` the
+// would-be payout of a live (or ended-but-unbanked) descent is written to `p.minePending`; coming
+// back clears it; the next boot banks a leftover once (`minePendingBankAtBoot`). A descent has no
+// resume, so this is the only thing that survives a tab closed mid-run — and the only way to lose
+// it now is to close the tab and then come back to it, which clears it because the run is still
+// there to bank properly.
+function minePendingWrite() {
+  try {
+    if (!state || !state.substrate || !state.substrate.mine || !state.active) return false;
+    const r = state.runResult;
+    if (state.runOver && (!r || !r.mine || r._minePaid)) return false;
+    const depth = r && r.depth != null ? r.depth | 0 : Math.max(state.mineMaxDepth | 0, mineDepthReached(state));
+    const P = r && r.ore != null ? r.ore | 0 : Math.max(0, Math.round(state.mineOre || 0));
+    const mats = Object.assign({}, (r && r.mats) || state.mineMats || {});
+    const p = loadProgress();
+    p.minePending = { P, mats, depth, at: Date.now() };
+    saveProgress(p);
+    return true;
+  } catch (_) { return false; }
+}
+function minePendingClear() {
+  try { const p = loadProgress(); if (p.minePending) { delete p.minePending; saveProgress(p); } } catch (_) {}
+}
+// Banks a leftover pending payout ONCE, at boot. The delete is in the same save as the credit, so
+// a second boot finds nothing. Returns the P banked (or null when there was nothing).
+function minePendingBankAtBoot() {
+  try {
+    const p = loadProgress();
+    const pend = p.minePending;
+    if (!pend || typeof pend !== 'object') return null;
+    delete p.minePending;
+    const P = Math.max(0, pend.P | 0);
+    p.minerals = Math.max(0, (p.minerals | 0) + P);
+    if (!p.mats || typeof p.mats !== 'object') p.mats = {};
+    for (const k of Object.keys(pend.mats || {})) {
+      const n = Math.max(0, pend.mats[k] | 0);
+      if (k === 'phosphorus' || !n) continue;
+      p.mats[k] = Math.max(0, (p.mats[k] | 0) + n);
+    }
+    const d = Math.max(0, pend.depth | 0);
+    if (!(p.mineBest >= d)) p.mineBest = d;
+    saveProgress(p);
+    return P;
+  } catch (_) { return null; }
 }
 // The deepest descent on this save, in metres. Its own field rather than the high-score board:
 // that board is per MODE and ranks survival's level number, and `checkHighScore` is gated off for
@@ -33688,7 +33969,11 @@ function backToPicker() {
 
 // The title screen (Survival New / Continue → species picker). Shown on boot and
 // reachable from the run-over card's "Main menu" button.
-function showMainMenu() {
+function showMainMenu(opts) {
+  // A ONE-LINE NOTE ON THE TITLE (M1): what an exit just banked ('+23 P banked'), or what a tab
+  // closed mid-descent banked at this boot ('Your last descent spored +23 P'). Shown once.
+  const note = (opts && opts.note) || _titleNote || null;
+  _titleNote = null;
   if (ui) ui.hideOverlay();
   hideCanvas();      // hide any finished-run map so the title's fade-out to the picker doesn't flash it
   // ...and the HUD with it. `hideCanvas` was half the answer: the previous run's card carousel
@@ -33745,6 +34030,7 @@ function showMainMenu() {
     // campaign's seven tracks priced in Spores.
     onStore: OFFER_MINE ? () => { setGame('mine'); showPicker(); } : null,
     onCredits: () => showCredits({}),
+    note,
   });
 }
 
@@ -35469,15 +35755,18 @@ function begin(newState) {
       band: (m) => mineBandAt(state ? state.config : CONFIG, m),
       bands: () => (state ? state.config : CONFIG).mine.bands.map((b) => b.theme),
       cost: (depthM) => mineGrowCost(state.config, depthM),
-      // The price where the colony is working now: the deepest living tip, which is the ground the
-      // player is about to dig from.
-      costHere: () => {
-        const net = state.active, sub = state.substrate;
-        if (!net || !sub || !net.nodes.length) return mineGrowCost(state.config);
-        let deep = -Infinity;
-        for (const n of net.nodes) if (!n.infected && n.y > deep) deep = n.y;
-        return mineGrowCost(state.config, mineDepthM(sub, isFinite(deep) ? deep : sub.surfaceY));
-      },
+      // The price where the colony is working now: the strand the last dig ended on, else the
+      // deepest living tip — the HUD chip's number and the stuck rule's (M1).
+      costHere: () => mineCostHere(state),
+      // THE STUCK COUNTDOWN (M1): {on, leftMs}. `on` while the tank cannot pay the price here;
+      // `leftMs` until the colony fruits ('dry'), CONFIG.mine.stuckFruitMs when not counting.
+      stuck: () => { const st = mineStuckState(state); return { on: st.on, leftMs: Math.round(st.leftMs), cost: st.cost }; },
+      // The running maximum of clean depth this descent — what it pays and records.
+      maxDepth: () => mineRunDepth(state),
+      // Is a dig's reveal still in flight? The stuck countdown holds while it is.
+      revealing: () => { try { return !!anyRevealing(lastTime); } catch (_) { return false; } },
+      // The would-be payout written for a closed tab, and the boot-time bank of it (M1).
+      pendingWrite: () => minePendingWrite(),
       cheapest: () => mineCheapestCost(state),
       // `safe` is the FIRST price line; `every` is the spacing of the ones after it, and `nextLine`
       // is where the price doubles again from a given depth (null past the cap). Exposed so a check
@@ -35968,12 +36257,20 @@ const handlers = {
     if (r.ok) { state.log(r.message, 'good'); rendererFor(state.active).markStructureDirty(); }
     uiDirty = true;
   },
-  onReplayTutorial: () => beginTutorial(),
+  // In the mine the menu does not offer it (the markup leaves it out) — it restarted the descent.
+  onReplayTutorial: () => { if (state && state.substrate && state.substrate.mine) return; beginTutorial(); },
   onForceFruit: () => forceFruitAbandon(),
   onColonyLos: () => toggleColonyLos(),
+  // FRUIT NOW (M1): the pill in the price chip's slot. Ends the descent, banks everything.
+  onFruitNow: () => {
+    if (!state || state.runOver || !state.substrate || !state.substrate.mine) return;
+    mineEndRun(state, 'fruit'); uiDirty = true; presentRunOver();
+  },
   // Save & exit: the current level's opening state is already persisted (begin ->
   // saveResumeSnapshot), so just drop to the title WITHOUT ending the run — "Old" resumes it.
-  onSaveExit: () => showMainMenu(),
+  // IN THE MINE it is 'Exit to title (banks everything)': a descent has no resume, so it ends the
+  // run ('quit') and banks it before the title (M1).
+  onSaveExit: () => { if (state && state.substrate && state.substrate.mine) mineExitToTitle(); else showMainMenu(); },
   onAction(name, ctx) {
     // The basic actions were the gap: `draftLocked` guarded the card layer only, so a player
     // could Grow straight over a draft, or over the enemies' walk.
@@ -37296,6 +37593,8 @@ function mineFrame(time, dt) {
       }
     } catch (_) {}
   }
+  // When the descent began, for `run_end`'s duration (M1).
+  if (!state.mineStartedAt) state.mineStartedAt = Date.now();
   mineFollowCamera(time, dt);
   const gotOre = mineOreRewards(state);
   const gotWater = mineWaterPickups(state);
@@ -37306,12 +37605,29 @@ function mineFrame(time, dt) {
   // run rather than a wrong one.
   const depth = mineDepthReached(state);
   if (depth !== state.mineDepth) { state.mineDepth = depth; uiDirty = true; }
+  // THE RUNNING MAXIMUM OF CLEAN DEPTH (M1). What the run pays and records: rot is not progress,
+  // but it does not unmake the metres already reached.
+  if (depth > (state.mineMaxDepth | 0)) state.mineMaxDepth = depth;
   mineBeat(depth);
+  // THE STUCK COUNTDOWN HOLDS while a reveal is in flight (a pocket the last dig is about to reach
+  // pays first), while a pointer is down (the player is aiming) and while the settings menu is open.
+  // This frame only runs while the sim is not paused, which covers every other overlay.
+  let hold = pointers.size > 0;
+  if (!hold) { try { hold = !!anyRevealing(time); } catch (_) {} }
+  if (!hold) { const sm = document.getElementById('settingsmenu'); hold = !!(sm && !sm.classList.contains('hidden')); }
+  // THE NODE CAP ENDS THE RUN (M1) — colonisation can add strands without a dig, so it is asked
+  // here as well as in `mineGrow`.
+  if (mineAtNodeCap(state)) { mineEndRun(state, 'full'); uiDirty = true; presentRunOver(); }
   // OUT OF FUEL ENDS THE RUN, after a grace — see mineFuelCheck for why the grace is not
   // optional. `presentRunOver` takes it from here, exactly as a death or a win does.
-  if (mineFuelCheck(state, time)) { mineEndRun(state, 'dry'); uiDirty = true; presentRunOver(); }
+  else if (mineFuelCheck(state, time)) { mineEndRun(state, 'dry'); uiDirty = true; presentRunOver(); }
   // ...and the infection's own deadline, which ends the run the same way and pays out the same.
   else if (mineInfectionCheck(state, time)) { mineEndRun(state, 'infected'); uiDirty = true; presentRunOver(); }
+  // ...and the soft lock: the tank cannot pay the price where the player is working, for
+  // `stuckFruitMs` with no dig and no water gained (M1). Also 'dry' — it IS out of water, here.
+  else if (mineStuckCheck(state, dt, hold)) { mineEndRun(state, 'dry'); uiDirty = true; presentRunOver(); }
+  // The FRUIT NOW pill's ring is this countdown, so it is drawn every frame, not every dirty tick.
+  if (ui && ui.mineFruitTick) ui.mineFruitTick();
 }
 
 // --- the phased, animated enemy turn (TURN-BASED ONLY) -----------------------
@@ -40521,6 +40837,20 @@ function _endSession() {
 try {
   window.addEventListener('pagehide', _endSession);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') _endSession(); });
+} catch (_) {}
+// CLOSING THE TAB NEVER LOSES A HAUL (M1) — see `minePendingWrite`. Hidden or unloading: write the
+// would-be payout. Visible again: the run is still here to bank properly, so the pending copy goes.
+// A leftover from a tab that never came back is banked ONCE, here, before anything can start a run.
+let _titleNote = null;
+try {
+  window.addEventListener('pagehide', () => { minePendingWrite(); });
+  window.addEventListener('pageshow', (e) => { if (e && e.persisted) minePendingClear(); });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') minePendingWrite();
+    else if (document.visibilityState === 'visible') minePendingClear();
+  });
+  const _pendP = minePendingBankAtBoot();
+  if (_pendP != null) _titleNote = 'Your last descent spored +' + _pendP + ' P';
 } catch (_) {}
 
 function _bootReady() {
