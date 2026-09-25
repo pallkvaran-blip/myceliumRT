@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE. Next: M2 (a build that can ship, and digs that land where you pressed).`
+**PROGRESS:** `M1 DONE (verifier fixes landed). Next: M2 (a build that can ship, and digs that land where you pressed).`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -4245,42 +4245,75 @@ Numbers here are measured, not planned.
   at the FOCUS strand (`state._mineFocus`, else the deepest clean tip), the number the HUD chip
   shows. `mineCostHere` / `mineFocusNode` are the one answer to "where am I digging"; the chip calls
   it directly (it used to read `window.__game.mine.costHere`, which priced the deepest tip).
-  - The countdown uses the FRAME's `dt` (clamped 250 ms) and HOLDS while `anyRevealing`, while
-    `pointers.size > 0` and while `#settingsmenu` is open; `mineFrame` only runs unpaused. It resets
+  - The countdown uses the FRAME's `dt` (clamped 250 ms) and HOLDS while `pointers.size > 0` or
+    `#settingsmenu` is open, and while `anyRevealing` for AT MOST `CONFIG.mine.stuckRevealHoldMs`
+    800 per stuck spell. `mineFrame` only runs unpaused. It resets (and refills the reveal budget)
     on a successful `mineGrow` and whenever the tank rises.
-  - **GOTCHA: a reveal holds it for real.** After a navigator burst the last reveal ran ~1.6 s past
-    a 2.5 s wait, and a probe that set the tank then read a 7.68 s ending. Probes wait for
-    `__game.mine.revealing()` to go false before starting the clock (then: 6.05 s).
-- **FRUIT NOW** (`#fruitnow`, a `<button>` in `#hud-digcost`'s slot, shown instead of it while
-  stuck): `FRUIT NOW · +N P` (N = `state.mineOre` until M5's `mineBankable`), a conic ring on
+  - **THE HOLD IS A THUNK**, evaluated by `mineStuckCheck` only once `water < cost`: the reveal
+    scan is O(nodes), and most frames the tank can pay. `mineFocusNode` caches its fallback
+    (deepest clean tip) against `nodes.length` (`state._mineFocusFallback`).
+  - **GOTCHA: an uncapped reveal hold made the bound "6 s after the reveal", not 6 s.** With the
+    tank set straight after a navigator burst (the plan's probe) it read 8.56 s (seed 5) and 9.75 s
+    (2024); colonisation can stretch a reveal to ~4.5 s. A pocket needs no hold to pay
+    (`mineWaterPickups` pays on the node), so the cap is safe. Now 6.85 / 6.83 s from the tank
+    change, reveal in flight. Blocks that time the countdown MID-WAY (the 3 s reset) still wait
+    for `revealing()` to clear first.
+- **FRUIT NOW** (`#fruitnow`, a `<button>` shown while stuck; `#hud-digcost` hides meanwhile):
+  `FRUIT NOW · +N P` (N = `state.mineOre` until M5's `mineBankable`), a conic ring on
   `--fn` = leftMs / stuckFruitMs. `ui.mineFruitTick()` runs EVERY FRAME from `mineFrame` (plus in
   `update`), because `update` only runs on dirty ticks. Tap -> `mineEndRun(state, 'fruit')`.
-  - **Known, left to M3:** the pill is ~152 px against the chip's ~70, so at 390 px it pushes the
-    already-overflowing gear further off screen (screenshot `tests/.artifacts/m1-fruitnow.png`).
-    The pill itself is the exit in exactly that state; M3 makes `#gearbtn` fixed.
-- **CAUSES** (`MINE_END_CAUSES`): `dry | fruit | infected | abandon | quit | full`, all
+  - **ITS OWN FIXED SLOT, NOT THE PRICE CHIP'S.** In the row it overflowed 390 px as soon as a worm
+    chip showed (x 314-466 with a worm + rot clock; a tap at its centre hit nothing) — in exactly
+    the stuck state it exists for. Now `position: fixed`, bottom centre at 72 px (above the kit and
+    the first-descent hint; `body.boxed` insets it like `.minekit`), 44 px tall (was ~21), 15 px
+    type. Measured with a real worm + rot clock: x 78-312 at 390, 63-297 at 360, hit-tests at its
+    centre. With the chip hidden the gear is back on screen while stuck holding one material at 390
+    (x 220-252; pre-M1 302-334; with the pill in the row 389-421).
+  - **Still M3's:** with a worm AND the rot chip the row itself overruns 390 (gear x 379-411) and 360.
+    M3's fixed gear and two-row HUD; keep FRUIT NOW in its own slot there.
+- **CAUSES** (`MINE_END_CAUSES`): `dry | fruit | infected | abandon | quit | full | devoured`, all
   `died: false`, one `state.log` line each, `runResult.ms` = duration from `state.mineStartedAt`
-  (stamped on the first `mineFrame`). A tickWorld `devoured` (a colony stripped to nothing — no
-  mine worm can do it) still arrives with its own result and gets the plain fruiting line.
+  (stamped on the first `mineFrame`).
+  - **tickWorld's two death branches route through `mineEndRun` when `substrate.mine`:** rot on
+    every strand before the clock -> `'infected'`; nothing left -> `'devoured'` (plain fruiting line
+    on the end screen). Before: `{died:true}` with no depth/ore/ms, the campaign's 'consumed' log,
+    and `minePendingWrite` skipped it (its guard wanted `r.mine`; now it only skips a PAID run).
+    Measured: seed 4242 at 9 m, clouds on every third node -> over in ~130 ms as `infected`,
+    died:false, depth 9, ore 5. The campaign branch is unchanged.
+  - **GOTCHA for probes:** a breach claims `freshGrowthRings` (80) of just-dug strands, so a cloud
+    near the TOP of a freshly dug single shaft rots all of it at once (252 of 252) and ends the run.
+    To show the rot clock, drop the cloud at the deepest tip.
 - **RUNNING MAXIMUM:** `mineFrame` keeps `state.mineMaxDepth`; `mineRunDepth` = max(it, live).
   `mineEndRun`, `mineBank` and `mineRecordDepth` use it. Measured: seed 4242 reached 111 m, the
   rot took the deepest strands (clean depth 102 m at the end), the end screen and `p.mineBest`
   read 111 (before: 102).
 - **`mineBank(r)`** is the only place a descent is paid (idempotent on `r._minePaid`): end screen,
-  Exit to title, and it clears `p.minePending`. `run_end` now carries `ms` and `detail` = cause.
+  Exit to title, and it clears this run's `p.minePending` entry. `run_end` now carries `ms` and
+  `detail` = cause. It pays only what a boot elsewhere has not (`p.mineTaken`, below).
 - **EXITS:** in the mine the settings menu has no `#set-tutorial`; `#set-forcefruit` is 'End descent
   (banks everything)' (`forceFruitAbandon` routes to `mineEndRun('abandon')`); `#set-saveexit` is
   'Exit to title (banks everything)' -> `mineExitToTitle`: `mineEndRun('quit')`, `mineBank`,
   `_runOverPresented = true` (or `renderFrame` raises the end screen over the title), then
-  `showMainMenu({ note: '+N P banked' })` -> `#tsBanked` on the title.
+  `endRunSpores(); recordRunFinished()` (runEndThen's bookkeeping, which this exit skipped: a quit
+  never counted toward `p.runsDone`, the rating ask's gate), then
+  `showMainMenu({ note: '+9 P, +2 Anthracite banked' })` -> `#tsBanked` (no note for an empty haul).
 - **NODE CAP:** `CONFIG.mine.maxNodes` 9000 onto `cfg.growth.maxNodes` in `configForLevel`;
   `mineAtNodeCap` (nodes >= maxNodes - 30) ends `full` in `mineGrow` (before and after the grow)
   and in `mineFrame` (colonisation can add strands). Measured: 20 ms from forcing the cap.
 - **HIDDEN TAB:** `visibilitychange -> hidden` and `pagehide` call `minePendingWrite` (a live
-  descent, or an ended one not yet banked) -> `p.minePending {P, mats, depth, at}`; `visible` and a
-  bfcache `pageshow` clear it; `minePendingBankAtBoot` runs once at main-module init (before any run
-  can start), banks and deletes it in ONE save, and the title shows 'Your last descent spored +N P'
-  (`_titleNote`, consumed by the next `showMainMenu`).
+  descent, or an ended one not yet banked). `visible` and a bfcache `pageshow` clear it.
+  `minePendingBankAtBoot` runs once at main-module init (before any run can start) and banks and
+  deletes in ONE save. The title shows 'Your last descent spored +13 P, +2 Anthracite'
+  (`minePendingNote`; nothing for an empty haul). `_titleNote` is cleared in `begin()`, so it only
+  describes the boot it came from. The boot bank also calls `endRunSpores(); recordRunFinished()`.
+  - **KEYED BY RUN (two tabs, bfcache).** `p.minePending` is a map `{ runKey: {P, mats, depth, at} }`,
+    where `mineRunKey(state)` = a per-page id plus a per-descent suffix. A legacy single record reads
+    as key `legacy`. Clear deletes only its own key. A boot that banks key K adds what it paid to
+    `p.mineTaken[K]` (3-day TTL). The live tab's later writes and its `mineBank` subtract it and
+    delete the marker. Before: tab A hidden -> tab B's boot banked -> A ended and `mineBank` paid
+    it all again (0 -> 17 for a haul of 10), and B turning visible deleted A's record. Measured
+    (ending-check, one context, two pages): +20 at B's boot, A's next record P 3, B's
+    visibilitychange leaves it, A's ending pays 3, total exactly 23, no pending or taken left.
 - **END SCREEN:** `MINE_RUN_ENDING` (one line per cause; no 'eaten' in the mine). `.ss-win-earned
   .ss-ri` 0.95em (was the paragraph's width: 55-170 px); measured 20.9 px on a 22 px line.
   `.ss-mineend .ss-win-title` is `min(680px, 100vw - 32px)` and `growMyceliumTitle({fitWidth})`
@@ -4288,11 +4321,17 @@ Numbers here are measured, not planned.
   800-weight SPORED, which clipped): at 390 px the box is 16.0-374.0 and the ink 7-353 of 358 px.
   Deep materials are named in full ('+4 Anthracite').
 - **CHANGED ASSERTIONS:** mine-check 'being eaten ... on the mine's own screen': `/eaten|rot took/`
-  -> `/fruits and spores at \d+ m/` and no 'eaten' (mine 189/190 -> 190/190). No tolerance widened.
-- **CHECKS:** `tests/ending-check.cjs` ('ending', in `--mine`, 63 assertions, ~110 s) covers
+  -> `/fruits and spores at \d+ m/` and no 'eaten' (mine 189/190 -> 190/190). Verifier-fix round
+  (ending-check): the stuck probe no longer waits for the reveal (the plan's probe; bound still
+  7.0 s, 6.05 -> 6.85 s); the title note '+13 P' -> '+13 P, +2 Anthracite'; the exit note
+  '+9 P banked' -> `/^\+9 P(, \+N Material)* banked$/`; the hidden-tab record is read from the
+  keyed map; sweep's stall check needs >= 1 stall (0 of 0 was green). No tolerance widened.
+- **CHECKS:** `tests/ending-check.cjs` ('ending', in `--mine`, 86 assertions, ~190 s; was 63) covers
   acceptance 1-3 and 5-10; `tests/mine-harness.cjs` is mine-check's navigator for new checks
   (mine-check keeps its own inline copy). `tests/bots/sweep.cjs` ('sweep', slow, not in `--mine`)
-  is acceptance 4. Hooks: `__game.mine.stuck()`, `.maxDepth()`, `.revealing()`, `.pendingWrite()`.
+  is acceptance 4. The verifier-fix round added: FRUIT NOW at 390 and 360 with a real worm and
+  the rot clock (on screen, hit-tests, >= 40 px; gear on screen at 390 holding one material), two
+  tabs of one profile, and rot overrunning before the clock. Hooks: `__game.mine.stuck()`, `.maxDepth()`, `.revealing()`, `.pendingWrite()`.
 - **MEASURED (acceptance):** stuck probe, seeds 5 and 2024 at 70 m with the tank one short (3
   against 4, cheapest 2): pill visible in 15-16 ms, run over at 6.05 s, cause `dry`, minerals up by
   exactly the run's ore. A cheap dig at 3 s (3017 ms left) resets `leftMs` to 6000. FRUIT NOW ->

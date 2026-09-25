@@ -232,11 +232,11 @@ THE CAUSES
 1. 'dry', with two triggers.
    (a) As today: water below the cheapest dig anywhere (mineCheapestCost 22686) for OUT_OF_FUEL_GRACE_MS (1.6 s). A pocket the last dig is about to reach still pays first.
    (b) THE SOFT-LOCK FIX (mineStuckCheck, beside mineFuelCheck 22703): water is below costHere, the price at the focus strand (mineDigCost 22678 at state._mineFocus, else the deepest clean tip). That is the number the chip shows.
-   - A 6 s countdown (CONFIG.mine.stuckFruitMs) runs only while no reveal is in flight, no menu is open and no pointer is held.
+   - A 6 s countdown (CONFIG.mine.stuckFruitMs) runs only while no menu is open and no pointer is held. A reveal in flight holds it for at most CONFIG.mine.stuckRevealHoldMs (800 ms) per stuck spell, so dead time is bounded at 6.8 s from the tank change (amended in the M1 verifier round; the uncapped hold measured 8.6-9.8 s).
    - Any successful dig, and any water gained, resets it.
    - At zero the run ends.
    Copy: 'Out of water at 92 m. The colony fruits and spores.'
-2. 'fruit'. Whenever water < costHere, the price chip becomes the FRUIT NOW pill ('FRUIT NOW · +23 P', the bankable total, with the countdown as a conic ring). One tap ends the run.
+2. 'fruit'. Whenever water < costHere, the price chip hides and the FRUIT NOW pill shows ('FRUIT NOW · +23 P', the bankable total, with the countdown as a conic ring) in its own fixed slot, bottom centre and 44 px tall. In the resource row it overflowed 390 px as soon as a worm chip showed. One tap ends the run.
    Copy: 'You called it at 92 m. Every spore is yours.'
    A refused dig toasts 'Not enough water — a dig here costs 8. Fruit now to bank +23 P.'
 3. 'infected'. The rot clock (20 s; 30 s on a save's first infection) reaches zero. The whole colony turns green, fruits and pays.
@@ -765,7 +765,7 @@ H. KNOWN GAPS THE BOTS MUST SETTLE
    - It resets on a successful mineGrow (22456) and whenever net.water rises.
    - At CONFIG.mine.stuckFruitMs (6000) it calls mineEndRun(state,'dry').
    - Hook: __game.mine.stuck() returns {on, leftMs}.
-3. #fruitnow PILL. It is built in the HUD (26341-26427) in the price chip's slot and shown while water < costHere.
+3. #fruitnow PILL. It is built in the HUD (26341-26427) and shown while water < costHere, with the price chip hidden. (Verifier round: it moved from the price chip's slot to its own position:fixed slot, bottom centre, because the row overflowed at 390 px.)
    - Label: 'FRUIT NOW · +N P', where N is the run's ore until M5 and mineBankable after it.
    - A conic ring driven by stuck().leftMs, updated in the ui.update mine branch (27170-27250).
    - A tap calls mineEndRun(state,'fruit').
@@ -857,7 +857,7 @@ H. KNOWN GAPS THE BOTS MUST SETTLE
 **Goal.** On a 360-390 px phone every control is on screen, the instruction is visible, and a tap does what a new player expects.
 
 **Changes.** 1. HUD (26341-26427; update 27170-27250). Below 430 px it becomes two rows:
-   - row 1: water, the price chip (or FRUIT NOW), depth (and east from M8);
+   - row 1: water, the price chip, depth (and east from M8). FRUIT NOW keeps its own fixed bottom-centre slot from M1; do not move it back into the row;
    - row 2, only when it has content: P, tinted 3-letter material tags ('ANT 6'), the worm chip.
    The rot countdown becomes a top-centre banner. #gearbtn is position:fixed, outside the pill's flow. The chip calls mineDigCost directly (27194).
 2. TAPS (endPointer 36675-36700). When the press snapped to a strand (an aim exists) and moved less than 12 px with one pointer:
@@ -871,7 +871,7 @@ H. KNOWN GAPS THE BOTS MUST SETTLE
 4. LOADER. showLoading (31873) says 'Tap to dig' under (pointer: coarse), 'Click to dig' otherwise.
 
 **Acceptance.** 1. HUD fit. At 390x844 and 360x640, with 3 worms attached, the rot banner up and 3 materials held:
-   - every HUD descendant rect lies inside the viewport;
+   - every HUD descendant rect lies inside the viewport, #fruitnow included (with the colony stuck);
    - elementFromPoint at the gear's centre returns #gearbtn.
 2. Taps, in a touch context (hasTouch, isMobile, 390x844).
    - touchscreen.tap on the root's screen point: the node count rises, water drops by exactly 2, and depth is 1 m or more.
