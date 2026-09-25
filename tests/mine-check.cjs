@@ -2068,18 +2068,19 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
           }
         }
         if (!target) break;
-        // THE NEAREST STRAND MAY BE WALLED TOWARD THE SEAM (M2): the press no longer falls through to
-        // a strand anywhere in the colony, so press the nearest one that has open ground that way.
+        // THE NEAREST STRAND MAY BE WALLED TOWARD THE SEAM (M2). The press used to fall through to the
+        // tip furthest along the aim that could step (up to 238 u away on this seed, measured); it is
+        // capped at 90 u now, so the probe presses that tip itself, along the same heading — which is
+        // what a player does when the strand they tried is against rock.
         const r0 = g.mine.growFrom(tip.x, tip.y, target.x, target.y);
         if (!r0.ok && /Solid rock/.test(r0.message || '')) {
           const seg = s.config.growth.segmentLength, net = s.active;
           const DODGE = [0, 0.26, -0.26, 0.52, -0.52, 0.8, -0.8, 1.08, -1.08, 1.4, -1.4];
-          const open = (n) => { const a0 = Math.atan2(target.y - n.y, target.x - n.x);
-            return DODGE.some((o) => net._segmentClear(sub, n.x, n.y, n.x + Math.cos(a0 + o) * seg, n.y + Math.sin(a0 + o) * seg)); };
-          let alt = null, ad = Infinity;
-          for (const n of net.nodes) { if (n.infected) continue; const d = (n.x - target.x) ** 2 + (n.y - target.y) ** 2;
-            if (d < ad && open(n)) { ad = d; alt = n; } }
-          if (alt) g.mine.growFrom(alt.x, alt.y, target.x, target.y);
+          const L = Math.hypot(target.x - tip.x, target.y - tip.y) || 1, ux = (target.x - tip.x) / L, uy = (target.y - tip.y) / L;
+          const a0 = Math.atan2(uy, ux);
+          const alt = net.tips().filter((n) => !n.infected).sort((a, b) => (b.x * ux + b.y * uy) - (a.x * ux + a.y * uy))
+            .find((n) => DODGE.some((o) => net._segmentClear(sub, n.x, n.y, n.x + Math.cos(a0 + o) * seg, n.y + Math.sin(a0 + o) * seg)));
+          if (alt) g.mine.growFrom(alt.x, alt.y, alt.x + ux * 400, alt.y + uy * 400);
         }
         // A CLAIM NEEDS FRAMES. In real time `colonizeReachablePiles` only runs while a grow is in
         // flight (`net._colonizePending`, until the last strand has finished revealing), and a

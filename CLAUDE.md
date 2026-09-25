@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). Next: M2 (a build that can ship, and digs that land where you pressed).`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE. Next: M3 (a phone player can see and use every control).`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -4350,6 +4350,70 @@ Numbers here are measured, not planned.
   `dry`, 52-106 m, 32-47 digs, 37-62 s), 8 of 8 stalls ended while sitting, 25/25.
 - **The refusal toast** now reads 'Not enough water — a dig here costs 4. Fruit now to bank +11 P.'
   while the pill is up (the plan's copy); bots and checks match `/Not enough water/` and still do.
+
+### M2 — A build that can ship, and digs that land where you pressed (DONE)
+
+- **DEV GATE: `devUI()` (in `__m_config`)** = `CONFIG.dev.enabled` AND (a `dev` token in the hash,
+  `?dev=1`, or `window.MYCELIUM_DEV_BUTTONS === true`). `devButtonsOn()` (map buttons: maps, edit
+  rocks, win level) and the store's dev column (quick-start, unlock all, +10,000) both ask it.
+  `window.__game`, `#dev`/`#level` boots and keys are unchanged; `dev.enabled` stays true.
+  - **TELL THE OWNER:** on the Pages build the buttons need a flag now — `#mine,dev` (random
+    shaft), `#mine,4242,dev` (pinned), `?dev=1` (title + store), or `#dev` (the sandbox).
+  - Before: '#mine,4242' showed 'Dev: maps ▾' and 'Dev: edit rocks'; now nothing on '/' or '#mine,…'.
+  - **`window.__game` is installed by `begin()`**, so on the bare title it has never existed; the
+    check asserts `__game.mine` on the run the plain URL starts with New (deviation from the plan's
+    "exists on '/'").
+- **LEVEL CARD:** `begin()` never arms `pendingLevelIntro` on a mine map (opens the hand, runs any
+  `afterIntro`), and `revealMap` SNAPS a mine map in (the dev skip used to; a 1.4 s fade would be
+  new for every pixel-sampling check).
+- **COLLISION GATE:** `mineGrow` refuses `{settling:true}` 'The ground is settling…' (free) until
+  `sub._rockSolidified`. `renderFrame` holds `_revealPending` while `mineRevealHeld()` (mine map,
+  no mask yet, under `CONFIG.mine.revealHoldMaxMs` 15000), re-arming the curtain's 4 s safety each
+  held frame; `simPaused()` is true meanwhile (`_mineRevealWaitAt`). Hook `__game.simPaused()`.
+  Measured (3 s route delay on every band image): 32 of 32 early digs refused, water/nodes
+  unchanged, curtain up and sim paused throughout; after: 0 of 966 living nodes inside `_fineSolid`.
+  20 s delay: the curtain lifts at 15.0 s with no mask and digs stay refused. Dev-off local boot:
+  map revealed 5.4 s after New.
+  - **RISK:** a band image that 404s for good never solidifies, so digs are refused for the run
+    (End descent still banks). Better than strands through rock; the zip check guards the 404.
+- **HEAT BYPASS: `growDirected(..., companion, opts)`**, `opts = {maxFallDist, accept(parent)}`,
+  default null = today's behaviour; the parent used is on `net._lastGrowOrigin`. `mineGrow` passes
+  `CONFIG.mine.fallDist` 90 and accepts only the pressed strand or one on the SAME price step, and
+  returns `{cost, origin, pressed}`. Measured (heat probe, seeds 4242/909/5, dive to 131 m + side
+  fans, 30 presses of walled strands at 3-35 m aimed down): 29 dug, 1 refused; every origin
+  within 90 u; every charge = the pressed strand's price; the old rule would have grown from
+  3546-4591 u away (the 131 m tip) on 30 of 30.
+  - **GOTCHA: the navigator alone leaves NO walled shallow strand** (0 of 164 at <= 36 m) — the
+    probe adds side fans off the upper shaft, as a player poking for seams does.
+  - **GOTCHA: side twigs.** `_sproutSideStrand` (`.side`) hangs up to sideStrandMax+1 = 4 segments
+    off any chain node, so a twig can sit past "90 + one reach" (283-288 u vs 243, all `.side`).
+    The chain is held to 90 + reach (153 u) exactly, twigs to that + 102 u (plan deviation).
+  - **CHANGED PROBES (mine-check), assertions unchanged:** the fuel-curve dive (`mine.grow` presses
+    the deepest tip) and the seam probe relied on the fall-through (old build: 7 of 39 dive digs on
+    seed 909 grew from ~200 u away). After M2 they read 27 m ('past the first band', was 54) and
+    0 P (the seam probe's old fall-through reached 238 u on seed 11). On a 'Solid rock' refusal
+    both now press, themselves, the tip the old fall-through picked: furthest along the aim with
+    open ground that way, on the same heading. Seam probe now 6 P at 18 m. mine 188/190 -> 190/190.
+- **AIM PRICE:** `drawAimLine` draws a pill with the pressed strand's `mineDigCost` and a drawn
+  drop 18 px past the arrow head (mine only): pale blue, orange when heat adds, red when the tank
+  cannot pay. Hook `__game.mine.aimPrice()`. Measured: '2' at 1 m, '4' (hot) at 50 m.
+- **RELEASE ZIP:** `make-web-zip` reads `CONFIG.mine.bands[].assetsFrom` (fail-fast) into
+  `reachable`; `--dry-run` lists the folders, `--out` builds elsewhere. Before, magnetite-c24 and
+  garnet-c24 were pruned (bands 0 and 2: no rock, no collision). Zip: 549 entries, 38.3 MB
+  (--no-shrink). `itchzip-check` now plays the MINE (the old #tsNewCamp/#tsNew rows do not exist):
+  bands whole (25/47/31/50 files), solid share per band in the home chunk 36/49/43/39%, a
+  navigator descent on the real tank (92-103 m, ~26 digs) ends `dry` by itself, store, Descend ->
+  run 2 (2 run_starts), `#levelIntro` never seen, 0 failed requests. In the runner as
+  `zip` = `itchzip-check.cjs --fresh` (builds a throwaway zip, ~2 s). 12 of 13 runs green while
+  writing it; the one red was before the descent was quieted (worms/mould respawn off now) and its
+  lines were not captured.
+- **SMALL FIXES:** `beginMineRun(seed)`; `playSeed` = one world build, one run_start (was two).
+  The ore retag reads the pile only if `foodPiles` grew. Measured on 3 seeds x 5 chunks: 40 seams
+  each, all tagged with their centroid band's material, 0 refused by `stampFood` on those seeds
+  (the invariant is checked; the refusal path did not fire there).
+- **CHECKS:** `tests/ship-check.cjs` ('ship', in `--mine`; `SHIP_ONLY=dev,card,...` runs blocks);
+  the harness serves `/index-nodev.html` (dev flag patched off through make-web-zip's anchor) and
+  takes `opts.file` / `opts.before(page)`.
 
 ## Two games on the title screen: Survival and Campaign
 
