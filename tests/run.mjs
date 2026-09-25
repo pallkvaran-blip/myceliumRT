@@ -75,6 +75,8 @@ const CHECKS = [
   ['lure',      'lure-check.cjs',    70,  true],
   ['tut',       'tut-check.cjs',     120, true],
   ['rt',        'rt-test.cjs',       180, true],
+  // The M1 bot sweep: one descent per seed on 12 seeds, ~1 min each. Not in --mine.
+  ['sweep',     'bots/sweep.cjs',    720, true],
 ];
 
 // THE MINE SUBSET. Owner, 20 Aug: "stop checking survival mode and campaign — those are not a part

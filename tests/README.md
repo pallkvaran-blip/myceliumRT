@@ -105,6 +105,13 @@ solid ground a chunk can show is ~16%, and two rounds went on better placement b
 measured rather than estimated. Its other two findings are in its header, and the second one is
 general: **a colony that looks stuck usually isn't — check `runOver` before suspecting the map.**
 
+**`ending-check.cjs` ('ending', in `--mine`) is how a descent ENDS** (the finishing plan's M1): the
+6 s stuck rule, FRUIT NOW, End descent / Exit to title banking, the running-maximum depth on an
+infected ending, the node cap, the closed-tab pending payout and the end screen at 390x844. It
+descends with **`mine-harness.cjs`**, which is mine-check's navigator exported for new checks. Its
+bot twin is **`bots/sweep.cjs`** ('sweep', slow, not in `--mine`): one bot descent per seed on 12
+seeds, asserting every run reaches `runOver` by itself and every stall ends while the bot sits.
+
 **`telemetry-probe.mjs` is the same kind of tool, at PLAYER scale** — and it is the only one that
 reads the live world rather than a headless browser. `node tests/telemetry-probe.mjs
 [--source itch|all] [--cache rows.json]` pulls the `events` table (paged: PostgREST caps a GET at

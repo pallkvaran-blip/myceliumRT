@@ -11,6 +11,10 @@ traces, and never fail.
 - `career.cjs`: many descents on ONE save through the real end screen -> store -> Descend flow,
   buying the cheapest affordable rung each visit. This is how "a store visit that buys nothing"
   and "P per run over a career" were measured.
+- `sweep.cjs`: the finishing plan's M1 acceptance 4. One `playDescent` per seed (12 seeds, fresh
+  save each, paceMs 900, sitMs 8000), asserting every run reaches `runOver` by itself (no recovery
+  digs, no forced End run) and every stall ends while the bot sits. It is the one bot script that
+  FAILS (prints a `====` line), and it is in `run.mjs` as the slow 'sweep' check.
 - `navdive.cjs`: a path-following dive that reaches the floor from states where a deepest-tip-only
   probe stalls. It is the reason the "colony boxes itself in" conclusion was wrong: those four
   mine-check failures were a probe digging only from the deepest tip, not a sealed pocket.
