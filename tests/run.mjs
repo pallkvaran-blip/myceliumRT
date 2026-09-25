@@ -40,6 +40,8 @@ const CHECKS = [
   ['store',     'store-check.cjs',   35,  false],
   ['mine',      'mine-check.cjs',   240,  false],
   ['ending',    'ending-check.cjs', 110,  false],
+  // M2: the dev gate, no level card, the collision gate, the heat bypass, the aim price, playSeed, the retag.
+  ['ship',      'ship-check.cjs',   200,  false],
   ['rate',      'rate-check.cjs',    40,  false],
   ['cele',      'cele-check.cjs',    35,  false],
   ['handoff',   'handoff-check.cjs', 60,  false],
@@ -98,10 +100,11 @@ const CHECKS = [
 //   store          the shelf, wallets and upgrade tracks, including the mine's own four.
 //   boot           the game still starts.
 //   ending         every way a descent ends, and that every exit banks (finishing plan M1).
+//   ship           a build that can ship: dev buttons, level card, collision + heat gates (M2).
 //
 // Everything else in CHECKS is the card game and is no longer run. Nothing has been DELETED — the
 // code is untouched and the checks still work if `node tests/run.mjs campaign` is ever wanted.
-const MINE_SET = ['mine', 'ending', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
+const MINE_SET = ['mine', 'ending', 'ship', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
 
 const args = process.argv.slice(2);
 const fast = args.includes('--fast');

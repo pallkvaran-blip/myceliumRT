@@ -3498,6 +3498,18 @@ const CONFIG = {
     // is the campaign's). At the cap every dig was refused as 'Solid rock' and the run never ended;
     // now `mineGrow` ends it with cause 'full' within 30 nodes of it.
     maxNodes: 9000,
+    // ---- A BUILD THAT CAN SHIP (the finishing plan, M2) ----------------------
+    // HOW FAR A DIG MAY FALL THROUGH from the pressed strand when that strand is walled in the aimed
+    // direction (`growDirected`'s `maxFallDist`). Unbounded, a walled strand at 6-36 m aimed down
+    // grew the deepest tip in the colony (137-142 m) and was charged the 2-water surface price
+    // (heatx probe, 3 of 3 seeds). 90 units is ~2.5 cells: a neighbouring strand, never another
+    // part of the colony. A fall-back parent on a different price step is refused outright.
+    fallDist: 90,
+    // THE REVEAL WAITS FOR THE ROCK MASK, at most this long. `solidAtWorld` falls back to
+    // `cell.rock`, which is empty on a mine map until `solidifyRock` has decoded every sprite: on a
+    // throttled link the map was diggable 4.1 s after Dig and the mask landed at 39.8 s, with 11 of
+    // 50 strands inside rock. `mineGrow` refuses until `_rockSolidified` whatever this says.
+    revealHoldMaxMs: 15000,
     // HOW WIDE A DOSE CUTS. The campaign's Amputate is 60 units — about 1.7 cells — which is sized
     // for snipping a strand off a card-game colony. Measured against a real breach it is useless as
     // a cure: `firstTouchRings` 12 claims ~20 strands spread along the filaments, three doses at 60
@@ -3915,6 +3927,26 @@ function timeify(text) {
     .replace(/\b(every|per|each|a)\s+\b(round|turn)\b/gi, (_m, w) => `${w} ${rs}s`);
 }
 
+// THE VISIBLE DEV BUTTONS ANSWER TO THE URL, NOT TO THE BUILD (finishing plan M2). The Pages build
+// serves this branch with `CONFIG.dev.enabled` true, so a player on the plain URL was shown
+// "Dev: maps", "Dev: edit rocks" and the store's "+10,000" (one of them credited 10,000
+// Phosphorus and a playtester's run was destroyed by another). The flag still decides whether dev
+// tools EXIST at all (a zip patches it false); the URL decides whether they are SHOWN:
+// a `dev` token in the hash (`#dev`, `#mine,4242,dev`), `?dev=1`, or
+// `window.MYCELIUM_DEV_BUTTONS === true` (the door the checks use). `window.__game`, the `#dev` /
+// `#level` boots and the keyboard shortcuts are NOT gated here — they are invisible.
+function devUI() {
+  if (!(CONFIG.dev && CONFIG.dev.enabled)) return false;
+  if (typeof window === 'undefined') return false;
+  if (window.MYCELIUM_DEV_BUTTONS === true) return true;
+  try {
+    const parts = String(location.hash || '').replace(/^#/, '').split(',').map((t) => t.trim());
+    if (parts.includes('dev')) return true;
+    if (new URLSearchParams(location.search || '').get('dev') === '1') return true;
+  } catch (_) {}
+  return false;
+}
+
 // Read/write CONFIG by dotted path (used by the dev sliders).
 function getByPath(obj, path) {
   return path.split('.').reduce((o, k) => (o == null ? o : o[k]), obj);
@@ -3926,7 +3958,7 @@ function setByPath(obj, path, value) {
   target[last] = value;
 }
 
-  return { CONFIG, SLIDERS, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode, setGame, isCampaignGame, isMineGame };
+  return { CONFIG, SLIDERS, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, devUI, getByPath, setByPath, timeify, roundsToTime, isRealtime, setMode, setGame, isCampaignGame, isMineGame };
 })();
 
 // ===================== src/cards-data.js =====================
@@ -16295,8 +16327,16 @@ class Network {
   // tip furthest along (dx,dy). straight=true ignores jitter; returns nodes created.
   // companion=true also throws occasional organic COMPANION runners (see above) — an
   // opt-in test currently used only by Rhizomorph Lance.
-  growDirected(substrate, rng, dx, dy, steps, straight = false, startTip = null, noDodge = false, companion = false) {
+  //
+  // `opts` (optional, M2 — every existing caller omits it and keeps today's behaviour):
+  //   maxFallDist  the fall-through below may only pick a tip within this distance of `startTip`
+  //                (default Infinity). Without it a walled shallow strand aimed down grew the
+  //                DEEPEST tip anywhere in the colony — 100+ m from the press, at the shallow price.
+  //   accept(p)    asked about the chosen parent BEFORE anything grows; false -> grow nothing, 0.
+  // The parent actually used is left on `this._lastGrowOrigin` for the caller to read.
+  growDirected(substrate, rng, dx, dy, steps, straight = false, startTip = null, noDodge = false, companion = false, opts = null) {
     const g = this.config.growth;
+    this._lastGrowOrigin = null;
     this._beginGrowthClaim();
     const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
     const tips = this.tips();
@@ -16339,8 +16379,17 @@ class Network {
     const ordered = tips.slice().sort((a, b) => (b.x * dx + b.y * dy) - (a.x * dx + a.y * dy));
     const prefer = [];
     if (startTip && !startTip.infected) prefer.push(startTip);
-    for (const n of ordered) if (n !== startTip) prefer.push(n);
+    const maxFall = (opts && opts.maxFallDist != null && startTip) ? opts.maxFallDist : Infinity;
+    const fall2 = maxFall * maxFall;
+    for (const n of ordered) {
+      if (n === startTip) continue;
+      if (maxFall !== Infinity && (n.x - startTip.x) ** 2 + (n.y - startTip.y) ** 2 > fall2) continue;
+      prefer.push(n);
+    }
     let parent = prefer.find((n) => stepFrom(n, 0)) || prefer[0];
+    if (!parent) return 0;   // only reachable with maxFallDist: an infected press, no clean tip near it
+    if (opts && opts.accept && !opts.accept(parent)) return 0;
+    this._lastGrowOrigin = parent || null;
     const strand = parent ? [parent] : [];   // origin + each step so far — the side-branch source pool
     let created = 0;
     for (let i = 0; i < steps; i++) {
@@ -22162,6 +22211,7 @@ function mineGenerateChunk(state, ci) {
   // --- stamp the rewards into the LIVE substrate ---------------------------
   for (const sp of spots) {
     if (sp.kind === 'ore') {
+      const pilesBefore = sub.foodPiles.length;
       stampFood(sub, { kind: sp.band >= 2 ? 'cache-engine' : 'cache',
                        x: (sp.c + 0.5) * cs, y: sub.surfaceY + (sp.r + 0.5) * cs, r: 1,
                        energy: orePer[Math.min(orePer.length - 1, sp.band)] }, N);
@@ -22169,7 +22219,10 @@ function mineGenerateChunk(state, ci) {
       // in the list, since that call appends. Carried on the pile rather than re-derived from the
       // seam's depth at reward time, so a pile whose mat cells straddle a band boundary pays one
       // material rather than whichever cell the colony happened to finish on.
-      const pile = sub.foodPiles[sub.foodPiles.length - 1];
+      // ...BUT ONLY IF IT DID REGISTER ONE (M2). `stampFood` returns without pushing when every cell
+      // of the footprint is refused (water, hazard, another pile), and "the last pile" was then the
+      // PREVIOUS seam — retagged, possibly with a shallower band's material.
+      const pile = sub.foodPiles.length > pilesBefore ? sub.foodPiles[sub.foodPiles.length - 1] : null;
       const mat = mineMaterialFor(cfg, sp.band);
       if (pile && mat) { pile.mineMat = mat.id; pile.mineBand = sp.band; }
       placed.ore++;
@@ -22531,6 +22584,11 @@ function mineGrow(state, ctx) {
   // you first have to BE deep.
   const cost = mineGrowCost(state.config,
                             mineDepthM(sub, tip ? tip.y : (ctx.srcY != null ? ctx.srcY : ctx.y)));
+  // NO DIG BEFORE THE ROCK IS SOLID (M2). Until `solidifyRock` has stamped every sprite, the fine
+  // mask does not exist and a strand grows straight through drawn rock. Refused before the price, so
+  // nothing is charged; the reveal holds the curtain for this (`mineRevealHeld`), so a player only
+  // meets it on a link slow enough to outlast `revealHoldMaxMs`.
+  if (sub && !sub._rockSolidified) return { ok: false, settling: true, message: 'The ground is settling…' };
   // THE REFUSAL NAMES THE WAY OUT (M1): when the tank cannot pay here, FRUIT NOW is on screen, so
   // the toast says what it banks rather than leaving the player to find it.
   if (net.water < cost) {
@@ -22554,8 +22612,16 @@ function mineGrow(state, ctx) {
     return { ok: false, full: true, message: 'The colony fills every passage it can reach, and fruits.' };
   }
   const before = net.nextNodeId;
-  const made = net.growDirected(sub, state.rng, dx, dy, mineGrowSegments(state.config), false, tip);
+  // THE DIG LANDS WHERE YOU PRESSED (M2). If the pressed strand is walled this way, the grow may
+  // fall back to a strand within `fallDist` of it, and only one on the SAME price step — otherwise a
+  // shallow press bought deep growth at the shallow price (or a deep press grew at 1 m).
+  const fallDist = mineCfg(state.config).fallDist != null ? mineCfg(state.config).fallDist : 90;
+  const made = net.growDirected(sub, state.rng, dx, dy, mineGrowSegments(state.config), false, tip, false, false, {
+    maxFallDist: tip ? fallDist : Infinity,
+    accept: (p) => !tip || p === tip || mineGrowCost(state.config, mineDepthM(sub, p.y)) === cost,
+  });
   if (!made) return { ok: false, message: 'Solid rock that way — aim into open ground.' };
+  const origin = net._lastGrowOrigin;
   net.water -= cost;
   // A SUCCESSFUL DIG RESETS THE STUCK COUNTDOWN — the recovery play the old affordability rule was
   // written for (a cheap dig from shallower ground) keeps working, and moves the focus with it.
@@ -22576,7 +22642,10 @@ function mineGrow(state, ctx) {
   }
   net.recomputeVitality();
   if (mineAtNodeCap(state)) mineEndRun(state, 'full');
-  return { ok: true, made, water: net.water, message: `Dug ${made} filament${made > 1 ? 's' : ''}.` };
+  return { ok: true, made, water: net.water, cost,
+           origin: origin ? { id: origin.id, x: origin.x, y: origin.y } : null,
+           pressed: tip ? { id: tip.id, x: tip.x, y: tip.y } : null,
+           message: `Dug ${made} filament${made > 1 ? 's' : ''}.` };
 }
 // Within 30 nodes of the run's own cap (`cfg.growth.maxNodes`, 9000 in the mine via
 // CONFIG.mine.maxNodes). 30 is more than one grow-2 fan makes, so the run ends on the dig that
@@ -28676,7 +28745,7 @@ const __m_render_species_select = (function () {
   // `isCampaignGame` rather than a `game` argument threaded down from main: this screen is shared
   // by both games and `CONFIG.game` is already set before it opens (the title screen's New/Old
   // carries it), so asking is one call and cannot fall out of step with the run that follows.
-  const { CONFIG, isCampaignGame, isMineGame, timeify } = __m_config;
+  const { CONFIG, isCampaignGame, isMineGame, timeify, devUI } = __m_config;
   const { cardSlug, SPORE_ICON } = __m_render_ui;
   const { logEvent } = __m_net_scores;
   const { growMyceliumTitle } = __m_render_mycelium_title;
@@ -29224,7 +29293,8 @@ function showSpeciesSelect({ onPick, onDev, onLevel, mine }) {
   // deleted outright for the itch cut, which meant re-typing them to test again; don't do
   // that. `scratchpad/verify-nodev.mjs` is the release-clean check and is EXPECTED to fail
   // while the flag is on.
-  const devOn = !!(CONFIG.dev && CONFIG.dev.enabled);
+  // ...and SHOWN only when the URL asks for them (`devUI`, M2), like the ones on the map.
+  const devOn = devUI();
   const devBtns = devOn
     ? '<button class="ss-dev" id="ssDev" type="button" title="Skip selection and start the default dev run (300 of each resource, 5 of each card)">Dev quick-start ▸</button>' +
       '<button class="ss-dev ss-dev2" id="ssDevUnlock" type="button" title="DEV: reveal + unlock every species">Dev: unlock all ▸</button>' +
@@ -32407,7 +32477,7 @@ function showCredits({ onClose } = {}) {
 
 // ===================== src/main.js =====================
 const __m_main = (function () {
-  const { CONFIG, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, isRealtime, setMode, setGame, isCampaignGame, isMineGame, timeify, roundsToTime } = __m_config;
+  const { CONFIG, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, isRealtime, setMode, setGame, isCampaignGame, isMineGame, timeify, roundsToTime, devUI } = __m_config;
   const { createState, createPuzzleState, createLevelState, seedLevelThreats } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
   const { mineLevelDef, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
@@ -32511,6 +32581,7 @@ function markTutorialSeen() { try { localStorage.setItem(TUT_KEY, '1'); } catch 
 let uiDirty = true;
 let assetsReady = false;              // canvas art loaded — until then the map stays hidden
 let _revealPending = false;           // reveal (fade in) after the next fully-drawn frame
+let _mineRevealWaitAt = 0;            // when a mine reveal began waiting for its rock mask (mineRevealHeld)
 let pendingLevelIntro = null;         // {level, threats, onContinue} — black "Level N" screen shown before the map fades in (campaign)
 // The opening, shown ONCE PER RUN before the first level card — not once per save. Each run is a new
 // lineage and the opening is about exactly that ("you will die in the dark and fruit"), so a player
@@ -32588,6 +32659,15 @@ function revealMap() {
     // AFTER `showLevel()`, never before: the card is what replaces the curtain, and dropping it
     // first would re-open the very gap this closes. Both are synchronous in this one task, so
     // the browser never paints between them.
+    dropHandoff();
+    return;
+  }
+  // THE MINE SNAPS IN, as it always has on the dev build (the dev skip above snapped it). It has no
+  // card since M2, and a 1.4 s fade would be a new behaviour for every check that samples pixels
+  // straight after the boot.
+  if (state && state.substrate && state.substrate.mine) {
+    canvas.style.transition = 'none';
+    canvas.style.opacity = '1';
     dropHandoff();
     return;
   }
@@ -33012,11 +33092,13 @@ function startRun() {
 
 // Begin a fresh DESCENT. One run, one shaft, one seed — and the store's upgrades are read into
 // the run here (`stockRun`) exactly as every other game reads them.
-function beginMineRun() {
+// `seed` pins the shaft (M2: `__game.mine.playSeed` used to call this and then `startRun` AGAIN on
+// the pinned seed — two world builds and two `run_start` rows per call).
+function beginMineRun(seed) {
   setGame('mine');
   playtestLevel = null; chosenSpecies = null; bootSandbox = false;
   currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0;
-  mineSeed = (Date.now() & 0x7fffffff) || 1;
+  mineSeed = (seed > 0 ? (seed >>> 0) : (Date.now() & 0x7fffffff)) || 1;
   mineBeatBand = -1;
   stockRun();
   logEvent('run_start', { level: 1, cause: 'new' });
@@ -34287,7 +34369,8 @@ function devButtonsOn() {
   const dev = state && state.config && state.config.dev;
   if (!dev || !dev.enabled) return false;
   if (typeof window !== 'undefined' && window.MYCELIUM_DEV_BUTTONS === true) return true;
-  return !!dev.inGameButtons;
+  // M2: the plain URL never shows them, whatever the build flag says — see `devUI`.
+  return devUI() && !!dev.inGameButtons;
 }
 
 function updateDevWinBtn() {
@@ -35668,6 +35751,8 @@ function begin(newState) {
   // even with the dev-tools panel off; remove for a public release.
   window.__game = {
     get state() { return state; }, camera, performAction, tickWorld,
+    // Is the world clock stopped right now (a menu, a card, a held mine reveal)? M2's checks ask.
+    simPaused: () => simPaused(),
     // The SFX module and the live UI object. Neither is reachable otherwise — the modules are
     // `const`s inside one inline script, not properties of `window`, so a check has no route to
     // either. `sfx` is how the card click sounds are asserted (they are oscillators, so there is
@@ -35921,6 +36006,8 @@ function begin(newState) {
       band: (m) => mineBandAt(state ? state.config : CONFIG, m),
       bands: () => (state ? state.config : CONFIG).mine.bands.map((b) => b.theme),
       cost: (depthM) => mineGrowCost(state.config, depthM),
+      // M2: the price the aim arrow last drew at its head — {cost, x, y (screen), hot, short, at}.
+      aimPrice: () => _aimPriceShown,
       // The price where the colony is working now: the strand the last dig ended on, else the
       // deepest living tip — the HUD chip's number and the stuck rule's (M1).
       costHere: () => mineCostHere(state),
@@ -35967,7 +36054,7 @@ function begin(newState) {
       end: () => mineEndRun(state),
       play: () => { beginMineRun(); return true; },
       // Pin the shaft: the only way to look at the same generated map twice.
-      playSeed: (n) => { beginMineRun(); mineSeed = (n >>> 0) || 1; startRun(); return true; },
+      playSeed: (n) => { beginMineRun((n >>> 0) || 1); return true; },
     },
     survival: {
       maps: () => survivalMaps().map((l) => l.id),
@@ -36321,7 +36408,14 @@ function begin(newState) {
   // the map fades in. Armed here, shown by revealMap() once the first frame draws;
   // dismissing it reveals the map and runs any deferred tutorial. Puzzle mode skips
   // it and just fades the map in.
-  if (state.mode !== 'puzzle') {
+  // THE MINE NEVER GETS ONE (finishing plan M2). It is neither a campaign nor a survival run, so a
+  // dev build skipped the card only because the dev flag was on — and a zip (flag patched off)
+  // showed the campaign's black 'Level 1 / Click anywhere to begin' before every descent, sim paused.
+  // The map's own fade is the mine's reveal; the hand opens as the dev skip used to open it.
+  if (state.substrate && state.substrate.mine) {
+    if (ui && ui.setHandOpen) ui.setHandOpen(true);
+    if (afterIntro) afterIntro();
+  } else if (state.mode !== 'puzzle') {
     // Two intro callbacks (see level_intro.js). The hand re-expands on DISMISS — the click,
     // while the overlay is still solid black — so the tray is already at full height when
     // the fade reveals the map. Re-expanding it on DONE (after the 1.4s fade) instead made
@@ -36364,6 +36458,7 @@ function begin(newState) {
   // first map also waits for art to load — see the loadAssets() boot below), so it
   // never fades in half-drawn or on a blank canvas.
   if (assetsReady) _revealPending = true;
+  _mineRevealWaitAt = 0;
   // ONE LINE TO THE CONSOLE PER LEVEL, NAMING THE MAP. This exists because "which map am I on,
   // and is this even the build I just pushed?" has cost several rounds and there was no way to
   // answer it from inside the game: a procedural roll and an authored map are told apart by
@@ -37453,6 +37548,8 @@ function simPaused() {
   if (c && c.pendingOffers && c.pendingOffers.length && draftSequenceStarted(c.pendingOffers[0])) return true;
   // Non-gameplay overlays: the "Level N" intro, the scripted tutorial, full-screen menus.
   if (pendingLevelIntro || levelIntro || victoryScreen) return true;
+  // ...and a mine map whose reveal is still waiting for its rock mask (M2, `mineRevealHeld`).
+  if (_mineRevealWaitAt && _revealPending) return true;
   // The tutorial freezes the clock so the player can read — except on a step marked `live`,
   // which needs the world actually running (the "grow into the orange leaves" step waits for
   // the pile to be digested, and only world ticks do that).
@@ -38220,7 +38317,25 @@ function renderFrame(time, dtFrames = 1) {
   // The scene is now fully drawn this frame — fade it in (once) if a reveal is due.
   // Doing it here (not on asset load) guarantees we never fade in a blank canvas,
   // e.g. on a warm-cache refresh where assets resolve before the first frame draws.
-  if (_revealPending) { _revealPending = false; revealMap(); }
+  if (_revealPending && !mineRevealHeld()) { _revealPending = false; revealMap(); }
+}
+
+// THE MINE'S CURTAIN WAITS FOR ITS ROCK (M2). A map is revealed on its first fully drawn frame, but
+// a mine map's collision exists only once `solidifyRock` has decoded every band sprite — so the
+// reveal is held until `_rockSolidified`, for at most `CONFIG.mine.revealHoldMaxMs`. The sim is
+// paused meanwhile (`simPaused`), and the curtain's own 4 s safety is re-armed every held frame so
+// it cannot lift early. Past the cap the map shows and `mineGrow` keeps refusing until the mask
+// lands ('The ground is settling…'). `_mineRevealWaitAt` is declared beside `_revealPending`.
+function mineRevealHeld() {
+  const sub = state && state.substrate;
+  if (!sub || !sub.mine || sub._rockSolidified) { _mineRevealWaitAt = 0; return false; }
+  const now = performance.now();
+  if (!_mineRevealWaitAt) _mineRevealWaitAt = now;
+  const m = (state.config && state.config.mine) || {};
+  const max = m.revealHoldMaxMs != null ? m.revealHoldMaxMs : 15000;
+  if (now - _mineRevealWaitAt >= max) { _mineRevealWaitAt = 0; return false; }
+  armHandoffSafety();
+  return true;
 }
 
 // --- Magic Mushroom unlock: the troll rockface --------------------------------
@@ -40873,9 +40988,42 @@ function drawAimLine(time) {
     ctx.lineTo(tip.x - ah * Math.cos(ang - 0.4), tip.y - ah * Math.sin(ang - 0.4));
     ctx.lineTo(tip.x - ah * Math.cos(ang + 0.4), tip.y - ah * Math.sin(ang + 0.4));
     ctx.closePath(); ctx.fill();
+    // THE PRICE, AT THE ARROW HEAD (M2, mine only). What this release will charge — the price at the
+    // PRESSED strand, which is where `mineGrow` prices a dig — beside the thing the player is
+    // steering, so a strand across a heat line reads as 8 before it is paid rather than after.
+    // Orange when heat is adding to it (the HUD chip's `.hot`), red when the tank cannot pay it.
+    if (aim.kind === 'mine' && state && state.substrate && state.substrate.mine) {
+      const cost = mineDigCost(state, aim.origin.y);
+      const water = (state.active && state.active.water) | 0;
+      const hot = cost > mineGrowCost(state.config, 0);
+      const col = water < cost ? '255,138,128' : hot ? '255,176,92' : '214,238,255';
+      const lx = tip.x + ux * 18, ly = tip.y + uy * 18;
+      ctx.font = '700 15px "Segoe UI",system-ui,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const label = String(cost);
+      const tw = ctx.measureText(label).width, dropW = 8, gap = 3, w = tw + dropW + gap + 14, h = 22;
+      ctx.fillStyle = 'rgba(8,14,12,0.72)';
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(lx - w / 2, ly - h / 2, w, h, 11); else ctx.rect(lx - w / 2, ly - h / 2, w, h);
+      ctx.fill();
+      ctx.fillStyle = `rgb(${col})`;
+      const tx = lx - (dropW + gap) / 2;
+      ctx.fillText(label, tx, ly + 0.5);
+      // a water drop after the number, drawn (no glyph font to depend on)
+      const dx0 = tx + tw / 2 + gap + dropW / 2, dy0 = ly + 1.5;
+      ctx.beginPath();
+      ctx.moveTo(dx0, dy0 - 7);
+      ctx.bezierCurveTo(dx0 + 1.5, dy0 - 4, dx0 + 4, dy0 - 1.5, dx0 + 4, dy0 + 1);
+      ctx.arc(dx0, dy0 + 1, 4, 0, Math.PI, false);
+      ctx.bezierCurveTo(dx0 - 4, dy0 - 1.5, dx0 - 1.5, dy0 - 4, dx0, dy0 - 7);
+      ctx.fill();
+      _aimPriceShown = { cost, x: lx, y: ly, hot, short: water < cost, at: performance.now() };
+    }
   }
   ctx.restore();
 }
+// The last price the aim arrow drew (M2), for `__game.mine.aimPrice()`.
+let _aimPriceShown = null;
 
 // --- boot -------------------------------------------------------------------
 // Default to a random SANDBOX on load (we're playtesting the ant threat, which

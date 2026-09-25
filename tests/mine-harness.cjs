@@ -14,6 +14,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 async function start() {
   const srv = await new Promise((res) => { const s = http.createServer((rq, rs) => {
     let p = decodeURIComponent(rq.url.split('?')[0].split('#')[0]); if (p === '/') p = '/index.html';
+    // THE RELEASE BUILD'S FLAG, WITHOUT BUILDING A ZIP (M2): `/index-nodev.html` is index.html with
+    // `CONFIG.dev.enabled` patched false through the SAME anchor make-web-zip.mjs uses.
+    if (p === '/index-nodev.html') {
+      const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+      const A = '// itch zip, and confirm with scratchpad/verify-nodev.mjs.\n    enabled: true,';
+      if (!html.includes(A)) { rs.writeHead(500); rs.end('dev anchor moved'); return; }
+      rs.writeHead(200, { 'Content-Type': 'text/html' });
+      rs.end(html.replace(A, A.replace('enabled: true,', 'enabled: false,')));
+      return;
+    }
     const fp = path.join(ROOT, p);
     if (!fp.startsWith(ROOT) || !fs.existsSync(fp) || fs.statSync(fp).isDirectory()) { rs.writeHead(404); rs.end('nf'); return; }
     rs.writeHead(200, { 'Content-Type': T[path.extname(fp)] || 'application/octet-stream' });
@@ -24,8 +34,9 @@ async function start() {
     const ctx = opts.ctx || await browser.newContext({ viewport: { width: vw, height: vh } });
     const page = await ctx.newPage();
     const errs = []; page.on('pageerror', (e) => errs.push(String(e && e.message)));
+    if (opts.before) await opts.before(page, ctx);
     await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
-    await page.goto(base + '/index.html' + hash, { waitUntil: 'domcontentloaded' });
+    await page.goto(base + (opts.file || '/index.html') + hash, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 }).catch(() => {});
     await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
     return { ctx, page, errs };
