@@ -47,7 +47,9 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok(`seed ${r.seed}: no page errors`, r.errs.length === 0, r.errs.join(' | ') || 'clean');
   }
   const stalls = rows.filter((r) => r.stalled);
-  ok('every stall ended while sitting', stalls.every((r) => r.endedWhileSitting === true),
+  // AT LEAST ONE STALL, or this proves nothing: `every` is true on an empty list, and a bot or pacing
+  // change that never reaches the dry-for-deep state would print "0 of 0" as a pass.
+  ok('every stall ended while sitting (and the sweep reached at least one)', stalls.length > 0 && stalls.every((r) => r.endedWhileSitting === true),
      `${stalls.filter((r) => r.endedWhileSitting).length} of ${stalls.length} stalls` + (stalls.length ? ': ' + stalls.map((r) => r.seed + ' ' + r.stalled).join('; ') : ''));
   const causes = {};
   for (const r of rows) causes[r.cause] = (causes[r.cause] || 0) + 1;
