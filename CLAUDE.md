@@ -4301,7 +4301,11 @@ Numbers here are measured, not planned.
 - **BOT SWEEP** (`tests/bots/sweep.cjs`, 12 seeds, paceMs 900, `useItems`, sitMs 8000): **12 of 12
   descents reached runOver by themselves** (all `dry`, 48-96 m, 33-47 digs, 36-60 s), **no forced
   End run, no recovery digs; 7 of 7 stalls (all dry-for-deep, at 4 or 8 a dig) ended while the bot
-  sat.** Before M1 the same bot left 14 of 39 runs live and idle for 30-60 s.
+  sat.** Re-run on the final build (after the refusal-toast commit): 12 of 12 again (48-96 m, 32-48
+  digs, 37-51 s), 4 of 4 stalls ended while sitting — the bot is timing-sensitive, so the stall
+  count moves run to run. Before M1 the same bot left 14 of 39 runs live and idle for 30-60 s.
+- **`--mine` after M1: 641 passed, 0 failed across 11 checks** — boot 20, store 124, mine 190, ending
+  63 (new), level 27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18.
 - **The refusal toast** now reads 'Not enough water — a dig here costs 4. Fruit now to bank +11 P.'
   while the pill is up (the plan's copy); bots and checks match `/Not enough water/` and still do.
 
