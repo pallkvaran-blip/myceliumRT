@@ -129,19 +129,92 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
         }
         return bestGain > 0 ? best : null;
       };
-      window.__digTo = async (targetM, iters) => {
-        const g = window.__game, s = g.state;
-        let stuck = 0;
-        for (let i = 0; i < (iters || 140) && g.mine.depth() < targetM && !s.runOver; i++) {
-          const d0 = g.mine.depth();
-          const dx = window.__aimDown();
-          if (dx === null) { if (++stuck > 10) break; }
-          else if (!g.mine.grow(dx, 1).ok) { if (++stuck > 10) break; }
-          if (g.mine.depth() <= d0) { if (++stuck > 14) break; } else stuck = 0;
-          if (i % 4 === 3) await new Promise((r) => setTimeout(r, 60));
+      // THE NAVIGATOR — a path through the FINE MASK, followed from whichever strand is nearest the
+      // path's frontier. It replaced a greedy dive that only ever dug from the DEEPEST tip, and that
+      // one-grow lookahead from one tip walked into dead ends a player routes straight past: it
+      // stalled at 28 m and 78 m and made four assertions fail about depth while the game was fine
+      // (the "colony boxes itself in" conclusion drawn from it was wrong — see CLAUDE.md). Written by
+      // the test-audit agent (tests/bots/navdive.cjs), which reached the floor from the exact states
+      // this one stalled in.
+      //
+      // `plan()` floods from every living strand over `_fineSolid`, with a cost that prefers the middle
+      // of a corridor (a cell against a wall is 9x a cell with 3+ cells of clearance), then walks back
+      // from the cheapest cell at the target depth, or the deepest reachable one.
+      const navPlan = (TARGET) => {
+        const g = window.__game, s = g.state, sub = s.substrate;
+        const step = sub._fineSize, W = sub._fineCols, H = sub._fineRows;
+        const cw = s.config.mine.chunkCols, K = Math.round(sub.cellSize / step);
+        const fxOf = (x) => Math.floor(x / step), fyOf = (y) => Math.floor((y - sub.surfaceY) / step);
+        const solid = sub._fineSolid;
+        const cis = g.mine.chunks();
+        const fx0 = cis[0] * cw * K, fx1 = Math.min(W - 1, (cis[cis.length - 1] + 1) * cw * K - 1);
+        const clr = new Uint8Array(W * H).fill(255);
+        let q = [];
+        for (let y = 0; y < H; y++) for (let x = fx0; x <= fx1; x++) if (solid[y * W + x]) { clr[y * W + x] = 0; q.push(y * W + x); }
+        for (let d = 0; d < 4 && q.length; d++) {
+          const nq = [];
+          for (const i of q) { const y = (i / W) | 0, x = i % W;
+            for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy;
+              if (nx < fx0 || nx > fx1 || ny < 0 || ny >= H) continue; const j = ny * W + nx;
+              if (clr[j] > d + 1) { clr[j] = d + 1; nq.push(j); } } }
+          q = nq;
         }
-        return g.mine.depth();
+        const cost = (j) => (clr[j] >= 3 ? 1 : clr[j] === 2 ? 3 : 9);
+        const dist = new Float32Array(W * H).fill(Infinity), prev = new Int32Array(W * H).fill(-1);
+        const buckets = [[]];
+        for (const n of s.active.nodes) { if (n.infected) continue;
+          const x = fxOf(n.x), y = fyOf(n.y); if (x < fx0 || x > fx1 || y < 0 || y >= H) continue;
+          const i = y * W + x; if (solid[i] || dist[i] === 0) continue; dist[i] = 0; buckets[0].push(i); }
+        let best = -1, bestY = -1;
+        for (let d = 0; d < buckets.length; d++) {
+          const b = buckets[d]; if (!b) continue;
+          for (const i of b) {
+            if (dist[i] !== d) continue;
+            const y = (i / W) | 0, x = i % W;
+            if (y > bestY) { bestY = y; best = i; }
+            for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy;
+              if (nx < fx0 || nx > fx1 || ny < 0 || ny >= H) continue; const j = ny * W + nx;
+              if (solid[j]) continue; const nd = d + cost(j);
+              if (nd < dist[j]) { dist[j] = nd; prev[j] = i; (buckets[nd] = buckets[nd] || []).push(j); } }
+          }
+          buckets[d] = null;
+        }
+        const targetFy = Math.min(H - 1, Math.floor(TARGET * sub.cellSize / step));
+        let goal = best;
+        { let bd = Infinity; for (let x = fx0; x <= fx1; x++) { const i = targetFy * W + x; if (dist[i] < bd) { bd = dist[i]; goal = i; } } }
+        const idx = [];
+        for (let i = goal; i !== -1; i = prev[i]) idx.push(i);
+        idx.reverse();
+        return idx.map((i) => ({ x: ((i % W) + 0.5) * step, y: sub.surfaceY + (((i / W) | 0) + 0.5) * step }));
       };
+      // `tank: true` digs until the fuel says stop (a refusal that names water, or the run ending)
+      // rather than until a target depth — which is what a fuel-curve or tolerance measurement wants.
+      window.__navDig = async ({ targetM = 999, maxIters = 500, tank = false } = {}) => {
+        const g = window.__game, s = g.state;
+        let P = navPlan(targetM), prog = 0, digs = 0, fails = 0;
+        for (let i = 0; i < maxIters && g.mine.depth() < targetM && !s.runOver; i++) {
+          if (!P.length) { P = navPlan(targetM); if (!P.length) break; }
+          const live = s.active.nodes.filter((n) => !n.infected);
+          if (!live.length) break;
+          for (let k = P.length - 1; k > prog; k--) {
+            const p = P[k];
+            if (live.some((n) => (n.x - p.x) ** 2 + (n.y - p.y) ** 2 < 28 * 28)) { prog = k; break; }
+          }
+          const wp = P[Math.min(P.length - 1, prog + 14)], at = P[prog];
+          let src = null, sd = Infinity;
+          for (const n of live) { const d = (n.x - at.x) ** 2 + (n.y - at.y) ** 2; if (d < sd) { sd = d; src = n; } }
+          const res = g.mine.growFrom(src.x, src.y, wp.x, wp.y);
+          if (res.ok) digs++;
+          else {
+            fails++;
+            if (tank && /water/i.test(res.message || '')) break;
+          }
+          if (fails > 12 || i % 60 === 59) { P = navPlan(targetM); prog = 0; fails = 0; }
+          if (i % 3 === 2) await new Promise((r) => setTimeout(r, 60));
+        }
+        return { depth: g.mine.depth(), digs };
+      };
+      window.__digTo = async (targetM, iters) => (await window.__navDig({ targetM, maxIters: iters || 500 })).depth;
     });
     return b;
   };
@@ -1183,20 +1256,12 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       // `28 m -> 28 m` whatever it did. Whether the OPENING tank clears band 2 is the fuel-curve
       // block's question, asked there. `blocked` also had to stop counting successful sideways digs
       // against itself — 14 of them ended the dive with half the tank unspent.
-      s.active.water = 600;
-      let digs = 0, blocked = 0;
-      for (let i = 0; i < 400 && s.active.water >= g.mine.cheapest() && !s.runOver; i++) {
-        const d0 = g.mine.depth();
-        const dx = window.__aimDown();
-        if (dx !== null && g.mine.grow(dx, 1).ok) { digs++; if (g.mine.depth() > d0) blocked = 0; else blocked++; }
-        else {
-          const side = (Math.floor(blocked / 4) % 2) ? 1 : -1;
-          if (g.mine.grow(side * 2.2, blocked > 16 ? -0.5 : 0.12).ok) digs++;
-          blocked++;
-        }
-        if (blocked > 90) break;
-        if (i % 4 === 3) await new Promise((r) => setTimeout(r, 70));
-      }
+      // ON A MODEST TANK, FOLLOWING THE PATH (`__navDig`). The navigator reaches the floor for about
+      // 270 water at bare prices, so on a huge tank both dives would hit the floor and "worth real
+      // depth" would fail for the opposite reason; 150 leaves the bare dive fuel-bound past the first
+      // price lines, which is where tolerance has something to buy.
+      s.active.water = 150;
+      const { digs } = await window.__navDig({ tank: true, maxIters: 600 });
       return { digs, depth: g.mine.depth(), safe: g.mine.heat().safe };
     });
     const bare = await dive(b.page);
@@ -1787,6 +1852,13 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // which is exactly the kind of thing that is true by accident until someone makes the card layer
   // optional differently. So both halves are pinned: the lump arrives ONCE per source, and the water
   // does not creep up on its own for as long as a strand is sitting in the pocket.
+  // ON ITS OWN FRESH PAGE. It shared a page with the depth-beat dive, and once that dive could really
+  // descend (the navigator) it reached the mould bands and the run ENDED — the end screen then pauses
+  // the sim, `mineWaterPickups` never runs, and this block bailed with a printed note: two assertions
+  // silently not running for the third time. Reviving `runOver` does not undo a paused sim; a fresh
+  // page does.
+  await m.ctx.close();
+  m = await bootMine(4242);
   const pocket = await m.page.evaluate(async () => {
     const g = window.__game, s = g.state, sub = s.substrate;
     // A POCKET IS PUT NEXT TO THE COLONY RATHER THAN NAVIGATED TO. This block's subject is the
