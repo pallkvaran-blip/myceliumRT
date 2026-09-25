@@ -2121,8 +2121,11 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       console.log('  note   could not force a devoured ending in the probe window — unmeasured');
     } else {
       ok('being eaten ends the descent', eaten.screen === true, eaten.cause || '(no cause)');
+      // THE MINE HAS NO 'EATEN' LINE ANY MORE (finishing plan M1): a mine worm drains water and
+      // cannot eat the colony, and 'End descent' used to borrow the campaign's death copy. A colony
+      // stripped to nothing some other way gets the plain fruiting line. Was /eaten|rot took/.
       ok('...on the mine\'s own screen, not the death screen',
-         /eaten|rot took/i.test(eaten.text), (eaten.text || '').slice(0, 60));
+         /fruits and spores at \d+ m/.test(eaten.text) && !/eaten/i.test(eaten.text), (eaten.text || '').slice(0, 60));
       ok('...still reporting the depth reached',
          (eaten.shownDepth || '').replace(/\D/g, '') === String(eaten.depth), `"${eaten.shownDepth}" vs ${eaten.depth} m`);
       ok('...and still banking the ore', eaten.minerals >= 25, `${eaten.minerals} P banked`);
