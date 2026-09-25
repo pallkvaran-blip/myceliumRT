@@ -4345,6 +4345,9 @@ Numbers here are measured, not planned.
   count moves run to run. Before M1 the same bot left 14 of 39 runs live and idle for 30-60 s.
 - **`--mine` after M1: 641 passed, 0 failed across 11 checks** — boot 20, store 124, mine 190, ending
   63 (new), level 27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18.
+- **After the verifier fixes: `--mine` 664 passed, 0 failed** (ending 63 -> 86; the rest unchanged).
+  Sweep re-run with the 800 ms reveal cap and the >= 1 stall rule: 12 of 12 ended by themselves (all
+  `dry`, 52-106 m, 32-47 digs, 37-62 s), 8 of 8 stalls ended while sitting, 25/25.
 - **The refusal toast** now reads 'Not enough water — a dig here costs 4. Fruit now to bank +11 P.'
   while the pill is up (the plan's copy); bots and checks match `/Not enough water/` and still do.
 
