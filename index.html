@@ -2151,6 +2151,16 @@
        (`#ui` itself is already pointer-events:none; its children opt back in). */
     body.handoff #ui { visibility:hidden; }
     body.handoff #game { opacity:0 !important; }
+    /* THE HELD REVEAL SAYS WHAT IT IS WAITING FOR (M2 fix). While a mine map waits for its rock
+       mask (`mineRevealHeld`) the curtain is solid black, and on a slow link that is up to 15 s of
+       nothing that reads as a hang. A line in the loader's own type, shown only past 600 ms so a
+       normal boot never flashes it. Outside #ui/#game, so the curtain cannot hide it. */
+    #settleNote { position: fixed; left: 16px; right: 16px; top: 50%; transform: translateY(-50%);
+      z-index: 2500; text-align: center; pointer-events: none; opacity: 0; transition: opacity .3s ease;
+      font: 600 13px/1.4 ui-sans-serif, system-ui, -apple-system, sans-serif; letter-spacing: .12em;
+      color: rgba(255,255,255,.72); user-select: none; -webkit-user-select: none; }
+    body.mine-settling #settleNote { opacity: 1; animation: settlePulse 1.6s ease-in-out infinite; }
+    @keyframes settlePulse { 0%, 100% { opacity: .45; } 50% { opacity: .9; } }
     /* IT MUST FIT WITHOUT SCROLLING (owner: "there is too much spacing so now I need to scroll to
        see the whole thing after I have selected some cards"). TWO card rows is the whole budget,
        and measured at 1280x720 the content came to 806px against a 720 viewport — 86 over.
@@ -3510,6 +3520,13 @@ const CONFIG = {
     // throttled link the map was diggable 4.1 s after Dig and the mask landed at 39.8 s, with 11 of
     // 50 strands inside rock. `mineGrow` refuses until `_rockSolidified` whatever this says.
     revealHoldMaxMs: 15000,
+    // ...AND A SPRITE THAT NEVER DECODES CANNOT END THE RUN. `solidifyRock` waits for every sprite, so
+    // one 404 (or a key past ASSET_REPAIR_MAX) left `_rockSolidified` false for the whole run: every
+    // dig refused, the tank full, the stuck rule silent — a dead end with only the gear menu out.
+    // After this long waiting on the same pass, a missing sprite is stamped SOLID over its rotated box
+    // (a superset of its silhouette, so nothing turns passable) and the mask is published.
+    // `revealHoldMaxMs` + a 5 s grace, so the hold always gives the real art its full chance first.
+    solidForceMs: 20000,
     // HOW WIDE A DOSE CUTS. The campaign's Amputate is 60 units — about 1.7 cells — which is sized
     // for snipping a strand off a card-game colony. Measured against a real breach it is useless as
     // a cure: `firstTouchRings` 12 claims ~20 strands spread along the filaments, three doses at 60
@@ -3938,7 +3955,8 @@ function timeify(text) {
 // tools EXIST at all (a zip patches it false); the URL decides whether they are SHOWN:
 // a `dev` token in the hash (`#dev`, `#mine,4242,dev`), `?dev=1`, or
 // `window.MYCELIUM_DEV_BUTTONS === true` (the door the checks use). `window.__game`, the `#dev` /
-// `#level` boots and the keyboard shortcuts are NOT gated here — they are invisible.
+// `#level` boots are NOT gated here — they are invisible. ONE KEY IS: the `[` / `]` map stepper,
+// because it throws a live descent away unbanked (a stray keypress is not invisible).
 function devUI() {
   if (!(CONFIG.dev && CONFIG.dev.enabled)) return false;
   if (typeof window === 'undefined') return false;
@@ -16243,7 +16261,11 @@ class Network {
   // _segmentClear, tries a few headings, and simply doesn't grow if it's walled in on
   // all of them. Draws only from _branchRng (the dedicated stream), so it never shifts
   // the main growth path. Returns the number of nodes created.
-  _sproutSideStrand(substrate, strandNodes, forceLen = null) {
+  //
+  // `within` (optional, M2; default null = today's behaviour) = {x, y, r2}: no twig node may land
+  // farther than sqrt(r2) from (x, y) — the twig simply stops there, drawing nothing more. The mine
+  // passes the pressed strand's radius so a dig's decoration cannot outrun its price (see mineGrow).
+  _sproutSideStrand(substrate, strandNodes, forceLen = null, within = null) {
     const g = this.config.growth;
     const rng = this._branchRng;
     if (!strandNodes || !strandNodes.length) return 0;
@@ -16276,6 +16298,7 @@ class Network {
         const nx = parent.x + Math.cos(ang) * g.segmentLength;
         const ny = parent.y + Math.sin(ang) * g.segmentLength;
         if (!this._segmentClear(substrate, parent.x, parent.y, nx, ny)) break;
+        if (within && (nx - within.x) ** 2 + (ny - within.y) ** 2 > within.r2) break;   // past the dig's radius
         parent = this.addNode(nx, ny, parent);
         parent.side = true;   // decorative offshoot: excluded from the undirected seek/crowd buckets
         created.push(parent);
@@ -16285,7 +16308,7 @@ class Network {
       // extra length-1 twig off itself. `forceLen` is set only on that twig, so it can
       // never fork again (single level of branching, drawn from _branchRng only).
       if (forceLen == null && made === g.sideStrandMax && rng.chance(g.sideStrandForkChance)) {
-        made += this._sproutSideStrand(substrate, created, 1);
+        made += this._sproutSideStrand(substrate, created, 1, within);
       }
       return made;
     }
@@ -16336,11 +16359,17 @@ class Network {
   //   maxFallDist  the fall-through below may only pick a tip within this distance of `startTip`
   //                (default Infinity). Without it a walled shallow strand aimed down grew the
   //                DEEPEST tip anywhere in the colony — 100+ m from the press, at the shallow price.
-  //   accept(p)    asked about the chosen parent BEFORE anything grows; false -> grow nothing, 0.
+  //   accept(p)    asked about each candidate parent BEFORE anything grows: the first tip that can
+  //                step AND is accepted is used; if none is, nothing grows (0), and
+  //                `this._lastGrowRefusal` says 'accept' when a steppable tip existed but was refused.
+  //   within       {x, y, r}: no node this call grows — chain, side twig or water runner — may land
+  //                farther than r from (x, y) (pile-claim mat nodes excepted, see mineGrow).
   // The parent actually used is left on `this._lastGrowOrigin` for the caller to read.
   growDirected(substrate, rng, dx, dy, steps, straight = false, startTip = null, noDodge = false, companion = false, opts = null) {
     const g = this.config.growth;
     this._lastGrowOrigin = null;
+    this._lastGrowRefusal = null;
+    const within = (opts && opts.within) ? { x: opts.within.x, y: opts.within.y, r2: opts.within.r * opts.within.r } : null;
     this._beginGrowthClaim();
     const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
     const tips = this.tips();
@@ -16390,9 +16419,19 @@ class Network {
       if (maxFall !== Infinity && (n.x - startTip.x) ** 2 + (n.y - startTip.y) ** 2 > fall2) continue;
       prefer.push(n);
     }
-    let parent = prefer.find((n) => stepFrom(n, 0)) || prefer[0];
+    // `accept` is asked INSIDE the search (M2 fix): asking it only about the first steppable tip
+    // refused a walled press whose second-nearest open neighbour was on the pressed price step,
+    // because a nearer one across a heat line sorted first. With no `accept` this is today's find.
+    const accept = opts && opts.accept;
+    let parent = prefer.find((n) => stepFrom(n, 0) && (!accept || accept(n)));
+    // Nothing both steppable and accepted: fall back to prefer[0] (the pressed strand, walled — it
+    // grows nothing) as before, but remember WHY when an open neighbour was there and was refused.
+    if (!parent) {
+      if (accept && prefer.some((n) => stepFrom(n, 0))) this._lastGrowRefusal = 'accept';
+      parent = prefer[0];
+    }
     if (!parent) return 0;   // only reachable with maxFallDist: an infected press, no clean tip near it
-    if (opts && opts.accept && !opts.accept(parent)) return 0;
+    if (accept && !accept(parent)) { this._lastGrowRefusal = 'accept'; return 0; }
     this._lastGrowOrigin = parent || null;
     const strand = parent ? [parent] : [];   // origin + each step so far — the side-branch source pool
     let created = 0;
@@ -16405,7 +16444,7 @@ class Network {
       strand.push(parent);
       created++;
       // Experimental: each step may sprout a small side-strand off a random point of it.
-      if (this._branchRng.chance(g.sideStrandChance)) created += this._sproutSideStrand(substrate, strand);
+      if (this._branchRng.chance(g.sideStrandChance)) created += this._sproutSideStrand(substrate, strand, null, within);
       // Opt-in (Rhizomorph Lance test): occasionally throw an organic COMPANION runner
       // that shadows the cord toward the goal, then tapers off (see _sproutCompanionStrand).
       if (companion && this._branchRng.chance(g.companionChance != null ? g.companionChance : 0)) {
@@ -16414,7 +16453,7 @@ class Network {
     }
     // Directed growth also colonises any substrate pile it brought within reach.
     created += this.colonizeReachablePiles(substrate, rng);
-    if (created) { this.reachForWater(substrate); this.recomputeVitality(); }
+    if (created) { this.reachForWater(substrate, within); this.recomputeVitality(); }
     return created;
   }
 
@@ -16721,7 +16760,14 @@ class Network {
   // colony nears from different tips (one new strand per grow), then stops — enough help to
   // reliably tap it without matting the water. Deterministic (no rng, no side-strands), so it
   // can't shift the main food-seek/collision path. Runs after each grow. Returns nodes made.
-  reachForWater(substrate) {
+  //
+  // `within` (optional, M2; default null = today's behaviour) = {x, y, r2}: only tips inside that
+  // circle may throw a runner, and only toward a water cell whose centre is inside it too — the
+  // circle is convex, so the whole straight runner stays in it. A dig in the mine passes the pressed
+  // strand's radius: before, a runner could carry a shallow press's growth 80+ u past its reach
+  // (measured 254-323 u from the press on seed 22, against 243). A far tip left unserved is served
+  // by the next dig near it.
+  reachForWater(substrate, within = null) {
     const g = this.config.growth;
     if (this.nodes.length >= g.maxNodes) return 0;
     const cs = substrate.cellSize;
@@ -16733,8 +16779,10 @@ class Network {
     const have = this._waterBodyTouchCounts(substrate, contact);
     // For each body still short of its strand quota, the nearest (tip, water-cell) approach.
     const target = new Map();   // bodyId -> { tip, tx, ty, d2 }
+    const inside = (x, y) => !within || (x - within.x) ** 2 + (y - within.y) ** 2 <= within.r2;
     for (const t of this.tips()) {
       if (t.infected || t.side) continue;
+      if (!inside(t.x, t.y)) continue;
       const col = substrate.colAtX(t.x), row = substrate.rowAtY(t.y);
       for (let dr = -reachCells; dr <= reachCells; dr++) for (let dc = -reachCells; dc <= reachCells; dc++) {
         const cell = substrate.cellAt(col + dc, row + dr);
@@ -16744,6 +16792,7 @@ class Network {
         const c = substrate.cellCenter(col + dc, row + dr);
         const d2 = (c.x - t.x) ** 2 + (c.y - t.y) ** 2;
         if (d2 > reach2) continue;
+        if (!inside(c.x, c.y)) continue;
         const prev = target.get(body);
         if (!prev || d2 < prev.d2) target.set(body, { tip: t, tx: c.x, ty: c.y, d2 });
       }
@@ -16752,7 +16801,7 @@ class Network {
     let made = 0;
     for (const { tip, tx, ty } of target.values()) {
       if (this.nodes.length >= g.maxNodes) break;
-      made += this._growToWaterEdge(substrate, tip, tx, ty);
+      made += this._growToWaterEdge(substrate, tip, tx, ty, within);
     }
     if (made) this.recomputeVitality();
     return made;
@@ -16760,7 +16809,9 @@ class Network {
   // Grow a straight chain from `tip` toward (tx,ty), then CREEP the last node right up to
   // the water's edge (water is solid → _placeOk fails inside it, so we stop at the last
   // clear point on the near face) so the tip visibly hugs the pool. Returns nodes made.
-  _growToWaterEdge(substrate, tip, tx, ty) {
+  // `within` as reachForWater's: a hard stop at the circle (the target test there already keeps a
+  // straight runner inside it; this also covers the creep).
+  _growToWaterEdge(substrate, tip, tx, ty, within = null) {
     const g = this.config.growth;
     const dx = tx - tip.x, dy = ty - tip.y;
     const len = Math.hypot(dx, dy) || 1, ux = dx / len, uy = dy / len;
@@ -16770,6 +16821,7 @@ class Network {
       if (this.nodes.length >= g.maxNodes) return made;
       const nx = parent.x + ux * g.segmentLength, ny = parent.y + uy * g.segmentLength;
       if (!this._segmentClear(substrate, parent.x, parent.y, nx, ny)) break;   // hit the water face (or rock)
+      if (within && (nx - within.x) ** 2 + (ny - within.y) ** 2 > within.r2) return made;
       parent = this.addNode(nx, ny, parent);
       made++;
     }
@@ -16780,6 +16832,7 @@ class Network {
       for (let d = fine; d <= g.segmentLength + fine; d += fine) {
         const px = parent.x + ux * d, py = parent.y + uy * d;
         if (!this._placeOk(substrate, px, py)) break;    // reached the solid water edge
+        if (within && (px - within.x) ** 2 + (py - within.y) ** 2 > within.r2) break;
         cx = px; cy = py; crept = true;
       }
       if (crept) { this.addNode(cx, cy, parent); made++; }
@@ -22619,12 +22672,27 @@ function mineGrow(state, ctx) {
   // THE DIG LANDS WHERE YOU PRESSED (M2). If the pressed strand is walled this way, the grow may
   // fall back to a strand within `fallDist` of it, and only one on the SAME price step — otherwise a
   // shallow press bought deep growth at the shallow price (or a deep press grew at 1 m).
+  //
+  // AND NOTHING THE DIG GROWS LANDS PAST `fallDist` + ONE REACH OF THE PRESSED STRAND (acceptance 5c,
+  // kept literally): the chain cannot (origin <= fallDist, then one reach), and `within` stops the
+  // decorative side twigs and the water-seek runners at the same circle — measured before this, twigs
+  // reached 251-288 u and a runner off the dig's new tip 254-323 u against a 243 u bound. Pile-claim
+  // mat nodes (`.colon`) are NOT bounded: a claim runs from a strand that has already GROWN IN (an
+  // earlier, already-paid dig), on whichever dig comes next, so bounding it by this press would only
+  // withhold ore the colony is already touching.
   const fallDist = mineCfg(state.config).fallDist != null ? mineCfg(state.config).fallDist : 90;
   const made = net.growDirected(sub, state.rng, dx, dy, mineGrowSegments(state.config), false, tip, false, false, {
     maxFallDist: tip ? fallDist : Infinity,
     accept: (p) => !tip || p === tip || mineGrowCost(state.config, mineDepthM(sub, p.y)) === cost,
+    within: tip ? { x: tip.x, y: tip.y, r: fallDist + mineGrowReach(state.config) } : null,
   });
-  if (!made) return { ok: false, message: 'Solid rock that way — aim into open ground.' };
+  if (!made) {
+    // Still starts 'Solid rock' (the pressed strand IS walled this way); the tail names the real
+    // reason when an open neighbour existed but sits on another price step.
+    return { ok: false, message: net._lastGrowRefusal === 'accept'
+      ? 'Solid rock that way — the open strand beside it digs at another price.'
+      : 'Solid rock that way — aim into open ground.' };
+  }
   const origin = net._lastGrowOrigin;
   net.water -= cost;
   // A SUCCESSFUL DIG RESETS THE STUCK COUNTDOWN — the recovery play the old affordability rule was
@@ -32603,6 +32671,7 @@ let draftIntro = null;                // sequenced food-pile → card-draft anim
 // finished scene fades up as a whole — never a blank canvas (which is what a
 // warm-cache refresh used to show, revealing before the first frame was drawn).
 function revealMap() {
+  mineSettleNote(false);
   // A pending LEVEL INTRO takes over the reveal: the finished map has now drawn a
   // full frame, so snap the canvas fully opaque (no fade) behind a solid black
   // "Level N" overlay, and let that overlay fade ITSELF out on click — that fade
@@ -33097,7 +33166,7 @@ function startRun() {
 // Begin a fresh DESCENT. One run, one shaft, one seed — and the store's upgrades are read into
 // the run here (`stockRun`) exactly as every other game reads them.
 // `seed` pins the shaft (M2: `__game.mine.playSeed` used to call this and then `startRun` AGAIN on
-// the pinned seed — two world builds and two `run_start` rows per call).
+// the pinned seed — two world builds per call, one `run_start` row; the '#mine,<n>' boot did the same).
 function beginMineRun(seed) {
   setGame('mine');
   playtestLevel = null; chosenSpecies = null; bootSandbox = false;
@@ -35757,6 +35826,9 @@ function begin(newState) {
     get state() { return state; }, camera, performAction, tickWorld,
     // Is the world clock stopped right now (a menu, a card, a held mine reveal)? M2's checks ask.
     simPaused: () => simPaused(),
+    // The held reveal's line (M2 fix): is it showing, and what does it say.
+    settleNote: () => { const n = document.getElementById('settleNote');
+      return { on: document.body.classList.contains('mine-settling'), text: n ? n.textContent : null }; },
     // The SFX module and the live UI object. Neither is reachable otherwise — the modules are
     // `const`s inside one inline script, not properties of `window`, so a check has no route to
     // either. `sfx` is how the card click sounds are asserted (they are oscillators, so there is
@@ -37393,9 +37465,13 @@ function setupInput() {
     // something you want a stray keypress to do with an edit in progress anyway.
     else if (rockEdit.on && rockEdit.sel.size && e.code === 'BracketRight') { editRaise(1); e.preventDefault(); }
     else if (rockEdit.on && rockEdit.sel.size && e.code === 'BracketLeft') { editRaise(-1); e.preventDefault(); }
+    // M2 FIX: AND ONLY WHEN THE URL ASKS FOR DEV TOOLS (`devUI`). Gated on the build flag alone, a
+    // bare `]` on the Pages build (flag on) swapped a live descent for authored map 0 through
+    // `devSwitchLevel` -> `startRun`: no mineEndRun, no bank, the haul gone — the same run-destroying
+    // "Dev: maps" action the dev gate hides. The owner's routes (`#dev`, `#mine,dev`, `?dev=1`) keep it.
     else if ((e.code === 'BracketLeft' || e.code === 'BracketRight') && !rockEdit.on
              && !e.ctrlKey && !e.metaKey && !e.altKey
-             && state && state.config && state.config.dev && state.config.dev.enabled) {
+             && state && state.config && state.config.dev && state.config.dev.enabled && devUI()) {
       const maps = allLevels().filter((l) => l && l.id);
       if (!maps.length) return;
       const cur = maps.findIndex((l) => playtestLevel && l.id === playtestLevel.id);
@@ -38332,14 +38408,28 @@ function renderFrame(time, dtFrames = 1) {
 // lands ('The ground is settling…'). `_mineRevealWaitAt` is declared beside `_revealPending`.
 function mineRevealHeld() {
   const sub = state && state.substrate;
-  if (!sub || !sub.mine || sub._rockSolidified) { _mineRevealWaitAt = 0; return false; }
+  if (!sub || !sub.mine || sub._rockSolidified) { _mineRevealWaitAt = 0; mineSettleNote(false); return false; }
   const now = performance.now();
   if (!_mineRevealWaitAt) _mineRevealWaitAt = now;
   const m = (state.config && state.config.mine) || {};
   const max = m.revealHoldMaxMs != null ? m.revealHoldMaxMs : 15000;
-  if (now - _mineRevealWaitAt >= max) { _mineRevealWaitAt = 0; return false; }
+  if (now - _mineRevealWaitAt >= max) { _mineRevealWaitAt = 0; mineSettleNote(false); return false; }
   armHandoffSafety();
+  if (now - _mineRevealWaitAt >= 600) mineSettleNote(true);
   return true;
+}
+// The line over the held curtain (`#settleNote`, created on first use). Hook: `__game.settleNote()`.
+function mineSettleNote(on) {
+  try {
+    const b = document.body;
+    if (!b) return;
+    if (on && !document.getElementById('settleNote')) {
+      const n = document.createElement('div');
+      n.id = 'settleNote'; n.setAttribute('role', 'status'); n.textContent = 'The ground is settling…';
+      b.appendChild(n);
+    }
+    b.classList.toggle('mine-settling', !!on);
+  } catch (_) {}
 }
 
 // --- Magic Mushroom unlock: the troll rockface --------------------------------
@@ -39625,6 +39715,16 @@ function formationRect(g, sub, cs) {
 // tagged `rockFill` so they're never re-drawn as their own boulder/formation.
 let _solidBuf = null;
 const _alphaMaskCache = new Map();     // img.src -> { mw, mh, data }
+// A fully opaque 1x1 mask, passed as the `img` of a sprite whose art never decoded (see
+// CONFIG.mine.solidForceMs): markCoverGrid then stamps the sprite's whole rotated box solid.
+const SOLID_SPRITE = '__solid_box__';
+_alphaMaskCache.set(SOLID_SPRITE, { mw: 1, mh: 1, data: new Uint8ClampedArray([0, 0, 0, 255]) });
+function mineSolidForceDue(sub, t0) {
+  if (!sub || !sub.mine || !t0) return false;
+  const m = (state && state.config && state.config.mine) || {};
+  const ms = m.solidForceMs != null ? m.solidForceMs : 20000;
+  return performance.now() - t0 >= ms;
+}
 function _alphaMask(img) {
   const key = img.src || img;
   let m = _alphaMaskCache.get(key);
@@ -39705,6 +39805,10 @@ function solidifyRock() {
   const fRows = Math.max(1, Math.ceil((sub.worldHeight - sub.surfaceY) / fSize));
   const fine = new Uint8Array(fCols * fRows);
   let ready = true;
+  // THE MINE STOPS WAITING (CONFIG.mine.solidForceMs): a level sprite still missing after that long
+  // is stamped as a solid box instead of holding the whole mask back. Counted on `_solidForced`.
+  const force = mineSolidForceDue(sub, sub._solidWait0);
+  let forced = 0;
   // Stamp one sprite into BOTH the coarse and fine masks (identical geometry).
   const stamp = (img, cx, cy, w, h, rot) => {
     const a = markCoverGrid(sub, img, cx, cy, w, h, rot, cover, sub.cols, sub.rows, cs);
@@ -39718,8 +39822,9 @@ function solidifyRock() {
   // authored map (it flags no rock / formation / column cells for them to group).
   for (const s of (sub.levelSprites || [])) {
     const img = asset(s.key);
-    if (!img) { ready = false; continue; }
-    if (!stamp(img, s.x, s.y, s.w, s.h, s.rot)) ready = false;
+    if (img && stamp(img, s.x, s.y, s.w, s.h, s.rot)) continue;
+    if (force) { stamp(SOLID_SPRITE, s.x, s.y, s.w, s.h, s.rot); forced++; continue; }
+    ready = false;
   }
 
   // Boulders (drawRockPiles / drawBoulder geometry, k=0, mult=1).
@@ -39788,7 +39893,13 @@ function solidifyRock() {
     });
   }
 
-  if (!ready) return;   // some rock sprite still loading — retry next frame (original superset flags stand)
+  if (!ready) {   // some rock sprite still loading — retry next frame (original superset flags stand)
+    if (sub.mine && !sub._solidWait0) sub._solidWait0 = performance.now();
+    return;
+  }
+  sub._solidWait0 = 0;
+  sub._solidForced = forced;
+  if (forced) { try { console.warn(`[mycelium] rock mask published with ${forced} sprite(s) stamped as solid boxes (art never decoded)`); } catch (_) {} }
 
   // Bake lakes (solid) + the guaranteed winnable corridor (open) into the FINE mask,
   // per coarse cell → all K×K of its fine sub-cells.
@@ -39850,9 +39961,16 @@ function solidifyMineRock() {
   // single index, so skipping one would strand it uncollided for the rest of the run — an invisible
   // gap in a wall the player can see, which is the worst defect this file can have. A chunk's
   // sprites all come from the four band folders, loaded together, so the wait is a frame at most.
+  // ...and past CONFIG.mine.solidForceMs of waiting on the same sprite, it goes in as a solid box
+  // (see solidifyRock) so one art file that never arrives cannot hold every later chunk uncollided.
   while (from < sprites.length) {
-    const s = sprites[from], img = asset(s.key);
-    if (!img) break;
+    const s = sprites[from];
+    let img = asset(s.key);
+    if (!img || !_alphaMask(img)) {
+      if (sub._mineSolidWaitIdx !== from) { sub._mineSolidWaitIdx = from; sub._mineSolidWait0 = performance.now(); }
+      if (!mineSolidForceDue(sub, sub._mineSolidWait0)) break;
+      img = SOLID_SPRITE; sub._solidForced = (sub._solidForced | 0) + 1;
+    }
     markCoverGrid(sub, img, s.x, s.y, s.w, s.h, s.rot, cover, sub.cols, sub.rows, cs);
     markCoverGrid(sub, img, s.x, s.y, s.w, s.h, s.rot, fine, fCols, fRows, fSize);
     from++;
@@ -41085,8 +41203,9 @@ function enterGame() {
   // geometry needs that, and so does anyone chasing a report about one particular shaft.
   else if (dest === '#mine') {
     const want = parseInt(parts[1], 10);
-    beginMineRun();
-    if (want > 0) { mineSeed = want; startRun(); }   // re-roll the map on the pinned seed
+    // ONE WORLD BUILD (M2 fix): this was `beginMineRun(); if (want > 0) { mineSeed = want; startRun(); }`,
+    // a clock-seed shaft built and thrown away before the pinned one — the playSeed bug again.
+    beginMineRun(want > 0 ? want : undefined);
   }
   // REAL TIME, ON THE CAMPAIGN'S OWN MAPS (owner, for testing the variant again). There is no
   // route to real time from the menu at all — `OFFER_REALTIME` took its title rows away — so this

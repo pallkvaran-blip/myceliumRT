@@ -9,8 +9,12 @@
  *     until every band sprite decodes: on a slow link strands grew inside drawn rock.
  *   - THE HEAT BYPASS. A walled shallow strand pressed and aimed down fell through to the DEEPEST
  *     tip in the colony (137-142 m) and was charged the 2-water surface price.
- *   - `__game.mine.playSeed` built the world twice and logged two run_starts.
- *   - A seam `stampFood` refused retagged the PREVIOUS pile's material.
+ *   - `__game.mine.playSeed` built the world twice (it logged ONE run_start either way, so the
+ *     run_start count cannot tell the builds apart — the '[mycelium] ... map:' line count does).
+ *     The '#mine,<n>' boot did the same and is fixed the same way.
+ *   - A seam `stampFood` refused retagged the PREVIOUS pile's material (exercised by a forced refusal).
+ *   - A bare ']' on the plain URL swapped a live descent for authored map 0, unbanked.
+ *   - A band sprite that never decodes left every dig refused for the run.
  *
  * Every block runs on a fresh context (fresh save).
  */
@@ -112,6 +116,44 @@ const openStore = async (page) => {
     }
 
     // =======================================================================================
+    // 1a. THE MAP-STEPPING KEYS — a stray ']' on the plain URL cannot throw the descent away
+    // =======================================================================================
+    if (want('key')) {
+      console.log("--- '[' / ']' step maps only when the URL asks for dev tools");
+      const press = async (hash) => {
+        const b = await E.boot(hash);
+        await H.waitMine(b.page);
+        await sleep(600);
+        const r = await b.page.evaluate(async () => {
+          const g = window.__game, s = g.state, root = s.active.nodes[0];
+          const d = g.mine.growFrom(root.x, root.y, root.x, root.y + 300);
+          await new Promise((res) => setTimeout(res, 400));
+          return { dug: !!d.ok, nodes: s.active.nodes.length, seed: g.mine.seed() };
+        });
+        await b.page.keyboard.press(']');
+        await sleep(2500);
+        await b.page.keyboard.press('[');
+        await sleep(2500);
+        const after = await b.page.evaluate(() => {
+          const s = window.__game.state;
+          return { mine: !!(s.substrate && s.substrate.mine), nodes: s.active.nodes.length, seed: window.__game.mine.seed(),
+                   runOver: !!s.runOver };
+        });
+        await b.ctx.close();
+        return { r, after };
+      };
+      const plain = await press('#mine,4242');
+      ok("'#mine,4242': ']' then '[' leave the descent running (substrate.mine true, same seed, strands kept)",
+         plain.r.dug && plain.after.mine && plain.after.seed === plain.r.seed && plain.after.nodes >= plain.r.nodes && !plain.after.runOver,
+         JSON.stringify({ before: plain.r, after: plain.after }));
+      // THE CONTROL: the same keys on the owner's route still step maps, so the check above is about the
+      // gate and not about the keypress failing to arrive.
+      const dev = await press('#mine,4242,dev');
+      ok("'#mine,4242,dev': the same keys still step to an authored map (the owner's route)", dev.r.dug && !dev.after.mine,
+         JSON.stringify({ before: dev.r, after: dev.after }));
+    }
+
+    // =======================================================================================
     // 1b. THE RELEASE ZIP KEEPS THE MINE'S BANDS (static: the prune, without building)
     // =======================================================================================
     if (want('zipdry')) {
@@ -182,6 +224,15 @@ const openStore = async (page) => {
       ok('...builds the world once', lines.length === 1, `${lines.length} map line(s)`);
       ok('...on the pinned seed', r.seed === 909, String(r.seed));
       await b.ctx.close();
+      // THE '#mine,<n>' BOOT HAD THE SAME BUG: beginMineRun() on a clock seed, then startRun() on the
+      // pinned one. Every mine check boots this way. (Fixing it moved no pinned number: chunk records,
+      // piles, pockets, fine mask, colony and worms fingerprint identically on 4 seeds x 7 chunks.)
+      const hl = [];
+      const h = await E.boot('#mine,4242', 390, 844, { before: async (page) => page.on('console', (m) => { if (/\[mycelium\].*map:/.test(m.text())) hl.push(m.text()); }) });
+      await H.waitMine(h.page);
+      const hs = await h.page.evaluate(() => window.__game.mine.seed());
+      ok("the '#mine,4242' boot builds the world once, on the pinned seed", hl.length === 1 && hs === 4242, `${hl.length} map line(s), seed ${hs}`);
+      await h.ctx.close();
     }
 
     // =======================================================================================
@@ -220,6 +271,36 @@ const openStore = async (page) => {
            r.chunks >= 5 && r.checked >= 10 && r.wrong.length === 0, `${r.checked} seams checked (${r.asked} asked for; ${r.asked - r.checked} refused by stampFood), wrong: ${r.wrong.slice(0, 4).join(', ') || 'none'}`);
         await b.ctx.close();
       }
+      // THE REFUSAL ITSELF, FORCED. On the seeds above `stampFood` refuses no seam at all (0 of 984
+      // across 15 seeds, the M2 verifier's count), so they pass on the pre-M2 code too. Here every cell of the next
+      // chunk is pre-flagged `hazard` BEFORE it is generated, so every seam it places is refused; the
+      // last pile before it carries a sentinel material the old code would have overwritten.
+      {
+        const b = await E.bootMine(4242);
+        const r = await b.page.evaluate(async () => {
+          const g = window.__game, s = g.state, sub = s.substrate, cam = g.camera, cs = sub.cellSize;
+          const W = s.config.mine.chunkCols;
+          const ci = Math.max(...g.mine.chunks()) + 1;
+          const n0 = sub.foodPiles.length;
+          const last = sub.foodPiles[n0 - 1], real = last.mineMat;
+          last.mineMat = 'sentinel';
+          const mats0 = sub.foodPiles.map((p) => p.mineMat || null);
+          for (let row = 0; row < sub.rows; row++) for (let c = ci * W; c < ci * W + W; c++) {
+            const cell = sub.cellAt(c, row); if (cell) cell.hazard = true;
+          }
+          cam.zoom = 0.6; cam.x = (ci * W + W / 2) * cs;
+          for (let i = 0; i < 60 && !(s.mineChunks && s.mineChunks[ci]); i++) await new Promise((res) => setTimeout(res, 60));
+          const rec = s.mineChunks[ci];
+          const inCi = sub.foodPiles.filter((p) => p.cells.some((idx) => { const c = idx % sub.cols; return c >= ci * W && c < ci * W + W; })).length;
+          const changed = mats0.filter((m, i) => sub.foodPiles[i].mineMat !== m).length;
+          const out = { ci, made: !!rec, asked: rec ? rec.ore : 0, inCi, changed, lastNow: last.mineMat, real };
+          last.mineMat = real;
+          return out;
+        });
+        ok('a chunk whose every seam stampFood refuses retags no earlier pile', r.made && r.asked > 0 && r.inCi === 0 && r.changed === 0 && r.lastNow === 'sentinel',
+           `chunk ${r.ci}: ${r.asked} seams asked for, ${r.inCi} registered; ${r.changed} earlier pile(s) changed material; the last one reads '${r.lastNow}' (sentinel ${r.lastNow === 'sentinel' ? 'kept' : 'overwritten'})`);
+        await b.ctx.close();
+      }
     }
 
     // =======================================================================================
@@ -236,7 +317,7 @@ const openStore = async (page) => {
         && window.__game.state.substrate.mine && window.__game.mine.seed() === 4242), { timeout: 40000 });
       const early = await b.page.evaluate(async () => {
         const g = window.__game, s = g.state, sub = s.substrate;
-        const out = { tries: 0, refused: 0, dw: 0, dn: 0, msgs: new Set(), curtainWhileSoft: true, samples: 0 };
+        const out = { tries: 0, refused: 0, dw: 0, dn: 0, msgs: new Set(), curtainWhileSoft: true, samples: 0, noteOn: 0, noteText: null };
         while (!sub._rockSolidified && out.tries < 40) {
           const root = s.active.nodes[0], w0 = s.active.water, n0 = s.active.nodes.length;
           const r = g.mine.growFrom(root.x, root.y, root.x, root.y + 300);
@@ -244,6 +325,7 @@ const openStore = async (page) => {
           out.msgs.add(r.message);
           out.dw += w0 - s.active.water; out.dn += s.active.nodes.length - n0;
           if (!sub._rockSolidified) { out.samples++; if (!document.body.classList.contains('handoff') || !g.simPaused()) out.curtainWhileSoft = false; }
+          if (!sub._rockSolidified) { const n = g.settleNote(); if (n.on) { out.noteOn++; out.noteText = n.text; } }
           await new Promise((res) => setTimeout(res, 100));
         }
         out.msgs = [...out.msgs];
@@ -255,14 +337,17 @@ const openStore = async (page) => {
       ok("...as 'The ground is settling…'", early.msgs.length === 1 && /ground is settling/.test(early.msgs[0]), early.msgs.join(' / '));
       ok('...and water and nodes are unchanged', early.dw === 0 && early.dn === 0, `water -${early.dw}, nodes +${early.dn}`);
       ok('...while the curtain stays up over the unsolid map, the sim paused', early.curtainWhileSoft && early.samples > 0, `${early.samples} samples`);
+      // THE HOLD SAYS WHAT IT IS WAITING FOR (M2 fix): a black curtain for seconds reads as a hang.
+      ok("...and the held curtain shows 'The ground is settling…' (after its 600 ms grace)", early.noteOn >= 5 && /ground is settling/.test(early.noteText || ''),
+         `${early.noteOn} of ${early.samples} samples showed it: ${early.noteText}`);
       await sleep(1200);
       const later = await b.page.evaluate(async (Q) => {
         new Function('return (' + Q + ')')()();
         const g = window.__game, s = g.state;
         s.active.water = 100000;
-        return { curtain: document.body.classList.contains('handoff'), paused: g.simPaused() };
+        return { curtain: document.body.classList.contains('handoff'), paused: g.simPaused(), note: g.settleNote().on };
       }, QUIET.toString());
-      ok('...and it lifts once the mask exists, the world running', !later.curtain && !later.paused, JSON.stringify(later));
+      ok('...and it lifts once the mask exists, the world running, the line gone', !later.curtain && !later.paused && !later.note, JSON.stringify(later));
       await H.injectNav(b.page);
       const inside = await b.page.evaluate(async () => {
         const g = window.__game, s = g.state, sub = s.substrate;
@@ -311,6 +396,47 @@ const openStore = async (page) => {
          `curtain lifted ${(cap.at / 1000).toFixed(1)} s after the run was built, mask ${cap.solid ? 'present' : 'absent'}`);
       ok('...and a dig there is still refused, free', !cap.ok && /settling/.test(cap.msg) && cap.dw === 0, `${cap.msg}, water -${cap.dw}`);
       await c.ctx.close();
+
+      // A SPRITE THAT NEVER DECODES (M2 fix). Every hematite file 404s for good: the mask used to wait
+      // for ever, every dig refused for the run. After CONFIG.mine.solidForceMs the missing sprites
+      // are stamped as SOLID BOXES and the mask is published — nothing turns passable, the run plays.
+      const HEM = /\/assets\/hematite-c24\//;
+      const dd = await E.boot('#mine,4242', 390, 844, { before: async (page) => {
+        await page.route((u) => HEM.test(u.pathname), (route) => route.fulfill({ status: 404, body: 'nf' }).catch(() => {}));
+      } });
+      await dd.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.state && window.__game.state.substrate
+        && window.__game.state.substrate.mine && window.__game.mine.seed() === 4242), { timeout: 40000 });
+      const dead = await dd.page.evaluate(async () => {
+        const t0 = performance.now(), sub = window.__game.state.substrate;
+        let early = null;
+        while (!sub._rockSolidified && performance.now() - t0 < 45000) {
+          await new Promise((r) => setTimeout(r, 200));
+          if (early == null && performance.now() - t0 > 16500) {
+            const g = window.__game, root = g.state.active.nodes[0];
+            early = g.mine.growFrom(root.x, root.y, root.x, root.y + 300).message;
+          }
+        }
+        const at = performance.now() - t0;
+        const g = window.__game, s = g.state, root = s.active.nodes[0], w0 = s.active.water;
+        s.active.water = Math.max(s.active.water, 50);
+        const r = g.mine.growFrom(root.x, root.y, root.x, root.y + 300);
+        // Every hematite sprite's box is solid where its silhouette would be: sample its centre.
+        const F = sub._fineSize, W = sub._fineCols;
+        let hem = 0, solidC = 0;
+        for (const sp of (sub.levelSprites || [])) {
+          if (!/hematite/.test(sp.key)) continue;
+          hem++;
+          const fc = Math.floor(sp.x / F), fr = Math.floor((sp.y - sub.surfaceY) / F);
+          const cell = sub.cellAtWorld(sp.x, sp.y);
+          if ((sub._fineSolid && sub._fineSolid[fr * W + fc] === 1) || (cell && (cell.water || cell.maxNutrient > 0))) solidC++;
+        }
+        return { at, solid: !!sub._rockSolidified, forced: sub._solidForced | 0, early, ok: r.ok, msg: r.message, hem, solidC };
+      });
+      ok('a band that 404s for good: the mask is published anyway, after the force delay', dead.solid && dead.forced > 0 && dead.at >= 15000,
+         `mask ${dead.solid ? 'published' : 'never'} at ${(dead.at / 1000).toFixed(1)} s, ${dead.forced} sprite(s) stamped as boxes; at 16.5 s a dig read '${dead.early}'`);
+      ok('...the missing sprites are solid (box centres in the fine mask)', dead.hem > 0 && dead.solidC === dead.hem, `${dead.solidC} of ${dead.hem} hematite sprites`);
+      ok('...and the run plays: a dig lands', dead.ok, dead.msg);
+      await dd.ctx.close();
     }
 
     // =======================================================================================
@@ -318,13 +444,49 @@ const openStore = async (page) => {
     // =======================================================================================
     if (want('heat')) {
       console.log('--- a walled strand cannot buy deep growth at the surface price');
-      let presses = 0, okDigs = 0, badOrigin = [], badCharge = [], farNodes = [], oldFar = 0, twigsPast = 0, reachU = 0;
+      let presses = 0, okDigs = 0, badOrigin = [], badCharge = [], farNodes = [], oldFar = 0, reachU = 0, acceptProbe = null;
+      const audit = { digs: 0, nodes: 0, over: [], side: 0, runner: 0, colonFar: 0, pockets: 0 };
       for (const seed of [4242, 909, 5]) {
         const b = await E.bootMine(seed);
         const r = await b.page.evaluate(async (Q) => {
           new Function('return (' + Q + ')')()();
           const g = window.__game, s = g.state, sub = s.substrate, net = s.active;
           net.water = 100000;
+          // EVERY DIG OF THE BLOCK IS AUDITED, not only the presses: the dive, the fans and the presses
+          // all go through `growFrom`, and each is held to the plan's bound — no node it grows (chain,
+          // side twig, water-seek runner) farther than fallDist + one reach from the strand it pressed.
+          // Water pockets are LEFT IN (a runner toward one is the case that overshot before).
+          // Pile-claim mat nodes (`.colon`) are counted apart: see mineGrow for why they are not bounded.
+          const A = { digs: 0, nodes: 0, over: [], side: 0, runner: 0, colonFar: 0, runnerMade: 0, pockets: 0 };
+          // How many nodes the water-seek helper made inside audited digs — so a pass shows runners
+          // were actually thrown (and held), not that none happened to fire.
+          const rfw = net.reachForWater;
+          let inDig = false;
+          net.reachForWater = function (...a) { const m = rfw.apply(this, a); if (inDig) A.runnerMade += m; return m; };
+          const R = s.config.mine.fallDist + g.mine.steps() * 3 * s.config.growth.segmentLength;
+          const orig = g.mine.growFrom;
+          g.mine.growFrom = function (...a) {
+            const before = net.nextNodeId;
+            inDig = true;
+            let res;
+            try { res = orig.apply(this, a); } finally { inDig = false; }
+            if (res && res.ok && res.pressed) {
+              A.digs++;
+              for (const q of net.nodes) {
+                if (q.id < before) continue;
+                const d = Math.hypot(q.x - res.pressed.x, q.y - res.pressed.y);
+                if (q.colon) { if (d > R) A.colonFar++; continue; }
+                A.nodes++;
+                if (d > R) {
+                  const kind = q.side ? 'side' : 'runner';
+                  A[kind]++;
+                  if (A.over.length < 6) A.over.push(`${kind} ${Math.round(d)}u`);
+                }
+              }
+            }
+            return res;
+          };
+          window.__heatAudit = A;
           const dive = await window.__navDig({ targetM: 130, maxIters: 900 });
           await new Promise((res) => setTimeout(res, 800));
           const seg = s.config.growth.segmentLength;
@@ -366,13 +528,41 @@ const openStore = async (page) => {
             const made = net.nodes.filter((q) => q.id >= before);
             const dOf = (q) => Math.hypot(q.x - n.x, q.y - n.y);
             const far = made.length ? Math.max(...made.map(dOf)) : 0;
-            const main = made.filter((q) => !q.side);
-            const farMain = main.length ? Math.max(...main.map(dOf)) : 0;
-            const farKinds = made.filter((q) => dOf(q) > 90 + reach).map((q) => (q.side ? 'side' : 'main'));
+            const grown = made.filter((q) => !q.colon);
+            const farGrown = grown.length ? Math.max(...grown.map(dOf)) : 0;
+            const farKinds = grown.filter((q) => dOf(q) > 90 + reach).map((q) => (q.side ? 'side' : 'chain/runner'));
             out.presses.push({ at: depthOf(n.y), ok: res.ok, msg: res.message, charged: w0 - net.water,
               price: g.mine.cost(depthOf(n.y)),
               originDist: res.origin ? Math.hypot(res.origin.x - n.x, res.origin.y - n.y) : null,
-              far, farMain, farKinds, made: made.length, oldDist, oldAt: old ? depthOf(old.y) : null });
+              far, farGrown, farKinds, made: made.length, oldDist, oldAt: old ? depthOf(old.y) : null });
+          }
+          A.pockets = (sub.reservoirs || []).length;
+          out.audit = A;
+          // THE PRICE STEP IS ASKED OF EVERY CANDIDATE, not only the first (M2 fix). Engine-level: a
+          // walled strand with two or more steppable tips within 90 u; `accept` refuses the first tip
+          // it is asked about (the case: a nearer neighbour across a heat line) and takes the next.
+          // The old find asked once and grew nothing. Then an accept that refuses all: 0 nodes, and
+          // `_lastGrowRefusal` names the reason.
+          {
+            const tips = net.tips().filter((t) => !t.infected);
+            const w = net.nodes.find((n) => !n.infected && depthOf(n.y) <= 36 && !canStep(n)
+              && tips.filter((t) => t !== n && Math.hypot(t.x - n.x, t.y - n.y) <= 90 && canStep(t)).length >= 2);
+            if (w) {
+              const calls = [];
+              const made = net.growDirected(sub, s.rng, 0, 1, 6, false, w, false, false,
+                { maxFallDist: 90, accept: (p) => { calls.push(p.id); return p === w || calls.length >= 2; } });
+              const origin = net._lastGrowOrigin ? net._lastGrowOrigin.id : null;
+              // jitter off for this one call, so the walled press cannot slip a step through on a lucky
+              // random heading and the answer is exactly "nothing grows"
+              const gcfg = net.config.growth, j0 = gcfg.branchJitter;
+              gcfg.branchJitter = 0;
+              let none;
+              try {
+                none = net.growDirected(sub, s.rng, 0, 1, 6, false, w, false, false,
+                  { maxFallDist: 90, accept: (p) => p === w });
+              } finally { gcfg.branchJitter = j0; }
+              out.acceptProbe = { made, calls: calls.length, origin, second: calls[1], none, reason: net._lastGrowRefusal };
+            }
           }
           return out;
         }, QUIET.toString());
@@ -380,6 +570,9 @@ const openStore = async (page) => {
         console.log(`    seed ${seed}: dove to ${r.dive} m, ${r.nodes} strands; ${r.presses.length} presses at ${[...new Set(r.presses.map((p) => p.at))].join('/')} m, ${okN} dug`
           + `; the old rule would have grown from ${r.presses.map((p) => Math.round(p.oldDist) + 'u@' + p.oldAt + 'm').slice(0, 4).join(', ')}`);
         reachU = r.reach;
+        if (r.acceptProbe && !acceptProbe) acceptProbe = { seed, ...r.acceptProbe };
+        for (const k of ['digs', 'nodes', 'side', 'runner', 'colonFar', 'pockets', 'runnerMade']) audit[k] = (audit[k] || 0) + r.audit[k];
+        audit.over.push(...r.audit.over.map((o) => `seed ${seed}: ${o}`));
         for (const p of r.presses) {
           presses++;
           if (p.oldDist > 90) oldFar++;
@@ -387,14 +580,10 @@ const openStore = async (page) => {
           okDigs++;
           if (!(p.originDist != null && p.originDist <= 90)) badOrigin.push(`${p.originDist == null ? '?' : p.originDist.toFixed(0)}u`);
           if (p.charged !== p.price) badCharge.push(`charged ${p.charged} vs price ${p.price} at ${p.at} m`);
-          // THE PLAN'S BOUND IS FOR THE GROWN CHAIN. `growDirected` also sprouts decorative side twigs
-          // (`_sproutSideStrand`, `.side`) off any chain node, up to sideStrandMax + a 1-segment fork
-          // long, so a twig off the chain's last node can sit past one reach (measured 283-288 u
-          // against 243, every one `.side`). The chain is held to 90 + reach exactly; twigs to that
-          // plus their own longest length.
-          if (p.farMain > 90 + r.reach) farNodes.push(`chain ${p.farMain.toFixed(0)}u > ${(90 + r.reach).toFixed(0)}`);
-          if (p.far > 90 + r.reach + r.twig) farNodes.push(`twig ${p.far.toFixed(0)}u > ${(90 + r.reach + r.twig).toFixed(0)}`);
-          if (p.far > 90 + r.reach) twigsPast++;
+          // THE PLAN'S BOUND, LITERALLY: every node the dig grows — chain, side twig, water runner — within
+          // 90 + one reach. (This used to allow twigs an extra ~102 u; they reached 251-288 u against 243.
+          // `mineGrow` now passes `within`, which stops twigs and runners at the circle.)
+          if (p.farGrown > 90 + r.reach) farNodes.push(`${p.farKinds[0] || '?'} ${p.farGrown.toFixed(0)}u > ${(90 + r.reach).toFixed(0)}`);
         }
         await b.ctx.close();
       }
@@ -406,8 +595,18 @@ const openStore = async (page) => {
          `${okDigs} digs; ${badOrigin.slice(0, 5).join(', ') || 'none outside'}`);
       ok('...the charge equals mineGrowCost at the pressed strand (refusals charge 0)', presses > 0 && badCharge.length === 0,
          badCharge.slice(0, 5).join('; ') || 'all exact');
-      ok('...and no grown node lies farther than 90 units plus one reach from it (side twigs: plus their length)', okDigs > 0 && farNodes.length === 0,
-         (farNodes.slice(0, 5).join('; ') || 'none') + `; reach ${Math.round(reachU)} u, ${twigsPast} dig(s) with a twig past 90 + reach`);
+      ok(`...and no node a press grows (chain, side twig or water runner) lies farther than 90 + one reach (${Math.round(90 + reachU)} u)`,
+         okDigs > 0 && farNodes.length === 0, (farNodes.slice(0, 5).join('; ') || 'none past it') + `; reach ${Math.round(reachU)} u`);
+      ok('growDirected asks accept() of each steppable candidate: a refused first neighbour falls to the next',
+         !!acceptProbe && acceptProbe.made > 0 && acceptProbe.calls >= 2 && acceptProbe.origin === acceptProbe.second,
+         JSON.stringify(acceptProbe));
+      ok("...and when accept refuses every candidate nothing grows, reason 'accept'",
+         !!acceptProbe && acceptProbe.none === 0 && acceptProbe.reason === 'accept', acceptProbe ? `${acceptProbe.none} nodes, reason ${acceptProbe.reason}` : 'no walled strand found');
+      ok(`EVERY dig of the block (dive, fans, presses; water pockets in) holds that bound`,
+         audit.digs > 300 && audit.nodes > 1000 && audit.over.length === 0 && audit.pockets > 0 && audit.runnerMade > 0,
+         `${audit.digs} digs, ${audit.nodes} grown nodes, ${audit.side} twig(s) and ${audit.runner} chain/runner node(s) past ${Math.round(90 + reachU)} u`
+         + `${audit.over.length ? ': ' + audit.over.slice(0, 5).join(', ') : ''}; ${audit.pockets} water pockets on the maps, ${audit.runnerMade} water-runner nodes grown; `
+         + `${audit.colonFar} pile-claim mat node(s) past it (unbounded by design, see mineGrow)`);
     }
 
     // =======================================================================================
