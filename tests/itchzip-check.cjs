@@ -7,17 +7,20 @@
  * an asset missed by the copy, the html one folder down (itch then serves a directory listing), a
  * manifest entry whose file was never added.
  *
- * NOT IN THE RUNNER — it needs a zip that exists, and building one is a minute of copying 2,400
- * files. Run it by hand as part of a release cut.
+ * IN THE RUNNER as 'zip' (finishing plan M2), called with `--fresh`: it builds a throwaway
+ * `--no-shrink` zip of the working tree (about 2 s) and checks that. By hand, with no flag, it checks
+ * the release zip in dist/ that will actually be uploaded.
  *
  * What it asserts, in the order the mistakes are easy to make:
  *   1. the zip's SHAPE (index.html at the root, nothing but it and assets/)
+ *   1b. the prune kept every reachable level's art AND every mine band's folder, whole
  *   2. NO DEV BUTTONS anywhere on the screens that carry them — the one thing the owner's notes
  *      call out by name, and invisible from the outside once it is wrong
- *   3. ...while `window.__game` still exists, because that hook is deliberately kept in a public
- *      build and a blunter "strip the dev stuff" would take it
- *   4. it BOOTS AND PLAYS: title -> campaign -> a level with a live colony, and the same for
- *      survival, with no page errors and no failed requests along the way
+ *   3. ...while `window.__cfg` / `window.__game` still exist, because those hooks are deliberately
+ *      kept in a public build and a blunter "strip the dev stuff" would take them
+ *   4. it PLAYS THE MINE: title -> New -> a navigator descent on the real tank -> the end screen ->
+ *      the store -> Descend -> run 2, with the band rock collided (`_fineSolid`), the campaign's
+ *      level card never shown, and no page errors or failed requests along the way
  */
 const http = require('http');
 const fs = require('fs');
@@ -37,8 +40,20 @@ const OFFERS_SURVIVAL = (() => {
 // only ever look at one of them is a gate the other ships around.
 //   node tests/itchzip-check.cjs                     -> dist/mycelium-itch.zip
 //   node tests/itchzip-check.cjs crazygames          -> dist/mycelium-crazygames.zip
-const PLATFORM = (process.argv[2] || 'itch').toLowerCase();
-const ZIP = path.join(ROOT, 'dist', `mycelium-${PLATFORM}.zip`);
+const ARGS = process.argv.slice(2);
+const PLATFORM = (ARGS.find((a) => !a.startsWith('--')) || 'itch').toLowerCase();
+// `--fresh` (how the runner calls it, as 'zip'): build a THROWAWAY zip of the working tree first —
+// `make-web-zip --no-shrink --out <tmp>` — and check that. Same prune, same dev-flag patch, same
+// manifest filter; only the re-encode is skipped (it changes bytes, not which files ship), and a
+// release zip already in dist/ is never overwritten by a test build.
+const FRESH = ARGS.includes('--fresh');
+let ZIP = path.join(ROOT, 'dist', `mycelium-${PLATFORM}.zip`);
+if (FRESH) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'zipbuild-'));
+  ZIP = path.join(tmp, `mycelium-${PLATFORM}.zip`);
+  execFileSync(process.execPath, [path.join(ROOT, 'scripts', 'make-web-zip.mjs'), '--platform', PLATFORM,
+    '--no-shrink', '--out', ZIP], { stdio: 'inherit' });
+}
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json',
   '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml',
   '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.css': 'text/css' };
@@ -98,6 +113,21 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       // asking for them here would fail a correct build. Read from index.html for the same reason
       // the build does: one constant restores the mode, and this must follow it.
       if (def.campaignLevel || (OFFERS_SURVIVAL && def.survival)) want.push({ id: def.id, from: def.assetsFrom || def.id });
+    }
+    // THE MINE'S BANDS are not level files: their folders are named in CONFIG.mine.bands[].assetsFrom.
+    // Each must ship WHOLE — a folder with some sprites missing is a band with holes in its walls.
+    {
+      const html0 = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+      const at = html0.indexOf('\n  mine: {'), b0 = html0.indexOf('\n    bands: [', at), b1 = html0.indexOf('\n    ],', b0);
+      const bands = [...html0.slice(b0, b1).matchAll(/assetsFrom:\s*'([^']+)'/g)].map((m) => m[1]);
+      const short = bands.map((f) => {
+        const src = fs.readdirSync(path.join(ROOT, 'assets', f)).length;
+        const got = entries.filter((e) => e.startsWith('assets/' + f + '/')).length;
+        return { f, src, got };
+      });
+      ok(`every mine band's folder ships whole (${bands.length} bands)`,
+         bands.length === 4 && short.every((x) => x.got === x.src && x.src > 0),
+         short.map((x) => `${x.f} ${x.got}/${x.src}`).join(', '));
     }
     const missing = want.filter((w) => !entries.some((e) => e.startsWith('assets/' + w.from + '/')));
     ok(`every reachable level's art is in the zip (${want.length} levels)`,
@@ -161,123 +191,127 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 
   try {
     // ---- 2/3. boots, no dev buttons, hook intact ----------------------------
+    // Watch for the campaign's level card for the WHOLE session: it must never show on a mine run.
+    await page.addInitScript(() => {
+      window.__sawLevelIntro = 0;
+      const look = () => {
+        const n = document.getElementById('levelIntro');
+        if (n && n.getBoundingClientRect().height > 0 && getComputedStyle(n).display !== 'none') window.__sawLevelIntro++;
+      };
+      setInterval(look, 50);
+    });
     await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
     await page.click('#loadscreen', { timeout: 8000 }).catch(() => {});
-    const booted = await page.waitForFunction(() => !!(window.__game || document.getElementById('titleScreen')),
+    const booted = await page.waitForFunction(() => !!document.getElementById('titleScreen'),
       null, { timeout: 60000 }).then(() => true).catch(() => false);
-    ok('the zipped build boots to the title screen', booted && !!(await page.$('#titleScreen')));
+    ok('the zipped build boots to the title screen', booted);
     // THE HOOK STAYS. The owner's note is explicit that `window.__game` survives a public cut —
     // it is invisible, it is how a bug gets diagnosed on the live build, and a blunter
     // "strip the dev stuff" would remove it along with the buttons.
     ok('...and window.__cfg still exists (the invisible hook is kept on purpose)',
        await page.evaluate(() => !!window.__cfg));
     // A BUILD THAT REPORTS ITSELF AS `dev` IS UNMEASURABLE. The stamp rides on every `boot` row and
-  // is what lets one release be compared against the last; shipping the placeholder looks identical
-  // from the outside and is only discovered when the comparison turns out to be impossible.
-  ok('the build stamps itself, and not as `dev`',
-     /const BUILD_ID = '(?!dev')[^']{4,32}'/.test(builtHtml),
-     (/const BUILD_ID = '([^']*)'/.exec(builtHtml) || [])[1] || 'absent');
-  ok('...with dev.enabled FALSE', await page.evaluate(() => window.__cfg.dev.enabled === false),
+    // is what lets one release be compared against the last; shipping the placeholder looks identical
+    // from the outside and is only discovered when the comparison turns out to be impossible.
+    ok('the build stamps itself, and not as `dev`',
+       /const BUILD_ID = '(?!dev')[^']{4,32}'/.test(builtHtml),
+       (/const BUILD_ID = '([^']*)'/.exec(builtHtml) || [])[1] || 'absent');
+    ok('...with dev.enabled FALSE', await page.evaluate(() => window.__cfg.dev.enabled === false),
        String(await page.evaluate(() => window.__cfg && window.__cfg.dev.enabled)));
 
-    // Every screen that carries a dev control, checked by ID. Asserting the FLAG alone would pass
-    // on a build whose buttons had stopped reading it.
-    const DEV_IDS = ['#devWin', '#ssDevSpores', '#ssDevStart', '#ssDevUnlock', '#devEditRocks',
-                     '#devMaps', '#devMapPanel', '#rockEditBar'];
-    const devOnTitle = await page.evaluate((ids) => ids.filter((i) => !!document.querySelector(i)), DEV_IDS);
+    // Every screen that carries a dev control, checked by ID AND by the 'Dev' label every one of them
+    // carries. Asserting the FLAG alone would pass on a build whose buttons had stopped reading it.
+    const DEV_IDS = ['#devWin', '#ssDev', '#ssDevSpores', '#ssDevStart', '#ssDevUnlock', '#devEditBtn', '#devMapBtn',
+                     '#devEditRocks', '#devMaps', '#devMapPanel', '#rockEditBar', '#tsDevTut'];
+    const devHere = () => page.evaluate((ids) => {
+      const out = ids.filter((i) => { const n = document.querySelector(i); return n && n.getBoundingClientRect().width > 0; });
+      for (const el of document.querySelectorAll('button, a')) {
+        const r = el.getBoundingClientRect();
+        if (r.width > 0 && /^Dev/.test((el.textContent || '').trim())) out.push('"' + el.textContent.trim().slice(0, 20) + '"');
+      }
+      return [...new Set(out)];
+    }, DEV_IDS);
+    const devOnTitle = await devHere();
     ok('no dev buttons on the title screen', devOnTitle.length === 0, devOnTitle.join(', '));
 
-    // ---- 4. it PLAYS: the campaign, then survival from a cold reload -------------------------
-    // BOTH GAMES AGAIN. It played the campaign twice while survival was withheld from the title
-    // screen, with the note that this is where its row goes back — `OFFER_SURVIVAL` is true again
-    // (owner), so it does.
-    //
-    // AND IT MATTERS MORE HERE THAN ANYWHERE ELSE, because the prune reads that same flag: with
-    // survival withheld the build dropped 12 survival-only map folders and 488 manifest entries,
-    // and with it offered they ship. A campaign play-through cannot touch a single one of them, so
-    // for as long as this loop said `campaign` twice, the release gate had no opinion at all about
-    // more than half of what the zip now contains. The second pass is still a COLD RELOAD — the
-    // loop reloads between games — so it keeps the "arrives at the artefact fresh" reading too.
-    for (const [row, label] of [['#tsNewCamp', 'campaign'], ['#tsNew', 'survival, cold boot']]) {
-      await page.evaluate(() => {
-        document.querySelectorAll('#levelIntro, #speciesSelect, #tutorial, #ssGameWon').forEach((n) => n.remove());
+    // ---- 4. it PLAYS THE MINE: New -> a descent -> the end screen -> the store -> Descend ----
+    // THE ONLY GAME THE TITLE OFFERS. This used to click #tsNewCamp and #tsNew, rows the mine-only
+    // title no longer renders — so the release gate could not reach the one game it was guarding.
+    await page.evaluate(() => { window.__rs = []; window.__telemetry.tap((row) => { if (row.kind === 'run_start') window.__rs.push(row.level); }); });
+    const clicked = await page.click('#tsNewMine', { timeout: 8000 }).then(() => true).catch(() => false);
+    ok('the title offers the Deep Mine and New is clickable', clicked);
+    const live = await page.waitForFunction(() => {
+      const g = window.__game, s = g && g.state;
+      return !!(g && g.mine && s && s.substrate && s.substrate.mine && s.active && s.active.nodes.length > 0 && !s.runOver);
+    }, null, { timeout: 40000 }).then(() => true).catch(() => false);
+    ok('a descent builds and the colony is alive', live, 'seed ' + await page.evaluate(() => window.__game && window.__game.mine && window.__game.mine.seed()));
+    // THE ROCK IS REAL: every band's sprites decoded and stamped into the fine mask. This is the one
+    // a pruned folder breaks — the zip used to ship bands 1 and 3 with no walls at all.
+    const solid = await page.waitForFunction(() => !!(window.__game.state.substrate._fineSolid && window.__game.state.substrate._rockSolidified),
+      null, { timeout: 30000 }).then(() => true).catch(() => false);
+    const mask = await page.evaluate(() => {
+      const g = window.__game, s = g.state, sub = s.substrate, f = sub._fineSolid;
+      if (!f) return { set: false, bands: [], sprites: 0 };
+      // PER BAND, over the home chunk's columns: a pruned band folder reads 0% here.
+      const K = Math.round(sub.cellSize / sub._fineSize), cw = s.config.mine.chunkCols, br = s.config.mine.bandRows;
+      const hc = g.mine.homeChunk(), x0 = hc * cw * K, x1 = (hc + 1) * cw * K;
+      const bands = g.mine.bands().map((_, b) => {
+        let on = 0, n = 0;
+        for (let y = b * br * K; y < (b + 1) * br * K && y < sub._fineRows; y++)
+          for (let x = x0; x < x1; x++) { n++; on += f[y * sub._fineCols + x]; }
+        return n ? on / n : 0;
       });
-      // Back to the title between the two games. There is no `showTitle` hook, so RELOAD — which is
-      // also more honest for a release gate: the second game is played from a cold boot of the same
-      // artefact, exactly as a player would arrive at it.
-      if (!(await page.$('#titleScreen'))) {
-        await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
-        await page.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
-        await page.click('#loadscreen', { timeout: 8000 }).catch(() => {});
-        await page.waitForSelector('#titleScreen', { timeout: 60000 }).catch(() => {});
-      }
-      const clicked = await page.click(row, { timeout: 8000 }).then(() => true).catch(() => false);
-      ok(`${label}: the title row is there and clickable`, clicked);
-      if (!clicked) continue;
-      // Name dialog -> picker. Both are real screens on this path; drive them the way a player does.
-      // The ids are `tsNameInput` / `tsNameStart` — guessed wrong first time (`#ngName`/`#ngGo`),
-      // which presents as "never reaches the picker" rather than as a bad selector.
-      await sleep(600);
-      const nameBox = await page.$('#tsNameInput');
-      if (nameBox) { await nameBox.fill('Cut'); await page.click('#tsNameStart', { timeout: 5000 }).catch(() => {}); }
-      // THE CAMPAIGN PUTS ITS OPENING BETWEEN New AND THE PICKER, so this waits for EITHER and
-      // clicks the opening away when it is the one that turned up. The first version clicked
-      // `.li-story` immediately, found nothing because the screen had not been built yet, gave up,
-      // and then waited 30 s for a picker sitting behind an overlay — reported as "campaign never
-      // reaches the species selection screen", which is a real-sounding bug that did not exist.
-      let gotPicker = false;
-      for (let i = 0; i < 60; i++) {
-        gotPicker = await page.evaluate(() => {
-          if (document.getElementById('speciesSelect')) return true;
-          const st = document.querySelector('.li-story');
-          if (st) st.click();
-          return false;
-        });
-        if (gotPicker) break;
-        await sleep(500);
-      }
-      ok(`${label}: reaches the species selection screen`, gotPicker);
-      if (!gotPicker) continue;
-      const devOnPicker = await page.evaluate((ids) => ids.filter((i) => !!document.querySelector(i)), DEV_IDS);
-      ok(`${label}: no dev buttons on the selection screen`, devOnPicker.length === 0, devOnPicker.join(', '));
-      // Start a run on the first available colony.
-      await page.evaluate(() => { const b = document.querySelector('#ssAvail .ss-selbtn'); if (b) b.click(); });
-      // The level card is NOT skipped in a public build (that skip is dev-gated), so click it away.
-      for (let i = 0; i < 25 && !(await page.$('#game')); i++) await sleep(400);
-      // DISPATCHED, not `page.click`. The overlay sits over a full-screen <canvas id="game">, and
-      // Playwright's actionability checks refuse a click it believes the canvas intercepts — then
-      // the node detaches mid-retry and it throws out of the whole block. A dispatched click is
-      // what the overlay's own listener receives either way.
-      for (let i = 0; i < 12; i++) {
-        const gone = await page.evaluate(() => {
-          const n = document.getElementById('levelIntro');
-          if (!n) return true;
-          n.click();
-          return false;
-        });
-        if (gone) break;
-        await sleep(600);
-      }
-      const live = await page.waitForFunction(() => {
-        const s = window.__game && window.__game.state;
-        return !!(s && s.active && s.active.nodes && s.active.nodes.length > 0);
-      }, null, { timeout: 40000 }).then(() => true).catch(() => false);
-      ok(`${label}: a level builds and the colony is alive`, live,
-         await page.evaluate(() => { const s = window.__game && window.__game.state;
-           return s && s.active ? s.active.nodes.length + ' strand(s)' : 'no state'; }));
-      const devInGame = await page.evaluate((ids) => ids.filter((i) => !!document.querySelector(i)), DEV_IDS);
-      ok(`${label}: no dev buttons in the running game`, devInGame.length === 0, devInGame.join(', '));
-      await page.screenshot({ path: path.join(__dirname, '.artifacts', `itchzip-${label}.png`),
-        animations: 'disabled', timeout: 8000 }).catch(() => {});
-    }
+      return { set: true, bands, sprites: (sub.levelSprites || []).length };
+    });
+    ok('_fineSolid is set: every band\'s rock is collided', solid && mask.set && mask.bands.length === 4 && mask.bands.every((x) => x > 0.1),
+       `${mask.sprites} sprites; solid share per band in the home chunk: ${mask.bands.map((x) => (x * 100).toFixed(0) + '%').join(' / ')}`);
+    const devInGame = await devHere();
+    ok('no dev buttons in the running descent', devInGame.length === 0, devInGame.join(', '));
+    await page.screenshot({ path: path.join(__dirname, '.artifacts', 'itchzip-mine.png'), animations: 'disabled', timeout: 8000 }).catch(() => {});
+
+    // The navigator (mine-check's own) digs on the REAL tank until the water says stop, and then
+    // nothing is touched: the stuck rule has to end the run by itself.
+    await require('./mine-harness.cjs').injectNav(page);
+    await sleep(300);
+    const dive = await page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      // A quiet shaft (no worms, no mould, nothing respawning), so the tank is the only thing that
+      // ends it — this is a release gate for the build, not a balance probe.
+      s.nematodes.length = 0; s.clouds.length = 0;
+      s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
+      const r = await window.__navDig({ tank: true, maxIters: 400 });
+      return { depth: r.depth, digs: r.digs, water: s.active.water };
+    });
+    ok('a navigator descent digs on the real tank', dive.digs >= 10 && dive.depth >= 10,
+       `${dive.depth} m on ${dive.digs} digs, ${dive.water} water left`);
+    const ended = await page.waitForSelector('#ssMineEnd', { timeout: 45000 }).then(() => true).catch(() => false);
+    const endInfo = await page.evaluate(() => ({ cause: window.__game.state.runResult && window.__game.state.runResult.cause,
+      text: ((document.getElementById('ssMineEnd') || {}).innerText || '').split('\n').slice(0, 3).join(' | ') }));
+    ok('...the run ends by itself on the end screen', ended, `${endInfo.cause}: ${endInfo.text}`);
+    const toStore = await page.evaluate(() => { const b = document.getElementById('ssMineDone'); if (b) b.click(); return !!b; });
+    const store = await page.waitForSelector('#speciesSelect.ss-mine', { timeout: 15000 }).then(() => true).catch(() => false);
+    ok('the store opens from the end screen', toStore && store);
+    const devOnStore = await devHere();
+    ok('no dev buttons in the store', devOnStore.length === 0, devOnStore.join(', '));
+    const seed1 = await page.evaluate(() => window.__game.mine.seed());
+    const desc = await page.evaluate(() => { const b = document.getElementById('ssDescend'); if (b) b.click(); return !!b; });
+    const run2 = await page.waitForFunction((s1) => {
+      const g = window.__game, s = g && g.state;
+      return !!(s && s.substrate && s.substrate.mine && !s.runOver && g.mine.seed() !== s1 && s.substrate._rockSolidified && !document.getElementById('speciesSelect'));
+    }, seed1, { timeout: 40000 }).then(() => true).catch(() => false);
+    const rs = await page.evaluate(() => window.__rs.slice());
+    ok('Descend starts run 2 on a fresh shaft', desc && run2 && rs.length === 2, `${rs.length} run_start row(s)`);
+    await sleep(1500);
+    const saw = await page.evaluate(() => window.__sawLevelIntro);
+    ok('#levelIntro was never visible, on either run', saw === 0, `${saw} sample(s) with it up`);
 
     // Asset failures matter MORE here than in any other check: the tree has every file, so a
     // missing one only ever shows up in the artefact.
-    ok('no page errors or failed requests in the whole run', errs.length === 0,
-       errs.slice(0, 4).join(' | '));
+    ok('0 page errors or failed requests in the whole run', errs.length === 0,
+       errs.slice(0, 4).join(' | ') || 'none');
     // ...AND, ON THE CRAZYGAMES BUILD, THAT IT SURVIVED THE SDK BEING UNREACHABLE. Everything
-    // above — booting, both games, a live colony — happened with the SDK script failing to load
+    // above — booting, a descent, the store — happened with the SDK script failing to load
     // outright, which is the strongest available evidence that the guards hold. It is also a real
     // scenario: their CDN can be blocked by an extension or a corporate network, and the game
     // going down with it would be a far worse bug than the one the SDK was added to fix.
@@ -292,6 +326,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
 
   await browser.close(); srv.close();
   fs.rmSync(dir, { recursive: true, force: true });
+  if (FRESH) fs.rmSync(path.dirname(ZIP), { recursive: true, force: true });
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   process.exit(fail ? 1 : 0);
 })();

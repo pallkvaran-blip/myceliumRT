@@ -112,6 +112,20 @@ const openStore = async (page) => {
     }
 
     // =======================================================================================
+    // 1b. THE RELEASE ZIP KEEPS THE MINE'S BANDS (static: the prune, without building)
+    // =======================================================================================
+    if (want('zipdry')) {
+      console.log('--- the release prune keeps every mine band');
+      const out = require('child_process').execFileSync(process.execPath,
+        [path.join(H.ROOT, 'scripts', 'make-web-zip.mjs'), '--dry-run'], { encoding: 'utf8' });
+      const listed = out.split('dry run')[1] ? out.split('dry run')[1].split('\n').map((l) => l.trim()).filter((l) => /^[a-z0-9-]+$/.test(l)) : [];
+      const need = ['magnetite-c24', 'anthracite-c24', 'garnet-c24', 'hematite-c24'];
+      const miss = need.filter((f) => !listed.includes(f));
+      ok('`make-web-zip --dry-run` lists all four band folders', miss.length === 0 && listed.length > 4,
+         `${listed.length} folders listed; missing: ${miss.join(', ') || 'none'}`);
+    }
+
+    // =======================================================================================
     // 2. THE LEVEL CARD — a dev-off build goes straight to the map
     // =======================================================================================
     if (want('card')) {

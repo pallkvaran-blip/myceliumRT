@@ -1966,6 +1966,21 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       (g.state.substrate.reservoirs || []).length = 0;
       for (const c of g.state.substrate.cells) if (c.water && c.reservoir) { c.water = false; c.reservoir = null; }
       let digs = 0;
+      // WHEN THE DEEPEST TIP IS WALLED, PRESS ONE THAT IS NOT (M2). `mine.grow` presses the deepest
+      // tip, and until M2 a walled press fell through to whichever tip in the colony could step —
+      // up to ~200 units away on this probe (7 of 39 digs on seed 909), at the pressed strand's
+      // price. That fall-through is now capped at 90 units and one price step, so this dive picks
+      // the strand the way a player does: the deepest one with open ground in the aimed direction.
+      const DODGE = [0, 0.26, -0.26, 0.52, -0.52, 0.8, -0.8, 1.08, -1.08, 1.4, -1.4];
+      const grow = (dx, dy) => {
+        const r = g.mine.grow(dx, dy);
+        if (r.ok || !/Solid rock/.test(r.message || '')) return r;
+        const s0 = g.state, net = s0.active, sub = s0.substrate, seg = s0.config.growth.segmentLength;
+        const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, a0 = Math.atan2(uy, ux);
+        const tips = net.tips().filter((t) => !t.infected).sort((a, b) => (b.x * ux + b.y * uy) - (a.x * ux + a.y * uy));
+        const t = tips.find((n) => DODGE.some((o) => net._segmentClear(sub, n.x, n.y, n.x + Math.cos(a0 + o) * seg, n.y + Math.sin(a0 + o) * seg)));
+        return t ? g.mine.growFrom(t.x, t.y, t.x + ux * 400, t.y + uy * 400) : r;
+      };
       for (let i = 0; i < 300; i++) {
         if (g.state.runOver) break;
         // KEEP DIGGING UNTIL THE RUN ENDS, not until the DEEP dig stops being affordable. Heat
@@ -1979,10 +1994,10 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
         // blind loop empties the tank going nowhere and measures the roll rather than the economy.
         const d0 = g.mine.depth();
         let moved = false;
-        if (g.mine.grow(0, 1).ok) { digs++; moved = g.mine.depth() > d0; }
+        if (grow(0, 1).ok) { digs++; moved = g.mine.depth() > d0; }
         if (!moved) {
           for (const dx of (i % 2 ? [0.7, -0.7] : [-0.7, 0.7])) {
-            if (g.mine.grow(dx, 1).ok) { digs++; if (g.mine.depth() > d0) { moved = true; break; } }
+            if (grow(dx, 1).ok) { digs++; if (g.mine.depth() > d0) { moved = true; break; } }
           }
         }
         if (moved) { /* progress this step */ }
@@ -2053,7 +2068,19 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
           }
         }
         if (!target) break;
-        g.mine.growFrom(tip.x, tip.y, target.x, target.y);
+        // THE NEAREST STRAND MAY BE WALLED TOWARD THE SEAM (M2): the press no longer falls through to
+        // a strand anywhere in the colony, so press the nearest one that has open ground that way.
+        const r0 = g.mine.growFrom(tip.x, tip.y, target.x, target.y);
+        if (!r0.ok && /Solid rock/.test(r0.message || '')) {
+          const seg = s.config.growth.segmentLength, net = s.active;
+          const DODGE = [0, 0.26, -0.26, 0.52, -0.52, 0.8, -0.8, 1.08, -1.08, 1.4, -1.4];
+          const open = (n) => { const a0 = Math.atan2(target.y - n.y, target.x - n.x);
+            return DODGE.some((o) => net._segmentClear(sub, n.x, n.y, n.x + Math.cos(a0 + o) * seg, n.y + Math.sin(a0 + o) * seg)); };
+          let alt = null, ad = Infinity;
+          for (const n of net.nodes) { if (n.infected) continue; const d = (n.x - target.x) ** 2 + (n.y - target.y) ** 2;
+            if (d < ad && open(n)) { ad = d; alt = n; } }
+          if (alt) g.mine.growFrom(alt.x, alt.y, target.x, target.y);
+        }
         // A CLAIM NEEDS FRAMES. In real time `colonizeReachablePiles` only runs while a grow is in
         // flight (`net._colonizePending`, until the last strand has finished revealing), and a
         // strand is not live until it has animated in (`grownIn`) — so a probe that digs faster than

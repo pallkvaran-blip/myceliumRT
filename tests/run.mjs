@@ -42,6 +42,9 @@ const CHECKS = [
   ['ending',    'ending-check.cjs', 110,  false],
   // M2: the dev gate, no level card, the collision gate, the heat bypass, the aim price, playSeed, the retag.
   ['ship',      'ship-check.cjs',   200,  false],
+  // M2: THE RELEASE GATE, on a throwaway --no-shrink zip of the working tree (dev flag patched off):
+  // the prune keeps the mine's bands, and title -> descent -> end -> store -> Descend plays clean.
+  ['zip',       'itchzip-check.cjs --fresh', 60, false],
   ['rate',      'rate-check.cjs',    40,  false],
   ['cele',      'cele-check.cjs',    35,  false],
   ['handoff',   'handoff-check.cjs', 60,  false],
@@ -101,10 +104,11 @@ const CHECKS = [
 //   boot           the game still starts.
 //   ending         every way a descent ends, and that every exit banks (finishing plan M1).
 //   ship           a build that can ship: dev buttons, level card, collision + heat gates (M2).
+//   zip            the release zip itself plays the mine, dev flag off, no 404s (M2).
 //
 // Everything else in CHECKS is the card game and is no longer run. Nothing has been DELETED — the
 // code is untouched and the checks still work if `node tests/run.mjs campaign` is ever wanted.
-const MINE_SET = ['mine', 'ending', 'ship', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
+const MINE_SET = ['mine', 'ending', 'ship', 'zip', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
 
 const args = process.argv.slice(2);
 const fast = args.includes('--fast');
@@ -123,8 +127,10 @@ if (!picked.length) {
 const env = { ...process.env };
 if (!env.NODE_PATH) env.NODE_PATH = '/opt/node22/lib/node_modules';   // where Playwright lives here
 
+// A `file` may carry arguments after a space ('itchzip-check.cjs --fresh').
 const run = (file) => new Promise((res) => {
-  const p = spawn(process.execPath, [path.join(HERE, file)], { env, cwd: HERE });
+  const [f, ...args] = file.split(' ');
+  const p = spawn(process.execPath, [path.join(HERE, f), ...args], { env, cwd: HERE });
   let out = '';
   p.stdout.on('data', (d) => { out += d; });
   p.stderr.on('data', (d) => { out += d; });

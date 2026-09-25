@@ -3671,6 +3671,10 @@ const CONFIG = {
     // A CHECK THAT HAS TO CLICK ONE OPTS IN with `window.MYCELIUM_DEV_BUTTONS = true` before
     // boot (same shape as MYCELIUM_SUPABASE): edit, mapmenu, surface and traced all do, because
     // they drive the editor and the map list through the real buttons.
+    //
+    // AND SINCE M2 NOTHING VISIBLE SHOWS ON THE PLAIN URL, whatever these two say: the map buttons
+    // and the store's dev column also need `devUI()` — a `dev` hash token (`#dev`, `#mine,dev`,
+    // `#mine,4242,dev`), `?dev=1` (the title with dev buttons), or MYCELIUM_DEV_BUTTONS.
     inGameButtons: true,
     cheatEnergy: 100,
     cheatSpores: 100,

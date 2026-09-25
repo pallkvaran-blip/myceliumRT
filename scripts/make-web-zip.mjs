@@ -3,6 +3,8 @@
  *   node scripts/make-web-zip.mjs                          -> dist/mycelium-itch.zip
  *   node scripts/make-web-zip.mjs --platform crazygames    -> dist/mycelium-crazygames.zip
  *   node scripts/make-web-zip.mjs --keep-dev                (diagnostic only; never upload this)
+ *   node scripts/make-web-zip.mjs --dry-run                 list the map folders that would ship, build nothing
+ *   node scripts/make-web-zip.mjs --out /tmp/x.zip          build to that path instead of dist/
  *
  * TWO TARGETS, AND THE ONLY DIFFERENCE IS THE SDK. CrazyGames measures a game's initial download
  * as the bytes between load start and the first `gameplayStart` event and rejects a submission
@@ -53,12 +55,15 @@ if (PLATFORM !== 'itch' && PLATFORM !== 'crazygames') {
 // checked against ITS OWN platform's limit rather than the tighter of the two, so a future
 // CrazyGames-only map cannot be blocked by a cap that does not apply to it.
 const LIMITS = { itch: { entries: 1000, bytes: null }, crazygames: { entries: 1500, bytes: 250 * 1048576 } }[PLATFORM];
-const ZIP = path.join(OUT_DIR, `mycelium-${PLATFORM}.zip`);
+// `--out <file.zip>` builds somewhere else (the 'zip' check builds a throwaway copy with it, so a
+// release zip already sitting in dist/ is never overwritten by a test build).
+const OUT_ARG = argAt('--out');
+const ZIP = OUT_ARG ? path.resolve(OUT_ARG) : path.join(OUT_DIR, `mycelium-${PLATFORM}.zip`);
 // PER-PLATFORM STAGING. It was a single `dist/stage` when there was one target, and with two it is
 // a footgun: running both builds at once had the second `rmSync(STAGE)` delete the first's tree
 // mid-re-encode, which surfaced as `FileNotFoundError` on a .webp that had existed a moment
 // earlier. Two directories cost nothing and make the builds independent.
-STAGE = path.join(OUT_DIR, `stage-${PLATFORM}`);
+STAGE = OUT_ARG ? ZIP.replace(/\.zip$/i, '') + '.stage' : path.join(OUT_DIR, `stage-${PLATFORM}`);
 const keepDev = process.argv.includes('--keep-dev');
 // Leave `dist/stage/` behind. Only CI wants this: GitHub zips an artifact's CONTENTS, so uploading
 // the STAGE gives a downloaded artifact that is itself a valid itch zip — see the workflow.
@@ -180,9 +185,42 @@ for (const f of fs.readdirSync(levelsDir).filter((n) => n.endsWith('.json'))) {
   if (def.campaignLevel) reachable.add(def.assetsFrom || def.id);
   else if (def.survival) { if (OFFER_SURVIVAL) reachable.add(def.assetsFrom || def.id); else survivalOnly.add(def.assetsFrom || def.id); }
 }
+// THE DEEP MINE'S BANDS (finishing plan M2). The mine is not a level file — its four rock bands name
+// their sprite folders in `CONFIG.mine.bands[].assetsFrom` — so the level scan above never saw them,
+// and the prune dropped magnetite-c24 and garnet-c24 (the campaign uses the -c40 cuts): the public
+// zip's bands 1 and 3 had no rock art and NO COLLISION (emulated: 0/606 magnetite and 0/535 garnet
+// sprites loaded, the fine mask never built). Read out of index.html like OFFER_SURVIVAL, and
+// FAIL-FAST if the block has moved rather than shipping a mine with no walls.
+const MINE_BAND_FOLDERS = (() => {
+  const at = html.indexOf('\n  mine: {');
+  const b0 = at < 0 ? -1 : html.indexOf('\n    bands: [', at);
+  const b1 = b0 < 0 ? -1 : html.indexOf('\n    ],', b0);
+  const block = b1 > b0 && b0 > 0 ? html.slice(b0, b1) : '';
+  const out = [...block.matchAll(/assetsFrom:\s*'([^']+)'/g)].map((m) => m[1]);
+  if (!out.length) {
+    console.error('FAILED: could not read CONFIG.mine.bands[].assetsFrom out of index.html.\n' +
+                  'The block has moved — fix this script rather than shipping a mine with no rock.');
+    process.exit(2);
+  }
+  for (const f of out) {
+    if (!fs.existsSync(path.join(ROOT, 'assets', f))) {
+      console.error(`FAILED: mine band folder assets/${f} does not exist.`);
+      process.exit(2);
+    }
+  }
+  return out;
+})();
+for (const f of MINE_BAND_FOLDERS) reachable.add(f);
+say(`mine bands: ${MINE_BAND_FOLDERS.join(', ')}`);
 for (const k of reachable) survivalOnly.delete(k);   // a folder a campaign level also uses is not pruned
 say(`survival: ${OFFER_SURVIVAL ? 'OFFERED — its maps ship' : `withdrawn — ${survivalOnly.size} survival-only folder(s) pruned`}`);
 say(`levels a public build can reach: ${reachable.size} folders`);
+// `--dry-run`: print the folders that would ship and stop before anything is staged or zipped.
+if (process.argv.includes('--dry-run')) {
+  say('dry run — reachable map folders:');
+  for (const f of [...reachable].sort()) say('  ' + f);
+  process.exit(0);
+}
 
 fs.rmSync(STAGE, { recursive: true, force: true });
 fs.mkdirSync(path.join(STAGE, 'assets'), { recursive: true });
