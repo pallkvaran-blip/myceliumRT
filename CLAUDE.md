@@ -4357,6 +4357,9 @@ Numbers here are measured, not planned.
   `?dev=1`, or `window.MYCELIUM_DEV_BUTTONS === true`). `devButtonsOn()` (map buttons: maps, edit
   rocks, win level) and the store's dev column (quick-start, unlock all, +10,000) both ask it.
   `window.__game`, `#dev`/`#level` boots and keys are unchanged; `dev.enabled` stays true.
+  **EXCEPT the `[` / `]` map stepper (verifier fix):** it now also needs `devUI()` — on '#mine,4242'
+  a bare ']' swapped the descent for authored map 0 (substrate.mine false, 3 nodes, nothing
+  banked). ship-check 'key': plain URL keeps the run; '#mine,4242,dev' still steps (the control).
   - **TELL THE OWNER:** on the Pages build the buttons need a flag now — `#mine,dev` (random
     shaft), `#mine,4242,dev` (pinned), `?dev=1` (title + store), or `#dev` (the sandbox).
   - Before: '#mine,4242' showed 'Dev: maps ▾' and 'Dev: edit rocks'; now nothing on '/' or '#mine,…'.
@@ -4374,8 +4377,15 @@ Numbers here are measured, not planned.
   unchanged, curtain up and sim paused throughout; after: 0 of 966 living nodes inside `_fineSolid`.
   20 s delay: the curtain lifts at 15.0 s with no mask and digs stay refused. Dev-off local boot:
   map revealed 5.4 s after New.
-  - **RISK:** a band image that 404s for good never solidifies, so digs are refused for the run
-    (End descent still banks). Better than strands through rock; the zip check guards the 404.
+  - **THE HOLD SPEAKS (verifier fix):** past 600 ms held, `#settleNote` 'The ground is settling…'
+    shows over the black curtain (outside `#ui`/`#game`); hook `__game.settleNote()`. Measured:
+    26 of 32 held samples showed it, gone once the mask lands.
+  - **A SPRITE THAT NEVER DECODES (verifier fix; was a listed RISK):** after
+    `CONFIG.mine.solidForceMs` 20000 on the same pass, `solidifyRock` stamps each missing level
+    sprite as a SOLID rotated box (`SOLID_SPRITE`, a 1x1 opaque alpha mask; a superset of its
+    silhouette) and publishes the mask; `_solidForced` counts them. `solidifyMineRock` does the same
+    per sprite mid-run. Measured (every hematite file 404): mask at 19.0 s, 390 boxes, 390/390 box
+    centres solid, a dig lands. Invisible walls where the art is missing, instead of a dead run.
 - **HEAT BYPASS: `growDirected(..., companion, opts)`**, `opts = {maxFallDist, accept(parent)}`,
   default null = today's behaviour; the parent used is on `net._lastGrowOrigin`. `mineGrow` passes
   `CONFIG.mine.fallDist` 90 and accepts only the pressed strand or one on the SAME price step, and
@@ -4385,9 +4395,26 @@ Numbers here are measured, not planned.
   3546-4591 u away (the 131 m tip) on 30 of 30.
   - **GOTCHA: the navigator alone leaves NO walled shallow strand** (0 of 164 at <= 36 m) — the
     probe adds side fans off the upper shaft, as a player poking for seams does.
-  - **GOTCHA: side twigs.** `_sproutSideStrand` (`.side`) hangs up to sideStrandMax+1 = 4 segments
-    off any chain node, so a twig can sit past "90 + one reach" (283-288 u vs 243, all `.side`).
-    The chain is held to 90 + reach (153 u) exactly, twigs to that + 102 u (plan deviation).
+  - **ACCEPTANCE 5c KEPT LITERALLY (verifier fix; the first build had widened it).** Side twigs
+    (`_sproutSideStrand`, up to sideStrandMax+1 = 4 segments off any chain node) reached 251-288 u
+    and water-seek runners (`reachForWater` off the dig's new tip) 254-326 u, against 90 + reach =
+    243 u, and ship-check had allowed twigs +102 u. Now `opts.within = {x, y, r}` (mineGrow: the
+    pressed strand, r = fallDist + `mineGrowReach`): twigs stop at the circle, `reachForWater` only
+    throws from tips inside it toward water cells inside it (convex, so the straight runner stays
+    in), `_growToWaterEdge` hard-stops at it. Default null everywhere else. **Excluded by design:
+    pile-claim mat nodes (`.colon`)**: a claim runs from an already-grown-in strand, and in the mine
+    it happens on the tick (0 counted inside digs).
+    Measured, ship-check heat block, every dig audited (dive + fans + presses, water pockets in):
+    new 1579 digs / 17565 nodes / 32 runner nodes, 0 past 243 u; old 1104 digs, 8 twig + 13
+    chain/runner nodes past (up to 288 u). Bot play (`tests/bots/heatbound.cjs`, seeds
+    22/4242/909/11/5, real tank): old 16 runner nodes past on 4 of 5 seeds (up to 326 u); new 0,
+    farthest 227 u; water-runner nodes 76 -> 44.
+  - **`accept` IS ASKED INSIDE THE SEARCH (verifier fix):** `prefer.find(n => stepFrom(n) &&
+    accept(n))`, so a nearer steppable tip across a heat line no longer hides a same-step one. When
+    an open neighbour existed but was refused, `net._lastGrowRefusal = 'accept'` and mineGrow says
+    'Solid rock that way — the open strand beside it digs at another price.' (still starts 'Solid
+    rock', which the mine-check probes key on). Engine probe in ship-check: first refused -> origin
+    is the second candidate; refuse-all -> 0 nodes, reason 'accept'.
   - **CHANGED PROBES (mine-check), assertions unchanged:** the fuel-curve dive (`mine.grow` presses
     the deepest tip) and the seam probe relied on the fall-through (old build: 7 of 39 dive digs on
     seed 909 grew from ~200 u away). After M2 they read 27 m ('past the first band', was 54) and
@@ -4404,13 +4431,38 @@ Numbers here are measured, not planned.
   bands whole (25/47/31/50 files), solid share per band in the home chunk 36/49/43/39%, a
   navigator descent on the real tank (92-103 m, ~26 digs) ends `dry` by itself, store, Descend ->
   run 2 (2 run_starts), `#levelIntro` never seen, 0 failed requests. In the runner as
-  `zip` = `itchzip-check.cjs --fresh` (builds a throwaway zip, ~2 s). 12 of 13 runs green while
-  writing it; the one red was before the descent was quieted (worms/mould respawn off now) and its
-  lines were not captured.
-- **SMALL FIXES:** `beginMineRun(seed)`; `playSeed` = one world build, one run_start (was two).
+  `zip` = `itchzip-check.cjs --fresh` (builds a throwaway zip, ~2 s). 18 of 19 runs green (12 of
+  13 while writing it, then 6 of 6 after the descent was quieted); the one red was before the
+  quieting (worms/mould respawn off now) and its lines were not captured. Bands are 0-based here
+  and in make-web-zip (magnetite 0, anthracite 1, garnet 2, hematite 3).
+- **SMALL FIXES:** `beginMineRun(seed)`; `playSeed` = one world build (was TWO world builds and
+  ONE run_start: the run_start count cannot tell them apart, the '[mycelium] ... map:' line count
+  is the discriminating assertion). **The '#mine,<n>' boot had the same double build** (clock-seed
+  shaft, then the pinned one) and is now `beginMineRun(want)`: fingerprints (chunk records, piles,
+  pockets, fine-mask hash, colony, worms) identical on 4 seeds x 7 chunks, map lines 2 -> 1.
   The ore retag reads the pile only if `foodPiles` grew. Measured on 3 seeds x 5 chunks: 40 seams
   each, all tagged with their centroid band's material, 0 refused by `stampFood` on those seeds
-  (the invariant is checked; the refusal path did not fire there).
+  (the invariant is checked; the refusal path did not fire there). **Forced refusal case (verifier
+  fix):** every cell of the next chunk pre-flagged `hazard`, a sentinel mineMat on the last pile:
+  8 seams asked, 0 registered, sentinel kept; on the pre-fix line the sentinel read 'hematite'.
+- **RE-MEASURED AFTER THE VERIFIER FIXES** (the 90 u cap and the `within` circle both change
+  which digs land):
+  - **M1 sweep (`tests/bots/sweep.cjs`, 12 seeds):** M2 as first committed (f9e1ff6): 12/12 end by
+    themselves (all `dry`), 9/9 stalls end while sitting, depths 76/92/72/78/76/107/97/84/71/88/85/89
+    (mean 84.6). After the fixes: 12/12, 8/8, depths 59/95/75/68/78/106/109/84/68/81/82/86 (mean
+    82.6). M1 baseline was 12/12, 8/8. Per-seed swings (4242 76 -> 59, 5 97 -> 109) are bot timing;
+    `heatbound.cjs` on 4242 read 56 old vs 55 new.
+  - **'Solid rock' refusals in bot play (`heatbound.cjs`, 5 seeds): 0 of 376 attempts old, 0 of
+    651 new** (the other refusals are 'Not enough water' from `playDescent`'s recovery phase).
+    `navdive.cjs` 4242/909/5: stall probe 0 refused on both builds; navigator 154/150/153 m old,
+    154/153/153 m new, 36-39 digs.
+  - **mine-check fuel curve after the probe change:** seed 11 64 m in 27 digs, seed 909 57 m in 38
+    digs (pre-M2 909: 54 m; M2 without the probe change: 27 m). Seam probe 6 P at 18 m.
+  - **The real (shrink) release zip:** built with Pillow + imageio-ffmpeg from a scratch
+    `--target` dir (`PYTHONPATH=...`; neither is installed here): 31.6 MB, 549 entries (webp 17.13 ->
+    13.56 MB, mp3 11.7 -> 9.0 MB). `node tests/itchzip-check.cjs` against dist/mycelium-itch.zip:
+    23/23, bands whole 25/47/31/50, solid share 40/42/48/35%, 100 m on 29 digs, ends `dry`, run 2
+    starts, 0 failed requests.
 - **`--mine` after M2: 727 passed, 0 failed across 13 checks** — boot 20, store 124, mine 190, ending
   86, ship 40 (new), zip 23 (new), level 27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18.
 - **CHECKS:** `tests/ship-check.cjs` ('ship', in `--mine`; `SHIP_ONLY=dev,card,...` runs blocks);

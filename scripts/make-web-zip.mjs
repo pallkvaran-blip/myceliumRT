@@ -188,7 +188,7 @@ for (const f of fs.readdirSync(levelsDir).filter((n) => n.endsWith('.json'))) {
 // THE DEEP MINE'S BANDS (finishing plan M2). The mine is not a level file — its four rock bands name
 // their sprite folders in `CONFIG.mine.bands[].assetsFrom` — so the level scan above never saw them,
 // and the prune dropped magnetite-c24 and garnet-c24 (the campaign uses the -c40 cuts): the public
-// zip's bands 1 and 3 had no rock art and NO COLLISION (emulated: 0/606 magnetite and 0/535 garnet
+// zip's bands 0 and 2 (0-based, as CLAUDE.md counts them) had no rock art and NO COLLISION (emulated: 0/606 magnetite and 0/535 garnet
 // sprites loaded, the fine mask never built). Read out of index.html like OFFER_SURVIVAL, and
 // FAIL-FAST if the block has moved rather than shipping a mine with no walls.
 const MINE_BAND_FOLDERS = (() => {

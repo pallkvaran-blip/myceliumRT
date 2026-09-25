@@ -851,6 +851,12 @@ H. KNOWN GAPS THE BOTS MUST SETTLE
 - Checks that click dev buttons opt in with MYCELIUM_DEV_BUTTONS (edit, mapmenu, surface and traced already do).
 - The owner uses the dev buttons on the Pages build; tell them to add #dev to the URL.
 
+**Amendments (after the M2 verifiers).**
+- Acceptance 5c is KEPT AS WRITTEN, and the code changed to meet it: `mineGrow` passes growDirected a `within` circle of fallDist + one reach (243 u) round the pressed strand. Side twigs and water-seek runners stop at it; every other caller omits it. The first build had instead given twigs an extra ~102 u in ship-check, which was a widened bound. One exclusion, by design: pile-claim mat nodes (`.colon`). A claim runs from a strand that has already grown in, so tying it to this press would only hold back ore the colony already touches. In the mine, claims run on the world tick, so 0 of them were counted inside a dig.
+- Changes 1: the `[` / `]` map stepper is also gated on devUI(). It threw a live descent away without banking it. The other keys are unchanged.
+- Acceptance 6: old playSeed logged ONE run_start and built the world twice, so the run_start count does not tell the builds apart. The assertion that does is the world-build count (one '[mycelium] ... map:' line). The '#mine,<n>' boot had the same double build and is fixed the same way.
+- Acceptance 7: a forced-refusal case (every seam of a chunk refused, sentinel on the previous pile). The natural seeds refuse 0 seams, so on its own acceptance 7 cannot fail on the bug.
+
 
 ### M3 — A phone player can see and use every control
 

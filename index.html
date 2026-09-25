@@ -16764,9 +16764,9 @@ class Network {
   // `within` (optional, M2; default null = today's behaviour) = {x, y, r2}: only tips inside that
   // circle may throw a runner, and only toward a water cell whose centre is inside it too — the
   // circle is convex, so the whole straight runner stays in it. A dig in the mine passes the pressed
-  // strand's radius: before, a runner could carry a shallow press's growth 80+ u past its reach
-  // (measured 254-323 u from the press on seed 22, against 243). A far tip left unserved is served
-  // by the next dig near it.
+  // strand's radius: before, a runner carried a dig's growth past its reach (route bot, real tank:
+  // up to 297 u from the press on seed 22 and 326 u on seed 5, against 243). A far tip left unserved
+  // is served by the next dig near it.
   reachForWater(substrate, within = null) {
     const g = this.config.growth;
     if (this.nodes.length >= g.maxNodes) return 0;
@@ -22676,7 +22676,7 @@ function mineGrow(state, ctx) {
   // AND NOTHING THE DIG GROWS LANDS PAST `fallDist` + ONE REACH OF THE PRESSED STRAND (acceptance 5c,
   // kept literally): the chain cannot (origin <= fallDist, then one reach), and `within` stops the
   // decorative side twigs and the water-seek runners at the same circle — measured before this, twigs
-  // reached 251-288 u and a runner off the dig's new tip 254-323 u against a 243 u bound. Pile-claim
+  // reached up to 288 u and a runner off the dig's new tip up to 326 u against a 243 u bound. Pile-claim
   // mat nodes (`.colon`) are NOT bounded: a claim runs from a strand that has already GROWN IN (an
   // earlier, already-paid dig), on whichever dig comes next, so bounding it by this press would only
   // withhold ore the colony is already touching.
