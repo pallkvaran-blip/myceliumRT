@@ -22514,7 +22514,14 @@ function mineGrow(state, ctx) {
   // you first have to BE deep.
   const cost = mineGrowCost(state.config,
                             mineDepthM(sub, tip ? tip.y : (ctx.srcY != null ? ctx.srcY : ctx.y)));
-  if (net.water < cost) return { ok: false, message: `Not enough water — a dig here costs ${cost}.` };
+  // THE REFUSAL NAMES THE WAY OUT (M1): when the tank cannot pay here, FRUIT NOW is on screen, so
+  // the toast says what it banks rather than leaving the player to find it.
+  if (net.water < cost) {
+    const bank = Math.max(0, Math.round(state.mineOre || 0));
+    const stuck = net.water < mineCostHere(state);
+    return { ok: false, message: `Not enough water — a dig here costs ${cost}.`
+      + (stuck ? ` Fruit now to bank +${bank} P.` : '') };
+  }
   const fp = tip ? { x: tip.x, y: tip.y } : (net.frontierPoint() || { x: 0, y: sub.surfaceY });
   let dx = ctx.x - fp.x, dy = ctx.y - fp.y;
   // NO DIRECTION MEANS DOWN. A tap with no drag is a legitimate gesture on a phone and the mine
@@ -26477,6 +26484,7 @@ class UI {
     // three characters of noise on the scarcest screen in the game.
     const mineOn = !!(this.state.substrate && this.state.substrate.mine);
     this.mineOn = mineOn;
+    this._fnOn = this._fnBank = this._fnFrac = undefined;   // the FRUIT NOW pill is rebuilt hidden
 
     // ---- Top HUD: one compact resource row + a drop-down event log ----
     const hud = div('panel hud');

@@ -122,6 +122,10 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       const g = window.__game, s = g.state, sub = s.substrate;
       while (performance.now() - t0 < 3000) await new Promise((res) => setTimeout(res, 25));
       const leftBefore = g.mine.stuck().leftMs;
+      // A refused dig at the working front names FRUIT NOW and what it banks.
+      let deep = null;
+      for (const n of s.active.nodes) if (!n.infected && (!deep || n.y > deep.y)) deep = n;
+      const refusal = g.mine.growFrom(deep.x, deep.y, deep.x, deep.y + 200).message;
       // One dig from a SHALLOWER strand, priced 2 against a tank of 3.
       const cands = s.active.nodes.filter((n) => !n.infected && (n.y - sub.surfaceY) / sub.cellSize < 38)
         .sort((a, b2) => b2.y - a.y);
@@ -137,9 +141,11 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       }
       const leftAfter = g.mine.stuck().leftMs;
       await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
-      return { leftBefore, leftAfter, leftFrame: g.mine.stuck().leftMs, dug, over: s.runOver, on: g.mine.stuck().on };
+      return { leftBefore, leftAfter, leftFrame: g.mine.stuck().leftMs, dug, over: s.runOver, on: g.mine.stuck().on, refusal, ore: g.mine.ore() };
     }, st.t0);
     ok('the countdown was running at 3 s', r.leftBefore > 2500 && r.leftBefore < 3500, `${r.leftBefore} ms left`);
+    ok('a refused dig says the price and what fruiting now banks',
+       new RegExp('^Not enough water — a dig here costs \\d+\\. Fruit now to bank \\+' + r.ore + ' P\\.$').test(r.refusal || ''), `"${r.refusal}"`);
     ok('a dig from a shallower strand succeeded, for 2', !!r.dug && r.dug.paid === 2, JSON.stringify(r.dug));
     ok('...and stuck().leftMs returns to 6000 ±100', Math.abs(r.leftAfter - 6000) <= 100 && Math.abs(r.leftFrame - 6000) <= 100,
        `${r.leftAfter} ms at once, ${r.leftFrame} ms a frame later (run over: ${r.over})`);
