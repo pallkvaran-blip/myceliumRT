@@ -4411,6 +4411,8 @@ Numbers here are measured, not planned.
   The ore retag reads the pile only if `foodPiles` grew. Measured on 3 seeds x 5 chunks: 40 seams
   each, all tagged with their centroid band's material, 0 refused by `stampFood` on those seeds
   (the invariant is checked; the refusal path did not fire there).
+- **`--mine` after M2: 727 passed, 0 failed across 13 checks** — boot 20, store 124, mine 190, ending
+  86, ship 40 (new), zip 23 (new), level 27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18.
 - **CHECKS:** `tests/ship-check.cjs` ('ship', in `--mine`; `SHIP_ONLY=dev,card,...` runs blocks);
   the harness serves `/index-nodev.html` (dev flag patched off through make-web-zip's anchor) and
   takes `opts.file` / `opts.before(page)`.
