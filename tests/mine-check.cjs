@@ -1210,7 +1210,9 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
                chipShown: !document.getElementById('hud-digcost').hidden,
                chipHot: document.getElementById('hud-digcost').classList.contains('hot'),
                chipN: document.getElementById('hud-digcostn').textContent,
-               hint: (document.querySelector('.hint, #hint') || {}).textContent || '' };
+               // M3: the mine's instruction lives in #minehint now; read both, and the rest of the HUD.
+               hint: [(document.getElementById('minehint') || {}).textContent || '',
+                      (document.querySelector('.hint, #hint') || {}).textContent || ''].join(' | ') };
     });
     ok('a dig below the limit still succeeds', hot.ok === true && hot.grew > 0,
        `${hot.grew} strands at ${hot.depth} m`);
@@ -2428,10 +2430,11 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       let tip = null;
       for (const n of g.state.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
       const s = g.camera.worldToScreen(tip.x, tip.y);
-      const h = document.querySelector('#ui .hint');
+      // M3: the mine's instruction is #minehint (the phone CSS hides every `.hint`).
+      const h = document.getElementById('minehint');
       return { x: Math.round(s.x), y: Math.round(s.y), nodes: g.state.active.nodes.length,
                water: g.state.active.water, armed: !!g.cardUsesDragAim,
-               hint: h && h.style.display !== 'none' ? h.textContent : '' };
+               hint: h && !h.hidden && getComputedStyle(h).display !== 'none' ? h.textContent : '' };
     });
     await page.mouse.move(dragged.x, dragged.y);
     await page.mouse.down();
@@ -2439,7 +2442,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     await page.mouse.up();
     await sleep(1400);
     const afterDrag = await page.evaluate(() => {
-      const h = document.querySelector('#ui .hint');
+      const h = document.getElementById('minehint');
       const g = window.__game, s = g.state;
       // The dig's own charge, measured across the call and nothing else.
       const w0 = s.active.water;
@@ -2448,7 +2451,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       const r = g.mine.growFrom(tip.x, tip.y, tip.x, tip.y + 200);
       const dug = r.ok ? w0 - s.active.water : null;
       return { nodes: s.active.nodes.length, water: s.active.water, dug,
-               hintShown: !!(h && h.style.display !== 'none' && h.textContent.trim()),
+               hintShown: !!(h && !h.hidden && getComputedStyle(h).display !== 'none' && h.textContent.trim()),
                hint: h ? h.textContent : '' };
     });
     ok('a press-and-drag on the colony digs', afterDrag.nodes > dragged.nodes,

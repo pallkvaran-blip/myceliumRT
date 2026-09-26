@@ -3584,6 +3584,15 @@ const CONFIG = {
     // ...and a request that HANGS (in flight for ever) is boxed too after this long, so a stalled
     // socket cannot refuse every dig for the run. Re-stamped from the art if it ever lands.
     solidForceStallMs: 60000,
+    // ---- the phone (M3) ---------------------------------------------------
+    // Below this play-surface width the HUD stacks into two rows (row 1: water, the dig price,
+    // depth; row 2: P, material tags, worms). Measured: the single row ran to x 480 at 390 px with
+    // three worms, the rot clock and three materials up, and pushed the gear off the screen.
+    hudTwoRowsBelowPx: 430,
+    // A TAP ON THE COLONY DIGS STRAIGHT DOWN, but only when the finger landed this close (screen
+    // px) to the strand it snapped to. The aim's own grab radius (`aimNearPx`, 170-420 px) is sized
+    // for starting a DRAG anywhere near the colony; a tap that far off is someone touching the map.
+    tapDigPx: 48,
     // HOW WIDE A DOSE CUTS. The campaign's Amputate is 60 units — about 1.7 cells — which is sized
     // for snipping a strand off a card-game colony. Measured against a real breach it is useless as
     // a cure: `firstTouchRings` 12 claims ~20 strands spread along the filaments, three doses at 60
@@ -32452,7 +32461,12 @@ function showLoading() {
   // tap/click anywhere on the screen (which also unlocks audio autoplay).
   function ready(onClick) {
     if (armed) return; armed = true;
-    pctEl.textContent = 'Click';
+    // 'TAP TO DIG' ON A PHONE (M3). It read 'CLICK' on every device, which is a desktop word on the
+    // one screen every phone player sees first. `pointer: coarse`, not a UA sniff or a width test —
+    // the same rule the name dialog's autofocus uses (a tablet is wide and still has no mouse).
+    let coarse = false;
+    try { coarse = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches); } catch (_) {}
+    pctEl.textContent = coarse ? 'Tap to dig' : 'Click to dig';
     root.classList.add('ld-ready');
     const go = () => { root.removeEventListener('click', go); onClick && onClick(); };
     root.addEventListener('click', go);
@@ -37515,6 +37529,15 @@ function setupInput() {
       return;
     }
     if (mouse.moved) return;
+    // AN ARMED CUT OWNS A TAP ANYWHERE (M3), including one too far from clean tissue to start an aim
+    // — which is exactly where a rotten limb is, since `nearestNode` skips infected strands. Before
+    // this the dose could only be spent by a drag that began near CLEAN tissue and ended on the rot.
+    if (mineMap() && state && state._mineArmed && !state.runOver) {
+      const r0 = canvas.getBoundingClientRect();
+      const w0 = camera.screenToWorld(e.clientX - r0.left, e.clientY - r0.top);
+      mineArmedTap(w0.x, w0.y);
+      return;
+    }
     // A directional drag-aim card/action is armed but this was a plain tap that never
     // started an aim (pressed too far from the colony — a pan intent that didn't move).
     // Do nothing and stay armed; the press-drag gesture is the only way to play it, so
