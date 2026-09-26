@@ -148,7 +148,10 @@ async function injectBot(page) {
       const sp = Q.xyOf(F, path[startK]);
       let src = null, sd = Infinity;
       for (const n of nodes) { const d = (n.x - sp.x) ** 2 + (n.y - sp.y) ** 2; if (d < sd) { sd = d; src = n; } }
-      const steps = Math.max(2, Math.round((ahead || 120) / F.fs));
+      // M5: AIM A FULL `mineGrowReach` AHEAD (steps x 3 segments), not a fixed 120-130 units — with Grow
+      // strength bought, a short aim wasted most of every dig's reach and understated what the track buys.
+      const full = W.__game.state.config.growth.segmentLength * 3 * (W.__game.state.config.mine.growSteps || 2);
+      const steps = Math.max(2, Math.round((ahead || full) / F.fs));
       const tk = Math.min(path.length - 1, startK + steps);
       const tp = Q.xyOf(F, path[tk]);
       const r = W.__game.mine.growFrom(src.x, src.y, tp.x, tp.y);
@@ -166,6 +169,8 @@ async function injectBot(page) {
     // One decision + one dig. opts: {visR, useItems, lambda, greedyOre}
     Q.step = (opts) => {
       opts = opts || {};
+      // M5: the NAIVE policy as a `step` option, so botrun / career can play either player.
+      if (opts.policy === 'naive') return Q.naiveStep(opts);
       const g = W.__game, s = g.state, sub = s.substrate;
       if (s.runOver) return { over: true };
       const out = { acts: [] };
@@ -200,7 +205,7 @@ async function injectBot(page) {
       if (best && bs > (opts.maxDetour || 900)) best = null;
       if (best) {
         Q.bad.set(best.key, (Q.bad.get(best.key) || 0) + 1);
-        const r = Q.digAlong(F, best.reach.i, opts.ahead || 130);
+        const r = Q.digAlong(F, best.reach.i, opts.ahead);
         return Object.assign(out, { mode: 'target', kind: best.kind, mat: best.mat, pathLen: Math.round(bs), ok: r.ok, msg: r.message });
       }
       // explore: deepest-reaching frontier, penalised by path length
@@ -217,7 +222,7 @@ async function injectBot(page) {
         if (sc > bsc) { bsc = sc; bi = i; }
       }
       if (bi < 0) return Object.assign(out, { stuck: true, why: 'boxed: no frontier', frontier });
-      const r = Q.digAlong(F, bi, opts.ahead || 130);
+      const r = Q.digAlong(F, bi, opts.ahead);
       const tp = Q.xyOf(F, bi);
       return Object.assign(out, { mode: 'explore', frontier, goalM: Math.round((tp.y - F.sy) / 36), ok: r.ok, msg: r.message });
     };

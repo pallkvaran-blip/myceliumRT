@@ -24,13 +24,24 @@ const { playDescent } = require('./botrun.cjs');
     const before = await page.evaluate(() => ({ P: window.__game.store.balance(), mats: window.__game.store.mats() }));
     // shop
     const bought = await page.evaluate((strat) => {
-      const S = window.__game.store, ids = ['water', 'growSteps', 'heatTolerance', 'excreteCharges', 'amputateCharges', 'oreYield', 'pocketWater'];
-      const pri = strat === 'cheapest' ? ids : strat.split('+');
+      // THE TRACK IDS COME FROM THE PAGE (M5: `__game.store.ids()`), so a renamed, added or cut track
+      // cannot leave the bot buying nothing. A track the progressive reveal still hides is skipped —
+      // a player cannot see it, and `buy` refuses it.
+      const S = window.__game.store, ids = S.ids('mine');
+      // Buy orders. 'cheapest': the cheapest affordable rung. 'power': dig power first (grow, water,
+      // heat, then the kit). 'knowledge': what tells you about the ground first — the compasses when
+      // they exist (M10), else heat, the kit, then power. Any other value is a '+'-joined id list.
+      const ORDERS = {
+        power: ['growSteps', 'water', 'heatTolerance', 'excreteCharges', 'amputateCharges'],
+        knowledge: ids.filter((id) => /compass/i.test(id)).concat(['heatTolerance', 'excreteCharges', 'amputateCharges', 'water', 'growSteps']),
+      };
+      const pri = (strat === 'cheapest' ? ids : (ORDERS[strat] || strat.split('+'))).filter((id) => ids.indexOf(id) >= 0);
       const got = [];
       for (let k = 0; k < 40; k++) {
         const bal = S.mats();
         let pick = null, pc = Infinity;
         for (const id of pri) {
+          if (!S.inGame(id, 'mine')) continue;
           const c = S.nextCost(id); if (c == null) continue;
           const m = typeof c === 'number' ? 'phosphorus' : c.m, n = typeof c === 'number' ? c : c.n;
           if ((bal[m] | 0) < n) continue;
@@ -44,7 +55,7 @@ const { playDescent } = require('./botrun.cjs');
       return got;
     }, strat);
     const after = await page.evaluate(() => ({ P: window.__game.store.balance(), mats: window.__game.store.mats(),
-      levels: Object.fromEntries(['water', 'growSteps', 'heatTolerance', 'excreteCharges', 'amputateCharges', 'oreYield', 'pocketWater'].map((id) => [id, window.__game.store.level(id)])) }));
+      levels: Object.fromEntries(window.__game.store.ids('mine').map((id) => [id, window.__game.store.level(id)])) }));
     const row = { run: r, seed: res.seed, seconds: res.seconds, digs: res.digs, depth: res.end.depth, maxDepth: res.maxDepth,
       ore: res.end.ore, mats: res.end.mats, cause: res.end.cause, drained: res.end.drained, boxed: res.boxedAt, sat: res.sat && { w0: res.sat.before.water, w1: res.sat.after.water, over: res.sat.after.over, rec: res.sat.recovery, forced: !!res.sat.forcedEnd },
       itemsUsed: res.steps.flatMap((s) => s.acts || []).map((a) => a.join(' ')).slice(0, 12),
