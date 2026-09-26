@@ -217,6 +217,10 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       s.nematodes.length = 0; s.clouds.length = 0;
       s.active.water = 100000;
       const nav = await window.__navDig({ targetM: 67, maxIters: 700 });
+      // NO POCKET MAY REFILL THE TANK UNDER THE STUCK STATE (the M4 round-2 rule, which `toStuck` has
+      // and this block did not): a pocket the last digs reached pays once its strand grows in, i.e.
+      // after the tank is set one short — measured here as water 3 -> 13 with the pill never shown.
+      { const T = s._tappedWater || (s._tappedWater = new Set()); for (const q of (s.substrate.reservoirs || [])) T.add(q.id); }
       s.mineOre = (s.mineOre | 0) + 23; s.active.phosphorus = (s.active.phosphorus | 0) + 23;
       s.mineMats = Object.assign({}, s.mineMats, { anthracite: 2 });
       const R = (id) => { const e = document.getElementById(id); if (!e || e.hidden) return null; const q = e.getBoundingClientRect();
