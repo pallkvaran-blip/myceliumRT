@@ -388,6 +388,7 @@ upgradeInGame (14249) reads p.mineSeen, and the shelf and the buy path share tha
 - + Oxalic vial: leg 3 begins.
 - + Strains: only after the Promised Land.
 A newly revealed tile carries a NEW badge for one visit and is the next-goal card's first pick. At most 5 tiles show before run 5.
+- AS BUILT (M5 verifier fix): "visit 1" is the store after run 1 (a fresh save cannot reach one earlier), and run 1 crosses 42 m on nearly every seed, so the event-gated tracks wait for the second descent banked (p.mineRuns >= 2). What run 1 met appears NEW after run 2. An unbought Water tank is the card's pick until Water I is bought, ahead of any new tile.
 
 NEXT-GOAL PRIORITY (the end-screen card)
 new tile > grow > water > heat (if the leg's route runs past the line) > flask (if worms were met) > enzyme (if rot was met) > island compass > the compass for a material the next power rung needs > vial.
@@ -562,6 +563,7 @@ RUN 1 ARITHMETIC
 - 60 water is 30 digs at 2, plus about one pocket (+10 for about 2 detour digs), so 32-34 digs: 55-60 s at 1.7 s a dig.
 - It reaches 42-60 m (the heat tease), or 20-40 m and 30-45 m east on leg 1.
 - It pays 10-18 P and always buys Water I (5 P).
+- AS BUILT (M5 verifier fix): the 5 P floor is paid only for a descent with at least one dig that ended by itself (dry, FRUIT NOW, infected, devoured, full). End descent, Exit to title and a hidden tab bank the raw reach + seams, so the floor cannot be farmed.
 - The model has run 1 at about 62 s, paying 12-13 P.
 
 B. MEASURED INPUTS (phase 1; the navigator through the fine mask at grow 2). M14 re-measures them with legprobe.cjs and journey.cjs.
