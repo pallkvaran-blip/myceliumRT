@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). Next: M4.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (awaiting verifier). Next: M5.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -4587,6 +4587,69 @@ Numbers here are measured, not planned.
     diagnostics fire once.
   - After the tidy: `run.mjs mine store phone ending zip` 468/468 (store 124, mine 190, ending 87,
     phone 44, zip 23). A green `--mine` is now 790.
+
+### M4 — The first minute teaches itself (DONE)
+
+- **FIRST VISIT** (`mineFirstVisit()`: no `p.mineBest`, `runsFinished` 0; hook `__menu.firstVisit()`):
+  the gate tap calls `beginMineRun()` from `enterGame`, no title, no DIG word. Returning saves get the
+  title. **The band art AND its alpha masks are preloaded behind the % counter** (`loadLevelAssets`
+  gained `onStep`; `levelAssetKeys(id)`), because the M2 curtain waits for every band sprite and
+  `_alphaMask`'s first getImageData cost ~1.4 s after the tap. Tap -> map: 340-434 ms warm (3 runs x2),
+  one cold-browser outlier at 693 ms (the first launch after a container restart). The click
+  handler is ~330 ms of long tasks (world build of 3 chunks, then the first frame).
+  - **GOTCHA: the preload neutered ship-check's gate block** (delayed band art held the counter
+    instead; '0 of 0 refused', '0 samples', 7 fails). Test knob `window.MYCELIUM_NO_BAND_PRELOAD`
+    (init script) skips the preload; the gate block uses it. The collision gate still matters: the
+    loader's 12 s safety net lets a slow link in first, and streamed chunks.
+  - Tests that want the title seed a returning save (`mine-harness` `opts.returning`); boot 20 -> 22.
+- **GHOST FINGER** (`drawMineOnboard`, after the colony pass; hook `__game.mine.ghost()`): a 14 px mint
+  dot + trailing arrow sliding 110 px along `mineBestDownRay` (7 rays 30-150 deg, 12 u samples of
+  `solidAtWorld`, re-scored only when the focus strand or `_solidRev` changes) from `mineFocusNode`,
+  1.6 s loop. Shows until the first dig, and after 6 s idle on runs 1-2 (`state._mineRunNo` =
+  runsFinished + 1). Hidden while a pointer is down, an item is armed, the tank cannot pay here, or
+  the curtain is held.
+- **ONE-SHOT TIPS** (`mineTipOnce(id)` -> `p.mineTips[id]`, `logEvent('tutorial', {detail: id, ms})`):
+  `dig` -> 'Every dig costs water — the deeper, the more' (3 s); `first_ore` (P seam on screen, 40 px
+  margin, 250 ms scan) -> pulse ring + 'Phosphorus — grow into it'; `first_pocket` -> ring + 'Water
+  pocket — touch it for +10'; `first_line` (max depth within 6 m above the first price line) -> a
+  dashed orange line with 'Past 42 m every dig costs 4' drawn on it. The per-run tip queue's first line
+  is now id `drag` (was `dig`; different namespace from p.mineTips).
+- **DEAD-END NUDGE** (runs 1-5; hook `__game.mine.glow()`): `mineGrow` returns `newCells` (distinct
+  coarse cells its new non-mat strands stand in that no older strand does; O(nodes) per dig). Two
+  successful digs in a row under 2 -> `mineOpenTips(state, 2)` glow 4 s and `mineTip(..., {now:true})`
+  'Dead end — dig from a glowing tip' (jumps the queue). **Tips are scored by how DEEP their open ray
+  leads** (a ray must cross 2+ undug cells; score = tip depth + clear*sin + 0.3*clear), affordable
+  only, >= 100 u apart. Scoring fresh-cell count alone lit shallow side pockets (a glow-following bot
+  went 28 -> 34 m on 4242, 19 m on 909).
+- **BEAT:** `mineBeat` adds 'Digs now cost N' (`mineBeatCostLine`) when a price line sits at the band's
+  top; a line tolerance moved off a band boundary gets its own small beat (`mineLineBeats`). With one
+  tolerance step: '42 m ANTHRACITE' (no price), then '67 m Digs now cost 4' (small).
+- **COLLECTION FEEDBACK:** `mineOreRewards` / `mineWaterPickups` RETURN LISTS now (`{x, y, mat, n,
+  pile}` / `{x, y, n, src}`; test `.length`) — `minePileCentre` (cached) / `mineResCentre` (reservoir
+  `cx`/`cy` are CELLS). `addEnergyFloater(..., {text, color, size, icon})`; `drawFloaters` honours them.
+  '+3 P' / '+2 Anthracite' / '+10 water' at the site; synthesized `playSeamPing` / `playPocketGlug`
+  in `__m_render_sfx`, counted in `window.__sfx.counts` only when scheduled (muted -> unchanged).
+  Seams washed in `m.tint` (`drawMineSeamTints`, 'color' composite, on-screen piles only).
+  - **DEVIATION: a tapped pocket is a dark hollow + the art at 35%, not the art at 35% alone.** The
+    soil is brighter than the dark-water art, so 35% alone read 58 -> 71 luminance (a spent pocket
+    looked FULLER). With the hollow (`_spentPocketArt`, cached per key): 57.2 -> 27.4 (0.48x).
+- **RUN 1's end screen** says 'Your first descent' (`state._mineFirst`, taken on the run's first frame,
+  before the bank writes mineBest) instead of 'Your deepest descent yet'.
+- **CHANGED ASSERTION:** mine-check '...and the hint clears once they have dug' (`!hintShown`) ->
+  '...and the drag instruction clears once they have dug' (`!/drag/`): the dig hands over to the costs tip.
+- **lib.cjs** read reservoir cx/cy/rad as world units (so the route bot never steered for water);
+  fixed. `Q.naiveStep` added. Sweep/career numbers from before M4 had that bug.
+- **CHECKS:** `tests/onboard-check.cjs` ('onboard', in `--mine`, 42 assertions, ~170 s;
+  `ONB_ONLY=first,ghost,tips,beat,feedback,pocket,nudge,end`), fresh context per block, telemetry
+  routed to a stub (`https://tele.test`). Screens: `tests/.artifacts/m4-*-390.png`.
+  `tests/bots/naive.cjs` (acceptance 7, not in the runner).
+- **MEASURED:** naive bot (8 seeds, pace 900 ms): with the nudge median **77.5 m** (33 44 64 77 78 86
+  94 96), 8 of 8 stalled runs nudged, all ended `dry` by themselves; `--baseline` (glow ignored)
+  median **24.5 m** (5 14 15 22 27 28 43 64; plan said 28). renderFrame (mine-probe 4242, 390x844):
+  6.9 / 7.7 ms at M4 vs 7.5 / 7.3 at dd0d494 — no measurable cost.
+- **`--mine` after M4: 834 passed, 0 failed across 15 checks** — boot 22, store 124, mine 190, ending
+  87, ship 58, phone 44, onboard 42, zip 23, level 27, aim 9, scale 26, threat 116, harvest 28,
+  mould 20, core 18.
 
 ## Two games on the title screen: Survival and Campaign
 
