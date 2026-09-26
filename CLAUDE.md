@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 IN PROGRESS: part A (economy core) committed f582443; next part B (reveal UI, end screen, store note, title), then checks.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 BUILT (all 11 changes; acceptance 1, 4-10 pass; 2 and 3 FAIL, measured and left for the owner / M14 — see M5). Next: M5 verifier, then M6.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -4764,7 +4764,7 @@ Numbers here are measured, not planned.
   best ray (the ghost's, drawn), digging once from each glowing tip along its drawn slide. The literal
   never-look policy reads median ~15 m.
 
-### M5 — Every run pays, every store visit buys (IN PROGRESS — see PROGRESS)
+### M5 — Every run pays, every store visit buys (BUILT; acceptance 2 and 3 fail)
 
 - **REACH PAYOUT** (`CONFIG.mine.reach` {mPerP 5, eastMPerP 10, minPay 5}; `__m_engine_mine`):
   `mineReachRaw` = floor(maxDepth/5) + floor(maxEast/10) off the RUNNING MAXIMA (`mineMaxDepth`,
@@ -4825,8 +4825,12 @@ Numbers here are measured, not planned.
   `store.ids('mine')` and has power / knowledge orders; `digAlong` aims a full `mineGrowReach`;
   `step({policy:'naive'})`. econ run1 measures the RUN's length (`runResult.ms`) at a periodic pace
   (the bot's wall clock also counts ~10 s of end-screen waits).
-- **CHECKS**: `tests/econ-check.cjs` ('econ', in `--mine`, 44 assertions, `ECON_ONLY=reach,reveal,
-  heat,migrate,rich,end,title`).
+- **CHECKS**: `tests/econ-check.cjs` ('econ', in `--mine`, 50 assertions, `ECON_ONLY=reach,reveal,
+  heat,migrate,rich,end,title`). Measured there: rich seams 26 of 108 deep seams (24.1%) over 3 seeds
+  x 6 chunks; a rich seam pays 6, the same seam not rich 2; chunk records 8-12 identical to pre-M5.
+- **ending-check's FRUIT NOW busy block now marks existing pockets tapped** before shorting the tank
+  (the M4 round-2 rule `toStuck` already had): a pocket the navigator's last digs reached paid 3 ->
+  13 after the tank change and the pill never showed — 2 of 3 full runs on the M5 build.
 - **CHANGED ASSERTIONS (old -> new)**: store-check + mine-check shelf 'water,growSteps,excreteCharges,
   amputateCharges,heatTolerance,oreYield,pocketWater' -> '...,heatTolerance' (with `revealAll`), plus
   'a fresh save sees only Water tank and Grow strength'; mine-check store tiles `=== 7` -> `=== revealed
@@ -4837,6 +4841,10 @@ Numbers here are measured, not planned.
   at 60; seed 11 64 m). ending-check: FRUIT NOW / refusal read `bankable` (was `ore()`); exits 'rise
   by 9' -> '9 + reach'; pending / two-tab P 13 / 20 / 23 -> + reach; overrun `ore === 5` -> `seams 5,
   ore = 5 + reach`. onboard-check reveals heat before buying it.
+- **`--mine` after M5: 907 passed, 0 failed across 16 checks** — boot 22, store 124, mine 191, ending 87,
+  ship 58, phone 44, onboard 63, econ 50 (new), zip 24, level 27, aim 9, scale 26, threat 116,
+  harvest 28, mould 20, core 18. (mine 190 -> 191: '...and a fresh save sees only Water tank and Grow
+  strength'.)
 - **MEASURED (bots, fresh saves)**: run 1 sensible (pace 900, 12 seeds): banked 5-37 P (median 26),
   Water I bought 12/12, 21-92 m. Naive (8 seeds): 5-23 P, 8/8 buy Water I, all end `dry` by
   themselves, median 31.5 s at pace 900. **Diver vs farmer, no upgrades: 77 vs 105 P (x0.73; pre-M5
