@@ -225,7 +225,8 @@ async function injectBot(page) {
     // downward rays (`__game.mine.bestDownRay`, the ghost finger's own choice) — a new player dragging
     // down from the bottom. `followGlow` (default true): while the dead-end nudge has tips lit
     // (`__game.mine.glow()`), dig from the first glowing tip along its open ray instead, which is what
-    // the nudge asks a player to do. `followGlow: false` is the pre-M4 baseline.
+    // the nudge asks a player to do — and the angle is DRAWN on the glowing tip (the ghost finger's
+    // slide), so it is information the player has. `followGlow: false` is the pre-M4 baseline.
     Q.naiveStep = (opts) => {
       opts = opts || {};
       const g = W.__game, s = g.state;
@@ -239,10 +240,11 @@ async function injectBot(page) {
       if (opts.followGlow !== false && fresh.length) {
         const t = fresh[0]; Q._glowUsed.add(t.id); src = { x: t.x, y: t.y }; ang = t.ang; mode = 'glow';
       } else {
-        // The deepest tip — or, after refusals there, one a little higher up (a player whose drag
-        // keeps being refused tries a strand higher up; `opts.skip` counts the refusals in a row).
+        // ALWAYS the deepest clean tip, refused or not (the plan's policy). An earlier version tried
+        // a strand higher up after refusals, which is help a naive player does not have; the nudge
+        // now fires on 3 'Solid rock' refusals in a row instead, and the glow is what gets it out.
         const ns = Q.live().slice().sort((a, b) => b.y - a.y);
-        const tip = ns[Math.min(ns.length - 1, (opts.skip | 0) * 3)];
+        const tip = ns[0];
         if (!tip) return { stuck: true };
         src = { x: tip.x, y: tip.y };
         const ray = g.mine.bestDownRay(tip.x, tip.y); if (ray) ang = ray.ang;

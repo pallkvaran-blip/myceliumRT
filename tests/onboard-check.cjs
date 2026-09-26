@@ -1,6 +1,6 @@
 /* THE FIRST MINUTE TEACHES ITSELF — the finishing plan's M4, as assertions.
  *
- *     node tests/onboard-check.cjs     (ONB_ONLY=first,ghost,tips,beat,feedback,pocket,nudge,end runs blocks)
+ *     node tests/onboard-check.cjs     (ONB_ONLY=first,ghost,tips,stale,beat,feedback,pocket,nudge,walled,end runs blocks)
  *
  * What it pins (docs/finish/PLAN.md, M4 acceptance 1-6; 7 is tests/bots/naive.cjs):
  *   1. A FIRST VISIT (fresh save, plain URL, touch) skips the title: the gate tap lands in run 1, the
@@ -155,6 +155,23 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       });
       ok('run 3 still shows it before the first dig', g3.runNo === 3 && g3.f1 > g3.f0, `run ${g3.runNo}: ${g3.f0} -> ${g3.f1}`);
       ok('...but not after 7 s idle', g3.dig && g3.f3 === g3.f2, `${g3.f2} -> ${g3.f3}`);
+      // THE RAY MEMO DOES NOT SURVIVE THE RUN (verifier fix): strand ids restart at 0, so a run that
+      // ended with the ghost on its root handed the next run's root the SAME memo key ('0:0:1') and
+      // the ghost slid along a ray scored on the previous seed's rock. Every root ray on these seeds
+      // is straight down (the head is carved under the home column), so the check reads the memo
+      // itself: two runs back to back, the ghost on the root both times, and the second must
+      // RE-SCORE its ray (`scores` rises) although its key is identical.
+      const gm = await b.page.evaluate(async () => {
+        const g = window.__game, wait = (ms) => new Promise((r) => setTimeout(r, ms));
+        const waitMask = async () => { for (let i = 0; i < 200 && !(g.state.substrate && g.state.substrate._rockSolidified && g.mine.ghost().on); i++) await wait(50); };
+        g.mine.playSeed(4242); await waitMask(); await wait(500);
+        const a = g.mine.ghost();
+        g.mine.playSeed(909); await waitMask(); await wait(500);
+        const c = g.mine.ghost();
+        return { s0: a.scores, s1: c.scores, on: a.on && c.on, digs: g.state.mineDigs | 0 };
+      });
+      ok("a new run re-scores the ghost's ray even when its memo key repeats", gm.on && gm.digs === 0 && gm.s1 > gm.s0,
+         `scores ${gm.s0} -> ${gm.s1} across the run change, both on the root`);
       ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
       await b.ctx.close();
     }
@@ -171,7 +188,15 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
         if (rq.method() === 'POST' && /\/rest\/v1\/events/.test(rq.url())) { try { posted.push(JSON.parse(rq.postData() || '{}')); } catch (_) {} }
         await route.fulfill({ status: rq.method() === 'POST' ? 201 : 200, contentType: 'application/json', body: '[]' });
       });
-      await ctx.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: 'https://tele.test', anonKey: 'k' }; });
+      await ctx.addInitScript(() => {
+        window.MYCELIUM_SUPABASE = { url: 'https://tele.test', anonKey: 'k' };
+        // WHEN each line appeared, in the same clock as the event's `ms` (ms since mineStartedAt).
+        window.__shown = [];
+        setInterval(() => { const h = document.getElementById('minehint'), s = window.__game && window.__game.state;
+          const t = h && !h.hidden ? (h.textContent || '').trim() : '';
+          if (t && t !== window.__lastHint && s && s.mineStartedAt) window.__shown.push({ t, ms: Date.now() - s.mineStartedAt });
+          window.__lastHint = t; }, 10);
+      });
       const page = await ctx.newPage();
       const errs = []; page.on('pageerror', (e) => errs.push(String(e && e.message)));
       const bootSeed = async () => {
@@ -230,6 +255,15 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
          ['dig', 'first_ore', 'first_pocket', 'first_line'].every((id) => cnt(t1, id) === 1), JSON.stringify(t1));
       ok('...each carrying ms into the run', posted.filter((r) => r.kind === 'tutorial').every((r) => r.ms >= 0 && r.ms < 600000),
          posted.filter((r) => r.kind === 'tutorial').map((r) => r.ms).join(', '));
+      // LOGGED WHEN SHOWN, NOT WHEN QUEUED (verifier fix): each hint tip's event `ms` lands within
+      // 250 ms of the moment its line appeared in #minehint (it used to fire at queue time, seconds
+      // before the line showed, and for lines that never showed at all).
+      const shown = await page.evaluate(() => window.__shown.slice());
+      const REs = { dig: /Every dig costs water/, first_ore: /Phosphorus — grow into it/, first_pocket: /Water pocket/ };
+      const gaps = Object.keys(REs).map((id) => { const ev = posted.find((r) => r.kind === 'tutorial' && r.detail === id);
+        const sh = shown.find((x) => REs[id].test(x.t)); return { id, ev: ev && ev.ms, sh: sh && sh.ms, gap: ev && sh ? Math.abs(ev.ms - sh.ms) : null }; });
+      ok('...and each hint tip is logged within 250 ms of the moment it shows', gaps.every((g) => g.gap != null && g.gap <= 250),
+         gaps.map((g) => `${g.id} ev ${g.ev} / shown ${g.sh}`).join(', '));
       const pr = await prog(page);
       ok('p.mineTips records all four', ['dig', 'first_ore', 'first_pocket', 'first_line'].every((k) => pr.mineTips && pr.mineTips[k]), JSON.stringify(pr.mineTips));
       // ...AND A RELOAD FIRES NONE OF THEM AGAIN.
@@ -240,6 +274,71 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       ok('after a reload the same four stimuli send no tutorial event', t2.length === 0, JSON.stringify(t2));
       ok('...and show none of the four', !b2.dig && !b2.ore && !b2.pocket && !b2.label && !b2.ring,
          JSON.stringify({ dig: !!b2.dig, ore: !!b2.ore, pocket: !!b2.pocket, label: b2.label, depth: b2.depth }));
+      ok('no page errors', errs.length === 0, errs.slice(0, 2).join(' | ') || 'clean');
+      await ctx.close();
+    }
+
+    // =========================================================================================
+    // 3b. A QUEUED TIP IS NOT A SEEN TIP — the cost line goes first, a claimed subject is dropped
+    // =========================================================================================
+    if (want('stale')) {
+      console.log('--- stale tips (#mine,4242, fresh save): queued behind the drag line, then claimed');
+      const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 } });
+      const posted = [];
+      await ctx.route('https://tele.test/**', async (route) => {
+        const rq = route.request();
+        if (rq.method() === 'POST' && /\/rest\/v1\/events/.test(rq.url())) { try { posted.push(JSON.parse(rq.postData() || '{}')); } catch (_) {} }
+        await route.fulfill({ status: rq.method() === 'POST' ? 201 : 200, contentType: 'application/json', body: '[]' });
+      });
+      await ctx.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: 'https://tele.test', anonKey: 'k' }; });
+      const page = await ctx.newPage();
+      const errs = []; page.on('pageerror', (e) => errs.push(String(e && e.message)));
+      await page.goto(E.base + '/index.html#mine,4242', { waitUntil: 'domcontentloaded' });
+      await page.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 }).catch(() => {});
+      await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
+      await H.waitMine(page); await quiet(page);
+      const tut = () => posted.filter((r) => r.kind === 'tutorial').map((r) => r.detail);
+      // A P seam on screen while the sticky drag line is up: the ore line QUEUES behind it.
+      const q = await page.evaluate(async () => {
+        const g = window.__game, s = g.state, sub = s.substrate, root = s.active.nodes[0];
+        let best = null, bd = Infinity;
+        for (const p of sub.foodPiles) {
+          if (p.rewarded || (p.mineMat && p.mineMat !== 'phosphorus')) continue;
+          let x = 0, y = 0; for (const i of p.cells) { x += (i % sub.cols + 0.5) * sub.cellSize; y += sub.surfaceY + (((i / sub.cols) | 0) + 0.5) * sub.cellSize; }
+          x /= p.cells.length; y /= p.cells.length;
+          const d = Math.hypot(x - root.x, y - root.y); if (d < bd) { bd = d; best = { x, y }; }
+        }
+        g.mine.lookAt(best.x, best.y);
+        await new Promise((r) => setTimeout(r, 900));
+        const Q = s._mineTips || {};
+        return { hint: (document.getElementById('minehint') || {}).textContent || '', queued: (Q.queue || []).map((t) => t.id),
+                 seen: !!JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').mineTips?.first_ore };
+      });
+      await sleep(500);
+      ok('an ore tip found while the drag line is up is QUEUED, not recorded or logged', /Drag down/.test(q.hint) && q.queued.includes('ore')
+         && !q.seen && !tut().includes('first_ore'), `hint "${q.hint}", queue ${JSON.stringify(q.queued)}, recorded ${q.seen}, events ${JSON.stringify(tut())}`);
+      // The first dig: the cost line shows AT ONCE, ahead of the waiting ore line.
+      const d = await page.evaluate(async () => {
+        const g = window.__game, s = g.state, r = s.active.nodes[0];
+        const t0 = performance.now(); const ok = g.mine.growFrom(r.x, r.y, r.x, r.y + 200).ok;
+        let at = null;
+        while (performance.now() - t0 < 2500) { const t = (document.getElementById('minehint') || {}).textContent || '';
+          if (/Every dig costs water/.test(t)) { at = Math.round(performance.now() - t0); break; }
+          if (/Phosphorus/.test(t)) break;
+          await new Promise((q) => setTimeout(q, 20)); }
+        // ...then every P seam is claimed before the ore line's turn comes.
+        for (const p of s.substrate.foodPiles) if (!p.mineMat || p.mineMat === 'phosphorus') p.rewarded = true;
+        const seenOre = [];
+        const t1 = performance.now();
+        while (performance.now() - t1 < 5500) { const t = (document.getElementById('minehint') || {}).textContent || '';
+          if (/Phosphorus/.test(t)) seenOre.push(Math.round(performance.now() - t1)); await new Promise((q) => setTimeout(q, 40)); }
+        return { ok, at, seenOre: seenOre.length, ring: g.mine.onb().ring,
+                 seen: !!JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').mineTips?.first_ore };
+      });
+      ok("the first dig's cost line shows within 400 ms, ahead of the queued ore line", d.ok && d.at != null && d.at <= 400, `${d.at} ms`);
+      ok('...and an ore line whose seam was claimed before its turn is dropped: never shown, not recorded, not logged',
+         d.seenOre === 0 && !d.ring && !d.seen && !tut().includes('first_ore'), `shown ${d.seenOre} samples, ring ${!!d.ring}, recorded ${d.seen}, events ${JSON.stringify(tut())}`);
+      ok('...while the dig tip was logged once', tut().filter((x) => x === 'dig').length === 1, JSON.stringify(tut()));
       ok('no page errors', errs.length === 0, errs.slice(0, 2).join(' | ') || 'clean');
       await ctx.close();
     }
@@ -279,7 +378,7 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
         const b42 = r.beats.find((x) => /^42 m/.test(x.text));
         const own = r.beats.find((x) => x.text.startsWith(r.first + ' m'));
         ok('the heat tolerance step was bought and moved the first line', bought && bought.ok !== false && r.first > 42, `first line ${r.first} m`);
-        ok("...the 42 m band beat no longer says a price", !!b42 && !/Digs now cost/.test(b42.text), JSON.stringify(b42));
+        ok("...the 42 m band beat reads 'Digs still cost 2'", !!b42 && /Digs still cost 2\b/.test(b42.text) && !/Digs now cost/.test(b42.text), JSON.stringify(b42));
         ok(`...and the moved line gets a small beat of its own, 'Digs now cost 4'`, !!own && own.small && /Digs now cost 4\b/.test(own.text),
            `${JSON.stringify(r.beats)} at ${r.depth} m`);
         await b.ctx.close();
@@ -433,6 +532,52 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       const r6 = await deadEnds(b.page);
       ok('run 6: the same two dead-end digs light nothing (control)', r6.runNo === 6 && r6.glow.nudges === 0 && r6.pair,
          `run ${r6.runNo}, cells ${JSON.stringify(r6.cells)}, nudges ${r6.glow.nudges}`);
+      await b.ctx.close();
+    }
+
+    // =========================================================================================
+    // 7b. THE NUDGE ALSO FIRES ON 3 'Solid rock' REFUSALS IN A ROW, and the glow SHOWS the direction
+    // =========================================================================================
+    if (want('walled')) {
+      console.log("--- run 1: three 'Solid rock' refusals in a row light the open tips (#mine,4242)");
+      const b = await E.bootMine(4242, 390, 844);
+      await quiet(b.page);
+      const r = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state, sub = s.substrate, wait = (ms) => new Promise((q) => setTimeout(q, ms));
+        s.active.water = 100000;
+        // The naive dive (deepest clean tip, most open downward ray) until its first 'Solid rock':
+        // on 4242 that is dig 13 at 28 m, and every press after it is refused (verifier's variant a).
+        const reach = s.config.growth.segmentLength * 3 * (s.config.mine.growSteps || 2);
+        const press = (p) => g.mine.growFrom(p.x, p.y, p.x + Math.cos(p.a) * reach, p.y + Math.sin(p.a) * reach);
+        let pick = null;
+        for (let i = 0; i < 40 && !pick; i++) {
+          let t = null; for (const n of s.active.nodes) if (!n.infected && (!t || n.y > t.y)) t = n;
+          const ray = g.mine.bestDownRay(t.x, t.y), p = { x: t.x, y: t.y, a: ray ? ray.ang : Math.PI / 2 };
+          const res = press(p);
+          if (!res.ok && /Solid rock/.test(res.message || '')) pick = Object.assign(p, { msgs: [res.message] });
+          await wait(450);
+        }
+        if (!pick) return null;
+        await wait(4500);                       // any glow the dead digs lit has gone
+        const n0 = g.mine.glow().nudges;
+        const r2 = press(pick); pick.msgs.push(r2.message); await wait(150);
+        const n1 = g.mine.glow().nudges - n0;
+        const r3 = press(pick); pick.msgs.push(r3.message); await wait(450);
+        const n2 = g.mine.glow().nudges - n0;
+        const gl = g.mine.glow();
+        return { msgs: pick.msgs, n1, n2, glow: gl, hint: (document.getElementById('minehint') || {}).textContent || '', depth: g.mine.maxDepth() };
+      });
+      ok('a strand the dig refuses three times as solid rock', !!r && r.msgs.length === 3 && r.msgs.every((m) => /Solid rock/.test(m || '')),
+         r ? JSON.stringify(r.msgs) : 'no walled strand found');
+      if (r) {
+        ok('...two refusals in a row nudge nothing (control)', r.n1 === 0, `+${r.n1} nudge(s) after the second, at ${r.depth} m`);
+        ok('...the third lights the open tips', r.n2 === 1 && r.glow.tips.length >= 1, `+${r.n2} nudge(s), ${r.glow.tips.length} tip(s)`);
+        ok("...with the 'Dead end' hint", /Dead end — dig from a glowing tip/.test(r.hint), `"${r.hint}"`);
+        ok('...and each glowing tip DRAWS its direction (the ghost slide along its ray)', r.glow.drawn > 0 && r.glow.tips.every((t) => t.ang >= 0 && t.ang <= Math.PI),
+           `${r.glow.drawn} tip-slides drawn, angles ${r.glow.tips.map((t) => (t.ang * 180 / Math.PI).toFixed(0)).join('/')}`);
+      }
+      await b.page.screenshot({ path: path.join(ART, 'm4-nudge-walled-390.png') });
+      ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
       await b.ctx.close();
     }
 

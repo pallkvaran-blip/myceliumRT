@@ -3,7 +3,7 @@
 //     node tests/bots/naive.cjs [--baseline] [seed ...]
 //
 // One fresh-save first descent per seed (default 4242 909 11 5 31337 2024 7 99), played by lib.cjs's
-// `naiveStep`: always from the deepest clean tip toward the most open downward ray, one dig every
+// `naiveStep`: ALWAYS from the deepest clean tip (refused or not) toward the most open downward ray, one dig every
 // `NAIVE_PACE` ms (900), and — unless --baseline — digging from a glowing tip while the dead-end
 // nudge has tips lit. The run is played until it ends by itself (the M1 stuck rule ends a dry run).
 // Asserts: median max depth >= 40 m, and the nudge fired in every run that STALLED (3 or more
@@ -27,7 +27,7 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       let digs = 0, refused = 0, flat = 0, stalled = false, maxD = 0, lastMax = 0, i = 0, consecRef = 0, gaveUp = false; const msgs = {};
       const trace = [];
       for (; i < 400; i++) {
-        const r = await b.page.evaluate((o) => window.__qa.naiveStep(o), { followGlow: !BASE, skip: consecRef });
+        const r = await b.page.evaluate((o) => window.__qa.naiveStep(o), { followGlow: !BASE });
         if (r.over) break;
         consecRef = r.ok ? 0 : consecRef + 1;
         if (!r.ok) msgs[r.msg] = (msgs[r.msg] || 0) + 1;

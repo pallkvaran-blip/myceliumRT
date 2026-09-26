@@ -22865,6 +22865,9 @@ function mineGrow(state, ctx) {
     firstStepAsFound: true,
   });
   if (!made) {
+    // Counted for the dead-end nudge (M4): a player hammering a walled strand is as stuck as one
+    // whose digs take no new ground, and a nudge that only counted SUCCESSFUL digs never saw them.
+    state.mineWalled = (state.mineWalled | 0) + 1;
     // Still starts 'Solid rock' (the pressed strand IS walled this way); the tail names the real
     // reason when an open neighbour existed but sits on another price step.
     return { ok: false, message: net._lastGrowRefusal === 'accept'
@@ -36427,10 +36430,11 @@ function begin(newState) {
       // on, and the strand/angle it slides along. `glow()`: the dead-end tips lit now (empty when
       // not), the nudge count this run and the last dig's new cells. `onb()`: run number, first
       // descent, the ring/label state. `floaters()`: the live floaters (world x/y, text, age ms).
-      ghost: () => ({ frames: _mineGhost.frames, on: !!_mineGhost.on, x: _mineGhost.x, y: _mineGhost.y, ang: _mineGhost.ang }),
+      ghost: () => ({ frames: _mineGhost.frames, on: !!_mineGhost.on, x: _mineGhost.x, y: _mineGhost.y, ang: _mineGhost.ang, scores: _mineGhost.scores }),
       glow: () => {
         const o = state._mineOnb, on = !!(o && o.glow && performance.now() < o.glow.until);
         return { tips: on ? o.glow.tips.map((t) => Object.assign({}, t)) : [], nudges: o ? o.nudges : 0,
+                 drawn: on ? (o.glow.drawn | 0) : 0, walled: state.mineWalled | 0,
                  newCells: state._mineLastNewCells == null ? null : state._mineLastNewCells | 0 };
       },
       openTips: (n) => mineOpenTips(state, n || 2),
@@ -38352,7 +38356,14 @@ function mineTip(id, text, opts) {
   const q = state._mineTips || (state._mineTips = { cur: null, queue: [] });
   if ((q.cur && q.cur.id === id) || q.queue.some((t) => t.id === id)) return false;
   const o = opts || {};
-  const t = { id, text: String(text), sticky: !!o.sticky, ms: o.ms > 0 ? o.ms : 3000, until: 0 };
+  // M4 verifier fix: `onShow(now)` runs when the line is actually DISPLAYED (once per queued line),
+  // which is where a once-per-save tip is recorded and logged — a line still queued when the run
+  // ends was never seen and must not count. `valid()` is asked on promotion AND every frame while
+  // up: a world tip whose subject has left the screen, or been claimed/tapped, is dropped rather
+  // than shown stale. `maxAge` drops a never-shown line queued longer ago than that.
+  const t = { id, text: String(text), sticky: !!o.sticky, ms: o.ms > 0 ? o.ms : 3000, until: 0,
+              onShow: o.onShow || null, valid: o.valid || null, maxAge: o.maxAge > 0 ? o.maxAge : 0,
+              at: performance.now(), shown: false };
   // `now` (M4): an instruction about THIS moment (the dead-end nudge) replaces whatever line is up
   // and jumps the queue; the displaced line goes back to the front of it.
   if (o.now) { if (q.cur) q.queue.unshift(q.cur); q.cur = null; q.queue.unshift(t); }
@@ -38368,8 +38379,14 @@ function mineTipClear(id) {
 function mineTipTick(now) {
   const q = state && state._mineTips;
   if (q) {
-    if (q.cur && !q.cur.sticky && now >= q.cur.until) q.cur = null;
-    if (!q.cur && q.queue.length) { q.cur = q.queue.shift(); q.cur.until = now + q.cur.ms; }
+    const ok = (t) => { try { return !t.valid || !!t.valid(); } catch (_) { return false; } };
+    if (q.cur && ((!q.cur.sticky && now >= q.cur.until) || !ok(q.cur))) q.cur = null;
+    while (!q.cur && q.queue.length) {
+      const t = q.queue.shift();
+      if (!ok(t) || (!t.shown && t.maxAge && now - t.at > t.maxAge)) continue;
+      q.cur = t; t.until = now + t.ms;
+      if (!t.shown) { t.shown = true; if (t.onShow) { try { t.onShow(now); } catch (_) {} } }
+    }
   }
   if (ui && ui.setMineHint) ui.setMineHint(q && q.cur ? q.cur.text : '');
 }
@@ -38380,24 +38397,32 @@ function mineTipTick(now) {
 // 'tutorial' telemetry event with its id and the ms into the run, so the funnel is measured.
 // =============================================================================
 const MINE_GHOST_LOOP_MS = 1600, MINE_GHOST_PX = 110, MINE_GHOST_IDLE_MS = 6000, MINE_GLOW_MS = 4000;
-const _mineGhost = { frames: 0, on: false, x: 0, y: 0, ang: Math.PI / 2, key: null };
-// Once per save: true if `id` had not fired before (and records it), false otherwise.
-function mineTipOnce(id) {
-  try {
-    const p = loadProgress();
-    if (p.mineTips && p.mineTips[id]) return false;
-    p.mineTips = p.mineTips || {}; p.mineTips[id] = true; saveProgress(p);
-  } catch (_) { return false; }
-  const ms = state && state.mineStartedAt ? Date.now() - state.mineStartedAt : 0;
+const _mineGhost = { frames: 0, on: false, x: 0, y: 0, ang: Math.PI / 2, key: null, scores: 0 };
+// THE ONCE-PER-SAVE LEDGER. `seen` is read from `p.mineTips` ONCE, at the run's first frame, and
+// kept on `state._mineOnb` — the scan runs every frame and must not JSON-parse the save to ask.
+function mineTipSeen(id) { const o = state && state._mineOnb; return !!(o && o.seen && o.seen[id]); }
+// Record `id` as seen (the save and the cache) and log it — called when the tip is SHOWN, never
+// when it is queued. True if it had not fired before.
+function mineTipRecord(id) {
+  const o = state && state._mineOnb;
+  if (!o || mineTipSeen(id)) return false;
+  o.seen[id] = true;
+  try { const p = loadProgress(); p.mineTips = p.mineTips || {}; p.mineTips[id] = true; saveProgress(p); } catch (_) {}
+  const ms = state.mineStartedAt ? Date.now() - state.mineStartedAt : 0;
   try { logEvent('tutorial', { detail: id, ms }); } catch (_) {}
   return true;
 }
 // Per-run bookkeeping, set on the run's first mine frame.
 function mineOnboardInit(time) {
-  const o = state._mineOnb = { seenDigs: 0, lastDigAt: time, deadRun: 0, glow: null, nudges: 0, ring: null,
-                               label: null, lineBeat: {}, scanAt: 0 };
+  const o = state._mineOnb = { seenDigs: 0, seenWalled: 0, walledRun: 0, lastDigAt: time, deadRun: 0, glow: null,
+                               nudges: 0, ring: null, label: null, lineBeat: {}, scanAt: 0, seen: {} };
+  // The ghost's ray memo is keyed on the strand id, and ids restart at 0 every run — so the first
+  // key of a new run matched the last run's and the ghost slid along a ray scored on the previous
+  // seed's rock (verifier finding). Forget it with the run.
+  _mineGhost.key = null;
   try {
     const p = loadProgress();
+    o.seen = Object.assign({}, p.mineTips || {});
     state._mineRunNo = runsFinished(p) + 1;
     state._mineFirst = !(p.mineBest > 0);
   } catch (_) { state._mineRunNo = 1; state._mineFirst = false; }
@@ -38407,21 +38432,37 @@ function mineOnboardInit(time) {
 function mineOnDig(time) {
   const o = state._mineOnb;
   o.lastDigAt = time;
-  if (mineTipOnce('dig')) mineTip('costs', 'Every dig costs water — the deeper, the more', { ms: 3000 });
+  o.walledRun = 0;
+  // `now`: the cost line is about THIS dig, so it displaces an ore or pocket line that is up (that
+  // line goes back to the front of the queue and returns if its subject is still there).
+  if (!mineTipSeen('dig')) {
+    mineTip('costs', 'Every dig costs water — the deeper, the more',
+            { ms: 3000, now: true, onShow: () => mineTipRecord('dig') });
+  }
   // THE DEAD-END NUDGE (runs 1-5): two successful digs in a row that each took fewer than 2 new
   // cells light the two tips with the most open, undug ground ahead for 4 s.
   const fresh = state._mineLastNewCells | 0;
   o.deadRun = fresh < 2 ? o.deadRun + 1 : 0;
-  if (o.deadRun >= 2 && (state._mineRunNo | 0) <= 5) {
-    o.deadRun = 0;
-    const tips = mineOpenTips(state, 2);
-    if (tips.length) {
-      o.glow = { tips, until: time + MINE_GLOW_MS, at: time };
-      o.nudges++;
-      mineTipClear('dead');
-      mineTip('dead', 'Dead end — dig from a glowing tip', { ms: MINE_GLOW_MS, now: true });
-    }
-  }
+  if (o.deadRun >= 2) { o.deadRun = 0; mineNudge(time); }
+}
+// ...AND THREE 'Solid rock' REFUSALS IN A ROW (verifier fix): a player hammering a walled strand
+// is the stuck player the nudge exists for, and it used to count successful digs only, so they
+// were never nudged. Reset by any successful dig.
+const MINE_NUDGE_WALLED = 3;
+function mineOnWalled(time, n) {
+  const o = state._mineOnb;
+  o.walledRun += Math.max(1, n | 0);
+  if (o.walledRun >= MINE_NUDGE_WALLED) { o.walledRun = 0; mineNudge(time); }
+}
+function mineNudge(time) {
+  const o = state._mineOnb;
+  if ((state._mineRunNo | 0) > 5 || (o.glow && time < o.glow.until)) return;
+  const tips = mineOpenTips(state, 2);
+  if (!tips.length) return;
+  o.glow = { tips, until: time + MINE_GLOW_MS, at: time };
+  o.nudges++;
+  mineTipClear('dead');
+  mineTip('dead', 'Dead end — dig from a glowing tip', { ms: MINE_GLOW_MS, now: true });
 }
 // Is a world point on screen (with a margin kept clear of the HUD edges)?
 function mineOnScreen(x, y, m) {
@@ -38431,38 +38472,46 @@ function mineOnScreen(x, y, m) {
 // THE WORLD-SCAN TIPS, every 250 ms: the first Phosphorus seam on screen, the first pocket on screen,
 // and the label on the first price line 6 m before it.
 function mineOnboardScan(time) {
-  const o = state._mineOnb, sub = state.substrate, p = loadProgress(), tips = p.mineTips || {};
+  const o = state._mineOnb, sub = state.substrate, seen = o.seen;
+  if (seen.first_ore && seen.first_pocket && seen.first_line) return;
   if (time - o.scanAt < 250) return;
   o.scanAt = time;
-  if (!tips.first_ore) {
+  // A WORLD TIP IS QUEUED, NOT RECORDED: it is recorded (and its ring drawn) when it SHOWS, it is
+  // dropped if its subject leaves the screen or is claimed/tapped first, or if it waited over 5 s.
+  // The queue refuses a second line with the same id, so a scan that finds a subject while one is
+  // already waiting adds nothing; a dropped one is replaced on the next scan.
+  if (!seen.first_ore) {
     for (const pile of (sub.foodPiles || [])) {
       if (pile.rewarded || (pile.mineMat && pile.mineMat !== 'phosphorus')) continue;
       const c = minePileCentre(sub, pile);
       if (!mineOnScreen(c.x, c.y, 40)) continue;
-      if (mineTipOnce('first_ore')) {
-        o.ring = { pile, x: c.x, y: c.y, until: time + 8000 };
-        mineTip('ore', 'Phosphorus — grow into it', { ms: 4000 });
-      }
+      mineTip('ore', 'Phosphorus — grow into it', { ms: 4000, maxAge: 5000,
+        valid: () => !pile.rewarded && mineOnScreen(c.x, c.y, 40),
+        onShow: (now) => { if (mineTipRecord('first_ore')) o.ring = { pile, x: c.x, y: c.y, until: now + 8000 }; } });
       break;
     }
   }
-  if (!tips.first_pocket) {
-    const tapped = state._tappedWater || new Set();
+  if (!seen.first_pocket) {
+    const tapped = () => state._tappedWater || new Set();
     for (const r of (sub.reservoirs || [])) {
       const c = mineResCentre(sub, r);
-      if (tapped.has(r.id) || !mineOnScreen(c.x, c.y, 40)) continue;
-      if (mineTipOnce('first_pocket')) {
-        o.pocketRing = { id: r.id, x: c.x, y: c.y, until: time + 8000 };
-        mineTip('pocket', `Water pocket — touch it for +${Math.max(1, state.config.mine.reservoirWater | 0)}`, { ms: 4000 });
-      }
+      if (tapped().has(r.id) || !mineOnScreen(c.x, c.y, 40)) continue;
+      mineTip('pocket', `Water pocket — touch it for +${Math.max(1, state.config.mine.reservoirWater | 0)}`, { ms: 4000, maxAge: 5000,
+        valid: () => !tapped().has(r.id) && mineOnScreen(c.x, c.y, 40),
+        onShow: (now) => { if (mineTipRecord('first_pocket')) o.pocketRing = { id: r.id, x: c.x, y: c.y, until: now + 8000 }; } });
       break;
     }
   }
+  // THE FIRST PRICE LINE'S LABEL, from 6 m above it — and ALSO once past it (verifier fix): depth
+  // moves in whole digs, and a dig from 35 m to 43 m jumped the old 6 m window, so the label (and
+  // its funnel event) was lost for that run. Its text is true either side of the line. Recorded on
+  // its first DRAWN frame (drawMineOnboard), not here.
   const lines = mineHeatLines(state.config);
-  if (!tips.first_line && lines.length) {
+  if (!seen.first_line && !o.label && lines.length) {
     const L = lines[0], d = state.mineMaxDepth | 0;
-    if (d >= L - 6 && d <= L && mineTipOnce('first_line')) {
-      o.label = { m: L, text: `Past ${L} m every dig costs ${mineGrowCost(state.config, L + 1)}`, until: time + 15000 };
+    if (d >= L - 6) {
+      o.label = { m: L, text: `Past ${L} m every dig costs ${mineGrowCost(state.config, L + 1)}`,
+                  crossed: d > L, until: time + (d > L ? 6000 : 15000) };
     }
   }
 }
@@ -38481,7 +38530,9 @@ function mineLineBeats(depth) {
 // The cost line a band beat carries, or '' when no price line sits at the band's top.
 function mineBeatCostLine(bandTopM) {
   const lines = mineHeatLines(state.config);
-  if (!lines.includes(bandTopM)) return '';
+  // Heat tolerance has moved the line off this band's top: the price did not change here, and the
+  // beat says so (plan: 'with tolerance it reads Digs still cost 2').
+  if (!lines.includes(bandTopM)) return `Digs still cost ${mineGrowCost(state.config, bandTopM + 1)}`;
   if (state._mineOnb) state._mineOnb.lineBeat[bandTopM] = true;
   return `Digs now cost ${mineGrowCost(state.config, bandTopM + 1)}`;
 }
@@ -38512,6 +38563,28 @@ function mineGhostWanted(time) {
   if ((state.mineDigs | 0) === 0) return true;
   return (state._mineRunNo | 0) <= 2 && time - o.lastDigAt >= MINE_GHOST_IDLE_MS;
 }
+// The ghost finger's stroke: a 14 px mint dot sliding MINE_GHOST_PX along `ang` from screen point
+// `s0` with a trailing shaft and an arrow head, on the 1.6 s loop. Shared with the dead-end glow, so
+// a glowing tip SHOWS the direction to dig from it (verifier fix: the glow used to be a bare ring,
+// and the direction a bot followed was information the player never had).
+function drawMineSlide(s0, ang, time, alpha) {
+  const ux = Math.cos(ang), uy = Math.sin(ang);
+  const ph = (time % MINE_GHOST_LOOP_MS) / MINE_GHOST_LOOP_MS;
+  const k = Math.min(1, ph / 0.75), ease = 1 - Math.pow(1 - k, 3);
+  const a = ph < 0.1 ? ph / 0.1 : ph < 0.75 ? 1 : Math.max(0, 1 - (ph - 0.75) / 0.25);
+  const d = MINE_GHOST_PX * ease, px = s0.x + ux * d, py = s0.y + uy * d;
+  ctx.globalAlpha = 0.85 * a * (alpha == null ? 1 : alpha);
+  const grad = ctx.createLinearGradient(s0.x, s0.y, px, py);
+  grad.addColorStop(0, 'rgba(127,230,163,0)'); grad.addColorStop(1, 'rgba(127,230,163,0.9)');
+  ctx.strokeStyle = grad; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(px, py); ctx.stroke();
+  const hx = px + ux * 14, hy = py + uy * 14, nx = -uy, ny = ux;
+  ctx.fillStyle = 'rgba(127,230,163,0.95)';
+  ctx.beginPath(); ctx.moveTo(hx + ux * 7, hy + uy * 7); ctx.lineTo(hx + nx * 6, hy + ny * 6); ctx.lineTo(hx - nx * 6, hy - ny * 6); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2);   // the 14 px dot
+  ctx.fillStyle = '#7fe6a3'; ctx.fill();
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(10,20,14,0.85)'; ctx.stroke();
+}
 // Screen-space marks (the floaters' transform): the ghost, the glow, the seam/pocket rings, the label.
 function drawMineOnboard(time) {
   const sub = state.substrate;
@@ -38529,28 +38602,12 @@ function drawMineOnboard(time) {
       // The ray is re-scored only when the strand or the collision mask changes.
       const key = n.id + ':' + (sub._solidRev | 0) + ':' + (sub._rockSolidified ? 1 : 0);
       if (_mineGhost.key !== key) {
-        _mineGhost.key = key;
+        _mineGhost.key = key; _mineGhost.scores++;
         const r = mineBestDownRay(state, n);
         _mineGhost.ang = r ? r.ang : Math.PI / 2;
       }
-      const s0 = camera.worldToScreen(n.x, n.y), ux = Math.cos(_mineGhost.ang), uy = Math.sin(_mineGhost.ang);
       _mineGhost.x = n.x; _mineGhost.y = n.y;
-      const ph = (time % MINE_GHOST_LOOP_MS) / MINE_GHOST_LOOP_MS;
-      const k = Math.min(1, ph / 0.75), ease = 1 - Math.pow(1 - k, 3);
-      const a = ph < 0.1 ? ph / 0.1 : ph < 0.75 ? 1 : Math.max(0, 1 - (ph - 0.75) / 0.25);
-      const d = MINE_GHOST_PX * ease, px = s0.x + ux * d, py = s0.y + uy * d;
-      ctx.globalAlpha = 0.85 * a;
-      // the trailing arrow: a fading shaft from the press point to the dot, and a head past the dot
-      const grad = ctx.createLinearGradient(s0.x, s0.y, px, py);
-      grad.addColorStop(0, 'rgba(127,230,163,0)'); grad.addColorStop(1, 'rgba(127,230,163,0.9)');
-      ctx.strokeStyle = grad; ctx.lineWidth = 3; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(px, py); ctx.stroke();
-      const hx = px + ux * 14, hy = py + uy * 14, nx = -uy, ny = ux;
-      ctx.fillStyle = 'rgba(127,230,163,0.95)';
-      ctx.beginPath(); ctx.moveTo(hx + ux * 7, hy + uy * 7); ctx.lineTo(hx + nx * 6, hy + ny * 6); ctx.lineTo(hx - nx * 6, hy - ny * 6); ctx.closePath(); ctx.fill();
-      ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2);   // the 14 px dot
-      ctx.fillStyle = '#7fe6a3'; ctx.fill();
-      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(10,20,14,0.85)'; ctx.stroke();
+      drawMineSlide(camera.worldToScreen(n.x, n.y), _mineGhost.ang, time, 1);
       _mineGhost.frames++;
     }
   }
@@ -38566,6 +38623,8 @@ function drawMineOnboard(time) {
       ctx.beginPath(); ctx.arc(q.x, q.y, R * 1.8, 0, Math.PI * 2); ctx.fill();
       ctx.lineWidth = 2.5; ctx.strokeStyle = `rgba(160,255,196,${0.6 + 0.4 * puls})`;
       ctx.beginPath(); ctx.arc(q.x, q.y, R, 0, Math.PI * 2); ctx.stroke();
+      drawMineSlide(q, t.ang, time - o.glow.at, 1);   // ...and which way to dig from it
+      o.glow.drawn = (o.glow.drawn | 0) + 1;
     }
   } else if (o.glow) o.glow = null;
   // --- the first seam's pulse ring, and the first pocket's ------------------------------------
@@ -38582,7 +38641,7 @@ function drawMineOnboard(time) {
   // --- the label on the first price line ----------------------------------------------------------
   if (o.label) {
     const L = o.label;
-    if (time > L.until || (state.mineMaxDepth | 0) > L.m) o.label = null;
+    if (time > L.until || (!L.crossed && (state.mineMaxDepth | 0) > L.m)) o.label = null;
     else {
       const yW = sub.surfaceY + L.m * sub.cellSize, q = camera.worldToScreen(0, yW);
       if (q.y > 0 && q.y < camera.viewH) {
@@ -38594,6 +38653,7 @@ function drawMineOnboard(time) {
         ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.fillStyle = '#ffc48a';
         ctx.strokeText(L.text, camera.viewW / 2, q.y - 5); ctx.fillText(L.text, camera.viewW / 2, q.y - 5);
         L.drawn = (L.drawn | 0) + 1;
+        if (L.drawn === 1) mineTipRecord('first_line');
       }
     }
   }
@@ -38646,6 +38706,7 @@ function mineFrame(time, dt) {
   // THE FIRST MINUTE (M4): a dig by any route moves the counter; the scan tips run every 250 ms.
   const onb = state._mineOnb || mineOnboardInit(time);
   if ((state.mineDigs | 0) !== onb.seenDigs) { onb.seenDigs = state.mineDigs | 0; mineOnDig(time); }
+  if ((state.mineWalled | 0) !== onb.seenWalled) { const n = (state.mineWalled | 0) - onb.seenWalled; onb.seenWalled = state.mineWalled | 0; mineOnWalled(time, n); }
   mineTipTick(time);
   mineFollowCamera(time, dt);
   const gotOre = mineOreRewards(state);
