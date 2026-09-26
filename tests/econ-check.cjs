@@ -66,101 +66,238 @@ const openStore = async (page) => {
         s.mineOre = 6;               // two P seams' worth, so the split is visible
         await new Promise((res) => setTimeout(res, 700));
         return { at0, d, raw: g.mine.reachRaw(), reach: g.mine.reach(), bank: g.mine.bankable(),
+                 quit: g.mine.reach('quit'), abandon: g.mine.reach('abandon'), pending: g.mine.bankable('pending'),
                  hud: +document.getElementById('hud-phosphorus').textContent, floaters: [...seen],
                  ticks: (window.__sfx && window.__sfx.counts.reach) | 0 };
       }, Q);
-      ok('at the surface: nothing raw, and the bank is the 5 P floor', r.at0.raw === 0 && r.at0.reach === 5 && r.at0.bank === 5, JSON.stringify(r.at0));
+      // M5 verifier fix: was `reach === 5 && bank === 5` at the surface. The floor is paid only for a
+      // descent that dug and ran its course, so a colony that has not dug banks nothing.
+      ok('at the surface, before any dig: nothing raw and nothing to bank (no floor without a dig)', r.at0.raw === 0 && r.at0.reach === 0 && r.at0.bank === 0, JSON.stringify(r.at0));
       ok(`at ${r.d} m the raw reach is floor(depth / 5)`, r.d >= 20 && r.raw === Math.floor(r.d / 5), `raw ${r.raw} at ${r.d} m`);
       ok('...and the HUD counts seams + raw reach', r.hud === 6 + r.raw, `HUD ${r.hud} = 6 + ${r.raw}`);
       ok('...what ends now banks max(5, reach) + seams', r.reach === Math.max(5, r.raw) && r.bank === r.reach + 6, `bank ${r.bank} = ${r.reach} + 6`);
+      ok('...but a voluntary exit (End descent, Exit to title, a hidden tab) banks the RAW reach', r.quit === r.raw && r.abandon === r.raw && r.pending === r.raw + 6,
+         `quit ${r.quit}, abandon ${r.abandon}, pending ${r.pending} (raw ${r.raw})`);
       ok("'+1 P' popped at the tip as depth paid", r.floaters.includes('+1 P'), r.floaters.join(' ') || 'none');
       ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
       await b.ctx.close();
     }
 
     // ======================================================================================
-    if (want('reveal')) {
-      console.log('--- the progressive store');
-      {
-        const b = await E.bootMine(4242);
-        await b.page.evaluate(() => window.__game.store.credit(5));
-        await openStore(b.page);
-        const t = await tiles(b.page);
-        ok('a fresh save\'s first store shows exactly Water tank and Grow strength', t.map((x) => x.id).join(',') === 'water,growSteps', t.map((x) => x.id).join(','));
-        ok('...Water tank highlighted (the next goal, affordable at 5 P), no NEW badges', t[0] && t[0].hl && !t[1].hl && !t.some((x) => x.isNew), JSON.stringify(t));
-        const nm = await b.page.evaluate(() => { const e = document.querySelector('.ss-upg[data-track="water"] .ss-upg-nm'); return e ? e.textContent : ''; });
-        ok("...named 'Water tank' in the mine", nm === 'Water tank', nm);
-        await b.page.click('.ss-upg[data-track="water"] .ss-upg-btn');
+    // NO FARMING (M5 verifier fix). The 5 P floor was paid for every ending, so a fresh save banked
+    // 5 P a loop from 'Descend -> gear -> End descent' with no dig at all (~130 P a minute against
+    // 24-42 P for a real minute). Played through the real buttons on the release flag.
+    if (want('farm')) {
+      console.log('--- no zero-dig farming');
+      const b = await E.boot('', 390, 844, { file: '/index-nodev.html' });
+      await H.waitMine(b.page);
+      const prog = () => b.page.evaluate(() => JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}'));
+      const live = () => b.page.waitForFunction(() => { const s = window.__game && window.__game.state;
+        return !!(s && s.substrate && s.substrate.mine && !s.runOver && s.substrate._rockSolidified && !document.getElementById('ssMineEnd')); }, null, { timeout: 60000 });
+      const endVia = async (id) => {
+        await b.page.click('#gearbtn'); await sleep(250);
+        await b.page.click('#' + id);
+      };
+      const quiet = () => b.page.evaluate((Q) => { new Function('return (' + Q + ')')()(); }, Q);
+      const loops = [];
+      for (let i = 0; i < 3; i++) {
+        await live(); await sleep(300);
+        await endVia('set-forcefruit');
+        await b.page.waitForSelector('#ssMineDescend', { timeout: 20000 });
         await sleep(300);
-        const lv = await b.page.evaluate(() => ({ lv: window.__game.store.level('water'), P: window.__game.store.balance(), start: window.__game.store.start().water }));
-        ok('...and 5 P buys Water I: +12 water (60 -> 72)', lv.lv === 1 && lv.P === 0 && lv.start === 72, JSON.stringify(lv));
-        ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
-        await b.ctx.close();
+        loops.push(await b.page.evaluate(() => ({ P: window.__game.store.balance(), ore: (window.__game.state.runResult || {}).ore,
+          cause: (window.__game.state.runResult || {}).cause, digs: window.__game.state.mineDigs | 0 })));
+        await b.page.click('#ssMineDescend');
       }
-      {
-        const b = await E.bootMine(909);
-        const d = await b.page.evaluate(async (Q) => {
-          new Function('return (' + Q + ')')()();
-          const g = window.__game, s = g.state;
-          s.active.water = 100000;
-          const pre = g.store.seen();
-          await window.__navDig({ targetM: 46, maxIters: 400 });
-          await new Promise((res) => setTimeout(res, 800));
-          const mid = g.store.seen();
-          // Enough in the wallet that every revealed rung is affordable, so the card's pick is the
-          // priority's first — the NEW tile — rather than whatever the haul happens to reach.
-          g.store.credit(40);
-          g.mine.end();
-          return { pre, mid, depth: g.mine.maxDepth() };
-        }, Q);
-        ok(`a scripted dive to ${d.depth} m records the line (p.mineSeen.line42)`, d.depth > 42 && !d.pre.line42 && d.mid.line42 === true, JSON.stringify(d));
-        await b.page.waitForSelector('#ssMineEnd', { timeout: 20000 }).catch(() => {});
-        await sleep(900);
-        const card = await b.page.evaluate(() => { const e = document.getElementById('ssMineGoal'); return { goal: e && e.dataset.goal, text: e ? e.innerText : '' }; });
-        ok('...the end screen\'s next goal is the new tile, Heat tolerance, marked NEW', card.goal === 'heatTolerance' && /NEW/i.test(card.text), `${card.goal}: ${card.text}`);
-        await b.page.click('#ssMineDone');
-        await b.page.waitForSelector('#speciesSelect.ss-mine', { timeout: 20000 }).catch(() => {});
-        await sleep(700);
-        const t1 = await tiles(b.page);
-        const heat = t1.find((x) => x.id === 'heatTolerance');
-        ok('...and the store shows Heat tolerance with NEW, highlighted as the next goal', !!heat && heat.isNew && heat.hl && t1.filter((x) => x.hl).length === 1,
-           t1.map((x) => x.id + (x.isNew ? '*' : '') + (x.hl ? '^' : '')).join(','));
-        ok('...but not Mucus flasks, before any worm has attached', !t1.some((x) => x.id === 'excreteCharges'), t1.map((x) => x.id).join(','));
-        await b.page.screenshot({ path: path.join(ART, 'm5-store-new-390.png') });
-        await openStore(b.page);
-        const t2 = await tiles(b.page);
-        const heat2 = t2.find((x) => x.id === 'heatTolerance');
-        ok('NEW lasts one visit: the next visit shows Heat tolerance without it', !!heat2 && !heat2.isNew, t2.map((x) => x.id + (x.isNew ? '*' : '')).join(','));
-        // Descend from the store, and let a worm attach.
-        await b.page.click('#ssDescend');
-        await b.page.waitForFunction(() => { const s = window.__game.state; return s && s.substrate && s.substrate.mine && !s.runOver && s.substrate._fineSolid && !document.getElementById('speciesSelect'); }, { timeout: 40000 });
-        await sleep(1500);
-        const w = await b.page.evaluate(async () => {
-          const g = window.__game, s = g.state;
-          s.config.nematodes.respawnChance = 0;
-          let tip = null; for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
-          g.mine.spawnWorm(tip.x, tip.y);
-          let att = 0;
-          for (let i = 0; i < 80 && !(att = g.mine.attached()); i++) await new Promise((res) => setTimeout(res, 100));
-          await new Promise((res) => setTimeout(res, 500));
-          const seen = g.store.seen();
-          g.mine.end();
-          return { att, worm: !!seen.worm };
-        });
-        ok('a worm attaches and the save records it (p.mineSeen.worm)', w.att > 0 && w.worm, JSON.stringify(w));
-        await b.page.waitForSelector('#ssMineEnd', { timeout: 20000 }).catch(() => {});
-        await sleep(700);
-        await b.page.click('#ssMineDone');
-        await b.page.waitForSelector('#speciesSelect.ss-mine', { timeout: 20000 }).catch(() => {});
-        await sleep(700);
-        const t3 = await tiles(b.page);
-        const fl = t3.find((x) => x.id === 'excreteCharges');
-        ok('...after which the store shows Mucus flasks, with NEW', !!fl && fl.isNew, t3.map((x) => x.id + (x.isNew ? '*' : '')).join(','));
-        ok('...and a hidden track cannot be bought through the hook either', await b.page.evaluate(() => {
-          const S = window.__game.store; S.credit(1000); return S.inGame('amputateCharges', 'mine') === false && S.buy('amputateCharges').ok === false; }), 'refused');
-        ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
-        await b.ctx.close();
-      }
+      const p0 = await prog();
+      ok('three zero-dig End descents bank nothing (was +5 P each)', loops.every((x) => x.ore === 0 && x.cause === 'abandon' && x.digs === 0) && loops[2].P === 0,
+         JSON.stringify(loops));
+      ok('...and count as no descent (p.mineRuns)', !(p0.mineRuns > 0), String(p0.mineRuns));
+      // Two digs, then End descent: the raw reach, not the floor.
+      await live(); await quiet();
+      const two = await b.page.evaluate(async () => {
+        const g = window.__game;
+        for (let i = 0; i < 2; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 400)); }
+        for (let i = 0; i < 60 && g.mine.revealing(); i++) await new Promise((r) => setTimeout(r, 100));
+        await new Promise((r) => setTimeout(r, 400));
+        return { digs: g.state.mineDigs | 0, raw: g.mine.reachRaw(), seams: g.mine.ore(), P: g.store.balance() };
+      });
+      await endVia('set-forcefruit');
+      await b.page.waitForSelector('#ssMineDescend', { timeout: 20000 });
+      await sleep(300);
+      const r2 = await b.page.evaluate(() => ({ ore: window.__game.state.runResult.ore, P: window.__game.store.balance() }));
+      ok(`End descent after ${two.digs} digs banks the raw reach + seams (${two.raw} + ${two.seams}), not the 5 P floor`,
+         two.digs === 2 && two.raw < 5 && r2.ore === two.raw + two.seams && r2.P - two.P === r2.ore, `${JSON.stringify(two)} -> ${JSON.stringify(r2)}`);
+      await b.page.click('#ssMineDescend');
+      // A live run's pending record (a hidden tab) at 0 digs is worth nothing either.
+      await live(); await quiet();
+      const pend = await b.page.evaluate(() => { const g = window.__game; g.mine.pendingWrite();
+        const m = JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minePending || {};
+        const rec = Object.values(m)[0] || null;
+        const p = JSON.parse(localStorage.getItem('mycelium.progress.v2')); delete p.minePending; localStorage.setItem('mycelium.progress.v2', JSON.stringify(p));
+        return rec; });
+      ok('a hidden tab at 0 digs records P 0', pend && pend.P === 0 && pend.digs === 0, JSON.stringify(pend));
+      // THE CONTROL: the floor is still paid for a descent that ran its course — a few digs, then dry.
+      const dry = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state;
+        for (let i = 0; i < 3; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 400)); }
+        for (let i = 0; i < 60 && g.mine.revealing(); i++) await new Promise((r) => setTimeout(r, 100));
+        { const T = s._tappedWater || (s._tappedWater = new Set()); for (const q of (s.substrate.reservoirs || [])) T.add(q.id); }
+        const raw = g.mine.reachRaw(), seams = g.mine.ore(), P = g.store.balance();
+        s.active.water = 0;
+        for (let i = 0; i < 80 && !s.runOver; i++) await new Promise((r) => setTimeout(r, 100));
+        return { raw, seams, P, over: s.runOver, cause: s.runResult && s.runResult.cause, ore: s.runResult && s.runResult.ore };
+      });
+      await b.page.waitForSelector('#ssMineDescend', { timeout: 20000 }).catch(() => {});
+      await sleep(400);
+      const pd = await prog();
+      ok('...while a descent that dug and ran dry still banks the 5 P floor (control)', dry.cause === 'dry' && dry.ore === Math.max(5, dry.raw) + dry.seams && (pd.minerals | 0) - dry.P === dry.ore,
+         `${JSON.stringify(dry)}, wallet ${dry.P} -> ${pd.minerals | 0}`);
+      ok('...and the two descents that dug are the only ones counted', pd.mineRuns === 2, String(pd.mineRuns));
+      // Exit to title at 0 digs: nothing banked, nothing announced.
+      await b.page.click('#ssMineDescend');
+      await live(); await sleep(300);
+      const pq = (await prog()).minerals | 0;
+      await endVia('set-saveexit');
+      await b.page.waitForSelector('#titleScreen', { timeout: 20000 }).catch(() => {});
+      await sleep(1500);
+      const t = await b.page.evaluate(() => ({ note: (document.getElementById('tsBanked') || {}).textContent || null,
+        P: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minerals | 0 }));
+      ok('Exit to title at 0 digs banks nothing and says nothing', t.P === pq && !t.note, JSON.stringify(t));
+      ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
+      await b.ctx.close();
+    }
+
+    // ======================================================================================
+    if (want('reveal')) {
+      // THE REAL FIRST STORE (M5 verifier fix). The old block opened the store BEFORE any run
+      // (credit(5) + showPicker), a screen no new player can reach: the first visit skips the title,
+      // the title's Upgrades button is hidden at 0 P, so the first store comes after run 1 — and on
+      // 60 water run 1 passes 42 m on essentially every seed, which put Heat tolerance on it (12/12).
+      // Now: the release flag, a fresh save, run 1 dives past the line and runs dry by itself, and
+      // the store is reached from its end screen. Then runs 2 and 3 on the same save.
+      console.log('--- the progressive store');
+      const b = await E.boot('', 390, 844, { file: '/index-nodev.html' });
+      await H.waitMine(b.page);
+      await H.injectNav(b.page);
+      const prog = () => b.page.evaluate(() => JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}'));
+      const card = () => b.page.evaluate(() => { const e = document.getElementById('ssMineGoal');
+        return { goal: e && e.dataset.goal, text: e ? e.innerText.replace(/\s+/g, ' ').trim() : '', buy: !!document.getElementById('ssMineBuy') }; });
+      const fmt = (t) => t.map((x) => x.id + (x.isNew ? '*' : '') + (x.hl ? '^' : '')).join(',');
+      const toStore = async () => { await b.page.click('#ssMineDone');
+        await b.page.waitForSelector('#speciesSelect.ss-mine', { timeout: 20000 }).catch(() => {}); await sleep(700); };
+      const descendFromStore = async () => { await b.page.click('#ssDescend');
+        await b.page.waitForFunction(() => { const s = window.__game.state; return s && s.substrate && s.substrate.mine && !s.runOver && s.substrate._fineSolid && !document.getElementById('speciesSelect'); }, null, { timeout: 40000 });
+        await sleep(1500); };
+      await b.page.evaluate(() => { window.__upg = []; window.__telemetry.tap((row) => { if (row.kind === 'upgrade') window.__upg.push({ detail: row.detail, n: row.n }); }); });
+      // RUN 1: a dive past 42 m, then the tank runs out and the run ends by itself.
+      const r1 = await b.page.evaluate(async (Q) => {
+        new Function('return (' + Q + ')')()();
+        const g = window.__game, s = g.state;
+        const water0 = s.active.water;
+        s.active.water = 100000;
+        await window.__navDig({ targetM: 46, maxIters: 400 });
+        for (let i = 0; i < 60 && g.mine.revealing(); i++) await new Promise((r) => setTimeout(r, 100));
+        await new Promise((r) => setTimeout(r, 800));
+        { const T = s._tappedWater || (s._tappedWater = new Set()); for (const q of (s.substrate.reservoirs || [])) T.add(q.id); }
+        const mid = g.store.seen();
+        s.active.water = 0;
+        for (let i = 0; i < 100 && !s.runOver; i++) await new Promise((r) => setTimeout(r, 100));
+        return { water0, depth: g.mine.maxDepth(), line42: !!mid.line42, cause: s.runResult && s.runResult.cause, ore: s.runResult && s.runResult.ore,
+                 seams: s.runResult && s.runResult.seamCount };
+      }, Q);
+      await b.page.waitForSelector('#ssMineEnd', { timeout: 20000 }).catch(() => {});
+      await sleep(900);
+      const e1 = await b.page.evaluate(() => {
+        const r = document.getElementById('ssMineEnd');
+        const ui = document.getElementById('ui');
+        return { rows: Array.from(r.querySelectorAll('.ss-me-row')).map((x) => x.innerText.replace(/\s+/g, ' ').trim()),
+                 hud: ui ? getComputedStyle(ui).visibility : 'none', p: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}') };
+      });
+      ok(`run 1 (fresh save, release flag, ${r1.water0} water) dives to ${r1.depth} m past the line and runs dry by itself`,
+         r1.water0 === 60 && r1.depth > 42 && r1.line42 && r1.cause === 'dry' && e1.p.mineRuns === 1, JSON.stringify({ r1, runs: e1.p.mineRuns }));
+      ok("...its end screen has a 'Phosphorus seams' row even unforced (×N, or ×0 +0)", e1.rows.some((x) => /^Phosphorus seams ×\d+ \+\d+/.test(x)), e1.rows.join(' | '));
+      ok('...and the run\'s HUD is not drawn over the end screen', e1.hud === 'hidden', e1.hud);
+      const c1 = await card();
+      ok("...the next-goal card is Water tank at 5 P with a Buy (not Heat tolerance, not Grow strength)",
+         c1.goal === 'water' && /Water tank/.test(c1.text) && /\b5 P\b/.test(c1.text) && c1.buy && !/NEW/i.test(c1.text), `${c1.goal}: ${c1.text}`);
+      await toStore();
+      const t = await tiles(b.page);
+      ok("the first store (after run 1) shows exactly Water tank and Grow strength, though run 1 crossed 42 m", fmt(t).replace(/[*^]/g, '') === 'water,growSteps', fmt(t));
+      ok('...Water tank highlighted (the next goal), no NEW badges', t[0] && t[0].hl && !t[1].hl && !t.some((x) => x.isNew), JSON.stringify(t));
+      const nm = await b.page.evaluate(() => { const e = document.querySelector('.ss-upg[data-track="water"] .ss-upg-nm'); return e ? e.textContent : ''; });
+      ok("...named 'Water tank' in the mine", nm === 'Water tank', nm);
+      const w0 = await b.page.evaluate(() => window.__game.store.balance());
+      await b.page.click('.ss-upg[data-track="water"] .ss-upg-btn');
+      await sleep(300);
+      const lv = await b.page.evaluate(() => ({ lv: window.__game.store.level('water'), P: window.__game.store.balance(), start: window.__game.store.start().water }));
+      ok('...and 5 P buys Water I: +12 water (60 -> 72)', lv.lv === 1 && w0 - lv.P === 5 && lv.start === 72, JSON.stringify(Object.assign({ was: w0 }, lv)));
+      ok('...and a revealed-by-the-world track stays hidden to the buy hook too', await b.page.evaluate(() => {
+        const S = window.__game.store; return S.inGame('heatTolerance', 'mine') === false && S.buy('heatTolerance').ok === false; }), 'refused');
+      // RUN 2: what run 1 met (the line) now appears, NEW.
+      await descendFromStore();
+      await b.page.evaluate(async (Q) => { new Function('return (' + Q + ')')()();
+        const g = window.__game; g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 500));
+        // Enough that every revealed rung is affordable, so the card's pick is the priority's first.
+        g.store.credit(40); g.mine.end(); }, Q);
+      await b.page.waitForSelector('#ssMineEnd', { timeout: 20000 }).catch(() => {});
+      await sleep(900);
+      const c2 = await card();
+      ok("after run 2 the end screen's next goal is Heat tolerance, marked NEW", c2.goal === 'heatTolerance' && /NEW/i.test(c2.text), `${c2.goal}: ${c2.text}`);
+      await toStore();
+      const t1 = await tiles(b.page);
+      const heat = t1.find((x) => x.id === 'heatTolerance');
+      ok('...and the store shows it with NEW, highlighted as the next goal', !!heat && heat.isNew && heat.hl && t1.filter((x) => x.hl).length === 1, fmt(t1));
+      ok('...but not Mucus flasks, before any worm has attached', !t1.some((x) => x.id === 'excreteCharges'), fmt(t1));
+      await b.page.screenshot({ path: path.join(ART, 'm5-store-new-390.png') });
+      // RUN 3, straight from that store visit: a worm attaches. Heat tolerance (shown, unbought,
+      // affordable) must NOT come back NEW on the card — the stale-NEW defect: the visit counter only
+      // moves when the store next opens, so the card read "shown on this visit" as still true and put
+      // Heat tolerance, NEW again, ahead of the genuinely new tile.
+      await descendFromStore();
+      const w = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state;
+        s.config.nematodes.respawnChance = 0;
+        let tip = null; for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+        g.mine.spawnWorm(tip.x, tip.y);
+        let att = 0;
+        for (let i = 0; i < 80 && !(att = g.mine.attached()); i++) await new Promise((res) => setTimeout(res, 100));
+        await new Promise((res) => setTimeout(res, 500));
+        const seen = g.store.seen();
+        g.store.credit(60);
+        g.mine.end();
+        return { att, worm: !!seen.worm };
+      });
+      ok('a worm attaches and the save records it (p.mineSeen.worm)', w.att > 0 && w.worm, JSON.stringify(w));
+      await b.page.waitForSelector('#ssMineEnd', { timeout: 20000 }).catch(() => {});
+      await sleep(900);
+      const c3 = await card();
+      ok('...the card offers Mucus flasks NEW, not the already-shown Heat tolerance', c3.goal === 'excreteCharges' && /NEW/i.test(c3.text), `${c3.goal}: ${c3.text}`);
+      // Bought from the card: the store must not badge a bought track NEW.
+      await b.page.click('#ssMineBuy'); await sleep(300);
+      await toStore();
+      const t3 = await tiles(b.page);
+      const fl = t3.find((x) => x.id === 'excreteCharges');
+      const bought = await b.page.evaluate(() => window.__game.store.level('excreteCharges'));
+      ok('...and once bought there, the store shows Mucus flasks without NEW', bought === 1 && !!fl && !fl.isNew, `level ${bought}; ${fmt(t3)}`);
+      const heat3 = t3.find((x) => x.id === 'heatTolerance');
+      ok('NEW lasts one visit: this visit shows Heat tolerance without it', !!heat3 && !heat3.isNew, fmt(t3));
+      ok('...and a hidden track cannot be bought through the hook either', await b.page.evaluate(() => {
+        const S = window.__game.store; S.credit(1000); return S.inGame('amputateCharges', 'mine') === false && S.buy('amputateCharges').ok === false; }), 'refused');
+      // TELEMETRY: an `upgrade` row's `n` is the PHOSPHORUS spent (M5 verifier fix) — a rung priced in
+      // a deep material sends 0, or '30 Anthracite' is netted as 30 P by the analytics page (and the
+      // store tile used to send the cost object itself).
+      await b.page.evaluate(() => { const S = window.__game.store; for (let i = 0; i < 4; i++) S.buy('water'); S.creditMat('anthracite', 30); });
+      await openStore(b.page);
+      const nextW = await b.page.evaluate(() => window.__game.store.nextCost('water'));
+      await b.page.click('.ss-upg[data-track="water"] .ss-upg-btn'); await sleep(300);
+      const upg = await b.page.evaluate(() => window.__upg);
+      const byId = (id) => upg.filter((u) => u.detail === id).map((u) => u.n);
+      ok("telemetry: a P rung logs the P spent (Water I 5 via the tile, Mucus flasks I 10 via the card); a material rung logs 0",
+         JSON.stringify(nextW) === JSON.stringify({ m: 'anthracite', n: 30 }) && byId('water').join(',') === '5,0' && byId('excreteCharges').join(',') === '10',
+         JSON.stringify({ nextW, upg }));
+      ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
+      await b.ctx.close();
     }
 
     // ======================================================================================
@@ -233,6 +370,24 @@ const openStore = async (page) => {
         ok('material rungs are refunded in their material (166 P, +5 Anthracite, +8 Garnet)',
            (p.minerals | 0) === 166 && ((p.mats || {}).anthracite | 0) === 5 && ((p.mats || {}).garnet | 0) === 9 && Object.keys(p.mineUpgrades || {}).length === 0,
            JSON.stringify({ P: p.minerals, mats: p.mats, led: p.mineUpgrades }));
+        await b.ctx.close();
+      }
+      {
+        // A BOOT THAT NEVER SHOWS THE TITLE DOES NOT SWALLOW THE LINE (M5 verifier fix): it used to be
+        // deleted at boot, so a '#mine,<seed>' link (or the first-visit gate) lost it for good. It
+        // waits for the first screen that shows it — here, the store reached from the end screen.
+        const b = await E.bootMine(4242, 390, 844, { before: seed({ water: 2 }) });
+        const mid = await prog(b.page);
+        await b.page.evaluate(() => window.__game.mine.end());
+        await b.page.waitForSelector('#ssMineEnd', { timeout: 20000 }).catch(() => {});
+        await sleep(600);
+        await b.page.click('#ssMineDone');
+        await b.page.waitForSelector('#speciesSelect.ss-mine', { timeout: 20000 }).catch(() => {});
+        await sleep(700);
+        const note = await b.page.evaluate(() => (document.getElementById('ssMineNote') || {}).textContent || '');
+        const after = await prog(b.page);
+        ok('a deep-linked boot keeps the restock line until a screen shows it — the store does', !!mid.mineRestocked && note.includes('The store was restocked') && !after.mineRestocked,
+           JSON.stringify({ heldAtRun: !!mid.mineRestocked, note, after: !!after.mineRestocked }));
         await b.ctx.close();
       }
       {
@@ -357,7 +512,9 @@ const openStore = async (page) => {
       ok("...a 'Phosphorus seams' row", e.rows.some((x) => /^Phosphorus seams ×2 \+6/.test(x)), e.rows.join(' | '));
       ok('...and the material by name', e.rows.some((x) => /^Anthracite seams ×2 \+4.*Anthracite/.test(x)) && /\+4 Anthracite/.test(e.text), e.rows.join(' | '));
       ok("...with the first run's records line", /Your first descent/i.test(e.text), e.text.split('\n').slice(0, 6).join(' | '));
-      ok('...a next-goal card with an inline Buy (Grow strength, 12 P, affordable)', e.goal === 'growSteps' && e.buy, `${e.goal}: ${e.goalText}`);
+      // M5 verifier fix: was Grow strength (12 P, the first affordable in the priority). An unbought
+      // Water tank now heads the card, as the plan's first-minute script has it.
+      ok('...a next-goal card with an inline Buy (Water tank, 5 P: the goal until Water I is bought)', e.goal === 'water' && e.buy, `${e.goal}: ${e.goalText}`);
       ok('...and Descend (primary) and Store both on a 390 x 844 screen', !!e.descend && !!e.store && e.descend.bottom <= e.vh && e.store.bottom <= e.vh && e.descend.left >= 0 && e.store.right <= e.vw,
          JSON.stringify({ d: e.descend, s: e.store }));
       // TWO CLICKS: Buy, then Descend, and a live run is going.
@@ -368,8 +525,8 @@ const openStore = async (page) => {
       const live = await b.page.waitForFunction(() => { const s = window.__game.state;
         return !!(s && s.substrate && s.substrate.mine && !s.runOver && s.substrate._rockSolidified && !document.getElementById('ssMineEnd') && !document.getElementById('speciesSelect')); },
         null, { timeout: 40000 }).then(() => true).catch(() => false);
-      const run2 = await b.page.evaluate(() => ({ steps: window.__game.mine.steps(), grow: window.__game.store.level('growSteps'), water: window.__game.state.active.water }));
-      ok('Buy then Descend reaches a live run in 2 clicks, with the rung bought', live && clicks === 2 && run2.grow === 1 && run2.steps === 3, JSON.stringify(run2));
+      const run2 = await b.page.evaluate(() => ({ lvl: window.__game.store.level('water'), start: window.__game.store.start().water, water: window.__game.state.active.water }));
+      ok('Buy then Descend reaches a live run in 2 clicks, with the rung bought', live && clicks === 2 && run2.lvl === 1 && run2.start === 72 && run2.water >= 70, JSON.stringify(run2));
       // The records line on a shallower second run.
       await sleep(1500);
       await b.page.evaluate(() => window.__game.mine.end());
@@ -379,6 +536,39 @@ const openStore = async (page) => {
       ok("a shallower run's records line reads 'Deepest N m — K m to go'", /Deepest \d+ m — \d+ m to go/.test(t2), t2.split('\n').slice(0, 5).join(' | '));
       ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
       await b.ctx.close();
+    }
+
+    // ======================================================================================
+    // THE END SCREEN FITS SHORT SCREENS (M5 verifier fix). With four seam rows, the records line and
+    // the goal card, `.ss-win`'s centring pushed SPORED off the TOP at 640x360 (y -50..-7) and 320x568.
+    if (want('fit')) {
+      console.log('--- the end screen on short screens');
+      for (const [w, h] of [[390, 844], [360, 640], [320, 568], [640, 360]]) {
+        const b = await E.bootMine(5, w, h);
+        await b.page.evaluate(async (Q) => {
+          new Function('return (' + Q + ')')()();
+          const g = window.__game, s = g.state;
+          s.active.water = 100000; await window.__navDig({ targetM: 30, maxIters: 300 });
+          s.mineOre = 9; s.mineSeams = { phosphorus: 3, anthracite: 2, garnet: 1, hematite: 1 };
+          s.mineMats = { phosphorus: 9, anthracite: 4, garnet: 2, hematite: 2 };
+          await new Promise((r) => setTimeout(r, 500)); g.store.credit(3); g.mine.end();
+        }, Q);
+        await b.page.waitForSelector('#ssMineEnd', { timeout: 20000 }).catch(() => {});
+        await sleep(2500);
+        const r = await b.page.evaluate(() => {
+          const box = (sel) => { const e = document.querySelector(sel); if (!e) return null; const q = e.getBoundingClientRect(); return { top: Math.round(q.top), bottom: Math.round(q.bottom), cx: q.left + q.width / 2, cy: q.top + q.height / 2 }; };
+          const hit = (bx) => { if (!bx) return null; const e = document.elementFromPoint(bx.cx, bx.cy); return e && (e.id || e.className); };
+          const d = box('#ssMineDescend'), st = box('#ssMineDone');
+          return { vh: innerHeight, title: box('#ssMineEnd .ss-win-title'), depth: box('#ssMineEnd .ss-mineend-depth'), d, st,
+                   hitD: hit(d), hitS: hit(st), scroll: document.getElementById('ssMineEnd').scrollTop };
+        });
+        await b.page.screenshot({ path: path.join(ART, `m5-end-${w}x${h}.png`) });
+        const inView = (x) => x && x.top >= 0 && x.bottom <= r.vh;
+        ok(`${w}x${h}: SPORED and the depth are on screen, and Descend and Store are tappable`,
+           inView(r.title) && inView(r.depth) && inView(r.d) && inView(r.st) && r.hitD === 'ssMineDescend' && r.hitS === 'ssMineDone',
+           JSON.stringify({ title: r.title && [r.title.top, r.title.bottom], depth: r.depth && [r.depth.top, r.depth.bottom], d: r.d && [r.d.top, r.d.bottom], s: r.st && [r.st.top, r.st.bottom], hit: [r.hitD, r.hitS] }));
+        await b.ctx.close();
+      }
     }
 
     // ======================================================================================

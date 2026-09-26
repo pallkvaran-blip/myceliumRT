@@ -2065,6 +2065,26 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
        dive.res && dive.res.mine === true && dive.res.died === false && dive.res.cause === 'dry',
        JSON.stringify(dive.res && { mine: dive.res.mine, died: dive.res.died, cause: dive.res.cause }));
     await b.ctx.close();
+    // A FIRST DESCENT THAT FOLLOWS THE PASSAGE REACHES BAND 2 on the opening tank (M5 verifier fix).
+    // The blind dive above no longer can on every seed (37 m on 909 at 60 water), and its floor came
+    // down 42 -> 30 m — so the band-2 promise ("worms start where run 1 can reach") moved here, onto
+    // the path-following navigator, the way a player routes: same pockets removed, same quiet
+    // threats, real 60 water, digging until the tank refuses. This one can fail.
+    const nb = await bootMine(seed);
+    const nav = await nb.page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      (s.substrate.reservoirs || []).length = 0;
+      for (const c of s.substrate.cells) if (c.water && c.reservoir) { c.water = false; c.reservoir = null; }
+      s.nematodes.length = 0; s.clouds.length = 0;
+      s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
+      if (s.config.mine.worms) s.config.mine.worms.waterPerSec = 0;
+      const water0 = s.active.water;
+      const r = await window.__navDig({ tank: true, maxIters: 600 });
+      return { water0, depth: r.depth, digs: r.digs, max: g.mine.maxDepth() };
+    });
+    ok(`...and following the passage on the opening ${nav.water0} water reaches band 2 (past 42 m)`, nav.water0 === 60 && nav.max > 42,
+       `${nav.max} m in ${nav.digs} digs`);
+    await nb.ctx.close();
   }
 
   // ...and the ore IS reachable by detouring, which is the other half. Dug laterally along a

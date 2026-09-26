@@ -300,8 +300,10 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
     s.mineOre = 9; s.active.phosphorus = 9;       // "holding 9 P"
     s.active.water = 100000;
     await new Promise((res) => setTimeout(res, 1200));
-    // M5: the payout is reach (>= 5, 1 P per 5 m) + the seams' 9, so the expected rise carries it.
-    return { depth: r.depth, reach: g.mine.reach(), minerals: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minerals | 0 };
+    // M5: the payout is reach (1 P per 5 m) + the seams' 9, so the expected rise carries it. A voluntary
+    // exit ('abandon' / 'quit') banks the RAW reach — no 5 P floor (the M5 verifier fix: the floor made
+    // Descend + End descent a zero-dig Phosphorus farm) — so the figure is read for that cause.
+    return { depth: r.depth, reach: g.mine.reach('abandon'), minerals: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minerals | 0 };
   }, { QUIET: QUIET.toString() });
   {
     const b = await E.bootMine(4242);
@@ -451,7 +453,7 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
       document.dispatchEvent(new Event('visibilitychange'));
       return { minerals: p0.minerals | 0, anth: (p0.mats && p0.mats.anthracite) | 0, wrote, cleared,
-               depth: g.mine.maxDepth(), bank: g.mine.bankable(), pending: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minePending };
+               depth: g.mine.maxDepth(), bank: g.mine.bankable('pending'), pending: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minePending };
     }, { QUIET: QUIET.toString() });
     // M5: was `P === 13`; the would-be payout is the seams' 13 + the reach payout (`bankable`).
     ok('hidden writes the would-be payout', h.wrote && h.bank > 13 && h.wrote.P === h.bank && h.wrote.mats.anthracite === 2 && h.wrote.depth === h.depth,
@@ -507,7 +509,9 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       await new Promise((res) => setTimeout(res, 600));
       s.mineOre = 20; s.active.phosphorus = 20; s.mineMats = Object.assign({}, s.mineMats, { anthracite: 1 });
       // M5: the haul is the seams' 20 + the reach payout; the depth stays put for the rest of the block.
-      return { reach: g.mine.reach(), minerals: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minerals | 0,
+      // A pending record is priced like a voluntary exit (raw reach, no floor); the run's own later
+      // ending ('dry', via mine.end) earns the floor. At ~20 m the two differ (4 vs 5).
+      return { reach: g.mine.reach('pending'), reachEnd: g.mine.reach('dry'), minerals: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minerals | 0,
                anth: ((JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').mats || {}).anthracite) | 0 };
     }, { QUIET: QUIET.toString() });
     await hide(a.page, 'hidden');                                  // A writes its record
@@ -540,8 +544,8 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
     await sleep(500);
     const p2 = await prog(a.page);
     ok('...A\'s own ending pays the rest, so the run pays its haul exactly once',
-       (p2.minerals | 0) - a0.minerals === 23 + a0.reach && ((p2.mats || {}).anthracite | 0) - a0.anth === 1 && !p2.minePending && !p2.mineTaken,
-       `P ${a0.minerals} -> ${p2.minerals | 0} (haul 23 + reach ${a0.reach}), anthracite ${a0.anth} -> ${(p2.mats || {}).anthracite | 0}, pending ${JSON.stringify(p2.minePending || null)}, taken ${JSON.stringify(p2.mineTaken || null)}`);
+       (p2.minerals | 0) - a0.minerals === 23 + a0.reachEnd && ((p2.mats || {}).anthracite | 0) - a0.anth === 1 && !p2.minePending && !p2.mineTaken,
+       `P ${a0.minerals} -> ${p2.minerals | 0} (haul 23 + reach ${a0.reachEnd}), anthracite ${a0.anth} -> ${(p2.mats || {}).anthracite | 0}, pending ${JSON.stringify(p2.minePending || null)}, taken ${JSON.stringify(p2.mineTaken || null)}`);
     ok('no page errors', a.errs.length === 0 && bb.errs.length === 0, a.errs.concat(bb.errs).slice(0, 2).join(' | ') || 'clean');
     await ctx.close();
   }
