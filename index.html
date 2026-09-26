@@ -248,6 +248,56 @@
       -webkit-mask: radial-gradient(circle, transparent 4px, #000 4.5px); mask: radial-gradient(circle, transparent 4px, #000 4.5px); }
     .fruitnow .fn-sep { opacity: .55; }
     .fruitnow .fn-p { font-weight: 900; }
+    /* THE MINE HUD ON A PHONE (M3). At 390 px the single resource row ran to x 480 with three worms,
+       the rot clock and three materials up, and the gear (x 448-480) was off the screen. Now:
+       ROW 1 (water, the price, depth) and ROW 2 (P, material tags, worms; only when it has content)
+       stack on a play surface under 430 px (`.two`, set in JS off #ui's width) and sit side by side
+       wider; the rot clock is a top-centre banner under them, then the mine's own hint line; the
+       gear is FIXED at the top right, outside every row. The HUD spans the surface's width so the
+       banner and hint can centre on it, and is pointer-transparent except for what can be pressed:
+       a press on the map beside the rows must still reach the canvas. */
+    #ui > .hud.minehud { top: 8px; left: 8px; right: 8px; pointer-events: none;
+      display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+    .hud.minehud .resrow, .hud.minehud .gearbtn, .hud.minehud .settingsmenu, .hud.minehud .logdrop,
+    .hud.minehud .minekit, .hud.minehud .losbtn:not(.hidden) { pointer-events: auto; }
+    .hud.minehud .resrow { cursor: default; }
+    .minerows { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 6px;
+      max-width: calc(100% - 46px); }
+    .hud.minehud.two .minerows { flex-direction: column; align-items: flex-start; max-width: 100%; }
+    .hud.minehud.two .hudtop { max-width: calc(100vw - 16px - 46px); }
+    body.boxed .hud.minehud.two .hudtop { max-width: calc(var(--pf-w, 100vw) - 16px - 46px); }
+    .hud.minehud .hudtop .resrow { min-width: 0; }
+    .resrow.row2 { min-height: 34px; padding: 5px 10px 5px 8px; gap: 8px; flex-wrap: wrap; max-width: 100%;
+      box-sizing: border-box; }
+    .resrow.row2[hidden], .res.p[hidden] { display: none; }
+    .resrow.row2 .res .rv { font-size: 15px; }
+    .resrow.row2 .matrow { display: inline-flex; margin: 0; padding: 0; gap: 8px; }
+    .resrow.row2 .matrow.hidden { display: none; }
+    .resrow.row2 .matchip { gap: 4px; font: 800 11px/1 ui-sans-serif, system-ui, sans-serif; opacity: 1; }
+    .resrow.row2 .matchip .mt { letter-spacing: .07em; opacity: .85; }
+    .resrow.row2 .matchip .rv { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .rotbanner { align-self: center; display: inline-flex; align-items: center; gap: 6px; pointer-events: none;
+      padding: 6px 14px 6px 11px; border-radius: 999px; background: rgba(18,26,8,0.9);
+      border: 1.5px solid rgba(158,196,79,0.7); color: #9ec44f; box-shadow: 0 0 14px -2px rgba(158,196,79,0.45);
+      font: 800 13px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; }
+    .rotbanner[hidden] { display: none; }
+    .rotbanner .ri { width: 16px; height: 16px; }
+    .rotbanner .rv { font-size: 18px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+    .rotbanner .rk { font-size: 11px; letter-spacing: 0; opacity: .75; margin-left: -4px; text-transform: none; }
+    .rotbanner.urgent { color: #e2705a; border-color: rgba(226,112,90,0.8); box-shadow: 0 0 14px -2px rgba(226,112,90,0.5); }
+    .minehint { align-self: center; max-width: min(340px, 100%); box-sizing: border-box; text-align: center;
+      padding: 8px 14px; border-radius: 12px; pointer-events: none;
+      background: rgba(8,14,11,0.84); border: 1px solid rgba(130,230,166,0.35); color: #e8f5ec;
+      box-shadow: 0 6px 18px -8px rgba(0,0,0,0.8); font: 600 14px/1.3 ui-sans-serif, system-ui, sans-serif; }
+    .minehint[hidden] { display: none; }
+    .hud.minehud .gearbtn { position: fixed; top: 8px; right: 8px; width: 40px; height: 40px; z-index: 2;
+      background: rgba(12,20,15,0.9); }
+    body.boxed .hud.minehud .gearbtn { top: calc(var(--pf-t, 0px) + 8px);
+      right: calc(100vw - var(--pf-l, 0px) - var(--pf-w, 100vw) + 8px); }
+    .hud.minehud .gearbtn svg { pointer-events: none; }
+    .hud.minehud .settingsmenu { position: fixed; top: 56px; right: 8px; margin: 0; max-width: calc(100vw - 16px); z-index: 2; }
+    body.boxed .hud.minehud .settingsmenu { top: calc(var(--pf-t, 0px) + 56px);
+      right: calc(100vw - var(--pf-l, 0px) - var(--pf-w, 100vw) + 8px); }
     /* A deep material's mark: a dot in the band's own colour. Deliberately not an icon per
        material — four more glyphs to draw and read at 13px, when what the player needs is only to
        tell them apart and match them to the rock they were standing in. */
@@ -22710,6 +22760,7 @@ function mineGrow(state, ctx) {
   }
   const origin = net._lastGrowOrigin;
   net.water -= cost;
+  state.mineDigs = (state.mineDigs | 0) + 1;   // this descent's accepted digs (the tip queue's first line clears on one)
   // A SUCCESSFUL DIG RESETS THE STUCK COUNTDOWN — the recovery play the old affordability rule was
   // written for (a cheap dig from shallower ground) keeps working, and moves the focus with it.
   if (state._mineStuck) { state._mineStuck.acc = 0; state._mineStuck.revealHeld = 0; }
@@ -22750,6 +22801,9 @@ function mineAtNodeCap(state) {
 // construction and needs no separate placement rule. `phosphorus` is the shallow band's and remains
 // the general currency; the deeper three are what specific store rungs ask for.
 function mineMaterials(config) { return mineCfg(config).materials || []; }
+// The HUD's tag for a material (M3): its `tag`, else the first three letters of its name, upper case
+// ('ANT', 'GAR', 'HEM'). Three letters because a 360 px row 2 holds P, three tags and the worm chip.
+function mineMatTag(m) { return m ? String(m.tag || m.name || m.id || '').slice(0, 3).toUpperCase() : ''; }
 function mineMaterialFor(config, band) {
   const ms = mineMaterials(config);
   if (!ms.length) return null;
@@ -23076,7 +23130,7 @@ function mineEndRun(state, cause) {
            mineDepthReached, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
            mineDigCost, mineCheapestCost, mineNextHeatLine, mineHeatLines,
-           mineMaterials, mineMaterialFor, mineMaterialById,
+           mineMaterials, mineMaterialFor, mineMaterialById, mineMatTag,
            mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
            mineFocusNode, mineCostHere, mineStuckCheck, mineStuckState, mineRunDepth, mineAtNodeCap,
            MINE_END_CAUSES,
@@ -26532,7 +26586,7 @@ const __m_render_ui = (function () {
   const { cardDeckAdditions, actionUsable, cardBlockedReason } = __m_engine_cards;
   const { toggleMusic, isMusicMuted } = __m_render_music;
   const { toggleSfx, isSfxMuted, playCardSelect, playCardDeselect } = __m_render_sfx;
-  const { mineCostHere, mineStuckState } = __m_engine_mine;
+  const { mineCostHere, mineStuckState, mineMatTag } = __m_engine_mine;
 // =============================================================================
 // UI — HUD, action buttons, event log, dev tools, "what we're testing" panel.
 //
@@ -26704,27 +26758,24 @@ class UI {
     const mineOn = !!(this.state.substrate && this.state.substrate.mine);
     this.mineOn = mineOn;
     this._fnOn = this._fnBank = this._fnFrac = undefined;   // the FRUIT NOW pill is rebuilt hidden
+    // ...and so is every other change-only HUD write: a fresh element with a stale memory would skip
+    // its first write (e.g. the rows' layout class, or a chip whose count matches the last run's).
+    this._matSig = this._digCost = this._infLeft = this._kitSig = this._wormN = this._mineTwo = undefined;
+    this._mineHintText = undefined;
 
     // ---- Top HUD: one compact resource row + a drop-down event log ----
     const hud = div('panel hud');
+    // THE MINE'S ROW 1 (M3): the fuel, what a dig costs here, and how deep. Everything else a
+    // descent carries (P, the deep materials, the worms) is ROW 2, which exists only when it has
+    // something to say, and the rot clock is a top-centre banner of its own. At 390 px the old single
+    // row ran to x 480 with three worms, the rot clock and three materials up, and pushed the gear
+    // (x 448-480) off the screen — Settings, and both exits in it, were unreachable exactly when a
+    // descent was in trouble.
     const resRow = mineOn
       // WATER FIRST, because it is the fuel and the clock — it is the number the player is
       // watching. Depth carries its unit in the markup ("m"), so the readout reads as a
       // measurement rather than as a third stock.
       ? `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span></span>`
-        + `<span class="res p">${RES_ICON.phos}<span class="rv" id="hud-phosphorus">0</span></span>`
-        + `<span class="res d"><span class="rv" id="hud-depth">0</span><span class="rk">m</span></span>`
-        // WHAT IS EATING YOUR WATER, AND HOW MUCH OF IT. A drain the player cannot see is the same
-        // defect the strand-eating worms had, wearing a different coat — the tank simply falls
-        // faster for no stated reason. Hidden entirely at zero, so the row stays quiet until there
-        // is something to say.
-        + `<span class="res wm" id="hud-worms" hidden>${RES_ICON.worm}<span class="rv" id="hud-wormn">0</span>`
-        + `<span class="rk" id="hud-wormrate"></span></span>`
-        // THE INFECTION DEADLINE. A clock the player cannot see is the same defect as a drain they
-        // cannot see — worse, because this one ends the run outright. Hidden until something is
-        // actually infected.
-        + `<span class="res inf" id="hud-infect" hidden>${RES_ICON.spore}<span class="rv" id="hud-infectn">0</span>`
-        + `<span class="rk">s</span></span>`
         // WHAT THE NEXT DIG COSTS. A price that silently climbs with depth is the invisible-damage
         // defect a third time: the tank would just empty faster the deeper you went, with nothing
         // on screen connecting the two.
@@ -26736,9 +26787,10 @@ class UI {
         // stretch where the arithmetic is easiest is the one stretch the player cannot do it in —
         // and it made the opening hint quote a price that then went stale on screen beside a live
         // chip saying something else. `.hot` is added only when the price is ABOVE base, so the
-        // colour still marks heat while the number is always there.
+        // colour still marks heat while the number is always there. Beside the water it divides.
         + `<span class="res" id="hud-digcost">${RES_ICON.water}<span class="rv" id="hud-digcostn">2</span>`
         + `<span class="rk">a dig</span></span>`
+        + `<span class="res d"><span class="rv" id="hud-depth">0</span><span class="rk">m</span></span>`
       : cardsOn
       ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span><span class="rd" id="hud-energy-inc"></span></span>`
         + `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span><span class="rd" id="hud-water-inc"></span></span>`
@@ -26747,16 +26799,44 @@ class UI {
         + `<span class="res"><span class="rk">spores</span><span class="rv" id="hud-spores">0</span></span>`;
     // The resource pill holds ONLY resources now; a Settings gear sits to its right and
     // opens a menu with Event log · Music · Replay tutorial · Force Fruiting (abandon run).
-    hud.innerHTML =
-      `<div class="hudtop">`
-      + `<div class="resrow">${resRow}</div>`
-      // WHAT THIS DESCENT HAS DUG, by material. Phosphorus already has its slot in the row above;
-      // this is the deep three, which are the things a player goes looking for. Hidden until one is
-      // found, so the first 42 m stay uncluttered.
-      + (mineOn ? `<div class="matrow hidden" id="matrow"></div>` : '')
-      + `<button class="losbtn hidden" id="losbtn" type="button" aria-pressed="false" title="Show where your colony can drop a decoy — its line of sight">Colony line of sight</button>`
-      + `<button class="gearbtn" id="gearbtn" type="button" aria-label="Settings" title="Settings" aria-expanded="false">${GEAR_SVG}</button>`
-      + `</div>`
+    if (mineOn) hud.classList.add('minehud');
+    hud.innerHTML = (mineOn
+      // THE MINE'S TWO ROWS (M3). `.minerows` stacks them on a narrow play surface (`.two`, set by
+      // `_syncMineRows` off the play surface's own width, not the window's: on a desktop the surface
+      // is a ~330-500 px portrait box inside a wide window) and lays them side by side otherwise.
+      ? `<div class="minerows">`
+        + `<div class="hudtop"><div class="resrow">${resRow}</div></div>`
+        // ROW 2: what this descent is carrying and what is feeding on it. Shown only when one of its
+        // entries is (`_syncMineRow2`), so the opening shaft has one quiet row.
+        + `<div class="resrow row2" id="hudrow2" hidden>`
+        +   `<span class="res p" id="hud-phos" hidden>${RES_ICON.phos}<span class="rv" id="hud-phosphorus">0</span></span>`
+        // WHAT THIS DESCENT HAS DUG, by material, as tinted three-letter tags ('ANT 6'): an unlabelled
+        // dot per material could not be matched to anything without a legend.
+        +   `<span class="matrow hidden" id="matrow"></span>`
+        // WHAT IS EATING YOUR WATER, AND HOW MUCH OF IT. A drain the player cannot see is the same
+        // defect the strand-eating worms had, wearing a different coat — the tank simply falls
+        // faster for no stated reason. Hidden entirely at zero.
+        +   `<span class="res wm" id="hud-worms" hidden>${RES_ICON.worm}<span class="rv" id="hud-wormn">0</span>`
+        +   `<span class="rk" id="hud-wormrate"></span></span>`
+        + `</div>`
+        + `</div>`
+        // THE INFECTION DEADLINE, as a banner of its own at the top centre. A clock the player cannot
+        // see is the same defect as a drain they cannot see — worse, because this one ends the run
+        // outright — and in the row it was the entry that pushed the gear off a 390 px screen.
+        + `<div class="rotbanner" id="hud-infect" hidden role="status">${RES_ICON.spore}`
+        +   `<span class="rb-t">Rot</span><span class="rv" id="hud-infectn">0</span><span class="rk">s</span></div>`
+        // THE MINE'S OWN INSTRUCTION LINE (M3), fed by the tip queue in `mineFrame`. Not `.hint`:
+        // every `.hint` rule hides it on a phone (CSS max-width 760 and phone landscape), which is
+        // how the mine's only instruction was invisible to every phone player.
+        + `<div class="minehint" id="minehint" hidden aria-live="polite"></div>`
+        // FIXED, top right, outside every row: nothing in the rows can push it off the screen.
+        + `<button class="gearbtn" id="gearbtn" type="button" aria-label="Settings" title="Settings" aria-expanded="false">${GEAR_SVG}</button>`
+        + `<button class="losbtn hidden" id="losbtn" type="button" aria-pressed="false">Colony line of sight</button>`
+      : `<div class="hudtop">`
+        + `<div class="resrow">${resRow}</div>`
+        + `<button class="losbtn hidden" id="losbtn" type="button" aria-pressed="false" title="Show where your colony can drop a decoy — its line of sight">Colony line of sight</button>`
+        + `<button class="gearbtn" id="gearbtn" type="button" aria-label="Settings" title="Settings" aria-expanded="false">${GEAR_SVG}</button>`
+        + `</div>`)
       + `<div class="settingsmenu hidden" id="settingsmenu" role="menu">`
       +   `<button class="setitem" id="set-log" type="button" role="menuitem">Event log<span class="setchev">▾</span></button>`
       +   `<button class="setitem" id="set-mute" type="button" role="menuitemcheckbox">Music<span class="settoggle" id="set-mute-state"></span></button>`
@@ -27357,6 +27437,16 @@ class UI {
     }, 4000);
   }
   resetHint() { this.setHint(this.defaultHint); }
+  // The mine's own instruction line (M3), fed by `mineTipTick`. Written on a change only.
+  setMineHint(text) {
+    const t = text || '';
+    if (this._mineHintText === t) return;
+    const el = document.getElementById('minehint');
+    if (!el) return;
+    this._mineHintText = t;
+    el.textContent = t;
+    el.hidden = !t;
+  }
 
   // Transient error banner — shown when a play is blocked (can't afford, no
   // target in range, …). Fades in near the top, then auto-clears after a beat.
@@ -27552,6 +27642,30 @@ class UI {
     pill.classList.add(v > prev ? 'rgain' : 'rspend');
   }
 
+  // THE MINE HUD'S LAYOUT (M3). ROW 2 shows only when one of its entries does: P once the run has
+  // any, a tag per deep material held, the worm chip while a worm is attached. `.two` stacks the rows
+  // on a play surface under `CONFIG.mine.hudTwoRowsBelowPx` (430) — measured on `#ui`, which is the
+  // play surface (the letterboxed box on a desktop), because a media query would read the window.
+  // Written on a change only; `update` runs every world tick.
+  _syncMineRows() {
+    const hud = this.el.hudtop && this.el.hudtop.closest('.hud');
+    if (!hud) return;
+    const s = this.state;
+    const phos = Math.floor((s.active && s.active.phosphorus) || 0);
+    const pc = document.getElementById('hud-phos');
+    if (pc && pc.hidden !== !(phos > 0)) pc.hidden = !(phos > 0);
+    const r2 = document.getElementById('hudrow2');
+    if (r2) {
+      const mr = document.getElementById('matrow'), wm = document.getElementById('hud-worms');
+      const any = phos > 0 || !!(mr && !mr.classList.contains('hidden')) || !!(wm && !wm.hidden);
+      if (r2.hidden !== !any) r2.hidden = !any;
+    }
+    const ui = document.getElementById('ui');
+    const lim = (s.config.mine && s.config.mine.hudTwoRowsBelowPx) || 430;
+    const two = !!ui && ui.clientWidth > 0 && ui.clientWidth < lim;
+    if (this._mineTwo !== two) { this._mineTwo = two; hud.classList.toggle('two', two); }
+  }
+
   // THE FRUIT NOW PILL (M1). Called from `update` and ALSO every frame by the mine's own clock,
   // because its ring is a 6 s countdown and `update` only runs on a dirty tick. Writes only on a
   // change: the visibility, the bankable figure, and the ring to the nearest 1%.
@@ -27603,9 +27717,11 @@ class UI {
         if (this._matSig !== sig) {
           this._matSig = sig;
           mr.classList.toggle('hidden', !list.length);
+          // A TINTED THREE-LETTER TAG ('ANT 6'), not a bare dot: the full name is on the end screen
+          // and in the store, and here the tag is what ties the count to that name.
           mr.innerHTML = list.map((m) =>
-            `<span class="matchip"><span class="ss-matdot" style="background:${m.tint}"></span>`
-            + `${mats[m.id] | 0}</span>`).join('');
+            `<span class="matchip" style="color:${m.tint}" title="${m.name}">`
+            + `<span class="mt">${mineMatTag(m)}</span><span class="rv">${mats[m.id] | 0}</span></span>`).join('');
         }
       }
       const dc = document.getElementById('hud-digcost');
@@ -27671,6 +27787,7 @@ class UI {
           text('hud-wormrate', wn > 0 ? `−${(wn * per).toFixed(1)}/s` : '');
         }
       }
+      this._syncMineRows();
     }
 
     // Card layer: resources, hand, draw/skip.
@@ -37147,6 +37264,32 @@ function mineArmedTap(wx, wy) {
   return true;
 }
 
+// A TAP IN THE MINE DOES WHAT A NEW PLAYER EXPECTS (M3). Before this a tap on the colony did
+// nothing at all — the aim was dropped as "too short to point" — and so did a tap with the enzyme
+// armed, unless the finger happened to wobble past 12 px. Now a press that SNAPPED to a strand (an
+// aim exists), was released within `AIM_MIN_PX` (12) of where it went down with no other finger
+// ever on the glass (`endPointer` only gets here for the last pointer, and a second finger nulls the
+// aim), commits:
+//   - an armed item -> `mineArmedTap` at the tap point, exactly where the finger was;
+//   - otherwise, if the finger landed ON the colony (within `CONFIG.mine.tapDigPx` of the strand it
+//     snapped to), a dig straight down from that strand — `mineGrow` reads no direction as down.
+// The tap-dig radius is deliberately much tighter than the aim's grab radius (`aimNearPx`, 170-420
+// px): that one is generous so a DRAG can start anywhere near the colony, but a tap that far off is
+// someone tapping the map, and it stays a pan (no dig, no toast).
+function mineTapCommit(a, e) {
+  if (!a || a.kind !== 'mine' || !mineMap() || !state || state.runOver) return false;
+  const rect = canvas.getBoundingClientRect();
+  const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
+  if (Math.hypot(sx - a.startScreen.x, sy - a.startScreen.y) >= AIM_MIN_PX) return false;
+  const at = camera.screenToWorld(a.startScreen.x, a.startScreen.y);
+  if (state._mineArmed) return mineArmedTap(at.x, at.y);
+  const os = camera.worldToScreen(a.origin.x, a.origin.y);
+  const lim = (state.config.mine && state.config.mine.tapDigPx) || 48;
+  if (Math.hypot(a.startScreen.x - os.x, a.startScreen.y - os.y) > lim) return false;
+  fireAim(Object.assign({}, a, { cur: { x: a.origin.x, y: a.origin.y }, dragged: true, tap: true }));
+  return true;
+}
+
 function fireAim(a) {
   // The RELEASE is the commit, and a gesture can be started before the turn ends and let go
   // after — so the gate belongs here rather than only at beginAim. The aim is dropped either
@@ -37366,6 +37509,7 @@ function setupInput() {
     // too far, or too short to point) and stay armed so the player can try again.
     if (aim) {
       const a = aim; aim = null;
+      if (e.type !== 'pointercancel' && !a.cancelled && !a.dragged && mineTapCommit(a, e)) { uiDirty = true; return; }
       if (e.type === 'pointercancel' || a.cancelled || !a.dragged) { uiDirty = true; return; }
       fireAim(a);
       return;
@@ -37963,24 +38107,55 @@ function showMineBeat(depthText, name) {
   } catch (_) {}
 }
 
+// THE MINE'S TIP QUEUE (M3) — one line at a time in `#minehint`, never a modal. `mineTip(id, text,
+// {ms, sticky})` queues a line unless that id is already showing or queued; a sticky line stays until
+// `mineTipClear(id)`, any other for `ms` (default 3000). `mineTipTick` (every mine frame) retires an
+// expired line, promotes the next and writes the element only on a change. Per run: it lives on
+// `state`, so a new descent starts with an empty queue. M4 adds the once-per-save tips on top.
+function mineTip(id, text, opts) {
+  if (!state || !text) return false;
+  const q = state._mineTips || (state._mineTips = { cur: null, queue: [] });
+  if ((q.cur && q.cur.id === id) || q.queue.some((t) => t.id === id)) return false;
+  const o = opts || {};
+  q.queue.push({ id, text: String(text), sticky: !!o.sticky, ms: o.ms > 0 ? o.ms : 3000, until: 0 });
+  return true;
+}
+function mineTipClear(id) {
+  const q = state && state._mineTips;
+  if (!q) return;
+  q.queue = q.queue.filter((t) => t.id !== id);
+  if (q.cur && q.cur.id === id) q.cur = null;
+}
+function mineTipTick(now) {
+  const q = state && state._mineTips;
+  if (q) {
+    if (q.cur && !q.cur.sticky && now >= q.cur.until) q.cur = null;
+    if (!q.cur && q.queue.length) { q.cur = q.queue.shift(); q.cur.until = now + q.cur.ms; }
+  }
+  if (ui && ui.setMineHint) ui.setMineHint(q && q.cur ? q.cur.text : '');
+}
 function mineFrame(time, dt) {
   if (state.runOver) return;
   // THE ONE INSTRUCTION. The mine has no tutorial and no button to point at — its whole input is a
   // press-and-drag on the colony — so a first-time player has nothing to go on. Shown until their
   // FIRST DESCENT HAS ENDED (`p.mineBest`), not once per run: it is needed on the first descent and
   // is noise on the twentieth, and "have they finished a descent?" is already recorded.
+  //
+  // IT IS THE FIRST LINE OF THE TIP QUEUE (M3), shown in `#minehint` — the mine's own element, top
+  // centre under the HUD. It used to go to `.hint`, which every phone layout hides (`display:none`
+  // at max-width 760 and in phone landscape), so no phone player ever saw it. Sticky until the first
+  // dig lands, by any route (`state.mineDigs`, counted in `mineGrow`).
   if (!state._mineHinted) {
     state._mineHinted = true;
     try {
-      if (!(loadProgress().mineBest > 0) && ui && ui.setHint) {
-        // NO PRICE IN HERE ANY MORE. It is written once, at the surface, and then sits on screen
-        // while the player digs — so past the first line it contradicted the HUD chip three
-        // centimetres above it ("2 water a dig" against a chip reading 4). The chip is live and now
-        // always shown, so it owns the number and this owns the instruction.
-        ui.setHint('Drag from the colony to dig', true);
-      }
+      // NO PRICE IN HERE. It sits on screen while the player digs, and a price in it went stale
+      // beside the live chip ("2 water a dig" against a chip reading 4). The chip owns the number;
+      // this owns the instruction.
+      if (!(loadProgress().mineBest > 0)) mineTip('dig', 'Drag down from the colony to dig', { sticky: true });
     } catch (_) {}
   }
+  if ((state.mineDigs | 0) > 0) mineTipClear('dig');
+  mineTipTick(time);
   // When the descent began, for `run_end`'s duration (M1).
   if (!state.mineStartedAt) state.mineStartedAt = Date.now();
   mineFollowCamera(time, dt);
