@@ -323,7 +323,15 @@ const openStore = async (page) => {
       let dragging = true, drags = 0;
       const dragLoop = (async () => {
         while (dragging) {
-          try { await b.page.mouse.move(195, 420); await b.page.mouse.down(); await b.page.mouse.move(215, 520, { steps: 3 }); await b.page.mouse.up(); drags++; } catch (_) {}
+          try {
+            const pt = await b.page.evaluate(() => {   // from the root strand, where a press arms the aim
+              const g = window.__game, n = g.state.active.nodes[0], sc = g.camera.worldToScreen(n.x, n.y);
+              const r = document.getElementById('game').getBoundingClientRect(); return { x: r.left + sc.x, y: r.top + sc.y };
+            });
+            await b.page.mouse.move(pt.x, pt.y); await b.page.mouse.down();
+            for (let i = 1; i <= 5; i++) { await b.page.mouse.move(pt.x, pt.y + i * 20); await sleep(20); }
+            await b.page.mouse.up(); drags++;
+          } catch (_) {}
           await sleep(250);
         }
       })();
@@ -342,6 +350,11 @@ const openStore = async (page) => {
         }
         out.msgs = [...out.msgs];
         out.solidAt = performance.now();
+        // The reveal follows within a frame or two: read the toast THERE (a stale one lasts 2.6 s).
+        for (let i = 0; i < 120 && document.body.classList.contains('handoff'); i++) await new Promise((r) => requestAnimationFrame(() => r()));
+        const t = document.querySelector('.toast'), tm = t && t.querySelector('.tmsg');
+        out.revealToast = t && !t.classList.contains('hidden') && t.classList.contains('in') ? (tm ? tm.textContent : '?') : null;
+        out.revealed = !document.body.classList.contains('handoff');
         // The reference mask for the slow-art case below: this boot's art arrived at 3 s, un-forced.
         let on = 0; const f = sub._fineSolid; if (f) for (let i = 0; i < f.length; i++) on += f[i];
         out.fineOn = on; out.sprites = (sub.levelSprites || []).length; out.forced = sub._solidForced | 0;
@@ -366,8 +379,8 @@ const openStore = async (page) => {
         return { curtain: document.body.classList.contains('handoff'), paused: g.simPaused(), note: g.settleNote().on, toast };
       }, QUIET.toString());
       ok('...and it lifts once the mask exists, the world running, the line gone', !later.curtain && !later.paused && !later.note, JSON.stringify(later));
-      ok('...with no stale settling toast from the drags made under the curtain', drags >= 3 && !/settling/.test(later.toast || ''),
-         `${drags} real drags during the hold; toast after the reveal: ${later.toast || 'none'}`);
+      ok('...with no stale settling toast from the drags made under the curtain', drags >= 3 && early.revealed && !/settling/.test(early.revealToast || '') && !/settling/.test(later.toast || ''),
+         `${drags} real drags during the hold; toast at the reveal: ${early.revealToast || 'none'}, 1.2 s later: ${later.toast || 'none'}`);
       await H.injectNav(b.page);
       const inside = await b.page.evaluate(async () => {
         const g = window.__game, s = g.state, sub = s.substrate;
