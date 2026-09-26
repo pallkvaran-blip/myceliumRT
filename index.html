@@ -38542,7 +38542,9 @@ function mineCollectFeedback(ore, water) {
   for (const e of ore) {
     const m = mineMaterialById(state.config, e.mat);
     const label = e.mat === 'phosphorus' ? 'P' : (m ? m.name : e.mat);
-    addEnergyFloater(e.x, e.y - sub.cellSize * 0.4, e.n, { text: `+${e.n} ${label}`, color: (m && m.tint) || '#c9a2e8', size: 15, life: 90, icon: false });
+    // 18 px with a heavy outline (plan: '+3 P' 18 px lilac): at 15 px on a plain outline the lilac
+    // read dim against brown soil (verifier, r1-fl0.png).
+    addEnergyFloater(e.x, e.y - sub.cellSize * 0.4, e.n, { text: `+${e.n} ${label}`, color: (m && m.tint) || '#c9a2e8', size: 18, outline: 4.5, life: 90, icon: false });
     try { playSeamPing(); } catch (_) {}
     if (state._mineOnb && state._mineOnb.ring && state._mineOnb.ring.pile === e.pile) state._mineOnb.ring = null;
   }
@@ -40016,8 +40018,12 @@ function addEnergyFloater(wx, wy, amount, opts = {}) {
   // timestamp can never skip or freeze the animation; it fades over `life` frames.
   // `text` / `color` / `icon` (M4): the mine's floaters carry their own words ('+3 P', '+2
   // Anthracite', '+10 water') in the material's colour, with no energy bolt (`icon: false`).
+  // AT MOST 12 LIVE IN THE MINE (plan: feedback) — a burst of seams and pockets retires the oldest
+  // rather than stacking an unreadable column of numbers.
+  if (state && state.substrate && state.substrate.mine && floaters.length >= 12) floaters.splice(0, floaters.length - 11);
   floaters.push({ x: wx, y: wy, amount: amt, sign: opts.sign || '', age: 0, life: opts.life || 80, rise: opts.rise != null ? opts.rise : 30, size: opts.size || 13,
-                  text: opts.text || null, color: opts.color || null, icon: opts.icon !== undefined ? opts.icon : !opts.text, born: performance.now() });
+                  text: opts.text || null, color: opts.color || null, icon: opts.icon !== undefined ? opts.icon : !opts.text,
+                  outline: opts.outline || 0, born: performance.now() });
 }
 
 // A pile "+N⚡" pops the instant it finishes digesting (checkPileRewards stamped
@@ -40110,8 +40116,8 @@ function drawFloaters(time, dtFrames = 1) {
     const startX = s.x - (tw + gap + boltW) / 2;
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     ctx.lineJoin = 'round';
-    ctx.lineWidth = Math.max(2, f.size * 0.2);
-    ctx.strokeStyle = 'rgba(0,0,0,0.7)';           // dark outline so it reads over any terrain
+    ctx.lineWidth = f.outline || Math.max(2, f.size * 0.2);
+    ctx.strokeStyle = f.outline ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.7)';   // dark outline so it reads over any terrain
     ctx.fillStyle = f.color || '#7fe6a3';           // green — matches the top pill's energy value (--accent)
     ctx.strokeText(txt, startX, y);
     ctx.fillText(txt, startX, y);
@@ -41521,6 +41527,20 @@ function _spentPocketArt(key, img) {
     for (let i = 0; i < 3; i++) x.drawImage(img, 0, 0, W, Hh);
     x.globalCompositeOperation = 'source-atop';
     x.fillStyle = 'rgba(12,9,7,0.9)'; x.fillRect(0, 0, W, Hh);
+    // THE DRY CRACK (plan: 'at 35% alpha with a dry crack'): a few jagged dried-mud lines across the
+    // hollow, clipped to it (source-atop), seeded by the art key so a pocket always cracks the same
+    // way. Thin and dark-tan, so the disc stays well under 0.7x the full pocket's luminance.
+    let h = 2166136261; for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+    const rnd = () => { h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909); return ((h >>>= 0) % 10000) / 10000; };
+    x.strokeStyle = 'rgba(122,94,64,0.85)'; x.lineCap = 'round'; x.lineJoin = 'round';
+    for (let k = 0; k < 3; k++) {
+      let px = W * (0.3 + 0.4 * rnd()), py = Hh * (0.25 + 0.5 * rnd());
+      const ang = rnd() * Math.PI * 2, segs = 4 + (rnd() * 3 | 0), len = Math.min(W, Hh) * 0.09;
+      x.lineWidth = Math.max(1, W / 128) * (k ? 1 : 1.6);
+      x.beginPath(); x.moveTo(px, py);
+      for (let j = 0; j < segs; j++) { const a = ang + (rnd() - 0.5) * 1.3; px += Math.cos(a) * len; py += Math.sin(a) * len; x.lineTo(px, py); }
+      x.stroke();
+    }
     _spentPocketCache.set(key, c);
   } catch (_) { return null; }
   return c;
@@ -42146,7 +42166,9 @@ function enterGame() {
   // game goes straight from the gate tap into run 1 — no title, no DIG word animation. The gate tap
   // is still the user gesture that unlocked audio (`_load.ready` runs initMusic/initSfx first).
   // Returning players get the title. Hook: `window.__menu.firstVisit()`.
-  else if (OFFER_MINE && mineFirstVisit()) beginMineRun();
+  // NOT under the dev UI flag (verifier): `?dev=1` is how the owner reaches the title and the
+  // store's dev column, and a fresh profile opened that way must still land on the title.
+  else if (OFFER_MINE && mineFirstVisit() && !devUI()) beginMineRun();
   else showMainMenu();
 }
 function mineFirstVisit() {
@@ -42174,7 +42196,13 @@ const _bootImgs = [].concat(
   ['assets/spores/spore-print.png'],
 );
 let _aDone = 0, _aTot = 0, _iDone = 0, _iTot = _bootImgs.length, _mDone = 0, _mTot = 0, _bootEntered = false;
+let _aKnown = false;
 function _bootProgress() {
+  // NOT BEFORE THE MANIFEST IS READ (verifier fix): until `loadAssets` reports its first step the
+  // asset total — and the band bill reserved with it — is unknown, and the DOM images alone drove
+  // the % to ~89 in the first 350 ms; the real denominator then pulled it back, which the monotonic
+  // counter shows as a freeze (measured 1.1-1.4 s at 89-90%).
+  if (!_aKnown) return;
   const tot = _aTot + _iTot + _mTot, dn = _aDone + _iDone + _mDone;
   _load.setProgress(tot ? (dn / tot) * 100 : 0);
 }
@@ -42235,42 +42263,63 @@ function _bootReady() {
 // are the slow part and there is no reason to serialise a CDN handshake in front of them; the
 // calls simply no-op until it resolves, which is the same behaviour as having no SDK at all.
 CRAZY.init().then((ok) => { if (ok) CRAZY.loadingStart(); });
-// THE MINE'S BAND ART IS PRELOADED BEHIND THE GATE (M4). It is `kind: 'level'`, so `loadAssets`
-// holds it back, and a descent's curtain waits for every band sprite before it lifts (M2) — so
-// without this the first descent sat behind a black curtain for ~5 s AFTER the tap. Loaded while
-// the % counter is up instead, counted into it, so the curtain can lift within ~600 ms of the tap.
-Promise.all([
-  loadAssets('assets/', (d, t) => { _aDone = d; _aTot = t; _bootProgress(); }).then(() => {
-    if (!OFFER_MINE) return;
-    // TEST KNOB: `window.MYCELIUM_NO_BAND_PRELOAD = true` (an init script) skips this, so a check can
-    // put a descent in front of art that has not arrived — the case the M2 collision gate exists for
-    // (a slow link where the 12 s safety net lets the player in first). ship-check's gate block.
-    if (window.MYCELIUM_NO_BAND_PRELOAD === true) return;
-    const folders = [...new Set(((CONFIG.mine && CONFIG.mine.bands) || []).map((b) => b.assetsFrom).filter(Boolean))];
-    return Promise.all(folders.map((f) => loadLevelAssets(f, 'assets/', (d, t) => {
-      _mDone += d; _mTot += t; _bootProgress();
-    }))).then(() => {
-      // ...AND THEIR ALPHA MASKS ARE BUILT HERE TOO. The first `solidifyRock` spent ~1.4 s in
-      // `_alphaMask`'s getImageData (the first draw of each sprite decodes it) — measured as the
-      // whole gap between the tap and the curtain lifting. The masks are cached by image source,
-      // so building them now makes the first stamp cheap. In small batches, so the counter moves.
-      const keys = [];
-      for (const f of folders) for (const k of levelAssetKeys(f)) keys.push(k);
-      _mTot += keys.length; _bootProgress();
-      return new Promise((res) => {
-        let i = 0;
-        const step = () => {
-          const t0 = performance.now();
-          while (i < keys.length && performance.now() - t0 < 40) {
-            try { const img = asset(keys[i]); if (img) _alphaMask(img); } catch (_) {}
-            i++; _mDone++;
-          }
-          _bootProgress();
-          if (i < keys.length) setTimeout(step, 0); else res();
-        };
-        step();
-      });
+// THE COUNTER'S DENOMINATOR IS KNOWN UP FRONT (verifier fix). The band files and their masks were
+// added to `_mTot` only once the base assets had resolved, so the total grew mid-load and — since
+// `setProgress` never moves backwards — the % sat frozen while ~150 band files and their masks
+// loaded. `DEFERRED` is filled from the manifest before `loadAssets` reports its first step, so the
+// whole band bill (files + masks) is reserved on that first step.
+// RETURNING PLAYERS DO NOT WAIT FOR IT: they get the title, not a descent, so the gate opens on the
+// base assets and the band art (and its masks, in small slices) loads behind the title instead.
+const _bandFolders = OFFER_MINE ? [...new Set(((CONFIG.mine && CONFIG.mine.bands) || []).map((b) => b.assetsFrom).filter(Boolean))] : [];
+const _bandBlocking = OFFER_MINE && mineFirstVisit() && window.MYCELIUM_NO_BAND_PRELOAD !== true;
+let _mReserved = false;
+function _reserveBandBill() {
+  if (_mReserved || !_bandBlocking) return;
+  let n = 0; for (const f of _bandFolders) n += levelAssetKeys(f).length;
+  if (!n) return;
+  _mReserved = true; _mTot += 2 * n;            // one step per file, one per mask
+}
+// Band files + their alpha masks. `sliceMs`/`gapMs`: the blocking boot builds masks in 40 ms slices
+// back to back; behind the title it takes 12 ms slices with a frame between, so the wordmark's
+// growth does not stutter.
+function _preloadBands(sliceMs, gapMs, count) {
+  return Promise.all(_bandFolders.map((f) => loadLevelAssets(f, 'assets/', (d, t) => {
+    if (!count) return;
+    _mDone += d; if (!_mReserved) _mTot += t; _bootProgress();
+  }))).then(() => {
+    // ...AND THEIR ALPHA MASKS ARE BUILT HERE TOO. The first `solidifyRock` spent ~1.4 s in
+    // `_alphaMask`'s getImageData (the first draw of each sprite decodes it) — measured as the
+    // whole gap between the tap and the curtain lifting. The masks are cached by image source,
+    // so building them now makes the first stamp cheap. In small batches, so the counter moves.
+    const keys = [];
+    for (const f of _bandFolders) for (const k of levelAssetKeys(f)) keys.push(k);
+    if (count && !_mReserved) { _mTot += keys.length; _bootProgress(); }
+    return new Promise((res) => {
+      let i = 0;
+      const step = () => {
+        const t0 = performance.now();
+        while (i < keys.length && performance.now() - t0 < sliceMs) {
+          try { const img = asset(keys[i]); if (img) _alphaMask(img); } catch (_) {}
+          i++; if (count) _mDone++;
+        }
+        if (count) _bootProgress();
+        if (i < keys.length) setTimeout(step, gapMs); else res();
+      };
+      step();
     });
+  });
+}
+// THE MINE'S BAND ART IS PRELOADED BEHIND THE GATE (M4) — on a FIRST VISIT. It is `kind: 'level'`,
+// so `loadAssets` holds it back, and a descent's curtain waits for every band sprite before it lifts
+// (M2) — so without this the first descent sat behind a black curtain for ~5 s AFTER the tap.
+// TEST KNOB: `window.MYCELIUM_NO_BAND_PRELOAD = true` (an init script) skips it entirely, so a check
+// can put a descent in front of art that has not arrived — the case the M2 collision gate exists for
+// (a slow link where the 12 s safety net lets the player in first). ship-check's gate block.
+Promise.all([
+  loadAssets('assets/', (d, t) => { _aKnown = true; _reserveBandBill(); _aDone = d; _aTot = t; _bootProgress(); }).then(() => {
+    if (!OFFER_MINE || window.MYCELIUM_NO_BAND_PRELOAD === true) return;
+    if (!_bandBlocking) { _preloadBands(12, 16, false); return; }
+    return _preloadBands(40, 0, true);
   }),
   preloadImages(_bootImgs, (d, t) => { _iDone = d; _iTot = t; _bootProgress(); }),
 ]).then(_bootReady);

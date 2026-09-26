@@ -87,6 +87,9 @@ const CHECKS = [
   ['rt',        'rt-test.cjs',       180, true],
   // The M1 bot sweep: one descent per seed on 12 seeds, ~1 min each. Not in --mine.
   ['sweep',     'bots/sweep.cjs',    720, true],
+  // M4 acceptance 7: the naive new player (deepest tip, follows the drawn glow) on 8 seeds, ~6 min.
+  // Not in --mine (a bot, and long); run by name: `node tests/run.mjs naive`.
+  ['naive',     'bots/naive.cjs',    600, true],
 ];
 
 // THE MINE SUBSET. Owner, 20 Aug: "stop checking survival mode and campaign — those are not a part

@@ -317,6 +317,16 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok('the title (a returning save) offers the Deep Mine', clicked);
     const devOnTitle = await devHere();
     ok('no dev buttons on the title screen', devOnTitle.length === 0, devOnTitle.join(', '));
+    // ...AND ITS NEW BUTTON STARTS A DESCENT ON THE ARTEFACT (verifier: the gate only asserted the
+    // button existed once the first visit stopped going through the title). A real click; a third
+    // run_start row and a live mine map are the proof.
+    const tapNew = await page.evaluate(() => { const b = document.getElementById('tsNewMine'); if (!b) return false; b.click(); return true; });
+    const run3 = await page.waitForFunction(() => {
+      const s = window.__game && window.__game.state;
+      return !!(window.__rs.length >= 3 && s && s.substrate && s.substrate.mine && !s.runOver && !document.getElementById('titleScreen'));
+    }, null, { timeout: 30000 }).then(() => true).catch(() => false);
+    const rs3 = await page.evaluate(() => window.__rs.slice());
+    ok("the title's New starts a descent (a click on the artefact)", tapNew && run3 && rs3.length === 3, `${rs3.length} run_start row(s)`);
 
     // Asset failures matter MORE here than in any other check: the tree has every file, so a
     // missing one only ever shows up in the artefact.

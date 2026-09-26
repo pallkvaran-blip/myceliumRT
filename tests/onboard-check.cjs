@@ -112,6 +112,24 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       ok('a second boot of that save shows the title', title2, `runsDone ${p2.runsDone | 0}, mineBest ${p2.mineBest | 0}`);
       ok('no page errors', errs.length === 0, errs.slice(0, 2).join(' | ') || 'clean');
       await ctx.close();
+      // `?dev=1` ON A FRESH SAVE STILL REACHES THE TITLE (verifier): it is how the owner gets the
+      // title and the store's dev column on the Pages build (dev.enabled true), and the first-visit
+      // skip used to drop that profile straight into a descent. Control: the same build, no flag.
+      const firstDest = async (url) => {
+        const c = await touchCtx(E, 390, 844), pg = await c.newPage();
+        await pg.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+        await pg.goto(E.base + url, { waitUntil: 'domcontentloaded' });
+        await pg.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
+        await pg.touchscreen.tap(195, 420);
+        const d = await pg.waitForFunction(() => { const g = window.__game;
+          if (document.getElementById('titleScreen')) return 'title';
+          if (g && g.state && g.state.substrate && g.state.substrate.mine) return 'descent';
+          return false; }, null, { timeout: 30000 }).then((h) => h.jsonValue()).catch(() => null);
+        await c.close(); return d;
+      };
+      const devDest = await firstDest('/index.html?dev=1'), plainDest = await firstDest('/index.html');
+      ok('a fresh save opened with ?dev=1 lands on the title (control: without it, a descent)', devDest === 'title' && plainDest === 'descent',
+         `?dev=1 -> ${devDest}, plain -> ${plainDest}`);
     }
 
     // =========================================================================================
