@@ -910,14 +910,17 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       g.mine.spawnCloud(tip.x, tip.y);
       await new Promise((r) => setTimeout(r, 5200));
       const nodes = s.active.nodes.length;
-      return { over: !!s.runOver, r: s.runResult, nodes,
+      return { over: !!s.runOver, r: s.runResult, nodes, reach: s.runResult ? s.runResult.reach : null,
                greenAll: s.active.nodes.filter((n) => n.infected).length === nodes };
     });
     ok('the deadline ends the descent', end.over === true && end.r && end.r.cause === 'infected',
        `over=${end.over} cause=${end.r && end.r.cause}`);
     // A FULL PAYOUT, and it is load-bearing: Amputate is bought, so an early player who meets mould
     // with nothing in the bag has no answer. Ending their run sooner is fair; taking the ore is not.
-    ok('...paying out the ore in full', end.r && end.r.ore === 42, `${end.r && end.r.ore} P of 42`);
+    // M5: was `ore === 42`. `ore` is now the whole Phosphorus payout — reach (>= 5) + seams — so the
+    // seams' 42 are asserted on `seams` and the total as 42 + reach.
+    ok('...paying out the ore in full', end.r && end.r.seams === 42 && end.r.reach >= 5 && end.r.ore === 42 + end.r.reach,
+       `${end.r && end.r.ore} P = seams ${end.r && end.r.seams} + reach ${end.r && end.r.reach}`);
     ok('...as a fruiting, not a death', end.r && end.r.died === false, String(end.r && end.r.died));
     // THE WHOLE COLONY TURNS AT ONCE — it reads as the colony giving up, not as the rot suddenly
     // sprinting the length of the map.
@@ -945,7 +948,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
 
     const carried = await b.page.evaluate(async () => {
       const st = window.__game.store;
-      st.credit(2000);
+      st.credit(2000); st.revealAll();
       const buys = [st.buy('excreteCharges').ok, st.buy('amputateCharges').ok, st.buy('amputateCharges').ok];
       window.__game.mine.playSeed(4242);
       for (let i = 0; i < 120; i++) {
@@ -1016,7 +1019,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     const cure = await b.page.evaluate(async () => {
       const g = window.__game, s = g.state;
       const st = window.__game.store;
-      st.credit(3000); for (let i = 0; i < 3; i++) st.buy('amputateCharges');
+      st.credit(3000); st.revealAll();
+      for (let i = 0; i < 3; i++) { const c = st.nextCost('amputateCharges'); if (c && c.m) st.creditMat(c.m, c.n); st.buy('amputateCharges'); }
       g.mine.playSeed(4242);
       for (let i = 0; i < 120; i++) {
         if (s.substrate && s.substrate._fineSolid) break;
@@ -1279,12 +1283,12 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     const bare = await dive(b.page);
     const bought = await b.page.evaluate(async () => {
       const st = window.__game.store;
-      st.credit(4000);
+      st.credit(4000); st.revealAll();
       // STOCK WHATEVER THE NEXT RUNG ASKS FOR, rather than assuming Phosphorus. The deep rungs are
       // priced in deep materials since 06, so a wallet full of Phosphorus buys two of the six and
       // this probe would then be measuring a third of the track it means to measure.
       let lv = 0;
-      for (let i = 0; i < 6; i++) {
+      for (let i = 0; i < 4; i++) {        // M5: 4 rungs of 14 m (was 6 of 25 m)
         const c = st.nextCost('heatTolerance');
         if (c && typeof c === 'object' && c.m) st.creditMat(c.m, (c.n | 0) + 10);
         if (st.buy('heatTolerance').ok) lv++;
@@ -1298,7 +1302,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       return lv;
     });
     const upped = await dive(b.page);
-    ok('the tolerance track raises the limit', upped.safe > bare.safe + 100,
+    // M5: was `upped.safe > bare.safe + 100` (6 rungs x 25 m = 150). Now 4 rungs x 14 m = exactly 56.
+    ok('the tolerance track raises the limit', upped.safe === bare.safe + 56 && bought === 4,
        `${bare.safe} m -> ${upped.safe} m over ${bought} purchases`);
     // THE NUMBER THAT MATTERS. Same seed, same tank, same dig loop — the only difference is the
     // track, so the metres are what it bought.
@@ -1393,13 +1398,16 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       g.mine.end();
       await new Promise((r) => setTimeout(r, 900));
       const banked = st.mats();
-      st.credit(500);
+      st.credit(500); st.revealAll();
       // ZERO THE MATERIAL WALLET FIRST. The descent above banks whatever it dug, and once the maze
       // carve made a deep seam reliably reachable that was exactly the 4 Anthracite this rung costs —
       // so the "Phosphorus alone will not buy it" step SUCCEEDED and reported `needing undefined`.
       // The refusal is the thing under test, so the shortfall has to be arranged, not hoped for.
       for (const m of ['anthracite', 'garnet', 'hematite']) st.takeMat(m, st.mats()[m] | 0);
-      st.buy('heatTolerance'); st.buy('heatTolerance');     // the two Phosphorus rungs
+      // M5: ONE Phosphorus rung now (15 P); the second (14 Anthracite) is the first deep one. The
+      // levels the tolerance probe bought are reset first, or the track starts part-way up.
+      { const pp = JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}'); pp.mineUpgrades = {}; localStorage.setItem('mycelium.progress.v2', JSON.stringify(pp)); }
+      st.buy('heatTolerance');                              // the one Phosphorus rung
       const need = st.nextCost('heatTolerance');
       const short = st.buy('heatTolerance');                 // now priced in a deep material
       st.creditMat('anthracite', 20);
@@ -2183,7 +2191,11 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       const S = window.__game.store;
       const P = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}');
       S.reset();
-      const out = { shelf: S.shelf('mine').map((u) => u.id) };
+      // M5: the shelf is REVEALED progressively — a fresh save shows two tiles; the full membership
+      // is read with every track revealed.
+      const out = { fresh: S.shelf('mine').map((u) => u.id) };
+      S.revealAll();
+      out.shelf = S.shelf('mine').map((u) => u.id);
       // The mine's wallet is Phosphorus, and `credit` writes whichever wallet the game spends.
       S.credit(500);
       const p0 = P();
@@ -2207,9 +2219,12 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     // list rather than a count, because what the mine SELLS is the whole of its progression and a
     // track quietly appearing or vanishing from the shelf is the kind of change that should have to
     // be typed here on purpose.
-    ok('the mine shelf is fuel, a stronger dig, heat, two weapons and two yields',
-       shop.shelf.join(',') === 'water,growSteps,excreteCharges,amputateCharges,heatTolerance,oreYield,pocketWater',
+    // M5: was '...heat, two weapons and two yields' (…,oreYield,pocketWater) — Ore yield and Water
+    // pockets were cut; and a fresh save's shelf is only Water tank + Grow strength (the reveal).
+    ok('the mine shelf is fuel, a stronger dig, heat and two weapons',
+       shop.shelf.join(',') === 'water,growSteps,excreteCharges,amputateCharges,heatTolerance',
        shop.shelf.join(','));
+    ok('...and a fresh save sees only Water tank and Grow strength', shop.fresh.join(',') === 'water,growSteps', shop.fresh.join(','));
     ok('the mine\'s wallet is Phosphorus (`minerals`)', shop.creditedMinerals === 500, String(shop.creditedMinerals));
     // THE TWO ECONOMIES DO NOT TOUCH. Sharing one wallet would let a campaign player's Spores buy a
     // mine player's fuel; sharing one ledger would put the mine's tracks in a save nothing can spend.
@@ -2234,8 +2249,10 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     // into the run's config clone, and nothing else would notice if it stopped.
     const applied = await b.page.evaluate(async () => {
       const S = window.__game.store;
-      S.reset(); S.credit(100000);
-      S.buy('growSteps'); S.buy('water'); S.buy('pocketWater'); S.buy('oreYield');
+      S.reset(); S.credit(100000); S.revealAll();
+      S.buy('growSteps'); S.buy('water');
+      // The two CUT tracks (M5) must be refused, and must leave the run's numbers alone.
+      const cutRefused = !S.buy('pocketWater').ok && !S.buy('oreYield').ok;
       window.__game.mine.playSeed(7);
       await new Promise((r) => setTimeout(r, 3500));
       const c = window.__game.state.config.mine;
@@ -2245,8 +2262,9 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
                     // The UN-upgraded figures, off the live CONFIG rather than the run's clone.
                     baseWater: window.__cfg.mine.startWater | 0,
                     basePocket: window.__cfg.mine.reservoirWater | 0,
-                    waterStep: (S.shelf('mine').find((u) => u.id === 'water') || {}).step | 0,
-                    pocketStep: (S.shelf('mine').find((u) => u.id === 'pocketWater') || {}).step | 0 };
+                    // The mine's Water step is its OWN (+12, MINE_STEPS) — read as the track's value
+                    // after one rung, not off the shared table's campaign step (5).
+                    waterStep: S.value('water') | 0, cutRefused };
       S.reset();
       return out;
     });
@@ -2258,9 +2276,11 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     ok('...and the Water track its starting fuel',
        applied.water === applied.startWater && applied.startWater === applied.baseWater + applied.waterStep,
        `${applied.water} water = ${applied.baseWater} + ${applied.waterStep}`);
-    ok('...and the pocket and ore tracks their own numbers',
-       applied.pocket === applied.basePocket + applied.pocketStep && applied.oreBonus === 1,
-       `pocket ${applied.pocket} = ${applied.basePocket} + ${applied.pocketStep}, ore +${applied.oreBonus}`);
+    // M5: was '...and the pocket and ore tracks their own numbers' (pocket = base + step, ore +1).
+    // Those tracks are cut: refused, and the run's pocket and per-seam numbers are CONFIG's own.
+    ok('...and the cut pocket and ore tracks are refused and change nothing',
+       applied.cutRefused && applied.pocket === applied.basePocket && !(applied.oreBonus > 0) && applied.waterStep === 12,
+       `refused ${applied.cutRefused}, pocket ${applied.pocket} = ${applied.basePocket}, ore bonus ${applied.oreBonus}, water step ${applied.waterStep}`);
     await b.ctx.close();
   }
 
@@ -2409,6 +2429,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     const store = await page.evaluate(() => ({
       title: document.querySelector('#speciesSelect h1').textContent.trim(),
       tiles: document.querySelectorAll('#ssUpg > *').length,
+      // M5: the shelf is revealed progressively, so the tile count is what THIS save has revealed.
+      revealed: window.__game.store.shelf('mine').length,
       descend: !!document.querySelector('#ssDescend'),
       note: (document.querySelector('#ssMineNote') || {}).textContent || '',
       // No colonies and no deck: "The upgrade store does not have new species - just the upgrades".
@@ -2419,9 +2441,10 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       rate: !!document.querySelector('#ssRate') && document.querySelector('#ssRate').innerHTML.trim().length > 0,
     }));
     ok('the store screen is the mine\'s', store.title === 'The Deep Mine' && store.descend, store.title);
-    ok('...with one tile per mine track and no colonies',
-       store.tiles === 7 && store.colonyTiles === 0 && store.colonySectionsHidden,
-       `${store.tiles} tiles, ${store.colonyTiles} colony tiles`);
+    // M5: was `tiles === 7` (every mine track). Now one tile per REVEALED track (2-5).
+    ok('...with one tile per revealed mine track and no colonies',
+       store.tiles === store.revealed && store.tiles >= 2 && store.tiles <= 5 && store.colonyTiles === 0 && store.colonySectionsHidden,
+       `${store.tiles} tiles of ${store.revealed} revealed, ${store.colonyTiles} colony tiles`);
     ok('...no deck button', store.deckBtn === false, String(store.deckBtn));
     ok('...and it says what a descent opens with', /water/.test(store.note) && /grow/.test(store.note), store.note);
 

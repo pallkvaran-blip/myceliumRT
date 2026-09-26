@@ -83,15 +83,23 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     const shelf = S.shelf('campaign').map((u) => u.id);
     const bought = S.buy('growSteps');
     S.reset();
-    return { shelf, onCampaignShelf: shelf.filter((id) => ['growSteps', 'oreYield', 'pocketWater'].includes(id)),
-             mineShelf: S.shelf('mine').map((u) => u.id), boughtInCampaign: !!bought.ok };
+    // M5: the mine's shelf is REVEALED progressively (`p.mineSeen`), so its full membership is read
+    // with every track revealed, and a fresh save's two tiles beside it.
+    const fresh = S.shelf('mine').map((u) => u.id);
+    S.revealAll();
+    const mineShelf = S.shelf('mine').map((u) => u.id);
+    S.reset();
+    return { shelf, onCampaignShelf: shelf.filter((id) => ['growSteps', 'heatTolerance', 'excreteCharges', 'amputateCharges'].includes(id)),
+             mineShelf, fresh, boughtInCampaign: !!bought.ok };
   });
   ok('the mine\'s own tracks are not on the campaign shelf',
      mineTracks.onCampaignShelf.length === 0, mineTracks.onCampaignShelf.join(',') || 'none');
   ok('...and cannot be bought with Spores either',
      mineTracks.boughtInCampaign === false, mineTracks.boughtInCampaign ? 'BOUGHT' : 'refused');
-  ok('the mine\'s shelf is fuel, a stronger dig, heat, two weapons and two yields',
-     mineTracks.mineShelf.join(',') === 'water,growSteps,excreteCharges,amputateCharges,heatTolerance,oreYield,pocketWater',
+  // M5 (was '...heat, two weapons and two yields' = water,growSteps,excreteCharges,amputateCharges,
+  // heatTolerance,oreYield,pocketWater): Ore yield and Water pockets were cut from the shelf.
+  ok('the mine\'s shelf is fuel, a stronger dig, heat and two weapons',
+     mineTracks.mineShelf.join(',') === 'water,growSteps,excreteCharges,amputateCharges,heatTolerance',
      mineTracks.mineShelf.join(','));
   // Order matters as well as membership: the three resource tracks come first, in the game's own
   // energy / water / phosphorus order, so the store reads in the order of the numbers it raises.

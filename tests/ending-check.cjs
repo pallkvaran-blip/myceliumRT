@@ -64,7 +64,8 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
     const cost = g.mine.costHere();
     s.active.water = cost - 1;
     return { depth: r.depth, cost, water: s.active.water, cheapest: g.mine.cheapest(),
-             ore: g.mine.ore(), over: s.runOver, t0: performance.now(), revealingAtT0 };
+             // M5: what FRUIT NOW shows and ending banks is `bankable` (reach + seams), not the seams alone.
+             ore: g.mine.bankable(), over: s.runOver, t0: performance.now(), revealingAtT0 };
   }, { m, QUIET: QUIET.toString(), settle });
 
   // =========================================================================================
@@ -153,7 +154,7 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       }
       const leftAfter = g.mine.stuck().leftMs;
       await new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(res)));
-      return { leftBefore, leftAfter, leftFrame: g.mine.stuck().leftMs, dug, over: s.runOver, on: g.mine.stuck().on, refusal, ore: g.mine.ore() };
+      return { leftBefore, leftAfter, leftFrame: g.mine.stuck().leftMs, dug, over: s.runOver, on: g.mine.stuck().on, refusal, ore: g.mine.bankable() };
     }, st.t0);
     ok('the countdown was running at 3 s', r.leftBefore > 2500 && r.leftBefore < 3500, `${r.leftBefore} ms left`);
     ok('a refused dig says the price and what fruiting now banks',
@@ -293,7 +294,8 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
     s.mineOre = 9; s.active.phosphorus = 9;       // "holding 9 P"
     s.active.water = 100000;
     await new Promise((res) => setTimeout(res, 1200));
-    return { depth: r.depth, minerals: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minerals | 0 };
+    // M5: the payout is reach (>= 5, 1 P per 5 m) + the seams' 9, so the expected rise carries it.
+    return { depth: r.depth, reach: g.mine.reach(), minerals: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minerals | 0 };
   }, { QUIET: QUIET.toString() });
   {
     const b = await E.bootMine(4242);
@@ -315,7 +317,9 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
        JSON.stringify(e.res && { cause: e.res.cause, died: e.res.died, depth: e.res.depth }));
     ok('...#ssMineEnd says nothing about being eaten', !!e.text && !/eaten/i.test(e.text) && /You ended the descent at \d+ m/.test(e.text),
        e.text.split('\n').slice(0, 4).join(' | '));
-    ok('...and minerals rise by 9', e.minerals - h.minerals === 9, `${h.minerals} -> ${e.minerals}`);
+    // M5: was `rise === 9`. Now the seams' 9 plus the reach payout (floor(depth / 5), at least 5).
+    ok('...and minerals rise by 9 + the reach payout', e.res && e.res.seams === 9 && e.res.reach === h.reach && e.minerals - h.minerals === 9 + h.reach,
+       `${h.minerals} -> ${e.minerals} (9 + reach ${h.reach})`);
     ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
     await b.ctx.close();
   }
@@ -336,11 +340,11 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
     });
     await b.page.screenshot({ path: path.join(ART, 'm1-exit-title.png') });
     ok(`Exit to title at ${h.depth} m holding 9 P shows the title`, t.title && !t.endScreen, `title ${t.title}, end screen ${t.endScreen}`);
-    ok('...with minerals up by 9', t.minerals - h.minerals === 9, `${h.minerals} -> ${t.minerals}`);
+    ok('...with minerals up by 9 + the reach payout', t.minerals - h.minerals === 9 + h.reach, `${h.minerals} -> ${t.minerals} (9 + reach ${h.reach})`);
     ok('...p.mineBest >= 45', t.best >= 45, `${t.best} m`);
     // Was t.banked === '+9 P banked': the line now also names the deep materials the descent banked
     // (the navigator digs anthracite on its way to 45 m on this seed).
-    ok('...cause quit, and the title says what was banked', t.cause === 'quit' && /^\+9 P(, \+\d+ [A-Z][a-z]+)* banked$/.test(t.banked || ''), `${t.cause}, "${t.banked}"`);
+    ok('...cause quit, and the title says what was banked', t.cause === 'quit' && new RegExp('^\\+' + (9 + h.reach) + ' P(, \\+\\d+ [A-Z][a-z]+)* banked$').test(t.banked || ''), `${t.cause}, "${t.banked}"`);
     ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
     await b.ctx.close();
   }
@@ -437,9 +441,10 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
       document.dispatchEvent(new Event('visibilitychange'));
       return { minerals: p0.minerals | 0, anth: (p0.mats && p0.mats.anthracite) | 0, wrote, cleared,
-               depth: g.mine.maxDepth(), pending: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minePending };
+               depth: g.mine.maxDepth(), bank: g.mine.bankable(), pending: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minePending };
     }, { QUIET: QUIET.toString() });
-    ok('hidden writes the would-be payout', h.wrote && h.wrote.P === 13 && h.wrote.mats.anthracite === 2 && h.wrote.depth === h.depth,
+    // M5: was `P === 13`; the would-be payout is the seams' 13 + the reach payout (`bankable`).
+    ok('hidden writes the would-be payout', h.wrote && h.bank > 13 && h.wrote.P === h.bank && h.wrote.mats.anthracite === 2 && h.wrote.depth === h.depth,
        JSON.stringify(h.wrote));
     ok('...and visible again clears it', h.cleared === null, JSON.stringify(h.cleared));
     // Reload to the plain title: the leftover is banked once, at boot.
@@ -451,11 +456,11 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
     const r1 = await b.page.evaluate(() => { const p = JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}');
       const bk = document.getElementById('tsBanked');
       return { minerals: p.minerals | 0, anth: (p.mats && p.mats.anthracite) | 0, best: p.mineBest | 0, pending: p.minePending || null, note: bk ? bk.textContent.trim() : null }; });
-    ok('a reload banks the pending payout', r1.minerals - h.minerals === 13 && r1.anth - h.anth === 2 && r1.pending === null,
+    ok('a reload banks the pending payout', r1.minerals - h.minerals === h.bank && r1.anth - h.anth === 2 && r1.pending === null,
        `P ${h.minerals} -> ${r1.minerals}, anthracite ${h.anth} -> ${r1.anth}, pending ${JSON.stringify(r1.pending)}`);
     ok('...records its depth', r1.best >= h.depth && h.depth > 0, `${r1.best} m`);
     // Was 'Your last descent spored +13 P': the note now names the materials it banked as well.
-    ok('...and the title says so', r1.note === 'Your last descent spored +13 P, +2 Anthracite', `"${r1.note}"`);
+    ok('...and the title says so', r1.note === 'Your last descent spored +' + h.bank + ' P, +2 Anthracite', `"${r1.note}" (bank ${h.bank})`);
     await b.page.screenshot({ path: path.join(ART, 'm1-title-pending.png') });
     await b.page.goto(E.base + '/index.html', { waitUntil: 'domcontentloaded' });
     await b.page.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 }).catch(() => {});
@@ -489,7 +494,8 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       s.active.water = 100000;
       await window.__navDig({ targetM: 20, maxIters: 200 });
       s.mineOre = 20; s.active.phosphorus = 20; s.mineMats = Object.assign({}, s.mineMats, { anthracite: 1 });
-      return { minerals: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minerals | 0,
+      // M5: the haul is the seams' 20 + the reach payout; the depth stays put for the rest of the block.
+      return { reach: g.mine.reach(), minerals: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minerals | 0,
                anth: ((JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').mats || {}).anthracite) | 0 };
     }, { QUIET: QUIET.toString() });
     await hide(a.page, 'hidden');                                  // A writes its record
@@ -500,9 +506,9 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
     await sleep(1200);
     const p1 = await prog(bb.page);
     const note = await bb.page.evaluate(() => { const e = document.getElementById('tsBanked'); return e ? e.textContent.trim() : null; });
-    ok('tab B\'s boot banks tab A\'s pending payout, once', Object.keys(pw).length === 1 && (p1.minerals | 0) - a0.minerals === 20 && !p1.minePending,
+    ok('tab B\'s boot banks tab A\'s pending payout, once', Object.keys(pw).length === 1 && (p1.minerals | 0) - a0.minerals === 20 + a0.reach && !p1.minePending,
        `record ${JSON.stringify(pw)}; P ${a0.minerals} -> ${p1.minerals | 0}, pending ${JSON.stringify(p1.minePending || null)}`);
-    ok('...its title names what it banked, materials by name', note === 'Your last descent spored +20 P, +1 Anthracite', `"${note}"`);
+    ok('...its title names what it banked, materials by name', note === 'Your last descent spored +' + (20 + a0.reach) + ' P, +1 Anthracite', `"${note}"`);
     // A comes back, digs 3 more P, and goes hidden again: its new record is only what B did not bank.
     await hide(a.page, 'visible');
     await a.page.evaluate(() => { const s = window.__game.state; s.mineOre = 23; s.active.phosphorus = 23; });
@@ -522,8 +528,8 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
     await sleep(500);
     const p2 = await prog(a.page);
     ok('...A\'s own ending pays the rest, so the run pays its haul exactly once',
-       (p2.minerals | 0) - a0.minerals === 23 && ((p2.mats || {}).anthracite | 0) - a0.anth === 1 && !p2.minePending && !p2.mineTaken,
-       `P ${a0.minerals} -> ${p2.minerals | 0} (haul 23), anthracite ${a0.anth} -> ${(p2.mats || {}).anthracite | 0}, pending ${JSON.stringify(p2.minePending || null)}, taken ${JSON.stringify(p2.mineTaken || null)}`);
+       (p2.minerals | 0) - a0.minerals === 23 + a0.reach && ((p2.mats || {}).anthracite | 0) - a0.anth === 1 && !p2.minePending && !p2.mineTaken,
+       `P ${a0.minerals} -> ${p2.minerals | 0} (haul 23 + reach ${a0.reach}), anthracite ${a0.anth} -> ${(p2.mats || {}).anthracite | 0}, pending ${JSON.stringify(p2.minePending || null)}, taken ${JSON.stringify(p2.mineTaken || null)}`);
     ok('no page errors', a.errs.length === 0 && bb.errs.length === 0, a.errs.concat(bb.errs).slice(0, 2).join(' | ') || 'clean');
     await ctx.close();
   }
@@ -552,12 +558,13 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       const res = s.runResult || {};
       const logs = (s.logEntries || []).map((e) => e.message);
       return { reached, ms: performance.now() - t0, over: s.runOver,
-               res: { mine: res.mine, died: res.died, cause: res.cause, depth: res.depth, ore: res.ore, ms: res.ms },
+               res: { mine: res.mine, died: res.died, cause: res.cause, depth: res.depth, ore: res.ore, seams: res.seams, reach: res.reach, ms: res.ms },
                consumed: logs.some((m) => /consumed/.test(m)), rotLine: logs.some((m) => /^The infection took the colony at \d+ m/.test(m)) };
     }, { QUIET: QUIET.toString() });
     ok('the rot overran the colony before its clock', r.over && r.ms < 20000, `${Math.round(r.ms)} ms, reached ${r.reached} m`);
     ok('...and it ends as the mine\'s infected fruiting', r.res.mine === true && r.res.died === false && r.res.cause === 'infected'
-       && r.res.depth >= r.reached && r.res.ore === 5 && r.res.ms > 0, JSON.stringify(r.res));
+       // M5: was `ore === 5`; ore is now seams (5) + reach (>= 5).
+       && r.res.depth >= r.reached && r.res.seams === 5 && r.res.reach >= 5 && r.res.ore === 5 + r.res.reach && r.res.ms > 0, JSON.stringify(r.res));
     ok('...with the mine\'s log line, not the campaign\'s', r.rotLine && !r.consumed, `rot line ${r.rotLine}, 'consumed' ${r.consumed}`);
     await b.page.waitForSelector('#ssMineEnd', { timeout: 20000 }).catch(() => {});
     const t = await b.page.evaluate(() => (document.getElementById('ssMineEnd') || {}).innerText || '');

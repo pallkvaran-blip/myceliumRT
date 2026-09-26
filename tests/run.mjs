@@ -47,6 +47,9 @@ const CHECKS = [
   // M4: the first minute — first visit skips the title, ghost finger, one-shot tips, the price-line
   // beat, collection feedback, spent pockets, the dead-end nudge, 'Your first descent'.
   ['onboard',   'onboard-check.cjs', 150, false],
+  // M5: the economy — reach payout, the progressive store, heat at full tolerance, the v1 refund,
+  // rich seams (and the chunk records' determinism), the end screen's rows / next goal / Descend.
+  ['econ',      'econ-check.cjs',   200,  false],
   // M2: THE RELEASE GATE, on a throwaway --no-shrink zip of the working tree (dev flag patched off):
   // the prune keeps the mine's bands, and title -> descent -> end -> store -> Descend plays clean.
   ['zip',       'itchzip-check.cjs --fresh', 60, false],
@@ -115,10 +118,11 @@ const CHECKS = [
 //   zip            the release zip itself plays the mine, dev flag off, no 404s (M2).
 //   phone          a 360-390 px phone sees and can use every control (M3).
 //   onboard        the first minute teaches itself (M4); the naive bot is tests/bots/naive.cjs.
+//   econ           every run pays, every store visit buys (M5); the bot acceptance is tests/bots/econ.cjs.
 //
 // Everything else in CHECKS is the card game and is no longer run. Nothing has been DELETED — the
 // code is untouched and the checks still work if `node tests/run.mjs campaign` is ever wanted.
-const MINE_SET = ['mine', 'ending', 'ship', 'zip', 'phone', 'onboard', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
+const MINE_SET = ['mine', 'ending', 'ship', 'zip', 'phone', 'onboard', 'econ', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
 
 const args = process.argv.slice(2);
 const fast = args.includes('--fast');

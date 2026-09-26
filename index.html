@@ -29893,8 +29893,10 @@ const MINE_GOAL_TEXT = {
 };
 // THE NEXT GOAL (the end screen's card, and the store's highlighted tile). Priority, from the plan:
 // a new tile > grow > water > heat > flask > enzyme (compasses and the vial arrive in later
-// milestones). The first AFFORDABLE rung in that order; if none is, the one closest to affordable
-// (fewest short), with where its material is found. `done` when every revealed rung is bought.
+// milestones). The first AFFORDABLE rung in that order (so run 1, which reveals heat at 42 m but banks
+// ~10 P, is offered Water tank at 5 P, as the plan's first-minute script has it); if none is
+// affordable, a newly revealed tile, else the rung closest to affordable (fewest short), with where
+// its material is found. `done` when every revealed rung is bought.
 const MINE_GOAL_ORDER = ['growSteps', 'water', 'heatTolerance', 'excreteCharges', 'amputateCharges'];
 function mineNextGoal(progress) {
   const p = progress || loadProgress();
@@ -29916,6 +29918,9 @@ function mineNextGoal(progress) {
   if (!cands.length) return { done: true };
   const ok = cands.find((c) => c.afford);
   if (ok) return ok;
+  // Nothing affordable: a newly revealed tile is still the news, then the rung closest to affordable.
+  const fresh = cands.find((c) => c.isNew && !(p.mineShelfShown && c.id in p.mineShelfShown));
+  if (fresh) return fresh;
   let best = cands[0];
   for (const c of cands) if (c.cost.m === 'phosphorus' && (best.cost.m !== 'phosphorus' || c.short < best.short)) best = c;
   return best;
@@ -36822,6 +36827,10 @@ function begin(newState) {
                  hit: bbox.map((v, b) => +(v / Math.max(1, target[b])).toFixed(3)) };
       },
       chunks: () => Object.keys((state && state.mineChunks) || {}).map(Number).sort((a, b) => a - b),
+      // Generate every chunk the world span [x0, x1] touches (M5's rich-seam / determinism checks).
+      ensureChunks: (x0, x1) => mineEnsureChunks(state, { x0, x1 }),
+      // The heat staircase the run's config prices against (M5 acceptance 6).
+      heatLines: () => mineHeatLines(state.config),
       // Park a worm exactly where you want one. `mine-check` cannot measure a drain rate against
       // worms that wandered in — it has to place a known number on known tissue — and pushing plain
       // objects onto `state.nematodes` would be a check inventing its own idea of what a worm is.
