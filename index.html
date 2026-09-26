@@ -1804,6 +1804,39 @@
       font-size:clamp(12px,2vw,15px); color:var(--ss-ink-dim,#8aa193); }
     .ss-mineend-best.ss-new { font-style:normal; font-weight:700; color:#7fe6a3; letter-spacing:.05em;
       text-transform:uppercase; font-size:clamp(11px,1.8vw,13px); }
+    /* M5: the end screen's rows by source, the next-goal card and the two actions. Compact, because
+       all of it has to fit a 390x844 phone under the wordmark with nothing scrolling. */
+    .ss-me-rows { display:flex; flex-direction:column; gap:3px; width:min(340px, calc(100vw - 48px));
+      margin:clamp(4px,1vh,10px) 0 0; }
+    .ss-me-row { display:flex; justify-content:space-between; align-items:baseline; gap:12px;
+      font-size:clamp(13px,1.8vw,15px); color:var(--ss-ink); padding:2px 0;
+      border-bottom:1px solid rgba(127,230,163,0.12); text-shadow:0 1px 3px rgba(0,0,0,0.9); }
+    .ss-me-lbl { color:var(--ss-ink-dim); }
+    .ss-me-val { font-weight:700; font-variant-numeric:tabular-nums; white-space:nowrap; }
+    .ss-me-val .ss-ri, .ss-me-goal .ss-ri { width:0.95em; height:0.95em; vertical-align:-0.12em; margin-left:3px; display:inline-block; }
+    .ss-me-val .ss-matdot, .ss-me-goal .ss-matdot { display:inline-block; width:0.62em; height:0.62em; border-radius:50%; margin-left:4px; }
+    .ss-me-goal { display:flex; align-items:center; gap:10px; width:min(360px, calc(100vw - 40px));
+      margin:clamp(6px,1.4vh,14px) 0 0; padding:9px 11px; border-radius:11px; text-align:left;
+      background:rgba(9,15,13,0.88); border:1px solid rgba(127,230,163,0.28); }
+    .ss-me-goal-t { margin:0; flex:1; font-size:13px; line-height:1.4; color:var(--ss-ink); }
+    .ss-me-goal-t b { color:#eef7f1; }
+    .ss-me-goal-p { color:var(--ss-mint); font-weight:700; white-space:nowrap; }
+    .ss-me-buy { margin-left:0; }
+    .ss-me-acts { display:flex; gap:12px; align-items:center; margin-top:clamp(8px,1.6vh,16px); }
+    .ss-me-acts .ss-win-btn { margin-top:0; }
+    /* Descend is the PRIMARY action: solid, like the store's own Descend. */
+    .ss-me-acts .ss-me-descend { background:#e8f3ec; color:#0b110d; border-color:#e8f3ec; font-weight:800;
+      letter-spacing:.06em; text-transform:uppercase; }
+    .ss-me-acts .ss-me-descend:hover { background:#fbfffc; }
+    .ss-me-store { font:inherit; font-size:13px; font-weight:600; letter-spacing:.04em; cursor:pointer;
+      padding:10px 18px; border-radius:9px; background:transparent; color:var(--ss-ink);
+      border:1px solid rgba(255,255,255,0.3); }
+    .ss-me-store:hover { background:rgba(255,255,255,0.07); }
+    /* The store's NEW badge (one visit after a track is revealed) and the highlighted next goal. */
+    .ss-upg-new { flex:0 0 auto; font-size:9.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase;
+      color:#0b110d; background:#7fe6a3; border-radius:5px; padding:2px 5px; }
+    .ss-upg.ss-upg-hl { border-color:var(--u-acc); box-shadow:0 0 0 1px var(--u-acc), 0 0 22px -6px var(--u-acc), 0 14px 30px -22px rgba(0,0,0,0.95); }
+    .ss-upg-where { display:block; margin-top:3px; color:var(--ss-ink-faint); font-size:11.5px; }
 
     .ss-win {
       --ss-mint:#7fe6a3; --ss-mint-hi:#c8fff0; --ss-ink:#d7e6dc; --ss-ink-dim:#8aa193; --ss-ink-faint:#57685f;
@@ -22756,6 +22789,9 @@ function mineOreRewards(state) {
     const mats = (state.mineMats = state.mineMats || {});
     mats[mat ? mat.id : 'phosphorus'] = (mats[mat ? mat.id : 'phosphorus'] | 0) + p;
     if (isP) { net.phosphorus += p; state.mineOre = (state.mineOre || 0) + p; }
+    // How many seams of each material, for the end screen's rows (M5).
+    const sc = (state.mineSeams = state.mineSeams || {});
+    sc[mat ? mat.id : 'phosphorus'] = (sc[mat ? mat.id : 'phosphorus'] | 0) + 1;
     paid += p;
     const c = minePileCentre(sub, pile);
     out.push({ x: c.x, y: c.y, mat: mat ? mat.id : 'phosphorus', n: p, pile });
@@ -23404,6 +23440,7 @@ function mineEndRun(state, cause) {
                       // EVERY MATERIAL THE DESCENT DUG, not just the Phosphorus. A copy, because
                       // `presentMineEnd` banks from this after the state has moved on.
                       mats: Object.assign({}, state.mineMats || {}),
+                      seamCount: Object.assign({}, state.mineSeams || {}),
                       cause: why,
                       // How long the descent lasted, for `run_end` telemetry.
                       ms: state.mineStartedAt ? Math.max(1, Date.now() - state.mineStartedAt) : 0 };
@@ -29370,7 +29407,7 @@ function growMyceliumTitle(container, opts = {}) {
 
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
-  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, matBalance, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, highestCleared, startLevelFor, startLevelForGame, loadDeck, deckBucketFor, deckBuckets, deckSize,
+  const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, matBalance, loadProgress, saveProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, highestCleared, startLevelFor, startLevelForGame, loadDeck, deckBucketFor, deckBuckets, deckSize,
     STORE_UPGRADES, MINE_UPGRADE_IDS, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
@@ -29381,6 +29418,7 @@ const __m_render_species_select = (function () {
   const { cardSlug, SPORE_ICON } = __m_render_ui;
   const { logEvent } = __m_net_scores;
   const { growMyceliumTitle } = __m_render_mycelium_title;
+  const { mineHeatLines } = __m_engine_mine;
 // =============================================================================
 // Start-of-run species picker + between-level campaign overlays (in-game).
 //
@@ -29825,7 +29863,76 @@ function matName(id) {
   const m = ((CONFIG.mine && CONFIG.mine.materials) || []).find((x) => x.id === id);
   return m ? m.name : id;
 }
-function upgradeTile(u, progress, onBuy) {
+// ===================== THE MINE'S SHELF: reveal, NEW, next goal (M5) =====================
+// WHERE A MATERIAL IS FOUND, from the band that yields it — so a rung priced in Garnet can say where
+// to go and get some, which is the whole point of pricing it in Garnet.
+function mineMatWhere(id) {
+  const M = CONFIG.mine || {}, br = M.bandRows | 0 || 42;
+  const m = (M.materials || []).find((x) => x.id === id);
+  if (!m) return '';
+  return (m.band * br) + '-' + ((m.band + 1) * br) + ' m';
+}
+// A TILE IS NEW FOR ONE STORE VISIT: from the visit it is first shown on (`p.mineShelfShown[id]`,
+// stamped by the store on open) until the next visit. A revealed track the store has never shown is
+// new too — that is what the end screen's next-goal card asks. The two opening tracks are never NEW:
+// on visit 1 every tile would be, which says nothing.
+const MINE_OPENING_TRACKS = ['water', 'growSteps'];
+function mineTileNew(id, p) {
+  if (MINE_OPENING_TRACKS.indexOf(id) >= 0) return false;
+  if (!mineTrackRevealed(id, p)) return false;
+  const sh = (p && p.mineShelfShown) || {};
+  return !(id in sh) || (sh[id] | 0) === ((p && p.mineStoreVisits) | 0);
+}
+// One line of what the next rung DOES, for the next-goal card.
+const MINE_GOAL_TEXT = {
+  water: 'start with 12 more water',
+  growSteps: 'every dig reaches one step further',
+  heatTolerance: 'push the first price line 14 m deeper',
+  excreteCharges: 'carry a flask that kills drinking worms',
+  amputateCharges: 'carry a dose that cuts out rot',
+};
+// THE NEXT GOAL (the end screen's card, and the store's highlighted tile). Priority, from the plan:
+// a new tile > grow > water > heat > flask > enzyme (compasses and the vial arrive in later
+// milestones). The first AFFORDABLE rung in that order; if none is, the one closest to affordable
+// (fewest short), with where its material is found. `done` when every revealed rung is bought.
+const MINE_GOAL_ORDER = ['growSteps', 'water', 'heatTolerance', 'excreteCharges', 'amputateCharges'];
+function mineNextGoal(progress) {
+  const p = progress || loadProgress();
+  const cands = [];
+  const order = MINE_GOAL_ORDER.filter((id) => mineTileNew(id, p) && !(p.mineShelfShown && id in p.mineShelfShown))
+    .concat(MINE_GOAL_ORDER);
+  const seen = new Set();
+  for (const id of order) {
+    if (seen.has(id)) continue; seen.add(id);
+    const u = upgradeById(id);
+    if (!u || !upgradeInGame(u, 'mine', p)) continue;
+    const c = costParts(upgradeNextCost(id, p));
+    if (!c) continue;
+    const have = costBalance(c.m, p);
+    cands.push({ id, name: upgradeName(u, 'mine'), rung: upgradeLevel(id, p) + 1, text: MINE_GOAL_TEXT[id] || '',
+                 cost: c, have, afford: have >= c.n, short: Math.max(0, c.n - have),
+                 where: c.m === 'phosphorus' ? '' : mineMatWhere(c.m), isNew: mineTileNew(id, p) });
+  }
+  if (!cands.length) return { done: true };
+  const ok = cands.find((c) => c.afford);
+  if (ok) return ok;
+  let best = cands[0];
+  for (const c of cands) if (c.cost.m === 'phosphorus' && (best.cost.m !== 'phosphorus' || c.short < best.short)) best = c;
+  return best;
+}
+// The heat staircase in words, off the same `mineHeatLines` the price is — shifted by tolerance:
+// 'digs cost 2, then 4 / 8 / 16 past 42 / 84 / 126 m'.
+function mineHeatWords(progress) {
+  const b = storeBonuses(progress);
+  const base = Math.max(1, (CONFIG.mine.growWaterCost | 0) || 2);
+  const lines = mineHeatLines({ mine: Object.assign({}, CONFIG.mine, { heatBonus: Math.max(0, b.heatTolerance | 0) }) });
+  if (!lines.length) return 'digs cost ' + base;
+  const prices = lines.map((_, i) => base * Math.pow(2, i + 1));
+  return 'digs cost ' + base + ', then ' + prices.join(' / ') + ' past ' + lines.join(' / ') + ' m';
+}
+function upgradeTile(u, progress, onBuy, opts) {
+  opts = opts || {};
+  const mineShelf = isMineGame();
   const lvl = upgradeLevel(u.id, progress);
   const max = upgradeMax(u);
   const cost = upgradeNextCost(u.id, progress);       // null = maxed
@@ -29837,12 +29944,29 @@ function upgradeTile(u, progress, onBuy) {
   // garnet or every deep rung reads as affordable and refuses on click.
   const bal = cp ? costBalance(cp.m, progress) : sporesBalance(progress);
   const afford = cp != null && bal >= cp.n;
-  const node = el('div', 'ss-upg ' + (u.accent || 'mint') + (cost == null ? ' maxed' : ''));
+  const node = el('div', 'ss-upg ' + (u.accent || 'mint') + (cost == null ? ' maxed' : '')
+    + (opts.highlight ? ' ss-upg-hl' : ''));
+  node.dataset.track = u.id;
+  // THE MINE'S TILE (M5): its own name and copy for a shared track, what the track stands at in the
+  // mine's terms, a NEW badge for the one visit after it is revealed, and — when the next rung is
+  // priced in a deep material — where that material is found.
+  const isNew = mineShelf && mineTileNew(u.id, progress);
+  const nm = mineShelf ? upgradeName(u) : u.name;
+  let eff = mineShelf ? upgradeEffect(u) : u.effect;
+  if (mineShelf && cp && cp.m !== 'phosphorus') eff += ' <span class="ss-upg-where">Next rung: ' + cp.n + ' ' + esc(matName(cp.m)) + ', found at ' + mineMatWhere(cp.m) + '.</span>';
+  let mineNow = null;
+  if (mineShelf) {
+    if (u.id === 'heatTolerance') mineNow = 'line ' + ((((CONFIG.mine.heat || {}).safeDepth) | 0) + (have | 0)) + ' m';
+    else if (u.id === 'growSteps') mineNow = 'grow ' + have;
+    else if (u.id === 'excreteCharges' || u.id === 'amputateCharges') mineNow = 'carry ' + have;
+  }
   let pips = '';
   for (let i = 0; i < max; i++) pips += '<span class="ss-upg-pip' + (i < lvl ? ' on' : '') + '"></span>';
   node.innerHTML =
     '<div class="ss-upg-top">' + (RI[u.icon] || '') +
-      '<span class="ss-upg-nm">' + esc(u.name) + '</span>' +
+      '<span class="ss-upg-nm">' + esc(nm) + '</span>' +
+      (isNew ? '<span class="ss-upg-new">New</span>' : '') +
+      (mineNow != null ? '<span class="ss-upg-now" aria-label="' + esc(mineNow) + '">' + esc(mineNow) + '</span>' : '') +
       // THE THREE RESOURCE TRACKS SHOW WHAT A RUN ACTUALLY OPENS WITH, not what this track has
       // added to it. They read "none yet" until the first purchase, which is true of the track
       // and false of the game — a run starts with 20 energy and 20 water whatever the store
@@ -29858,7 +29982,7 @@ function upgradeTile(u, progress, onBuy) {
       // their value is never 1 and they never need it.
       // STARTING LEVEL SHOWS WHERE A RUN WILL ACTUALLY OPEN, held down by what has been cleared —
       // the one number that can disagree with what was paid for, so it is the one worth printing.
-      (u.id === 'startLevel'
+      (mineNow != null ? '' : u.id === 'startLevel'
         ? '<span class="ss-upg-now" aria-label="' + esc('starts on level ' + startLevelFor(progress)) + '">'
           + 'level ' + startLevelFor(progress) + '</span>'
         : '<span class="ss-upg-now" aria-label="' + esc(RESOURCE_TRACK.test(u.id)
@@ -29868,7 +29992,7 @@ function upgradeTile(u, progress, onBuy) {
         ? String(startingResources(progress)[u.id] | 0)
         : (have ? '+' + have : 'none yet')) + '</span>') +
     '</div>' +
-    '<p class="ss-upg-eff">' + u.effect
+    '<p class="ss-upg-eff">' + eff
       + (u.id === 'startLevel' && (CAMPAIGN_START_LEVEL + upgradeLevel(u.id, progress)) > startLevelFor(progress)
         ? ' <b>Clear level ' + startLevelFor(progress) + ' to use the next one.</b>' : '') + '</p>' +
     '<div class="ss-upg-pips" aria-hidden="true">' + pips + '</div>' +
@@ -29918,6 +30042,18 @@ function showSpeciesSelect({ onPick, onDev, onLevel, mine }) {
   // step. What changes: no colony grids, no deck (there are no cards), no rating ask on a shelf
   // this bare, the wallet reads PHOSPHORUS, and the one button descends.
   const mineOn = !!mine;
+  // A STORE VISIT (M5): counted on open, and every revealed track not yet shown is stamped with this
+  // visit — which is what makes its NEW badge last exactly one visit (`mineTileNew`).
+  if (mineOn) {
+    try {
+      const p = loadProgress();
+      p.mineStoreVisits = (p.mineStoreVisits | 0) + 1;
+      p.mineShelfShown = p.mineShelfShown || {};
+      for (const id of MINE_UPGRADE_IDS) if (mineTrackRevealed(id, p) && !(id in p.mineShelfShown)) p.mineShelfShown[id] = p.mineStoreVisits;
+      saveProgress(p);
+      progress = loadProgress();
+    } catch (_) {}
+  }
   const root = el('div'); root.id = 'speciesSelect';
   if (mineOn) root.classList.add('ss-mine');
   // Dev shortcuts (owner testing only), GATED on config.dev.enabled — the same flag as the
@@ -30095,9 +30231,10 @@ function showSpeciesSelect({ onPick, onDev, onLevel, mine }) {
       const b = storeBonuses(progress);
       const water = Math.max(1, (CONFIG.mine.startWater | 0)) + (b.water | 0);
       const steps = Math.max(1, b.growSteps | 0);
-      const cost = Math.max(1, CONFIG.mine.growWaterCost | 0);
       const note = root.querySelector('#ssMineNote');
-      if (note) note.textContent = `${water} water to start · grow ${steps} · ${cost} water a dig`;
+      // '60 water · grow 2 · digs cost 2, then 4 / 8 / 16 past 42 / 84 / 126 m' (M5), shifted by the
+      // tolerance bought — the whole descent's arithmetic in one line, off the numbers the run reads.
+      if (note) note.textContent = `${water} water · grow ${steps} · ${mineHeatWords(progress)}`;
       return renderUpgrades(bal);
     }
     // The count is COPIES, not distinct names — "how big is my deck?" has one answer. Rendered
@@ -30151,12 +30288,15 @@ function showSpeciesSelect({ onPick, onDev, onLevel, mine }) {
   // track can never be buyable without being shown.
   function renderUpgrades(bal) {
     upgGrid.innerHTML = '';
+    // THE MINE HIGHLIGHTS ITS NEXT GOAL (M5) — the same pick the end screen's card makes, so the two
+    // never point at different tiles. On visit 1 that is Water tank.
+    const goal = mineOn ? mineNextGoal(progress) : null;
     for (const u of STORE_UPGRADES) {
-      if (!upgradeInGame(u)) continue;
+      if (!upgradeInGame(u, null, progress)) continue;
       upgGrid.appendChild(upgradeTile(u, progress, (bought, paid) => {
         if (bought) logEvent('upgrade', { detail: bought.id, level: upgradeLevel(bought.id), n: paid || 0 });
         refresh();
-      }));
+      }, { highlight: !!(goal && !goal.done && goal.id === u.id && goal.afford) }));
     }
   }
   // One re-read of progress after any purchase: a buy moves the wallet, the pips, which
@@ -30248,42 +30388,83 @@ function mineEndingLine(cause, depth) {
   const f = MINE_RUN_ENDING[cause] || MINE_RUN_ENDING.other;
   return f(depth | 0);
 }
-function showMineEnd({ depth, ore, mats, best, balance, cause, first, onDone }) {
+function showMineEnd({ depth, ore, mats, seams, reach, seamCount, best, balance, cause, first, onDone, onDescend }) {
   const root = el('div', 'ss-win ss-mineend'); root.id = 'ssMineEnd';
-  // THE GROWN WORDMARK IS A WORD, AND THE DEPTH IS PLAIN TYPE UNDER IT. Growing the NUMBER was the
-  // first version and it is the obvious idea — the depth IS the achievement, so it should take the
-  // slot "Success" and "Unlocked" take. It reads badly: the grower fills each glyph with filaments
-  // and sprays a fringe past its edges, which a letter absorbs (you know what MYCELIUM says before
-  // you read it) and a digit does not — a grown 3 and a grown 8 are the same smudge, and this is
-  // the one number on the screen the player wants to know EXACTLY. So the word carries the beat and
-  // the number carries the fact.
+  // THE GROWN WORDMARK IS A WORD, AND THE DEPTH IS PLAIN TYPE UNDER IT — a grown digit is a smudge,
+  // and this is the one number the player wants exactly.
   const matList = mats ? Object.keys(mats).filter((k) => k !== 'phosphorus' && (mats[k] | 0) > 0) : [];
+  const sc = seamCount || {};
+  seams = seams != null ? seams | 0 : 0;
+  reach = reach != null ? reach | 0 : Math.max(0, (ore | 0) - seams);
+  // ROWS BY SOURCE (M5), counted up: what the depth paid, what the seams paid, and each deep material
+  // by name. `data-n` carries the final figure so nothing reading the screen has to wait for the count.
+  const row = (label, n, mark, unit) =>
+    '<div class="ss-me-row"><span class="ss-me-lbl">' + label + '</span>'
+    + '<span class="ss-me-val">+<b class="ss-count" data-n="' + (n | 0) + '">' + (n | 0) + '</b>' + (mark || '') + (unit ? ' ' + esc(unit) : '') + '</span></div>';
+  let rows = row('Depth ' + (depth | 0) + ' m', reach, RI.phos);
+  if ((sc.phosphorus | 0) > 0 || seams > 0) rows += row('Phosphorus seams ×' + (sc.phosphorus | 0), seams, RI.phos);
+  for (const k of matList) rows += row(esc(matName(k)) + ' seams ×' + (sc[k] | 0), mats[k] | 0, matMark(k), matName(k));
+  // THE RECORDS LINE: run 1 says so; a new best names it; otherwise how far the best still is.
+  const records = first
+    ? '<p class="ss-mineend-best ss-new ss-mineend-first">Your first descent</p>'
+    : best && best.isNew
+    ? '<p class="ss-mineend-best ss-new">New deepest: ' + (depth | 0) + ' m</p>'
+    : (best && best.m > depth ? '<p class="ss-mineend-best">Deepest ' + (best.m | 0) + ' m — ' + ((best.m | 0) - (depth | 0)) + ' m to go</p>' : '');
   root.innerHTML =
     '<div class="ss-win-title" role="img" aria-label="Spored"></div>' +
     '<p class="ss-mineend-depth">' + (depth | 0) + '<span class="ss-mineend-m">m</span></p>' +
     // WHAT ENDED IT, in one line, BRANCHED ON THE CAUSE (never on `died`) — see MINE_RUN_ENDING.
     '<p class="ss-win-sub ss-mineend-why">' + esc(mineEndingLine(cause, depth)) + '</p>' +
-    '<p class="ss-win-earned">+' + (ore | 0) + RI.phos +
-      // ...AND THE DEEP MATERIALS BESIDE IT, NAMED IN FULL (M1). A tinted dot alone is a currency
-      // the player cannot name; the store prices rungs in these words.
+    records +
+    '<div class="ss-me-rows">' + rows + '</div>' +
+    '<p class="ss-win-earned">+<span class="ss-count" data-n="' + (ore | 0) + '">' + (ore | 0) + '</span>' + RI.phos +
       matList.map((k) =>
         ' <span class="ss-win-mat">+' + (mats[k] | 0) + matMark(k) + ' ' + esc(matName(k)) + '</span>').join('') + '</p>' +
-    // RUN 1 SAYS SO (M4): 'Your first descent' — "your deepest yet" is true and meaningless on run 1.
-    (first
-      ? '<p class="ss-mineend-best ss-new ss-mineend-first">Your first descent</p>'
-      : best && best.isNew
-      ? '<p class="ss-mineend-best ss-new">Your deepest descent yet</p>'
-      : (best && best.m > depth ? '<p class="ss-mineend-best">Deepest so far ' + (best.m | 0) + ' m</p>' : '')) +
-    '<p class="spore-cta">Spend Phosphorus on fuel and a stronger dig, then go back down</p>' +
-    '<button class="ss-win-btn" id="ssMineDone" type="button">To the store</button>';
+    '<div class="ss-me-goal" id="ssMineGoal"></div>' +
+    '<div class="ss-me-acts">' +
+      '<button class="ss-win-btn ss-me-descend" id="ssMineDescend" type="button">Descend</button>' +
+      '<button class="ss-me-store" id="ssMineDone" type="button">Store</button>' +
+    '</div>';
   document.body.appendChild(root);
-  // `stepRate` 3.2 is the family's own — the wordmark grows at the same pace on every one of these
-  // screens, so they read as one moment repeated rather than three animations. `fitWidth` sizes the
-  // word to its box by MEASURED ink width: the shared estimate (0.62 em a glyph) under-sizes an
-  // 800-weight SPORED, which clipped both edges at 390 px (M1).
   const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: 'SPORED', stepRate: 3.2, fitWidth: true });
-  function hide() { title.destroy(); root.remove(); }
+  // THE COUNT-UP (M5): timer-stepped rather than rAF (a throttled page still lands on the final
+  // figure), 12 steps over ~600 ms, each element ending exactly on its `data-n`.
+  const counts = Array.from(root.querySelectorAll('.ss-count'));
+  for (const c of counts) c.textContent = '0';
+  let step = 0; const STEPS = 12;
+  const tick = () => {
+    step++;
+    for (const c of counts) { const n = +c.dataset.n || 0; c.textContent = String(step >= STEPS ? n : Math.round(n * step / STEPS)); }
+    if (step < STEPS) timer = setTimeout(tick, 50);
+  };
+  let timer = setTimeout(tick, 250);
+  // THE NEXT-GOAL CARD (M5), with an inline Buy: the plan's priority (`mineNextGoal`), the price and
+  // the wallet it is paid from. Unaffordable, it says how far short (and where a material is found).
+  const goalBox = root.querySelector('#ssMineGoal');
+  function renderGoal() {
+    const g = mineNextGoal(loadProgress());
+    if (!g || g.done) { goalBox.innerHTML = '<p class="ss-me-goal-t">Every rung in the store is bought.</p>'; goalBox.dataset.goal = 'done'; return; }
+    goalBox.dataset.goal = g.id;
+    const price = g.cost.n + ' ' + (g.cost.m === 'phosphorus' ? 'P' : matName(g.cost.m));
+    const why = g.afford ? price
+      : g.cost.m === 'phosphorus' ? price + ' · ' + g.short + ' P short'
+      : price + ', you have ' + g.have + (g.where ? ' (found at ' + g.where + ')' : '');
+    goalBox.innerHTML =
+      '<p class="ss-me-goal-t">' + (g.isNew ? '<span class="ss-upg-new">New</span> ' : '')
+        + '<b>' + esc(g.name) + '</b>: ' + esc(g.text) + ' · <span class="ss-me-goal-p">' + esc(why) + '</span></p>'
+      + (g.afford ? '<button class="ss-upg-btn ss-me-buy" id="ssMineBuy" type="button" aria-label="Buy ' + esc(g.name) + ' for ' + esc(price) + '">'
+        + matMark(g.cost.m) + '<span class="ss-buyn">' + g.cost.n + '</span> Buy</button>' : '');
+    const bb = goalBox.querySelector('#ssMineBuy');
+    if (bb) bb.addEventListener('click', () => {
+      const r = buyUpgrade(g.id);
+      if (r.ok) logEvent('upgrade', { detail: g.id, level: r.level, n: g.cost.n });
+      renderGoal();
+    });
+  }
+  renderGoal();
+  function hide() { clearTimeout(timer); title.destroy(); root.remove(); }
   root.querySelector('#ssMineDone').addEventListener('click', () => { hide(); onDone && onDone(); });
+  root.querySelector('#ssMineDescend').addEventListener('click', () => { hide(); (onDescend || onDone) && (onDescend || onDone)(); });
   return { hide, root };
 }
 
@@ -30379,7 +30560,7 @@ function showGameWon({ spores, balance, onNewRun }) {
   return { hide, root };
 }
 
-  return { showDeathScreen, showSpeciesSelect, showLevelComplete, showSpeciesUnlocked, showMineEnd, showGameWon, showDeckView, matName };
+  return { showDeathScreen, showSpeciesSelect, showLevelComplete, showSpeciesUnlocked, showMineEnd, showGameWon, showDeckView, matName, mineNextGoal, mineHeatWords };
 })();
 
 // ===================== src/render/loadout_select.js =====================
@@ -30855,9 +31036,16 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
   // empty shelf, and top-centre because that slot is free now the high-score board has gone with
   // survival.
   if (onStore) {
-    let owed = 0;
-    try { owed = loadProgress().minerals | 0; } catch (_) {}
-    if (owed > 0) {
+    // M5: ANY WALLET above 0 (Phosphorus or a deep material) OR any rung bought — a player who spent
+    // everything still has a store worth opening (to read it, or to see what the next rung costs).
+    let show = false;
+    try {
+      const p = loadProgress();
+      show = (p.minerals | 0) > 0
+        || Object.keys(p.mats || {}).some((k) => (p.mats[k] | 0) > 0)
+        || Object.keys(p.mineUpgrades || {}).some((k) => (p.mineUpgrades[k] | 0) > 0);
+    } catch (_) {}
+    if (show) {
       const head = el('div', 'ts-header');
       const b = el('button', 'ts-foot-btn', 'Upgrades'); b.id = 'tsStore'; b.type = 'button';
       b.addEventListener('click', () => { if (consuming || finished) return; onStore(); });
@@ -33145,7 +33333,7 @@ const __m_main = (function () {
   const { NetworkRenderer, drawFruitBodies } = __m_render_network;
   const { Lighting } = __m_render_lighting;
   const { UI, deathText, cardSlug, SPORE_ICON } = __m_render_ui;   // deathText: one table, both death screens
-  const { showDeathScreen, showSpeciesSelect, showLevelComplete, showGameWon, showSpeciesUnlocked, showMineEnd, showDeckView, matName } = __m_render_species_select;
+  const { showDeathScreen, showSpeciesSelect, showLevelComplete, showGameWon, showSpeciesUnlocked, showMineEnd, showDeckView, matName, mineNextGoal, mineHeatWords } = __m_render_species_select;
   const { showLoadoutSelect } = __m_render_loadout_select;
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
@@ -34263,7 +34451,8 @@ function mineBank(r) {
     logEvent('run_end', { level: depth, cause: r.cause || 'dry', turns: state && state.turn, n: ore,
                           ms, detail: r.cause || 'dry' });
   }
-  return { depth, ore, seams, reach, mats, best: r._mineBest || mineRecordDepth(depth) };
+  const seamCount = r.seamCount || (state && state.mineSeams) || {};
+  return { depth, ore, seams, reach, mats, seamCount, best: r._mineBest || mineRecordDepth(depth) };
 }
 // THE END OF A DESCENT. Owner: "When the player runs out of water, they fruit and spore and go to
 // the upgrade store." So there is exactly one thing to say (how deep, and what it paid) and exactly
@@ -34271,10 +34460,15 @@ function mineBank(r) {
 function presentMineEnd(r) {
   const paid = mineBank(r);
   showMineEnd({
-    depth: paid.depth, ore: paid.ore, mats: paid.mats,
+    depth: paid.depth, ore: paid.ore, mats: paid.mats, seams: paid.seams, reach: paid.reach,
+    seamCount: paid.seamCount,
     best: paid.best, cause: r.cause, first: !!(state && state._mineFirst),
     balance: sporesBalance(),
+    // [Store] (secondary, `#ssMineDone`) opens the shelf; [Descend] (primary) goes straight into the
+    // next run, the same `beginMineRun` the store's Descend reaches — so Buy on the next-goal card and
+    // then Descend is two clicks from this screen to a live run (M5).
     onDone: () => { runEndThen(() => { setGame('mine'); showPicker(); }); },
+    onDescend: () => { runEndThen(() => { setGame('mine'); endRunSpores(); runSporeMult = 1; hideCanvas(); raiseHandoff(); beginMineRun(); }); },
   });
 }
 // SETTINGS > EXIT TO TITLE (M1). It used to be 'Save & exit', which dropped to the title without
@@ -36514,6 +36708,8 @@ function begin(newState) {
       seen: (o) => { const p = loadProgress(); if (o) { p.mineSeen = Object.assign({}, p.mineSeen || {}, o); saveProgress(p); } return Object.assign({}, p.mineSeen || {}); },
       revealAll: () => { const p = loadProgress(); p.mineSeen = Object.assign({}, p.mineSeen || {}, { line42: true, worm: true, cloud: true }); saveProgress(p); },
       v1Refund: (led) => mineShelfV1Refund(led),
+      nextGoal: () => mineNextGoal(loadProgress()),
+      heatWords: () => mineHeatWords(loadProgress()),
       costs: (id, game) => upgradeCosts(upgradeById(id), game).slice(),
       level: upgradeLevel, value: upgradeValue, nextCost: upgradeNextCost, buy: buyUpgrade,
       // The ladder's other direction. `sellValue` is what the top rung would pay back, so a check
@@ -42565,6 +42761,13 @@ try {
     else if (document.visibilityState === 'visible') minePendingClear();
   });
   _titleNote = minePendingNote(minePendingBankAtBoot());
+  // THE SHELF v2 MIGRATION'S TOAST (M5): shown once, on the title this boot lands on.
+  const pr = loadProgress();
+  if (pr.mineRestocked) {
+    const t = 'The store was restocked — your Phosphorus is back';
+    _titleNote = _titleNote ? _titleNote + ' · ' + t : t;
+    delete pr.mineRestocked; saveProgress(pr);
+  }
 } catch (_) {}
 
 function _bootReady() {
