@@ -65,6 +65,18 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
         window.MYCELIUM_SUPABASE = { url: '', anonKey: '' };
         const T = window.__t = {};
         document.addEventListener('pointerdown', () => { if (!T.tap) T.tap = performance.now(); }, true);
+        // WHEN THE CURTAIN ACTUALLY LIFTS (M5 round 2). The poll below cannot see it: the curtain drops
+        // at the END of the map's first frame, the next frame is due at once, and an 8 ms timer is
+        // starved until after it — so the polled time carried a whole second frame plus scheduling
+        // (measured 100-110 ms, more under load: drop 443/474/522 ms, poll 545/621/634). The drop
+        // is taken by a MutationObserver on body.class, and the moment it is SEEN is the end of the
+        // long task holding it — that task's tail is the paint of the frame the map first shows in.
+        T.drop = null; T.lt = [];
+        new MutationObserver(() => { const b = document.body; if (!b || !T.tap || T.drop) return;
+          if (b.classList.contains('handoff')) T.up = true; else if (T.up) T.drop = performance.now(); })
+          .observe(document, { attributes: true, subtree: true, attributeFilter: ['class'] });
+        try { new PerformanceObserver((l) => { for (const e of l.getEntries()) T.lt.push([e.startTime, e.duration]); })
+          .observe({ type: 'longtask', buffered: true }); } catch (_) {}
         setInterval(() => {
           const now = performance.now(), g = window.__game;
           if (!T.title && document.getElementById('titleScreen')) T.title = now;
@@ -94,10 +106,13 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       }
       T = await page.evaluate(() => Object.assign({}, window.__t, { audio: window.__sfx && window.__sfx.ctxState(),
         nodev: window.__cfg && window.__cfg.dev.enabled === false }));
+      if (T.drop != null) { const hold = (T.lt || []).find(([st, d]) => st <= T.drop && T.drop <= st + d + 1);
+        T.seen = hold ? hold[0] + hold[1] : T.drop; }
       const rel = (k) => (T[k] != null && T.tap != null ? Math.round(T[k] - T.tap) : null);
       ok('the patched build reads dev.enabled false (the shipping path)', T.nodev);
       ok('a fresh save never shows the title', !T.title && T.run != null, `title ${rel('title')}, run at ${rel('run')} ms`);
-      ok('...the curtain lifts within 600 ms of the gate tap', rel('reveal') != null && rel('reveal') <= 600, `${rel('reveal')} ms`);
+      ok('...the curtain lifts within 600 ms of the gate tap', rel('seen') != null && rel('seen') <= 600,
+         `${rel('seen')} ms (class dropped at ${rel('drop')} ms; the old 8 ms poll noticed at ${rel('reveal')} ms)`);
       ok('...and a drag begun 200 ms after #minehint shows is accepted within 2.5 s of the tap',
          rel('dig') != null && rel('dig') <= 2500, `hint at ${rel('hint')} ms, dig accepted at ${rel('dig')} ms`);
       ok('the gate tap unlocked audio (AudioContext running)', T.audio === 'running', String(T.audio));

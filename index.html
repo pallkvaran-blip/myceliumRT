@@ -15405,6 +15405,25 @@ class Substrate {
 
   // --- coordinate helpers --------------------------------------------------
   index(col, row) { return row * this.cols + col; }
+  // THE TRICH FIELD IS CLEARED BY INDEX, NOT BY SWEEPING THE GRID (M5 round 2). Both stampers
+  // (`stampCloudField` on every world step and every cloud seeding, `stampMouldInterp` at ~30 fps)
+  // used to zero ALL cells before stamping a few discs — 85,000 on the mine's 504-column world, and
+  // the mine seeds clouds per chunk, so the first-visit curtain spent ~100 ms of its 600 ms budget
+  // zeroing soil that was already zero (tests/curtain-probe.cjs --profile). Every non-zero trich
+  // is written by `markTrich`, so the list IS the set of cells that can be non-zero. The FIRST clear
+  // on a substrate is a full sweep (`_trichIdx` starts null), so a field written before tracking
+  // began cannot survive it. Anything else that zeroes a cell (the Excrete clear) may leave its
+  // index in the list, which only costs a redundant write on the next clear.
+  clearTrich() {
+    const cells = this.cells, L = this._trichIdx;
+    if (!L) { for (const cell of cells) cell.trich = 0; this._trichIdx = []; return; }
+    for (let k = 0; k < L.length; k++) cells[L[k]].trich = 0;
+    L.length = 0;
+  }
+  markTrich(i, inten) {
+    const cell = this.cells[i];
+    if (inten > cell.trich) { if (!(cell.trich > 0) && this._trichIdx) this._trichIdx.push(i); cell.trich = inten; }
+  }
   inBounds(col, row) { return col >= 0 && col < this.cols && row >= 0 && row < this.rows; }
 
   colAtX(x) { return Math.floor(x / this.cellSize); }
@@ -18711,7 +18730,7 @@ function eatUnder(sub, cloud, reachMult, maxCells) {
 // network's recovery check both read cell.trich). Cleared and rebuilt each step.
 function stampCloudField(sub, clouds) {
   const cs = sub.cellSize;
-  for (const cell of sub.cells) cell.trich = 0;
+  sub.clearTrich();
   for (const cloud of clouds) {
     const c0 = sub.colAtX(cloud.cx), r0 = sub.rowAtY(cloud.cy);
     const radCells = Math.ceil(cloud.r) + 1;
@@ -18720,13 +18739,12 @@ function stampCloudField(sub, clouds) {
     for (let row = r0 - radCells; row <= r0 + radCells; row++) {
       for (let col = c0 - radCells; col <= c0 + radCells; col++) {
         if (!sub.inBounds(col, row)) continue;
-        const cell = sub.cells[sub.index(col, row)];
+        const idx = sub.index(col, row), cell = sub.cells[idx];
         if (cell.rock) continue;
         const ctr = sub.cellCenter(col, row);
         const d = Math.hypot(ctr.x - cloud.cx, ctr.y - cloud.cy);
         if (d > reach) continue;
-        const inten = strength * (1 - d / (reach + cs * 0.5));
-        if (inten > cell.trich) cell.trich = inten;
+        sub.markTrich(idx, strength * (1 - d / (reach + cs * 0.5)));
       }
     }
   }
@@ -39541,7 +39559,7 @@ function stampMouldInterp() {
   const sub = state.substrate, clouds = state.clouds;
   if (!sub) return;
   const cs = sub.cellSize, t = renderAlpha();
-  for (const cell of sub.cells) cell.trich = 0;
+  sub.clearTrich();
   if (!clouds || !clouds.length) return;
   for (const cloud of clouds) {
     const ccx = lerp(cloud.rx0 != null ? cloud.rx0 : cloud.cx, cloud.cx, t);
@@ -39553,13 +39571,12 @@ function stampMouldInterp() {
     for (let row = r0 - radCells; row <= r0 + radCells; row++)
       for (let col = c0 - radCells; col <= c0 + radCells; col++) {
         if (!sub.inBounds(col, row)) continue;
-        const cell = sub.cells[sub.index(col, row)];
+        const idx = sub.index(col, row), cell = sub.cells[idx];
         if (cell.rock) continue;
         const ctr = sub.cellCenter(col, row);
         const d = Math.hypot(ctr.x - ccx, ctr.y - ccy);
         if (d > reach) continue;
-        const inten = strength * (1 - d / (reach + cs * 0.5));
-        if (inten > cell.trich) cell.trich = inten;
+        sub.markTrich(idx, strength * (1 - d / (reach + cs * 0.5)));
       }
   }
 }
@@ -40808,7 +40825,7 @@ function drawSubstrateLeaves() {
     if (p.draftHeld) { for (const idx of p.cells) heldCells.add(idx); }
     else if (p._fadeAt) { for (const idx of p.cells) fadeAtCell.set(idx, p._fadeAt); }
   }
-  sub.forEachCell((cell, col, row) => {
+  const visit = (cell, col, row) => {
     if (cell.rock || !cell.foodKind) return;             // only leaf/nut food cells
     const kind = cell.foodKind;                          // 'cache' | 'cache-engine' | 'duff' | 'nut'
     if (cell.nutrient > 0) {
@@ -40828,7 +40845,24 @@ function drawSubstrateLeaves() {
     const start = fadeAtCell.get(idx) || cell._leafGone || (cell._leafGone = lastTime);
     const a = 1 - (lastTime - start) / LEAF_FADE_MS;
     if (a > 0) _drawLeafHeap(sets, col, row, kind, a);
-  });
+  };
+  // THE MINE DRAWS ITS SEAMS, NOT ITS 85,000 CELLS (M5 round 2) — the same rule and the same reason
+  // as `resolveIncome`'s mine fast path: every food cell in a mine is stamped by `stampFood` from
+  // `mineGenerateChunk`, which registers the pile, so `foodPiles` holds every cell this could draw.
+  // Walking the whole grid cost ~3 ms a frame warm and 70-100 ms on the FIRST frame (cold JIT over
+  // 85k closure calls), which is the frame the first-visit curtain waits on
+  // (tests/curtain-probe.cjs). Visited in ascending index order, i.e. forEachCell's row-major order,
+  // so overlapping heaps stack exactly as before.
+  if (sub.mine && sub.foodPiles) {
+    const idxs = [];
+    for (const p of sub.foodPiles) for (const i of p.cells) idxs.push(i);
+    idxs.sort((x, y) => x - y);
+    const cols = sub.cols;
+    let last = -1;
+    for (const i of idxs) { if (i === last) continue; last = i; visit(sub.cells[i], i % cols, (i / cols) | 0); }
+    return;
+  }
+  sub.forEachCell(visit);
 }
 
 // =============================================================================
