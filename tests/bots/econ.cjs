@@ -31,12 +31,13 @@ const median = (a) => { const s = a.slice().sort((x, y) => x - y); return s.leng
 async function naiveDescent(page, paceMs) {
   const t0 = Date.now(); let digs = 0, consec = 0;
   for (let i = 0; i < 400; i++) {
+    const at = Date.now();
     const r = await page.evaluate(() => window.__qa.naiveStep({}));
     if (r.over) break;
     consec = r.ok ? 0 : consec + 1;
     if (r.ok) digs++;
     if (consec > 30) break;
-    await sleep(paceMs);
+    await sleep(Math.max(0, paceMs - (Date.now() - at)));
   }
   for (let k = 0; k < 40; k++) { if (await page.evaluate(() => !!window.__game.state.runOver)) break; await sleep(500); }
   return { seconds: Math.round((Date.now() - t0) / 1000), digs };
@@ -71,11 +72,15 @@ async function bankAndBuyWater(page) {
       for (const seed of SEEDS) {
         const b = await bootMine(env, seed);
         let dur;
-        if (naive) dur = await naiveDescent(b.page, pace);
-        else { const res = await playDescent(b.page, { label: `econ-run1-${seed}`, paceMs: pace, bot: { useItems: true } }); dur = { seconds: res.seconds, digs: res.digs }; }
+        if (naive) dur = Object.assign(await naiveDescent(b.page, pace));
+        else { const res = await playDescent(b.page, { label: `econ-run1-${seed}`, paceMs: pace, periodic: true, bot: { useItems: true } }); dur = { seconds: res.seconds, digs: res.digs }; }
+        // THE RUN'S OWN LENGTH (runResult.ms: first frame -> ending), not the bot's wall clock, which
+        // also counts its wait for the end screen and the settle after it (~10 s).
+        dur.botSeconds = dur.seconds;
+        dur.seconds = Math.round((await b.page.evaluate(() => (window.__game.state.runResult || {}).ms | 0)) / 1000);
         const r = await bankAndBuyWater(b.page);
         rows.push({ seed, ...dur, ...r.end, waterLvl: r.after.water, left: r.after.P, tiles: r.after.tiles });
-        console.log(`seed ${seed}: ${dur.seconds}s ${dur.digs} digs, ${r.end.depth} m, ${r.end.cause}, banked ${r.end.ore} P (reach ${r.end.reach} + seams ${r.end.seams}), Water ${r.after.water}, left ${r.after.P} P, shelf ${r.after.tiles.join(',')}`);
+        console.log(`seed ${seed}: ${dur.seconds}s (bot ${dur.botSeconds}s) ${dur.digs} digs, ${r.end.depth} m, ${r.end.cause}, banked ${r.end.ore} P (reach ${r.end.reach} + seams ${r.end.seams}), Water ${r.after.water}, left ${r.after.P} P, shelf ${r.after.tiles.join(',')}`);
         await b.ctx.close();
       }
       fs.writeFileSync(`${OUT}/econ-run1-${naive ? 'naive' : 'sensible'}-${pace}.json`, JSON.stringify(rows, null, 1));

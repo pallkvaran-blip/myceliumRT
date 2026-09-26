@@ -10,6 +10,7 @@ async function playDescent(page, opts = {}) {
   const start = await page.evaluate(() => window.__qa.snapshot());
   let shot = 0;
   for (let i = 0; i < (opts.maxSteps || 400); i++) {
+    const stepAt = Date.now();
     const r = await page.evaluate((o) => { const a = window.__qa.step(o); a.snap = window.__qa.snapshot(); return a; }, opts.bot || {});
     if (r.over) break;
     steps.push({ i, t: Math.round((Date.now() - t0) / 100) / 10, mode: r.mode, kind: r.kind, mat: r.mat, ok: r.ok, msg: r.msg, acts: r.acts,
@@ -31,7 +32,9 @@ async function playDescent(page, opts = {}) {
     }
     if (consecutiveFail > 12) { boxedAt = { i, t: (Date.now() - t0) / 1000, water: r.snap.water, depth: r.snap.depth, why: 'repeated refusals: ' + r.msg, digs }; if (opts.shots) await page.screenshot({ path: `${OUT}/${label}-refused.png` }); break; }
     if (opts.shots && i % (opts.shotEvery || 20) === 10) await page.screenshot({ path: `${OUT}/${label}-s${String(++shot).padStart(2, '0')}.png` });
-    await sleep(paceMs);
+    // `periodic` (M5): one dig every `paceMs` INCLUDING the bot's own planning time (the flood can
+    // take a few hundred ms), so '1.7 s a dig' means that and not 1.7 s plus the bot thinking.
+    await sleep(opts.periodic ? Math.max(0, paceMs - (Date.now() - stepAt)) : paceMs);
   }
   // If boxed with water, wait to see whether the run ends by itself (worms/infection/nothing).
   let sat = null;
