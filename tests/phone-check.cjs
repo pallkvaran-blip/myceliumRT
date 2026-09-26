@@ -114,6 +114,55 @@ const touchCtx = (E, vw, vh) => E.browser.newContext({ viewport: { width: vw, he
       ok('...nothing overlaps the gear or the rows (row 1, row 2, rot banner)', !m.overlaps.row1Gear && !m.overlaps.row2Gear && !m.overlaps.bannerRows && !m.overlaps.bannerGear,
          `row1 ${f(m.row1)}, row2 ${f(m.row2)}, banner ${f(m.banner)} ${JSON.stringify(m.overlaps)}`);
       ok('...material tags read as three letters and a count', m.mats.every((t) => /^[A-Z]{3}\s*\d+$/.test(t.trim())), m.mats.join(' | '));
+      // THE WIDEST LIVE ROW (M3 tidy): NOT stuck, so the price chip is in row 1; the worm drain at its
+      // REAL rate (QUIET zeroed it, so the chip read -0.0/s); 3-digit P and 2-digit materials. The
+      // stuck state above hides the price chip, so the two widest pieces were never up together.
+      const w = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state;
+        s.config.mine.worms.waterPerSec = 0.2;
+        g.ui()._wormN = -1;   // the chip rewrites its rate only on a count CHANGE
+        s.mineMats = { anthracite: 23, garnet: 18, hematite: 21 };
+        s.active.phosphorus = 327; s.mineOre = 327;
+        s.active.water = 900;
+        for (let i = 0; i < 200; i++) {
+          const dc = document.getElementById('hud-digcost'), fn = document.getElementById('fruitnow');
+          const wc = document.getElementById('hud-wormrate');
+          if (s.runOver || (dc && !dc.hidden && (!fn || fn.hidden) && wc && /[1-9]/.test(wc.textContent))) break;
+          await new Promise((r) => setTimeout(r, 25));
+        }
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        // ...and a toast raised now must sit UNDER the HUD stack, not over row 2 or the rot banner.
+        g.ui().toast('Amputated 66 strands.');
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const vis = (e) => { for (let n = e; n && n !== document.body; n = n.parentElement) { const cs = getComputedStyle(n);
+          if (cs.display === 'none' || cs.visibility === 'hidden') return false; } return true; };
+        const hud = document.querySelector('#ui > .hud');
+        const out = []; let n = 0;
+        for (const e of [hud, ...hud.querySelectorAll('*')]) {
+          if (!vis(e)) continue;
+          const q = e.getBoundingClientRect();
+          if (q.width <= 0 || q.height <= 0) continue;
+          n++;
+          if (q.left < -0.5 || q.top < -0.5 || q.right > innerWidth + 0.5 || q.bottom > innerHeight + 0.5)
+            out.push(`${e.id || e.className || e.tagName} ${Math.round(q.left)}..${Math.round(q.right)}`);
+        }
+        const R = (el) => { if (!el || !vis(el)) return null; const q = el.getBoundingClientRect();
+          return q.width > 0 ? { x0: q.left, x1: q.right, y0: q.top, y1: q.bottom } : null; };
+        const gear = R(document.getElementById('gearbtn'));
+        const hit = gear ? document.elementFromPoint((gear.x0 + gear.x1) / 2, (gear.y0 + gear.y1) / 2) : null;
+        const over = (a, c) => !!(a && c) && Math.min(a.x1, c.x1) > Math.max(a.x0, c.x0) && Math.min(a.y1, c.y1) > Math.max(a.y0, c.y0);
+        const toast = R(document.querySelector('#ui .toast'));
+        const pieces = ['.hud .hudtop .resrow', '#hudrow2', '#hud-infect', '#minehint'].map((q) => R(document.querySelector(q)));
+        return { over: s.runOver, n, out, gearHit: !!(hit && hit.closest && hit.closest('#gearbtn')),
+                 chip: (document.getElementById('hud-digcost') || {}).textContent || '', worms: (document.getElementById('hud-wormrate') || {}).textContent || '',
+                 banner: !!pieces[2], toast, toastOver: pieces.map((p) => over(toast, p)) };
+      });
+      ok(`${vw}x${vh}, NOT stuck with the drain live and P 327: every HUD descendant inside, gear hit-tests`,
+         !w.over && w.n > 10 && w.out.length === 0 && w.gearHit && /^−\d+\.\d\/s$/.test(w.worms.trim()) && /[1-9]/.test(w.worms) && /\d/.test(w.chip),
+         w.out.length ? w.out.slice(0, 4).join(' | ') : `${w.n} inside; price chip "${w.chip.trim()}", worm drain "${w.worms.trim()}", gear hit ${w.gearHit}`);
+      ok('...a toast sits under the HUD stack (clear of both rows, the rot banner and the hint)',
+         !!w.toast && w.banner && w.toastOver.every((x) => !x),
+         `toast y ${w.toast ? Math.round(w.toast.y0) + '-' + Math.round(w.toast.y1) : 'none'}, overlaps [row1,row2,banner,hint] ${JSON.stringify(w.toastOver)}`);
       ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
       await ctx.close();
     }

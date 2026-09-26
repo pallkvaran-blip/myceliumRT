@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (awaiting verifier). Next: M4.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). Next: M4.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -4565,6 +4565,26 @@ Numbers here are measured, not planned.
   store and run 2 behind it; 5 standalone re-runs on fresh seeds 23/23, and the second full run
   23/23), run 2 threat 113/116 (the known map-roll flake; re-run 116/116). itchzip-check now prints
   the stuck rule's inputs if a descent stays live, so the next zip red says why.
+- **VERIFIER MINORS (tidy round):**
+  - **Toast placement:** in the mine `ui._placeToast` puts the toast 8 px under the HUD stack's visible
+    pieces (`.minerows`, `#hud-infect`, `#minehint`) at show time; elsewhere the CSS top stands. Before
+    it sat at y 60-94 over row 2 and the ROT banner at 390 (the cut's own toast hid the rot clock);
+    now y 130-164 (390x844) and 148-197 (360x640). Negative control: 2 fail with the call removed.
+  - **phone-check 'hud' +4 (40 -> 44):** a NOT-stuck state with the worm drain at its real rate
+    ('−0.6/s'; QUIET had zeroed it), P 327, materials 18-23 and the price chip up: all inside, gear
+    hit-tests, at 390 and 360; plus the toast assertion. GOTCHA: `#hud-wormrate` is rewritten only on
+    a worm-COUNT change, so a probe changing `waterPerSec` must reset `ui()._wormN`.
+  - **Tap judged at the PRESS:** `beginAim` records `pressOff` (press-to-strand screen px) and
+    `pressWorld`; `mineTapCommit` uses them instead of re-projecting with the camera at release (the
+    follow camera eases 15-50 px inside a quick follow-up tap). The unused `tap: true` flag is gone.
+  - **pointercancel no longer spends an armed dose** when no aim started (the armed-anywhere branch
+    now checks `e.type !== 'pointercancel'`, like the aim path).
+  - **hudtop-check stays out of `--mine`:** phone-check gates the mine HUD layout with REAL rot;
+    hudtop section 4 (faked banner) is a by-name extra.
+  - **Left open, owner's call:** tapDigPx 48 (a tap 48-170 px from the colony does nothing, silently;
+    M4's ghost finger may cover it); run 1 dives banking 0 P (seams off-route) and aimNearPx 170 making
+    near-colony pans aim — M4/M5. The zip 'run ends by itself' intermittent stays OPEN until its new
+    diagnostics fire once.
 
 ## Two games on the title screen: Survival and Campaign
 

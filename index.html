@@ -27466,6 +27466,7 @@ class UI {
     el.className = `toast ${kind}`;   // clears .hidden and .in (base = faded out)
     el.innerHTML = `<span class="tk-wrap">${WARN_SVG}</span><span class="tmsg"></span>`;
     el.querySelector('.tmsg').textContent = message;
+    this._placeToast(el);
     void el.offsetWidth;             // reflow so the fade-in restarts even if one is up
     el.classList.add('in');
     if (this._toastHide) clearTimeout(this._toastHide);
@@ -27473,6 +27474,25 @@ class UI {
       el.classList.remove('in');
       this._toastHide = setTimeout(() => el.classList.add('hidden'), 240);
     }, 2600);
+  }
+
+  // IN THE MINE THE TOAST SITS UNDER THE WHOLE HUD STACK (M3 tidy), not at the fixed 64/74 px: on a
+  // phone that put it over row 2's material tags and the ROT banner — hiding the rot countdown at
+  // exactly the moment a cut's "Amputated N strands" lands. Measured off the stack's visible
+  // pieces (rows, rot banner, hint) at show time; everywhere else the stylesheet's top stands.
+  _placeToast(el) {
+    const hud = document.querySelector('#ui > .hud.minehud');
+    if (!hud || !el.parentElement) { el.style.top = ''; return; }
+    let bottom = 0;
+    for (const sel of ['.minerows', '#hud-infect', '#minehint']) {
+      const n = hud.querySelector(sel);
+      if (!n || n.hidden) continue;
+      const r = n.getBoundingClientRect();
+      if (r.height > 0) bottom = Math.max(bottom, r.bottom);
+    }
+    if (!bottom) { el.style.top = ''; return; }
+    const top = el.parentElement.getBoundingClientRect().top;
+    el.style.top = `${Math.round(bottom - top + 8)}px`;
   }
 
   // Drop the toast now if its text matches (a RegExp) — a warning whose state is already over.
@@ -37229,6 +37249,11 @@ function beginAim(e) {
     curScreen: { x: sx, y: sy },
     reach: t.kind === 'mine' ? mineGrowReach(state.config) : dragAimReach(state, reachRef),
     dragged: false, cancelled: false,
+    // PRESS-TIME readings for a mine TAP (M3 tidy): the follow camera keeps easing while the finger
+    // is down (a dig just re-stamped the focus), so re-projecting at release drifted 15-50 px and
+    // could drop a quick follow-up tap outside `tapDigPx`, or land a cut off the pressed point.
+    pressOff: Math.hypot(sx - ss.x, sy - ss.y),
+    pressWorld: { x: w.x, y: w.y },
   };
   uiDirty = true;
 }
@@ -37295,12 +37320,12 @@ function mineTapCommit(a, e) {
   const rect = canvas.getBoundingClientRect();
   const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
   if (Math.hypot(sx - a.startScreen.x, sy - a.startScreen.y) >= AIM_MIN_PX) return false;
-  const at = camera.screenToWorld(a.startScreen.x, a.startScreen.y);
+  // Judged with the camera as it was at the PRESS (see `beginAim`), not as it is at release.
+  const at = a.pressWorld || camera.screenToWorld(a.startScreen.x, a.startScreen.y);
   if (state._mineArmed) return mineArmedTap(at.x, at.y);
-  const os = camera.worldToScreen(a.origin.x, a.origin.y);
   const lim = (state.config.mine && state.config.mine.tapDigPx) || 48;
-  if (Math.hypot(a.startScreen.x - os.x, a.startScreen.y - os.y) > lim) return false;
-  fireAim(Object.assign({}, a, { cur: { x: a.origin.x, y: a.origin.y }, dragged: true, tap: true }));
+  if (a.pressOff > lim) return false;
+  fireAim(Object.assign({}, a, { cur: { x: a.origin.x, y: a.origin.y }, dragged: true }));
   return true;
 }
 
@@ -37532,7 +37557,7 @@ function setupInput() {
     // AN ARMED CUT OWNS A TAP ANYWHERE (M3), including one too far from clean tissue to start an aim
     // — which is exactly where a rotten limb is, since `nearestNode` skips infected strands. Before
     // this the dose could only be spent by a drag that began near CLEAN tissue and ended on the rot.
-    if (mineMap() && state && state._mineArmed && !state.runOver) {
+    if (e.type !== 'pointercancel' && mineMap() && state && state._mineArmed && !state.runOver) {
       const r0 = canvas.getBoundingClientRect();
       const w0 = camera.screenToWorld(e.clientX - r0.left, e.clientY - r0.top);
       mineArmedTap(w0.x, w0.y);
