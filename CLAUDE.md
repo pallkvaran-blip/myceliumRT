@@ -4374,25 +4374,53 @@ Numbers here are measured, not planned.
   no mask yet, under `CONFIG.mine.revealHoldMaxMs` 15000), re-arming the curtain's 4 s safety each
   held frame; `simPaused()` is true meanwhile (`_mineRevealWaitAt`). Hook `__game.simPaused()`.
   Measured (3 s route delay on every band image): 32 of 32 early digs refused, water/nodes
-  unchanged, curtain up and sim paused throughout; after: 0 of 966 living nodes inside `_fineSolid`.
-  20 s delay: the curtain lifts at 15.0 s with no mask and digs stay refused. Dev-off local boot:
+  unchanged, curtain up and sim paused throughout; after: 0 of 953 living nodes inside `_fineSolid`
+  (966 on the first build; run variance). 24 s delay (was 20 s): the curtain lifts at 15.0 s with no
+  mask and digs stay refused; the mask then lands un-forced, 86,133 cells = the 3 s boot's. Dev-off local boot:
   map revealed 5.4 s after New.
   - **THE HOLD SPEAKS (verifier fix):** past 600 ms held, `#settleNote` 'The ground is settling…'
     shows over the black curtain (outside `#ui`/`#game`); hook `__game.settleNote()`. Measured:
     26 of 32 held samples showed it, gone once the mask lands.
-  - **A SPRITE THAT NEVER DECODES (verifier fix; was a listed RISK):** after
-    `CONFIG.mine.solidForceMs` 20000 on the same pass, `solidifyRock` stamps each missing level
-    sprite as a SOLID rotated box (`SOLID_SPRITE`, a 1x1 opaque alpha mask; a superset of its
-    silhouette) and publishes the mask; `_solidForced` counts them. `solidifyMineRock` does the same
-    per sprite mid-run. Measured (every hematite file 404): mask at 19.0 s, 390 boxes, 390/390 box
-    centres solid, a dig lands. Invisible walls where the art is missing, instead of a dead run.
+  - **A SPRITE THAT NEVER DECODES (verifier fix; was a listed RISK), REWORKED IN ROUND 2.** Round 1
+    forced a box on elapsed time alone and restarted the 20 s wait per list index mid-run; both
+    were wrong (verifiers, measured): SLOW art (153 band files released 280 ms apart, seed 4242)
+    was boxed at 19.9 s — 925 boxes, fine cells 86,133 -> 102,865 (+19%), for the whole run although
+    every file arrived by 43.5 s; and after a forced mask, streamed chunks sat uncollided behind the
+    watermark (hematite 404: 2576 of 2774 after 65 s, ~48 min per chunk; one file 404: 1828 of 1895
+    streamed sprites unstamped after 45 s). Now:
+    - **First mask (`solidifyRock`) boxes only art that has FAILED** — `assets.assetFailed(key)`:
+      REG entry not ready with tries > `ASSET_RETRY_MS.length` or repairs >= `ASSET_REPAIR_MAX`, or
+      the key missing from the manifest (`KNOWN`). In flight (no REG entry) is waited for. Timer:
+      `solidForceMs` 20000 from the first stalled pass; a HUNG request is boxed after
+      `CONFIG.mine.solidForceStallMs` 60000 (new). `mineSolidBoxNow` decides.
+    - **Mid-run (`solidifyMineRock`) a missing sprite is boxed AT ONCE** — no timer; the colony is
+      already growing, so a wait is uncollided rock. The dirty-range reconcile no longer waits either.
+    - **Boxes are temporary: `mineUnboxArrived`** (every 500 ms, <= 64 swaps a tick) re-stamps a box
+      whose art has landed: clears the coarse cells of its rotated AABB (+ their fine sub-cells),
+      re-stamps every overlapping sprite CLIPPED to them (`markCoverGrid(..., clip)`), bakes water back,
+      then keeps `old AND new` so it can only free cells. `_solidBoxes` (indices), `_solidBoxKeys`,
+      `_solidForced` (boxes standing), `_solidUnboxed`, `_solidRev` (in `drawOccludedSight`'s key).
+    - Measured: slow link probe 42.6 s, 0 boxes, 86,133 cells = unthrottled. Hematite 404: mask
+      19.4 s, 390 boxes; 3 chunks streamed -> watermark 0 frames behind, 433/433 streamed hematite
+      centres solid, 0/2131 centres pass a 24 u segment (old build: 30+ frames, 2/433, 1564/2131).
+      One file 404 (seed 909): 0 frames behind, 11/11 solid. Hematite 404 for 23 s then served:
+      390 -> 0 boxes by 29 s, 93,422 -> 86,133 cells = unthrottled; in ship-check, 823 boxes -> 0 in
+      10.4 s and 0 fine cells differ from a full re-stamp, 0 living nodes in rock.
+    - **GOTCHA:** `asset()` returns null both while a request is in flight and after it failed; only
+      `assetFailed` tells them apart. `mineUnboxArrived` calls `asset()` on boxes, which drives
+      `repairAsset` (rate-limited 4 s, max 8 per key) for off-screen boxes too.
+  - **NO STALE SETTLING TOAST (round 2):** a drag under the held curtain was refused and toasted
+    under it, still showing after the reveal. `fireAim` skips the toast while `_revealPending`
+    (`#settleNote` speaks); `revealMap` and the mine mask publish call `UI.clearToast(/ground is
+    settling/)`. ship-check drags the root strand during the hold (7-10 drags): toast at the reveal
+    'The ground is settling…' on 7950dd3, none now.
 - **HEAT BYPASS: `growDirected(..., companion, opts)`**, `opts = {maxFallDist, accept(parent)}`,
   default null = today's behaviour; the parent used is on `net._lastGrowOrigin`. `mineGrow` passes
   `CONFIG.mine.fallDist` 90 and accepts only the pressed strand or one on the SAME price step, and
   returns `{cost, origin, pressed}`. Measured (heat probe, seeds 4242/909/5, dive to 131 m + side
-  fans, 30 presses of walled strands at 3-35 m aimed down): 29 dug, 1 refused; every origin
-  within 90 u; every charge = the pressed strand's price; the old rule would have grown from
-  3546-4591 u away (the 131 m tip) on 30 of 30.
+  fans, 30 presses of walled strands at 3-35 m aimed down): 28 dug, 2 refused (first build f9e1ff6:
+  29/1); every origin within 90 u; every charge = the pressed strand's price; the old rule would
+  have grown from 3545-4542 u away (f9e1ff6: 3546-4591) on 30 of 30.
   - **GOTCHA: the navigator alone leaves NO walled shallow strand** (0 of 164 at <= 36 m) — the
     probe adds side fans off the upper shaft, as a player poking for seams does.
   - **ACCEPTANCE 5c KEPT LITERALLY (verifier fix; the first build had widened it).** Side twigs
@@ -4415,6 +4443,12 @@ Numbers here are measured, not planned.
     'Solid rock that way — the open strand beside it digs at another price.' (still starts 'Solid
     rock', which the mine-check probes key on). Engine probe in ship-check: first refused -> origin
     is the second candidate; refuse-all -> 0 nodes, reason 'accept'.
+  - **`opts.firstStepAsFound` (round 2, mine only, default off):** the candidate is validated with
+    `stepFrom(n, 0)` but the chain's first step used random jitter, so a parent whose only open
+    heading was the exact aim grew nothing ('Solid rock that way — aim into open ground.' with 99
+    open same-price tips beside it). Now the failed first step retries at jitter 0 (no extra rng
+    draw; `net._lastGrowRetried`). Verifier probe heatline2 (4242/909/5, 65 presses near heat
+    lines): 64 dug / 1 wrongly refused -> 65 / 0. ship-check heat block unchanged (28/2).
   - **CHANGED PROBES (mine-check), assertions unchanged:** the fuel-curve dive (`mine.grow` presses
     the deepest tip) and the seam probe relied on the fall-through (old build: 7 of 39 dive digs on
     seed 909 grew from ~200 u away). After M2 they read 27 m ('past the first band', was 54) and
@@ -4468,6 +4502,15 @@ Numbers here are measured, not planned.
   **After the verifier fixes: 738 passed, 0 failed** — ship 40 -> 51 (key 2, '#mine' single build 1,
   forced retag 1, settle note 1, never-decoding band 3, accept-in-search 2, every-dig audit 1; the
   twig allowance assertion rewritten to the plan's bound); every other check unchanged.
+- **ROUND 2 (second verifier pass):** ship 51 -> 58 (gate: stale toast 1, slow art waited 2, streamed
+  chunks collided 2, boxes swapped back 2; the cap case's delay 20 -> 24 s so it sits past
+  solidForceMs). **aim-check flake fixed:** the '#dev' sandbox's troll rockface
+  (`#ssSpeciesUnlocked`) covered the canvas and the check stopped short (0/0 or 3/9): 7 of 24 runs
+  on the old check, 20 of 20 full after (the popup is dismissed and the press setup nulls
+  `state.rockface`). threat's map-roll flake is the only known one now.
+  **Owner to confirm (design decisions written into PLAN.md by the implementer, not the owner):**
+  acceptance 5c's `.colon` exclusion, and `within` changing water-seek (bot runner nodes 76 -> 44,
+  sweep mean depth 84.6 -> 82.6 m).
 - **CHECKS:** `tests/ship-check.cjs` ('ship', in `--mine`; `SHIP_ONLY=dev,key,zipdry,card,seed,retag,gate,heat,aim`
   runs blocks); `tests/bots/heatbound.cjs` (bot, not in the runner: the heat bound in real play);
   the harness serves `/index-nodev.html` (dev flag patched off through make-web-zip's anchor) and

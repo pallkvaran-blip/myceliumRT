@@ -856,6 +856,8 @@ H. KNOWN GAPS THE BOTS MUST SETTLE
 - Changes 1: the `[` / `]` map stepper is also gated on devUI(). It threw a live descent away without banking it. The other keys are unchanged.
 - Acceptance 6: old playSeed logged ONE run_start and built the world twice, so the run_start count does not tell the builds apart. The assertion that does is the world-build count (one '[mycelium] ... map:' line). The '#mine,<n>' boot had the same double build and is fixed the same way.
 - Acceptance 7: a forced-refusal case (every seam of a chunk refused, sentinel on the previous pile). The natural seeds refuse 0 seams, so on its own acceptance 7 cannot fail on the bug.
+- (second verifier pass) A missing band sprite: the first mask boxes only art whose load has FAILED (`assetFailed`), after `solidForceMs`; art in flight is waited for (a hung request is boxed after `solidForceStallMs`, 60 s). Mid-run a missing sprite is boxed at once. Every box is swapped for the silhouette when its art lands (frees cells only). Slow art therefore never turns into invisible walls, and a streamed chunk is never left uncollided.
+- (second verifier pass) OWNER TO CONFIRM: the `.colon` exclusion above and `within`'s effect on water-seek (bot runner nodes 76 -> 44, sweep mean depth 84.6 -> 82.6 m) were written here by the implementer. They are design decisions, not measurements.
 
 
 ### M3 — A phone player can see and use every control
