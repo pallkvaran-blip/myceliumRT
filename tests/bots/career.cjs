@@ -57,7 +57,7 @@ const { playDescent } = require('./botrun.cjs');
     const after = await page.evaluate(() => ({ P: window.__game.store.balance(), mats: window.__game.store.mats(),
       levels: Object.fromEntries(window.__game.store.ids('mine').map((id) => [id, window.__game.store.level(id)])) }));
     const row = { run: r, seed: res.seed, seconds: res.seconds, digs: res.digs, depth: res.end.depth, maxDepth: res.maxDepth,
-      ore: res.end.ore, mats: res.end.mats, cause: res.end.cause, drained: res.end.drained, boxed: res.boxedAt, sat: res.sat && { w0: res.sat.before.water, w1: res.sat.after.water, over: res.sat.after.over, rec: res.sat.recovery, forced: !!res.sat.forcedEnd },
+      ore: res.end.ore, banked: await page.evaluate(() => ((window.__game.state.runResult || {}).ore) | 0), mats: res.end.mats, cause: res.end.cause, drained: res.end.drained, boxed: res.boxedAt, sat: res.sat && { w0: res.sat.before.water, w1: res.sat.after.water, over: res.sat.after.over, rec: res.sat.recovery, forced: !!res.sat.forcedEnd },
       itemsUsed: res.steps.flatMap((s) => s.acts || []).map((a) => a.join(' ')).slice(0, 12),
       startWater: res.start.water, walletBefore: before, bought, walletAfter: after };
     log.push(row);

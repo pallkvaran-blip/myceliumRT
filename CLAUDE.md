@@ -4843,6 +4843,19 @@ Numbers here are measured, not planned.
   ~0.5x) — acceptance 3 FAILS**: the route-bot farmer detours for every band-0 seam (8-11 seams, 24-33
   P) and refuels from band-0 pockets (58 digs on 60 water) while the diver pays x2 past 42 m for
   ~0.3 P a dig of reach; the plan's model assumed 0.45 seams per chunk crossed, the bot collects ~2.
+  **Run 1 length at 1700 ms a dig (8 seeds, periodic pace, runResult.ms): median 64 s** (57-89) —
+  acceptance 4 passes, at the top of 45-65 (the first measurement, 76 s, was the bot's wall clock:
+  +~10 s of end-screen waits and its planning time on top of the 1.7 s).
+  **Career 'cheapest' (4242 / 909 / 11 x 12 runs) — acceptance 2 FAILS**: dead visits runs 1-5
+  1 / 1 / 0 (want 0), runs 1-10 2 / 2 / 2 (want <= 1); P banked (off the wallet) runs 10-12 vs 1-3
+  x0.79 / x1.38 / x1.19 (want 1.4). Why: the route bot banks ~20-50 P a run from run 1 (model: 17),
+  so it buys 2-4 rungs a visit in runs 1-4 and then meets the gap to the 40-80 P rungs (water IV 45,
+  flask II 40, enzyme II 50, water V 80) on a weak run (35-43 m, 17-19 P); and in the FREE layout P
+  per run cannot grow much — reach caps at 33 P (168 m), deep seams pay materials, and the east pay
+  and island bonuses that carry the model's growth arrive with the journey (M7-M8). Anthracite piles
+  up unspent (74 / 18 / 54 A at run 12). Levers for M14: the plan's own "cheapest unowned P rung
+  -20%" does not clear these (29 P vs 32, 60 P vs 64); P income early (band-0 seams, 2 per chunk at 3
+  P) is the bigger dial. Shelf left at the plan's prices on purpose.
 
 ## Two games on the title screen: Survival and Campaign
 

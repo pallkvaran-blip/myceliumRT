@@ -105,7 +105,11 @@ async function bankAndBuyWater(page) {
           { stdio: 'inherit', env: process.env, timeout: 3 * 3600 * 1000 });
         const log = JSON.parse(fs.readFileSync(`${OUT}/${tag}.json`, 'utf8'));
         const dead = (lo, hi) => log.filter((r) => r.run >= lo && r.run <= hi && !r.bought.length).length;
-        const P = (lo, hi) => { const xs = log.filter((r) => r.run >= lo && r.run <= hi).map((r) => r.ore | 0); return xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length); };
+        // P BANKED per run, off the wallet: what the store held on arrival minus what the last visit
+        // left (`ore` in the log is the seams' P alone — the reach payout lands at the bank).
+        log.forEach((r, i) => { r.banked = (r.walletBefore.P | 0) - (i ? (log[i - 1].walletAfter.P | 0) : 0); });
+        const P = (lo, hi) => { const xs = log.filter((r) => r.run >= lo && r.run <= hi).map((r) => r.banked | 0); return xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length); };
+        console.log(`  banked per run: ${log.map((r) => r.banked).join(' ')}; buys per visit: ${log.map((r) => r.bought.length).join(' ')}`);
         ok(`career ${strat} seed ${seed}: 0 dead visits in runs 1-5`, log.length >= 5 && dead(1, 5) === 0, `${dead(1, 5)} (${log.slice(0, 5).map((r) => r.bought.length).join(' ')} buys)`);
         ok(`career ${strat} seed ${seed}: at most 1 dead visit in runs 1-10`, log.length >= 10 && dead(1, 10) <= 1, `${dead(1, 10)} (${log.slice(0, 10).map((r) => r.bought.length).join(' ')} buys)`);
         if (runs >= 12) ok(`career ${strat} seed ${seed}: mean P runs 10-12 >= 1.4x runs 1-3`, P(10, 12) >= 1.4 * P(1, 3), `${P(10, 12).toFixed(1)} vs ${P(1, 3).toFixed(1)} (x${(P(10, 12) / Math.max(1e-9, P(1, 3))).toFixed(2)})`);
