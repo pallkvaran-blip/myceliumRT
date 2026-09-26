@@ -35,6 +35,12 @@ async function start() {
     const page = await ctx.newPage();
     const errs = []; page.on('pageerror', (e) => errs.push(String(e && e.message)));
     if (opts.before) await opts.before(page, ctx);
+    // A RETURNING SAVE (M4): a fresh save's first visit skips the title and goes straight into run 1,
+    // so a block that wants the title seeds one finished run — only when no save exists yet, so a
+    // reload inside the block keeps whatever the block wrote.
+    if (opts.returning) await page.addInitScript(() => {
+      try { if (!localStorage.getItem('mycelium.progress.v2')) localStorage.setItem('mycelium.progress.v2', JSON.stringify({ runsDone: 1 })); } catch (_) {}
+    });
     await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
     await page.goto(base + (opts.file || '/index.html') + hash, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 }).catch(() => {});

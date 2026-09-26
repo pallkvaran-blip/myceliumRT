@@ -64,7 +64,7 @@ const openStore = async (page) => {
     if (want('dev')) {
       console.log('--- dev buttons answer to the URL');
       {
-        const b = await E.boot('');
+        const b = await E.boot('', 390, 844, { returning: true });
         await b.page.waitForSelector('#tsNewMine', { timeout: 20000 }).catch(() => {});
         const onTitle = await visibleDev(b.page);
         ok("'/': the title shows no element starting 'Dev'", onTitle.length === 0, onTitle.join(', ') || 'none');
@@ -174,7 +174,7 @@ const openStore = async (page) => {
     // =======================================================================================
     if (want('card')) {
       console.log('--- no level card before a descent, dev flag off');
-      const b = await E.boot('', 390, 844, { file: '/index-nodev.html' });
+      const b = await E.boot('', 390, 844, { file: '/index-nodev.html', returning: true });
       const devOff = await b.page.evaluate(() => window.__cfg && window.__cfg.dev.enabled === false);
       ok('the patched build reads dev.enabled false', devOff);
       await b.page.waitForSelector('#tsNewMine', { timeout: 20000 }).catch(() => {});

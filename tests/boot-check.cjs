@@ -37,9 +37,11 @@ const ok=(n,c,x)=>{c?(pass++,console.log('  PASS  '+n+(x?'  — '+x:''))):(fail+
   // THE PUBLIC ENTRY POINTS. The list above is the retired games' destinations; the build people
   // actually open offers exactly two doors — the bare URL (the mine's title screen) and a seeded
   // descent — and until now neither was booted by any check.
-  for(const [hash,label] of [['','the title screen (bare URL)'],['#mine,4242','a seeded descent']]){
+  // M4: a FRESH save's bare URL skips the title (first visit -> run 1); a returning save gets it.
+  for(const [hash,label,returning] of [['','the title screen (bare URL, returning save)',true],['','a first visit (bare URL, fresh save)',false],['#mine,4242','a seeded descent',false]]){
     const page=await browser.newPage({viewport:{width:390,height:844}});
     await page.addInitScript(()=>{window.MYCELIUM_SUPABASE={url:'',anonKey:''};});
+    if(returning) await page.addInitScript(()=>{try{if(!localStorage.getItem('mycelium.progress.v2'))localStorage.setItem('mycelium.progress.v2',JSON.stringify({runsDone:1}));}catch(_){}});
     const errs=[];page.on('pageerror',e=>errs.push(String(e&&e.message)));
     page.on('console',m=>{if(m.type()==='error')errs.push('console:'+m.text());});
     await page.goto(base+'/index.html'+hash,{waitUntil:'domcontentloaded'});
@@ -51,7 +53,7 @@ const ok=(n,c,x)=>{c?(pass++,console.log('  PASS  '+n+(x?'  — '+x:''))):(fail+
       mine:!!(window.__game&&window.__game.state&&window.__game.state.substrate&&window.__game.state.substrate.mine),
     }));
     ok(`${label} boots clean`, errs.length===0, `errs=${errs.slice(0,2).join(' | ')||'none'}`);
-    ok(hash ? `${label} is in the mine` : `${label} offers the Dig door`, hash ? st.mine : st.title, JSON.stringify(st));
+    ok(returning ? `${label} offers the Dig door` : `${label} is in the mine`, returning ? st.title : (st.mine && !st.title), JSON.stringify(st));
     await page.close();
   }
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);

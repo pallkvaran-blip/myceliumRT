@@ -70,11 +70,15 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // ONE BROWSER CONTEXT PER BLOCK. Reusing one across cases has leaked state into later assertions
   // in this project before, and this check deliberately ends a run (which writes the wallet) in the
   // middle of it.
-  const boot = async (hash, vw = 390, vh = 844) => {
+  const boot = async (hash, vw = 390, vh = 844, returning) => {
     const ctx = await browser.newContext({ viewport: { width: vw, height: vh } });
     const page = await ctx.newPage();
     const errs = []; page.on('pageerror', (e) => errs.push(String(e && e.message)));
     await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+    // A RETURNING SAVE (M4): a fresh save's first visit skips the title, so the title block seeds one.
+    if (returning) await page.addInitScript(() => {
+      try { if (!localStorage.getItem('mycelium.progress.v2')) localStorage.setItem('mycelium.progress.v2', JSON.stringify({ runsDone: 1 })); } catch (_) {}
+    });
     await page.goto(base + '/index.html' + hash, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 }).catch(() => {});
     await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
@@ -2346,7 +2350,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // unpressed for a whole release on exactly that gap.
   console.log('--- the loop, through the screens');
   {
-    const b = await boot('');
+    const b = await boot('', 390, 844, true);
     const page = b.page;
     await page.waitForSelector('#titleScreen .ts-btn', { timeout: 30000 });
     await sleep(2600);

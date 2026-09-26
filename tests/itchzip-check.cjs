@@ -199,13 +199,21 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
         if (n && n.getBoundingClientRect().height > 0 && getComputedStyle(n).display !== 'none') window.__sawLevelIntro++;
       };
       setInterval(look, 50);
+      // run_start rows, tapped from the moment the telemetry module exists: a FIRST VISIT (M4) starts
+      // run 1 from the gate tap itself, so a tap installed after the gate would miss it.
+      window.__rs = [];
+      const hook = setInterval(() => { if (window.__telemetry && window.__telemetry.tap) {
+        clearInterval(hook); window.__telemetry.tap((row) => { if (row.kind === 'run_start') window.__rs.push(row.level); }); } }, 5);
     });
     await page.goto(base + '/', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
     await page.click('#loadscreen', { timeout: 8000 }).catch(() => {});
-    const booted = await page.waitForFunction(() => !!document.getElementById('titleScreen'),
-      null, { timeout: 60000 }).then(() => true).catch(() => false);
-    ok('the zipped build boots to the title screen', booted);
+    // A FRESH SAVE'S FIRST VISIT SKIPS THE TITLE (M4): the gate tap goes straight into run 1. The
+    // title (and its dev-button sweep) is visited after the second run, through `__menu.showTitle`.
+    const booted = await page.waitForFunction(() => !!(window.__game && window.__game.state && window.__game.state.substrate
+      && window.__game.state.substrate.mine), null, { timeout: 60000 }).then(() => true).catch(() => false);
+    ok('the zipped build\'s first visit goes straight into a descent (no title)', booted
+       && await page.evaluate(() => !document.getElementById('titleScreen')));
     // THE HOOK STAYS. The owner's note is explicit that `window.__game` survives a public cut —
     // it is invisible, it is how a bug gets diagnosed on the live build, and a blunter
     // "strip the dev stuff" would remove it along with the buttons.
@@ -232,15 +240,8 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       }
       return [...new Set(out)];
     }, DEV_IDS);
-    const devOnTitle = await devHere();
-    ok('no dev buttons on the title screen', devOnTitle.length === 0, devOnTitle.join(', '));
 
-    // ---- 4. it PLAYS THE MINE: New -> a descent -> the end screen -> the store -> Descend ----
-    // THE ONLY GAME THE TITLE OFFERS. This used to click #tsNewCamp and #tsNew, rows the mine-only
-    // title no longer renders — so the release gate could not reach the one game it was guarding.
-    await page.evaluate(() => { window.__rs = []; window.__telemetry.tap((row) => { if (row.kind === 'run_start') window.__rs.push(row.level); }); });
-    const clicked = await page.click('#tsNewMine', { timeout: 8000 }).then(() => true).catch(() => false);
-    ok('the title offers the Deep Mine and New is clickable', clicked);
+    // ---- 4. it PLAYS THE MINE: first visit -> a descent -> the end screen -> the store -> Descend ----
     const live = await page.waitForFunction(() => {
       const g = window.__game, s = g && g.state;
       return !!(g && g.mine && s && s.substrate && s.substrate.mine && s.active && s.active.nodes.length > 0 && !s.runOver);
@@ -310,6 +311,12 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     await sleep(1500);
     const saw = await page.evaluate(() => window.__sawLevelIntro);
     ok('#levelIntro was never visible, on either run', saw === 0, `${saw} sample(s) with it up`);
+    // THE TITLE, now that this save has finished a descent: it offers the Deep Mine, and no dev button.
+    await page.evaluate(() => window.__menu.showTitle());
+    const clicked = await page.waitForSelector('#tsNewMine', { timeout: 15000 }).then(() => true).catch(() => false);
+    ok('the title (a returning save) offers the Deep Mine', clicked);
+    const devOnTitle = await devHere();
+    ok('no dev buttons on the title screen', devOnTitle.length === 0, devOnTitle.join(', '));
 
     // Asset failures matter MORE here than in any other check: the tree has every file, so a
     // missing one only ever shows up in the artefact.

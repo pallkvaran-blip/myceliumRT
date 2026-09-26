@@ -357,9 +357,8 @@ const touchCtx = (E, vw, vh) => E.browser.newContext({ viewport: { width: vw, he
       console.log('--- #minehint on a fresh save (plain URL, touch, 390x844)');
       const ctx = await touchCtx(E, 390, 844);
       const b = await E.boot('', 390, 844, { ctx });
-      await b.page.waitForSelector('#tsNewMine', { timeout: 30000 }).catch(() => {});
-      await sleep(800);
-      await b.page.click('#tsNewMine', { timeout: 8000 }).catch(() => {});
+      // A FRESH SAVE SKIPS THE TITLE (M4): the gate tap goes straight into run 1, so there is no New
+      // to press here any more (onboard-check asserts the skip itself).
       const h = await b.page.evaluate(async () => {
         const WANT = 'Drag down from the colony to dig';
         const t0 = performance.now();
@@ -401,9 +400,12 @@ const touchCtx = (E, vw, vh) => E.browser.newContext({ viewport: { width: vw, he
         const r = g.mine.growFrom(root.x, root.y, root.x, root.y + 200);
         await new Promise((res) => setTimeout(res, 400));
         const e = document.getElementById('minehint');
-        return { ok: r.ok, hidden: !e || e.hidden || getComputedStyle(e).display === 'none', text: e ? e.textContent : '' };
+        return { ok: r.ok, hidden: !e || e.hidden || getComputedStyle(e).display === 'none', text: e ? (e.textContent || '').trim() : '' };
       });
-      ok('...and clears once they have dug', cleared.ok && cleared.hidden, `dig ${cleared.ok}, hint "${cleared.text}"`);
+      // M4: the first dig hands the line to the one-shot cost tip, so "cleared" is the drag
+      // instruction leaving (was: the element hidden).
+      ok('...and clears once they have dug', cleared.ok && (cleared.hidden || cleared.text !== 'Drag down from the colony to dig'),
+         `dig ${cleared.ok}, hint "${cleared.text}"`);
       // NOTHING ON SCREEN QUOTES A PRICE IN WORDS: the chip owns the number.
       const quote = await b.page.evaluate(() => /water a dig/.test(document.getElementById('ui').innerText || ''));
       ok('nothing on screen quotes "water a dig"', !quote);
