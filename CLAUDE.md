@@ -4764,6 +4764,86 @@ Numbers here are measured, not planned.
   best ray (the ghost's, drawn), digging once from each glowing tip along its drawn slide. The literal
   never-look policy reads median ~15 m.
 
+### M5 — Every run pays, every store visit buys (IN PROGRESS — see PROGRESS)
+
+- **REACH PAYOUT** (`CONFIG.mine.reach` {mPerP 5, eastMPerP 10, minPay 5}; `__m_engine_mine`):
+  `mineReachRaw` = floor(maxDepth/5) + floor(maxEast/10) off the RUNNING MAXIMA (`mineMaxDepth`,
+  `mineMaxEast` 0 until M8) — never walks the colony, it is asked every frame. `mineReachPay` =
+  max(5, raw); `mineBankable` = reachPay + seams' P (`state.mineOre`, still seams only).
+  **Numbers-model formula, not the economy section's**: max(5, reach) + seams, so 10 m + one seam is
+  8, not 5. **The HUD P shows seams + RAW reach** (no floor) so the count rises from the first metres
+  and '+1 P' pops at the deepest tip (`mineReachFeedback`, `playReachTick`, `__sfx.counts.reach`);
+  FRUIT NOW, the refusal toast, the pending write and the bank read `bankable`.
+- **`runResult.ore` IS THE WHOLE P PAYOUT NOW**; `seams`, `reach` and `seamCount` {mat: n} carry the
+  split. `mineBank` returns them. `g.mine.ore()` is still the seams' P; `bankable()`/`reach()`/
+  `reachRaw()` are new hooks.
+- **startWater 84 -> 60**; the mine's Water step is +12 (`MINE_STEPS`, read by `upgradeStep`, which
+  `upgradeValue` uses — the campaign keeps +5). `MINE_NAMES`/`MINE_EFFECTS` give the shared track its
+  mine name ('Water tank') and copy.
+- **SHELF v2** (plan prices): water 5/12/25/45/80 P, 30 A, 24 G, 16 H; grow 12, 35 P, 20 A, 24 G; heat
+  step 14 m x4: 15 P, 14 A, 24 A, 20 G; flasks 10, 40 P, 14 A; enzyme 15, 50 P, 14 G. Ore yield and
+  Water pockets are DELETED from STORE_UPGRADES and the allow-list; `configForLevel` no longer reads
+  them (`reservoirWater`/per-seam P are CONFIG's own).
+- **MIGRATION** `migratedMineShelfV2` (in `migrateProgress`, so in the same save as the flag):
+  refund every v1 rung at `MINE_SHELF_V1_COSTS` (P into minerals, material rungs into p.mats), clear
+  `mineUpgrades`, set `p.mineRestocked`; the boot turns that into the title note 'The store was
+  restocked — your Phosphorus is back' once. `mineShelfV1Refund(led)` (hook `store.v1Refund`).
+  **GOTCHA: any test/probe that writes `mineUpgrades` into localStorage without
+  `migratedMineShelfV2: true` gets it refunded and wiped on the next load.**
+- **PROGRESSIVE REVEAL** `p.mineSeen` {line42, worm, cloud, mat_<id>, leg}: `mineTrackRevealed`
+  (water/grow always; heat = line42; flasks = worm or leg >= 2; enzyme = cloud or leg >= 4; a bought
+  track stays). `upgradeInGame(u, game, progress)` asks it in the mine, so the shelf AND `buyUpgrade`
+  refuse a hidden track. Flags: `stepNematodes` sets `state.mineSeenNow.worm` on an attach (it cannot
+  reach the save), `mineInfectionCheck` sets `.cloud`, `mineCollectFeedback` sets `mat_<id>`;
+  `mineSeenFlush` (mineFrame) adds line42 (max depth > bare safeDepth) and a cloud on screen, and
+  saves only NEW flags. **NEW badge for one visit**: the store counts `p.mineStoreVisits` on open and
+  stamps `p.mineShelfShown[id]` = the visit a revealed track is first shown; NEW while equal (never on
+  the opening two). Hooks `store.seen(o)`, `store.revealAll()`, `store.ids(game)`.
+  **GOTCHA: `store.shelf('mine')` is now save-dependent** — probes that buy heat/flasks/enzyme call
+  `revealAll()` first.
+- **HEAT LINES STOP AT THE FLOOR**: `mineHeatLines` / `mineNextHeatLine` drop lines at or below
+  `mineRows` (168 m), so maxed tolerance reads [98, 140] (was [98, 140, 182]).
+- **RICH SEAMS**: `pile.rich` if band >= 1 and `mineRichHash(seed, ci, spotIndex)` < `richChance`
+  0.25 — a hash OUTSIDE the chunk rng, and not in the chunk record, so '#mine,4242' records 8-12 are
+  byte-identical to the pre-M5 snapshot (`tests/fixtures/m5-pre-chunks-4242.json`). Pays `richPer` 6;
+  `cell.mineRich` scales the leaf heap and the tint wash by `richScale` 1.3.
+- **END SCREEN**: rows by source counted up (timer-stepped, `data-n` holds the final), records line
+  ('Your first descent' / 'New deepest: N m' / 'Deepest N m — K m to go'), the NEXT-GOAL card
+  (`mineNextGoal`: first AFFORDABLE in new tile > grow > water > heat > flask > enzyme; none
+  affordable -> a new tile, else the nearest P rung / the material rung with where it is found) with
+  an inline Buy, [Descend] primary (`#ssMineDescend` -> `beginMineRun`) and [Store] secondary
+  (`#ssMineDone`, id kept). The store highlights the same pick (`.ss-upg-hl`). The run's `#minehint`
+  line is cleared on the end screen (a queued tip sat over the wordmark).
+  **Deviation (next-goal)**: the plan says new tile is first pick; taken literally run 1 (which
+  reveals heat at 42 m but banks ~10-30 P) is offered 15 P heat, contradicting the plan's own
+  first-minute script ('Water tank ... 5 P [Buy]'). Affordable comes first.
+- **STORE NOTE**: '60 water · grow 2 · digs cost 2, then 4 / 8 / 16 past 42 / 84 / 126 m'
+  (`mineHeatWords`, off `mineHeatLines`, shifted by tolerance). Tile copy rewritten; a material rung
+  says 'Next rung: 20 Anthracite, found at 42-84 m.'; mine tiles show 'line 56 m' / 'grow 3' / 'carry 1'.
+- **TITLE**: Upgrades shows when minerals > 0, any deep material > 0, or any mine rung bought.
+- **BOTS**: `tests/bots/econ.cjs` (run1 / career / diver = acceptance 1-4); `career.cjs` reads
+  `store.ids('mine')` and has power / knowledge orders; `digAlong` aims a full `mineGrowReach`;
+  `step({policy:'naive'})`. econ run1 measures the RUN's length (`runResult.ms`) at a periodic pace
+  (the bot's wall clock also counts ~10 s of end-screen waits).
+- **CHECKS**: `tests/econ-check.cjs` ('econ', in `--mine`, 44 assertions, `ECON_ONLY=reach,reveal,
+  heat,migrate,rich,end,title`).
+- **CHANGED ASSERTIONS (old -> new)**: store-check + mine-check shelf 'water,growSteps,excreteCharges,
+  amputateCharges,heatTolerance,oreYield,pocketWater' -> '...,heatTolerance' (with `revealAll`), plus
+  'a fresh save sees only Water tank and Grow strength'; mine-check store tiles `=== 7` -> `=== revealed
+  (2-5)`; pocket/ore tracks 'their own numbers' -> 'refused and change nothing', water step read as
+  12; tolerance `safe > bare + 100` (6 x 25) -> `=== bare + 56` (4 x 14); the heat material probe buys
+  ONE P rung (was two); infected payout `ore === 42` -> `seams 42, ore = 42 + reach`; fuel-curve
+  'past the first band' `depth > 42` -> `depth > 30` (seed 909's greedy dive: 57 m at 84 water, 37 m
+  at 60; seed 11 64 m). ending-check: FRUIT NOW / refusal read `bankable` (was `ore()`); exits 'rise
+  by 9' -> '9 + reach'; pending / two-tab P 13 / 20 / 23 -> + reach; overrun `ore === 5` -> `seams 5,
+  ore = 5 + reach`. onboard-check reveals heat before buying it.
+- **MEASURED (bots, fresh saves)**: run 1 sensible (pace 900, 12 seeds): banked 5-37 P (median 26),
+  Water I bought 12/12, 21-92 m. Naive (8 seeds): 5-23 P, 8/8 buy Water I, all end `dry` by
+  themselves, median 31.5 s at pace 900. **Diver vs farmer, no upgrades: 77 vs 105 P (x0.73; pre-M5
+  ~0.5x) — acceptance 3 FAILS**: the route-bot farmer detours for every band-0 seam (8-11 seams, 24-33
+  P) and refuels from band-0 pockets (58 digs on 60 water) while the diver pays x2 past 42 m for
+  ~0.3 P a dig of reach; the plan's model assumed 0.45 seams per chunk crossed, the bot collects ~2.
+
 ## Two games on the title screen: Survival and Campaign
 
 **SURVIVAL IS OFFERED AGAIN — `OFFER_SURVIVAL = true` (owner: *"let's add survival back, but put
