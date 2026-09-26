@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). Next: M5.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 IN PROGRESS: part A (economy core) committed f582443; next part B (reveal UI, end screen, store note, title), then checks.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
