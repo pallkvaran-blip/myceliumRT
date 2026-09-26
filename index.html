@@ -34464,6 +34464,9 @@ function mineBank(r) {
 // one place to go, and the screen is the sentence plus the button.
 function presentMineEnd(r) {
   const paid = mineBank(r);
+  // THE RUN'S HINT LINE GOES WITH THE RUN (M5): a queued tip ('Every dig costs water…') otherwise sits
+  // over the SPORED wordmark for the life of the end screen — `mineFrame` stops ticking on runOver.
+  try { if (state) state._mineTips = { cur: null, queue: [] }; if (ui && ui.setMineHint) ui.setMineHint(''); } catch (_) {}
   showMineEnd({
     depth: paid.depth, ore: paid.ore, mats: paid.mats, seams: paid.seams, reach: paid.reach,
     seamCount: paid.seamCount,

@@ -38,7 +38,8 @@ const Q = QUIET.toString();
 const tiles = (page) => page.evaluate(() => Array.from(document.querySelectorAll('#ssUpg .ss-upg')).map((t) => ({
   id: t.dataset.track, isNew: !!t.querySelector('.ss-upg-new'), hl: t.classList.contains('ss-upg-hl') })));
 const openStore = async (page) => {
-  await page.evaluate(() => window.__menu.showPicker());
+  // One store at a time: a second showPicker over an open one would stack two screens.
+  await page.evaluate(() => { for (const e of document.querySelectorAll('#speciesSelect')) e.remove(); window.__menu.showPicker(); });
   await page.waitForSelector('#speciesSelect.ss-mine', { timeout: 20000 }).catch(() => {});
   await sleep(700);
 };
