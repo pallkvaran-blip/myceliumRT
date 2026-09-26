@@ -151,10 +151,19 @@ async function injectBot(page) {
       // M5: AIM A FULL `mineGrowReach` AHEAD (steps x 3 segments), not a fixed 120-130 units — with Grow
       // strength bought, a short aim wasted most of every dig's reach and understated what the track buys.
       const full = W.__game.state.config.growth.segmentLength * 3 * (W.__game.state.config.mine.growSteps || 2);
-      const steps = Math.max(2, Math.round((ahead || full) / F.fs));
-      const tk = Math.min(path.length - 1, startK + steps);
-      const tp = Q.xyOf(F, path[tk]);
-      const r = W.__game.mine.growFrom(src.x, src.y, tp.x, tp.y);
+      // A FULL REACH AHEAD CUTS CORNERS (M5 round 2). With Grow strength bought the aim point sits
+      // 230-310 units down a winding path, so the straight line to it often starts into the wall of a
+      // bend and the dig is refused ('Solid rock that way'). Late careers read 1-21 digs and 9-47 m on
+      // 94-96 water (forced End after repeated refusals). A player aims along the corridor they are in:
+      // on a 'Solid rock' refusal (free) aim half as far, down to 2 fine cells.
+      let steps = Math.max(2, Math.round((ahead || full) / F.fs)), r = null, tp = null;
+      for (let tries = 0; tries < 4; tries++) {
+        const tk = Math.min(path.length - 1, startK + steps);
+        tp = Q.xyOf(F, path[tk]);
+        r = W.__game.mine.growFrom(src.x, src.y, tp.x, tp.y);
+        if (r.ok || !/^Solid rock/.test(r.message || '') || steps <= 2) break;
+        steps = Math.max(2, steps >> 1);
+      }
       return Object.assign({ src: { x: src.x, y: src.y }, aim: tp, remaining: path.length - 1 - startK }, r);
     };
     Q.snapshot = () => {

@@ -105,6 +105,11 @@ solid ground a chunk can show is ~16%, and two rounds went on better placement b
 measured rather than estimated. Its other two findings are in its header, and the second one is
 general: **a colony that looks stuck usually isn't — check `runOver` before suspecting the map.**
 
+**`curtain-probe.cjs`** (tool) times the first-visit gate tap -> map: long tasks, rAF callbacks and
+the `body.handoff` drop, with `--profile` for a CDP self-time table. It is how onboard's 600 ms bound
+was found to be reading the NEXT frame (an 8 ms poll is starved until after it). **`fixture-chunks.cjs`**
+(tool) regenerates econ-check's chunk-record fixture from a named commit's index.html.
+
 **`ending-check.cjs` ('ending', in `--mine`) is how a descent ENDS** (the finishing plan's M1): the
 6 s stuck rule, FRUIT NOW, End descent / Exit to title banking, the running-maximum depth on an
 infected ending, the node cap, the closed-tab pending payout and the end screen at 390x844. It

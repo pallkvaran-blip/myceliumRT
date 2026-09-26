@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier fixes landed; acceptance 2 and 3 still FAIL — structural, measured, owner / M14). Next: M6.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). Next: M6.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -4893,8 +4893,8 @@ Numbers here are measured, not planned.
   card reads 'NEW Heat tolerance' over Mucus flasks, and the bought flasks tile shows NEW.
 - **END SCREEN:** the Phosphorus-seams row is always shown (×0 +0); the run HUD (`#ui`, gear, FRUIT
   NOW) is hidden while it is up via `body:has(> #ssMineEnd)` (a class could go stale and hide the next
-  run's HUD); `.ss-mineend` drops the carousel padding, uses `justify-content: safe center` +
-  `overflow-y: auto`, and a compact stack at max-height 600. SPORED was at y -50..-7 at 640x360; now
+  run's HUD); `.ss-mineend` drops the carousel padding, centres (round 2: first/last-child auto
+  margins, not `safe center`) with `overflow-y: auto`, and a compact stack at max-height 600. SPORED was at y -50..-7 at 640x360; now
   4..44, and 49..112 at 320x568 (was -8).
 - **RESTOCK LINE:** `takeMineRestockNote()` is called by `showMainMenu` and the mine store as they
   render; the boot no longer deletes `p.mineRestocked` (a '#mine,<seed>' boot or the first-visit gate
@@ -4902,8 +4902,8 @@ Numbers here are measured, not planned.
 - **TELEMETRY:** `upgradeSpendN(cost)` — an `upgrade` row's `n` is the P moved (0 for a material rung;
   the store tile used to send the cost object, the card the material count).
 - **LEFT AS IS:** the end screen's Descend skips `showPicker`, so no 'picker' event for those runs —
-  logging one would claim a screen the player did not see. Zero-dig endings still count toward
-  `runsDone` (the rating gate); they no longer pay.
+  logging one would claim a screen the player did not see. (Zero-dig endings counting toward
+  `runsDone` was fixed in round 2.)
 - **FUEL CURVE:** the blind dive keeps its 30 m floor (seed 909: 37 m), and the band-2 promise moved
   to a new assertion that can fail: the path-following navigator on the real 60 water, pockets and
   threats out, reaches > 42 m — measured 74 m (seed 11, 20 digs) and 77 m (909, 21 digs).
@@ -4939,6 +4939,69 @@ Numbers here are measured, not planned.
   before: runs 1-3 already bank ~27-30 P (model 12-17) and free-layout P per run cannot grow much
   (reach caps at 33, deep seams pay materials; east pay and island bonuses are M7-M8). Shelf and
   income left at the plan's numbers: re-pricing is M14's / the owner's.
+
+**M5 VERIFIER FIXES, ROUND 2**
+- **THE CURTAIN BOUND WAS TIMING THE NEXT FRAME, NOT THE CURTAIN.** `tests/curtain-probe.cjs` (a tool:
+  long tasks, rAF callbacks and body.handoff transitions after the gate tap, `--profile` for a CDP
+  self-time table) showed the click handler ~165-235 ms, then the map's first frame ~210-320 ms, and
+  `handoff` dropping at the END of that frame (443 / 474 / 522 ms) — but onboard's 8 ms poll noticed
+  at 545 / 621 / 634: the next frame is due at once and starves the timer for a whole second frame
+  (+100-110 ms, more under sweep load: the 609 / 615 ms reds). The assertion now takes the drop from a
+  MutationObserver on body.class and counts it SEEN at the end of the long task holding it (the task's
+  tail is that frame's paint). Same 600 ms. Negative control: a 200 ms spin in `mineRevealHeld`
+  reads 750 ms and fails. Standalone after: 518 / 487 / 474 ms (old poll 606 / 553 / 536).
+- **TWO O(world) LOOPS GONE, NEITHER MOVED THE FIRST FRAME.** `Substrate.clearTrich/markTrich`: the
+  trich stampers clear the indices they stamped (first clear per substrate is a full sweep).
+  `drawSubstrateLeaves` in a mine visits `foodPiles` cells in ascending index order (forEachCell's
+  order; 0 food cells outside a pile on 3 seeds). **GOTCHA: the first full walk of a fresh 85k-cell
+  array costs ~120 ms wherever it lands** — leaves 67-100 + solidifyRock 55 before, leaves 4 +
+  solidifyRock 175 after; first-frame total unchanged. A/B of the curtain drop, 5 runs x 2: no
+  measurable difference. The profiler inflates `stampCloudField` (~100 ms profiled, ~nothing real).
+  Next lever if the curtain tightens again: that first cell walk, or `drawLevelRocks` (~35 ms a frame
+  at dsf 2, 113 sprites from 24 full-size images; first frame 55-105).
+- **END SCREEN:** the Depth row shows the RAW reach (`runResult.reachRaw`) and the floor's lift is a
+  separate 'Minimum payout +N' row (10 m dry: 'Depth 10 m +2', 'Minimum payout +3'; was '+5'). A Buy
+  rendered within 450 ms of a purchase is disabled, so a double tap buys one rung (pre-fix: water 1
+  AND growSteps 1). `.ss-mineend` centres with first/last-child `margin: auto` (no `safe center`,
+  which browsers without the keyword drop whole); positions identical at all four fit viewports.
+- **MINE STORE:** `#ssRate` is hidden in the mine (was an empty 26 px bordered flex box once
+  runsDone >= 1).
+- **RUN COUNTING:** a 0-dig descent records no depth and no finished run — `mineBank` sets
+  `r._mineCountRun`, and `runEndThen` / Exit to title ask `mineRunUncounted()`; pre-fix three menu ->
+  End descent loops read runsDone 3, mineBest 1, firstVisit false. `minePendingBankAtBoot` counts a
+  record's run only if `p.mineTaken` did not already hold its key (read before the record updates it)
+  and only if it dug; `recordRunFinished` once per counted record. runsDone moves when the end screen
+  is LEFT (runEndThen), not when it shows.
+- **FIXTURE:** `tests/fixture-chunks.cjs [sha] [--check] [--write]` regenerates the chunk-record
+  fixture from `git show 769b1a3:index.html`: identical to b46b6e2's records; the file now carries
+  `{source, note, chunks}` (econ reads `raw.chunks || raw`).
+- **CAREER SEEDS:** `window.MYCELIUM_NEXT_MINE_SEED` (test knob, consumed once by `beginMineRun`);
+  `career.cjs` pins run k to FNV(seed, k) (`--free` = clock seeds). **Pinning does not make one career
+  a measurement**: the same pinned 909 career read x1.70 then x1.14 (dead visits 1 then 2 in runs 1-10)
+  — real-time bot timing moves the dive on the same map (run 1 67 vs 84 m; run 6 infected vs 25 m dry)
+  and the purchases diverge from there. Judge a build on >= 3 careers per seed.
+- **ACCEPTANCE 2 NOTE:** the 0 / 0 / 0 dead visits in runs 1-5 last round came with botrun's recovery
+  going 12 -> 40 digs (0e302ed): a forced End pays raw reach only after the floor fix, so the longer
+  recovery makes runs end `dry` with the floor. A measurement change, not a game change — do not
+  compare against pre-0e302ed careers.
+- **LATE RUNS GO SHALLOW MOSTLY BECAUSE OF THE BOT'S AIM.** Pinned careers (4242/909/11, pre-aim-fix):
+  6 forced Ends after 'repeated refusals: Solid rock that way' at 9-63 m with 42-108 water (4242 r7:
+  1 dig, 9 m, 94 water, banked 1). `digAlong` aims a full `mineGrowReach` down the BFS path — 230-310
+  units with Grow bought — and the straight line to it starts into the wall of a bend. Now it halves
+  the aim on a (free) 'Solid rock' refusal, down to 2 fine cells. After (same pinned seeds): **0 forced
+  Ends in 36 runs (was 6)**, 33 dry + 3 infected; 4242 r7 went 1 dig / 9 m -> 101 digs / 69 m. Acceptance 2
+  with the fix: 4242 dead 0 / 0, x1.01; 909 0 / 2, x1.47; 11 1 / 3, x0.94 (11 r5: 48 digs spent
+  wandering at 6 m, banked the 5 P floor; the same shaft reached 129 m in the pre-fix career). Banked
+  per run: 4242 `24 30 30 37 39 34 49 32 35 42 11 32`; 909 `29 26 19 32 33 25 33 47 38 34 36 39`; 11
+  `27 29 41 32 5 22 22 26 36 33 35 23`. Still FAIL overall: runs 1-3 bank 25-32 P, and P per run does not
+  grow in the free layout (see round 1).
+- **ACCEPTANCE 2/3 AND THE RUN-1 PAYOUT STAY WITH THE OWNER / M14** (verifiers agree: run 1 banks
+  ~2x the plan's 10-18 P, so it can buy Grow as well as Water I, which flattens the ratio). Pinned
+  careers on this build, pre-aim-fix: 4242 dead 1 (runs 1-5) / 2 (1-10), x1.14; 909 0 / 1, x1.70
+  (repeat: 0 / 2, x1.14); 11 0 / 1, x0.74. Banked per run: 4242 `28 31 33 38 30 21 1 36 39 48 25 32`;
+  909 `25 19 17 24 42 31 28 32 16 33 38 33`; 11 `28 21 29 39 34 39 39 43 13 30 5 23`.
+- **LEFT, OWNER'S CALL:** a run-1 End descent shallower than ~25 m banks raw reach and cannot buy Water
+  I (the anti-farm trade-off); one option is the floor on the save's first descent past N digs.
 
 ## Two games on the title screen: Survival and Campaign
 
