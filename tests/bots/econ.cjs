@@ -82,7 +82,10 @@ async function bankAndBuyWater(page) {
       const who = naive ? 'naive' : 'sensible';
       ok(`${who}: run 1 banks >= 5 P on ${rows.length}/${SEEDS.length}`, rows.every((r) => r.ore >= 5), rows.map((r) => r.ore).join(' '));
       ok(`${who}: run 1 buys Water I on ${rows.filter((r) => r.waterLvl === 1).length}/${SEEDS.length}`, rows.every((r) => r.waterLvl === 1), rows.map((r) => r.waterLvl).join(' '));
-      ok(`${who}: every run 1 ended by itself`, rows.every((r) => r.over), rows.filter((r) => !r.over).map((r) => r.seed).join(' ') || 'all');
+      // The sensible bot's `playDescent` force-ends a run it judges boxed after its recovery digs
+      // (cause 'abandon'), so "ended by itself" is only asserted for the naive loop, which never does.
+      if (naive) ok(`${who}: every run 1 ended by itself`, rows.every((r) => r.over && r.cause !== 'abandon'), rows.map((r) => r.cause).join(' '));
+      else console.log(`  note   causes: ${rows.map((r) => r.cause).join(' ')} ('abandon' = the bot's forced End after recovery)`);
       const med = median(rows.map((r) => r.seconds));
       console.log(`run 1 duration at pace ${pace} ms: median ${med} s (${rows.map((r) => r.seconds).join(' ')})`);
       if (has('--pace')) ok(`run 1 median length 45-65 s at pace ${pace}`, med >= 45 && med <= 65, `median ${med} s`);

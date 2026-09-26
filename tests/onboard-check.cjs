@@ -402,7 +402,7 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       console.log('--- one step of heat tolerance: the moved line beats on its own');
       {
         const b = await E.bootMine(4242, 390, 844);
-        const bought = await b.page.evaluate(() => { const S = window.__game.store; S.credit(500); const r = S.buy('heatTolerance');
+        const bought = await b.page.evaluate(() => { const S = window.__game.store; S.credit(500); S.revealAll(); const r = S.buy('heatTolerance');   // M5: revealed first
           window.__game.mine.playSeed(4242); return r; });
         await H.waitMine(b.page); await H.injectNav(b.page); await quiet(b.page); await watchBeats(b.page);
         const r = await b.page.evaluate(async () => { window.__game.state.active.water = 100000;

@@ -26,6 +26,14 @@ traces, and never fail.
 - **lib.cjs read reservoir `cx`/`cy`/`rad` as world units until M4 — they are CELLS** — so the
   route bot never actually steered for water. Fixed in M4; sweep/career numbers before it were
   measured with a bot that found pockets only by accident.
+- `econ.cjs`: the finishing plan's M5 acceptance 1-4 (`run1 [--naive] [--pace N]`, `career
+  [--strat cheapest|power|knowledge]`, `diver`). run1 plays one fresh-save descent per seed, then the
+  REAL end screen -> Store -> the Water tank tile's Buy. career shells out to `career.cjs` per seed and
+  counts dead store visits and P growth. FAILS (prints `====`) on any miss.
+- `career.cjs` reads the track ids from the page (`__game.store.ids('mine')`) since M5, skips tracks
+  the progressive reveal still hides, and takes the buy orders `cheapest`, `power`, `knowledge`.
+- `lib.cjs`'s `digAlong` aims a full `mineGrowReach` ahead since M5 (it aimed a fixed 120-130 units,
+  which wasted most of a bought Grow strength), and `step({policy: 'naive'})` delegates to `naiveStep`.
 - `navdive.cjs`: a path-following dive that reaches the floor from states where a deepest-tip-only
   probe stalls. It is the reason the "colony boxes itself in" conclusion was wrong: those four
   mine-check failures were a probe digging only from the deepest tip, not a sealed pocket.
