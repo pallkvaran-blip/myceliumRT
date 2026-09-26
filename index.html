@@ -3393,7 +3393,22 @@ const CONFIG = {
     // digs) reached 25-35 m against a 42 m first band. What makes raising it SAFE this time is that
     // aiming normalised the seed spread from 3.6x (25 m vs 68 m) to 1.4x, so one number can serve
     // both tails; at 44 the worst seed needed a tank the best seed would have ridden to the floor.
-    startWater: 84,
+    // 84 -> 60 (finishing plan M5). The store's Water track now steps +12 (MINE_STEPS) and run 1
+    // is meant to last ~45-65 s and ALWAYS buy Water I: 60 water is 30 digs at 2, which is the
+    // plan's run-1 arithmetic. Depth now pays too (`reach` below), so a shorter first run still
+    // banks enough for a first rung.
+    startWater: 60,
+    // THE REACH PAYOUT (M5): depth earns the currency. 1 P per `mPerP` metres of the run's deepest
+    // CLEAN depth (the running maximum, so rot cannot erase it) plus 1 P per `eastMPerP` metres of
+    // its farthest east of the hill (journey legs only; 0 until M8), never less than `minPay`. Seams
+    // add their 3 P each on top. See `mineReachPay` / `mineBankable`.
+    reach: { mPerP: 5, eastMPerP: 10, minPay: 5 },
+    // RICH SEAMS (M5): one deep seam in `richChance` pays `richPer` instead of its material's `per`,
+    // and is drawn `richScale` larger. Decided by a HASH of (seed, chunk, spot index), never by the
+    // chunk rng, so every existing chunk record is unchanged.
+    richChance: 0.25,
+    richPer: 6,
+    richScale: 1.3,
     // ---- the carve, per chunk ----------------------------------------------
     // GALLERIES AT FIXED ROWS ARE WHAT MAKES A CHUNKED WORLD CONNECTED WITHOUT ANY CROSS-CHUNK STATE.
     // Every chunk carves a lateral corridor spanning its full width at the same rows as every other
@@ -13891,8 +13906,56 @@ function saveProgress(p) {
 // once per save, and because the flag is written in the SAME saveProgress call as the change,
 // a failed write simply replays the whole thing next load (never a partial / double refund).
 const EARTHBALL_OLD_L1_COST = 1000;   // what an L1 unlock cost when Earthball was still an L1 species
+// THE MINE SHELF AS IT WAS BEFORE THE FINISHING PLAN'S M5, kept ONLY to refund it. Written out here
+// rather than read off STORE_UPGRADES because those ladders are the NEW prices now (and Ore yield /
+// Water pockets are gone from it), and a refund at the new prices would hand back the wrong amount.
+// Plan acceptance: water 4 + oreYield 3 + pocketWater 2 + heatTolerance 2 + excreteCharges 1 = 345 P.
+const MINE_SHELF_V1_COSTS = {
+  water: [10, 24, 45, 75, 115, 165, 225, 300, 390, 500],
+  growSteps: [12, 30, 60, { m: 'garnet', n: 8 }, { m: 'hematite', n: 8 }],
+  excreteCharges: [15, 34, 60, 100, 155],
+  amputateCharges: [20, 44, { m: 'anthracite', n: 5 }, { m: 'garnet', n: 5 }, { m: 'hematite', n: 5 }],
+  heatTolerance: [18, 40, { m: 'anthracite', n: 4 }, { m: 'anthracite', n: 9 }, { m: 'garnet', n: 6 }, { m: 'garnet', n: 12 }],
+  oreYield: [10, 22, 40, 70, 110, 170],
+  pocketWater: [14, 32, 62, 105, 165],
+};
+// What refunding a v1 mine ledger pays back: { P, mats: { anthracite: n, ... } }. Pure, so the
+// migration and a check can both ask it.
+function mineShelfV1Refund(ledger) {
+  const out = { P: 0, mats: {} };
+  for (const id of Object.keys(ledger || {})) {
+    const ladder = MINE_SHELF_V1_COSTS[id];
+    if (!ladder) continue;
+    const lvl = Math.max(0, Math.min(ladder.length, ledger[id] | 0));
+    for (let i = 0; i < lvl; i++) {
+      const c = ladder[i];
+      if (typeof c === 'number') out.P += c;
+      else if (c && c.m) out.mats[c.m] = (out.mats[c.m] | 0) + (c.n | 0);
+    }
+  }
+  return out;
+}
 function migrateProgress(p) {
   let changed = false;
+  // THE MINE SHELF v2 (finishing plan M5): Ore yield and Water pockets are cut, every other track is
+  // re-priced. Every rung ever bought is refunded at its OLD price into the wallet it was paid from
+  // and the ledger is cleared — IN THE SAME SAVE as the flag (loadProgress persists `changed`), so a
+  // failed write replays the whole thing and a reload can never refund twice. `mineRestocked` holds
+  // the one-shot toast until a screen shows it.
+  if (!p.migratedMineShelfV2) {
+    const led = p.mineUpgrades && typeof p.mineUpgrades === 'object' ? p.mineUpgrades : {};
+    const any = Object.keys(led).some((k) => (led[k] | 0) > 0);
+    if (any) {
+      const r = mineShelfV1Refund(led);
+      p.minerals = Math.max(0, (typeof p.minerals === 'number' && isFinite(p.minerals) ? p.minerals : 0) + r.P);
+      if (!p.mats || typeof p.mats !== 'object') p.mats = {};
+      for (const k of Object.keys(r.mats)) p.mats[k] = Math.max(0, (p.mats[k] | 0) + r.mats[k]);
+      p.mineRestocked = { P: r.P, mats: r.mats };
+    }
+    p.mineUpgrades = {};
+    p.migratedMineShelfV2 = true;
+    changed = true;
+  }
   // Roster swap (2026-07): Earthball (scleroderma) moved L1 -> L5. Anyone who already BOUGHT it
   // at the old L1 price is refunded those spores and has the purchase cleared, so it reverts to a
   // normal (locked) L5 unlock for them — rather than silently losing a species they paid for.
@@ -14367,46 +14430,33 @@ const STORE_UPGRADES = [
   // The mine also SHARES the `water` track above, because starting fuel is exactly what that
   // track already is — see MINE_UPGRADE_IDS. Its prices are re-read from MINE_COSTS, since
   // 25-then-+50 is a Spores ladder and would take fifty runs of ore.
+  // THE SHELF v2 (finishing plan M5, prices from the plan's economy section). One currency per rung:
+  // the first rungs cost Phosphorus, and a power rung past its first two costs the material from the
+  // depth it opens (its tile says where that material is found). Every v1 purchase was refunded at
+  // its old price (`migrateProgress`, flag `migratedMineShelfV2`).
   { id: 'growSteps', name: 'Grow strength', icon: 'climb', accent: 'mint', step: 1, base: 2, unit: 'steps', unit1: 'step',
     mineOnly: true,
-    effect: 'Each grow digs <b>one step further</b>, for the same water.',
-    costs: [12, 30, 60, { m: 'garnet', n: 8 }, { m: 'hematite', n: 8 }] },
+    effect: 'Every dig reaches <b>one step further</b>, for the same water.',
+    costs: [12, 35, { m: 'anthracite', n: 20 }, { m: 'garnet', n: 24 }] },
   // THE TWO WEAPONS, sold as HOW MANY YOU CARRY rather than as charges that deplete across runs.
   // A capacity track restocks at the start of every descent (`stockRun`), which is the same shape as
-  // Retries and needs no new persistence — and it prices the decision the owner cares about ("can I
-  // afford to answer mould yet?") without adding an inventory that has to be saved, migrated and
-  // reasoned about when a run is abandoned mid-way.
-  //
-  // NOTHING IS GIVEN. Amputate is bought (owner), which is what makes the infection deadline a real
-  // question early on — and it is only fair because that ending pays out in full.
+  // Retries and needs no new persistence. NOTHING IS GIVEN: Amputate is bought (owner), which is only
+  // fair because the infected ending pays out in full.
   { id: 'excreteCharges', name: 'Mucus flasks', icon: 'worm', accent: 'water', step: 1, unit: 'flasks', unit1: 'flask',
     mineOnly: true,
-    effect: 'Carry <b>one more</b> flask per descent. Bursts sticky mucus over the colony, hitting every nematode near it.',
-    costs: [15, 34, 60, 100, 155] },
+    effect: 'Carry <b>one more</b> flask per descent. A flask bursts over the colony and kills every worm drinking from it.',
+    costs: [10, 40, { m: 'anthracite', n: 14 }] },
   { id: 'amputateCharges', name: 'Cutting enzyme', icon: 'spore', accent: 'mint', step: 1, unit: 'doses', unit1: 'dose',
     mineOnly: true,
-    effect: 'Carry <b>one more</b> dose per descent. Cuts out every strand in a small radius — the only answer to an infection.',
-    costs: [20, 44, { m: 'anthracite', n: 5 }, { m: 'garnet', n: 5 }, { m: 'hematite', n: 5 }] },
-  // DEPTH GATING, sold as tolerance. It moves where the price starts climbing rather than removing
-  // the climb, so the deepest ground is always expensive and never impossible — a wall is exactly
-  // what the owner said heat must not be.
-  { id: 'heatTolerance', name: 'Heat tolerance', icon: 'climb', accent: 'gold', step: 25, unit: 'metres', unit1: 'metre',
+    effect: 'Carry <b>one more</b> dose per descent. Tap the enzyme, then the rot, to cut an infection out.',
+    costs: [15, 50, { m: 'garnet', n: 14 }] },
+  // DEPTH GATING, sold as tolerance: it moves where the price starts climbing rather than removing
+  // the climb. 14 m a rung over 4 rungs (v1 was 25 m over 6, which deleted heat from the shaft), so
+  // at the top the lines sit at 98 / 140 m and the x4 and x8 prices always exist.
+  { id: 'heatTolerance', name: 'Heat tolerance', icon: 'climb', accent: 'gold', step: 14, unit: 'metres', unit1: 'metre',
     mineOnly: true,
-    effect: 'Dig <b>25 m deeper</b> before the heat starts making every strand cost more water.',
-    // THE LATER RUNGS ASK FOR WHAT THE DEEP BANDS YIELD, which is the whole of "looking for the
-    // right materials for upgrades": you cannot buy your way deeper with surface Phosphorus alone,
-    // you have to have BEEN down there and brought some back. Anthracite is band 2's, garnet
-    // band 3's — each rung asks for the material of roughly the depth it unlocks.
-    costs: [18, 40, { m: 'anthracite', n: 4 }, { m: 'anthracite', n: 9 },
-            { m: 'garnet', n: 6 }, { m: 'garnet', n: 12 }] },
-  { id: 'oreYield', name: 'Ore yield', icon: 'phos', accent: 'phos', step: 1, unit: 'phosphorus',
-    mineOnly: true,
-    effect: 'Every ore seam you digest pays <b>1</b> more Phosphorus.',
-    costs: [10, 22, 40, 70, 110, 170] },
-  { id: 'pocketWater', name: 'Water pockets', icon: 'water', accent: 'water', step: 4, unit: 'water',
-    mineOnly: true,
-    effect: 'Each water pocket you tap gives <b>4</b> more Water.',
-    costs: [14, 32, 62, 105, 165] },
+    effect: 'Push the first price line <b>14 m deeper</b>.',
+    costs: [15, { m: 'anthracite', n: 14 }, { m: 'anthracite', n: 24 }, { m: 'garnet', n: 20 }] },
 ];
 // THE MINE'S SHELF: an ALLOW-LIST, not an exclusion list. Every track above was written for the
 // card game, so the honest question is "which of these mean anything in a mine?" rather than
@@ -14414,17 +14464,46 @@ const STORE_UPGRADES = [
 // starting Phosphorus would be starting with currency, `startLevel` names levels the mine does
 // not have, the two carry tracks are cards, and Retries retries a level. What is left is fuel and
 // the three tracks written for the mine itself.
-const MINE_UPGRADE_IDS = ['water', 'growSteps', 'heatTolerance', 'excreteCharges', 'amputateCharges', 'oreYield', 'pocketWater'];
+// Ore yield and Water pockets left the shelf in M5 (the dominant buy, and the weakest).
+const MINE_UPGRADE_IDS = ['water', 'growSteps', 'heatTolerance', 'excreteCharges', 'amputateCharges'];
 // The mine's price for a shared track. `water` is a Spores ladder upstairs (25, 50, 100 …) and
 // the mine's whole currency runs an order of magnitude smaller, so a shared track needs its own
 // ladder or its first rung is unreachable.
-const MINE_COSTS = { water: [10, 24, 45, 75, 115, 165, 225, 300, 390, 500] };
+const MINE_COSTS = { water: [5, 12, 25, 45, 80, { m: 'anthracite', n: 30 }, { m: 'garnet', n: 24 }, { m: 'hematite', n: 16 }] };
+// ...and its STEP (M5): the mine's tank rises +12 a rung (60 -> 156), the campaign's keeps +5. Read
+// through `upgradeStep`, which is what `upgradeValue` (and so `storeBonuses`) uses.
+const MINE_STEPS = { water: 12 };
+// The mine's own name and copy for a shared track.
+const MINE_NAMES = { water: 'Water tank' };
+const MINE_EFFECTS = { water: 'Start every descent with <b>12 more</b> water.' };
+const upgradeStep = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_STEPS[u.id] != null ? MINE_STEPS[u.id] : (u ? u.step : 0));
+const upgradeName = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_NAMES[u.id]) || (u ? u.name : '');
+const upgradeEffect = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_EFFECTS[u.id]) || (u ? u.effect : '');
+// PROGRESSIVE REVEAL (M5). In the mine a track is on the shelf only once the save has met what it
+// answers — `p.mineSeen` { line42, worm, cloud, mat_<id>, leg }, written by the run (mineFrame for the
+// line / cloud / materials, the worm drain for an attach). Water tank and Grow strength are there from
+// visit 1; a track already bought stays. The shelf and the buy path both ask THIS, so a hidden track
+// cannot be bought by a stale handler either.
+function mineTrackRevealed(id, progress) {
+  const p = progress || loadProgress();
+  const seen = (p && p.mineSeen) || {};
+  const f = p && p[upgradeField('mine')];
+  if (f && (f[id] | 0) > 0) return true;
+  const leg = seen.leg | 0;
+  switch (id) {
+    case 'water': case 'growSteps': return true;
+    case 'heatTolerance': return !!seen.line42;
+    case 'excreteCharges': return !!seen.worm || leg >= 2;
+    case 'amputateCharges': return !!seen.cloud || leg >= 4;
+    default: return true;
+  }
+}
 // Does this track appear in the store for `game`? One predicate, asked by the shelf, by the buy
 // path and by the checks — so a track cannot be visible in a game whose wallet cannot buy it.
-function upgradeInGame(u, game) {
+function upgradeInGame(u, game, progress) {
   if (!u) return false;
   const g = game || CONFIG.game;
-  if (g === 'mine') return MINE_UPGRADE_IDS.indexOf(u.id) >= 0;
+  if (g === 'mine') return MINE_UPGRADE_IDS.indexOf(u.id) >= 0 && mineTrackRevealed(u.id, progress);
   if (u.mineOnly) return false;
   if (u.campaignOnly && g !== 'campaign') return false;
   return true;
@@ -14468,7 +14547,7 @@ function upgradeLevel(id, progress) {
 function upgradeValue(id, progress) {
   const u = upgradeById(id);
   if (!u) return 0;
-  return (u.base || 0) + u.step * upgradeLevel(id, progress);
+  return (u.base || 0) + upgradeStep(u) * upgradeLevel(id, progress);
 }
 // Price of the NEXT step, or null when the track is maxed (which is also the "can I buy?" test).
 function upgradeNextCost(id, progress) {
@@ -14504,7 +14583,7 @@ function buyUpgrade(id) {
   // permanent: Spores buying a mine track (or ore buying Retries) into a ledger the other game
   // then reads. `mine-check` and `store-check` both assert the refusal.
   const u = upgradeById(id);
-  if (!upgradeInGame(u)) return { ok: false, spores: sporesBalance(p), level: lvl };
+  if (!upgradeInGame(u, null, p)) return { ok: false, spores: sporesBalance(p), level: lvl };
   const c = costParts(cost);
   if (!c || costBalance(c.m, p) < c.n) {
     return { ok: false, spores: sporesBalance(p), level: lvl, need: c };
@@ -14711,7 +14790,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, sporesBalance, addSpores, takeSpores, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, sporesBalance, addSpores, takeSpores, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_SHELF_V1_COSTS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -17992,6 +18071,9 @@ function stepNematodes(state, phase = 'both') {
     state.mineDrained = (state.mineDrained || 0) + owed;   // diagnostics — the rate, not the tank
   }
   state.mineAttached = mineWorms ? attached : 0;
+  // THE STORE'S REVEAL (M5): the first attach is what puts Mucus flasks on the shelf. Recorded on the
+  // state only — `mineFrame` persists it to `p.mineSeen` (this module cannot reach the save).
+  if (mineWorms && attached) (state.mineSeenNow = state.mineSeenNow || {}).worm = true;
 
   if (newborns.length) for (const b of newborns) state.nematodes.push(b);
   // WHAT A WORM EATS FADES OUT TOO (owner's ask), the same way rot that falls away does — see
@@ -21835,6 +21917,16 @@ function mineChunkRng(seed, ci) {
   return makeRng((h >>> 0) || 1);
 }
 
+// A uniform [0, 1) from (seed, chunk, spot index), for decisions that must NOT consume the chunk
+// rng (M5's rich seams): an extra draw there would shift every later draw and change the map.
+function mineRichHash(seed, ci, si) {
+  let h = Math.imul((seed >>> 0) ^ 0x51ed270b, 0x9e3779b1);
+  h = Math.imul(h ^ ((ci | 0) + 0x632be5ab), 0x85ebca77);
+  h = Math.imul(h ^ ((si | 0) + 0x2545f491), 0xc2b2ae3d);
+  h ^= h >>> 16; h = Math.imul(h, 0x27d4eb2f); h ^= h >>> 15;
+  return (h >>> 0) / 4294967296;
+}
+
 // -----------------------------------------------------------------------------
 // ONE CHUNK
 // -----------------------------------------------------------------------------
@@ -22371,6 +22463,14 @@ function mineGenerateChunk(state, ci) {
       const pile = sub.foodPiles.length > pilesBefore ? sub.foodPiles[sub.foodPiles.length - 1] : null;
       const mat = mineMaterialFor(cfg, sp.band);
       if (pile && mat) { pile.mineMat = mat.id; pile.mineBand = sp.band; }
+      // RICH SEAMS (M5): one deep seam in `richChance` pays `richPer`. A HASH of (seed, chunk, spot
+      // index) — NOT the chunk rng, whose draws decide every existing chunk record — so adding this
+      // moved no rock, seam or pocket. Deliberately not in the chunk record either (acceptance 8
+      // compares those records to a pre-M5 snapshot).
+      if (pile && sp.band >= 1 && mineRichHash(state.mineSeed || state.seed || 1, ci, spots.indexOf(sp)) < (+M.richChance || 0)) {
+        pile.rich = true;
+        for (const idx of pile.cells) if (sub.cells[idx]) sub.cells[idx].mineRich = 1;
+      }
       placed.ore++;
     } else {
       stampReservoir(sub, { x: (sp.c + 0.5) * cs, y: sub.surfaceY + (sp.r + 0.5) * cs, r: sp.rad * cs });
@@ -22648,11 +22748,11 @@ function mineOreRewards(state) {
     // smaller per-seam count, because they are the thing being HUNTED rather than the thing being
     // accumulated — a garnet seam is worth going out of your way for, not worth twice as much.
     const mat = mineMaterialById(state.config, pile.mineMat) || mineMaterials(state.config)[0];
-    const bonus = mineCfg(state.config).oreBonus | 0;
     const isP = !mat || mat.id === 'phosphorus';
+    // A RICH deep seam (M5, `pile.rich`, decided at generation by a hash) pays `richPer`.
     const p = isP
-      ? Math.max(1, Math.round(pile.energyValue || 1) + bonus)
-      : Math.max(1, (mat.per | 0) + bonus);
+      ? Math.max(1, Math.round(pile.energyValue || 1))
+      : Math.max(1, pile.rich ? (mineCfg(state.config).richPer | 0) || 6 : (mat.per | 0));
     const mats = (state.mineMats = state.mineMats || {});
     mats[mat ? mat.id : 'phosphorus'] = (mats[mat ? mat.id : 'phosphorus'] | 0) + p;
     if (isP) { net.phosphorus += p; state.mineOre = (state.mineOre || 0) + p; }
@@ -22847,7 +22947,7 @@ function mineGrow(state, ctx) {
   // THE REFUSAL NAMES THE WAY OUT (M1): when the tank cannot pay here, FRUIT NOW is on screen, so
   // the toast says what it banks rather than leaving the player to find it.
   if (net.water < cost) {
-    const bank = Math.max(0, Math.round(state.mineOre || 0));
+    const bank = mineBankable(state);
     const stuck = net.water < mineCostHere(state);
     return { ok: false, message: `Not enough water — a dig here costs ${cost}.`
       + (stuck ? ` Fruit now to bank +${bank} P.` : '') };
@@ -23026,6 +23126,8 @@ function mineInfectionCheck(state, nowMs) {
   for (const n of state.active.nodes) if (n.infected) { any = true; break; }
   if (!any) { state.mineInfect = null; return false; }
   const ms = Math.max(1000, mineCfg(state.config).infectionMs | 0);
+  // A save that has met mould gets the Cutting enzyme on the shelf (M5; persisted by mineFrame).
+  (state.mineSeenNow = state.mineSeenNow || {}).cloud = true;
   if (!state.mineInfect) state.mineInfect = { start: nowMs, ms };
   state.mineInfect.left = Math.max(0, state.mineInfect.start + state.mineInfect.ms - nowMs);
   return state.mineInfect.left <= 0;
@@ -23089,7 +23191,13 @@ function mineHeatLines(config) {
   const out = [];
   // One line per doubling that is still under the cap: at maxMult 8 that is x2, x4 and x8, so
   // three lines and then the ground stops getting worse.
-  for (let tier = 1; Math.pow(2, tier) <= cap; tier++) out.push(first + (tier - 1) * every);
+  // ...AND ONLY LINES ABOVE THE FLOOR (M5): at full tolerance the x16 line would fall at 182 m, below
+  // the 168 m shaft, so it is not a line anyone can cross and the HUD / soil must not draw it.
+  const floor = mineRows(config);
+  for (let tier = 1; Math.pow(2, tier) <= cap; tier++) {
+    const L = first + (tier - 1) * every;
+    if (L < floor) out.push(L);
+  }
   return out;
 }
 // WHERE THE NEXT PRICE RISE IS, in metres, or null past the cap. The HUD wants to name the line the
@@ -23103,7 +23211,8 @@ function mineNextHeatLine(config, depthM) {
   const d = +depthM || 0;
   const tier = d <= first ? 0 : Math.ceil((d - first) / every);
   if (Math.pow(2, tier) >= Math.max(1, +h.maxMult || 8)) return null;   // already at the cap
-  return first + tier * every;
+  const next = first + tier * every;
+  return next < mineRows(config) ? next : null;                          // below the floor: none
 }
 // The cost of the dig the player is ABOUT to make, priced at WHERE IT STARTS — the strand being dug
 // from, never the point being aimed at (owner: "it happens only if the start point is in the deeper
@@ -23247,13 +23356,41 @@ function mineRunDepth(state) {
   const was = (state && state.mineMaxDepth) | 0;
   return Math.max(was, now);
 }
+// THE REACH PAYOUT (M5): depth earns the currency. `mineReachRaw` is 1 P per `reach.mPerP` metres of
+// the run's deepest CLEAN depth (the running maximum — `mineFrame` keeps `state.mineMaxDepth`, so rot
+// never erases progress) plus 1 P per `eastMPerP` metres of its farthest east (`state.mineMaxEast`,
+// 0 until the journey's legs exist). It reads the running maxima, never walks the colony, because the
+// HUD and the FRUIT NOW pill ask it every frame.
+function mineReachRaw(state) {
+  if (!state) return 0;
+  const R = mineCfg(state.config).reach || {};
+  const d = Math.max(state.mineMaxDepth | 0, state.mineDepth | 0);
+  const e = Math.max(0, state.mineMaxEast | 0);
+  return Math.floor(d / Math.max(1, +R.mPerP || 5)) + Math.floor(e / Math.max(1, +R.eastMPerP || 10));
+}
+// ...with the floor: a descent always pays at least `reach.minPay` (5), which is Water I's price, so
+// run 1 ALWAYS buys something. The HUD counts the raw figure (so '+1 P' pops at 5 m and the count
+// rises from the first metre); what is BANKED is this.
+function mineReachPay(state) {
+  const R = (state && mineCfg(state.config).reach) || {};
+  return Math.max(Math.max(0, R.minPay | 0), mineReachRaw(state));
+}
+// EVERYTHING ENDING NOW WOULD BANK IN PHOSPHORUS: reach (floored) + the seams' P. The FRUIT NOW pill,
+// the refusal toast, `mineEndRun`, the pending write and the bank all read this one number.
+function mineBankable(state) {
+  return mineReachPay(state) + Math.max(0, Math.round((state && state.mineOre) || 0));
+}
 function mineEndRun(state, cause) {
   if (!state || state.runOver) return null;
   const net = state.active;
   const why = MINE_END_CAUSES.includes(cause) ? cause : 'dry';
   const depth = mineRunDepth(state);
   state.mineMaxDepth = depth;
-  const ore = Math.max(0, Math.round(state.mineOre || 0));
+  // `ore` IS THE WHOLE PHOSPHORUS PAYOUT now (M5): reach + seams. `seams` and `reach` carry the split
+  // for the end screen's rows.
+  const seams = Math.max(0, Math.round(state.mineOre || 0));
+  const reach = mineReachPay(state);
+  const ore = reach + seams;
   // THE WHOLE COLONY TURNS, ALL AT ONCE. The deadline expiring is not "the rot finally reached
   // everything" — it is the colony giving up — so it reads as one event rather than as the spread
   // suddenly sprinting. Marked before `alive` goes false so the last frame drawn is green.
@@ -23263,7 +23400,7 @@ function mineEndRun(state, cause) {
   // FULL PAYOUT EITHER WAY, and it is load-bearing: Amputate is bought, so an early player who
   // meets mould with nothing in the bag has no answer at all. Ending their run sooner is a fair
   // cost; taking the ore they already dug would not be.
-  state.runResult = { mine: true, depth, ore, spores: 0, bodies: 0, died: false,
+  state.runResult = { mine: true, depth, ore, seams, reach, spores: 0, bodies: 0, died: false,
                       // EVERY MATERIAL THE DESCENT DUG, not just the Phosphorus. A copy, because
                       // `presentMineEnd` banks from this after the state has moved on.
                       mats: Object.assign({}, state.mineMats || {}),
@@ -23290,6 +23427,7 @@ function mineEndRun(state, cause) {
            mineMaterials, mineMaterialFor, mineMaterialById, mineMatTag,
            mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
            mineFocusNode, mineCostHere, mineStuckCheck, mineStuckState, mineRunDepth, mineAtNodeCap,
+           mineReachRaw, mineReachPay, mineBankable, mineRichHash,
            MINE_END_CAUSES,
            mineInfectionCheck, mineInfectionLeft,
            mineItemCount, mineUseExcrete, mineUseAmputate,
@@ -25597,6 +25735,17 @@ function playSeamPing(mat, semis) {
   SFX_LAST.ore = { mat: mat || 'phosphorus', semis: up, hz: [Math.round(f), Math.round(f * 1.5)] };
   return true;
 }
+// THE REACH TICK (M5): a soft, short blip each time depth earns another P. Quieter than a seam ping —
+// it happens every 5 m and must not compete with the things the player went looking for.
+function playReachTick() {
+  if (muted || !AC) return false;
+  const a = ctx();
+  if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
+  const t = a.currentTime + 0.005;
+  _tone(a, t, 1320, 1180, 0.07, 0.025);
+  SFX_COUNTS.reach = (SFX_COUNTS.reach | 0) + 1;
+  return true;
+}
 let _noiseBuf = null;
 function playPocketGlug() {
   if (muted || !AC) return false;
@@ -25624,7 +25773,7 @@ function playPocketGlug() {
   return true;
 }
 
-  return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect, setClickGain, playSeamPing, playPocketGlug };
+  return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect, setClickGain, playSeamPing, playPocketGlug, playReachTick };
 })();
 
 // ===================== src/render/network.js =====================
@@ -26812,7 +26961,7 @@ const __m_render_ui = (function () {
   const { cardDeckAdditions, actionUsable, cardBlockedReason } = __m_engine_cards;
   const { toggleMusic, isMusicMuted } = __m_render_music;
   const { toggleSfx, isSfxMuted, playCardSelect, playCardDeselect } = __m_render_sfx;
-  const { mineCostHere, mineStuckState, mineMatTag } = __m_engine_mine;
+  const { mineCostHere, mineStuckState, mineMatTag, mineReachRaw, mineBankable } = __m_engine_mine;
 // =============================================================================
 // UI — HUD, action buttons, event log, dev tools, "what we're testing" panel.
 //
@@ -27893,11 +28042,18 @@ class UI {
   // on a play surface under `CONFIG.mine.hudTwoRowsBelowPx` (430) — measured on `#ui`, which is the
   // play surface (the letterboxed box on a desktop), because a media query would read the window.
   // Written on a change only; `update` runs every world tick.
+  // THE HUD'S P IN THE MINE (M5): the seams' P plus the RAW reach (1 per 5 m, no floor) — so the count
+  // rises from the first metres and '+1 P' pops as it does. The floor of 5 is what BANKING adds; the
+  // FRUIT NOW pill shows the banked figure.
+  _mineHudP() {
+    const s = this.state;
+    return Math.max(0, Math.round(s.mineOre || 0)) + mineReachRaw(s);
+  }
   _syncMineRows() {
     const hud = this.el.hudtop && this.el.hudtop.closest('.hud');
     if (!hud) return;
     const s = this.state;
-    const phos = Math.floor((s.active && s.active.phosphorus) || 0);
+    const phos = this._mineHudP();
     const pc = document.getElementById('hud-phos');
     if (pc && pc.hidden !== !(phos > 0)) pc.hidden = !(phos > 0);
     const r2 = document.getElementById('hudrow2');
@@ -27928,8 +28084,8 @@ class UI {
       if (chip) chip.hidden = on;
     }
     if (!on) return;
-    // THE RUN'S ORE until the reach payout lands (M5), which is exactly what ending now banks.
-    const bank = Math.max(0, Math.round(s.mineOre || 0));
+    // EXACTLY WHAT ENDING NOW BANKS (M5): reach (floored at 5) + the seams' P.
+    const bank = mineBankable(s);
     if (this._fnBank !== bank) { this._fnBank = bank; text('fruitnow-p', `+${bank} P`); }
     const limit = Math.max(1, (s.config.mine && s.config.mine.stuckFruitMs) || 6000);
     const frac = Math.round(Math.max(0, Math.min(1, st.leftMs / limit)) * 100) / 100;
@@ -27950,7 +28106,7 @@ class UI {
     // below — that branch is guarded on `s.cards`, which the mine does not have.
     if (this.mineOn) {
       this._resText('hud-water', Math.floor(net.water || 0), s);
-      this._resText('hud-phosphorus', Math.floor(net.phosphorus || 0), s);
+      this._resText('hud-phosphorus', this._mineHudP(), s);
       text('hud-depth', String(s.mineDepth | 0));
       // The carried deep materials. Rebuilt only when the SET of them changes — this refreshes every
       // world tick and the row sits under the pill the player is reading.
@@ -29215,7 +29371,7 @@ function growMyceliumTitle(container, opts = {}) {
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
   const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, matBalance, loadProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, highestCleared, startLevelFor, startLevelForGame, loadDeck, deckBucketFor, deckBuckets, deckSize,
-    STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+    STORE_UPGRADES, MINE_UPGRADE_IDS, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
   // `isCampaignGame` rather than a `game` argument threaded down from main: this screen is shared
@@ -32972,6 +33128,7 @@ const __m_main = (function () {
           mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun,
           mineCostHere, mineStuckCheck, mineStuckState, mineRunDepth, mineAtNodeCap,
+          mineReachRaw, mineReachPay, mineBankable,
           mineInfectionCheck, mineInfectionLeft,
           mineItemCount, mineUseExcrete, mineUseAmputate } = __m_engine_mine;
   const { levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
@@ -32993,10 +33150,10 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro, showVictory, VICT_FADE_MS } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, levelAssetKeys, hasAsset, asset, assetFailed, pattern, assetMeta, assetUrl, preloadImages, assetState } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
-  const { initSfx, playSeamPing, playPocketGlug } = __m_render_sfx;
+  const { initSfx, playSeamPing, playPocketGlug, playReachTick } = __m_render_sfx;
   const { showLoading } = __m_render_loading;
   const { showHighScores, checkHighScore, recordHighScore } = __m_render_highscores;
   const { loadPlayerName, savePlayerName } = __m_highscores;
@@ -33309,8 +33466,8 @@ function configForLevel(level) {
     const b = storeBonuses();
     cfg.mine.startWater = Math.max(1, (cfg.mine.startWater | 0) + (b.water | 0));
     cfg.mine.growSteps = Math.max(1, b.growSteps | 0);
-    cfg.mine.reservoirWater = Math.max(1, (cfg.mine.reservoirWater | 0) + (b.pocketWater | 0));
-    cfg.mine.oreBonus = Math.max(0, b.oreYield | 0);
+    // (Ore yield and Water pockets left the shelf in M5: `reservoirWater` and the per-seam P are
+    // CONFIG's own now, whatever an older save's ledger says.)
     // WHAT THE DESCENT SETS OFF CARRYING. On the config rather than straight onto state, so it goes
     // through the same deep clone every other mine number does and a per-level override could tune
     // it; `createLevelState` copies it onto `state.mineItems` at run start.
@@ -34066,7 +34223,11 @@ function mineBank(r) {
   r = r || {};
   const depth = Math.max(0, (r.depth != null ? r.depth
     : (state ? Math.max(state.mineMaxDepth | 0, state.mineDepth | 0) : 0)) | 0);
-  const ore = Math.max(0, (r.ore != null ? r.ore : (state && state.mineOre)) | 0);
+  // `ore` is the WHOLE Phosphorus payout (M5): reach (at least 5) + seams — `mineEndRun` writes it, and
+  // an ending that did not go through it is priced off the state the same way.
+  const ore = Math.max(0, (r.ore != null ? r.ore : (state ? mineBankable(state) : 0)) | 0);
+  const seams = Math.max(0, (r.seams != null ? r.seams : (state && state.mineOre)) | 0);
+  const reach = Math.max(0, ore - seams);
   const mats = (r.mats && Object.keys(r.mats).length ? r.mats : (state && state.mineMats)) || null;
   if (!r._minePaid) {
     r._minePaid = true;
@@ -34102,7 +34263,7 @@ function mineBank(r) {
     logEvent('run_end', { level: depth, cause: r.cause || 'dry', turns: state && state.turn, n: ore,
                           ms, detail: r.cause || 'dry' });
   }
-  return { depth, ore, mats, best: r._mineBest || mineRecordDepth(depth) };
+  return { depth, ore, seams, reach, mats, best: r._mineBest || mineRecordDepth(depth) };
 }
 // THE END OF A DESCENT. Owner: "When the player runs out of water, they fruit and spore and go to
 // the upgrade store." So there is exactly one thing to say (how deep, and what it paid) and exactly
@@ -34173,7 +34334,7 @@ function minePendingWrite() {
     if (state.runOver && (!r || r._minePaid)) return false;
     const key = mineRunKey(state);
     const depth = r && r.depth != null ? r.depth | 0 : Math.max(state.mineMaxDepth | 0, mineDepthReached(state));
-    const P0 = r && r.ore != null ? r.ore | 0 : Math.max(0, Math.round(state.mineOre || 0));
+    const P0 = r && r.ore != null ? r.ore | 0 : mineBankable(state);
     const mats0 = Object.assign({}, (r && r.mats) || state.mineMats || {});
     const p = loadProgress();
     // LESS WHATEVER A BOOT ELSEWHERE ALREADY BANKED OF THIS RUN.
@@ -36344,6 +36505,15 @@ function begin(newState) {
       // TABLE rather than any one store. `shelf()` is what a player is looking at.
       shelf: (game) => STORE_UPGRADES.filter((u) => upgradeInGame(u, game)),
       inGame: (id, game) => upgradeInGame(upgradeById(id), game),
+      // THE TRACK IDS THIS GAME SELLS, REVEALED OR NOT (M5) — what a bot's buy order is written
+      // against, read off the page so a renamed or added track cannot leave a bot buying nothing.
+      ids: (game) => ((game || CONFIG.game) === 'mine' ? MINE_UPGRADE_IDS.slice()
+        : STORE_UPGRADES.filter((u) => upgradeInGame(u, game)).map((u) => u.id)),
+      // The mine's progressive reveal (M5): read / merge `p.mineSeen`, or reveal every track (a check
+      // that is testing a track, not the reveal).
+      seen: (o) => { const p = loadProgress(); if (o) { p.mineSeen = Object.assign({}, p.mineSeen || {}, o); saveProgress(p); } return Object.assign({}, p.mineSeen || {}); },
+      revealAll: () => { const p = loadProgress(); p.mineSeen = Object.assign({}, p.mineSeen || {}, { line42: true, worm: true, cloud: true }); saveProgress(p); },
+      v1Refund: (led) => mineShelfV1Refund(led),
       costs: (id, game) => upgradeCosts(upgradeById(id), game).slice(),
       level: upgradeLevel, value: upgradeValue, nextCost: upgradeNextCost, buy: buyUpgrade,
       // The ladder's other direction. `sellValue` is what the top rung would pay back, so a check
@@ -36546,6 +36716,9 @@ function begin(newState) {
                      nextLine: mineNextHeatLine(state.config, depthM == null ? 0 : depthM) }),
       steps: () => mineGrowSegments(state.config) / 3,
       ore: () => state.mineOre | 0,
+      // THE REACH PAYOUT (M5): raw (what the HUD adds), floored (what banks), and everything ending
+      // now would bank (reach + seams — the FRUIT NOW figure).
+      reachRaw: () => mineReachRaw(state), reach: () => mineReachPay(state), bankable: () => mineBankable(state),
       // Dig from the deepest living tip, in a direction. Returns the engine's own {ok,message}.
       grow: (dx, dy) => {
         let tip = null;
@@ -38629,6 +38802,7 @@ function mineBeatCostLine(bandTopM) {
 function mineCollectFeedback(ore, water) {
   const sub = state.substrate;
   for (const e of ore) {
+    (state.mineSeenNow = state.mineSeenNow || {})['mat_' + e.mat] = true;
     const m = mineMaterialById(state.config, e.mat);
     const label = e.mat === 'phosphorus' ? 'P' : (m ? m.name : e.mat);
     // 18 px with a heavy outline (plan: '+3 P' 18 px lilac): at 15 px on a plain outline the lilac
@@ -38776,7 +38950,7 @@ function drawMineSeamTints() {
     const m = mineMaterialById(state.config, pile.mineMat);
     if (!m || !m.tint) continue;
     const c = minePileCentre(sub, pile);
-    const q = camera.worldToScreen(c.x, c.y), R = sub.cellSize * 1.5 * camera.zoom;
+    const q = camera.worldToScreen(c.x, c.y), R = sub.cellSize * 1.5 * camera.zoom * (pile.rich ? (+state.config.mine.richScale || 1.3) : 1);
     if (q.x < -R || q.y < -R || q.x > camera.viewW + R || q.y > camera.viewH + R) continue;
     const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, R);
     g.addColorStop(0, m.tint); g.addColorStop(1, 'rgba(0,0,0,0)');
@@ -38784,6 +38958,50 @@ function drawMineSeamTints() {
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q.x, q.y, R, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
+}
+// DEPTH PAYS, VISIBLY (M5): every time the raw reach payout rises (1 P per 5 m), a '+1 P' pops at the
+// deepest clean tip with a soft tick, and the HUD's P count rises with it (the HUD reads the same
+// `mineReachRaw`). The deepest tip is only looked up when the figure moves — once per 5 m.
+function mineReachFeedback() {
+  const raw = mineReachRaw(state);
+  const was = state._mineReachShown == null ? raw : state._mineReachShown;
+  state._mineReachShown = raw;
+  if (raw <= was) return;
+  uiDirty = true;
+  const net = state.active;
+  let tip = null;
+  for (const n of net.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+  if (tip) addEnergyFloater(tip.x, tip.y - state.substrate.cellSize * 0.5, raw - was,
+    { text: `+${raw - was} P`, color: '#c9a2e8', size: 15, outline: 4, life: 70, icon: false });
+  try { playReachTick(); } catch (_) {}
+}
+// THE STORE'S PROGRESSIVE REVEAL, persisted (M5). `p.mineSeen` { line42, worm, cloud, mat_<id>, leg }:
+// a strand first past the bare 42 m line, a worm attached (flagged by stepNematodes), mould met (a
+// cloud on screen, or an infection — flagged by mineInfectionCheck), a material's first seam paid.
+// Written only when a flag is NEW for the save, so this is a Set lookup per frame and a handful of
+// saves over a whole career. Scanned every 250 ms for the on-screen cloud.
+function mineSeenFlush(time) {
+  const now = (state.mineSeenNow = state.mineSeenNow || {});
+  const safe = ((CONFIG.mine.heat || {}).safeDepth | 0) || 42;
+  if ((state.mineMaxDepth | 0) > safe) now.line42 = true;
+  if (!state._mineSeenScanAt || time - state._mineSeenScanAt > 250) {
+    state._mineSeenScanAt = time;
+    if (!now.cloud && state.clouds && state.clouds.length) {
+      for (const c of state.clouds) {
+        const q = camera.worldToScreen(c.cx, c.cy);      // a cloud's cx/cy are WORLD units
+        if (q.x >= 0 && q.y >= 0 && q.x <= camera.viewW && q.y <= camera.viewH) { now.cloud = true; break; }
+      }
+    }
+  }
+  const have = state._mineSeenSaved || (state._mineSeenSaved = Object.assign({}, (loadProgress().mineSeen) || {}));
+  let fresh = null;
+  for (const k of Object.keys(now)) if (now[k] && !have[k]) { (fresh = fresh || {})[k] = now[k]; have[k] = now[k]; }
+  if (!fresh) return;
+  try {
+    const p = loadProgress();
+    p.mineSeen = Object.assign({}, p.mineSeen || {}, fresh);
+    saveProgress(p);
+  } catch (_) {}
 }
 function mineFrame(time, dt) {
   if (state.runOver) return;
@@ -38826,6 +39044,8 @@ function mineFrame(time, dt) {
   // THE RUNNING MAXIMUM OF CLEAN DEPTH (M1). What the run pays and records: rot is not progress,
   // but it does not unmake the metres already reached.
   if (depth > (state.mineMaxDepth | 0)) state.mineMaxDepth = depth;
+  mineReachFeedback();
+  mineSeenFlush(time);
   mineBeat(depth);
   mineLineBeats(depth);
   mineOnboardScan(time);
@@ -40064,7 +40284,10 @@ function _drawLeafHeap(sets, col, row, kind, alphaMul) {
   const s = camera.worldToScreen(ctr.x, ctr.y);
   if (s.x < -margin || s.x > camera.viewW + margin || s.y < -margin || s.y > camera.viewH + margin) return;
   const count = isNut ? 8 : isDuff ? 9 : 11;   // FIXED piece count — duff reads as a slightly thinner heap; never drops pieces as it drains
-  const base = cs * (isNut ? 0.26 : isDuff ? 0.52 : 0.64);  // …smaller pieces for nuts + duff, so they read as lower-value
+  let base = cs * (isNut ? 0.26 : isDuff ? 0.52 : 0.64);  // …smaller pieces for nuts + duff, so they read as lower-value
+  // A RICH mine seam (M5) is drawn `richScale` (1.3x) larger, so it can be told apart before it pays.
+  const rc = sub.mine ? sub.cellAt(col, row) : null;
+  if (rc && rc.mineRich) base *= (+((state.config.mine || {}).richScale) || 1.3);
   // Pull this cell's pieces toward the local food centroid so a cluster reads as
   // ONE heaped pile (not a cross of separate cells), keyed off the ORIGINAL
   // footprint so the arrangement stays put while neighbours drain.
