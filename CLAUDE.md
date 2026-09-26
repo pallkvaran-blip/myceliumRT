@@ -5002,6 +5002,18 @@ Numbers here are measured, not planned.
   909 `25 19 17 24 42 31 28 32 16 33 38 33`; 11 `28 21 29 39 34 39 39 43 13 30 5 23`.
 - **LEFT, OWNER'S CALL:** a run-1 End descent shallower than ~25 m banks raw reach and cannot buy Water
   I (the anti-farm trade-off); one option is the floor on the save's first descent past N digs.
+- **ACCEPTANCE 1 RE-RUN with the aim fix (sensible, 12 seeds, pace 900): 4/4** — banked 21 29 28 29
+  40 28 27 27 28 25 22 26 P, card = Water tank 12/12, Water I through the card 12/12, first shelf
+  exactly water+growSteps 12/12, all `dry`, median 41 s. (Naive does not use `digAlong`; unchanged.)
+- **CHANGED ASSERTIONS:** onboard 'curtain lifts within 600 ms' reads the drop's paint (MutationObserver
+  + long task) instead of the 8 ms poll — same limit. econ 69 -> 79: farm +1 (0-dig loops count no
+  run / depth, first visit kept), the farm control's `mineRuns === 2` -> `mineRuns === 2 && runsDone
+  === 1`, endfix 6 (raw Depth row, Minimum payout row, double-tap one rung + re-arm control, no rating
+  box, errors), count 2 (boot counts once; control), fit +1 (centred at 390x844 without `safe`). 9 of
+  the new assertions FAIL on 2fb0254.
+- **`--mine` after round 2: 938 passed, 0 failed across 16 checks** (boot 22, store 124, mine 193,
+  ending 87, ship 58, phone 44, onboard 63, econ 79, zip 24, level 27, aim 9, scale 26, threat 116,
+  harvest 28, mould 20, core 18) — green on the first full sweep.
 
 ## Two games on the title screen: Survival and Campaign
 
