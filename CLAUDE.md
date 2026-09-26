@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier fixes landed). Next: M5.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). Next: M5.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -4716,7 +4716,8 @@ Numbers here are measured, not planned.
   offset 14/6/24/3/36, then the 2nd/3rd nearest strand) instead of re-pressing one strand toward one
   waypoint until `maxIters`. itchzip-check prints the exit line in the navigator assertion and retries
   the descent ONCE if the run is live with the tank able to pay (both attempts printed). Measured:
-  6 of 6 zip runs green, 4 of 6 took a pocket wait. **The verifier's own sample (`15 m on 6 digs, 72
+  14 of 14 standalone zip runs green plus 2 inside full `--mine` runs; 11 of the 14 took a pocket wait
+  (so without the wait the race is the common case, not a rare one); 0 retries needed. **The verifier's own sample (`15 m on 6 digs, 72
   water`) was NOT reproduced**: 120 seeds (`#mine,<seed>`, dev off) and 37 plain-URL first visits
   (12 quiet, 25 under a 3-core CPU hog) all ended on `water`, 0 stalls. If it recurs, the printed
   exit line says which path it took.
@@ -4742,7 +4743,17 @@ Numbers here are measured, not planned.
   4 s of the last), capped +12; pocket glug = 250 ms noise through a lowpass 800 -> 200 Hz.
   `__sfx.last` records the last one scheduled.
 - **stale block has its control:** the same sequence NOT claimed, camera pinned on the seam, shows the
-  ore line (first at ~3.0 s) and records it (onboard +2).
+  ore line (first at ~3.0 s) and records it (onboard +3: the queued assertion, the control, page errors).
+- **PROBES THAT EMPTY OR SHORT THE TANK NOW MARK EXISTING POCKETS TAPPED FIRST** (mine-check heat
+  block and run-dry block, ending-check `toStuck`): a pocket the last digs reached pays AFTER the tank
+  is set, and the run is then rightly live. Seen as `charged -6 at 70 m, price says 4` and `over=false
+  after 40 digs, 23 m` (mine) and `still live after 12 s` (ending). Measurements unchanged.
+- **naive bot after round 2** (strict policy, 8 seeds): median **80.5 m** (33 44 62 77 84 88 89 104),
+  7 of 7 stalled runs nudged, every run ended `dry` by itself.
+- **`--mine` after round 2: 856 passed, 0 failed across 15 checks** (boot 22, store 124, mine 190,
+  ending 87, ship 58, phone 44, onboard 63 (56 -> 63: stale +3, pocketlag +1, walled +3), zip 24,
+  level 27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18). The run before it: 666 + mine
+  broken on the run-dry probe above (zip 24/24 in it too).
 - **OWNER'S CALL, recorded not fixed:** a player who keeps pressing the deepest walled tip with water
   in the tank is never ended by M1's rule (it ends only on water < price). Measured by the verifier:
   37 refusals in a row at 60 m with 38 water, live > 90 s; naive `--baseline` 4242 and 2024 live after
