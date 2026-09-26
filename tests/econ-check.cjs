@@ -16,6 +16,9 @@
  *   end      the end screen's Depth / Phosphorus seams / material rows and the records line; Buy then
  *            Descend reaches a live run in 2 clicks.
  *   title    the Upgrades button: shown for a bought rung with an empty wallet, hidden on a bare save.
+ *   endfix   (M5 round 2) the Depth row shows the raw reach and the floor its own row; a double tap
+ *            on the card's Buy buys one rung; the mine store has no rating box.
+ *   count    (M5 round 2) a descent banked by two boots counts once; a 0-dig record not at all.
  *
  * `ECON_ONLY=reach,reveal,...` runs a subset.
  */
@@ -113,6 +116,11 @@ const openStore = async (page) => {
       ok('three zero-dig End descents bank nothing (was +5 P each)', loops.every((x) => x.ore === 0 && x.cause === 'abandon' && x.digs === 0) && loops[2].P === 0,
          JSON.stringify(loops));
       ok('...and count as no descent (p.mineRuns)', !(p0.mineRuns > 0), String(p0.mineRuns));
+      // M5 round 2: nor as a finished run or a depth record — both are what the first-visit skip and
+      // 'Your first descent' key on, and a menu-then-End-descent used to spend them on nothing.
+      const fv = await b.page.evaluate(() => window.__menu.firstVisit());
+      ok('...nor as a finished run or a depth record, so the save is still on its first visit', !(p0.runsDone > 0) && !(p0.mineBest > 0) && fv === true,
+         JSON.stringify({ runsDone: p0.runsDone, mineBest: p0.mineBest, firstVisit: fv }));
       // Two digs, then End descent: the raw reach, not the floor.
       await live(); await quiet();
       const two = await b.page.evaluate(async () => {
@@ -153,7 +161,10 @@ const openStore = async (page) => {
       const pd = await prog();
       ok('...while a descent that dug and ran dry still banks the 5 P floor (control)', dry.cause === 'dry' && dry.ore === Math.max(5, dry.raw) + dry.seams && (pd.minerals | 0) - dry.P === dry.ore,
          `${JSON.stringify(dry)}, wallet ${dry.P} -> ${pd.minerals | 0}`);
-      ok('...and the two descents that dug are the only ones counted', pd.mineRuns === 2, String(pd.mineRuns));
+      // runsDone moves when the end screen is LEFT (runEndThen), so here it holds the 2-dig descent
+      // only; the three zero-dig loops before it added nothing (they read 3 on the pre-fix build).
+      ok('...and the two descents that dug are the only ones counted (runsDone: the one already left)', pd.mineRuns === 2 && pd.runsDone === 1,
+         JSON.stringify({ mineRuns: pd.mineRuns, runsDone: pd.runsDone }));
       // Exit to title at 0 digs: nothing banked, nothing announced.
       await b.page.click('#ssMineDescend');
       await live(); await sleep(300);
@@ -473,7 +484,10 @@ const openStore = async (page) => {
         for (const ci of [8, 9, 10, 11, 12]) out[ci] = s.mineChunks[ci] ? JSON.parse(JSON.stringify(s.mineChunks[ci])) : null;
         return out;
       });
-      const snap = JSON.parse(fs.readFileSync(path.join(H.ROOT, 'tests', 'fixtures', 'm5-pre-chunks-4242.json'), 'utf8'));
+      // The fixture is `{source, chunks}` since M5 round 2 — regenerated from `git show 769b1a3:index.html`
+      // (the last pre-M5 commit) by tests/fixture-chunks.cjs; the bare-map shape is still read.
+      const raw = JSON.parse(fs.readFileSync(path.join(H.ROOT, 'tests', 'fixtures', 'm5-pre-chunks-4242.json'), 'utf8'));
+      const snap = raw.chunks || raw;
       const diff = [8, 9, 10, 11, 12].filter((ci) => JSON.stringify(rec[ci]) !== JSON.stringify(snap[ci]));
       ok("'#mine,4242' chunk records 8-12 are identical to the pre-M5 snapshot", diff.length === 0 && [8, 9, 10, 11, 12].every((ci) => rec[ci]),
          diff.length ? 'differ: ' + diff.join(',') : 'all five identical');
@@ -541,6 +555,98 @@ const openStore = async (page) => {
     // ======================================================================================
     // THE END SCREEN FITS SHORT SCREENS (M5 verifier fix). With four seam rows, the records line and
     // the goal card, `.ss-win`'s centring pushed SPORED off the TOP at 640x360 (y -50..-7) and 320x568.
+    // ======================================================================================
+    // M5 ROUND 2: the Depth row is what depth paid (the floor gets its own row), one tap buys one
+    // rung, and the mine store has no empty rating box.
+    if (want('endfix')) {
+      console.log('--- end screen: raw depth row, one tap one rung, no rating box');
+      const b = await E.bootMine(5);
+      const pre = await b.page.evaluate(async (Q) => {
+        new Function('return (' + Q + ')')()();
+        const g = window.__game, s = g.state;
+        for (let i = 0; i < 2; i++) { g.mine.grow(0, 1); await new Promise((r) => setTimeout(r, 400)); }
+        for (let i = 0; i < 60 && g.mine.revealing(); i++) await new Promise((r) => setTimeout(r, 100));
+        await new Promise((r) => setTimeout(r, 400));
+        { const T = s._tappedWater || (s._tappedWater = new Set()); for (const q of (s.substrate.reservoirs || [])) T.add(q.id); }
+        const out = { depth: g.mine.maxDepth(), raw: g.mine.reachRaw(), seams: g.mine.ore(), digs: s.mineDigs | 0 };
+        g.store.credit(40);
+        s.active.water = 0;
+        for (let i = 0; i < 80 && !s.runOver; i++) await new Promise((r) => setTimeout(r, 100));
+        out.cause = s.runResult && s.runResult.cause; out.ore = s.runResult && s.runResult.ore;
+        return out;
+      }, Q);
+      await b.page.waitForSelector('#ssMineEnd', { timeout: 20000 }).catch(() => {});
+      await sleep(1600);
+      const rows = await b.page.evaluate(() => Array.from(document.querySelectorAll('#ssMineEnd .ss-me-row')).map((x) => x.innerText.replace(/\s+/g, ' ').trim()));
+      const lift = 5 - pre.raw;
+      ok(`a shallow dry run (${pre.depth} m): the Depth row shows what depth paid (+${pre.raw}), not the floored +5`,
+         pre.cause === 'dry' && pre.raw < 5 && rows.some((x) => new RegExp('^Depth ' + pre.depth + ' m \\+' + pre.raw + '$').test(x)), `${JSON.stringify(pre)} | ${rows.join(' | ')}`);
+      ok(`...and the floor's lift is its own 'Minimum payout +${lift}' row, so the rows add up to the total`,
+         rows.some((x) => new RegExp('^Minimum payout \\+' + lift + '$').test(x)) && pre.ore === 5 + pre.seams, rows.join(' | '));
+      // ONE TAP, ONE RUNG: two taps 60 ms apart on the card's Buy (the next goal renders a new Buy
+      // under the same finger) buy exactly one rung; a tap after the re-arm window buys the next.
+      const lv = () => b.page.evaluate(() => { const st = window.__game.store; const o = {}; for (const id of st.ids('mine')) o[id] = st.level(id); return o; });
+      const sum = (o) => Object.values(o).reduce((a, x) => a + (x | 0), 0);
+      const l0 = await lv();
+      const bb = await b.page.evaluate(() => { const q = document.getElementById('ssMineBuy').getBoundingClientRect(); return { x: q.left + q.width / 2, y: q.top + q.height / 2 }; });
+      await b.page.mouse.click(bb.x, bb.y); await sleep(60); await b.page.mouse.click(bb.x, bb.y);
+      await sleep(150);
+      const l1 = await lv();
+      const again = await b.page.evaluate(() => ({ goal: (document.getElementById('ssMineGoal') || {}).dataset.goal, buy: !!document.getElementById('ssMineBuy') }));
+      ok('a double tap on the card\'s Buy buys ONE rung (Water tank), not a second track under the same finger',
+         sum(l1) - sum(l0) === 1 && l1.water === (l0.water | 0) + 1, JSON.stringify({ before: l0, after: l1, next: again }));
+      await sleep(600);
+      if (again.buy) await b.page.click('#ssMineBuy');
+      await sleep(150);
+      const l2 = await lv();
+      ok('...and a tap after the re-arm window buys the next goal (control)', again.buy && sum(l2) - sum(l1) === 1, JSON.stringify({ next: again, after: l2 }));
+      // THE MINE STORE HAS NO RATING ASK, AND NO EMPTY BOX WHERE IT WAS.
+      await b.page.click('#ssMineDone');
+      await b.page.waitForSelector('#speciesSelect.ss-mine', { timeout: 20000 }).catch(() => {});
+      await sleep(700);
+      const rate = await b.page.evaluate(() => { const e = document.getElementById('ssRate'); if (!e) return { absent: true };
+        const q = e.getBoundingClientRect(); return { hidden: e.hidden, display: getComputedStyle(e).display, h: q.height, text: e.textContent.trim(),
+          runsDone: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').runsDone }; });
+      ok('the mine store shows no rating box (was an empty 26 px bordered card once a run had ended)',
+         rate.absent || (rate.hidden && rate.display === 'none' && rate.h === 0), JSON.stringify(rate));
+      ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
+      await b.ctx.close();
+    }
+
+    // ======================================================================================
+    // M5 ROUND 2: A RUN BANKED BY TWO BOOTS COUNTS ONCE. Tab A hidden -> boot B banks pending[K] and
+    // marks mineTaken[K]; A comes back, goes hidden again and rewrites pending[K]; boot C banks it
+    // again. Before, C counted the descent a second time (p.mineRuns, which gates the intro shelf, and
+    // runsDone). Driven through the real boot-time bank with a seeded save.
+    if (want('count')) {
+      console.log('--- a descent banked by two boots counts once');
+      const bootWith = async (save) => {
+        const b = await E.boot('', 390, 844, { before: async (page) => page.addInitScript((sv) => {
+          try { if (!localStorage.getItem('__seeded')) { localStorage.setItem('mycelium.progress.v2', JSON.stringify(sv)); localStorage.setItem('__seeded', '1'); } } catch (_) {}
+        }, save) });
+        await b.page.waitForSelector('#titleScreen', { timeout: 30000 }).catch(() => {});
+        await sleep(600);
+        const p = await b.page.evaluate(() => JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}'));
+        await b.ctx.close();
+        return p;
+      };
+      const now = Date.now();
+      const base = { runsDone: 1, mineBest: 20, mineRuns: 1, migratedMineShelfV2: true, minerals: 0 };
+      const again = await bootWith(Object.assign({}, base, {
+        minePending: { 'A:k1': { P: 3, mats: {}, depth: 12, digs: 2, at: now } },
+        mineTaken: { 'A:k1': { P: 5, mats: {}, at: now } } }));
+      ok('a pending record whose run a boot already counted pays its rest but counts no second descent',
+         again.minerals === 3 && again.mineRuns === 1 && again.runsDone === 1, JSON.stringify({ minerals: again.minerals, mineRuns: again.mineRuns, runsDone: again.runsDone }));
+      const fresh = await bootWith(Object.assign({}, base, {
+        minePending: { 'A:k1': { P: 3, mats: {}, depth: 12, digs: 2, at: now }, 'B:k2': { P: 4, mats: {}, depth: 30, digs: 5, at: now },
+                       'C:k3': { P: 0, mats: {}, depth: 1, digs: 0, at: now } },
+        mineTaken: { 'A:k1': { P: 5, mats: {}, at: now } } }));
+      ok('...while a first-time record counts once and a 0-dig record not at all (control)',
+         fresh.minerals === 7 && fresh.mineRuns === 2 && fresh.runsDone === 2 && fresh.mineBest === 30,
+         JSON.stringify({ minerals: fresh.minerals, mineRuns: fresh.mineRuns, runsDone: fresh.runsDone, mineBest: fresh.mineBest }));
+    }
+
+    // ======================================================================================
     if (want('fit')) {
       console.log('--- the end screen on short screens');
       for (const [w, h] of [[390, 844], [360, 640], [320, 568], [640, 360]]) {
@@ -564,6 +670,16 @@ const openStore = async (page) => {
         });
         await b.page.screenshot({ path: path.join(ART, `m5-end-${w}x${h}.png`) });
         const inView = (x) => x && x.top >= 0 && x.bottom <= r.vh;
+        if (w === 390) {
+          // CENTRED WHEN IT FITS (M5 round 2): auto margins on the first and last child, not `safe
+          // center` — so the equal slack above and below is the thing to check on a tall screen.
+          const sl = await b.page.evaluate(() => { const root = document.getElementById('ssMineEnd'), cs = getComputedStyle(root), rr = root.getBoundingClientRect();
+            const a = root.firstElementChild.getBoundingClientRect(), z = root.lastElementChild.getBoundingClientRect();
+            return { top: Math.round(a.top - rr.top - parseFloat(cs.paddingTop)), bottom: Math.round(rr.bottom - parseFloat(cs.paddingBottom) - z.bottom),
+                     jc: cs.justifyContent }; });
+          ok('390x844: a stack that fits is centred (equal slack above and below) without `safe center`',
+             sl.top > 20 && Math.abs(sl.top - sl.bottom) <= 4 && !/safe/.test(sl.jc), JSON.stringify(sl));
+        }
         ok(`${w}x${h}: SPORED and the depth are on screen, and Descend and Store are tappable`,
            inView(r.title) && inView(r.depth) && inView(r.d) && inView(r.st) && r.hitD === 'ssMineDescend' && r.hitS === 'ssMineDone',
            JSON.stringify({ title: r.title && [r.title.top, r.title.bottom], depth: r.depth && [r.depth.top, r.depth.bottom], d: r.d && [r.d.top, r.d.bottom], s: r.st && [r.st.top, r.st.bottom], hit: [r.hitD, r.hitS] }));

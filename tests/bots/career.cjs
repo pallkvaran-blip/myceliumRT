@@ -2,6 +2,12 @@
 const fs = require('fs');
 const { OUT, sleep, launch, bootMine, injectBot } = require('./lib.cjs');
 const { playDescent } = require('./botrun.cjs');
+// Run k's shaft on a career seeded `seed` (k >= 2; run 1 is `seed` itself). FNV-1a over both.
+function runSeed(seed, k) {
+  let h = 0x811c9dc5;
+  for (const v of [seed >>> 0, k >>> 0]) for (let i = 0; i < 4; i++) { h ^= (v >>> (i * 8)) & 0xff; h = Math.imul(h, 0x01000193) >>> 0; }
+  return (h & 0x7fffffff) || 1;
+}
 (async () => {
   const seed = +(process.argv[2] || 4242);
   const runs = +(process.argv[3] || 10);
@@ -63,7 +69,10 @@ const { playDescent } = require('./botrun.cjs');
     log.push(row);
     console.log(`R${r} seed=${res.seed} ${res.seconds}s digs=${res.digs} depth=${res.end.depth}/${res.maxDepth} start=${res.start.water}W ore=${res.end.ore} mats=${JSON.stringify(res.end.mats)} cause=${res.end.cause} drained=${res.end.drained} boxed=${res.boxedAt ? res.boxedAt.why + '@' + res.boxedAt.depth + 'm w=' + res.boxedAt.water + ' ' + JSON.stringify(row.sat) : '-'} items=${JSON.stringify(row.itemsUsed)} | bought ${bought.join(',')} | left P=${after.P} ${JSON.stringify(after.mats)}`);
     fs.writeFileSync(`${OUT}/${tag}.json`, JSON.stringify(log, null, 1));
-    // Descend
+    // Descend — ON A PINNED SEED (M5 round 2): run r+1's shaft is a hash of (seed, r+1), so two
+    // careers on one build play the same maps and a ratio compares builds, not map rolls.
+    // `--free` (argv[6]) keeps the old clock seeds.
+    if (process.argv[6] !== '--free') await page.evaluate((s) => { window.MYCELIUM_NEXT_MINE_SEED = s; }, runSeed(seed, r + 1));
     const dsc = await page.$('#ssDescend');
     if (!dsc) { console.log('no descend button'); break; }
     await dsc.click();

@@ -1882,8 +1882,14 @@
        not have. With the M5 rows and the next-goal card the stack outgrew a short screen and centring
        pushed SPORED and the depth off the TOP (y -50..-7 at 640x360). So: no carousel padding, `safe`
        centring (a stack taller than the screen starts at the top instead of above it), a scroll as the
-       last resort, and a compact stack on short heights. */
-    .ss-mineend { justify-content:safe center; overflow-y:auto; padding-bottom:clamp(14px,3vh,32px); }
+       last resort, and a compact stack on short heights.
+       THE CENTRING IS AUTO MARGINS, NOT `safe center` (M5 round 2): a browser without the `safe`
+       keyword (older iOS Safari) drops the whole declaration and falls back to `.ss-win`'s plain
+       centring, i.e. the top clip on exactly the short phones this is for. Auto margins on the first
+       and last child centre a stack that fits and collapse to 0 when it does not, everywhere. */
+    .ss-mineend { justify-content:flex-start; overflow-y:auto; padding-bottom:clamp(14px,3vh,32px); }
+    .ss-mineend > :first-child { margin-top:auto; }
+    .ss-mineend > :last-child { margin-bottom:auto; }
     @media (max-height:600px) {
       .ss-mineend { gap:1px; padding:4px clamp(14px,4vw,40px) 8px; }
       .ss-mineend .ss-win-title { height:clamp(36px,11vh,64px); }
@@ -23541,7 +23547,7 @@ function mineEndRun(state, cause) {
   // FULL PAYOUT EITHER WAY, and it is load-bearing: Amputate is bought, so an early player who
   // meets mould with nothing in the bag has no answer at all. Ending their run sooner is a fair
   // cost; taking the ore they already dug would not be.
-  state.runResult = { mine: true, depth, ore, seams, reach, spores: 0, bodies: 0, died: false,
+  state.runResult = { mine: true, depth, ore, seams, reach, reachRaw: mineReachRaw(state), spores: 0, bodies: 0, died: false,
                       // EVERY MATERIAL THE DESCENT DUG, not just the Phosphorus. A copy, because
                       // `presentMineEnd` banks from this after the state has moved on.
                       mats: Object.assign({}, state.mineMats || {}),
@@ -30331,7 +30337,11 @@ function showSpeciesSelect({ onPick, onDev, onLevel, mine }) {
   const select = (s) => { hide(); onPick && onPick(s, startLevelForGame(loadProgress())); };
 
   function render() {
+    // THE MINE HAS NO RATING ASK, SO ITS BOX MUST SAY SO (M5 round 2). Skipping renderRate left
+    // #ssRate un-hidden and empty — `.ss-rate` is display:flex with a border, so a new player's first
+    // store (runsDone 1) showed a blank 26 px bordered card under the two tiles at 390x844.
     if (!mineOn) renderRate();
+    else { rateBox.hidden = true; rateBox.innerHTML = ''; }
     const bal = sporesBalance(progress);
     // THE ICON IS THE CURRENCY, and getting it wrong is the one thing on this screen that could
     // silently mislead: the tiles' prices come from the same ladder either way, so a spore glyph
@@ -30520,7 +30530,7 @@ function mineEndingLine(cause, depth) {
   const f = MINE_RUN_ENDING[cause] || MINE_RUN_ENDING.other;
   return f(depth | 0);
 }
-function showMineEnd({ depth, ore, mats, seams, reach, seamCount, best, balance, cause, first, onDone, onDescend }) {
+function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best, balance, cause, first, onDone, onDescend }) {
   const root = el('div', 'ss-win ss-mineend'); root.id = 'ssMineEnd';
   // THE GROWN WORDMARK IS A WORD, AND THE DEPTH IS PLAIN TYPE UNDER IT — a grown digit is a smudge,
   // and this is the one number the player wants exactly.
@@ -30533,7 +30543,12 @@ function showMineEnd({ depth, ore, mats, seams, reach, seamCount, best, balance,
   const row = (label, n, mark, unit) =>
     '<div class="ss-me-row"><span class="ss-me-lbl">' + label + '</span>'
     + '<span class="ss-me-val">+<b class="ss-count" data-n="' + (n | 0) + '">' + (n | 0) + '</b>' + (mark || '') + (unit ? ' ' + esc(unit) : '') + '</span></div>';
-  let rows = row('Depth ' + (depth | 0) + ' m', reach, RI.phos);
+  // THE DEPTH ROW IS WHAT DEPTH PAID, AND THE FLOOR IS ITS OWN ROW (M5 round 2). It used to print the
+  // floored payout, so a dry run at 12 m read 'Depth 12 m +5' while the HUD had counted +2 for it —
+  // the floor dressed up as a depth rate. The rows still add up to the total under them.
+  reachRaw = reachRaw != null ? Math.min(reach, Math.max(0, reachRaw | 0)) : reach;
+  let rows = row('Depth ' + (depth | 0) + ' m', reachRaw, RI.phos);
+  if (reach > reachRaw) rows += row('Minimum payout', reach - reachRaw, RI.phos);
   // ALWAYS SHOWN, ×0 +0 included (M5 verifier fix): the plan's end screen has a Phosphorus-seams row,
   // and a descent that found none is the case where the row says the most — P comes from seams too.
   rows += row('Phosphorus seams ×' + (sc.phosphorus | 0), seams, RI.phos);
@@ -30589,12 +30604,24 @@ function showMineEnd({ depth, ore, mats, seams, reach, seamCount, best, balance,
       + (g.afford ? '<button class="ss-upg-btn ss-me-buy" id="ssMineBuy" type="button" aria-label="Buy ' + esc(g.name) + ' for ' + esc(price) + '">'
         + matMark(g.cost.m) + '<span class="ss-buyn">' + g.cost.n + '</span> Buy</button>' : '');
     const bb = goalBox.querySelector('#ssMineBuy');
-    if (bb) bb.addEventListener('click', () => {
-      const r = buyUpgrade(g.id);
-      if (r.ok) logEvent('upgrade', { detail: g.id, level: r.level, n: upgradeSpendN(g.cost) });
-      renderGoal();
-    });
+    if (bb) {
+      // ONE TAP, ONE PURCHASE (M5 round 2). The next goal renders a NEW Buy under the same finger, so
+      // a double tap (or a bounce) used to buy a second rung on a track the player never chose — Water I
+      // at 5, then Grow I at 12. A freshly rendered Buy stays disabled for BUY_REARM_MS.
+      if (Date.now() - lastBuyAt < BUY_REARM_MS) {
+        bb.disabled = true;
+        setTimeout(() => { if (bb.isConnected) bb.disabled = false; }, BUY_REARM_MS - (Date.now() - lastBuyAt));
+      }
+      bb.addEventListener('click', () => {
+        if (bb.disabled || Date.now() - lastBuyAt < BUY_REARM_MS) return;
+        const r = buyUpgrade(g.id);
+        if (r.ok) { lastBuyAt = Date.now(); logEvent('upgrade', { detail: g.id, level: r.level, n: upgradeSpendN(g.cost) }); }
+        renderGoal();
+      });
+    }
   }
+  const BUY_REARM_MS = 450;
+  let lastBuyAt = 0;
   renderGoal();
   function hide() { clearTimeout(timer); title.destroy(); root.remove(); }
   root.querySelector('#ssMineDone').addEventListener('click', () => { hide(); onDone && onDone(); });
@@ -34063,6 +34090,12 @@ function beginMineRun(seed) {
   setGame('mine');
   playtestLevel = null; chosenSpecies = null; bootSandbox = false;
   currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0;
+  // TEST KNOB (M5 round 2): `window.MYCELIUM_NEXT_MINE_SEED`, consumed once, pins the shaft of a
+  // descent started from the real Descend buttons — so a bot career compares BUILDS rather than maps
+  // (the same seed read x1.21 on one run and x0.43 on the next, with runs 2-12 on clock seeds).
+  if (!(seed > 0) && typeof window !== 'undefined' && window.MYCELIUM_NEXT_MINE_SEED > 0) {
+    seed = window.MYCELIUM_NEXT_MINE_SEED; window.MYCELIUM_NEXT_MINE_SEED = 0;
+  }
   mineSeed = (seed > 0 ? (seed >>> 0) : (Date.now() & 0x7fffffff)) || 1;
   mineBeatBand = -1;
   stockRun();
@@ -34253,7 +34286,10 @@ function runEndThen(next) {
   // opinion of the game, and a run they walked away from mid-level has taught them nothing they
   // could rate. Counting here also means the retry path doesn't inflate it — a retry continues
   // the run and never reaches this function.
-  recordRunFinished();
+  // ...EXCEPT A DESCENT THAT DOES NOT COUNT (M5 round 2): one that never dug, or one a boot on
+  // another page already counted when it banked its pending record — `mineBank` decides
+  // (`_mineCountRun`). `mineFirstVisit` and 'Your first descent' key on this counter.
+  if (!mineRunUncounted()) recordRunFinished();
   runSporeMult = 1;
   // The per-species record of last run's drafts is GONE with the picker that read it — the deck is
   // the one carry now, and `state.cards.runDrafted` still feeds the keep screen's pool directly.
@@ -34550,6 +34586,9 @@ function mineBank(r) {
   const ore = Math.max(0, (r.ore != null ? r.ore : (state ? mineBankable(state, r.cause) : 0)) | 0);
   const seams = Math.max(0, (r.seams != null ? r.seams : (state && state.mineOre)) | 0);
   const reach = Math.max(0, ore - seams);
+  // What the DEPTH earned before the 5 P floor (M5 round 2): the end screen shows it on the Depth row
+  // and the floor's lift on a row of its own, so the screen agrees with the HUD's count.
+  const reachRaw = Math.min(reach, Math.max(0, (r.reachRaw != null ? r.reachRaw : (state ? mineReachRaw(state) : reach)) | 0));
   const mats = (r.mats && Object.keys(r.mats).length ? r.mats : (state && state.mineMats)) || null;
   if (!r._minePaid) {
     r._minePaid = true;
@@ -34580,7 +34619,12 @@ function mineBank(r) {
     // descent that dug, and not twice when a boot elsewhere already counted this run's pending record.
     const digs = r.digs != null ? r.digs | 0 : ((state && state.mineDigs) | 0);
     if (digs > 0 && !bootCounted) { try { const p = loadProgress(); p.mineRuns = mineRunsBanked(p) + 1; saveProgress(p); } catch (_) {} }
-    r._mineBest = mineRecordDepth(depth);
+    // A DESCENT THAT NEVER DUG IS NOT A DESCENT (M5 round 2): opening the menu and pressing End
+    // descent before the first dig used to record a 1 m best and a finished run, which spent the
+    // save's first-visit skip and its 'Your first descent' line on nothing. And one a boot elsewhere
+    // already counted is not counted again (`runsDone` doubled there before this).
+    r._mineCountRun = digs > 0 && !bootCounted;
+    r._mineBest = digs > 0 ? mineRecordDepth(depth) : mineBestNow();
     // The payout is banked, so a closed tab has nothing left to recover.
     minePendingClear(key);
     _sessionRuns++;
@@ -34591,7 +34635,17 @@ function mineBank(r) {
                           ms, detail: r.cause || 'dry' });
   }
   const seamCount = r.seamCount || (state && state.mineSeams) || {};
-  return { depth, ore, seams, reach, mats, seamCount, best: r._mineBest || mineRecordDepth(depth) };
+  return { depth, ore, seams, reach, reachRaw, mats, seamCount, best: r._mineBest || mineBestNow() };
+}
+// Whether the ending in hand is a mine descent that must NOT count as a finished run (see mineBank).
+function mineRunUncounted() {
+  const r = state && state.substrate && state.substrate.mine ? state.runResult : null;
+  return !!(r && r._minePaid && !r._mineCountRun);
+}
+// The save's deepest descent without writing one.
+function mineBestNow() {
+  try { const p = loadProgress(); return { m: (typeof p.mineBest === 'number' && isFinite(p.mineBest)) ? p.mineBest : 0, isNew: false }; }
+  catch (_) { return { m: 0, isNew: false }; }
 }
 // THE END OF A DESCENT. Owner: "When the player runs out of water, they fruit and spore and go to
 // the upgrade store." So there is exactly one thing to say (how deep, and what it paid) and exactly
@@ -34603,7 +34657,7 @@ function presentMineEnd(r) {
   try { if (state) state._mineTips = { cur: null, queue: [] }; if (ui && ui.setMineHint) ui.setMineHint(''); } catch (_) {}
   showMineEnd({
     depth: paid.depth, ore: paid.ore, mats: paid.mats, seams: paid.seams, reach: paid.reach,
-    seamCount: paid.seamCount,
+    reachRaw: paid.reachRaw, seamCount: paid.seamCount,
     best: paid.best, cause: r.cause, first: !!(state && state._mineFirst),
     balance: sporesBalance(),
     // [Store] (secondary, `#ssMineDone`) opens the shelf; [Descend] (primary) goes straight into the
@@ -34623,7 +34677,7 @@ function mineExitToTitle() {
   const paid = mineBank(state.runResult || {});
   // THE SAME BOOKKEEPING AS `runEndThen`, which the end screen's button reaches and this exit does
   // not: the rating boon is one run, and a quit is a finished run for the rating ask's gate.
-  endRunSpores(); recordRunFinished(); runSporeMult = 1;
+  endRunSpores(); if (!mineRunUncounted()) recordRunFinished(); runSporeMult = 1;
   const parts = [];
   if (paid.ore > 0) parts.push('+' + paid.ore + ' P');
   for (const k of Object.keys(paid.mats || {})) if (k !== 'phosphorus' && (paid.mats[k] | 0) > 0) parts.push('+' + (paid.mats[k] | 0) + ' ' + matName(k));
@@ -34716,7 +34770,7 @@ function minePendingBankAtBoot() {
     if (!keys.length) { if (p.minePending) { delete p.minePending; saveProgress(p); } return null; }
     delete p.minePending;
     if (!p.mats || typeof p.mats !== 'object') p.mats = {};
-    let P = 0; const mats = {};
+    let P = 0, countRuns = 0; const mats = {};
     for (const key of keys) {
       const pend = map[key] || {};
       const dP = Math.max(0, pend.P | 0);
@@ -34729,9 +34783,13 @@ function minePendingBankAtBoot() {
         mats[k] = (mats[k] | 0) + n; dm[k] = n;
       }
       const d = Math.max(0, pend.depth | 0);
-      // Counted as a descent if it dug (a record from before `digs` existed: if it paid anything).
-      if (pend.digs != null ? (pend.digs | 0) > 0 : dP > 0) p.mineRuns = mineRunsBanked(p) + 1;
-      if (!(p.mineBest >= d)) p.mineBest = d;
+      // Counted as a descent if it dug (a record from before `digs` existed: if it paid anything),
+      // and ONCE PER RUN: a run whose tab went hidden twice can be banked by two boots, and the
+      // second finds the first one's `mineTaken` marker — read BEFORE this record updates it below.
+      const dug = pend.digs != null ? (pend.digs | 0) > 0 : dP > 0;
+      const already = key !== 'legacy' && !!(p.mineTaken && key in p.mineTaken);
+      if (dug && !already) { p.mineRuns = mineRunsBanked(p) + 1; countRuns++; }
+      if (dug && !(p.mineBest >= d)) p.mineBest = d;
       if (key !== 'legacy') {
         p.mineTaken = p.mineTaken || {};
         const t = p.mineTaken[key] || { P: 0, mats: {} };
@@ -34744,7 +34802,7 @@ function minePendingBankAtBoot() {
     }
     p.minerals = Math.max(0, (p.minerals | 0) + P);
     saveProgress(p);
-    try { endRunSpores(); recordRunFinished(); } catch (_) {}
+    try { endRunSpores(); for (let k = 0; k < countRuns; k++) recordRunFinished(); } catch (_) {}
     return { P, mats };
   } catch (_) { return null; }
 }
