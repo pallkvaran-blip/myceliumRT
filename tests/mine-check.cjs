@@ -1206,6 +1206,12 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       await window.__digTo(70, 700);
       await new Promise((r) => setTimeout(r, 900));
       const depth = g.mine.depth(), price = g.mine.costHere();
+      // NO POCKET MAY PAY INSIDE THE WINDOW. A pocket pays once the touching strand has GROWN IN (M4
+      // verifier round 2), so one the dive reached can land during the 1.2 s below and read as a
+      // negative charge ('charged -6 at 70 m, price says 4'). Take the variable out, as the fuel-curve
+      // probe does: every pocket that exists is marked tapped.
+      const T = s._tappedWater || (s._tappedWater = new Set());
+      for (const q of (s.substrate.reservoirs || [])) T.add(q.id);
       const before = s.active.nodes.length, w0 = s.active.water;
       const r = g.mine.grow(0, 1);
       await new Promise((r2) => setTimeout(r2, 1200));

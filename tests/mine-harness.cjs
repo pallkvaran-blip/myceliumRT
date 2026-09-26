@@ -154,27 +154,53 @@ async function injectNav(page) {
       window.__navDig = async ({ targetM = 999, maxIters = 500, tank = false } = {}) => {
         const g = window.__game, s = g.state;
         let P = navPlan(targetM), prog = 0, digs = 0, fails = 0;
-        for (let i = 0; i < maxIters && g.mine.depth() < targetM && !s.runOver; i++) {
-          if (!P.length) { P = navPlan(targetM); if (!P.length) break; }
+        // WHY IT STOPPED (zip gate diagnostics): a navigator that returns with the run live and water
+        // in the tank is a PROBE failure, and the gate has to be able to say which exit it took.
+        let exit = 'maxIters', iters = 0, replans = 1, emptyPlans = P.length ? 0 : 1, refusals = 0, pocketWaits = 0;
+        const msgs = {};
+        for (let i = 0; i < maxIters; i++) {
+          iters = i;
+          if (s.runOver) { exit = 'runOver'; break; }
+          if (g.mine.depth() >= targetM) { exit = 'depth'; break; }
+          if (!P.length) { P = navPlan(targetM); replans++; if (!P.length) { emptyPlans++; exit = 'noPlan'; break; } }
           const live = s.active.nodes.filter((n) => !n.infected);
-          if (!live.length) break;
+          if (!live.length) { exit = 'noLive'; break; }
           for (let k = P.length - 1; k > prog; k--) {
             const p = P[k];
             if (live.some((n) => (n.x - p.x) ** 2 + (n.y - p.y) ** 2 < 28 * 28)) { prog = k; break; }
           }
-          const wp = P[Math.min(P.length - 1, prog + 14)], at = P[prog];
-          let src = null, sd = Infinity;
-          for (const n of live) { const d = (n.x - at.x) ** 2 + (n.y - at.y) ** 2; if (d < sd) { sd = d; src = n; } }
+          // ON A REFUSAL, VARY THE PRESS (zip gate follow-up): the path is planned on the fine mask, and
+          // a gap the mask calls open can still refuse a growth segment. Re-pressing the same strand
+          // toward the same waypoint twelve times, then re-planning the SAME path, can stall until
+          // maxIters with the run live and the tank full. The first press is the old one (offset 14,
+          // nearest strand); each refusal walks the waypoint offset and the source rank.
+          const OFFS = [14, 6, 24, 3, 36], off = OFFS[fails % OFFS.length], rank = Math.floor(fails / OFFS.length) % 3;
+          const wp = P[Math.min(P.length - 1, prog + off)], at = P[prog];
+          const byD = live.map((n) => [(n.x - at.x) ** 2 + (n.y - at.y) ** 2, n]).sort((x, y) => x[0] - y[0]);
+          const src = byD[Math.min(byD.length - 1, rank)][1];
           const res = g.mine.growFrom(src.x, src.y, wp.x, wp.y);
           if (res.ok) digs++;
           else {
-            fails++;
-            if (tank && /water/i.test(res.message || '')) break;
+            fails++; refusals++;
+            const m = String(res.message || '?').slice(0, 48); msgs[m] = (msgs[m] || 0) + 1;
+            if (tank && /water/i.test(res.message || '')) {
+              // A POCKET PAYS WHEN THE STRAND THAT TOUCHES IT HAS GROWN IN (M4 verifier minor), so the
+              // dig that reached one can be followed by a refusal for water that is about to arrive.
+              // Wait for pending pockets and the reveal (<= 4 s); water that rose means dig on.
+              const w0 = s.active.water, t0 = performance.now();
+              while (performance.now() - t0 < 4000 && !s.runOver
+                     && ((s._minePocketPending | 0) > 0 || (g.mine.revealing && g.mine.revealing()))) {
+                await new Promise((r) => setTimeout(r, 50));
+              }
+              if (!s.runOver && s.active.water > w0) { pocketWaits++; fails = 0; continue; }
+              exit = 'water'; break;
+            }
           }
-          if (fails > 12 || i % 60 === 59) { P = navPlan(targetM); prog = 0; fails = 0; }
+          if (fails > 12 || i % 60 === 59) { P = navPlan(targetM); replans++; if (!P.length) emptyPlans++; prog = 0; fails = 0; }
           if (i % 3 === 2) await new Promise((r) => setTimeout(r, 60));
         }
-        return { depth: g.mine.depth(), digs };
+        return { depth: g.mine.depth(), digs, exit, iters, replans, emptyPlans, refusals, msgs, pocketWaits,
+                 plan: P.length, prog, water: s.active.water };
       };
       window.__digTo = async (targetM, iters) => (await window.__navDig({ targetM, maxIters: iters || 500 })).depth;
     });

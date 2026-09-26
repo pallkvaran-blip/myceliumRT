@@ -4704,6 +4704,55 @@ Numbers here are measured, not planned.
   mine 190, ending 87, ship 58, phone 44, onboard 56, zip 24, level 27, aim 9, scale 26, threat 116,
   harvest 28, mould 20, core 18.
 
+**M4 VERIFIER FIXES, ROUND 2**
+- **THE ZIP GATE'S INTERMITTENT WAS (AT LEAST PARTLY) A PROBE RACE, AND THE POCKET FIX BELOW MADE IT
+  COMMON.** A navigator dive that ends on `Not enough water` right after a dig reached a pocket leaves
+  the pocket to pay a moment later: the tank rises to >= the price, the run is legitimately live, and
+  nothing digs again. Reproduced once on the tree: `[live: water 12, cost here 8, stuck on:false]`.
+  `__navDig` (mine-harness) now RETURNS WHY IT STOPPED (`exit`: water/runOver/depth/noPlan/noLive/
+  maxIters, `iters`, `refusals`, a histogram of refusal messages, `replans`/`emptyPlans`, path
+  length/progress, `pocketWaits`); on a water refusal in `tank` mode it waits (<= 4 s) for pending
+  pockets and the reveal and digs on if the tank rose; on other refusals it varies the press (waypoint
+  offset 14/6/24/3/36, then the 2nd/3rd nearest strand) instead of re-pressing one strand toward one
+  waypoint until `maxIters`. itchzip-check prints the exit line in the navigator assertion and retries
+  the descent ONCE if the run is live with the tank able to pay (both attempts printed). Measured:
+  6 of 6 zip runs green, 4 of 6 took a pocket wait. **The verifier's own sample (`15 m on 6 digs, 72
+  water`) was NOT reproduced**: 120 seeds (`#mine,<seed>`, dev off) and 37 plain-URL first visits
+  (12 quiet, 25 under a 3-core CPU hog) all ended on `water`, 0 stalls. If it recurs, the printed
+  exit line says which path it took.
+- **A POCKET PAYS WHEN A GROWN-IN STRAND TOUCHES IT** (`waterSourcesNear(state, true)` -> `{live,
+  pending}`; default unchanged for the campaign). Pending pockets (touched only by tissue still
+  animating in) set `state._minePocketPending`; `mineFuelCheck` resets and `mineStuckCheck` holds
+  (uncapped) while one is, so the wait never costs a run. Measured (verifier's wlag probe, seeds
+  909/4242/11): at payout 1-8 grown-in strands touching, first grown-in 0 ms after (was 0 grown,
+  258-1097 ms). onboard `pocketlag` pins it (3 payouts, each with grown-in strands).
+- **Walled count lives in `mineGrow`** (`state.mineWalledRun`: +1 per 'Solid rock', 0 on a dig that
+  lands); the frame loop only reads it, so presses landing between two frames cannot be reordered.
+- **The nudging press drops its own toast** (`ui.clearToast(/^Solid rock/)` when `mineNudge` fires):
+  the toast had been placed before the 'Dead end' line existed and sat on it. **Glow tips must be on
+  screen and below the HUD stack** (`mineHudBandPx`, filter passed to `mineOpenTips`; off-screen tips
+  are the fallback only). **Slides end inside their ray** (`mineSlidePx`: min(110, clear*zoom - 21),
+  ghost and glow; 110 + 21 px had overrun a ~92 px ray onto rock). onboard walled block: 9 -> 12
+  (the third press is now a REAL DRAG; negative control with the clear removed: toast UP, fails).
+- **'dead' tip `valid()`** = this glow still lit, so a displaced line cannot come back with nothing
+  glowing. **'Your first descent'** uses the `mineFirstVisit` rule (mineBest AND runsFinished).
+  **`_bandBlocking`** adds `!devUI()` (a fresh ?dev=1 save goes to the title).
+- **Sounds now match the plan's table:** seam ping = sines on the material's root (P 660+990,
+  Anthracite 440, Garnet 587, Hematite 740, fifth above), +1 semitone per seam in a streak (paid within
+  4 s of the last), capped +12; pocket glug = 250 ms noise through a lowpass 800 -> 200 Hz.
+  `__sfx.last` records the last one scheduled.
+- **stale block has its control:** the same sequence NOT claimed, camera pinned on the seam, shows the
+  ore line (first at ~3.0 s) and records it (onboard +2).
+- **OWNER'S CALL, recorded not fixed:** a player who keeps pressing the deepest walled tip with water
+  in the tank is never ended by M1's rule (it ends only on water < price). Measured by the verifier:
+  37 refusals in a row at 60 m with 38 water, live > 90 s; naive `--baseline` 4242 and 2024 live after
+  30 refusals. What gets them out is the nudge (re-lights every 3 refusals, runs 1-5 only). So "every
+  run ends" rests on the player reading the glow, and on runs 6+ on nothing. Options: offer End descent
+  in the hint after N walled nudges, or point the ghost at the glowing tip.
+- **Naive-bot policy stated** in PLAN.md acceptance 7: deepest clean tip, aimed along the mask-scored
+  best ray (the ghost's, drawn), digging once from each glowing tip along its drawn slide. The literal
+  never-look policy reads median ~15 m.
+
 ## Two games on the title screen: Survival and Campaign
 
 **SURVIVAL IS OFFERED AGAIN — `OFFER_SURVIVAL = true` (owner: *"let's add survival back, but put

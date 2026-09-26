@@ -53,6 +53,11 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       await new Promise((res) => setTimeout(res, 600));
       for (let i = 0; i < 200 && g.mine.revealing(); i++) await new Promise((res) => setTimeout(res, 50));
     }
+    // NO POCKET MAY REFILL THE TANK UNDER THE COUNTDOWN. A pocket pays once the touching strand has
+    // GROWN IN (M4 verifier round 2), so one the navigator's last digs reached pays AFTER the tank is
+    // set one short — correctly un-sticking the run ('still live after 12 s'). This block measures the
+    // countdown, not pockets: every pocket that exists is marked tapped.
+    { const T = s._tappedWater || (s._tappedWater = new Set()); for (const q of (s.substrate.reservoirs || [])) T.add(q.id); }
     const revealingAtT0 = g.mine.revealing();
     // A HAUL TO BANK, so "minerals rise by exactly the run's ore" cannot pass as 0 === 0.
     s.mineOre = (s.mineOre | 0) + 11; s.active.phosphorus = (s.active.phosphorus | 0) + 11;

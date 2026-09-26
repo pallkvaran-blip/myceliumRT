@@ -281,11 +281,27 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
       // ends it — this is a release gate for the build, not a balance probe.
       s.nematodes.length = 0; s.clouds.length = 0;
       s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
-      const r = await window.__navDig({ tank: true, maxIters: 400 });
-      return { depth: r.depth, digs: r.digs, water: s.active.water };
+      // WHY THE NAVIGATOR STOPPED is printed with the result (verifier: one --mine run read '15 m on 6
+      // digs, 72 water left' and nothing said which exit it took). If it came back with the run live
+      // and the tank able to pay here, that is a PROBE stall, not the build: it gets ONE more try from
+      // where it stands, and both attempts are printed.
+      const say = (r) => `${r.exit} after ${r.iters + 1} iters, ${r.digs} digs, ${r.refusals} refused `
+        + `${JSON.stringify(r.msgs)}, ${r.replans} plans (${r.emptyPlans} empty), path ${r.plan} at ${r.prog}`;
+      const settle = async () => { const t0 = performance.now();
+        while (performance.now() - t0 < 4000 && !s.runOver && ((s._minePocketPending | 0) > 0 || g.mine.revealing())) await new Promise((r) => setTimeout(r, 50)); };
+      const r1 = await window.__navDig({ tank: true, maxIters: 400 });
+      let why = say(r1) + `, ${r1.pocketWaits} pocket waits`, digs = r1.digs, retried = false;
+      await settle();
+      if (!s.runOver && s.active.water >= g.mine.costHere()) {
+        retried = true;
+        const r2 = await window.__navDig({ tank: true, maxIters: 400 });
+        why += ` | RETRY (live, ${r1.water} water >= ${g.mine.costHere()}): ` + say(r2);
+        digs += r2.digs;
+      }
+      return { depth: g.mine.depth(), digs, water: s.active.water, why, retried };
     });
     ok('a navigator descent digs on the real tank', dive.digs >= 10 && dive.depth >= 10,
-       `${dive.depth} m on ${dive.digs} digs, ${dive.water} water left`);
+       `${dive.depth} m on ${dive.digs} digs, ${dive.water} water left — ${dive.why}`);
     const ended = await page.waitForSelector('#ssMineEnd', { timeout: 45000 }).then(() => true).catch(() => false);
     const endInfo = await page.evaluate(() => { const g = window.__game, s = g.state;
       return { cause: s.runResult && s.runResult.cause,

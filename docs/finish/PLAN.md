@@ -940,6 +940,13 @@ H. KNOWN GAPS THE BOTS MUST SETTLE
 7. Naive bot. The lib.cjs 'naive' policy (always dig from the deepest tip) on seeds 4242 909 11 5 31337 2024 7 99:
    - median depth 40 m or more (today 28);
    - the nudge fires in every run that stalls.
+   - AS MEASURED (implementer note, M4 verifier round 2): `Q.naiveStep` digs from the deepest clean tip
+     toward the most open of 7 downward rays scored on `solidAtWorld` (`__game.mine.bestDownRay`, the
+     ghost finger's own choice, which is drawn on screen), and while the nudge glows it digs once from
+     each glowing tip along the drawn slide. So the number is a player who reads the ghost and the glow.
+     The literal "straight down from the deepest tip, never look" player reads median ~15 m on 3 seeds
+     and is NOT nudged out of a wall by anything but the glow (see CLAUDE.md M4, walled runs).
+     `--baseline` (glow ignored) is printed beside it.
 8. --mine is green.
 
 **Risk.** - Skipping the title must still unlock audio on the gate tap; iOS resumes the AudioContext on the first touch.

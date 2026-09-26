@@ -3552,7 +3552,8 @@ const CONFIG = {
     stuckFruitMs: 6000,
     // ...AND A REVEAL HOLDS IT FOR AT MOST THIS LONG per stuck spell (M1 follow-up). An uncapped hold
     // let a navigator burst's colonisation stretch the dead time to 8.6-9.8 s from the tank change.
-    // A pocket needs no hold to pay (`mineWaterPickups` pays on the node, not on the drawing), and any
+    // A pocket needs no REVEAL hold to pay: one touched by a strand still growing in is PENDING and
+    // holds the countdown by itself, uncapped (M4 verifier minor), and any
     // water gained resets the countdown, so the hold only has to cover the first beat of the reveal:
     // with 800 the bound is stuckFruitMs + 0.8 s = 6.8 s (plus a frame) from the tank change, inside
     // the plan's 7.0 s.
@@ -20940,22 +20941,32 @@ function distSqToCellRect(sub, col, row, x, y) {
 }
 // The set of distinct water SOURCES the colony almost-touches: 'lake' for open lake
 // water, or a reservoir's numeric id. Empty when nothing is close enough.
-function waterSourcesNear(state) {
+// `split` (the mine, M4 verifier minor): return `{ live, pending }` instead — sources touched by a
+// strand that has GROWN IN, and sources touched only by strands still animating in. Default: one Set
+// of every touched source, exactly as before (the campaign's taps read that).
+function waterSourcesNear(state, split) {
   const sub = state.substrate;
   const md2 = waterContactDist2(state);
   const reach = Math.ceil(Math.sqrt(md2) / sub.cellSize) + 1;
   const found = new Set();
+  const net = state.active, live = split ? new Set() : null;
   for (const n of state.active.nodes) {
     if (n.infected) continue;
+    const grown = !split || net.grownIn(n);
     const col = sub.colAtX(n.x), row = sub.rowAtY(n.y);
     for (let dr = -reach; dr <= reach; dr++) for (let dc = -reach; dc <= reach; dc++) {
       const cell = sub.cellAt(col + dc, row + dr);
       if (!cell || !cell.water) continue;
       if (distSqToCellRect(sub, col + dc, row + dr, n.x, n.y) > md2) continue;
-      found.add(cell.reservoir ? cell.reservoir : 'lake');
+      const id = cell.reservoir ? cell.reservoir : 'lake';
+      found.add(id);
+      if (grown && live) live.add(id);
     }
   }
-  return found;
+  if (!split) return found;
+  const pending = new Set();
+  for (const id of found) if (!live.has(id)) pending.add(id);
+  return { live, pending };
 }
 const nodeTouchesWater = (state) => waterSourcesNear(state).size > 0;    // lake OR reservoir
 
@@ -22678,7 +22689,16 @@ function mineWaterPickups(state) {
   const out = [];
   if (!net || !net.alive || state.runOver) return out;
   const tapped = (state._tappedWater = state._tappedWater || new Set());
-  for (const src of waterSourcesNear(state)) {
+  // PAID WHEN THE TOUCHING STRAND HAS GROWN IN (M4 verifier minor), like an ore claim: paid on the
+  // model's contact, the '+10 water' floater, the glug and the drained art landed 0.26-1.1 s before
+  // the drawn colony reached the pocket. A pocket touched only by tissue still animating in is
+  // PENDING: `mineFuelCheck` and `mineStuckCheck` hold while one is, so the wait can never cost a
+  // player the run their last dig just saved.
+  const near = waterSourcesNear(state, true);
+  let pending = 0;
+  for (const src of near.pending) if (!tapped.has(src)) pending++;
+  state._minePocketPending = pending;
+  for (const src of near.live) {
     if (tapped.has(src)) continue;
     tapped.add(src);
     const w = Math.max(1, mineCfg(state.config).reservoirWater | 0);
@@ -22739,7 +22759,7 @@ function mineBestDownRay(state, node) {
 // and it scores the depth its clear end reaches (plus a little for length). Scoring the fresh cell
 // count alone (the first version) lit shallow side pockets — measured, a naive bot following the
 // glow spent its tank there and went 28 -> 34 m on seed 4242 and 19 m on 909.
-function mineOpenTips(state, count) {
+function mineOpenTips(state, count, keep) {
   const net = state.active, sub = state.substrate;
   if (!net || !sub) return [];
   const occ = mineOccupied(state), len = mineGrowReach(state.config);
@@ -22747,15 +22767,16 @@ function mineOpenTips(state, count) {
   for (const n of net.nodes) {
     if (n.infected || n.colon || n.children.length) continue;
     if (mineGrowCost(state.config, mineDepthM(sub, n.y)) > water) continue;
-    let best = -Infinity, bang = Math.PI / 2;
+    if (keep && !keep(n)) continue;
+    let best = -Infinity, bang = Math.PI / 2, bclear = 0;
     for (let i = 0; i < 8; i++) {
       const ang = Math.PI * i / 7;
       const r = mineRayOpen(sub, n.x, n.y, ang, len, occ);
       if (r.fresh < 2) continue;
       const sc = (n.y - sub.surfaceY) + r.clear * Math.sin(ang) + 0.3 * r.clear;
-      if (sc > best) { best = sc; bang = ang; }
+      if (sc > best) { best = sc; bang = ang; bclear = r.clear; }
     }
-    if (best > -Infinity) scored.push({ id: n.id, x: n.x, y: n.y, ang: bang, score: best });
+    if (best > -Infinity) scored.push({ id: n.id, x: n.x, y: n.y, ang: bang, clear: bclear, score: best });
   }
   scored.sort((a, b) => b.score - a.score);
   const out = [];
@@ -22868,6 +22889,10 @@ function mineGrow(state, ctx) {
     // Counted for the dead-end nudge (M4): a player hammering a walled strand is as stuck as one
     // whose digs take no new ground, and a nudge that only counted SUCCESSFUL digs never saw them.
     state.mineWalled = (state.mineWalled | 0) + 1;
+    // ...and the CONSECUTIVE count, kept here rather than in the frame loop (M4 verifier minor): the
+    // frame loop saw a dig and N refusals landing between two frames in a fixed order (dig first), so
+    // refusals made BEFORE a successful dig were added after its reset and the nudge fired early.
+    state.mineWalledRun = (state.mineWalledRun | 0) + 1;
     // Still starts 'Solid rock' (the pressed strand IS walled this way); the tail names the real
     // reason when an open neighbour existed but sits on another price step.
     return { ok: false, message: net._lastGrowRefusal === 'accept'
@@ -22876,6 +22901,7 @@ function mineGrow(state, ctx) {
   }
   const origin = net._lastGrowOrigin;
   net.water -= cost;
+  state.mineWalledRun = 0;      // a dig that landed ends a run of walled presses (the nudge's count)
   // HOW MUCH NEW GROUND THIS DIG TOOK (M4, the dead-end nudge): distinct coarse cells its new
   // strands stand in that no older strand does. O(nodes) once per dig, not per frame.
   let newCells = 0;
@@ -23144,7 +23170,7 @@ function mineCanGrow(state) {
 const OUT_OF_FUEL_GRACE_MS = 1600;
 function mineFuelCheck(state, nowMs) {
   if (!state || state.runOver || !state.active || !state.active.alive) return false;
-  if (mineCanGrow(state)) { state._mineDry = 0; return false; }
+  if (mineCanGrow(state) || state._minePocketPending > 0) { state._mineDry = 0; return false; }
   if (!state._mineDry) { state._mineDry = nowMs; return false; }
   if (nowMs - state._mineDry < OUT_OF_FUEL_GRACE_MS) return false;
   return true;
@@ -23183,6 +23209,9 @@ function mineStuckCheck(state, dtMs, hold) {
     const cap = Math.max(0, +mineCfg(state.config).stuckRevealHoldMs || 0);
     if (st.revealHeld < cap) st.revealHeld += dt; else h = false;
   }
+  // A pocket a strand is touching but has not yet GROWN IN to pays in a moment (mineWaterPickups):
+  // hold, uncapped — it resolves itself as soon as the reveal reaches the strand.
+  if (!h && state._minePocketPending > 0) h = true;
   if (!h) st.acc += dt;
   return st.acc >= mineStuckLimit(state);
 }
@@ -25532,13 +25561,18 @@ function click(rate) {
 function playCardSelect()   { click(1); }
 function playCardDeselect() { click(0.78); }
 
-// THE MINE'S TWO COLLECTION SOUNDS (M4), SYNTHESISED: no asset to load, ship or 404. A seam PING
-// (a short bright bell: two sines, the upper a fifth above, fast decay) and a pocket GLUG (a low
-// sine gulping down in pitch twice). Counted in `window.__sfx.counts` only when a sound is actually
-// scheduled, so a muted game leaves the counts where they were — that is what makes "did it play?"
-// assertable headless. Quiet on purpose: they land every few seconds in a good run.
+// THE MINE'S TWO COLLECTION SOUNDS (M4), SYNTHESISED to the plan's sound table: no asset to load,
+// ship or 404. A seam PING is two sines a fifth apart on the MATERIAL's own root — Phosphorus 660
+// (+990), Anthracite 440, Garnet 587, Hematite 740 — raised a semitone per seam in a streak, capped
+// at +12. A pocket GLUG is 250 ms of noise through a lowpass sweeping 800 -> 200 Hz. (The first M4
+// build played one bell for every material and a sine glug; verifier minor.) Counted in
+// `window.__sfx.counts` only when a sound is actually scheduled, so a muted game leaves the counts
+// where they were — that is what makes "did it play?" assertable headless. `last` records the
+// frequencies/filter of the last one scheduled, for the same reason.
 const SFX_COUNTS = { ore: 0, pocket: 0 };
-try { window.__sfx = { counts: SFX_COUNTS, ctxState: () => (AC ? AC.state : null), muted: () => muted }; } catch (_) {}
+const SFX_LAST = { ore: null, pocket: null };
+try { window.__sfx = { counts: SFX_COUNTS, last: SFX_LAST, ctxState: () => (AC ? AC.state : null), muted: () => muted }; } catch (_) {}
+const SEAM_ROOT_HZ = { phosphorus: 660, anthracite: 440, garnet: 587, hematite: 740 };
 function _tone(a, t, f0, f1, dur, gain, type) {
   const o = a.createOscillator(), g = a.createGain();
   o.type = type || 'sine';
@@ -25550,24 +25584,43 @@ function _tone(a, t, f0, f1, dur, gain, type) {
   o.connect(g); g.connect(master());
   o.start(t); o.stop(t + dur + 0.02);
 }
-function playSeamPing() {
+function playSeamPing(mat, semis) {
   if (muted || !AC) return false;
   const a = ctx();
   if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
   const t = a.currentTime + 0.005;
-  _tone(a, t, 1318, 1318, 0.32, 0.07);
-  _tone(a, t + 0.012, 1975, 1975, 0.24, 0.035);
+  const up = Math.max(0, Math.min(12, semis | 0));
+  const f = (SEAM_ROOT_HZ[mat] || SEAM_ROOT_HZ.phosphorus) * Math.pow(2, up / 12);
+  _tone(a, t, f, f, 0.32, 0.07);
+  _tone(a, t + 0.012, f * 1.5, f * 1.5, 0.24, 0.035);
   SFX_COUNTS.ore++;
+  SFX_LAST.ore = { mat: mat || 'phosphorus', semis: up, hz: [Math.round(f), Math.round(f * 1.5)] };
   return true;
 }
+let _noiseBuf = null;
 function playPocketGlug() {
   if (muted || !AC) return false;
   const a = ctx();
   if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
-  const t = a.currentTime + 0.005;
-  _tone(a, t, 330, 150, 0.16, 0.12);
-  _tone(a, t + 0.15, 280, 120, 0.2, 0.1);
+  const t = a.currentTime + 0.005, dur = 0.25;
+  if (!_noiseBuf || _noiseBuf.sampleRate !== a.sampleRate) {
+    const n = Math.ceil(a.sampleRate * dur);
+    _noiseBuf = a.createBuffer(1, n, a.sampleRate);
+    const d = _noiseBuf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const src = a.createBufferSource(); src.buffer = _noiseBuf;
+  const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 6;
+  lp.frequency.setValueAtTime(800, t);
+  lp.frequency.exponentialRampToValueAtTime(200, t + dur);
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.35, t + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(lp); lp.connect(g); g.connect(master());
+  src.start(t); src.stop(t + dur + 0.02);
   SFX_COUNTS.pocket++;
+  SFX_LAST.pocket = { type: 'lowpass-noise', from: 800, to: 200, ms: dur * 1000 };
   return true;
 }
 
@@ -36430,7 +36483,8 @@ function begin(newState) {
       // on, and the strand/angle it slides along. `glow()`: the dead-end tips lit now (empty when
       // not), the nudge count this run and the last dig's new cells. `onb()`: run number, first
       // descent, the ring/label state. `floaters()`: the live floaters (world x/y, text, age ms).
-      ghost: () => ({ frames: _mineGhost.frames, on: !!_mineGhost.on, x: _mineGhost.x, y: _mineGhost.y, ang: _mineGhost.ang, scores: _mineGhost.scores }),
+      ghost: () => ({ frames: _mineGhost.frames, on: !!_mineGhost.on, x: _mineGhost.x, y: _mineGhost.y, ang: _mineGhost.ang, scores: _mineGhost.scores,
+                      clear: _mineGhost.clear, len: _mineGhost.len }),
       glow: () => {
         const o = state._mineOnb, on = !!(o && o.glow && performance.now() < o.glow.until);
         return { tips: on ? o.glow.tips.map((t) => Object.assign({}, t)) : [], nudges: o ? o.nudges : 0,
@@ -38397,7 +38451,7 @@ function mineTipTick(now) {
 // 'tutorial' telemetry event with its id and the ms into the run, so the funnel is measured.
 // =============================================================================
 const MINE_GHOST_LOOP_MS = 1600, MINE_GHOST_PX = 110, MINE_GHOST_IDLE_MS = 6000, MINE_GLOW_MS = 4000;
-const _mineGhost = { frames: 0, on: false, x: 0, y: 0, ang: Math.PI / 2, key: null, scores: 0 };
+const _mineGhost = { frames: 0, on: false, x: 0, y: 0, ang: Math.PI / 2, key: null, scores: 0, clear: 0, len: 0 };
 // THE ONCE-PER-SAVE LEDGER. `seen` is read from `p.mineTips` ONCE, at the run's first frame, and
 // kept on `state._mineOnb` — the scan runs every frame and must not JSON-parse the save to ask.
 function mineTipSeen(id) { const o = state && state._mineOnb; return !!(o && o.seen && o.seen[id]); }
@@ -38414,7 +38468,7 @@ function mineTipRecord(id) {
 }
 // Per-run bookkeeping, set on the run's first mine frame.
 function mineOnboardInit(time) {
-  const o = state._mineOnb = { seenDigs: 0, seenWalled: 0, walledRun: 0, lastDigAt: time, deadRun: 0, glow: null,
+  const o = state._mineOnb = { seenDigs: 0, lastDigAt: time, deadRun: 0, glow: null,
                                nudges: 0, ring: null, label: null, lineBeat: {}, scanAt: 0, seen: {} };
   // The ghost's ray memo is keyed on the strand id, and ids restart at 0 every run — so the first
   // key of a new run matched the last run's and the ghost slid along a ray scored on the previous
@@ -38424,7 +38478,9 @@ function mineOnboardInit(time) {
     const p = loadProgress();
     o.seen = Object.assign({}, p.mineTips || {});
     state._mineRunNo = runsFinished(p) + 1;
-    state._mineFirst = !(p.mineBest > 0);
+    // The mineFirstVisit rule (verifier minor): a first descent ended at 0 m leaves mineBest at 0, and
+    // keying on it alone told the SECOND run's end screen 'Your first descent' again.
+    state._mineFirst = !(p.mineBest > 0) && !(runsFinished(p) > 0);
   } catch (_) { state._mineRunNo = 1; state._mineFirst = false; }
   return o;
 }
@@ -38432,7 +38488,6 @@ function mineOnboardInit(time) {
 function mineOnDig(time) {
   const o = state._mineOnb;
   o.lastDigAt = time;
-  o.walledRun = 0;
   // `now`: the cost line is about THIS dig, so it displaces an ore or pocket line that is up (that
   // line goes back to the front of the queue and returns if its subject is still there).
   if (!mineTipSeen('dig')) {
@@ -38447,22 +38502,56 @@ function mineOnDig(time) {
 }
 // ...AND THREE 'Solid rock' REFUSALS IN A ROW (verifier fix): a player hammering a walled strand
 // is the stuck player the nudge exists for, and it used to count successful digs only, so they
-// were never nudged. Reset by any successful dig.
+// were never nudged. The run is `state.mineWalledRun`, counted in `mineGrow` (reset there by a dig
+// that lands), so the order of presses inside one frame cannot skew it.
 const MINE_NUDGE_WALLED = 3;
-function mineOnWalled(time, n) {
-  const o = state._mineOnb;
-  o.walledRun += Math.max(1, n | 0);
-  if (o.walledRun >= MINE_NUDGE_WALLED) { o.walledRun = 0; mineNudge(time); }
+function mineOnWalled(time) {
+  if ((state.mineWalledRun | 0) < MINE_NUDGE_WALLED) return;
+  state.mineWalledRun = 0;
+  if (mineNudge(time)) {
+    // The press that fired the nudge also raised a 'Solid rock' toast, placed under the HUD stack
+    // BEFORE the 'Dead end' line existed — so the toast sat on the hint (verifier, p-ev7-25.png).
+    // The nudge is the better answer to that press; drop the toast.
+    if (ui && ui.clearToast) ui.clearToast(/^Solid rock/);
+  }
+}
+// The screen y below which a glowing tip is not hidden by the HUD stack: the rows, the rot banner and
+// the hint line (whose slot the 'Dead end' line is about to fill, so it is counted even while empty).
+function mineHudBandPx() {
+  let bottom = 0;
+  const hud = document.querySelector('#ui > .hud.minehud');
+  if (!hud) return 0;
+  const top = (document.getElementById('game') || document.body).getBoundingClientRect().top;
+  for (const sel of ['.minerows', '#hud-infect', '#minehint']) {
+    const n = hud.querySelector(sel);
+    if (!n || n.hidden) continue;
+    const r = n.getBoundingClientRect();
+    if (r.height > 0) bottom = Math.max(bottom, r.bottom - top);
+  }
+  const hint = hud.querySelector('#minehint');
+  if (hint && (hint.hidden || !hint.getBoundingClientRect().height)) bottom += 44;
+  return bottom;
 }
 function mineNudge(time) {
   const o = state._mineOnb;
-  if ((state._mineRunNo | 0) > 5 || (o.glow && time < o.glow.until)) return;
-  const tips = mineOpenTips(state, 2);
-  if (!tips.length) return;
-  o.glow = { tips, until: time + MINE_GLOW_MS, at: time };
+  if ((state._mineRunNo | 0) > 5 || (o.glow && time < o.glow.until)) return false;
+  // A GLOWING TIP MUST BE SEEN: on screen and below the HUD stack (verifier: a tip at y 195 lit
+  // behind the hint and the toast). Off-screen/under-HUD tips are the fallback only when nothing
+  // visible qualifies, so the nudge line still fires.
+  const band = mineHudBandPx();
+  const seen = (n) => { const q = camera.worldToScreen(n.x, n.y);
+    return q.x >= 24 && q.x <= camera.viewW - 24 && q.y >= band + 20 && q.y <= camera.viewH - 24; };
+  let tips = mineOpenTips(state, 2, seen);
+  if (!tips.length) tips = mineOpenTips(state, 2);
+  if (!tips.length) return false;
+  const glow = o.glow = { tips, until: time + MINE_GLOW_MS, at: time };
   o.nudges++;
   mineTipClear('dead');
-  mineTip('dead', 'Dead end — dig from a glowing tip', { ms: MINE_GLOW_MS, now: true });
+  // valid(): the line is about THIS glow. Displaced by a `now` line (the first-dig costs line) and
+  // re-promoted later, it would otherwise re-show for a fresh 4 s with nothing glowing (verifier).
+  mineTip('dead', 'Dead end — dig from a glowing tip', { ms: MINE_GLOW_MS, now: true,
+    valid: () => o.glow === glow && performance.now() < glow.until });
+  return true;
 }
 // Is a world point on screen (with a margin kept clear of the HUD edges)?
 function mineOnScreen(x, y, m) {
@@ -38545,7 +38634,11 @@ function mineCollectFeedback(ore, water) {
     // 18 px with a heavy outline (plan: '+3 P' 18 px lilac): at 15 px on a plain outline the lilac
     // read dim against brown soil (verifier, r1-fl0.png).
     addEnergyFloater(e.x, e.y - sub.cellSize * 0.4, e.n, { text: `+${e.n} ${label}`, color: (m && m.tint) || '#c9a2e8', size: 18, outline: 4.5, life: 90, icon: false });
-    try { playSeamPing(); } catch (_) {}
+    // A STREAK climbs a semitone per seam (plan's sound table, capped at +12): seams paid within 4 s
+    // of the last one; a longer gap starts the streak over.
+    const now = performance.now(), st = state._mineSeamStreak || (state._mineSeamStreak = { n: 0, at: -1e9 });
+    st.n = now - st.at <= 4000 ? st.n + 1 : 0; st.at = now;
+    try { playSeamPing(e.mat, st.n); } catch (_) {}
     if (state._mineOnb && state._mineOnb.ring && state._mineOnb.ring.pile === e.pile) state._mineOnb.ring = null;
   }
   for (const e of water) {
@@ -38569,12 +38662,19 @@ function mineGhostWanted(time) {
 // `s0` with a trailing shaft and an arrow head, on the 1.6 s loop. Shared with the dead-end glow, so
 // a glowing tip SHOWS the direction to dig from it (verifier fix: the glow used to be a bare ring,
 // and the direction a bot followed was information the player never had).
-function drawMineSlide(s0, ang, time, alpha) {
-  const ux = Math.cos(ang), uy = Math.sin(ang);
+// `clearPx` (verifier minor): how far the ray it was scored on is clear, in SCREEN px. The whole mark
+// (dot travel + 21 px of head) stays inside it, so the arrow never ends on the rock face the ray
+// stopped at — at the resting zoom a grow's reach is ~92 px against the fixed 110 + 21.
+function mineSlidePx(clearWorld) {
+  if (!(clearWorld > 0)) return MINE_GHOST_PX;
+  return Math.max(16, Math.min(MINE_GHOST_PX, clearWorld * camera.zoom - 21));
+}
+function drawMineSlide(s0, ang, time, alpha, len) {
+  const ux = Math.cos(ang), uy = Math.sin(ang), L = len > 0 ? len : MINE_GHOST_PX;
   const ph = (time % MINE_GHOST_LOOP_MS) / MINE_GHOST_LOOP_MS;
   const k = Math.min(1, ph / 0.75), ease = 1 - Math.pow(1 - k, 3);
   const a = ph < 0.1 ? ph / 0.1 : ph < 0.75 ? 1 : Math.max(0, 1 - (ph - 0.75) / 0.25);
-  const d = MINE_GHOST_PX * ease, px = s0.x + ux * d, py = s0.y + uy * d;
+  const d = L * ease, px = s0.x + ux * d, py = s0.y + uy * d;
   ctx.globalAlpha = 0.85 * a * (alpha == null ? 1 : alpha);
   const grad = ctx.createLinearGradient(s0.x, s0.y, px, py);
   grad.addColorStop(0, 'rgba(127,230,163,0)'); grad.addColorStop(1, 'rgba(127,230,163,0.9)');
@@ -38607,9 +38707,11 @@ function drawMineOnboard(time) {
         _mineGhost.key = key; _mineGhost.scores++;
         const r = mineBestDownRay(state, n);
         _mineGhost.ang = r ? r.ang : Math.PI / 2;
+        _mineGhost.clear = r ? r.clear : 0;
       }
       _mineGhost.x = n.x; _mineGhost.y = n.y;
-      drawMineSlide(camera.worldToScreen(n.x, n.y), _mineGhost.ang, time, 1);
+      _mineGhost.len = mineSlidePx(_mineGhost.clear);
+      drawMineSlide(camera.worldToScreen(n.x, n.y), _mineGhost.ang, time, 1, _mineGhost.len);
       _mineGhost.frames++;
     }
   }
@@ -38625,7 +38727,8 @@ function drawMineOnboard(time) {
       ctx.beginPath(); ctx.arc(q.x, q.y, R * 1.8, 0, Math.PI * 2); ctx.fill();
       ctx.lineWidth = 2.5; ctx.strokeStyle = `rgba(160,255,196,${0.6 + 0.4 * puls})`;
       ctx.beginPath(); ctx.arc(q.x, q.y, R, 0, Math.PI * 2); ctx.stroke();
-      drawMineSlide(q, t.ang, time - o.glow.at, 1);   // ...and which way to dig from it
+      t.len = mineSlidePx(t.clear);
+      drawMineSlide(q, t.ang, time - o.glow.at, 1, t.len);   // ...and which way to dig from it
       o.glow.drawn = (o.glow.drawn | 0) + 1;
     }
   } else if (o.glow) o.glow = null;
@@ -38708,7 +38811,7 @@ function mineFrame(time, dt) {
   // THE FIRST MINUTE (M4): a dig by any route moves the counter; the scan tips run every 250 ms.
   const onb = state._mineOnb || mineOnboardInit(time);
   if ((state.mineDigs | 0) !== onb.seenDigs) { onb.seenDigs = state.mineDigs | 0; mineOnDig(time); }
-  if ((state.mineWalled | 0) !== onb.seenWalled) { const n = (state.mineWalled | 0) - onb.seenWalled; onb.seenWalled = state.mineWalled | 0; mineOnWalled(time, n); }
+  mineOnWalled(time);
   mineTipTick(time);
   mineFollowCamera(time, dt);
   const gotOre = mineOreRewards(state);
@@ -42271,7 +42374,9 @@ CRAZY.init().then((ok) => { if (ok) CRAZY.loadingStart(); });
 // RETURNING PLAYERS DO NOT WAIT FOR IT: they get the title, not a descent, so the gate opens on the
 // base assets and the band art (and its masks, in small slices) loads behind the title instead.
 const _bandFolders = OFFER_MINE ? [...new Set(((CONFIG.mine && CONFIG.mine.bands) || []).map((b) => b.assetsFrom).filter(Boolean))] : [];
-const _bandBlocking = OFFER_MINE && mineFirstVisit() && window.MYCELIUM_NO_BAND_PRELOAD !== true;
+// `!devUI()` (verifier minor): a fresh ?dev=1 save goes to the TITLE (enterGame), so it must not wait
+// behind the band preload either — the two predicates agree.
+const _bandBlocking = OFFER_MINE && mineFirstVisit() && !devUI() && window.MYCELIUM_NO_BAND_PRELOAD !== true;
 let _mReserved = false;
 function _reserveBandBill() {
   if (_mReserved || !_bandBlocking) return;
