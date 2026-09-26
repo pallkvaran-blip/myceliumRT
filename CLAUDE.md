@@ -4511,6 +4511,7 @@ Numbers here are measured, not planned.
   **Owner to confirm (design decisions written into PLAN.md by the implementer, not the owner):**
   acceptance 5c's `.colon` exclusion, and `within` changing water-seek (bot runner nodes 76 -> 44,
   sweep mean depth 84.6 -> 82.6 m).
+  **`--mine` after round 2: 745 passed, 0 failed across 13 checks** (ship 51 -> 58; the rest unchanged).
 - **CHECKS:** `tests/ship-check.cjs` ('ship', in `--mine`; `SHIP_ONLY=dev,key,zipdry,card,seed,retag,gate,heat,aim`
   runs blocks); `tests/bots/heatbound.cjs` (bot, not in the runner: the heat bound in real play);
   the harness serves `/index-nodev.html` (dev flag patched off through make-web-zip's anchor) and
