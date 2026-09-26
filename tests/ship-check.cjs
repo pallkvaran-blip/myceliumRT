@@ -15,6 +15,8 @@
  *   - A seam `stampFood` refused retagged the PREVIOUS pile's material (exercised by a forced refusal).
  *   - A bare ']' on the plain URL swapped a live descent for authored map 0, unbanked.
  *   - A band sprite that never decodes left every dig refused for the run.
+ *   - (verifier fixes) Art that was only SLOW was boxed for good; chunks streamed after a forced
+ *     mask waited 20 s per missing sprite, their drawn rock uncollided meanwhile.
  *
  * Every block runs on a fresh context (fresh save).
  */
@@ -315,6 +317,16 @@ const openStore = async (page) => {
       const b = await E.boot('#mine,4242', 390, 844, { before: delay(3000) });
       await b.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.state && window.__game.state.substrate
         && window.__game.state.substrate.mine && window.__game.mine.seed() === 4242), { timeout: 40000 });
+      // REAL DRAGS DURING THE HOLD, as a player pokes at a black screen (M2 verifier): each is refused
+      // and used to queue a 'The ground is settling…' toast under the curtain, still showing after
+      // the reveal. Run alongside the probe below until the mask lands.
+      let dragging = true, drags = 0;
+      const dragLoop = (async () => {
+        while (dragging) {
+          try { await b.page.mouse.move(195, 420); await b.page.mouse.down(); await b.page.mouse.move(215, 520, { steps: 3 }); await b.page.mouse.up(); drags++; } catch (_) {}
+          await sleep(250);
+        }
+      })();
       const early = await b.page.evaluate(async () => {
         const g = window.__game, s = g.state, sub = s.substrate;
         const out = { tries: 0, refused: 0, dw: 0, dn: 0, msgs: new Set(), curtainWhileSoft: true, samples: 0, noteOn: 0, noteText: null };
@@ -330,6 +342,9 @@ const openStore = async (page) => {
         }
         out.msgs = [...out.msgs];
         out.solidAt = performance.now();
+        // The reference mask for the slow-art case below: this boot's art arrived at 3 s, un-forced.
+        let on = 0; const f = sub._fineSolid; if (f) for (let i = 0; i < f.length; i++) on += f[i];
+        out.fineOn = on; out.sprites = (sub.levelSprites || []).length; out.forced = sub._solidForced | 0;
         return out;
       });
       ok('digs before _rockSolidified are all refused', early.tries >= 5 && early.refused === early.tries,
@@ -340,14 +355,19 @@ const openStore = async (page) => {
       // THE HOLD SAYS WHAT IT IS WAITING FOR (M2 fix): a black curtain for seconds reads as a hang.
       ok("...and the held curtain shows 'The ground is settling…' (after its 600 ms grace)", early.noteOn >= 5 && /ground is settling/.test(early.noteText || ''),
          `${early.noteOn} of ${early.samples} samples showed it: ${early.noteText}`);
+      dragging = false; await dragLoop;
       await sleep(1200);
       const later = await b.page.evaluate(async (Q) => {
         new Function('return (' + Q + ')')()();
         const g = window.__game, s = g.state;
         s.active.water = 100000;
-        return { curtain: document.body.classList.contains('handoff'), paused: g.simPaused(), note: g.settleNote().on };
+        const t = document.querySelector('.toast'), tm = t && t.querySelector('.tmsg');
+        const toast = t && !t.classList.contains('hidden') && t.classList.contains('in') ? (tm ? tm.textContent : '?') : null;
+        return { curtain: document.body.classList.contains('handoff'), paused: g.simPaused(), note: g.settleNote().on, toast };
       }, QUIET.toString());
       ok('...and it lifts once the mask exists, the world running, the line gone', !later.curtain && !later.paused && !later.note, JSON.stringify(later));
+      ok('...with no stale settling toast from the drags made under the curtain', drags >= 3 && !/settling/.test(later.toast || ''),
+         `${drags} real drags during the hold; toast after the reveal: ${later.toast || 'none'}`);
       await H.injectNav(b.page);
       const inside = await b.page.evaluate(async () => {
         const g = window.__game, s = g.state, sub = s.substrate;
@@ -380,8 +400,11 @@ const openStore = async (page) => {
          (inside.hits.length ? ': ' + inside.hits.slice(0, 4).join(' ') : ''));
       await b.ctx.close();
 
-      // THE CAP: with the band art held back 20 s, the map is shown at ~15 s and still refuses digs.
-      const c = await E.boot('#mine,4242', 390, 844, { before: delay(20000) });
+      // THE CAP: with the band art held back 24 s, the map is shown at ~15 s and still refuses digs.
+      // SLOW IS NOT MISSING (M2 verifier fix): the art lands after solidForceMs (20 s) but never
+      // failed, so the mask must wait for it — not stamp 2027 sprites as permanent solid boxes, which
+      // is what forcing on elapsed time alone did (on a ~1.6 Mbps link: 925 boxes, +19% solid cells).
+      const c = await E.boot('#mine,4242', 390, 844, { before: delay(24000) });
       await c.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.state && window.__game.state.substrate
         && window.__game.state.substrate.mine && window.__game.mine.seed() === 4242), { timeout: 40000 });
       const cap = await c.page.evaluate(async () => {
@@ -395,14 +418,30 @@ const openStore = async (page) => {
       ok('the reveal gives up waiting at the 15 s cap', cap.at >= 12000 && cap.at <= 16500 && !cap.solid,
          `curtain lifted ${(cap.at / 1000).toFixed(1)} s after the run was built, mask ${cap.solid ? 'present' : 'absent'}`);
       ok('...and a dig there is still refused, free', !cap.ok && /settling/.test(cap.msg) && cap.dw === 0, `${cap.msg}, water -${cap.dw}`);
+      const slow = await c.page.evaluate(async () => {
+        const t0 = performance.now(), sub = window.__game.state.substrate;
+        while (!sub._rockSolidified && performance.now() - t0 < 30000) await new Promise((r) => setTimeout(r, 100));
+        let on = 0; const f = sub._fineSolid; if (f) for (let i = 0; i < f.length; i++) on += f[i];
+        return { solid: !!sub._rockSolidified, at: performance.now(), forced: sub._solidForced | 0, fineOn: on, sprites: (sub.levelSprites || []).length };
+      });
+      ok('art that is only SLOW (lands at 24 s, past solidForceMs) is waited for: 0 sprites boxed', slow.solid && slow.forced === 0,
+         `mask ${slow.solid ? 'published' : 'never'}, ${slow.forced} box(es)`);
+      ok('...and the mask is the unthrottled one, cell for cell count', early.forced === 0 && slow.fineOn === early.fineOn && slow.sprites === early.sprites,
+         `${slow.fineOn} solid fine cells over ${slow.sprites} sprites; reference (art at 3 s) ${early.fineOn} over ${early.sprites}`);
       await c.ctx.close();
 
       // A SPRITE THAT NEVER DECODES (M2 fix). Every hematite file 404s for good: the mask used to wait
       // for ever, every dig refused for the run. After CONFIG.mine.solidForceMs the missing sprites
       // are stamped as SOLID BOXES and the mask is published — nothing turns passable, the run plays.
+      // ...AND THE CHUNKS STREAMED AFTER IT ARE COLLIDED AT ONCE (M2 verifier fix): the incremental
+      // pass used to stop at each missing sprite for a fresh 20 s, holding every later sprite (all
+      // bands, art loaded) uncollided — ~48 min for a streamed chunk. Then the art comes back and
+      // every box is swapped for its silhouette, leaving exactly the mask a full re-stamp builds.
       const HEM = /\/assets\/hematite-c24\//;
+      let healed = false;
       const dd = await E.boot('#mine,4242', 390, 844, { before: async (page) => {
-        await page.route((u) => HEM.test(u.pathname), (route) => route.fulfill({ status: 404, body: 'nf' }).catch(() => {}));
+        await page.route((u) => HEM.test(u.pathname), (route) => (healed ? route.continue()
+          : route.fulfill({ status: 404, body: 'nf' })).catch(() => {}));
       } });
       await dd.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.state && window.__game.state.substrate
         && window.__game.state.substrate.mine && window.__game.mine.seed() === 4242), { timeout: 40000 });
@@ -436,6 +475,60 @@ const openStore = async (page) => {
          `mask ${dead.solid ? 'published' : 'never'} at ${(dead.at / 1000).toFixed(1)} s, ${dead.forced} sprite(s) stamped as boxes; at 16.5 s a dig read '${dead.early}'`);
       ok('...the missing sprites are solid (box centres in the fine mask)', dead.hem > 0 && dead.solidC === dead.hem, `${dead.solidC} of ${dead.hem} hematite sprites`);
       ok('...and the run plays: a dig lands', dead.ok, dead.msg);
+      const strm = await dd.page.evaluate(async () => {
+        const frame = () => new Promise((res) => requestAnimationFrame(() => res()));
+        const g = window.__game, s = g.state, sub = s.substrate, cam = g.camera;
+        const cw = s.config.mine.chunkCols * sub.cellSize, x0 = s.active.nodes[0].x, n0 = sub.levelSprites.length;
+        let behind = 0, gen = 0;
+        for (let k = 1; k <= 3; k++) {
+          cam.zoom = 0.4; cam.x = x0 + k * cw;
+          const nA = sub.levelSprites.length;
+          for (let f = 0; f < 180 && sub.levelSprites.length === nA; f++) await frame();
+          if (sub.levelSprites.length > nA) gen++;
+          let lag = 0;
+          for (; lag < 30 && (sub._solidFrom | 0) < sub.levelSprites.length; lag++) await frame();
+          behind = Math.max(behind, lag);
+          await new Promise((res) => setTimeout(res, 250));
+        }
+        const F = sub._fineSize, W = sub._fineCols, fs = sub._fineSolid;
+        let hem = 0, hemSolid = 0, through = 0;
+        for (let i = n0; i < sub.levelSprites.length; i++) {
+          const sp = sub.levelSprites[i];
+          if (!sub.solidAtWorld(sp.x, sp.y) && s.active._segmentClear(sub, sp.x - 12, sp.y, sp.x + 12, sp.y)) through++;
+          if (!/hematite/.test(sp.key)) continue;
+          hem++;
+          const fc = Math.floor(sp.x / F), fr = Math.floor((sp.y - sub.surfaceY) / F), cell = sub.cellAtWorld(sp.x, sp.y);
+          if (fs[fr * W + fc] === 1 || (cell && (cell.water || cell.maxNutrient > 0))) hemSolid++;
+        }
+        return { gen, behind, streamed: sub.levelSprites.length - n0, from: sub._solidFrom | 0, of: sub.levelSprites.length,
+          hem, hemSolid, through, forced: sub._solidForced | 0, dirty: sub._mineDirtyC0 != null };
+      });
+      ok('...chunks streamed after it are collided within 2 frames, missing art boxed at once', strm.gen === 3 && strm.behind <= 2 && strm.from === strm.of && !strm.dirty,
+         `${strm.gen} chunks, ${strm.streamed} sprites; watermark ${strm.from} of ${strm.of}, at most ${strm.behind} frame(s) behind; ${strm.forced} box(es) standing`);
+      ok('...their missing sprites are solid, and no 24 u segment passes through any streamed sprite centre', strm.hem > 0 && strm.hemSolid === strm.hem && strm.through === 0,
+         `${strm.hemSolid} of ${strm.hem} streamed hematite centres solid; ${strm.through} of ${strm.streamed} centres let a segment through`);
+      healed = true;
+      const heal = await dd.page.evaluate(async () => {
+        const g = window.__game, s = g.state, sub = s.substrate, t0 = performance.now();
+        const box0 = sub._solidForced | 0;
+        while ((sub._solidForced | 0) > 0 && performance.now() - t0 < 30000) await new Promise((r) => setTimeout(r, 250));
+        const at = performance.now() - t0, left = sub._solidForced | 0;
+        // A living node the swap put inside rock? (It only frees cells, so there must be none.)
+        const F = sub._fineSize, W = sub._fineCols, fs = sub._fineSolid;
+        let inRock = 0;
+        for (const n of s.active.nodes) { if (n.infected) continue; const fc = Math.floor(n.x / F), fr = Math.floor((n.y - sub.surfaceY) / F); if (fr >= 0 && fs[fr * W + fc] === 1) inRock++; }
+        // The reference: a full re-stamp of the same sprites, all art present.
+        const after = sub._fineSolid.slice();
+        sub._rockSolidified = false;
+        for (let i = 0; i < 60 && !sub._rockSolidified; i++) await new Promise((r) => requestAnimationFrame(() => r()));
+        let diff = 0; const ref = sub._fineSolid;
+        for (let i = 0; i < ref.length; i++) if (ref[i] !== after[i]) diff++;
+        return { box0, left, at, inRock, diff, rebuilt: !!sub._rockSolidified, unboxed: sub._solidUnboxed | 0 };
+      });
+      ok('...and when the art comes back every box is swapped for its silhouette', heal.box0 > 0 && heal.left === 0,
+         `${heal.box0} boxes -> ${heal.left} in ${(heal.at / 1000).toFixed(1)} s`);
+      ok('...leaving the mask a full re-stamp builds (0 cells differ), no living node inside rock', heal.rebuilt && heal.diff === 0 && heal.inRock === 0,
+         `${heal.diff} fine cells differ from the full re-stamp; ${heal.inRock} living node(s) in rock`);
       await dd.ctx.close();
     }
 

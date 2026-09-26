@@ -32,7 +32,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // cleared level, the colony dying). Whatever screen follows — the species picker, the
   // "species unlocked" card, a level intro — covers the canvas and swallows the press. That's
   // the run finishing, not the aim rule breaking, so stop rather than report bogus failures.
+  // THE TROLL ROCKFACE IS NOT THE RUN ENDING. On some '#dev' rolls a strand (the boot colony's or a
+  // probe press's) touches the Magic Mushroom rockface and '#ssSpeciesUnlocked' covers the canvas;
+  // this check then stopped before round 1 and asserted NOTHING (0/0, ~1 run in 8, M2 verifier).
+  // It is a mid-run popup with a Continue button, so dismiss it, and the press setup below removes
+  // the rockface along with the rest of the world it quiets.
   const overlaid = () => page.evaluate(() => {
+    const unl = document.querySelector('#ssSpeciesUnlocked #ssUnlockProceed');
+    if (unl) unl.click();
     const o = document.querySelector('#speciesSelect,#levelIntro,#loadoutSelect,#titleScreen,'
       + '#ssSpeciesUnlocked,#ssLevelComplete,#ssGameWon,#hsOverlay,.ss-wrap,.lo-wrap');
     return o ? (o.id || o.className) : null;
@@ -48,6 +55,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       // cancels aiming, so the press under test would fail for an unrelated reason.
       for (const cell of st.substrate.cells) { cell.nutrient = 0; cell.maxNutrient = 0; }
       st.ants = [];
+      st.rockface = null;
       net.energy = 1e6; net.water = 999; net.phosphorus = 999;
       const px = Math.round(g.camera.viewW / 2), py = Math.round(g.camera.viewH * 0.45);
       const w = g.camera.screenToWorld(px, py);
