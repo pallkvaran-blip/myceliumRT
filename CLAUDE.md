@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 BUILT (all 11 changes; acceptance 1, 4-10 pass; 2 and 3 FAIL, measured and left for the owner / M14 — see M5). Next: M5 verifier, then M6.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier fixes landed; acceptance 2 and 3 still FAIL — structural, measured, owner / M14). Next: M6.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -4864,6 +4864,74 @@ Numbers here are measured, not planned.
   up unspent (74 / 18 / 54 A at run 12). Levers for M14: the plan's own "cheapest unowned P rung
   -20%" does not clear these (29 P vs 32, 60 P vs 64); P income early (band-0 seams, 2 per chunk at 3
   P) is the bigger dial. Shelf left at the plan's prices on purpose.
+
+**M5 VERIFIER FIXES**
+- **THE 5 P FLOOR WAS FARMABLE; NOW IT IS PAID ONLY FOR A DESCENT THAT RAN ITS COURSE.** Verifier
+  measured Descend -> gear -> End descent at 0 digs banking 5 P a loop (wallet 5 -> 30 in 13.8 s,
+  ~130 P/min). `mineReachPay(state, cause)` / `mineBankable(state, cause)`: the floor needs
+  `state.mineDigs > 0` AND a cause not in `MINE_FLOORLESS_CAUSES` ('abandon', 'quit', 'pending') —
+  `mineFloorEarned`. Voluntary exits bank raw reach + seams; the default cause is 'fruit' (what FRUIT
+  NOW and the refusal toast quote). `runResult.digs` and the pending record's `digs` carry it. Hooks
+  `mine.reach(cause)` / `mine.bankable(cause)`. Measured: three zero-dig End descents bank 0; 2 digs
+  then End descent banks raw 1; 3 digs then dry banks 5 (control).
+- **`p.mineRuns` counts descents that DUG**, initialised ONCE in `migrateProgress` (0, or 2 for a save
+  that has dug before the counter existed), +1 in `mineBank` (not when a boot already counted the
+  run's pending record) and in `minePendingBankAtBoot`. **GOTCHA: guessing it at read time off
+  `mineBest` broke** — zero-dig endings record a 1 m best, and the fresh save's first real descent
+  counted as its third.
+- **THE FIRST STORE A PLAYER CAN REACH IS AFTER RUN 1, AND RUN 1 CROSSES 42 m** (12/12 seeds). The old
+  check opened the store before any run. Event-gated tracks now wait for `mineShelfOpen(p)` =
+  `mineRunsBanked(p) >= 2` (leg >= 2 also opens); what run 1 met appears NEW after run 2. `revealAll`
+  sets mineRuns >= 2.
+- **THE CARD PINS WATER TANK UNTIL WATER I IS BOUGHT** (affordable or not), then the plan's priority.
+  Verifier's real run: run 1 at 82 m banked 16 P and the card sold 'NEW Heat tolerance 15 P'.
+  `mineNextGoal(p, 'store')` for the store's highlight.
+- **NEW BADGE:** a bought track is never NEW (`upgradeLevel > 0`); the card's NEW is "never shown on
+  the shelf" only (`mineTileNew(id, p, forCard)`) — `p.mineStoreVisits` only moves when the store next
+  opens, so after a visit the "shown on this visit" half stayed true and a shown tile came back NEW on
+  the next card, ahead of the genuinely new one. Negative controls: with the old `mineTileNew` the
+  card reads 'NEW Heat tolerance' over Mucus flasks, and the bought flasks tile shows NEW.
+- **END SCREEN:** the Phosphorus-seams row is always shown (×0 +0); the run HUD (`#ui`, gear, FRUIT
+  NOW) is hidden while it is up via `body:has(> #ssMineEnd)` (a class could go stale and hide the next
+  run's HUD); `.ss-mineend` drops the carousel padding, uses `justify-content: safe center` +
+  `overflow-y: auto`, and a compact stack at max-height 600. SPORED was at y -50..-7 at 640x360; now
+  4..44, and 49..112 at 320x568 (was -8).
+- **RESTOCK LINE:** `takeMineRestockNote()` is called by `showMainMenu` and the mine store as they
+  render; the boot no longer deletes `p.mineRestocked` (a '#mine,<seed>' boot or the first-visit gate
+  swallowed it).
+- **TELEMETRY:** `upgradeSpendN(cost)` — an `upgrade` row's `n` is the P moved (0 for a material rung;
+  the store tile used to send the cost object, the card the material count).
+- **LEFT AS IS:** the end screen's Descend skips `showPicker`, so no 'picker' event for those runs —
+  logging one would claim a screen the player did not see. Zero-dig endings still count toward
+  `runsDone` (the rating gate); they no longer pay.
+- **FUEL CURVE:** the blind dive keeps its 30 m floor (seed 909: 37 m), and the band-2 promise moved
+  to a new assertion that can fail: the path-following navigator on the real 60 water, pockets and
+  threats out, reaches > 42 m — measured 74 m (seed 11, 20 digs) and 77 m (909, 21 digs).
+- **CHANGED ASSERTIONS:** econ 'at the surface' reach/bank 5 -> 0 before any dig; econ end-block card
+  Grow strength -> Water tank, and Buy+Descend checks water 72; ending-check reads `reach('abandon')`,
+  `bankable('pending')`, `reach('pending')`/`reach('dry')` for 7b (at ~20 m the two differ, 4 vs 5).
+  econ 50 -> 69 (farm 8, reveal rebuilt on the real first visit 20, fit 4, restock deep link 1,
+  telemetry 1); mine 191 -> 193.
+- **BOTS:** econ run1 buys THROUGH THE CARD and asserts the card and the first shelf; botrun recovery
+  40 digs (was 12) before its forced End; econ diver `--set path=value` probe knob.
+- **MEASURED (acceptance 1, fresh saves, pace 900):** sensible 12/12 bank >= 5 (22 25 28 30 40 5 27
+  29 28 24 23 26), card = Water tank 12/12, Water I through the card 12/12, first shelf exactly
+  water+growSteps 12/12, all `dry`. Naive 8/8 (21 18 19 23 15 8 18 5), all four assertions 8/8, all
+  ended `dry` by themselves, median 36.5 s.
+- **ACCEPTANCE 3 IS STRUCTURAL, NOT A TUNING MISS (re-measured 77 vs 102 P, x0.75).** Farmer: reach 21
+  + 27 P seams (81 P); diver: reach 38 + 13 P seams (39). Seam routing does not depend on the seam's
+  value, so the ratio is (38 + 13p) / (21 + 27p) for p P a seam at mPerP 5: it reaches 1.2 only at
+  p <= 0.66. At p = 3 it needs mPerP <= 1.1 (depth paying ~1 P a metre); at p = 2, mPerP <= 1.65. The
+  farmer collects ~2x the seams the diver passes, which the plan's 0.45 seams/chunk model did not
+  foresee. Owner's call (M14): cheaper seams AND a much steeper depth rate, or a different gate.
+- **`--mine` after the M5 verifier fixes: 926 passed, 2 failed across 16 checks** (boot 22, store 124,
+  mine 193, ending 87, ship 58, phone 44, onboard 62/63, econ 69, zip 24, level 27, aim 9, scale 26,
+  threat 115/116, harvest 28, mould 20, core 18). Both reds re-ran green: threat's known map-roll flake
+  ('ate 1, want 4'; 116/116 on re-run) and onboard's 'curtain lifts within 600 ms' at 609 ms under
+  sweep load. **The curtain bound is now close on this container**: 590 / 531 / 542 ms standalone on
+  this build against 528 / 586 / 482 ms on the pre-fix build (8072d78) — same distribution, the
+  machine is slower than at M4 (340-434 ms), not a regression. Green = 928.
+- **ACCEPTANCE 2 (career) — see the re-run numbers below; still open for the owner / M14.**
 
 ## Two games on the title screen: Survival and Campaign
 
