@@ -4931,7 +4931,14 @@ Numbers here are measured, not planned.
   sweep load. **The curtain bound is now close on this container**: 590 / 531 / 542 ms standalone on
   this build against 528 / 586 / 482 ms on the pre-fix build (8072d78) — same distribution, the
   machine is slower than at M4 (340-434 ms), not a regression. Green = 928.
-- **ACCEPTANCE 2 (career) — see the re-run numbers below; still open for the owner / M14.**
+- **ACCEPTANCE 2 RE-RUN (career 'cheapest', 4242 / 909 / 11 x 12, on this build): runs 1-5 now have 0
+  / 0 / 0 dead visits (PASS; was 1 / 1 / 0); runs 1-10 1 / 2 / 2 (want <= 1: 909 and 11 FAIL, dead at
+  runs 7 and 10 on both); P ratio runs 10-12 vs 1-3 x1.35 / x1.21 / x0.98 (want 1.4, FAIL).** Banked
+  per run: 4242 `28 26 27 26 36 22 33 34 11 32 39 38`; 909 `25 28 37 32 8 39 33 37 25 31 39 39`; 11
+  `28 24 33 37 35 38 18 20 32 5 36 42`. 34 dry + 2 infected endings, 0 forced Ends. Same cause as
+  before: runs 1-3 already bank ~27-30 P (model 12-17) and free-layout P per run cannot grow much
+  (reach caps at 33, deep seams pay materials; east pay and island bonuses are M7-M8). Shelf and
+  income left at the plan's numbers: re-pricing is M14's / the owner's.
 
 ## Two games on the title screen: Survival and Campaign
 
