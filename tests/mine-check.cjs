@@ -2513,12 +2513,19 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       // make. What it asserts is the ENDING and the screen's numbers, and that a dig charges water
       // is already asserted above — so running the tank dry directly tests the real path
       // (`mineFuelCheck`, its grace window, `presentRunOver`) deterministically on any map.
+      //
+      // AND NO POCKET MAY REFILL IT: a pocket pays once the touching strand has GROWN IN (M4 verifier
+      // round 2), so one the last digs reached pays AFTER the tank is emptied and the run is rightly
+      // live again ('over=false after 40 digs'). Every pocket that exists is marked tapped first.
+      { const T = g.state._tappedWater || (g.state._tappedWater = new Set());
+        for (const q of (g.state.substrate.reservoirs || [])) T.add(q.id); }
       g.state.active.water = 0;
       for (let i = 0; i < 60 && !g.state.runOver; i++) await new Promise((r) => setTimeout(r, 120));
-      return { digs, over: g.state.runOver, depth: g.mine.depth() };
+      return { digs, over: g.state.runOver, depth: g.mine.depth(), water: g.state.active.water,
+               pending: g.state._minePocketPending | 0 };
     });
     ok('running the tank dry ends the descent', dry.over === true,
-       `over=${dry.over} after ${dry.digs} digs, ${dry.depth} m`);
+       `over=${dry.over} after ${dry.digs} digs, ${dry.depth} m (tank ${dry.water}, ${dry.pending} pending pocket(s))`);
     await page.waitForSelector('#ssMineEnd', { timeout: 30000 });
     const end = await page.evaluate(() => {
       const r = document.getElementById('ssMineEnd');
