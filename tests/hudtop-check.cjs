@@ -24,6 +24,10 @@
  * be won by compacting everyone); a NEGATIVE CONTROL that strips the tier back off and confirms the overlap
  * returns, so a green run cannot mean the probe is measuring nothing; and the rotation case,
  * where landscape leaves both drop-downs pinned open and portrait cannot fit them.
+ *
+ * Section 4 (finishing plan M3) is THE MINE'S band, which has its own HUD: two rows, a rot banner
+ * and a fixed gear, at 390/360/320 with every entry up, against a control that rebuilds the old
+ * single row (measured there: the row runs to x 683 and the gear to 723 on a 390 screen).
  */
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
@@ -228,6 +232,77 @@ for (const W of [390, 360, 320]) {
   const r = await band(p);
   ok('and the band is still clear after the rotation', r.resVsAct === 0 && r.gearVsAct === 0,
      `pill/actions ${r.resVsAct}px, gear/actions ${r.gearVsAct}px`);
+  await ctx.close();
+}
+
+// ---- 4. THE MINE'S TOP BAND (finishing plan M3) ---------------------------------------------
+// The mine has its own HUD and the same failure: one row carried water, P, depth, worms, the rot
+// clock, the price and the materials, and at 390 it ran to x ~480 with the gear (x 448-480) off the
+// screen. It is two rows now (row 2 only when it has content), the rot clock is a banner of its own
+// and the gear is position:fixed. Asserted at the same three widths as above, with every entry that
+// can be shown SHOWN, plus the same kind of negative control: take the stacking class away and the
+// rows must run into the gear or off the screen again, or this is measuring nothing.
+for (const W of [390, 360, 320]) {
+  const ctx = await b.newContext({ viewport: { width: W, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  await ctx.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+  const p = await boot(ctx, base + '/index.html#mine,4242');
+  await p.waitForFunction(() => window.__game && window.__game.mine && window.__game.state.substrate._fineSolid, null, { timeout: 30000 }).catch(() => {});
+  console.log(`\nthe mine at ${W}x844 — every HUD entry up`);
+  const m = await p.evaluate(async () => {
+    const g = window.__game, s = g.state;
+    s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
+    s.active.water = 1234; s.active.phosphorus = 327; s.mineOre = 327;
+    s.mineMats = { anthracite: 16, garnet: 13, hematite: 12 };
+    const live = s.active.nodes.filter((n) => !n.infected);
+    for (let k = 0; k < 3; k++) { const n = live[k % live.length]; g.mine.spawnWorm(n.x + 3, n.y); }
+    for (let i = 0; i < 100 && (s.mineAttached | 0) < 1; i++) await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 700));
+    // THE ROT BANNER, shown in the DOM: a real breach on a 3-strand colony at the surface rots all of
+    // it at once and ends the run (tests/phone-check.cjs shows a real one on a 45 m colony).
+    const ic = document.getElementById('hud-infect'); ic.hidden = false;
+    document.getElementById('hud-infectn').textContent = '20';
+    const R = (e) => { if (!e || getComputedStyle(e).display === 'none') return null; const q = e.getBoundingClientRect();
+      return q.width > 0 ? { x0: q.left, x1: q.right, y0: q.top, y1: q.bottom } : null; };
+    const over = (a, c) => !!(a && c) && Math.min(a.x1, c.x1) > Math.max(a.x0, c.x0) && Math.min(a.y1, c.y1) > Math.max(a.y0, c.y0);
+    const meas = () => {
+      const gear = R(document.getElementById('gearbtn')), r1 = R(document.querySelector('.minehud .hudtop .resrow')),
+            r2 = R(document.getElementById('hudrow2')), bn = R(ic);
+      const hit = gear ? document.elementFromPoint((gear.x0 + gear.x1) / 2, (gear.y0 + gear.y1) / 2) : null;
+      const offScreen = [r1, r2, bn, gear].some((r) => r && (r.x0 < 0 || r.x1 > innerWidth + 0.5));
+      return { gear, r1, r2, bn, gearHit: !!(hit && hit.closest && hit.closest('#gearbtn')), offScreen,
+               clash: over(r1, gear) || over(r2, gear) || over(bn, gear) || over(bn, r1) || over(bn, r2) || over(r1, r2) };
+    };
+    const hud = document.querySelector('.hud.minehud');
+    const now = meas(), two = hud.classList.contains('two');
+    // CONTROL: the pre-M3 shape — every entry in ONE row (row 2's entries and the rot clock moved into
+    // row 1, as they were), then put back. (Just dropping `.two` is not a control: the rows then sit
+    // side by side and wrap, which also fits.)
+    // The M3 CSS goes too (`.minehud` caps the row and fixes the gear), and the gear goes back into
+    // the row's own flow, after the resource pill, where it was.
+    const row1 = document.querySelector('.minehud .hudtop .resrow'), r2 = document.getElementById('hudrow2');
+    const gearEl = document.getElementById('gearbtn');
+    const moved = [...r2.children, ic, gearEl].map((e) => ({ e, parent: e.parentNode, next: e.nextSibling }));
+    for (const { e } of moved) if (e !== gearEl) row1.appendChild(e);
+    row1.parentNode.appendChild(gearEl);
+    hud.classList.remove('minehud', 'two');
+    const q1 = row1.getBoundingClientRect(), gq = gearEl.getBoundingClientRect();
+    const ctrl = { r1: { x0: q1.left, x1: q1.right, y0: q1.top, y1: q1.bottom }, gear: { x0: gq.left, x1: gq.right },
+                   offScreen: q1.right > innerWidth + 0.5 || gq.right > innerWidth + 0.5,
+                   clash: Math.min(q1.right, gq.right) > Math.max(q1.left, gq.left) && Math.min(q1.bottom, gq.bottom) > Math.max(q1.top, gq.top) };
+    for (const { e, parent, next } of moved.reverse()) parent.insertBefore(e, next);
+    hud.classList.add('minehud'); hud.classList.toggle('two', two);
+    return { now, ctrl, two, worms: s.mineAttached | 0, tags: document.querySelectorAll('#matrow .matchip').length,
+             wormChip: !document.getElementById('hud-worms').hidden };
+  });
+  const f = (r) => r ? `${Math.round(r.x0)}..${Math.round(r.x1)}` : '-';
+  ok('the rows carry P, three material tags and the worm chip', m.tags === 3 && m.wormChip, `${m.tags} tags, ${m.worms} worm(s) attached`);
+  ok('the rows are stacked', m.two === true);
+  ok('the gear is on screen and a tap at its centre hits it', !!m.now.gear && m.now.gearHit && m.now.gear.x1 <= W, `gear ${f(m.now.gear)}`);
+  ok('nothing runs off the screen and nothing overlaps (rows, banner, gear)', !m.now.offScreen && !m.now.clash,
+     `row1 ${f(m.now.r1)}, row2 ${f(m.now.r2)}, banner ${f(m.now.bn)}, gear ${f(m.now.gear)}`);
+  ok('control: in the old single row, the entries run into the gear or off the screen', m.ctrl.offScreen || m.ctrl.clash,
+     `one row ${f(m.ctrl.r1)}, gear ${f(m.ctrl.gear)} (screen ${W})`);
+  if (W === 390) await p.screenshot({ path: path.join(__dirname, '.artifacts', 'hudtop-mine-390.png'), animations: 'disabled', timeout: 8000 }).catch(() => {});
   await ctx.close();
 }
 

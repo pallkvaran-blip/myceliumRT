@@ -93,7 +93,7 @@ const touchCtx = (E, vw, vh) => E.browser.newContext({ viewport: { width: vw, he
         const gear = R('gearbtn');
         const hit = gear ? document.elementFromPoint((gear.x0 + gear.x1) / 2, (gear.y0 + gear.y1) / 2) : null;
         const over = (a, c) => !!(a && c) && Math.min(a.x1, c.x1) > Math.max(a.x0, c.x0) && Math.min(a.y1, c.y1) > Math.max(a.y0, c.y0);
-        const row1 = (() => { const e = document.querySelector('.minehud .hudtop .resrow'); const q = e.getBoundingClientRect(); return { x0: q.left, x1: q.right, y0: q.top, y1: q.bottom }; })();
+        const row1 = (() => { const e = document.querySelector('.hud .hudtop .resrow'); if (!e) return null; const q = e.getBoundingClientRect(); return { x0: q.left, x1: q.right, y0: q.top, y1: q.bottom }; })();
         return { depth: g.mine.depth(), over: s.runOver, attached: s.mineAttached | 0, rot: !!s.mineInfect, stuck: g.mine.stuck().on,
                  mats: [...document.querySelectorAll('#matrow .matchip')].map((c) => c.textContent),
                  two: hud.classList.contains('two'), n, outside: out, gear, gearHit: !!(hit && hit.closest && hit.closest('#gearbtn')),
@@ -148,7 +148,7 @@ const touchCtx = (E, vw, vh) => E.browser.newContext({ viewport: { width: vw, he
       ok('the page is a touch page (maxTouchPoints > 0, pointer: coarse)', before.touch > 0 && before.coarse, `maxTouchPoints ${before.touch}, coarse ${before.coarse}`);
       ok('a tap on the root digs: the node count rises', after.nodes > before.nodes, `${before.nodes} -> ${after.nodes}, root at ${Math.round(before.root.x)},${Math.round(before.root.y)}`);
       ok('...water drops by exactly 2', before.water - after.water === 2, `${before.water} -> ${after.water}`);
-      ok('...and depth is 1 m or more', after.depth >= 1, `${before.depth} -> ${after.depth} m`);
+      ok('...and depth is 1 m or more (and rose)', after.depth >= 1 && after.depth > before.depth, `${before.depth} -> ${after.depth} m`);
       await b.page.screenshot({ path: path.join(ART, 'm3-tap-dig-390.png') });
 
       // A tap 300 px from every strand: nothing, and no toast. The point is searched on the screen so

@@ -261,7 +261,11 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
     // the row still overruns — M3's position:fixed gear, tracked there by name.
     if (vw === 390) {
       ok('...and at 390, stuck holding one material, Settings is on screen and hit-tests', m.pill0 && !!m.gear0 && m.gear0.x1 <= m.vw && m.gear0Hit,
-         `gear ${f(m.gear0)} with the pill up; with the worm and rot chips too: ${f(m.gear)} (M3)`);
+         `gear ${f(m.gear0)} with the pill up`);
+      // M3: the gear is position:fixed outside the rows, so the worm chip and the rot banner can no
+      // longer push it off (before M3 it sat at x 379-411 here).
+      ok('...and with the worm and rot chips up too (M3)', !!m.gear && m.gear.x1 <= m.vw && m.gearHit,
+         `gear ${f(m.gear)}`);
     } else {
       await b.page.click('#fruitnow').catch(() => {});
       await b.page.waitForSelector('#ssMineEnd', { timeout: 20000 }).catch(() => {});

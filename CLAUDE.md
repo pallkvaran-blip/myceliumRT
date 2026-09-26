@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). Next: M3 (a phone player can see and use every control).`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (awaiting verifier). Next: M4.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -4516,6 +4516,49 @@ Numbers here are measured, not planned.
   runs blocks); `tests/bots/heatbound.cjs` (bot, not in the runner: the heat bound in real play);
   the harness serves `/index-nodev.html` (dev flag patched off through make-web-zip's anchor) and
   takes `opts.file` / `opts.before(page)`.
+
+### M3 — A phone player can see and use every control (DONE)
+
+- **HUD, TWO ROWS** (`.hud.minehud`, `.minerows`, `_syncMineRows`): row 1 water · price chip · depth;
+  row 2 (`#hudrow2`, shown only with content) P (hidden at 0) · material tags · worm chip. `.two`
+  stacks them when `#ui.clientWidth < CONFIG.mine.hudTwoRowsBelowPx` (430) — the PLAY SURFACE, not
+  the window, so the ~334 px desktop box stacks too. Rot clock = `#hud-infect.rotbanner`, top
+  centre ('ROT 20s', `.urgent` at <= 10). `#gearbtn` and `#settingsmenu` are `position: fixed`
+  (inset by `--pf-*` when `body.boxed`). The HUD is pointer-transparent except the rows, gear,
+  menu, log and kit. Tags: `mineMatTag(m)` = `m.tag` or the first 3 letters of the name ('ANT 6'),
+  tinted `m.tint`. FRUIT NOW keeps its M1 slot (row 1 hides the chip while stuck).
+  - Measured, 3 worms attached + real rot + 3 materials + stuck: 390x844 row1 x 8-121, row2 8-331,
+    banner 128-262 (y 94-126), gear 342-382, FRUIT NOW 78-312; 51 visible HUD elements, 0 outside.
+    360x640 is BOXED (296 px box, x 32-328): row 2 wraps to two lines (y 54-106), gear 280-320.
+    Pre-M3 (f23890d): one row 8..491, gear 459-491, matchips at x 391-451 — off a 390 screen.
+- **TAPS** (`mineTapCommit`, from `endPointer`): an aim exists, released < `AIM_MIN_PX` (12) from
+  the press, one pointer (a 2nd finger nulls the aim) -> armed item: `mineArmedTap` at the PRESS
+  point; else a dig down from the snapped strand, **only if the press landed within
+  `CONFIG.mine.tapDigPx` (48 screen px) of it**. Deviation: the plan said "an aim exists", but the
+  aim's grab radius (`aimNearPx`) is 170-420 px, so a tap 300 px from every strand would have dug
+  (acceptance 2b). No double-tap exists in the mine (already true: `armedDragTarget()` returns
+  before the double-tap code).
+  - **ARMED CUT, NO AIM:** a tap that started no aim (e.g. on a rotten limb: `nearestNode` skips
+    infected strands, so a press far from CLEAN tissue starts none) spends the armed dose at the tap
+    point (`endPointer`, before the `armedDragTarget()` return). Before, a dose could only be spent
+    by a drag that began near clean tissue.
+- **#minehint** (`.minehint`, inside the mine HUD, under the rows/banner; not `.hint`): fed by
+  `mineTip(id, text, {ms, sticky})` / `mineTipClear(id)` / `mineTipTick(now)` in `mineFrame`
+  (per-run queue on `state._mineTips`, one line, written on change). First line 'Drag down from the
+  colony to dig', sticky until `state.mineDigs` (counted in `mineGrow`) > 0, only while
+  `p.mineBest` is unset. Measured: shown 103 ms after the reveal, 296x36 at y 54 (390x844).
+- **LOADER:** `showLoading` reads 'Tap to dig' under `(pointer: coarse)`, 'Click to dig' otherwise
+  (was 'Click'; shown uppercase).
+- **CHANGED ASSERTIONS:** mine-check's first-descent hint pair reads `#minehint` (was `#ui .hint`,
+  which the phone CSS hides), and the stale-price assertion reads `#minehint` + `.hint`; ending-check
+  adds 'with the worm and rot chips up too (M3)' at 390 (gear was x 379-411 there; ending 86 -> 87).
+  hudtop-check gains section 4, the mine band at 390/360/320 (25 -> 40), with a control that
+  rebuilds the old single row (row to x 683, gear 691-723 at 390). **pill-check is untouched**: it
+  tests docs/card-review.html's severity pills, nothing in the HUD (deviation; 4/4 before and after).
+- **CHECKS:** `tests/phone-check.cjs` ('phone', in `--mine`; `PHONE_ONLY=hud,tap,cut,hint,loader`),
+  40 assertions, touch context (hasTouch + isMobile) with CDP touch events for pan / pinch / wobble.
+  Negative control: the same file against f23890d fails 21 of 40 (HUD fit, tap dig, the 8 px
+  wobble, the enzyme tap, every hint assertion, both loader texts).
 
 ## Two games on the title screen: Survival and Campaign
 
