@@ -175,8 +175,8 @@ const COLONY = async ({ n, maxM, QUIET }) => {
     const rs = await Promise.all([11, 22, 33, 44, 55].map(trial));
     for (const [i, r] of rs.entries()) console.log(`        trial ${i + 1}: ${JSON.stringify(r)}`);
     const reach2 = rs.filter((r) => r.maxA >= 2).length;
-    ok('6 chunks generated in every trial, with more worms in the world than the old cap of 16',
-       rs.every((r) => r.chunks >= 6 && r.cap === 64), rs.map((r) => `${r.chunks} chunks / ${r.pop0} worms`).join(', '));
+    ok('6 chunks generated in every trial, under a world bound of 64 (was 16)',
+       rs.every((r) => r.chunks >= 6 && r.cap === 64), rs.map((r) => `${r.chunks} chunks / ${r.pop0} seeded worms`).join(', '));
     ok('attached worms reach 2 or more in at least 4 of 5 trials (60 s, no flask)', reach2 >= 4,
        `${reach2} of 5: max attached ${rs.map((r) => r.maxA).join(', ')}`);
     ok('...and never exceed 6', rs.every((r) => r.maxA <= 6), rs.map((r) => r.maxA).join(', '));
