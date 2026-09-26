@@ -1048,6 +1048,8 @@ H. KNOWN GAPS THE BOTS MUST SETTLE
 **Risk.** - killHits, excrete range and moveSpeed are shared config keys. Only the mine's clone may change them, or the campaign's tuned mould breaks.
 - Removing only the rot orphans clean children. By design they keep living, since _removeNodes never cascades; assert that the colony stays one live network.
 
+**As built (deviations).** firstTouchRings is 2 and firstTouchRadius 0 in the mine, not 6: at 6 a breach measured 39-53 strands on a 150-strand mine colony (a mine dig fans ~19 filaments from one strand, so the 1.5-cell disc holds 9-17 seeds); 2 / radius 0 reads 16-24. The enzyme's patch flood also follows rot within one segment and the breach's own id (`_infPatch`), since a disc seeds filaments that are not linked through rot. A tap with no rot in reach keeps the dose and the arming.
+
 
 ### M7 — Journey I, part 1: fixed leg worlds with a taproot in the east (generator)
 

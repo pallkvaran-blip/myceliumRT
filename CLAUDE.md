@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). Next: M6.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 BUILT (see below). Next: M7.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5014,6 +5014,63 @@ Numbers here are measured, not planned.
 - **`--mine` after round 2: 938 passed, 0 failed across 16 checks** (boot 22, store 124, mine 193,
   ending 87, ship 58, phone 44, onboard 63, econ 79, zip 24, level 27, aim 9, scale 26, threat 116,
   harvest 28, mould 20, core 18) — green on the first full sweep.
+
+### M6 — Threats you can read and answer (BUILT)
+
+- **ALL MINE-ONLY, on the cfg clone in `configForLevel`** (shared keys, the campaign's tuning untouched —
+  threat 116/116, mould 20/20 after): `nematodes.killHits` 3 -> 1 (`CONFIG.mine.excreteKillHits`),
+  `actions.excrete.range` 80 -> 160 (`excreteRange`), `trichoderma.moveSpeed` 2.5 -> 0.5,
+  `firstTouchRings` 12 -> **2**, `firstTouchRadius` 1.5 -> **0** (`CONFIG.mine.trych`), `cfg.mine.firstRot`
+  (read off `p.mineSeen.rot`).
+- **FLASK:** `excrete(state, opts)` gained `{cleanOnly, attached}` (default null = the card game's rule):
+  every worm attached, or within 160 of a CLEAN strand, dies. `mineUseExcrete` recounts `mineAttached`
+  at once. Toast 'Mucus burst — 3 worms killed.' Measured: 3 attached drank 6.0 water in 10 s, 0 in the
+  10 s after one flask, attached 0 on the next tick (probe_counter pre-M6: 2.0 then 1.9, still attached).
+- **BREEDING** stops at `CONFIG.mine.worms.maxAttached` 6; `maxPopulation` 16 -> 64 (safety bound).
+  **GOTCHA: decide the room AFTER the worm loop.** Counting inside the loop let several worms roll a breed
+  on one tick (5 attached + certain breed -> 9). Mine newborns are candidates (`mineCand`, same rng draws
+  as before) hatched while `attached + pending newborns < 6`; `w._mineNew` counts a newborn that has not
+  attached yet. Soak (1 worm, 6 chunks, 60 s, 5 trials): max attached 6/6/6/3/6.
+- **ENZYME:** `mineRotPatch` + `mineUseAmputate`: the infected component nearest the tap (within
+  `cutReach` 300), flooded over parent/child links, over rot within one segment, and over the breach it
+  came from (**`_infPatch`**: one id per cloud, stamped by the contact pass, inherited by `infectAround`
+  and `infectFreshGrowth`, inert in the campaign) — a breach DISC seeds neighbouring filaments that are
+  NOT graph-linked through rot, so a links-only flood left rot behind. Plus clean strands within one
+  segment; `_removeNodes` (orphans keep living); `cell.trich` cleared under the cut. No rot in reach:
+  refused, dose kept, and `mineArmedTap` keeps the arming. Message 'Cut out 17 rotten strands — the
+  colony is clean.' / '— rot remains elsewhere.'
+- **DEVIATION — BREACH SIZE:** the plan's 6 rings measured **39-53 strands** a breach on a 150-strand mine
+  colony at radius 1.5 (31-46 at radius 0): a mine dig fans ~19 filaments from one strand, so a 1.5-cell
+  disc holds 9-17 seeds, each with its own ring walk. 2 rings / radius 0 (the disc floors at the
+  cloud's reach, ~1.05 cells, so what the mould covers is still infected): **16-24** on the 5 seeds;
+  a knot of ~20 strands under one cloud (seed 7 in a wider sweep) still reads 30-40. The breach size is
+  seed count, not rings.
+- **CLOUD:** from first sense at 285-290 units, contact in 13-14 ticks = **6.5-7.0 s** (5 seeds; timed in
+  world ticks incl. the sensing tick, since wall clock read 5.99 on one frame-merged run); control at
+  2.5: 1.5 s. The Lipschitz bound makes >= 6.0 s certain for cloud reach <= 47 u from 280 u.
+- **CLOCK:** `CONFIG.mine.firstInfectionMs` 30000 for a save's first infection (`mineInfect.first`),
+  `infectionMs` 20000 after, in the same run (`_mineRotMet`) and later runs (`mineSeenNow.rot` ->
+  `p.mineSeen.rot`). **GOTCHA for probes:** a fresh save's first breach is now 30 s — mine-check's
+  deadline probes had to shorten `firstInfectionMs` too.
+- **VISIBILITY:** `drawNematodes` (mine) draws attached worms 2.5x (line 2x) and a 1 Hz red ring on the
+  host strand; an off-screen attached worm gets an edge chevron (top margin 100 px, clear of the HUD)
+  recorded in `state._mineChevrons` (hook `mine.chevrons()`). `#hud-worms` tap -> `handlers.onWormChip`
+  pans to the attached worm nearest the view centre and releases the camera.
+- **COPY:** rot banner hint line (`#hud-infecthint`): 'tap the enzyme, then the rot' / 'now tap the rot'
+  (armed) / 'the colony will fruit' (no dose). Tips (`mineThreatTips`, once per save, `now` for worm/rot):
+  first_worm 'A worm is drinking your water — tap the flask to kill it' (or '... Mucus flasks kill worms
+  — in the store.'), first_rot 'Rot! Arm the enzyme and tap the rot.' (or 'Rot! In 30 s the colony fruits
+  — the store sells a cure.'), first_cloud 'Mould: one touch starts a 30 s rot clock'. Tiles: 'Kills every
+  worm on or near the colony.' / 'Tap the rot: one dose cuts out one whole patch of rot, and only the rot.'
+- **CHECKS:** `tests/counter-check.cjs` ('counter', in `--mine`, 44 assertions, ~5 min;
+  `COUNTER_ONLY=flask,breed,cloud,breach,clock,chevron,copy`; breed runs 5 contexts in parallel for 60 s).
+  `tests/bots/threatcareer.cjs` = acceptance 7 (career.cjs with the new 'kit' strategy: first rung of
+  flask and enzyme when offered, then cheapest). Shots `tests/.artifacts/m6-{chevron,attached,rot}-390.png`.
+- **CHANGED ASSERTIONS (mine-check, old -> new):** 'a flask ... hits them' (`stuck`) -> '...kills them'
+  (killed 1, 0 left); 'one that lands removes strands' now lands on a pinned-cloud breach (a dose refuses
+  with no rot); 'caps the population far below the campaign's' `cap < 150/4` -> maxAttached 6, bound
+  <= 64 and < 75; 'a breach starts the colony-wide deadline' bound = the armed clock (30 s first); the
+  deadline probe sets `firstInfectionMs` 2500 too. mine 193/193, store 124/124.
 
 ## Two games on the title screen: Survival and Campaign
 
