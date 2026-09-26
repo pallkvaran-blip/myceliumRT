@@ -276,12 +276,16 @@ const COLONY = async ({ n, maxM, QUIET }) => {
   const DOSE = async (page, x, y) => page.evaluate(async ({ x, y }) => {
     const g = window.__game, s = g.state;
     const before = s.active.nodes.length, cleanBefore = s.active.nodes.filter((q) => !q.infected).length;
+    const hadParent = new Set(s.active.nodes.filter((q) => q.parentId != null).map((q) => q.id));
     s.mineItems = Object.assign({}, s.mineItems, { amputate: Math.max(1, (s.mineItems && s.mineItems.amputate) | 0) });
     const r = g.mine.useAmputate(x, y);
     const turn0 = s.turn;
     for (let i = 0; i < 40 && s.turn === turn0; i++) await new Promise((res) => setTimeout(res, 25));
     const cleanAfter = s.active.nodes.filter((q) => !q.infected).length;
-    return { ok: r.ok, message: r.message, rot: r.rot, clean: r.clean, removed: before - s.active.nodes.length,
+    // An orphan: had a parent before the cut, has none now (`_removeNodes` nulls the link, never cascades).
+    const orphans = s.active.nodes.filter((q) => hadParent.has(q.id) && q.parentId == null).length;
+    return { ok: r.ok, message: r.message, rot: r.rot, clean: r.clean, removed: before - s.active.nodes.length, said: r.removed, orphans,
+             networks: (s.networks || [s.active]).length,
              cleanRemoved: cleanBefore - cleanAfter, rotten: s.active.nodes.filter((q) => q.infected).length,
              infect: s.mineInfect, alive: !!s.active.alive, over: !!s.runOver, nodes: s.active.nodes.length,
              oneNet: s.active.nodes.every((q) => s.active.byId.get(q.id) === q), left: g.mine.items().amputate };
@@ -311,8 +315,33 @@ const COLONY = async ({ n, maxM, QUIET }) => {
        rows.map((r) => `${r.dose.rotten} (${r.dose.message})`).join(' | '));
     ok('...state.mineInfect is null within one tick', rows.every((r) => r.dose.infect === null), rows.map((r) => JSON.stringify(r.dose.infect)).join(', '));
     ok('...at most 15 clean strands removed', rows.every((r) => r.dose.cleanRemoved <= 15), rows.map((r) => r.dose.cleanRemoved).join(', '));
-    ok('...and the colony stays one live network (orphans keep living)', rows.every((r) => r.dose.alive && !r.dose.over && r.dose.oneNet && r.dose.nodes > 0),
-       rows.map((r) => `${r.dose.nodes} live`).join(', '));
+    ok('...and the colony stays one live network (orphans keep living)', rows.every((r) => r.dose.alive && !r.dose.over && r.dose.oneNet && r.dose.nodes > 0
+         && r.dose.networks === 1 && r.dose.removed === r.dose.said),
+       rows.map((r) => `${r.dose.nodes} live, ${r.dose.orphans} orphans kept, removed ${r.dose.removed} of ${r.dose.said} cut, ${r.dose.networks} net`).join(', '));
+
+    // ORPHANS: a breach mid-fan, so clean tissue hangs off the rot. The cut takes the rot and its
+    // one-segment margin and nothing else — the tissue below it keeps living (plan M6 risk).
+    {
+      const b = await E.bootMine(909);
+      await colony(b.page, 150, 30);
+      const host = await b.page.evaluate(() => {
+        const s = window.__game.state, net = s.active;
+        const sub = (n) => { let k = 0; const st = [n]; while (st.length) { const q = st.pop(); k++; for (const c of q.children) { const o = net.byId.get(c); if (o) st.push(o); } } return k; };
+        let best = null, bk = 0;
+        for (const n of net.nodes) { if (n.parentId == null) continue; const k = sub(n); if (k > bk && k < net.nodes.length * 0.6) { bk = k; best = n; } }
+        return { x: best.x, y: best.y, sub: bk };
+      });
+      await b.page.evaluate(async (h) => {
+        const g = window.__game, s = g.state; s.config.trichoderma.moveSpeed = 0; g.mine.spawnCloud(h.x, h.y);
+        for (let i = 0; i < 80 && !s.active.nodes.some((q) => q.infected); i++) await new Promise((res) => setTimeout(res, 25));
+      }, host);
+      const cen = await centroid(b.page);
+      const d = await DOSE(b.page, cen.x, cen.y);
+      ok('a cut mid-fan orphans clean tissue, which keeps living in the one network', d.ok && d.rotten === 0 && d.orphans > 0
+           && d.alive && !d.over && d.networks === 1 && d.removed === d.said,
+         `host subtree ${host.sub}, cut ${d.said} (${d.rot} rot + ${d.clean} margin), ${d.orphans} orphans kept, ${d.nodes} live, ${d.networks} net`);
+      await b.ctx.close();
+    }
 
     // TWO SEPARATE CONTACTS: two patches, two doses.
     const b = await E.bootMine(4242);
