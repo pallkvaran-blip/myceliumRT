@@ -4559,6 +4559,12 @@ Numbers here are measured, not planned.
   40 assertions, touch context (hasTouch + isMobile) with CDP touch events for pan / pinch / wobble.
   Negative control: the same file against f23890d fails 21 of 40 (HUD fit, tap dig, the 8 px
   wobble, the enzyme tap, every hint assertion, both loader texts).
+- **`--mine` after M3: 786 when every check is green** (boot 20, store 124, mine 190, ending 87,
+  ship 58, phone 40, zip 23, level 27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18).
+  Two full runs each read 783/786: run 1 zip 20/23 ('...the run ends by itself — null:', then the
+  store and run 2 behind it; 5 standalone re-runs on fresh seeds 23/23, and the second full run
+  23/23), run 2 threat 113/116 (the known map-roll flake; re-run 116/116). itchzip-check now prints
+  the stuck rule's inputs if a descent stays live, so the next zip red says why.
 
 ## Two games on the title screen: Survival and Campaign
 
