@@ -16,10 +16,13 @@ traces, and never fail.
   digs, no forced End run) and every stall ends while the bot sits. It is the one bot script that
   FAILS (prints a `====` line), and it is in `run.mjs` as the slow 'sweep' check.
 - `naive.cjs`: the finishing plan's M4 acceptance 7. One fresh-save first descent per seed
-  (4242 909 11 5 31337 2024 7 99) with lib.cjs's `naiveStep`: dig from the deepest clean tip toward
-  the most open of 7 downward rays, and dig from a glowing tip while the dead-end nudge has tips lit.
-  FAILS (prints `====`) unless the median is >= 40 m and every stalled run was nudged. `--baseline`
-  ignores the glow and only prints. Not in `run.mjs` (~5 min; the baseline can take ~15).
+  (4242 909 11 5 31337 2024 7 99) with lib.cjs's `naiveStep`: ALWAYS dig from the deepest clean tip
+  (refused or not) toward the most open of 7 downward rays, and dig from a glowing tip along the
+  direction the glow DRAWS while the dead-end nudge has tips lit. (An earlier version tried a strand
+  higher up after refusals — help a naive player does not have; removed once the nudge learned to
+  fire on 3 'Solid rock' refusals.) FAILS (prints `====`) unless the median is >= 40 m and every
+  stalled run was nudged. `--baseline` ignores the glow and only prints. In `run.mjs` as the slow
+  'naive' check (~6 min), not in `--mine`.
 - **lib.cjs read reservoir `cx`/`cy`/`rad` as world units until M4 — they are CELLS** — so the
   route bot never actually steered for water. Fixed in M4; sweep/career numbers before it were
   measured with a bot that found pockets only by accident.

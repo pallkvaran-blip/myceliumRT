@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (awaiting verifier). Next: M5.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier fixes landed). Next: M5.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -4640,7 +4640,7 @@ Numbers here are measured, not planned.
 - **lib.cjs** read reservoir cx/cy/rad as world units (so the route bot never steered for water);
   fixed. `Q.naiveStep` added. Sweep/career numbers from before M4 had that bug.
 - **CHECKS:** `tests/onboard-check.cjs` ('onboard', in `--mine`, 42 assertions, ~170 s;
-  `ONB_ONLY=first,ghost,tips,beat,feedback,pocket,nudge,end`), fresh context per block, telemetry
+  `ONB_ONLY=first,ghost,tips,stale,beat,feedback,pocket,nudge,walled,end`), fresh context per block, telemetry
   routed to a stub (`https://tele.test`). Screens: `tests/.artifacts/m4-*-390.png`.
   `tests/bots/naive.cjs` (acceptance 7, not in the runner).
 - **MEASURED:** naive bot (8 seeds, pace 900 ms): with the nudge median **77.5 m** (33 44 64 77 78 86
@@ -4650,6 +4650,59 @@ Numbers here are measured, not planned.
 - **`--mine` after M4: 834 passed, 0 failed across 15 checks** — boot 22, store 124, mine 190, ending
   87, ship 58, phone 44, onboard 42, zip 23, level 27, aim 9, scale 26, threat 116, harvest 28,
   mould 20, core 18.
+- **CHANGED ASSERTION (undisclosed in the first report):** phone-check '...and clears once they have
+  dug' went `cleared.hidden` -> `hidden || text !== 'Drag down...'`, and its hint block no longer
+  presses New (the first visit skips the title). Legit: the costs tip now follows the first dig.
+
+**M4 VERIFIER FIXES**
+- **TIPS ARE RECORDED WHEN SHOWN, NOT WHEN QUEUED.** Verifiers saw `first_ore` logged at 4244 ms and
+  shown at 8037 ms, `first_pocket` shown at 11914 ms (seconds after its 8 s ring), 'Phosphorus — grow
+  into it' still up after the seam paid, and queued tips at a run's end counted as seen. Now
+  `mineTip(id, text, {onShow, valid, maxAge, now})`: `onShow(now)` runs once when `mineTipTick`
+  DISPLAYS the line (that is where `mineTipRecord(id)` writes `p.mineTips` and sends `'tutorial'`);
+  `valid()` is asked on promotion and every frame while up (seam unrewarded + on screen, pocket
+  untapped + on screen), so a stale world line is dropped; `maxAge` 5000 drops a never-shown one; the
+  first-dig costs line is `now: true` (displaces an ore/pocket line, which returns if still valid).
+  `mineTipOnce` is gone. Measured: each hint tip's event lands within 30 ms of its line appearing
+  (dig 1324/1339, ore 4340/4370, pocket 4573/4583); costs line 38-47 ms after the dig.
+- **`p.mineTips` is read ONCE per run** (`state._mineOnb.seen`, at the first mine frame);
+  `mineOnboardScan` no longer parses the save every frame, and returns before its throttle once all
+  three scan tips are seen.
+- **first_line** fires from 6 m above the first line OR any depth past it (a 35 -> 43 m dig jumped the
+  6 m window); a crossed label lives 6 s. Recorded on the label's first DRAWN frame.
+- **THE NUDGE ALSO FIRES ON 3 'Solid rock' REFUSALS IN A ROW** (`state.mineWalled`, counted in
+  `mineGrow`; `mineOnWalled` / `mineNudge`; reset by a successful dig). The verifier's strict naive
+  player (deepest tip, 30 refusals) was never nudged: the nudge counted successful digs only.
+  **Each glowing tip draws the ghost slide along its ray** (`drawMineSlide`, shared with the ghost;
+  `glow().drawn`), so the angle a bot follows is information the player has.
+- **NAIVE POLICY IS NOW THE PLAN'S: always the deepest clean tip.** The skip-upward-after-refusals
+  heuristic is removed from `Q.naiveStep`. Measured (8 seeds, pace 900): median **80 m** (36 44 77 78
+  82 85 87 89), 7 of 7 stalled runs nudged (2-10 each), all ended `dry` by themselves. Registered in
+  run.mjs as `naive` (slow, not in `--mine`). The old `--baseline` 24.5 m was measured WITH the skip.
+- **Ghost ray memo reset per run** (`mineOnboardInit` clears `_mineGhost.key`): strand ids restart at
+  0, so a run ending with the ghost on its root handed the next run the same key and a ray scored on
+  the previous seed. Hook `ghost().scores`. Negative control: without the reset 3 -> 3.
+- **Beat with tolerance:** a band top that is not a price line reads 'Digs still cost N'
+  (onboard assertion '...no longer says a price' -> "...reads 'Digs still cost 2'").
+- **Floaters:** seam floaters 18 px with a 4.5 px outline (were 15 px); at most 12 live in the mine.
+  **Spent pocket:** a seeded dry crack over the hollow (0.50x luminance, was 0.48x).
+- **`?dev=1` on a fresh save lands on the title** (the first-visit skip stands down under `devUI()`).
+- **Boot counter:** nothing shown before the manifest is read; the band bill (files + masks) reserved
+  on `loadAssets`' first step. The DOM images had driven the % to ~89 in 350 ms and the real
+  denominator then pulled it back: longest freeze 1.1-1.4 s -> 0.24 s. **Returning players no longer
+  wait for the band preload** (it loads behind the title, masks in 12 ms slices): gate ready 2.6 s ->
+  0.5-1.1 s.
+- **Tried and reverted: generating the neighbour chunks after the reveal.** Curtain 384/417/478 ms with
+  it vs 445/421/390 without. A CDP profile of tap -> reveal: beginMineRun 87 ms (world build), frame
+  298 ms (renderFrame 216: drawLevelRocks 95, stampMouldInterp 46 — which walks the trich field in a
+  mine with no clouds). The render is the lever if the 600 ms bound ever gets tight.
+- **itchzip-check 23 -> 24:** clicks the title's New on the artefact and asserts a 3rd run_start.
+- **onboard-check 42 -> 56:** show-time telemetry (1), stale block (4: queued-not-recorded, costs line
+  first, claimed seam dropped, dig logged once), walled block (6), ghost memo re-score (1), `?dev=1`
+  title with control (1).
+- **`--mine` after the M4 verifier fixes: 849 passed, 0 failed across 15 checks** — boot 22, store 124,
+  mine 190, ending 87, ship 58, phone 44, onboard 56, zip 24, level 27, aim 9, scale 26, threat 116,
+  harvest 28, mould 20, core 18.
 
 ## Two games on the title screen: Survival and Campaign
 
