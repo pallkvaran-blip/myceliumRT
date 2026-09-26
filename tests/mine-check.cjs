@@ -718,7 +718,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       const n0 = s.nematodes.length, t0 = performance.now();
       await new Promise((r) => setTimeout(r, 8000));
       return { n0, n1: s.nematodes.length, secs: (performance.now() - t0) / 1000,
-               cap: s.config.nematodes.maxPopulation,
+               cap: s.config.nematodes.maxPopulation, maxAttached: s.config.mine.worms.maxAttached,
                perSec: s.config.mine.worms.breedPerSec,
                campaignCap: 150, campaignChance: 0.8 };
     });
@@ -727,8 +727,11 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     // is about the ORDER of the number, not its exact value.
     ok('feeding worms multiply slowly', br.n1 > br.n0 - 1 && br.n1 <= br.n0 + 5,
        `${br.n0} -> ${br.n1} over ${br.secs.toFixed(0)}s at ${br.perSec}/s`);
-    ok('...and the mine caps the population far below the campaign\'s',
-       br.cap < br.campaignCap / 4, `${br.cap} against the campaign's ${br.campaignCap}`);
+    // M6: breeding stops at `maxAttached` (6) worms on the colony; the world bound went 16 -> 64 and is
+    // a safety net only (it used to stop breeding once ~4 chunks existed). Was `cap < 150 / 4`.
+    ok('...and the mine stops breeding at 6 attached, under a safety bound far below the campaign\'s',
+       br.maxAttached === 6 && br.cap <= 64 && br.cap < br.campaignCap / 2,
+       `${br.maxAttached} attached, bound ${br.cap} against the campaign's ${br.campaignCap}`);
     await b.ctx.close();
   }
 
@@ -852,6 +855,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       g.mine.spawnCloud(tip.x, tip.y);
       await new Promise((r) => setTimeout(r, 2000));
       const armed = g.mine.infect();
+      const armedMs = s.mineInfect ? s.mineInfect.ms : null;
       const chip = { hidden: (document.getElementById('hud-infect') || {}).hidden,
                      n: (document.getElementById('hud-infectn') || {}).textContent };
       // Pressing rot must SAY so. The rule was already true — `nearestNode` skips infected nodes —
@@ -872,7 +876,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       s.config.trichoderma.spreadDepthPerTurn = 0;
       await new Promise((r) => setTimeout(r, 1400));
       const clear = g.mine.infect();
-      return { idle, armed, half, clear, chip, ms: s.config.mine.infectionMs,
+      // M6: a save's FIRST infection gets `firstInfectionMs` (30 s); the bound is the clock it armed.
+      return { idle, armed, half, clear, chip, ms: armedMs,
                fromRot: fromRot && (fromRot.ok ? 'ALLOWED' : fromRot.message),
                fromClean: fromClean && fromClean.ok };
     });
@@ -904,6 +909,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       await new Promise((r) => setTimeout(r, 900));
       s.nematodes.length = 0; s.config.nematodes.respawnChance = 0;
       s.config.mine.infectionMs = 2500;            // a deadline the probe can wait out
+      s.config.mine.firstInfectionMs = 2500;       // M6: a fresh save's first clock is this one
       let tip = null;
       for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
       s.config.trichoderma.moveSpeed = 0;

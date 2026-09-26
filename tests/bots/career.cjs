@@ -41,8 +41,14 @@ function runSeed(seed, k) {
         power: ['growSteps', 'water', 'heatTolerance', 'excreteCharges', 'amputateCharges'],
         knowledge: ids.filter((id) => /compass/i.test(id)).concat(['heatTolerance', 'excreteCharges', 'amputateCharges', 'water', 'growSteps']),
       };
-      const pri = (strat === 'cheapest' ? ids : (ORDERS[strat] || strat.split('+'))).filter((id) => ids.indexOf(id) >= 0);
+      // 'kit' (M6): the first rung of the flask and the enzyme as soon as each is offered, then the
+      // cheapest affordable rung — the career M6's acceptance 7 plays.
+      const pri = ((strat === 'cheapest' || strat === 'kit') ? ids : (ORDERS[strat] || strat.split('+'))).filter((id) => ids.indexOf(id) >= 0);
       const got = [];
+      if (strat === 'kit') for (const id of ['excreteCharges', 'amputateCharges']) {
+        if (ids.indexOf(id) < 0 || !S.inGame(id, 'mine') || S.level(id) > 0) continue;
+        const r = S.buy(id); if (r.ok) got.push(id + '@' + r.level);
+      }
       for (let k = 0; k < 40; k++) {
         const bal = S.mats();
         let pick = null, pc = Infinity;
@@ -52,7 +58,7 @@ function runSeed(seed, k) {
           const m = typeof c === 'number' ? 'phosphorus' : c.m, n = typeof c === 'number' ? c : c.n;
           if ((bal[m] | 0) < n) continue;
           const eff = m === 'phosphorus' ? n : n * 5;   // treat a deep material as ~5 P for ordering
-          if (strat === 'cheapest' ? eff < pc : pick == null) { pc = eff; pick = id; }
+          if ((strat === 'cheapest' || strat === 'kit') ? eff < pc : pick == null) { pc = eff; pick = id; }
         }
         if (!pick) break;
         const r = S.buy(pick); if (!r.ok) break;
