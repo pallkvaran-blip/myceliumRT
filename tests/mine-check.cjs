@@ -990,22 +990,27 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
       g.mine.spawnWorm(tip.x + 8, tip.y);
       await new Promise((r) => setTimeout(r, 600));
       const hitFlask = g.mine.useExcrete(), afterHitFlask = g.mine.items().excrete;
-      const stuck = s.nematodes.some((w) => w.stuck > 0);
+      // M6: one burst KILLS (killHits 1 on the mine's clone); it used to stick the worm for a tick.
+      const killed = hitFlask.killed | 0, wormsLeft = s.nematodes.length;
       const missCut = g.mine.useAmputate(tip.x + 4000, tip.y), afterMissCut = g.mine.items().amputate;
+      // M6: a dose cuts ROT, so there has to be some — a pinned cloud on the tip makes a real breach.
+      s.config.trichoderma.moveSpeed = 0;
+      g.mine.spawnCloud(tip.x, tip.y);
+      for (let i = 0; i < 60 && !s.active.nodes.some((q) => q.infected); i++) await new Promise((r) => setTimeout(r, 50));
       const n0 = s.active.nodes.length;
       const hitCut = g.mine.useAmputate(tip.x, tip.y);
-      return { missFlask: missFlask.ok, afterMissFlask, hitFlask: hitFlask.ok, afterHitFlask, stuck,
+      return { missFlask: missFlask.ok, afterMissFlask, hitFlask: hitFlask.ok, afterHitFlask, killed, wormsLeft,
                missCut: missCut.ok, afterMissCut, hitCut: hitCut.ok,
                afterHitCut: g.mine.items().amputate, removed: n0 - s.active.nodes.length };
     });
     ok('a flask that finds no worms costs nothing',
        use.missFlask === false && use.afterMissFlask === 1, `ok=${use.missFlask}, ${use.afterMissFlask} left`);
-    ok('...and one that lands hits them and spends a charge',
-       use.hitFlask === true && use.stuck === true && use.afterHitFlask === 0,
-       `hit=${use.hitFlask}, stuck=${use.stuck}, ${use.afterHitFlask} left`);
+    ok('...and one that lands kills them and spends a charge',
+       use.hitFlask === true && use.killed === 1 && use.wormsLeft === 0 && use.afterHitFlask === 0,
+       `hit=${use.hitFlask}, killed=${use.killed}, ${use.wormsLeft} worms left, ${use.afterHitFlask} left`);
     ok('a dose that cuts nothing costs nothing',
        use.missCut === false && use.afterMissCut === 2, `ok=${use.missCut}, ${use.afterMissCut} left`);
-    ok('...and one that lands removes strands and spends a charge',
+    ok('...and one that lands on rot removes strands and spends a charge',
        use.hitCut === true && use.removed > 0 && use.afterHitCut === 1,
        `${use.removed} strands cut, ${use.afterHitCut} left`);
     await b.ctx.close();

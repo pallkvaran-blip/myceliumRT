@@ -50,6 +50,9 @@ const CHECKS = [
   // M5: the economy — reach payout, the progressive store, heat at full tolerance, the v1 refund,
   // rich seams (and the chunk records' determinism), the end screen's rows / next goal / Descend.
   ['econ',      'econ-check.cjs',   200,  false],
+  // M6: threats you can read and answer — the flask kills, breeding stops at 6 attached, the cloud's
+  // creep, one dose cuts one patch, the 30 s first clock, chevrons + the worm chip, the copy.
+  ['counter',   'counter-check.cjs', 330, false],
   // M2: THE RELEASE GATE, on a throwaway --no-shrink zip of the working tree (dev flag patched off):
   // the prune keeps the mine's bands, and title -> descent -> end -> store -> Descend plays clean.
   ['zip',       'itchzip-check.cjs --fresh', 60, false],
@@ -119,10 +122,11 @@ const CHECKS = [
 //   phone          a 360-390 px phone sees and can use every control (M3).
 //   onboard        the first minute teaches itself (M4); the naive bot is tests/bots/naive.cjs.
 //   econ           every run pays, every store visit buys (M5); the bot acceptance is tests/bots/econ.cjs.
+//   counter        threats you can read and answer (M6); the career acceptance is tests/bots/career.cjs.
 //
 // Everything else in CHECKS is the card game and is no longer run. Nothing has been DELETED — the
 // code is untouched and the checks still work if `node tests/run.mjs campaign` is ever wanted.
-const MINE_SET = ['mine', 'ending', 'ship', 'zip', 'phone', 'onboard', 'econ', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
+const MINE_SET = ['mine', 'ending', 'ship', 'zip', 'phone', 'onboard', 'econ', 'counter', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
 
 const args = process.argv.slice(2);
 const fast = args.includes('--fast');

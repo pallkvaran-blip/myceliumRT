@@ -213,6 +213,7 @@
     .res.wm .rv { color: #e2705a; }
     .res.wm .rk { color: #e2705a; opacity: 0.75; font-size: 10px; margin-left: 3px; letter-spacing: 0.2px; }
     .res.wm[hidden] { display: none; }
+    .hud.minehud .res.wm { cursor: pointer; }
     /* The infection countdown, in the mould's own green — and it goes RED under ten seconds, which
        is the point at which the number stops being information and starts being a deadline. */
     .res.inf { color: #9ec44f; }
@@ -277,10 +278,15 @@
     .resrow.row2 .matchip .mt { letter-spacing: .07em; opacity: .85; }
     .resrow.row2 .matchip .rv { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
     .rotbanner { align-self: center; display: inline-flex; align-items: center; gap: 6px; pointer-events: none;
-      padding: 6px 14px 6px 11px; border-radius: 999px; background: rgba(18,26,8,0.9);
+      padding: 6px 14px 6px 11px; border-radius: 16px; background: rgba(18,26,8,0.9);
       border: 1.5px solid rgba(158,196,79,0.7); color: #9ec44f; box-shadow: 0 0 14px -2px rgba(158,196,79,0.45);
       font: 800 13px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; }
     .rotbanner[hidden] { display: none; }
+    /* M6: the instruction under the clock, on its own line so the banner stays narrow on a phone. */
+    .rotbanner { flex-wrap: wrap; justify-content: center; row-gap: 3px; }
+    .rotbanner .rb-hint { flex: 1 0 100%; text-align: center; font: 600 11px/1.15 ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: .02em; text-transform: none; opacity: .92; }
+    .rotbanner .rb-hint:empty { display: none; }
     .rotbanner .ri { width: 16px; height: 16px; }
     .rotbanner .rv { font-size: 18px; letter-spacing: 0; font-variant-numeric: tabular-nums; }
     .rotbanner .rk { font-size: 11px; letter-spacing: 0; opacity: .75; margin-left: -4px; text-transform: none; }
@@ -3728,10 +3734,38 @@ const CONFIG = {
     //                         whole colony well before the clock ran out and make the clock
     //                         decorative. 0.35 is a ring every three ticks — visible creep, and the
     //                         deadline stays the thing that ends it.
+    //   moveSpeed (M6)        0.5 cells a tick, against the campaign's 2.5. A cloud that senses
+    //                         the colony at the edge of its 300-unit sight needs 6 s or more to
+    //                         reach it (it lunged in ~1.6 s), so avoiding one is a skill rather
+    //                         than a coin flip. Shared key: only the mine's clone changes.
+    //   firstTouchRings (M6)  2 rings, against 12, AND firstTouchRadius 0 (the breach disc floors at
+    //   firstTouchRadius      the cloud's own reach, ~1.05 cells, so what the mould covers is still
+    //                         infected). The plan said 6 rings would make a breach 10-25 strands;
+    //                         measured on a 150-strand mine colony it was 39-53 at radius 1.5 and
+    //                         31-46 at radius 0, because a mine dig fans ~19 filaments out of one
+    //                         strand and a 1.5-cell disc holds 9-17 of them (each seeds its own
+    //                         walk). At 2 rings / radius 0 it is 10-24. The rot still creeps at
+    //                         `spreadDepthPerTurn` after, and one dose cuts the whole patch.
     trych: {
       rotLifeTurns: 100000,
       spreadDepthPerTurn: 0.35,
+      moveSpeed: 0.5,
+      firstTouchRings: 2,
+      firstTouchRadius: 0,
     },
+    // THE SAVE'S FIRST INFECTION GETS A LONGER CLOCK (M6): 30 s the first time the colony meets rot
+    // (`p.mineSeen.rot` unset), `infectionMs` (20 s) ever after. The first meeting is where the
+    // player learns the rot banner and the enzyme; later ones are a known quantity.
+    firstInfectionMs: 30000,
+    // THE MUCUS FLASK (M6), onto the run's clone of the shared `nematodes.killHits` and
+    // `actions.excrete.range`: one burst KILLS every worm attached to, or within `excreteRange` of, a
+    // clean strand. The campaign's 3-hit, 80-unit version saved 0.1 water on the first purchase a
+    // bitten player makes (probe_counter: 2.0 drained before, 1.9 after, the worm still attached).
+    excreteKillHits: 1,
+    excreteRange: 160,
+    // THE CUTTING ENZYME (M6): the tap must land within `cutReach` of rot; the dose removes the
+    // whole connected rotten patch nearest it plus clean strands within one segment of it.
+    cutReach: 300,
     showSight: true,
     // The resting wash; a TAPPED creature still brightens to 0.28. RE-MEASURED FOR GREEN — see
     // `sightRgb` below and `tests/wash-probe.cjs` for the sweep. It has now been retuned twice
@@ -3753,7 +3787,12 @@ const CONFIG = {
     worms: {
       waterPerSec: 0.2,          // 1 water every 5 s, per ATTACHED worm
       breedPerSec: 0.05,         // 5% chance a feeding worm splits, per second
-      maxPopulation: 16,         // against the campaign's 150 — see above
+      // BREEDING STOPS AT `maxAttached` WORMS ON THE COLONY (M6), not at a world population: the
+      // world cap of 16 silently stopped all breeding once 4 chunks existed (4 chunks seed ~16),
+      // so the pressure depended on how far sideways the player had streamed. At 6 attached the
+      // drain is 1.2 water/s — real, recoverable, and one flask sets it to zero.
+      maxAttached: 6,
+      maxPopulation: 64,         // a SAFETY bound only (M6; was 16) — see maxAttached
     },
     threatBands: [
       { worms: 0, clouds: 0 },
@@ -14531,11 +14570,11 @@ const STORE_UPGRADES = [
   // fair because the infected ending pays out in full.
   { id: 'excreteCharges', name: 'Mucus flasks', icon: 'worm', accent: 'water', step: 1, unit: 'flasks', unit1: 'flask',
     mineOnly: true,
-    effect: 'Carry <b>one more</b> flask per descent. A flask bursts over the colony and kills every worm drinking from it.',
+    effect: 'Kills every worm on or near the colony. Carry <b>one more</b> flask per descent.',
     costs: [10, 40, { m: 'anthracite', n: 14 }] },
   { id: 'amputateCharges', name: 'Cutting enzyme', icon: 'spore', accent: 'mint', step: 1, unit: 'doses', unit1: 'dose',
     mineOnly: true,
-    effect: 'Carry <b>one more</b> dose per descent. Tap the enzyme, then the rot, to cut an infection out.',
+    effect: 'Tap the rot: one dose cuts out one whole patch of rot, and only the rot. Carry <b>one more</b> dose per descent.',
     costs: [15, 50, { m: 'garnet', n: 14 }] },
   // DEPTH GATING, sold as tolerance: it moves where the price starts climbing rather than removing
   // the climb. 14 m a rung over 4 rungs (v1 was 25 m over 6, which deleted heat from the shaft), so
@@ -18046,6 +18085,7 @@ function stepNematodes(state, phase = 'both') {
     ? 1 - Math.pow(1 - Math.max(0, Math.min(1, +mw.breedPerSec || 0)), tickS)
     : 0;
   let attached = 0;
+  const mineMaxAttached = mineWorms ? Math.max(0, mw.maxAttached | 0) : 0;
   // Worms can only sense and eat strands that have actually GROWN IN (net.grownIn): a grow
   // commits its whole path at once, so tissue still animating in isn't there to be found yet.
   const nodes = net && net.alive ? net.nodes.filter((n) => net.grownIn(n)) : [];
@@ -18142,7 +18182,13 @@ function stepNematodes(state, phase = 'both') {
     if (Math.hypot(seen.x - w.x, seen.y - w.y) <= n.reach * cs) {
       w.feeding = true;
       // Breed EVERY tick while in contact — this is the exponential growth.
-      if (state.nematodes.length + newborns.length < n.maxPopulation
+      // IN THE MINE, BREEDING STOPS AT `maxAttached` WORMS ON THE COLONY (M6) — last tick's count or
+      // this tick's so far, whichever is higher, plus this tick's newborns (each attaches next tick:
+      // it spawns within 0.3 cells of a parent that is within reach). `maxPopulation` (64) stays
+      // underneath as a safety bound. The campaign's rule is unchanged.
+      const attachRoom = !mineWorms || mineMaxAttached <= 0
+        || Math.max(state.mineAttached | 0, attached + 1) + newborns.length < mineMaxAttached;
+      if (attachRoom && state.nematodes.length + newborns.length < n.maxPopulation
           && rng.chance(mineWorms ? breedPerTick : n.breedChance)) {
         let bx = w.x + rng.range(-cs * 0.3, cs * 0.3), by = w.y + rng.range(-cs * 0.3, cs * 0.3);
         const bc = sub.cellAtWorld(bx, by);
@@ -18220,18 +18266,22 @@ function stepNematodes(state, phase = 'both') {
 // --- Excrete (the defence) --------------------------------------------------
 // Sticky mucus: every worm within `range` of ANY strand takes 1 hit and is
 // stuck for stickTurns; a worm at killHits dies. Returns {hit, killed}.
-function excrete(state) {
+// `opts` (M6, the mine's flask; default null = the card game's rule, unchanged): `cleanOnly` measures
+// the range against CLEAN strands only, and `attached` also hits every worm feeding on the colony
+// (`w.attached`) wherever it is — a worm on a rotten strand is still on the colony.
+function excrete(state, opts) {
   const cfg = state.config.actions.excrete;
   const n = state.config.nematodes;
   const net = state.active;
   if (!state.nematodes || !state.nematodes.length) return { hit: 0, killed: 0 };
-  const nodes = net ? net.nodes : [];
+  const o = opts || {};
+  const nodes = net ? (o.cleanOnly ? net.nodes.filter((nd) => !nd.infected) : net.nodes) : [];
   const r2 = cfg.range * cfg.range;
   let hit = 0, killed = 0;
   const survivors = [];
   for (const w of state.nematodes) {
-    let inRange = false;
-    for (const node of nodes) {
+    let inRange = !!(o.attached && w.attached);
+    if (!inRange) for (const node of nodes) {
       const dx = node.x - w.x, dy = node.y - w.y;
       if (dx * dx + dy * dy <= r2) { inRange = true; break; }
     }
@@ -18811,7 +18861,10 @@ function infectNetwork(net, state) {
       // the LOWEST NODE ID, which is the oldest tissue in the set — so the green appeared to
       // travel out from the start of the colony instead of from the strand the cloud touched.
       // Every strand in the disc is marked, so the wave starts along the whole contact face.
-      for (const n of seeds) { n.infected = true; n._infSeed = true; n._infAge = 0; }   // a NEW infection, with its own clock
+      // `_infPatch` (M6): which breach this rot belongs to, one id per cloud, inherited by every
+      // walk below — the mine's Cutting enzyme cuts out one breach whole. Inert in the campaign.
+      const pid = cloud._patch || (cloud._patch = (net._patchSeq = (net._patchSeq | 0) + 1));
+      for (const n of seeds) { n.infected = true; n._infSeed = true; n._infAge = 0; n._infPatch = pid; }   // a NEW infection, with its own clock
       for (const n of seeds) {
         // Guaranteed (chance 1), unlike the race below: the cost of being touched is a fixed
         // number of rings, not a dice roll per ring.
@@ -19050,7 +19103,7 @@ function infectFreshGrowth(net, seed, depth, sub, sinceId) {
       const step = (o) => {
         if (!o || seen.has(o.id)) return;
         seen.add(o.id);
-        if (o.id >= sinceId && !o.infected && !cellProofed(sub, o)) { o.infected = true; o._infAge = seedAge; claimed++; }
+        if (o.id >= sinceId && !o.infected && !cellProofed(sub, o)) { o.infected = true; o._infAge = seedAge; o._infPatch = seed._infPatch; claimed++; }
         next.push(o);
       };
       if (n.parentId != null) step(net.byId.get(n.parentId));
@@ -19067,18 +19120,18 @@ function infectFreshGrowth(net, seed, depth, sub, sinceId) {
 // stopping the rot's own life cycle: `rotAge` (per strand, drives the fade and the fall) is
 // untouched, and a strand claimed on the last spreading step still lives out its full rotLifeTurns.
 function infectAround(network, seed, depth, chance, rng, sub) {
-  const age = seed._infAge | 0;
+  const age = seed._infAge | 0, patch = seed._infPatch;
   let frontier = [seed];
   for (let d = 0; d < depth && frontier.length; d++) {
     const next = [];
     for (const n of frontier) {
       if (n.parentId != null) {
         const p = network.byId.get(n.parentId);
-        if (p && !p.infected && !cellProofed(sub, p) && (chance >= 1 || rng() < chance)) { p.infected = true; p._infAge = age; next.push(p); }
+        if (p && !p.infected && !cellProofed(sub, p) && (chance >= 1 || rng() < chance)) { p.infected = true; p._infAge = age; p._infPatch = patch; next.push(p); }
       }
       for (const cid of n.children) {
         const c = network.byId.get(cid);
-        if (c && !c.infected && !cellProofed(sub, c) && (chance >= 1 || rng() < chance)) { c.infected = true; c._infAge = age; next.push(c); }
+        if (c && !c.infected && !cellProofed(sub, c) && (chance >= 1 || rng() < chance)) { c.infected = true; c._infAge = age; c._infPatch = patch; next.push(c); }
       }
     }
     frontier = next;
@@ -23220,25 +23273,99 @@ function mineItemCount(state, id) {
 function mineUseExcrete(state) {
   if (!state || state.runOver || !state.active || !state.active.alive) return { ok: false, message: 'The colony is no longer alive.' };
   if (mineItemCount(state, 'excrete') <= 0) return { ok: false, message: 'No mucus flasks left.' };
-  const r = excrete(state);
+  // M6: every worm attached to, or within `actions.excrete.range` (160 on the mine's clone) of, a
+  // CLEAN strand; `killHits` is 1 on the clone, so each one hit dies. The drain reads 0 on the next
+  // tick because the attached count is recomputed from the worms that are left.
+  const r = excrete(state, { cleanOnly: true, attached: true });
   if (!r || !r.hit) return { ok: false, message: 'No nematodes close enough to the colony.' };
   state.mineItems.excrete -= 1;
-  return { ok: true, hit: r.hit, killed: r.killed,
-           message: r.killed
-             ? `Mucus burst — ${r.hit} hit, ${r.killed} killed.`
+  // The attach count is the HUD's and the drain's; drop it now rather than a tick later so the chip
+  // and `mine.attached()` agree with the worms that are left.
+  let still = 0;
+  for (const w of (state.nematodes || [])) if (w.attached) still++;
+  state.mineAttached = still;
+  const k = r.killed | 0;
+  return { ok: true, hit: r.hit, killed: k,
+           message: k
+             ? `Mucus burst — ${k} worm${k === 1 ? '' : 's'} killed.`
              : `Mucus burst — ${r.hit} stuck fast.` };
 }
 // Cut out every strand in a radius. THE ONLY ANSWER TO AN INFECTION, and it has to take all of the
 // rot to stop the clock — `mineInfectionCheck` asks whether ANYTHING is still infected, so a dose
 // spent on half a breach buys nothing but the tissue it removed.
+//
+// M6: ONE DOSE CUTS OUT ONE WHOLE PATCH OF ROT, AND ONLY THE ROT. The radius cut it replaced left 12 of
+// 55 rotten strands on a real breach and three doses cost 32% of the colony. Now:
+//   - the patch is the connected infected component nearest the tap (within `cutReach`, 300 units),
+//     flooded over parent/child links between infected strands, over infected strands within one
+//     segment of each other (a breach DISC seeds neighbouring filaments that are not linked through
+//     rot), and over the breach it came from (`_infPatch`, stamped per cloud by the contact pass);
+//   - plus every clean strand within one segment of it (the margin a cut needs);
+//   - removed through `_removeNodes`, which never cascades — orphaned clean tissue keeps living;
+//   - `cell.trich` cleared under the cut.
+// With no rot in reach it refuses and the dose is kept (`noRot`, so the caller keeps it armed).
+function mineRotPatch(state, x, y) {
+  const net = state.active, M = mineCfg(state.config);
+  const seg = (state.config.growth && state.config.growth.segmentLength) || 25.5;
+  const reach = Math.max(1, +M.cutReach || 300);
+  const rot = net.nodes.filter((n) => n.infected);
+  if (!rot.length) return null;
+  let start = null, bd = reach * reach;
+  for (const n of rot) { const d = (n.x - x) ** 2 + (n.y - y) ** 2; if (d <= bd) { bd = d; start = n; } }
+  if (!start) return null;
+  // Spatial buckets over the rot, one segment square, for the "within one segment" links.
+  const B = seg, key = (cx, cy) => cx * 100003 + cy, buckets = new Map();
+  for (const n of rot) { const k = key(Math.floor(n.x / B), Math.floor(n.y / B)); let a = buckets.get(k); if (!a) buckets.set(k, a = []); a.push(n); }
+  const near = (n, r, fn) => {
+    const cx = Math.floor(n.x / B), cy = Math.floor(n.y / B), R = Math.ceil(r / B), r2 = r * r;
+    for (let i = -R; i <= R; i++) for (let j = -R; j <= R; j++) {
+      const a = buckets.get(key(cx + i, cy + j)); if (!a) continue;
+      for (const o of a) if ((o.x - n.x) ** 2 + (o.y - n.y) ** 2 <= r2) fn(o);
+    }
+  };
+  const byPatch = new Map();
+  for (const n of rot) if (n._infPatch != null) { let a = byPatch.get(n._infPatch); if (!a) byPatch.set(n._infPatch, a = []); a.push(n); }
+  const inPatch = new Set([start.id]), queue = [start], patches = new Set();
+  const add = (o) => { if (o && o.infected && !inPatch.has(o.id)) { inPatch.add(o.id); queue.push(o); } };
+  while (queue.length) {
+    const n = queue.pop();
+    if (n.parentId != null) add(net.byId.get(n.parentId));
+    for (const cid of n.children) add(net.byId.get(cid));
+    near(n, seg, add);
+    if (n._infPatch != null && !patches.has(n._infPatch)) {
+      patches.add(n._infPatch);
+      for (const o of (byPatch.get(n._infPatch) || [])) add(o);
+    }
+  }
+  // ...and the clean margin: every clean strand within one segment of the patch.
+  const clean = new Set(), s2 = seg * seg * 1.0001;
+  const patchNodes = rot.filter((n) => inPatch.has(n.id));
+  for (const c of net.nodes) {
+    if (c.infected) continue;
+    for (const n of patchNodes) if ((c.x - n.x) ** 2 + (c.y - n.y) ** 2 <= s2) { clean.add(c.id); break; }
+  }
+  return { rot: patchNodes, clean };
+}
 function mineUseAmputate(state, x, y) {
   if (!state || state.runOver || !state.active || !state.active.alive) return { ok: false, message: 'The colony is no longer alive.' };
   if (mineItemCount(state, 'amputate') <= 0) return { ok: false, message: 'No cutting enzyme left.' };
-  const r = amputateAt(state, { x, y },
-                       (mineCfg(state.config).cutRadius | 0) || state.config.actions.amputate.radius);
-  if (!r || !r.ok) return r || { ok: false, message: 'Nothing there to cut.' };
+  const net = state.active, sub = state.substrate;
+  const patch = mineRotPatch(state, x, y);
+  if (!patch) return { ok: false, noRot: true, message: 'No rot within reach — tap on the rot.' };
+  const doomed = new Set(patch.clean);
+  for (const n of patch.rot) doomed.add(n.id);
+  if (doomed.size >= net.nodes.length) return { ok: false, message: 'That would cut away the whole colony.' };
+  const cut = patch.rot.map((n) => ({ x: n.x, y: n.y }));
+  net._removeNodes(doomed);
+  // The mould under the cut goes with it — a cloud's field left standing there would re-infect the
+  // first strand grown back into the gap.
+  const cs = sub.cellSize;
+  for (const p of cut) sub.cellsInRadius(p.x, p.y, cs * 0.75, (cell) => { cell.trich = 0; });
   state.mineItems.amputate -= 1;
-  return r;
+  const left = net.nodes.some((n) => n.infected);
+  const k = patch.rot.length;
+  return { ok: true, rot: k, clean: patch.clean.size, removed: doomed.size, rest: left,
+           message: `Cut out ${k} rotten strand${k === 1 ? '' : 's'} — ${left ? 'rot remains elsewhere.' : 'the colony is clean.'}` };
 }
 
 // --- the infection deadline -------------------------------------------------
@@ -23257,10 +23384,19 @@ function mineInfectionCheck(state, nowMs) {
   let any = false;
   for (const n of state.active.nodes) if (n.infected) { any = true; break; }
   if (!any) { state.mineInfect = null; return false; }
-  const ms = Math.max(1000, mineCfg(state.config).infectionMs | 0);
+  const M = mineCfg(state.config);
+  // M6: THE SAVE'S FIRST INFECTION GETS `firstInfectionMs` (30 s). `firstRot` is read off the save by
+  // configForLevel; `_mineRotMet` makes the NEXT infection in the same run a normal one, and
+  // `mineSeenNow.rot` (persisted by mineFrame) makes every later run's normal too.
+  const first = !!M.firstRot && !state._mineRotMet && (M.firstInfectionMs | 0) > 0;
+  const ms = Math.max(1000, (first ? M.firstInfectionMs : M.infectionMs) | 0);
   // A save that has met mould gets the Cutting enzyme on the shelf (M5; persisted by mineFrame).
   (state.mineSeenNow = state.mineSeenNow || {}).cloud = true;
-  if (!state.mineInfect) state.mineInfect = { start: nowMs, ms };
+  if (!state.mineInfect) {
+    state.mineInfect = { start: nowMs, ms, first };
+    state._mineRotMet = true;
+    state.mineSeenNow.rot = true;
+  }
   state.mineInfect.left = Math.max(0, state.mineInfect.start + state.mineInfect.ms - nowMs);
   return state.mineInfect.left <= 0;
 }
@@ -27349,7 +27485,8 @@ class UI {
         // see is the same defect as a drain they cannot see — worse, because this one ends the run
         // outright — and in the row it was the entry that pushed the gear off a 390 px screen.
         + `<div class="rotbanner" id="hud-infect" hidden role="status">${RES_ICON.spore}`
-        +   `<span class="rb-t">Rot</span><span class="rv" id="hud-infectn">0</span><span class="rk">s</span></div>`
+        +   `<span class="rb-t">Rot</span><span class="rv" id="hud-infectn">0</span><span class="rk">s</span>`
+        +   `<span class="rb-hint" id="hud-infecthint"></span></div>`
         // THE MINE'S OWN INSTRUCTION LINE (M3), fed by the tip queue in `mineFrame`. Not `.hint`:
         // every `.hint` rule hides it on a phone (CSS max-width 760 and phone landscape), which is
         // how the mine's only instruction was invisible to every phone player.
@@ -27384,9 +27521,9 @@ class UI {
       // counts are zero, which is every run until the store has been used.
       + (mineOn
         ? `<div class="minekit hidden" id="minekit">`
-          + `<button class="kitbtn" id="kit-excrete" type="button" title="Mucus flask — hits every nematode near the colony">`
+          + `<button class="kitbtn" id="kit-excrete" type="button" title="Mucus flask — kills every worm on or near the colony">`
           +   `${RES_ICON.worm}<span class="kitn" id="kit-excrete-n">0</span></button>`
-          + `<button class="kitbtn" id="kit-amputate" type="button" title="Cutting enzyme — tap the map to cut out a patch of strands">`
+          + `<button class="kitbtn" id="kit-amputate" type="button" title="Cutting enzyme — then tap the rot to cut out that patch">`
           +   `${RES_ICON.spore}<span class="kitn" id="kit-amputate-n">0</span></button>`
           + `</div>`
           // FRUIT NOW (finishing plan M1), shown whenever the tank cannot pay the price here, and the
@@ -27411,6 +27548,9 @@ class UI {
     const kx = hud.querySelector('#kit-excrete'), ka = hud.querySelector('#kit-amputate');
     if (kx) kx.addEventListener('click', (e) => { e.stopPropagation(); this.handlers.onMineItem && this.handlers.onMineItem('excrete'); });
     if (ka) ka.addEventListener('click', (e) => { e.stopPropagation(); this.handlers.onMineItem && this.handlers.onMineItem('amputate'); });
+    // M6: the worm chip POINTS — a tap pans to the nearest attached worm.
+    const wmc = hud.querySelector('#hud-worms');
+    if (wmc && mineOn) wmc.addEventListener('click', (e) => { e.stopPropagation(); this.handlers.onWormChip && this.handlers.onWormChip(); });
     this.el.hudtop = hud.querySelector('.hudtop');   // _syncTopRow measures this against the Actions pill
     this.el.logdrop = hud.querySelector('#logdrop');
     this.el.loglist = hud.querySelector('#loglist');
@@ -28299,11 +28439,17 @@ class UI {
           ? s.mineInfect.left : s.mineInfect.ms) / 1000) : null;
         // Written on a CHANGE only — the HUD refreshes every world tick and this sits inside the
         // row the player is reading. The whole-second value is what changes, not the ms.
-        if (this._infLeft !== left) {
-          this._infLeft = left;
+        // M6: THE BANNER SAYS WHAT TO DO — 'tap the enzyme, then the rot' with a dose in the bag, 'the
+        // colony will fruit' without (the ending pays in full, so that is information, not a threat).
+        const dose = ((s.mineItems && s.mineItems.amputate) | 0) > 0;
+        const armed = s._mineArmed === 'amputate';
+        const isig = left == null ? null : left + ':' + dose + ':' + armed;
+        if (this._infLeft !== isig) {
+          this._infLeft = isig;
           inf.hidden = left == null;
           if (left != null) {
             text('hud-infectn', String(left));
+            text('hud-infecthint', armed ? 'now tap the rot' : dose ? 'tap the enzyme, then the rot' : 'the colony will fruit');
             inf.classList.toggle('urgent', left <= 10);
           }
         }
@@ -33812,6 +33958,17 @@ function configForLevel(level) {
     const mt = cfg.mine.trych || {};
     if (mt.rotLifeTurns) cfg.trichoderma.rotLifeTurns = mt.rotLifeTurns;
     if (mt.spreadDepthPerTurn != null) cfg.trichoderma.spreadDepthPerTurn = mt.spreadDepthPerTurn;
+    // M6: the cloud's creep and the breach's first-touch reach, same rule — shared keys, so only
+    // this clone may change them or the campaign's tuned mould breaks.
+    if (mt.moveSpeed != null) cfg.trichoderma.moveSpeed = mt.moveSpeed;
+    if (mt.firstTouchRings != null) cfg.trichoderma.firstTouchRings = mt.firstTouchRings;
+    if (mt.firstTouchRadius != null) cfg.trichoderma.firstTouchRadius = mt.firstTouchRadius;
+    // M6: the flask kills in one burst over a wider reach (see `CONFIG.mine.excreteKillHits`).
+    if (cfg.mine.excreteKillHits) cfg.nematodes.killHits = Math.max(1, cfg.mine.excreteKillHits | 0);
+    if (cfg.mine.excreteRange) cfg.actions.excrete.range = Math.max(1, +cfg.mine.excreteRange);
+    // M6: the save's first infection gets `firstInfectionMs`. The engine cannot read the save, so
+    // whether this save has met rot yet travels on the clone.
+    try { cfg.mine.firstRot = !((loadProgress().mineSeen || {}).rot); } catch (_) { cfg.mine.firstRot = false; }
     const b = storeBonuses();
     cfg.mine.startWater = Math.max(1, (cfg.mine.startWater | 0) + (b.water | 0));
     cfg.mine.growSteps = Math.max(1, b.growSteps | 0);
@@ -37035,6 +37192,8 @@ function begin(newState) {
       // objects onto `state.nematodes` would be a check inventing its own idea of what a worm is.
       spawnWorm: (x, y) => { spawnNematodeAt(state, x, y); return state.nematodes.length; },
       attached: () => state.mineAttached | 0,
+      // M6: the edge chevrons the LAST frame drew for off-screen attached worms ({x, y} screen, wx/wy world).
+      chevrons: () => (state._mineChevrons || []).map((c) => Object.assign({}, c)),
       // How many ambient sight rings the LAST frame drew, and the switch behind them.
       sight: () => ({ on: !!(state.config.mine && state.config.mine.showSight),
                       drawn: state._mineSightDrawn | 0 }),
@@ -37606,6 +37765,19 @@ const handlers = {
     if (r.ok) { state.log(r.message, 'good'); rendererFor(state.active).markStructureDirty(); }
     uiDirty = true;
   },
+  // M6: THE WORM CHIP POINTS. A tap pans to the attached worm nearest the view's centre, releasing the
+  // camera like any other look (the next dig brings it home).
+  onWormChip: () => {
+    if (!state || state.runOver || !state.substrate || !state.substrate.mine) return;
+    let best = null, bd = Infinity;
+    for (const w of (state.nematodes || [])) {
+      if (!w.attached) continue;
+      const d = (w.x - camera.x) ** 2 + (w.y - camera.y) ** 2;
+      if (d < bd) { bd = d; best = w; }
+    }
+    if (!best) return;
+    camera.x = best.x; camera.y = best.y; camera.clamp(); mineReleaseCamera();
+  },
   // In the mine the menu does not offer it (the markup leaves it out) — it restarted the descent.
   onReplayTutorial: () => { if (state && state.substrate && state.substrate.mine) return; beginTutorial(); },
   onForceFruit: () => forceFruitAbandon(),
@@ -38112,6 +38284,9 @@ function mineArmedTap(wx, wy) {
   if (!state || !state.substrate || !state.substrate.mine || state._mineArmed !== 'amputate') return false;
   state._mineArmed = null;
   const r = mineUseAmputate(state, wx, wy);
+  // A tap with no rot in reach keeps the dose AND the arming (M6): the player aimed at the wrong
+  // place, not at nothing, and should not have to re-arm to try again.
+  if (r && r.noRot) state._mineArmed = 'amputate';
   if (r && r.message) ui.toast(r.message);
   if (r && r.ok) {
     state.log(r.message, 'good');
@@ -39181,6 +39356,38 @@ function mineOnboardScan(time) {
     }
   }
 }
+// THE THREAT TIPS (M6), once per save each, shown when they happen: the first worm to attach, the
+// first rot, and the first cloud on screen. Worm and rot are about THIS moment, so they jump the queue.
+// Each names the answer the player carries — or, with nothing in the bag, where to get it.
+function mineThreatTips(time) {
+  const o = state._mineOnb;
+  if (!o || !o.seen) return;
+  const items = state.mineItems || {};
+  if (!o.seen.first_worm && (state.mineAttached | 0) > 0) {
+    mineTip('worm', (items.excrete | 0) > 0
+      ? 'A worm is drinking your water — tap the flask to kill it'
+      : 'A worm is drinking your water. Mucus flasks kill worms — in the store.',
+      { ms: 5000, now: true, valid: () => (state.mineAttached | 0) > 0, onShow: () => mineTipRecord('first_worm') });
+  }
+  if (!o.seen.first_rot && state.mineInfect) {
+    const secs = Math.round((state.mineInfect.ms | 0) / 1000);
+    mineTip('rot', (items.amputate | 0) > 0
+      ? 'Rot! Arm the enzyme and tap the rot.'
+      : `Rot! In ${secs} s the colony fruits — the store sells a cure.`,
+      { ms: 5000, now: true, valid: () => !!state.mineInfect, onShow: () => mineTipRecord('first_rot') });
+  }
+  if (!o.seen.first_cloud && state.clouds && state.clouds.length && time - (o.cloudScanAt || 0) > 250) {
+    o.cloudScanAt = time;
+    for (const c of state.clouds) {
+      if (c.spent || !mineOnScreen(c.cx, c.cy, 30)) continue;
+      const first = !!(state.config.mine && state.config.mine.firstRot) && !state._mineRotMet;
+      const secs = Math.round(((first ? state.config.mine.firstInfectionMs : state.config.mine.infectionMs) | 0) / 1000);
+      mineTip('cloud', `Mould: one touch starts a ${secs} s rot clock`, { ms: 4500, maxAge: 5000,
+        valid: () => !c.spent && mineOnScreen(c.cx, c.cy, 30), onShow: () => mineTipRecord('first_cloud') });
+      break;
+    }
+  }
+}
 // THE PRICE-LINE BEATS (M4.5). A band beat whose depth IS a price line carries 'Digs now cost N'
 // (see `mineBeat`); a line that heat tolerance has moved off a band boundary gets a small beat of
 // its own the first time a strand passes it (the price rises strictly BEYOND a line).
@@ -39453,6 +39660,7 @@ function mineFrame(time, dt) {
   mineBeat(depth);
   mineLineBeats(depth);
   mineOnboardScan(time);
+  mineThreatTips(time);
   // THE STUCK COUNTDOWN HOLDS while a reveal is in flight (a pocket the last dig is about to reach
   // pays first), while a pointer is down (the player is aiming) and while the settings menu is open.
   // This frame only runs while the sim is not paused, which covers every other overlay.
@@ -42569,7 +42777,7 @@ function drawNematodes(time) {
     ctx.restore();
   }
 
-  if (!worms || !worms.length) return;
+  if (!worms || !worms.length) { state._mineChevrons = []; return; }
 
   // --- sight-range overlay: a soft glow clipped to what the worm can SEE (rock
   // blocks its line of sight), shown for SEARCHING worms (a worm that's already
@@ -42587,10 +42795,52 @@ function drawNematodes(time) {
     }
   }
 
+  // M6: AN ATTACHED WORM IS A THING YOU CAN FIND. In the mine it is drawn at 2.5x with a ring that
+  // pulses once a second on the strand it drinks from (a separate mark from the green sensing wash),
+  // and one that is OFF SCREEN gets a worm-coloured chevron at the screen edge pointing at it.
+  const mineW = !!(sub && sub.mine);
+  const chev = [];
+  if (mineW && state.active) {
+    const pulse = 0.5 + 0.5 * Math.sin(time * 0.001 * Math.PI * 2);   // 1 Hz
+    const byId = state.active.byId;
+    ctx.save();
+    for (const w of worms) {
+      if (!w.attached) continue;
+      const host = (w.targetId != null && byId.get(w.targetId)) || w;
+      const hp = camera.worldToScreen(host.x, host.y);
+      const onScreen = hp.x >= 0 && hp.y >= 0 && hp.x <= camera.viewW && hp.y <= camera.viewH;
+      if (onScreen) {
+        const rr = Math.max(9, cs * 0.42 * z) * (1 + 0.35 * pulse);
+        ctx.strokeStyle = `rgba(226,112,90,${0.55 + 0.4 * (1 - pulse)})`;
+        ctx.lineWidth = Math.max(2, 2.6 * z);
+        ctx.beginPath(); ctx.arc(hp.x, hp.y, rr, 0, Math.PI * 2); ctx.stroke();
+        continue;
+      }
+      // Off screen: a chevron on the edge, on the line from the view's centre to the worm.
+      const cx = camera.viewW / 2, cy = camera.viewH / 2, dx = hp.x - cx, dy = hp.y - cy;
+      // Kept clear of the HUD rows at the top (~100 px) and 22 px from the other edges.
+      const m = 22, mt = 100;
+      const k = Math.min(Math.abs((cx - m) / (dx || 1e-6)), Math.abs(((dy < 0 ? cy - mt : cy - m)) / (dy || 1e-6)));
+      const ex = cx + dx * k, ey = cy + dy * k, ang = Math.atan2(dy, dx);
+      chev.push({ x: Math.round(ex), y: Math.round(ey), wx: w.x, wy: w.y });
+      ctx.save();
+      ctx.translate(ex, ey); ctx.rotate(ang);
+      ctx.fillStyle = `rgba(226,112,90,${0.75 + 0.25 * pulse})`;
+      ctx.strokeStyle = 'rgba(20,10,8,0.85)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-7, -10); ctx.lineTo(-2, 0); ctx.lineTo(-7, 10); ctx.closePath();
+      ctx.stroke(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+  state._mineChevrons = chev;
+
   ctx.save();
   ctx.lineCap = 'round';
-  const len = Math.max(7, cs * 0.55 * z);           // worm body length, px
+  const len0 = Math.max(7, cs * 0.55 * z);           // worm body length, px
   for (const w of worms) {
+    const big = mineW && w.attached ? 2.5 : 1;
+    const len = len0 * big;
     // REAL-TIME: draw the worm partway between its previous and current tick positions
     // (and turn its heading smoothly) so it crawls instead of teleporting each 500ms tick.
     const wp = interpPos(w, w.x, w.y, 'rx0', 'ry0');
@@ -42610,12 +42860,12 @@ function drawNematodes(time) {
     ctx.strokeStyle = w.stuck > 0 ? 'rgba(150,215,140,0.92)'
       : w.feeding ? 'rgba(232,180,150,0.94)'
         : 'rgba(228,216,190,0.82)';
-    ctx.lineWidth = Math.max(1.4, 2.3 * z);
+    ctx.lineWidth = Math.max(1.4, 2.3 * z) * (big > 1 ? 2 : 1);
     ctx.stroke();
     // tiny darker head at the leading end
     const hx = sp.x + dx * len * 0.5, hy = sp.y + dy * len * 0.5;
     ctx.fillStyle = 'rgba(120,90,70,0.92)';
-    ctx.beginPath(); ctx.arc(hx, hy, Math.max(1.1, 1.7 * z), 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(hx, hy, Math.max(1.1, 1.7 * z) * (big > 1 ? 2 : 1), 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
 }
