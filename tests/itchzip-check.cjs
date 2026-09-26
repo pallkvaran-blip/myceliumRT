@@ -286,9 +286,14 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok('a navigator descent digs on the real tank', dive.digs >= 10 && dive.depth >= 10,
        `${dive.depth} m on ${dive.digs} digs, ${dive.water} water left`);
     const ended = await page.waitForSelector('#ssMineEnd', { timeout: 45000 }).then(() => true).catch(() => false);
-    const endInfo = await page.evaluate(() => ({ cause: window.__game.state.runResult && window.__game.state.runResult.cause,
-      text: ((document.getElementById('ssMineEnd') || {}).innerText || '').split('\n').slice(0, 3).join(' | ') }));
-    ok('...the run ends by itself on the end screen', ended, `${endInfo.cause}: ${endInfo.text}`);
+    const endInfo = await page.evaluate(() => { const g = window.__game, s = g.state;
+      return { cause: s.runResult && s.runResult.cause,
+      text: ((document.getElementById('ssMineEnd') || {}).innerText || '').split('\n').slice(0, 3).join(' | '),
+      // What the run looked like if it did NOT end: the numbers the stuck rule reads.
+      diag: s.runOver ? '' : ` [live: water ${s.active.water}, cost here ${g.mine.costHere()}, cheapest ${g.mine.cheapest()}, `
+        + `stuck ${JSON.stringify(g.mine.stuck())}, revealing ${g.mine.revealing()}, paused ${g.simPaused && g.simPaused()}, `
+        + `depth ${g.mine.depth()}, nodes ${s.active.nodes.length}, worms ${s.nematodes.length}, clouds ${s.clouds.length}]` }; });
+    ok('...the run ends by itself on the end screen', ended, `${endInfo.cause}: ${endInfo.text}${endInfo.diag}`);
     const toStore = await page.evaluate(() => { const b = document.getElementById('ssMineDone'); if (b) b.click(); return !!b; });
     const store = await page.waitForSelector('#speciesSelect.ss-mine', { timeout: 15000 }).then(() => true).catch(() => false);
     ok('the store opens from the end screen', toStore && store);
