@@ -120,9 +120,11 @@ async function injectBot(page) {
       }
       for (const r of (sub.reservoirs || [])) {
         if (tapped.has(r.id)) continue;
-        const x = r.cx, y = r.cy;
+        // A reservoir's cx/cy/rad are in CELLS (stampReservoir). This read them as world units until
+        // M4, so the bot never actually steered for water.
+        const x = (r.cx + 0.5) * sub.cellSize, y = sub.surfaceY + (r.cy + 0.5) * sub.cellSize;
         if (Q.nodeDist(x, y) > visR) continue;
-        const nr = Q.nearReach(F, x, y, (r.rad || sub.cellSize) + sub.cellSize * 1.2);
+        const nr = Q.nearReach(F, x, y, ((r.rad || 1) + 1.2) * sub.cellSize);
         out.push({ kind: 'water', x, y, reach: nr, res: r });
       }
       return out;
@@ -218,6 +220,36 @@ async function injectBot(page) {
       const r = Q.digAlong(F, bi, opts.ahead || 130);
       const tp = Q.xyOf(F, bi);
       return Object.assign(out, { mode: 'explore', frontier, goalM: Math.round((tp.y - F.sy) / 36), ok: r.ok, msg: r.message });
+    };
+    // THE NAIVE NEW PLAYER (M4): always digs from the DEEPEST clean tip, toward the most open of 7
+    // downward rays (`__game.mine.bestDownRay`, the ghost finger's own choice) — a new player dragging
+    // down from the bottom. `followGlow` (default true): while the dead-end nudge has tips lit
+    // (`__game.mine.glow()`), dig from the first glowing tip along its open ray instead, which is what
+    // the nudge asks a player to do. `followGlow: false` is the pre-M4 baseline.
+    Q.naiveStep = (opts) => {
+      opts = opts || {};
+      const g = W.__game, s = g.state;
+      if (s.runOver) return { over: true };
+      const reach = s.config.growth.segmentLength * 3 * (s.config.mine.growSteps || 2);
+      const glow = g.mine.glow();
+      let src = null, ang = Math.PI / 2, mode = 'deep';
+      // Each glowing tip is dug from ONCE (after that it is no longer a tip; the player carries on).
+      Q._glowUsed = Q._glowUsed || new Set();
+      const fresh = glow.tips.filter((t) => !Q._glowUsed.has(t.id));
+      if (opts.followGlow !== false && fresh.length) {
+        const t = fresh[0]; Q._glowUsed.add(t.id); src = { x: t.x, y: t.y }; ang = t.ang; mode = 'glow';
+      } else {
+        // The deepest tip — or, after refusals there, one a little higher up (a player whose drag
+        // keeps being refused tries a strand higher up; `opts.skip` counts the refusals in a row).
+        const ns = Q.live().slice().sort((a, b) => b.y - a.y);
+        const tip = ns[Math.min(ns.length - 1, (opts.skip | 0) * 3)];
+        if (!tip) return { stuck: true };
+        src = { x: tip.x, y: tip.y };
+        const ray = g.mine.bestDownRay(tip.x, tip.y); if (ray) ang = ray.ang;
+      }
+      const r = g.mine.growFrom(src.x, src.y, src.x + Math.cos(ang) * reach, src.y + Math.sin(ang) * reach);
+      return { mode, ok: r.ok, msg: r.message, newCells: r.newCells, depth: g.mine.depth(), maxDepth: g.mine.maxDepth(),
+               water: s.active.water, nudges: glow.nudges };
     };
     // Is the colony boxed in? No reachable open fine cell further than `gap` world units from every living node.
     Q.boxed = (F, gap) => {

@@ -351,6 +351,9 @@
     .minebeat .mb-n { margin-top: 6px; font-size: clamp(12px, 3.4vw, 17px); font-weight: 700;
       letter-spacing: 0.24em; text-transform: uppercase; color: #9fe0bd;
       text-shadow: 0 1px 12px rgba(0,0,0,0.95); }
+    .minebeat .mb-c { margin-top: 6px; font-size: clamp(13px, 3.6vw, 18px); font-weight: 700;
+      color: #ffb070; text-shadow: 0 1px 12px rgba(0,0,0,0.95); }
+    .minebeat.small .mb-d { font-size: clamp(20px, 6vw, 32px); }
     @media (prefers-reduced-motion: reduce) { .minebeat { transition: none; } }
     /* Resource marks (bolt / water drop / phosphorus spark) — inherit currentColor. */
     .ri { display: inline-block; width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.14em; }
@@ -22607,9 +22610,12 @@ function mineEnsureChunks(state, view) {
 // and needs `state.cards`, and the mine has neither. Same finish line, though: a pile pays when
 // it has been claimed AND emptied AND clean tissue is still on it (Network.cleanCover), so rot
 // that emptied a pile, or tissue a worm ate off one, collects nothing.
+// RETURNS ONE ENTRY PER SEAM PAID THIS CALL (M4): {x, y, mat, n, pile} — x/y the pile's centroid,
+// for the floater and the ping. An empty list is "nothing paid" (test `.length`, not truthiness).
 function mineOreRewards(state) {
   const sub = state.substrate, net = state.active;
-  if (!sub || !sub.foodPiles || !net || !net.alive || state.runOver) return 0;
+  const out = [];
+  if (!sub || !sub.foodPiles || !net || !net.alive || state.runOver) return out;
   let cover = null, paid = 0;
   for (const pile of sub.foodPiles) {
     if (pile.rewarded) continue;
@@ -22640,28 +22646,124 @@ function mineOreRewards(state) {
     mats[mat ? mat.id : 'phosphorus'] = (mats[mat ? mat.id : 'phosphorus'] | 0) + p;
     if (isP) { net.phosphorus += p; state.mineOre = (state.mineOre || 0) + p; }
     paid += p;
+    const c = minePileCentre(sub, pile);
+    out.push({ x: c.x, y: c.y, mat: mat ? mat.id : 'phosphorus', n: p, pile });
     state.log(`${mat ? mat.name : 'Ore'} seam digested: +${p} ${mat ? mat.name : 'Phosphorus'}.`, 'good');
   }
-  return paid;
+  return out;
+}
+// A reservoir's centre in WORLD units. Its own `cx`/`cy` are CELL coordinates (stampReservoir).
+function mineResCentre(sub, r) {
+  return { x: (r.cx + 0.5) * sub.cellSize, y: sub.surfaceY + (r.cy + 0.5) * sub.cellSize };
+}
+// A pile's centroid in world units, cached on the pile (its cells never move).
+function minePileCentre(sub, pile) {
+  if (pile._mc) return pile._mc;
+  let sx = 0, sy = 0, k = 0;
+  for (const idx of pile.cells) {
+    const c = idx % sub.cols, r = (idx / sub.cols) | 0;
+    sx += (c + 0.5) * sub.cellSize; sy += sub.surfaceY + (r + 0.5) * sub.cellSize; k++;
+  }
+  pile._mc = k ? { x: sx / k, y: sy / k } : { x: 0, y: sub.surfaceY };
+  return pile._mc;
 }
 
 // A water pocket is a FUEL CAN: touching one pays a lump of Water, ONCE. The campaign's version
 // of this is a synthetic card engine paying +1/turn forever, which cannot work here — the card
 // layer is off — and would be the wrong shape anyway: in a game where water is the fuel, a
 // pocket you find is a refill, not an annuity.
+// RETURNS ONE ENTRY PER POCKET TAPPED THIS CALL (M4): {x, y, n, src} — x/y the pocket's centre.
 function mineWaterPickups(state) {
   const net = state.active;
-  if (!net || !net.alive || state.runOver) return 0;
+  const out = [];
+  if (!net || !net.alive || state.runOver) return out;
   const tapped = (state._tappedWater = state._tappedWater || new Set());
-  let gained = 0;
   for (const src of waterSourcesNear(state)) {
     if (tapped.has(src)) continue;
     tapped.add(src);
     const w = Math.max(1, mineCfg(state.config).reservoirWater | 0);
-    net.water += w; gained += w;
+    net.water += w;
+    const sub = state.substrate;
+    const r = (sub.reservoirs || []).find((q) => q.id === src);
+    const c = r ? mineResCentre(sub, r) : { x: 0, y: sub.surfaceY };
+    out.push({ x: c.x, y: c.y, n: w, src });
     state.log(`Tapped a water pocket: +${w} Water.`, 'good');
   }
-  return gained;
+  return out;
+}
+
+// --- open ground (M4: the ghost finger and the dead-end nudge) ---------------
+// How open the ground is along ONE ray from (x, y) at angle `ang` (0 = right, PI/2 = down), up to
+// `len` world units: `clear` is the distance before drawn rock / the growth floor / the soil line,
+// and `fresh` how many distinct coarse cells it crosses that `occ` (a Set of cell indices the
+// colony already stands in, optional) does not hold. A handful of samples per ray, never a BFS.
+function mineRayOpen(sub, x, y, ang, len, occ) {
+  const ux = Math.cos(ang), uy = Math.sin(ang), step = 12;
+  const floor = sub.growFloorY != null ? sub.growFloorY - 2 : Infinity;
+  let clear = 0, fresh = 0; const seen = new Set();
+  for (let t = step; t <= len + 0.01; t += step) {
+    const px = x + ux * t, py = y + uy * t;
+    if (py <= sub.surfaceY + 2 || py >= floor || px <= 0 || px >= sub.cols * sub.cellSize) break;
+    if (sub.solidAtWorld(px, py)) break;
+    clear = t;
+    if (occ) {
+      const k = sub.index(sub.colAtX(px), sub.rowAtY(py));
+      if (!occ.has(k) && !seen.has(k)) { seen.add(k); fresh++; }
+    }
+  }
+  return { clear, fresh };
+}
+// The coarse cells the colony's CLEAN tissue stands in.
+function mineOccupied(state) {
+  const sub = state.substrate, occ = new Set();
+  for (const n of state.active.nodes) if (!n.infected) occ.add(sub.index(sub.colAtX(n.x), sub.rowAtY(n.y)));
+  return occ;
+}
+// THE MOST OPEN OF 7 DOWNWARD RAYS from a strand (30..150 degrees, 90 = straight down), scored by
+// clear length with a lean toward straight down. {ang, clear} or null when all seven are walled.
+function mineBestDownRay(state, node) {
+  const sub = state.substrate, len = mineGrowReach(state.config);
+  let best = null, bs = 0;
+  for (let i = 0; i < 7; i++) {
+    const ang = Math.PI * (30 + i * 20) / 180;
+    const r = mineRayOpen(sub, node.x, node.y, ang, len);
+    const sc = r.clear * (0.6 + 0.4 * Math.sin(ang));
+    if (sc > bs) { bs = sc; best = { ang, clear: r.clear }; }
+  }
+  return best;
+}
+// THE TWO CLEAN TIPS WITH THE MOST OPEN, UNDUG GROUND AHEAD (8 rays each, right through down to
+// left), for the dead-end nudge. Only tips the tank can pay for, at least 100 units apart; each
+// entry carries the angle of its best ray, so the glow can point and a bot can follow it.
+// "OPEN GROUND AHEAD" IS JUDGED BY HOW DEEP IT LEADS: a ray counts only if it crosses 2+ undug cells,
+// and it scores the depth its clear end reaches (plus a little for length). Scoring the fresh cell
+// count alone (the first version) lit shallow side pockets — measured, a naive bot following the
+// glow spent its tank there and went 28 -> 34 m on seed 4242 and 19 m on 909.
+function mineOpenTips(state, count) {
+  const net = state.active, sub = state.substrate;
+  if (!net || !sub) return [];
+  const occ = mineOccupied(state), len = mineGrowReach(state.config);
+  const water = net.water, scored = [];
+  for (const n of net.nodes) {
+    if (n.infected || n.colon || n.children.length) continue;
+    if (mineGrowCost(state.config, mineDepthM(sub, n.y)) > water) continue;
+    let best = -Infinity, bang = Math.PI / 2;
+    for (let i = 0; i < 8; i++) {
+      const ang = Math.PI * i / 7;
+      const r = mineRayOpen(sub, n.x, n.y, ang, len, occ);
+      if (r.fresh < 2) continue;
+      const sc = (n.y - sub.surfaceY) + r.clear * Math.sin(ang) + 0.3 * r.clear;
+      if (sc > best) { best = sc; bang = ang; }
+    }
+    if (best > -Infinity) scored.push({ id: n.id, x: n.x, y: n.y, ang: bang, score: best });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  const out = [];
+  for (const t of scored) {
+    if (out.every((o) => Math.hypot(o.x - t.x, o.y - t.y) >= 100)) out.push(t);
+    if (out.length >= (count || 2)) break;
+  }
+  return out;
 }
 
 // -----------------------------------------------------------------------------
@@ -22771,6 +22873,18 @@ function mineGrow(state, ctx) {
   }
   const origin = net._lastGrowOrigin;
   net.water -= cost;
+  // HOW MUCH NEW GROUND THIS DIG TOOK (M4, the dead-end nudge): distinct coarse cells its new
+  // strands stand in that no older strand does. O(nodes) once per dig, not per frame.
+  let newCells = 0;
+  {
+    const old = new Set(), fresh = new Set();
+    for (const n of net.nodes) {
+      const k = sub.index(sub.colAtX(n.x), sub.rowAtY(n.y));
+      if (n.id < before) old.add(k); else if (!n.colon) fresh.add(k);
+    }
+    for (const k of fresh) if (!old.has(k)) newCells++;
+  }
+  state._mineLastNewCells = newCells;
   state.mineDigs = (state.mineDigs | 0) + 1;   // this descent's accepted digs (the tip queue's first line clears on one)
   // A SUCCESSFUL DIG RESETS THE STUCK COUNTDOWN — the recovery play the old affordability rule was
   // written for (a cheap dig from shallower ground) keeps working, and moves the focus with it.
@@ -22791,7 +22905,7 @@ function mineGrow(state, ctx) {
   }
   net.recomputeVitality();
   if (mineAtNodeCap(state)) mineEndRun(state, 'full');
-  return { ok: true, made, water: net.water, cost,
+  return { ok: true, made, water: net.water, cost, newCells,
            origin: origin ? { id: origin.id, x: origin.x, y: origin.y } : null,
            pressed: tip ? { id: tip.id, x: tip.x, y: tip.y } : null,
            message: `Dug ${made} filament${made > 1 ? 's' : ''}.` };
@@ -23147,6 +23261,7 @@ function mineEndRun(state, cause) {
            MINE_END_CAUSES,
            mineInfectionCheck, mineInfectionLeft,
            mineItemCount, mineUseExcrete, mineUseAmputate,
+           mineRayOpen, mineOccupied, mineBestDownRay, mineOpenTips, minePileCentre, mineResCentre,
            OUT_OF_FUEL_GRACE_MS };
 })();
 
@@ -25414,7 +25529,46 @@ function click(rate) {
 function playCardSelect()   { click(1); }
 function playCardDeselect() { click(0.78); }
 
-  return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect, setClickGain };
+// THE MINE'S TWO COLLECTION SOUNDS (M4), SYNTHESISED: no asset to load, ship or 404. A seam PING
+// (a short bright bell: two sines, the upper a fifth above, fast decay) and a pocket GLUG (a low
+// sine gulping down in pitch twice). Counted in `window.__sfx.counts` only when a sound is actually
+// scheduled, so a muted game leaves the counts where they were — that is what makes "did it play?"
+// assertable headless. Quiet on purpose: they land every few seconds in a good run.
+const SFX_COUNTS = { ore: 0, pocket: 0 };
+try { window.__sfx = { counts: SFX_COUNTS, ctxState: () => (AC ? AC.state : null), muted: () => muted }; } catch (_) {}
+function _tone(a, t, f0, f1, dur, gain, type) {
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = type || 'sine';
+  o.frequency.setValueAtTime(f0, t);
+  if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(master());
+  o.start(t); o.stop(t + dur + 0.02);
+}
+function playSeamPing() {
+  if (muted || !AC) return false;
+  const a = ctx();
+  if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
+  const t = a.currentTime + 0.005;
+  _tone(a, t, 1318, 1318, 0.32, 0.07);
+  _tone(a, t + 0.012, 1975, 1975, 0.24, 0.035);
+  SFX_COUNTS.ore++;
+  return true;
+}
+function playPocketGlug() {
+  if (muted || !AC) return false;
+  const a = ctx();
+  if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
+  const t = a.currentTime + 0.005;
+  _tone(a, t, 330, 150, 0.16, 0.12);
+  _tone(a, t + 0.15, 280, 120, 0.2, 0.1);
+  SFX_COUNTS.pocket++;
+  return true;
+}
+
+  return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect, setClickGain, playSeamPing, playPocketGlug };
 })();
 
 // ===================== src/render/network.js =====================
@@ -29882,7 +30036,7 @@ function mineEndingLine(cause, depth) {
   const f = MINE_RUN_ENDING[cause] || MINE_RUN_ENDING.other;
   return f(depth | 0);
 }
-function showMineEnd({ depth, ore, mats, best, balance, cause, onDone }) {
+function showMineEnd({ depth, ore, mats, best, balance, cause, first, onDone }) {
   const root = el('div', 'ss-win ss-mineend'); root.id = 'ssMineEnd';
   // THE GROWN WORDMARK IS A WORD, AND THE DEPTH IS PLAIN TYPE UNDER IT. Growing the NUMBER was the
   // first version and it is the obvious idea — the depth IS the achievement, so it should take the
@@ -29902,7 +30056,10 @@ function showMineEnd({ depth, ore, mats, best, balance, cause, onDone }) {
       // the player cannot name; the store prices rungs in these words.
       matList.map((k) =>
         ' <span class="ss-win-mat">+' + (mats[k] | 0) + matMark(k) + ' ' + esc(matName(k)) + '</span>').join('') + '</p>' +
-    (best && best.isNew
+    // RUN 1 SAYS SO (M4): 'Your first descent' — "your deepest yet" is true and meaningless on run 1.
+    (first
+      ? '<p class="ss-mineend-best ss-new ss-mineend-first">Your first descent</p>'
+      : best && best.isNew
       ? '<p class="ss-mineend-best ss-new">Your deepest descent yet</p>'
       : (best && best.m > depth ? '<p class="ss-mineend-best">Deepest so far ' + (best.m | 0) + ' m</p>' : '')) +
     '<p class="spore-cta">Spend Phosphorus on fuel and a stronger dig, then go back down</p>' +
@@ -32754,7 +32911,7 @@ const __m_main = (function () {
   const { mineLevelDef, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost, mineNextHeatLine,
-          mineHeatLines,
+          mineHeatLines, mineRayOpen, mineOccupied, mineBestDownRay, mineOpenTips, minePileCentre, mineResCentre, mineFocusNode,
           mineMaterials, mineMaterialFor, mineMaterialById,
           mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun,
@@ -32783,7 +32940,7 @@ const __m_main = (function () {
   const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, levelAssetKeys, hasAsset, asset, assetFailed, pattern, assetMeta, assetUrl, preloadImages, assetState } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
-  const { initSfx } = __m_render_sfx;
+  const { initSfx, playSeamPing, playPocketGlug } = __m_render_sfx;
   const { showLoading } = __m_render_loading;
   const { showHighScores, checkHighScore, recordHighScore } = __m_render_highscores;
   const { loadPlayerName, savePlayerName } = __m_highscores;
@@ -33898,7 +34055,7 @@ function presentMineEnd(r) {
   const paid = mineBank(r);
   showMineEnd({
     depth: paid.depth, ore: paid.ore, mats: paid.mats,
-    best: paid.best, cause: r.cause,
+    best: paid.best, cause: r.cause, first: !!(state && state._mineFirst),
     balance: sporesBalance(),
     onDone: () => { runEndThen(() => { setGame('mine'); showPicker(); }); },
   });
@@ -36266,6 +36423,26 @@ function begin(newState) {
       // strands does not reproduce it: rot ages out in `rotLifeTurns` steps, so isolated infected
       // strands vanish within a second and the clock correctly clears itself.
       spawnCloud: (x, y) => { devSpawnTrichoderma(state, x, y); return state.clouds.length; },
+      // THE FIRST MINUTE (M4). `ghost()`: frames drawn (rises only while it shows), whether it is
+      // on, and the strand/angle it slides along. `glow()`: the dead-end tips lit now (empty when
+      // not), the nudge count this run and the last dig's new cells. `onb()`: run number, first
+      // descent, the ring/label state. `floaters()`: the live floaters (world x/y, text, age ms).
+      ghost: () => ({ frames: _mineGhost.frames, on: !!_mineGhost.on, x: _mineGhost.x, y: _mineGhost.y, ang: _mineGhost.ang }),
+      glow: () => {
+        const o = state._mineOnb, on = !!(o && o.glow && performance.now() < o.glow.until);
+        return { tips: on ? o.glow.tips.map((t) => Object.assign({}, t)) : [], nudges: o ? o.nudges : 0,
+                 newCells: state._mineLastNewCells == null ? null : state._mineLastNewCells | 0 };
+      },
+      openTips: (n) => mineOpenTips(state, n || 2),
+      // Pan the view to a world point, exactly as a player's pan does (the camera is released).
+      lookAt: (x, y) => { camera.x = x; camera.y = y; camera.clamp(); mineReleaseCamera(); return { x: camera.x, y: camera.y }; },
+      bestDownRay: (x, y) => mineBestDownRay(state, { x, y }),
+      onb: () => { const o = state._mineOnb || {};
+        return { runNo: state._mineRunNo | 0, first: !!state._mineFirst, ring: o.ring ? { x: o.ring.x, y: o.ring.y } : null,
+                 pocketRing: o.pocketRing ? { x: o.pocketRing.x, y: o.pocketRing.y } : null,
+                 label: o.label ? { m: o.label.m, text: o.label.text, drawn: o.label.drawn | 0 } : null,
+                 hint: (document.getElementById('minehint') || {}).textContent || '' }; },
+      floaters: () => floaters.map((f) => ({ x: f.x, y: f.y, text: f.text || (f.sign + f.amount), color: f.color, age: performance.now() - (f.born || 0) })),
       items: () => Object.assign({}, state.mineItems || {}),
       mats: () => Object.assign({}, state.mineMats || {}),
       matTable: () => mineMaterials(state ? state.config : CONFIG).map((m) => ({ id: m.id, band: m.band, per: m.per })),
@@ -38131,7 +38308,8 @@ function mineBeat(depth) {
   mineBeatBand = b;
   if (b === 0) return;                    // arriving in band 1 is arriving in the mine, not crossing into it
   const band = CONFIG.mine.bands[b];
-  showMineBeat(`${b * CONFIG.mine.bandRows} m`, band.name);
+  // ...AND THE PRICE, WHEN A PRICE LINE SITS AT THE BAND'S TOP (M4.5): 'Digs now cost 4' at 42 m.
+  showMineBeat(`${b * CONFIG.mine.bandRows} m`, band.name, mineBeatCostLine(b * CONFIG.mine.bandRows));
   state.log(`${band.name} — ${b * CONFIG.mine.bandRows} m down.`, 'good');
 }
 
@@ -38139,13 +38317,15 @@ function mineBeat(depth) {
 // be crossed at once, but a colony with tips in two places can cross the same one twice inside a
 // frame or two, and two of these overlapping is unreadable.
 let _mineBeatEl = null, _mineBeatT = 0;
-function showMineBeat(depthText, name) {
+// `cost` (M4.5) is a second line, 'Digs now cost N'; `small` is a price line's own beat.
+function showMineBeat(depthText, name, cost, small) {
   try {
     if (_mineBeatEl) { clearTimeout(_mineBeatT); _mineBeatEl.remove(); _mineBeatEl = null; }
     const el = document.createElement('div');
-    el.className = 'minebeat';
+    el.className = 'minebeat' + (small ? ' small' : '');
     el.id = 'mineBeat';
-    el.innerHTML = `<div class="mb-d">${depthText}</div><div class="mb-n">${name}</div>`;
+    el.innerHTML = `<div class="mb-d">${depthText}</div>` + (name ? `<div class="mb-n">${name}</div>` : '')
+      + (cost ? `<div class="mb-c">${cost}</div>` : '');
     document.body.appendChild(el);
     _mineBeatEl = el;
     // Two frames before the class, not one: a fresh element's `opacity: 0` has to have been
@@ -38172,7 +38352,11 @@ function mineTip(id, text, opts) {
   const q = state._mineTips || (state._mineTips = { cur: null, queue: [] });
   if ((q.cur && q.cur.id === id) || q.queue.some((t) => t.id === id)) return false;
   const o = opts || {};
-  q.queue.push({ id, text: String(text), sticky: !!o.sticky, ms: o.ms > 0 ? o.ms : 3000, until: 0 });
+  const t = { id, text: String(text), sticky: !!o.sticky, ms: o.ms > 0 ? o.ms : 3000, until: 0 };
+  // `now` (M4): an instruction about THIS moment (the dead-end nudge) replaces whatever line is up
+  // and jumps the queue; the displaced line goes back to the front of it.
+  if (o.now) { if (q.cur) q.queue.unshift(q.cur); q.cur = null; q.queue.unshift(t); }
+  else q.queue.push(t);
   return true;
 }
 function mineTipClear(id) {
@@ -38188,6 +38372,253 @@ function mineTipTick(now) {
     if (!q.cur && q.queue.length) { q.cur = q.queue.shift(); q.cur.until = now + q.cur.ms; }
   }
   if (ui && ui.setMineHint) ui.setMineHint(q && q.cur ? q.cur.text : '');
+}
+// =============================================================================
+// THE FIRST MINUTE TEACHES ITSELF (M4) — the ghost finger, the one-shot tips, the dead-end nudge,
+// the price-line beats and the collection feedback. No modal anywhere: every tip is one line in
+// `#minehint` or a mark on the map, fires ONCE PER SAVE (`p.mineTips`) and is logged as a
+// 'tutorial' telemetry event with its id and the ms into the run, so the funnel is measured.
+// =============================================================================
+const MINE_GHOST_LOOP_MS = 1600, MINE_GHOST_PX = 110, MINE_GHOST_IDLE_MS = 6000, MINE_GLOW_MS = 4000;
+const _mineGhost = { frames: 0, on: false, x: 0, y: 0, ang: Math.PI / 2, key: null };
+// Once per save: true if `id` had not fired before (and records it), false otherwise.
+function mineTipOnce(id) {
+  try {
+    const p = loadProgress();
+    if (p.mineTips && p.mineTips[id]) return false;
+    p.mineTips = p.mineTips || {}; p.mineTips[id] = true; saveProgress(p);
+  } catch (_) { return false; }
+  const ms = state && state.mineStartedAt ? Date.now() - state.mineStartedAt : 0;
+  try { logEvent('tutorial', { detail: id, ms }); } catch (_) {}
+  return true;
+}
+// Per-run bookkeeping, set on the run's first mine frame.
+function mineOnboardInit(time) {
+  const o = state._mineOnb = { seenDigs: 0, lastDigAt: time, deadRun: 0, glow: null, nudges: 0, ring: null,
+                               label: null, lineBeat: {}, scanAt: 0 };
+  try {
+    const p = loadProgress();
+    state._mineRunNo = runsFinished(p) + 1;
+    state._mineFirst = !(p.mineBest > 0);
+  } catch (_) { state._mineRunNo = 1; state._mineFirst = false; }
+  return o;
+}
+// A successful dig just landed (the dig counter moved, by any route: drag, tap, hook).
+function mineOnDig(time) {
+  const o = state._mineOnb;
+  o.lastDigAt = time;
+  if (mineTipOnce('dig')) mineTip('costs', 'Every dig costs water — the deeper, the more', { ms: 3000 });
+  // THE DEAD-END NUDGE (runs 1-5): two successful digs in a row that each took fewer than 2 new
+  // cells light the two tips with the most open, undug ground ahead for 4 s.
+  const fresh = state._mineLastNewCells | 0;
+  o.deadRun = fresh < 2 ? o.deadRun + 1 : 0;
+  if (o.deadRun >= 2 && (state._mineRunNo | 0) <= 5) {
+    o.deadRun = 0;
+    const tips = mineOpenTips(state, 2);
+    if (tips.length) {
+      o.glow = { tips, until: time + MINE_GLOW_MS, at: time };
+      o.nudges++;
+      mineTipClear('dead');
+      mineTip('dead', 'Dead end — dig from a glowing tip', { ms: MINE_GLOW_MS, now: true });
+    }
+  }
+}
+// Is a world point on screen (with a margin kept clear of the HUD edges)?
+function mineOnScreen(x, y, m) {
+  const q = camera.worldToScreen(x, y), mm = m == null ? 24 : m;
+  return q.x >= mm && q.x <= camera.viewW - mm && q.y >= mm && q.y <= camera.viewH - mm;
+}
+// THE WORLD-SCAN TIPS, every 250 ms: the first Phosphorus seam on screen, the first pocket on screen,
+// and the label on the first price line 6 m before it.
+function mineOnboardScan(time) {
+  const o = state._mineOnb, sub = state.substrate, p = loadProgress(), tips = p.mineTips || {};
+  if (time - o.scanAt < 250) return;
+  o.scanAt = time;
+  if (!tips.first_ore) {
+    for (const pile of (sub.foodPiles || [])) {
+      if (pile.rewarded || (pile.mineMat && pile.mineMat !== 'phosphorus')) continue;
+      const c = minePileCentre(sub, pile);
+      if (!mineOnScreen(c.x, c.y, 40)) continue;
+      if (mineTipOnce('first_ore')) {
+        o.ring = { pile, x: c.x, y: c.y, until: time + 8000 };
+        mineTip('ore', 'Phosphorus — grow into it', { ms: 4000 });
+      }
+      break;
+    }
+  }
+  if (!tips.first_pocket) {
+    const tapped = state._tappedWater || new Set();
+    for (const r of (sub.reservoirs || [])) {
+      const c = mineResCentre(sub, r);
+      if (tapped.has(r.id) || !mineOnScreen(c.x, c.y, 40)) continue;
+      if (mineTipOnce('first_pocket')) {
+        o.pocketRing = { id: r.id, x: c.x, y: c.y, until: time + 8000 };
+        mineTip('pocket', `Water pocket — touch it for +${Math.max(1, state.config.mine.reservoirWater | 0)}`, { ms: 4000 });
+      }
+      break;
+    }
+  }
+  const lines = mineHeatLines(state.config);
+  if (!tips.first_line && lines.length) {
+    const L = lines[0], d = state.mineMaxDepth | 0;
+    if (d >= L - 6 && d <= L && mineTipOnce('first_line')) {
+      o.label = { m: L, text: `Past ${L} m every dig costs ${mineGrowCost(state.config, L + 1)}`, until: time + 15000 };
+    }
+  }
+}
+// THE PRICE-LINE BEATS (M4.5). A band beat whose depth IS a price line carries 'Digs now cost N'
+// (see `mineBeat`); a line that heat tolerance has moved off a band boundary gets a small beat of
+// its own the first time a strand passes it (the price rises strictly BEYOND a line).
+function mineLineBeats(depth) {
+  const o = state._mineOnb, br = CONFIG.mine.bandRows;
+  for (const L of mineHeatLines(state.config)) {
+    if (o.lineBeat[L] || depth <= L) continue;
+    o.lineBeat[L] = true;
+    if (L % br === 0) continue;                 // a band boundary: the band beat carries the cost
+    showMineBeat(`${L} m`, '', `Digs now cost ${mineGrowCost(state.config, L + 1)}`, true);
+  }
+}
+// The cost line a band beat carries, or '' when no price line sits at the band's top.
+function mineBeatCostLine(bandTopM) {
+  const lines = mineHeatLines(state.config);
+  if (!lines.includes(bandTopM)) return '';
+  if (state._mineOnb) state._mineOnb.lineBeat[bandTopM] = true;
+  return `Digs now cost ${mineGrowCost(state.config, bandTopM + 1)}`;
+}
+// COLLECTION FEEDBACK (M4.6): a floater at the site in the material's own colour, and a sound.
+function mineCollectFeedback(ore, water) {
+  const sub = state.substrate;
+  for (const e of ore) {
+    const m = mineMaterialById(state.config, e.mat);
+    const label = e.mat === 'phosphorus' ? 'P' : (m ? m.name : e.mat);
+    addEnergyFloater(e.x, e.y - sub.cellSize * 0.4, e.n, { text: `+${e.n} ${label}`, color: (m && m.tint) || '#c9a2e8', size: 15, life: 90, icon: false });
+    try { playSeamPing(); } catch (_) {}
+    if (state._mineOnb && state._mineOnb.ring && state._mineOnb.ring.pile === e.pile) state._mineOnb.ring = null;
+  }
+  for (const e of water) {
+    addEnergyFloater(e.x, e.y - sub.cellSize * 0.4, e.n, { text: `+${e.n} water`, color: '#8fd3ff', size: 15, life: 90, icon: false });
+    try { playPocketGlug(); } catch (_) {}
+    if (state._mineOnb && state._mineOnb.pocketRing && state._mineOnb.pocketRing.id === e.src) state._mineOnb.pocketRing = null;
+  }
+}
+// Should the ghost finger show? Until the first successful dig; on runs 1-2 also after 6 s without
+// one. Never while a finger is down, an item is armed, the tank cannot pay here, or the map is held.
+function mineGhostWanted(time) {
+  const o = state._mineOnb;
+  if (!o || state.runOver || _revealPending || pointers.size > 0) return false;
+  if (state._mineArmed) return false;
+  const net = state.active;
+  if (!net || net.water < mineCostHere(state)) return false;
+  if ((state.mineDigs | 0) === 0) return true;
+  return (state._mineRunNo | 0) <= 2 && time - o.lastDigAt >= MINE_GHOST_IDLE_MS;
+}
+// Screen-space marks (the floaters' transform): the ghost, the glow, the seam/pocket rings, the label.
+function drawMineOnboard(time) {
+  const sub = state.substrate;
+  if (!sub || !sub.mine || !state._mineOnb) return;
+  const o = state._mineOnb;
+  ctx.save();
+  const dpr = renderScale();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+  // --- the ghost finger -------------------------------------------------------------------------
+  _mineGhost.on = mineGhostWanted(time);
+  if (_mineGhost.on) {
+    const n = mineFocusNode(state);
+    if (n) {
+      // The ray is re-scored only when the strand or the collision mask changes.
+      const key = n.id + ':' + (sub._solidRev | 0) + ':' + (sub._rockSolidified ? 1 : 0);
+      if (_mineGhost.key !== key) {
+        _mineGhost.key = key;
+        const r = mineBestDownRay(state, n);
+        _mineGhost.ang = r ? r.ang : Math.PI / 2;
+      }
+      const s0 = camera.worldToScreen(n.x, n.y), ux = Math.cos(_mineGhost.ang), uy = Math.sin(_mineGhost.ang);
+      _mineGhost.x = n.x; _mineGhost.y = n.y;
+      const ph = (time % MINE_GHOST_LOOP_MS) / MINE_GHOST_LOOP_MS;
+      const k = Math.min(1, ph / 0.75), ease = 1 - Math.pow(1 - k, 3);
+      const a = ph < 0.1 ? ph / 0.1 : ph < 0.75 ? 1 : Math.max(0, 1 - (ph - 0.75) / 0.25);
+      const d = MINE_GHOST_PX * ease, px = s0.x + ux * d, py = s0.y + uy * d;
+      ctx.globalAlpha = 0.85 * a;
+      // the trailing arrow: a fading shaft from the press point to the dot, and a head past the dot
+      const grad = ctx.createLinearGradient(s0.x, s0.y, px, py);
+      grad.addColorStop(0, 'rgba(127,230,163,0)'); grad.addColorStop(1, 'rgba(127,230,163,0.9)');
+      ctx.strokeStyle = grad; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(px, py); ctx.stroke();
+      const hx = px + ux * 14, hy = py + uy * 14, nx = -uy, ny = ux;
+      ctx.fillStyle = 'rgba(127,230,163,0.95)';
+      ctx.beginPath(); ctx.moveTo(hx + ux * 7, hy + uy * 7); ctx.lineTo(hx + nx * 6, hy + ny * 6); ctx.lineTo(hx - nx * 6, hy - ny * 6); ctx.closePath(); ctx.fill();
+      ctx.beginPath(); ctx.arc(px, py, 7, 0, Math.PI * 2);   // the 14 px dot
+      ctx.fillStyle = '#7fe6a3'; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(10,20,14,0.85)'; ctx.stroke();
+      _mineGhost.frames++;
+    }
+  }
+  // --- the dead-end glow ------------------------------------------------------------------------
+  if (o.glow && time < o.glow.until) {
+    const puls = 0.5 + 0.5 * Math.sin((time - o.glow.at) / 180);
+    for (const t of o.glow.tips) {
+      const q = camera.worldToScreen(t.x, t.y);
+      const R = 16 + 6 * puls;
+      const g = ctx.createRadialGradient(q.x, q.y, 2, q.x, q.y, R * 1.8);
+      g.addColorStop(0, 'rgba(160,255,196,0.75)'); g.addColorStop(1, 'rgba(160,255,196,0)');
+      ctx.globalAlpha = 1; ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(q.x, q.y, R * 1.8, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 2.5; ctx.strokeStyle = `rgba(160,255,196,${0.6 + 0.4 * puls})`;
+      ctx.beginPath(); ctx.arc(q.x, q.y, R, 0, Math.PI * 2); ctx.stroke();
+    }
+  } else if (o.glow) o.glow = null;
+  // --- the first seam's pulse ring, and the first pocket's ------------------------------------
+  for (const key of ['ring', 'pocketRing']) {
+    const r = o[key];
+    if (!r) continue;
+    if (time > r.until || (key === 'ring' && r.pile.rewarded)
+        || (key === 'pocketRing' && state._tappedWater && state._tappedWater.has(r.id))) { o[key] = null; continue; }
+    const q = camera.worldToScreen(r.x, r.y), ph = (time % 1200) / 1200;
+    ctx.globalAlpha = 0.9 * (1 - ph);
+    ctx.lineWidth = 2.5; ctx.strokeStyle = key === 'ring' ? '#c9a2e8' : '#8fd3ff';
+    ctx.beginPath(); ctx.arc(q.x, q.y, (sub.cellSize * 0.9 + sub.cellSize * 1.2 * ph) * camera.zoom, 0, Math.PI * 2); ctx.stroke();
+  }
+  // --- the label on the first price line ----------------------------------------------------------
+  if (o.label) {
+    const L = o.label;
+    if (time > L.until || (state.mineMaxDepth | 0) > L.m) o.label = null;
+    else {
+      const yW = sub.surfaceY + L.m * sub.cellSize, q = camera.worldToScreen(0, yW);
+      if (q.y > 0 && q.y < camera.viewH) {
+        ctx.globalAlpha = 0.9;
+        ctx.setLineDash([8, 6]); ctx.lineWidth = 2; ctx.strokeStyle = '#ff9a4a';
+        ctx.beginPath(); ctx.moveTo(0, q.y); ctx.lineTo(camera.viewW, q.y); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.font = `700 14px ${FLOAT_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.fillStyle = '#ffc48a';
+        ctx.strokeText(L.text, camera.viewW / 2, q.y - 5); ctx.fillText(L.text, camera.viewW / 2, q.y - 5);
+        L.drawn = (L.drawn | 0) + 1;
+      }
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+// A SEAM WEARS ITS MATERIAL'S COLOUR (M4.6): a soft 'color'-composited wash over the heap, so the
+// four materials read apart before a single one is dug. Unrewarded piles on screen only.
+function drawMineSeamTints() {
+  const sub = state.substrate;
+  if (!sub || !sub.mine || !sub.foodPiles) return;
+  ctx.save();
+  for (const pile of sub.foodPiles) {
+    if (pile.rewarded) continue;
+    const m = mineMaterialById(state.config, pile.mineMat);
+    if (!m || !m.tint) continue;
+    const c = minePileCentre(sub, pile);
+    const q = camera.worldToScreen(c.x, c.y), R = sub.cellSize * 1.5 * camera.zoom;
+    if (q.x < -R || q.y < -R || q.x > camera.viewW + R || q.y > camera.viewH + R) continue;
+    const g = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, R);
+    g.addColorStop(0, m.tint); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.globalCompositeOperation = 'color'; ctx.globalAlpha = 0.7;
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(q.x, q.y, R, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
 }
 function mineFrame(time, dt) {
   if (state.runOver) return;
@@ -38206,17 +38637,20 @@ function mineFrame(time, dt) {
       // NO PRICE IN HERE. It sits on screen while the player digs, and a price in it went stale
       // beside the live chip ("2 water a dig" against a chip reading 4). The chip owns the number;
       // this owns the instruction.
-      if (!(loadProgress().mineBest > 0)) mineTip('dig', 'Drag down from the colony to dig', { sticky: true });
+      if (!(loadProgress().mineBest > 0)) mineTip('drag', 'Drag down from the colony to dig', { sticky: true });
     } catch (_) {}
   }
-  if ((state.mineDigs | 0) > 0) mineTipClear('dig');
-  mineTipTick(time);
+  if ((state.mineDigs | 0) > 0) mineTipClear('drag');
   // When the descent began, for `run_end`'s duration (M1).
   if (!state.mineStartedAt) state.mineStartedAt = Date.now();
+  // THE FIRST MINUTE (M4): a dig by any route moves the counter; the scan tips run every 250 ms.
+  const onb = state._mineOnb || mineOnboardInit(time);
+  if ((state.mineDigs | 0) !== onb.seenDigs) { onb.seenDigs = state.mineDigs | 0; mineOnDig(time); }
+  mineTipTick(time);
   mineFollowCamera(time, dt);
   const gotOre = mineOreRewards(state);
   const gotWater = mineWaterPickups(state);
-  if (gotOre || gotWater) uiDirty = true;
+  if (gotOre.length || gotWater.length) { uiDirty = true; mineCollectFeedback(gotOre, gotWater); }
   // The HUD reads `state.mineDepth` rather than re-walking the colony itself: the depth is asked
   // for by the readout, the beat and the payout, and one O(nodes) pass per frame is enough for all
   // three. A repaint that finds it missing prints 0, which is the honest answer before a frame has
@@ -38227,6 +38661,8 @@ function mineFrame(time, dt) {
   // but it does not unmake the metres already reached.
   if (depth > (state.mineMaxDepth | 0)) state.mineMaxDepth = depth;
   mineBeat(depth);
+  mineLineBeats(depth);
+  mineOnboardScan(time);
   // THE STUCK COUNTDOWN HOLDS while a reveal is in flight (a pocket the last dig is about to reach
   // pays first), while a pointer is down (the player is aiming) and while the settings menu is open.
   // This frame only runs while the sim is not paused, which covers every other overlay.
@@ -38604,6 +39040,7 @@ function renderFrame(time, dtFrames = 1) {
   drawGoalBackdrop();           // summery green hill band behind the goal (far backdrop)
   drawTerrainAssets();          // optional image-based textures over the earth (gated)
   drawSubstrateLeaves();        // food piles rendered as heaped leaves (gated) — UNDER rocks
+  if (state.substrate.mine) drawMineSeamTints();   // M4: each seam washed in its material's colour
   solidifyRock();               // one-shot: make every visible rock sprite (boulder/formation/column) block growth
   drawRockPiles();              // lone boulders (gated) — over food/earth
   drawRockFormations();         // large AI rock-formation sprites (gated) — over food/earth, embedded in soil
@@ -38660,6 +39097,7 @@ function renderFrame(time, dtFrames = 1) {
   drawNematodes(time);
   drawTraps(time);
   drawTargetingCursor(time);
+  if (state.substrate.mine) drawMineOnboard(time);   // M4: ghost finger, dead-end glow, tip rings, price-line label
   drawFloaters(time, dtFrames);  // floating "+N⚡" energy labels over piles (on top of the map)
   if (winCele) drawWinCelebration(time);   // win: mushrooms fruit + spores drift off on the wind
 
@@ -39515,7 +39953,10 @@ function addEnergyFloater(wx, wy, amount, opts = {}) {
   if (amt <= 0) return;
   // `age` counts UP each frame (frame-based, not wall-clock) so an erratic rAF
   // timestamp can never skip or freeze the animation; it fades over `life` frames.
-  floaters.push({ x: wx, y: wy, amount: amt, sign: opts.sign || '', age: 0, life: opts.life || 80, rise: opts.rise != null ? opts.rise : 30, size: opts.size || 13 });
+  // `text` / `color` / `icon` (M4): the mine's floaters carry their own words ('+3 P', '+2
+  // Anthracite', '+10 water') in the material's colour, with no energy bolt (`icon: false`).
+  floaters.push({ x: wx, y: wy, amount: amt, sign: opts.sign || '', age: 0, life: opts.life || 80, rise: opts.rise != null ? opts.rise : 30, size: opts.size || 13,
+                  text: opts.text || null, color: opts.color || null, icon: opts.icon !== undefined ? opts.icon : !opts.text, born: performance.now() });
 }
 
 // A pile "+N⚡" pops the instant it finishes digesting (checkPileRewards stamped
@@ -39601,19 +40042,19 @@ function drawFloaters(time, dtFrames = 1) {
     const alpha = p < 0.08 ? p / 0.08 : 1 - (p - 0.08) / 0.92;   // near-instant fade-in, gentle ease-out
     const s = camera.worldToScreen(f.x, f.y);
     const y = s.y - 6 - f.rise * p;               // drift up as it fades
-    const txt = `${f.sign}${f.amount}`;
+    const txt = f.text || `${f.sign}${f.amount}`;
     ctx.font = `700 ${f.size}px ${FLOAT_FONT}`;
     const tw = ctx.measureText(txt).width;
-    const bolt = f.size * 1.02, boltW = bolt * 0.56, gap = f.size * 0.14;
+    const bolt = f.size * 1.02, boltW = f.icon ? bolt * 0.56 : 0, gap = f.icon ? f.size * 0.14 : 0;
     const startX = s.x - (tw + gap + boltW) / 2;
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     ctx.lineJoin = 'round';
     ctx.lineWidth = Math.max(2, f.size * 0.2);
     ctx.strokeStyle = 'rgba(0,0,0,0.7)';           // dark outline so it reads over any terrain
-    ctx.fillStyle = '#7fe6a3';                      // green — matches the top pill's energy value (--accent)
+    ctx.fillStyle = f.color || '#7fe6a3';           // green — matches the top pill's energy value (--accent)
     ctx.strokeText(txt, startX, y);
     ctx.fillText(txt, startX, y);
-    if (ENERGY_BOLT) {
+    if (f.icon && ENERGY_BOLT) {
       ctx.save();
       ctx.translate(startX + tw + gap, y - bolt / 2);
       ctx.scale(bolt / 24, bolt / 24);
@@ -40992,8 +41433,36 @@ function drawReservoirs() {
     const tl = camera.worldToScreen(tx - ob.x * drawW, ty - ob.y * drawH);
     const sw = drawW * z, sh = drawH * z;
     if (tl.x > camera.viewW || tl.x + sw < 0 || tl.y > camera.viewH || tl.y + sh < 0) return;
+    // A TAPPED POCKET READS AS SPENT (M4.6): once `_tappedWater` holds it (mine only), a dark dry
+    // hollow of the same shape with the water art over it at 35%. The art at 35% ALONE lets the
+    // brown soil through, and the soil is BRIGHTER than the dark-water art — measured, the disc
+    // went 58 -> 71 luminance, i.e. a spent pocket looked fuller. The hollow is cached per art.
+    const spent = sub.mine && state._tappedWater && state._tappedWater.has(r.id);
+    if (spent) {
+      const dry = _spentPocketArt(key, img);
+      if (dry) ctx.drawImage(dry, tl.x, tl.y, sw, sh);
+      ctx.globalAlpha = 0.35;
+    }
     ctx.drawImage(img, tl.x, tl.y, sw, sh);
+    if (spent) ctx.globalAlpha = 1;
   });
+}
+const _spentPocketCache = new Map();
+function _spentPocketArt(key, img) {
+  let c = _spentPocketCache.get(key);
+  if (c) return c;
+  try {
+    const W = Math.min(256, img.width | 0), Hh = Math.max(1, Math.round(W * img.height / img.width));
+    c = document.createElement('canvas'); c.width = W; c.height = Hh;
+    const x = c.getContext('2d');
+    // Three passes: the water art is partly TRANSLUCENT inside, so one pass lets the soil through
+    // the hollow too. Then a near-black wash over whatever the art covers.
+    for (let i = 0; i < 3; i++) x.drawImage(img, 0, 0, W, Hh);
+    x.globalCompositeOperation = 'source-atop';
+    x.fillStyle = 'rgba(12,9,7,0.9)'; x.fillRect(0, 0, W, Hh);
+    _spentPocketCache.set(key, c);
+  } catch (_) { return null; }
+  return c;
 }
 
 // City skylines sit on the CONCRETE barrier (the man-made middle). Each concrete
