@@ -2464,7 +2464,11 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     // with no idea what the input is, and one that never clears is a line of text over the map for
     // the whole run. `hintBefore` was captured before the drag above.
     ok('a first descent says how to dig', /drag/i.test(dragged.hint || ''), dragged.hint || '(nothing)');
-    ok('...and the hint clears once they have dug', !afterDrag.hintShown,
+    // M4: THE DRAG LINE CLEARS, BUT THE HINT NO LONGER GOES BLANK. The first dig hands over to the
+    // one-shot 'Every dig costs water' tip (3 s), so "nothing shown" became "not the drag line any
+    // more" (was `!hintShown`). A line that never clears is still caught: the drag line is sticky, and
+    // it is the one thing this refuses.
+    ok('...and the drag instruction clears once they have dug', !/drag/i.test(afterDrag.hint || ''),
        afterDrag.hint || '(gone)');
     // NET OF EVERYTHING ELSE THAT TOUCHES THE TANK. `water === before - 2` was an exact equality on a
     // number three separate systems now move: a dig costs 2, a water pocket the growth reached pays

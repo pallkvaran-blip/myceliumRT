@@ -42181,6 +42181,10 @@ CRAZY.init().then((ok) => { if (ok) CRAZY.loadingStart(); });
 Promise.all([
   loadAssets('assets/', (d, t) => { _aDone = d; _aTot = t; _bootProgress(); }).then(() => {
     if (!OFFER_MINE) return;
+    // TEST KNOB: `window.MYCELIUM_NO_BAND_PRELOAD = true` (an init script) skips this, so a check can
+    // put a descent in front of art that has not arrived — the case the M2 collision gate exists for
+    // (a slow link where the 12 s safety net lets the player in first). ship-check's gate block.
+    if (window.MYCELIUM_NO_BAND_PRELOAD === true) return;
     const folders = [...new Set(((CONFIG.mine && CONFIG.mine.bands) || []).map((b) => b.assetsFrom).filter(Boolean))];
     return Promise.all(folders.map((f) => loadLevelAssets(f, 'assets/', (d, t) => {
       _mDone += d; _mTot += t; _bootProgress();

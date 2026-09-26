@@ -311,7 +311,11 @@ const openStore = async (page) => {
     if (want('gate')) {
       console.log('--- no dig lands before the rock is solid');
       const BAND = /\/assets\/(magnetite|anthracite|garnet|hematite)-c24\//;
+      // M4 PRELOADS THE BAND ART BEHIND THE GATE, so a delayed band held the % counter instead and
+      // every run began on a solid mask (0 samples). The knob skips that preload: this block is about
+      // a descent that starts before its art (the loader's 12 s safety net on a slow link).
       const delay = (ms) => async (page) => {
+        await page.addInitScript(() => { window.MYCELIUM_NO_BAND_PRELOAD = true; });
         await page.route((u) => BAND.test(u.pathname), async (route) => { await sleep(ms); route.continue().catch(() => {}); });
       };
       const b = await E.boot('#mine,4242', 390, 844, { before: delay(3000) });
