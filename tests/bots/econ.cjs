@@ -5,8 +5,9 @@
 //   node tests/bots/econ.cjs diver  [seed ...]                          # acc. 3
 //
 // run1: one fresh save per seed; ONE descent (the sensible route bot, or --naive: lib.cjs's
-//   `naiveStep`, played until the run ends by itself), then the REAL end screen -> Store -> the Water
-//   tank tile's Buy button. Asserts: banked >= 5 P and Water I bought, on every seed. With --pace it
+//   `naiveStep`, played until the run ends by itself), then the REAL end screen: the next-goal card's
+//   Buy, then Store. Asserts: banked >= 5 P, the card offers Water tank, Water I bought through it, and
+//   the first shelf is exactly Water tank + Grow strength, on every seed. With --pace it
 //   also prints the median run length (acceptance 4 wants 45-65 s at 1700 ms a dig).
 // career: `career.cjs`'s loop on one save per seed (default 4242 909 11, 12 runs), asserting 0 dead
 //   store visits in runs 1-5, at most 1 in runs 1-10, and mean P of runs 10-12 >= 1.4x runs 1-3.
@@ -23,6 +24,7 @@ const mode = argv[0] || 'run1';
 const flag = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
 const has = (k) => argv.includes(k);
 const seedArgs = argv.slice(1).filter((a, i, all) => /^\d+$/.test(a) && !/^--/.test(all[i - 1] || ''));
+const SETS = []; argv.forEach((a, i) => { if (a === '--set' && argv[i + 1]) { const [k, v] = argv[i + 1].split('='); SETS.push([k, isNaN(+v) ? v : +v]); } });
 let pass = 0, fail = 0;
 const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — ' + x : ''))) : (fail++, console.log('  FAIL  ' + n + (x ? '  — ' + x : ''))); };
 const median = (a) => { const s = a.slice().sort((x, y) => x - y); return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2; };
@@ -42,22 +44,27 @@ async function naiveDescent(page, paceMs) {
   for (let k = 0; k < 40; k++) { if (await page.evaluate(() => !!window.__game.state.runOver)) break; await sleep(500); }
   return { seconds: Math.round((Date.now() - t0) / 1000), digs };
 }
-// After the run: wait for the end screen, read what it banked, go to the store, press the Water tank's Buy.
+// After the run: wait for the end screen, read what it banked and what the NEXT-GOAL CARD offers, and
+// buy THROUGH THE CARD (#ssMineBuy) — the path the plan's first minute describes ('Water tank … 5 P
+// [Buy]'), not a hand-picked store tile (M5 verifier fix: the bot used to click the store's Water tile
+// directly, so a card selling something else could never fail this). Then the Store, to read the shelf.
 async function bankAndBuyWater(page) {
   await page.waitForSelector('#ssMineEnd', { timeout: 30000 }).catch(() => {});
   await sleep(1200);
   const end = await page.evaluate(() => { const r = window.__game.state.runResult || {};
     return { over: !!window.__game.state.runOver, cause: r.cause, ore: r.ore | 0, reach: r.reach | 0, seams: r.seams | 0, depth: r.depth | 0, P: window.__game.store.balance() }; });
+  const card = await page.evaluate(() => { const e = document.getElementById('ssMineGoal');
+    return { goal: e && e.dataset.goal, text: e ? e.innerText.replace(/\s+/g, ' ').trim() : '' }; });
+  const buy = await page.$('#ssMineBuy');
+  if (buy) await buy.click();
+  await sleep(300);
   const done = await page.$('#ssMineDone');
   if (done) await done.click();
   await page.waitForSelector('#ssDescend', { timeout: 20000 }).catch(() => {});
   await sleep(600);
-  const btn = await page.$('.ss-upg[data-track="water"] .ss-upg-btn:not([disabled])');
-  if (btn) await btn.click();
-  await sleep(300);
   const after = await page.evaluate(() => ({ water: window.__game.store.level('water'), P: window.__game.store.balance(),
     tiles: Array.from(document.querySelectorAll('#ssUpg .ss-upg')).map((t) => t.dataset.track) }));
-  return { end, after };
+  return { end, card, after };
 }
 
 (async () => {
@@ -79,14 +86,17 @@ async function bankAndBuyWater(page) {
         dur.botSeconds = dur.seconds;
         dur.seconds = Math.round((await b.page.evaluate(() => (window.__game.state.runResult || {}).ms | 0)) / 1000);
         const r = await bankAndBuyWater(b.page);
-        rows.push({ seed, ...dur, ...r.end, waterLvl: r.after.water, left: r.after.P, tiles: r.after.tiles });
-        console.log(`seed ${seed}: ${dur.seconds}s (bot ${dur.botSeconds}s) ${dur.digs} digs, ${r.end.depth} m, ${r.end.cause}, banked ${r.end.ore} P (reach ${r.end.reach} + seams ${r.end.seams}), Water ${r.after.water}, left ${r.after.P} P, shelf ${r.after.tiles.join(',')}`);
+        rows.push({ seed, ...dur, ...r.end, card: r.card.goal, waterLvl: r.after.water, left: r.after.P, tiles: r.after.tiles });
+        console.log(`seed ${seed}: ${dur.seconds}s (bot ${dur.botSeconds}s) ${dur.digs} digs, ${r.end.depth} m, ${r.end.cause}, banked ${r.end.ore} P (reach ${r.end.reach} + seams ${r.end.seams}), card '${r.card.text}', Water ${r.after.water}, left ${r.after.P} P, shelf ${r.after.tiles.join(',')}`);
         await b.ctx.close();
       }
       fs.writeFileSync(`${OUT}/econ-run1-${naive ? 'naive' : 'sensible'}-${pace}.json`, JSON.stringify(rows, null, 1));
       const who = naive ? 'naive' : 'sensible';
       ok(`${who}: run 1 banks >= 5 P on ${rows.length}/${SEEDS.length}`, rows.every((r) => r.ore >= 5), rows.map((r) => r.ore).join(' '));
-      ok(`${who}: run 1 buys Water I on ${rows.filter((r) => r.waterLvl === 1).length}/${SEEDS.length}`, rows.every((r) => r.waterLvl === 1), rows.map((r) => r.waterLvl).join(' '));
+      ok(`${who}: the run-1 card offers Water tank on ${rows.filter((r) => r.card === 'water').length}/${SEEDS.length}`, rows.every((r) => r.card === 'water'), rows.map((r) => r.card).join(' '));
+      ok(`${who}: run 1 buys Water I through the card on ${rows.filter((r) => r.waterLvl === 1).length}/${SEEDS.length}`, rows.every((r) => r.waterLvl === 1), rows.map((r) => r.waterLvl).join(' '));
+      ok(`${who}: the first store (after run 1) shows exactly Water tank + Grow strength on ${rows.filter((r) => r.tiles.join(',') === 'water,growSteps').length}/${SEEDS.length}`,
+         rows.every((r) => r.tiles.join(',') === 'water,growSteps'), rows.map((r) => r.tiles.join('+')).join(' '));
       // The sensible bot's `playDescent` force-ends a run it judges boxed after its recovery digs
       // (cause 'abandon'), so "ended by itself" is only asserted for the naive loop, which never does.
       if (naive) ok(`${who}: every run 1 ended by itself`, rows.every((r) => r.over && r.cause !== 'abandon'), rows.map((r) => r.cause).join(' '));
@@ -120,6 +130,10 @@ async function bankAndBuyWater(page) {
       for (const seed of SEEDS) {
         for (const who of ['diver', 'farmer']) {
           const b = await bootMine(env, seed);
+          // `--set mine.materials.0.per=2` (repeatable): a tuning PROBE — overrides the run's config
+          // clone after boot, so a lever can be measured without editing the game. Printed with the result.
+          if (SETS.length) await b.page.evaluate((sets) => { const c = window.__game.state.config;
+            for (const [k, v] of sets) { const ks = k.split('.'); let o = c; for (const q of ks.slice(0, -1)) o = o[q]; o[ks[ks.length - 1]] = v; } }, SETS);
           const bot = who === 'farmer' ? { useItems: true, maxDepthM: 40, lateral: true } : { useItems: true };
           const res = await playDescent(b.page, { label: `econ-${who}-${seed}`, paceMs: 900, bot });
           const r = await b.page.evaluate(() => window.__game.state.runResult || {});
@@ -128,6 +142,7 @@ async function bankAndBuyWater(page) {
           await b.ctx.close();
         }
       }
+      if (SETS.length) console.log('  probe  --set ' + SETS.map((x) => x.join('=')).join(' '));
       ok('no upgrades: the diver banks >= 1.2x the farmer\'s P', dP >= 1.2 * fP, `${dP} vs ${fP} (x${(dP / Math.max(1, fP)).toFixed(2)})`);
     }
   } finally { await env.close(); }

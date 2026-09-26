@@ -47,7 +47,10 @@ async function playDescent(page, opts = {}) {
     if (!w1.over) {
       const rec = await page.evaluate(async () => {
         const g = window.__game, s = g.state; const out = [];
-        for (let k = 0; k < 12 && !s.runOver; k++) {
+        // Up to 40 (was 12): a player who worked it out spends the WHOLE tank, and since the M5 fix a
+        // voluntary End descent banks only the raw reach — so the bot's forced End (below) must stay
+        // the last resort, not a shortcut past the 5 P floor.
+        for (let k = 0; k < 40 && !s.runOver; k++) {
           const ns = s.active.nodes.filter((n) => !n.infected).sort((a, b) => a.y - b.y);
           let done = false;
           for (const n of ns.slice(0, 30)) {
