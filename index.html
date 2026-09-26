@@ -29901,8 +29901,9 @@ const MINE_GOAL_ORDER = ['growSteps', 'water', 'heatTolerance', 'excreteCharges'
 function mineNextGoal(progress) {
   const p = progress || loadProgress();
   const cands = [];
-  const order = MINE_GOAL_ORDER.filter((id) => mineTileNew(id, p) && !(p.mineShelfShown && id in p.mineShelfShown))
-    .concat(MINE_GOAL_ORDER);
+  // New = revealed and not yet past its NEW visit (never shown, or shown on THIS store visit), so the
+  // end screen's card and the store's highlight agree on a freshly revealed tile.
+  const order = MINE_GOAL_ORDER.filter((id) => mineTileNew(id, p)).concat(MINE_GOAL_ORDER);
   const seen = new Set();
   for (const id of order) {
     if (seen.has(id)) continue; seen.add(id);
@@ -29919,7 +29920,7 @@ function mineNextGoal(progress) {
   const ok = cands.find((c) => c.afford);
   if (ok) return ok;
   // Nothing affordable: a newly revealed tile is still the news, then the rung closest to affordable.
-  const fresh = cands.find((c) => c.isNew && !(p.mineShelfShown && c.id in p.mineShelfShown));
+  const fresh = cands.find((c) => c.isNew);
   if (fresh) return fresh;
   let best = cands[0];
   for (const c of cands) if (c.cost.m === 'phosphorus' && (best.cost.m !== 'phosphorus' || c.short < best.short)) best = c;

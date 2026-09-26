@@ -123,7 +123,8 @@ const openStore = async (page) => {
         await sleep(700);
         const t1 = await tiles(b.page);
         const heat = t1.find((x) => x.id === 'heatTolerance');
-        ok('...and the store shows Heat tolerance with NEW', !!heat && heat.isNew, t1.map((x) => x.id + (x.isNew ? '*' : '')).join(','));
+        ok('...and the store shows Heat tolerance with NEW, highlighted as the next goal', !!heat && heat.isNew && heat.hl && t1.filter((x) => x.hl).length === 1,
+           t1.map((x) => x.id + (x.isNew ? '*' : '') + (x.hl ? '^' : '')).join(','));
         ok('...but not Mucus flasks, before any worm has attached', !t1.some((x) => x.id === 'excreteCharges'), t1.map((x) => x.id).join(','));
         await b.page.screenshot({ path: path.join(ART, 'm5-store-new-390.png') });
         await openStore(b.page);
