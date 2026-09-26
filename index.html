@@ -16371,11 +16371,17 @@ class Network {
   //                `this._lastGrowRefusal` says 'accept' when a steppable tip existed but was refused.
   //   within       {x, y, r}: no node this call grows — chain, side twig or water runner — may land
   //                farther than r from (x, y) (pile-claim mat nodes excepted, see mineGrow).
+  //   firstStepAsFound  if the chain's FIRST step fails at its random jitter, retry it at jitter 0 —
+  //                the offset the parent was validated with (`stepFrom(n, 0)`). Without it a parent
+  //                whose only open heading was the exact aim grew nothing, and a walled press with
+  //                99 open same-price tips beside it read 'Solid rock' (M2 verifier, seed 4242).
+  //                No extra rng draw. `this._lastGrowRetried` says it fired.
   // The parent actually used is left on `this._lastGrowOrigin` for the caller to read.
   growDirected(substrate, rng, dx, dy, steps, straight = false, startTip = null, noDodge = false, companion = false, opts = null) {
     const g = this.config.growth;
     this._lastGrowOrigin = null;
     this._lastGrowRefusal = null;
+    this._lastGrowRetried = false;
     const within = (opts && opts.within) ? { x: opts.within.x, y: opts.within.y, r2: opts.within.r * opts.within.r } : null;
     this._beginGrowthClaim();
     const len = Math.hypot(dx, dy) || 1; dx /= len; dy /= len;
@@ -16445,7 +16451,8 @@ class Network {
     for (let i = 0; i < steps; i++) {
       if (this.nodes.length >= g.maxNodes) break;
       const jitter = (straight || noDodge) ? 0 : rng.range(-g.branchJitter, g.branchJitter);
-      const nxt = stepFrom(parent, jitter);
+      let nxt = stepFrom(parent, jitter);
+      if (!nxt && i === 0 && jitter && opts && opts.firstStepAsFound) { nxt = stepFrom(parent, 0); this._lastGrowRetried = !!nxt; }
       if (!nxt) break;   // walled in on every dodge — stop
       parent = this.addNode(nxt.nx, nxt.ny, parent);
       strand.push(parent);
@@ -22692,6 +22699,7 @@ function mineGrow(state, ctx) {
     maxFallDist: tip ? fallDist : Infinity,
     accept: (p) => !tip || p === tip || mineGrowCost(state.config, mineDepthM(sub, p.y)) === cost,
     within: tip ? { x: tip.x, y: tip.y, r: fallDist + mineGrowReach(state.config) } : null,
+    firstStepAsFound: true,
   });
   if (!made) {
     // Still starts 'Solid rock' (the pressed strand IS walled this way); the tail names the real
