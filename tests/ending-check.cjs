@@ -89,7 +89,9 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
         const now = performance.now() - t0;
         const p = document.getElementById('fruitnow');
         const vis = !!(p && !p.hidden && p.getBoundingClientRect().width > 0);
-        if (vis && out.pillAt == null) { out.pillAt = now; out.pillText = p.textContent.replace(/\s+/g, ' ').trim(); }
+        // M5: the pill shows `bankable` (reach + seams), and with the reveal in flight the depth — and
+        // so the reach — can still rise after the tank change; read both on the same frame.
+        if (vis && out.pillAt == null) { out.pillAt = now; out.pillText = p.textContent.replace(/\s+/g, ' ').trim(); out.bankAtPill = window.__game.mine.bankable(); }
         if (out.left.length < 40) out.left.push([Math.round(now), window.__game.mine.stuck().leftMs]);
         if (window.__game.state.runOver) { out.overAt = now; break; }
         if (now > 12000) break;
@@ -100,8 +102,8 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
     }, st.t0);
     ok('...#fruitnow is visible within 500 ms', seen.pillAt != null && seen.pillAt <= 500,
        `${seen.pillAt == null ? 'never' : Math.round(seen.pillAt) + ' ms'} — "${seen.pillText}"`);
-    ok('...reading FRUIT NOW and what it banks', /FRUIT NOW · \+\d+ P/.test(seen.pillText) && seen.pillText.includes('+' + st.ore + ' P'),
-       `"${seen.pillText}", ore ${st.ore}`);
+    ok('...reading FRUIT NOW and what it banks', /FRUIT NOW · \+\d+ P/.test(seen.pillText) && seen.pillText.includes('+' + seen.bankAtPill + ' P'),
+       `"${seen.pillText}", bankable ${seen.bankAtPill}`);
     // Within 7.0 s (the plan) and not before ~5.5 s: an instant end would be the 1.6 s fuel rule or
     // a bug, and this block exists to measure the 6 s countdown.
     ok('...and the run is over within 7.0 s of the tank change, on the countdown', seen.overAt != null && seen.overAt <= 7000 && seen.overAt >= 5500,
@@ -427,6 +429,10 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       const g = window.__game, s = g.state;
       s.active.water = 100000;
       await window.__navDig({ targetM: 30, maxIters: 300 });
+      // M5: the record carries the reach payout, which follows the depth — so the last dig's reveal
+      // has to land before the figure is read, or a later write reads a metre deeper (18 vs 19).
+      for (let i = 0; i < 60 && g.mine.revealing(); i++) await new Promise((res) => setTimeout(res, 100));
+      await new Promise((res) => setTimeout(res, 600));
       s.mineOre = 13; s.active.phosphorus = 13; s.mineMats = Object.assign({}, s.mineMats, { anthracite: 2 });
       const p0 = JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}');
       // Visible -> hidden -> visible first: coming back clears the pending copy.
@@ -493,6 +499,8 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       const g = window.__game, s = g.state;
       s.active.water = 100000;
       await window.__navDig({ targetM: 20, maxIters: 200 });
+      for (let i = 0; i < 60 && g.mine.revealing(); i++) await new Promise((res) => setTimeout(res, 100));
+      await new Promise((res) => setTimeout(res, 600));
       s.mineOre = 20; s.active.phosphorus = 20; s.mineMats = Object.assign({}, s.mineMats, { anthracite: 1 });
       // M5: the haul is the seams' 20 + the reach payout; the depth stays put for the rest of the block.
       return { reach: g.mine.reach(), minerals: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').minerals | 0,

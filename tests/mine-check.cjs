@@ -2048,7 +2048,12 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
        `${dive.depth} m of ${dive.rows}`);
     // ...and not so short that the game is unplayable. A first descent should reach band 2, which
     // is where the worms start.
-    ok(`...but past the first band`, dive.depth > 42, `${dive.depth} m`);
+    // M5: was `depth > 42`. The plan cut the opening tank 84 -> 60 (run 1 = 30 digs at 2) and gives
+    // run 1's outcome as "42-60 m, or 20-40 m": this blind greedy dive reads 64 m on seed 11 and 37 m
+    // on seed 909 (57 m at 84 water). Players still reach band 2 on run 1 — the route bot's median is
+    // 68 m (51-92) and the naive bot's 63 m on the same build — so the floor here is the plan's middle
+    // of that range rather than the band line. The upper bound ("well short of the bottom") is unchanged.
+    ok(`...but past 30 m`, dive.depth > 30, `${dive.depth} m`);
     // ORE IS NOT FREE ON THE WAY DOWN. This is what the whole generator pass exists for: the
     // Phosphorus that buys the next descent has to be dug SIDEWAYS. Not "none at all" — a dense band
     // makes `growDirected` dodge, so a dive wanders and can legitimately clip a gallery — but a small
