@@ -4585,6 +4585,8 @@ Numbers here are measured, not planned.
     M4's ghost finger may cover it); run 1 dives banking 0 P (seams off-route) and aimNearPx 170 making
     near-colony pans aim — M4/M5. The zip 'run ends by itself' intermittent stays OPEN until its new
     diagnostics fire once.
+  - After the tidy: `run.mjs mine store phone ending zip` 468/468 (store 124, mine 190, ending 87,
+    phone 44, zip 23). A green `--mine` is now 790.
 
 ## Two games on the title screen: Survival and Campaign
 
