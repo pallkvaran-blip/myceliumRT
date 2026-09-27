@@ -22895,10 +22895,14 @@ function mineGenerateChunk(state, ci) {
   // (`seed ^ 0x2EAC`), after the plugs, so nothing downstream can wall off what it opened — a plug
   // whose sprite would land on it is dropped below, and a seal boulder never covers `noPlug` ground.
   const repCut = J ? new Uint8Array(W * rows) : null;
+  // TEST KNOB, journey-check's negative control only: `window.MYCELIUM_NO_REWARD_REPAIR = true` (an init
+  // script) skips the trunks and the repair, so the check can show its reward assertion fails without
+  // them. Nothing in the game sets it.
+  const repairOn = !!J && !(typeof window !== 'undefined' && window.MYCELIUM_NO_REWARD_REPAIR);
   // The only edge-column cells a journey chunk counts as passage: its trunk mouths (both seam cells
   // open, so the stitch never covers them). See THE EDGE COLUMNS below.
   const trunkCell = J ? new Uint8Array(W * rows) : null;
-  if (J) {
+  if (repairOn) {
     const seedJ = (state.mineSeed || state.seed || 1) >>> 0;
     const erng = mineChunkRng((seedJ ^ 0x2EAC) >>> 0, ci);
     const nCh = mineChunkCount(cfg);
@@ -23507,6 +23511,9 @@ function mineGenerateChunk(state, ci) {
       // seals are known and the answer is order-independent). Every other covered row is sealed only
       // as densely as the rock beside it: see (1).
       const must = new Uint8Array(rows);
+      // ...and the crust rows: a porous chain in rows 0-3 let the rows-0-2 flood cross seams (leg 1
+      // candidates reached columns 67-71 against acceptance 5's 66).
+      for (let rr = 0; rr <= Math.min(rows - 1, 3); rr++) must[rr] = 1;
       for (const sd of J._sealed || []) {
         if (!((sd.ci === sI - 1 && sd.R) || (sd.ci === sI && sd.L))) continue;
         for (let rr = Math.max(0, sd.row - 6); rr <= Math.min(rows - 1, sd.row + 6); rr++) must[rr] = 1;

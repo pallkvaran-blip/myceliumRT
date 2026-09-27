@@ -19,13 +19,21 @@
  *            strip leaks, and no creature sits above row 42; leg 1 ('calm') seeds none, leg 3 ('dry') no
  *            pocket above 42 m. Then REAL growth (mine.growFrom) follows the cheapest route and must land
  *            at the taproot — on legs 2-3 with >= 50% of the landing strand's east travel below 42 m.
- *            Each row's `E` agrees with its `eastM`. One resting-zoom screenshot per leg around a sealed
- *            seam goes to tests/.artifacts/m7-leg<N>-seam-390.png.
+ *            Each row's `E` agrees with its `eastM`. Resting-zoom screenshots: one per leg around a sealed
+ *            seam (tests/.artifacts/m7-leg<N>-seam-390.png) and nine per leg at seams 2-4 x rows 45, 70
+ *            and 120 (m7-leg<N>-c<k>-r<row>-390.png) — the verifier's own framing.
+ *   world    (M7 verifier round 2) EVERY chunk of legs 1-3 (legprobe `world`): every ore seam and every
+ *            water pocket is reachable on the fine mask from the colony's root, no straight lateral
+ *            channel 3 cells tall runs more than 36 cells anywhere in the leg world, and the ground within
+ *            a cell of a chunk seam is no more than 0.2 more solid than the ground 6+ cells from one (the
+ *            first stitch: 0.87 against 0.64, a dense line). Controls: the free layout '#mine,4242'
+ *            reaches every reward too; and leg 2 with the reward repair switched off
+ *            (`MYCELIUM_NO_REWARD_REPAIR`) strands some, so the assertion can fail.
  *   island   on candidate seeds that were NOT curated, the taproot chamber's growth-lattice flood (held
  *            inside the island chunk) reaches the chunk's own seam column: the repair's guarantee
  *            survives the seal boulders and the stitch whatever the seed.
  *
- * `JOURNEY_ONLY=layout,determ,free,legs,island` runs a subset.
+ * `JOURNEY_ONLY=layout,determ,free,legs,world,island` runs a subset.
  */
 const path = require('path'), fs = require('fs');
 const H = require('./mine-harness.cjs');
@@ -236,6 +244,19 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
         ok(`leg ${leg}: a sealed seam exists to frame, at the resting zoom`, !!seam && Math.abs(seam.zoom - seam.z0) < 1e-6,
            seam ? `seam col ${seam.col}, row ${seam.row} (${seam.n} sealed in the window), zoom ${seam.zoom.toFixed(3)}` : 'none');
         await b.page.screenshot({ path: path.join(ART, `m7-leg${leg}-seam-390.png`), animations: 'disabled', timeout: 8000 }).catch(() => {});
+        // ...and the verifier's own framing: seams 2-4 at rows 45, 70 and 120, whatever is there.
+        let framed = 0;
+        for (const c of [2, 3, 4]) for (const r of [45, 70, 120]) {
+          const z = await b.page.evaluate(async ([c, r]) => {
+            const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, cw = s.config.mine.chunkCols;
+            g.mine.lookAt(c * cw * cs, sub.surfaceY + (r + 0.5) * cs);
+            await new Promise((q) => setTimeout(q, 500));
+            return g.camera.zoom;
+          }, [c, r]);
+          if (seam && Math.abs(z - seam.z0) < 1e-6) framed++;
+          await b.page.screenshot({ path: path.join(ART, `m7-leg${leg}-c${c}-r${r}-390.png`), animations: 'disabled', timeout: 8000 }).catch(() => {});
+        }
+        ok(`leg ${leg}: nine more seam frames (seams 2-4 x rows 45/70/120) at the resting zoom`, framed === 9, `${framed} of 9`);
         // Last: it grows the colony across the leg (threats removed, tank topped up).
         const f = await LP.follow(b.page, route);
         ok(`leg ${leg}: real growth (mine.growFrom) following the cheapest route lands at the taproot`, f.landed,
@@ -243,6 +264,41 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
         if (leg >= 2) ok(`leg ${leg}: ...and the landing strand spent >= 50% of its east travel below 42 m`, f.landed && f.east42 >= 0.5,
            `${f.landed ? (f.east42 * 100).toFixed(1) + '% below 42 m, deepest ' + f.maxDepthM + ' m' : 'did not land'}`);
         ok(`no page errors (leg ${leg})`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
+        await b.ctx.close();
+      }
+    }
+    // ======================================================================================
+    if (want('world')) {
+      console.log('--- the whole leg world: rewards, lateral channels, seam density');
+      for (const leg of [1, 2, 3]) {
+        const b = await LP.openLeg(E, leg);
+        const w = await LP.world(b.page);
+        ok(`leg ${leg}: every ore seam and every water pocket in all ${w.chunks} chunks is reachable from the root`,
+           w.piles > 0 && w.pilesOk === w.piles && w.pocketsOk === w.pockets,
+           `seams ${w.pilesOk}/${w.piles}, pockets ${w.pocketsOk}/${w.pockets}${w.strandedAt.length ? ' stranded ' + JSON.stringify(w.strandedAt) : ''}`);
+        ok(`leg ${leg}: no straight lateral channel 3 cells tall runs more than 36 cells anywhere in the leg world`, w.lateral <= 36,
+           `longest ${w.lateral} (row ${w.latAt && w.latAt.row}, ending col ${w.latAt && w.latAt.endCol})`);
+        ok(`leg ${leg}: the ground at a chunk seam is no denser than the chunk's own (+0.2 at most)`,
+           w.seamSolid != null && w.seamSolid - w.midSolid <= 0.2, `closed-ground solidity ${w.seamSolid} within a cell of a seam, ${w.midSolid} 6+ cells in`);
+        ok(`no page errors (world, leg ${leg})`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
+        await b.ctx.close();
+      }
+      {
+        const b = await E.boot('#mine,4242');
+        await b.page.waitForFunction(() => !!(window.__game && window.__game.state && window.__game.state.substrate
+          && window.__game.state.substrate._fineSolid), { timeout: 40000 });
+        const w = await LP.world(b.page);
+        ok('control: the free layout reaches every reward over the same world-wide flood', w.piles > 0 && w.pilesOk === w.piles && w.pocketsOk === w.pockets,
+           `seams ${w.pilesOk}/${w.piles}, pockets ${w.pocketsOk}/${w.pockets}`);
+        await b.ctx.close();
+      }
+      {
+        const b = await E.boot('#leg,1,2', 390, 844, { before: (page) => page.addInitScript(() => { window.MYCELIUM_NO_REWARD_REPAIR = true; }) });
+        await b.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.leg && window.__game.mine.leg()
+          && window.__game.state.substrate._fineSolid), { timeout: 40000 });
+        const w = await LP.world(b.page);
+        ok('negative control: leg 2 with the reward repair switched off strands rewards (the assertion above can fail)',
+           w.pilesOk + w.pocketsOk < w.piles + w.pockets, `seams ${w.pilesOk}/${w.piles}, pockets ${w.pocketsOk}/${w.pockets}`);
         await b.ctx.close();
       }
     }

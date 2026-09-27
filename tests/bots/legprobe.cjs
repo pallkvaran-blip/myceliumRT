@@ -45,6 +45,7 @@ const WPASS = (w) => w.pilesOk === w.piles && w.pocketsOk === w.pockets && w.lat
   && w.seamSolid != null && w.seamSolid - w.midSolid <= 0.2;
 const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0
   && m.crustMaxCol <= m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42 && m.seamRunRows <= 42
+  && (m.leaks || []).every((l) => l[1] >= (m.rows || 168) - 6)   // no sealed side above the floor strip leaks
   && (leg < 2 || m.east42 >= 0.5);
 
 // Generate chunk 0 .. island+1, wait for the stamp, measure. Runs in the page.
@@ -313,7 +314,7 @@ async function measure(page, opts) {
       ridgeSeam: +(Math.max(0, ...ridgeSeams) / K).toFixed(1), ridgeSeamMed: +(pct(ridgeSeams, 0.5) / K).toFixed(1),
       ridgeMidMed: +(pct(ridgeMids, 0.5) / K).toFixed(1), ridgeMid90: +(pct(ridgeMids, 0.9) / K).toFixed(1), ridgeMidMax: +(Math.max(0, ...ridgeMids) / K).toFixed(1),
       shallowestRow: shallowestRow === Infinity ? 999 : shallowestRow, liveClouds,
-      chunks: cis.length,
+      chunks: cis.length, rows: sub.rows,
     };
     // The cheapest route as world points (the follower walks it).
     if (opts && opts.route) out.route = cheap.path.map((i) => [+cxW(i % W).toFixed(1), +cyW((i / W) | 0).toFixed(1)]);
