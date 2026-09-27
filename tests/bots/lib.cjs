@@ -206,6 +206,12 @@ async function injectBot(page) {
         const key = t.kind + ':' + Math.round(t.x) + ',' + Math.round(t.y);
         if ((Q.bad.get(key) || 0) > 7) continue;
         let score = t.reach.d * F.fs;               // path length, world units
+        // THE JOURNEY (M8): the island is the point. A seam is worth a short detour only; a pocket when
+        // the tank is getting low. (The free-layout bot keeps its old appetite.)
+        if (opts.goal === 'island') {
+          if (t.kind === 'ore' && score > (opts.oreDetour || 260)) continue;
+          if (t.kind === 'water' && water > (opts.waterLow || 40) && score > 200) continue;
+        }
         if (t.kind === 'water') score *= water < 24 ? 0.4 : 0.8;
         if (t.kind === 'ore' && t.mat !== 'phosphorus') score *= 0.8;
         if (score < bs) { bs = score; best = Object.assign(t, { key }); }
@@ -216,6 +222,40 @@ async function injectBot(page) {
         Q.bad.set(best.key, (Q.bad.get(best.key) || 0) + 1);
         const r = Q.digAlong(F, best.reach.i, opts.ahead);
         return Object.assign(out, { mode: 'target', kind: best.kind, mat: best.mat, pathLen: Math.round(bs), ok: r.ok, msg: r.message });
+      }
+      // THE JOURNEY (M8, `goal: 'island'`): the taproot is the BFS goal. Reachable in the flood -> dig
+      // along the path to it; else the frontier cell nearest the knot (straight line), penalised by path
+      // length, so the colony works its way east and down toward the island's root.
+      const tap = opts.goal === 'island' && g.mine.taproot && g.mine.taproot();
+      // `knowMap` (default on): a leg is one FIXED world ("a retry is mastery"), so the sensible journey
+      // player knows the ground out to the island — every chunk to one past it is generated up front (the
+      // generator is order-independent, asserted in journey-check), and the flood sees all of it.
+      if (tap && opts.knowMap !== false && !Q._knew) {
+        Q._knew = true;
+        const cs = sub.cellSize, cw = s.config.mine.chunkCols;
+        g.mine.ensureChunks(0, (Math.floor(tap.x / cs / cw) + 2) * cw * cs);
+      }
+      if (tap) {
+        const land = (s.config.mine.journey.landfallCells || 1.5) * sub.cellSize;
+        const nr = Q.nearReach(F, tap.x, tap.y, land * 0.9);
+        if (nr) {
+          const r = Q.digAlong(F, nr.i, opts.ahead);
+          return Object.assign(out, { mode: 'island', ok: r.ok, msg: r.message, goalM: Math.round((tap.y - F.sy) / 36) });
+        }
+        const lamI = opts.lambda == null ? 0.35 : opts.lambda;
+        let bi = -1, bsc = -Infinity, frontier = 0;
+        const gap = Math.ceil(60 / F.fs);
+        for (let i = 0; i < F.dist.length; i++) {
+          const d = F.dist[i]; if (d < gap) continue;
+          frontier++;
+          const y = F.sy + (((i / F.fc) | 0) + 0.5) * F.fs, x = (i % F.fc + 0.5) * F.fs;
+          const sc = -Math.hypot(x - tap.x, y - tap.y) - lamI * d * F.fs;
+          if (sc > bsc) { bsc = sc; bi = i; }
+        }
+        if (bi < 0) return Object.assign(out, { stuck: true, why: 'boxed: no frontier', frontier });
+        const r = Q.digAlong(F, bi, opts.ahead);
+        const tp = Q.xyOf(F, bi);
+        return Object.assign(out, { mode: 'toward-island', frontier, goalM: Math.round((tp.y - F.sy) / 36), ok: r.ok, msg: r.message });
       }
       // explore: deepest-reaching frontier, penalised by path length
       const lam = opts.lambda == null ? 0.45 : opts.lambda;
@@ -253,6 +293,28 @@ async function injectBot(page) {
       const fresh = glow.tips.filter((t) => !Q._glowUsed.has(t.id));
       if (opts.followGlow !== false && fresh.length) {
         const t = fresh[0]; Q._glowUsed.add(t.id); src = { x: t.x, y: t.y }; ang = t.ang; mode = 'glow';
+      } else if (opts.goal === 'island' && g.mine.taproot && g.mine.taproot()) {
+        // THE NAIVE JOURNEY PLAYER (M8): knows only "the island is east and its root is down there":
+        // always digs from the clean tip NEAREST THE KNOT (straight line), along the most open of 7
+        // rays fanned about the bearing to it (the same free `solidAtWorld` look the ghost's ray uses).
+        const tap = g.mine.taproot(), sub = s.substrate;
+        let tip = null, td = Infinity;
+        for (const n of Q.live()) { const d = Math.hypot(n.x - tap.x, n.y - tap.y); if (d < td) { td = d; tip = n; } }
+        if (!tip) return { stuck: true };
+        src = { x: tip.x, y: tip.y }; mode = 'toward';
+        const base = Math.atan2(tap.y - tip.y, tap.x - tip.x);
+        let bestA = base, bestC = -1;
+        for (const k of [0, 1, -1, 2, -2, 3, -3]) {
+          const a = base + k * 0.35;
+          let c = 0;
+          for (let dd = 12; dd <= reach; dd += 12) {
+            const x = tip.x + Math.cos(a) * dd, y = tip.y + Math.sin(a) * dd;
+            if (y <= sub.surfaceY + 2 || sub.solidAtWorld(x, y)) break;
+            c = dd;
+          }
+          if (c > bestC + 24) { bestC = c; bestA = a; }
+        }
+        ang = bestA;
       } else {
         // ALWAYS the deepest clean tip, refused or not (the plan's policy). An earlier version tried
         // a strand higher up after refusals, which is help a naive player does not have; the nudge

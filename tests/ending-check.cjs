@@ -120,7 +120,8 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
     ok('...the end screen says it ran out of water here', /Out of water at \d+ m/.test(after.text), after.text.split('\n').slice(0, 4).join(' | '));
     // 10. TELEMETRY: the run_end row carries the duration and the cause.
     const row = after.rows[0] || {};
-    ok('...and run_end carries ms and the cause', after.rows.length === 1 && row.ms > 0 && row.detail === 'dry' && row.cause === 'dry',
+    // M8: detail was the bare cause; it is 'L<leg>:<cause>:e<east m>' now (L0 = the free layout).
+    ok('...and run_end carries ms and the cause', after.rows.length === 1 && row.ms > 0 && row.detail === 'L0:dry:e0' && row.cause === 'dry',
        `${after.rows.length} row(s): ms=${row.ms} detail=${row.detail} cause=${row.cause}`);
     ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
     await b.ctx.close();
@@ -195,7 +196,7 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
        JSON.stringify(end.res && { cause: end.res.cause, died: end.res.died, depth: end.res.depth }));
     ok('...and #ssMineEnd says "You called it"', /You called it at \d+ m/.test(end.text), end.text.split('\n').slice(0, 4).join(' | '));
     const row = end.rows[0] || {};
-    ok('...and run_end has ms > 0 and detail = the cause', end.rows.length === 1 && row.ms > 0 && row.detail === 'fruit',
+    ok('...and run_end has ms > 0 and detail = the cause', end.rows.length === 1 && row.ms > 0 && row.detail === 'L0:fruit:e0',
        `ms=${row.ms} detail=${row.detail}`);
     ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
     await b.ctx.close();

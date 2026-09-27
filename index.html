@@ -38813,6 +38813,9 @@ function begin(newState) {
       legHints: () => { const o = state && state._mineJ; return o ? { banner: o.banner, chevronUntil: o.chevronUntil, sight: o.sight,
         runsBefore: o.runsBefore, drawn: Object.assign({}, o.drawn), now: performance.now() } : null; },
       beats: () => _mineBeatLog.slice(),
+      frameN: () => (state ? state._mineFrameN | 0 : 0),
+      cele: () => winCele ? { side: winCele.side, n: winCele.mushrooms.length, lit: drawCeleRoots.lit, roots: winCele.roots ? winCele.roots.length : 0,
+        x0: Math.min(...winCele.mushrooms.map((m) => m.x)), x1: Math.max(...winCele.mushrooms.map((m) => m.x)) } : null,
       east: () => (state ? state.mineMaxEast | 0 : 0),
       islandReached: () => !!(state && mineIslandReached(state)),
       journey: () => mineJourneyNow(),
@@ -41315,6 +41318,7 @@ function mineSeenFlush(time) {
 }
 function mineFrame(time, dt) {
   if (state.runOver) return;
+  state._mineFrameN = (state._mineFrameN | 0) + 1;   // M8: landfall-check counts frames with this
   // THE ONE INSTRUCTION. The mine has no tutorial and no button to point at — its whole input is a
   // press-and-drag on the colony — so a first-time player has nothing to go on. Shown until their
   // FIRST DESCENT HAS ENDED (`p.mineBest`), not once per run: it is needed on the first descent and

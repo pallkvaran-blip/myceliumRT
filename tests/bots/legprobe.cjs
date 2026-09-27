@@ -547,7 +547,11 @@ async function follow(page, route, opts = {}) {
     let k = 0, digs = 0, refused = 0, stall = 0, best = 0;
     const maxDigs = o.maxDigs || 400, ahead = o.ahead || 70, near = o.near || 16;
     let hit = landed();
+    // `stopWithin` (M8's landfall check): stop once a clean strand is within that many units of the knot
+    // but has not landed, so the caller can make the landing dig itself and time what follows it.
+    const nearKnot = () => { let b = Infinity; for (const n of net.nodes) if (!n.infected) b = Math.min(b, Math.hypot(n.x - tx, n.y - ty)); return b; };
     while (!hit && digs < maxDigs && !s.runOver) {
+      if (o.stopWithin && nearKnot() <= o.stopWithin) break;
       // Furthest route point with a clean strand near it.
       for (let j = Math.min(route.length - 1, k + 400); j > k; j--) {
         const [px, py] = route[j];
@@ -570,7 +574,7 @@ async function follow(page, route, opts = {}) {
       if (!r || !r.ok) refused++;
       hit = landed();
     }
-    const out = { landed: !!hit, digs, refused, routeFrac: +(best / Math.max(1, route.length - 1)).toFixed(3), nodes: net.nodes.length, over: !!s.runOver };
+    const out = { near: +nearKnot().toFixed(1), landed: !!hit, digs, refused, routeFrac: +(best / Math.max(1, route.length - 1)).toFixed(3), nodes: net.nodes.length, over: !!s.runOver };
     if (hit) {
       let east = 0, e42 = 0, maxM = 0, len = 0;
       for (let n = hit; n && n.parentId != null;) {
