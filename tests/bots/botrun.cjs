@@ -8,8 +8,7 @@ const { OUT, sleep } = require('./lib.cjs');
 // dose only after `reactMs` of rot, and only on rot that is ON SCREEN below the HUD — if there is
 // none, a real click on the rot banner (which pans to it) and try again on a later step; then a real
 // click on the kit to arm and a real click on the middle of the visible rot.
-async function uiItems(page, ui, reactMs) {
-  const v = await page.evaluate(() => {
+const VISIBLE = () => {
     const g = window.__game, s = g.state;
     if (s.runOver || !s.active) return null;
     const cv = document.getElementById('game').getBoundingClientRect();
@@ -27,7 +26,9 @@ async function uiItems(page, ui, reactMs) {
       if (x > cv.left + 8 && x < cv.right - 8 && y > top + 8 && y < bot) vis.push({ x, y });
     }
     return { attached: g.mine.attached(), infect: !!s.mineInfect, items: g.mine.items(), vis, armed: g.mine.armed() };
-  });
+};
+async function uiItems(page, ui, reactMs) {
+  const v = await page.evaluate(VISIBLE);
   if (!v) return [];
   const acts = [], now = Date.now();
   ui.attSince = v.attached > 0 ? (ui.attSince || now) : 0;
@@ -38,17 +39,27 @@ async function uiItems(page, ui, reactMs) {
   ui.rotSince = v.infect ? (ui.rotSince || now) : 0;
   if (v.infect && v.items.amputate > 0 && now - ui.rotSince >= reactMs) {
     if (!v.vis.length) {
-      await page.click('#hud-infect').catch(() => {});      // the banner pans to the rot
+      // The banner pans to the rot. Look BEFORE digging again: the next dig brings the camera home
+      // (the follow camera re-arms on a dig), which is what a player who has just panned to cut does not do.
+      await page.click('#hud-infect').catch(() => {});
       acts.push('rot-banner(ui)');
-    } else {
+      await sleep(900);
+      const w = await page.evaluate(VISIBLE);
+      if (w) v.vis = w.vis;
+    }
+    if (v.vis.length) {
       let cx = 0, cy = 0; for (const q of v.vis) { cx += q.x; cy += q.y; } cx /= v.vis.length; cy /= v.vis.length;
       let best = v.vis[0], bd = Infinity;
       for (const q of v.vis) { const d = (q.x - cx) ** 2 + (q.y - cy) ** 2; if (d < bd) { bd = d; best = q; } }
       if (v.armed !== 'amputate') { await page.click('#kit-amputate').catch(() => {}); await sleep(120); }
       await page.mouse.click(best.x, best.y);
       await sleep(150);
-      const r = await page.evaluate(() => ({ items: window.__game.mine.items(), rot: window.__game.state.active.nodes.filter((n) => n.infected).length }));
-      acts.push(`amputate(ui) ${v.vis.length} visible, ${r.rot} rotten left, ${r.items.amputate} doses`);
+      const r = await page.evaluate(() => {
+        const rot = window.__game.state.active.nodes.filter((n) => n.infected);
+        const pids = new Set(rot.map((n) => n._infPatch == null ? 'none' : n._infPatch));
+        return { items: window.__game.mine.items(), rot: rot.length, patches: [...pids].join('|') };
+      });
+      acts.push(`amputate(ui) ${v.vis.length} visible, ${r.rot} rotten left${r.rot ? ' (patch ' + r.patches + ')' : ''}, ${r.items.amputate} doses`);
       if (r.items.amputate === v.items.amputate) ui.rotSince = now;   // missed: react again later
     }
   }
