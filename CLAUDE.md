@@ -5089,6 +5089,9 @@ Numbers here are measured, not planned.
     infected in runs 4-12**; median worm drain **0.30** per run (max 43.8 and 27.1 — runs where the
     worms re-attached after the flask stock was spent); 26 runs used a flask, 8 a dose (every
     infection cured).
+  - **ending-check's infected-ending probe hung on M6's 30 s first clock** (it set `infectionMs` 6000
+    and polled 20 s; a fresh save's first rot now reads `firstInfectionMs`): 85/87 in the first full
+    `--mine`. It sets `firstInfectionMs` 6000 too (same fix as mine-check's deadline probe); 87/87.
 
 ## Two games on the title screen: Survival and Campaign
 

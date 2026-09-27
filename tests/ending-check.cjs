@@ -371,6 +371,7 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       await new Promise((res) => setTimeout(res, 2000));
       const reached = g.mine.maxDepth();
       s.config.mine.infectionMs = 6000;             // the deadline is not under test; the depth is
+      s.config.mine.firstInfectionMs = 6000;        // M6: a fresh save's FIRST infection gets 30 s, past this 20 s loop
       let tip = null;
       for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
       g.mine.spawnCloud(tip.x, tip.y);
