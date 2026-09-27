@@ -308,6 +308,18 @@ const COLONY = async ({ n, maxM, QUIET }) => {
       console.log(`        seed ${seed}: colony ${c.nodes}, breach ${br.rotten}, dose ${JSON.stringify({ ok: d.ok, rot: d.rot, clean: d.cleanRemoved, rotten: d.rotten, infect: d.infect, alive: d.alive, nodes: d.nodes })}`);
       await b.ctx.close();
     }
+    // A DENSE KNOT (seed 7): ~20 strands under one cloud, recorded at 30-40 before the verify round.
+    // Printed, and bounded at 45 — a breach's size is its SEED count (every clean strand the cloud
+    // covers), so a regression that multiplies seeds shows here first.
+    {
+      const b = await E.bootMine(7);
+      const c = await colony(b.page, 150, 30);
+      const br = await BREACH(b.page, [0.55]);
+      const seeds = await b.page.evaluate(() => window.__game.state.active.nodes.filter((q) => q._infSeed).length);
+      console.log(`        dense knot, seed 7: colony ${c.nodes}, breach ${br.rotten} (${seeds} seeds)`);
+      ok('a dense knot (seed 7) breaches 45 strands or fewer', br.rotten > 0 && br.rotten <= 45, `${br.rotten} rotten, ${seeds} seeds, colony ${c.nodes}`);
+      await b.ctx.close();
+    }
     ok('each colony is ~150 strands', rows.every((r) => r.colony >= 150 && r.colony <= 260), rows.map((r) => r.colony).join(', '));
     ok('first contact infects 25 strands or fewer, 5/5 seeds', rows.every((r) => r.breach > 0 && r.breach <= 25),
        rows.map((r) => r.breach).join(', '));
@@ -571,10 +583,57 @@ const COLONY = async ({ n, maxM, QUIET }) => {
         return red;
       };
       const base = Math.ceil(performance.now() / 1000) * 1000;
-      return { wide: count(base + 250), tight: count(base + 750) };
+      const out = { wide: count(base + 250), tight: count(base + 750) };
+      // The dead-end glow lit ON the same tip (verify round: two mint glows hid the ring). The ring
+      // is drawn after the glow now, so it keeps its red.
+      const o = s._mineOnb || (s._mineOnb = {});
+      const saved = o.glow;
+      o.glow = { tips: [{ id: -1, x: w.x, y: w.y, ang: Math.PI / 2, clear: 60 }], until: base + 1e7, at: base };
+      out.glowWide = count(base + 1250); out.glowTight = count(base + 1750);
+      o.glow = saved;
+      return out;
     }, r.worm);
     ok('the attached worm wears a red ring, at both ends of its pulse', px.wide > 40 && px.tight > 40,
        `${px.wide} / ${px.tight} red px within 34 px of the worm (wide / tight)`);
+    ok('...and keeps it under a dead-end glow lit on the same tip', px.glowWide > 40 && px.glowTight > 40,
+       `${px.glowWide} / ${px.glowTight} red px with the glow on (wide / tight)`);
+
+    // ROT OFF SCREEN, WHILE ITS CLOCK RUNS: a chevron points at it, and the rot banner pans to it.
+    const rc = await b.page.evaluate(async (w) => {
+      const g = window.__game, s = g.state;
+      s.nematodes.length = 0;
+      s.config.mine.infectionMs = 600000; s.config.mine.firstInfectionMs = 600000;
+      s.config.trichoderma.moveSpeed = 0;
+      const clean = s.active.nodes.filter((q) => !q.infected);
+      let host = clean[0];
+      for (const q of clean) if (Math.hypot(q.x - w.x, q.y - w.y) > Math.hypot(host.x - w.x, host.y - w.y)) host = q;
+      g.mine.spawnCloud(host.x, host.y);
+      for (let i = 0; i < 80 && !g.mine.infect().rotten; i++) await new Promise((res) => setTimeout(res, 50));
+      g.mine.lookAt(host.x + (host.x > s.active.root.x ? -1500 : 1500), host.y - 300);
+      await new Promise((res) => setTimeout(res, 500));
+      const rotOn = s.active.nodes.some((q) => { if (!q.infected) return false; const p = g.camera.worldToScreen(q.x, q.y);
+        return p.x >= 0 && p.y >= 0 && p.x <= g.camera.viewW && p.y <= g.camera.viewH; });
+      return { rotten: g.mine.infect().rotten, on: !!s.mineInfect, rotOn, chev: g.mine.rotChevron(), view: { w: g.camera.viewW, h: g.camera.viewH } };
+    }, r.worm);
+    await b.page.screenshot({ path: path.join(ART, 'm6-rotchevron-390.png'), timeout: 8000, animations: 'disabled' }).catch(() => {});
+    const rv = rc.chev || {};
+    ok('rot off screen while its clock runs: a chevron on the screen edge points at it', rc.rotten > 0 && rc.on && !rc.rotOn && !!rc.chev
+       && rv.x >= 0 && rv.x <= rc.view.w && rv.y >= 0 && rv.y <= rc.view.h,
+       `${rc.rotten} rotten, clock ${rc.on}, rot on screen ${rc.rotOn}, chevron ${JSON.stringify(rc.chev)}`);
+    await b.page.click('#hud-infect', { timeout: 4000 }).catch((e) => console.log('   click failed: ' + e.message));
+    await sleep(400);
+    const ra = await b.page.evaluate(() => { const g = window.__game, s = g.state;
+      // On screen and clear of the HUD stack is the player-facing property; the camera cannot always
+      // centre it (a clamp keeps the view off the sky, so rot near the surface sits above centre).
+      let d = Infinity, seen = 0;
+      for (const q of s.active.nodes) if (q.infected) {
+        d = Math.min(d, Math.hypot(q.x - g.camera.x, q.y - g.camera.y));
+        const p = g.camera.worldToScreen(q.x, q.y);
+        if (p.x >= 0 && p.x <= g.camera.viewW && p.y >= 160 && p.y <= g.camera.viewH - 90) seen++;
+      }
+      return { d: Math.round(d), seen, chev: g.mine.rotChevron() }; });
+    ok('...tapping the rot banner brings the rot on screen, below the HUD, and the chevron goes', ra.seen > 0 && ra.chev === null,
+       `${ra.seen} rotten strands on screen, nearest ${ra.d} u from the view centre, chevron ${JSON.stringify(ra.chev)}`);
     ok('no page errors', b.errs.length === 0, b.errs.slice(0, 3).join(' | '));
     await b.ctx.close();
   }

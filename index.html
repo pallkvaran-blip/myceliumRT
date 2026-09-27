@@ -282,6 +282,7 @@
       border: 1.5px solid rgba(158,196,79,0.7); color: #9ec44f; box-shadow: 0 0 14px -2px rgba(158,196,79,0.45);
       font: 800 13px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: .1em; text-transform: uppercase; }
     .rotbanner[hidden] { display: none; }
+    #hud-infect.rotbanner { pointer-events: auto; cursor: pointer; }   /* M6: a tap pans to the rot */
     /* M6: the instruction under the clock, on its own line so the banner stays narrow on a phone. */
     .rotbanner { flex-wrap: wrap; justify-content: center; row-gap: 3px; }
     .rotbanner .rb-hint { flex: 1 0 100%; text-align: center; font: 600 11px/1.15 ui-sans-serif, system-ui, sans-serif;
@@ -18102,6 +18103,7 @@ function stepNematodes(state, phase = 'both') {
     : 0;
   let attached = 0;
   const mineMaxAttached = mineWorms ? Math.max(0, mw.maxAttached | 0) : 0;
+  const MINE_NEWBORN_TICKS = 6;   // how long an unattached newborn keeps its breeding slot (3 s at 500 ms)
   const mineCand = [];
   // Worms can only sense and eat strands that have actually GROWN IN (net.grownIn): a grow
   // commits its whole path at once, so tissue still animating in isn't there to be found yet.
@@ -18271,11 +18273,15 @@ function stepNematodes(state, phase = 'both') {
   // within reach). `maxPopulation` (64) stays underneath as a safety bound.
   // A newborn that has not attached yet (its first strand was taken by a sibling, so it is still
   // crawling the last few units) is counted as attached, or the room would overshoot when it lands.
+  // `_mineNew` is a TICK COUNT, not a flag (verify round): a newborn whose strand is cut away or
+  // taken never attaches, and as a flag it held a slot for the rest of the run. It stops counting
+  // after `MINE_NEWBORN_TICKS` (3 s) — a newborn that lands within reach attaches on its first tick.
+  if (mineWorms) for (const w of state.nematodes) if (w._mineNew && !w.attached) w._mineNew = Math.max(0, (+w._mineNew | 0) - 1);
   if (mineCand.length) {
     let pending = 0;
     for (const w of state.nematodes) if (w._mineNew && !w.attached) pending++;
     const room = Math.max(0, mineMaxAttached - attached - pending);
-    for (let k = 0; k < mineCand.length && k < room; k++) { mineCand[k]._mineNew = true; newborns.push(mineCand[k]); }
+    for (let k = 0; k < mineCand.length && k < room; k++) { mineCand[k]._mineNew = MINE_NEWBORN_TICKS; newborns.push(mineCand[k]); }
   }
   if (newborns.length) for (const b of newborns) state.nematodes.push(b);
   // WHAT A WORM EATS FADES OUT TOO (owner's ask), the same way rot that falls away does — see
@@ -23363,12 +23369,22 @@ function mineRotPatch(state, x, y) {
       for (const o of (byPatch.get(n._infPatch) || [])) add(o);
     }
   }
-  // ...and the clean margin: every clean strand within one segment of the patch.
+  // ...and the clean margin: every clean strand within one segment of the patch. Through buckets
+  // over the PATCH (one segment square, so a 3x3 look is exact): the plain double loop was
+  // O(clean x patch), tens of millions of distance tests on a late cut, inside a tap (verify round).
   const clean = new Set(), s2 = seg * seg * 1.0001;
   const patchNodes = rot.filter((n) => inPatch.has(n.id));
+  const pb = new Map();
+  for (const n of patchNodes) { const k = key(Math.floor(n.x / B), Math.floor(n.y / B)); let a = pb.get(k); if (!a) pb.set(k, a = []); a.push(n); }
   for (const c of net.nodes) {
     if (c.infected) continue;
-    for (const n of patchNodes) if ((c.x - n.x) ** 2 + (c.y - n.y) ** 2 <= s2) { clean.add(c.id); break; }
+    const cx = Math.floor(c.x / B), cy = Math.floor(c.y / B);
+    let hit = false;
+    for (let i = -1; i <= 1 && !hit; i++) for (let j = -1; j <= 1 && !hit; j++) {
+      const a = pb.get(key(cx + i, cy + j)); if (!a) continue;
+      for (const n of a) if ((c.x - n.x) ** 2 + (c.y - n.y) ** 2 <= s2) { hit = true; break; }
+    }
+    if (hit) clean.add(c.id);
   }
   return { rot: patchNodes, clean };
 }
@@ -27577,6 +27593,9 @@ class UI {
     // M6: the worm chip POINTS — a tap pans to the nearest attached worm.
     const wmc = hud.querySelector('#hud-worms');
     if (wmc && mineOn) wmc.addEventListener('click', (e) => { e.stopPropagation(); this.handlers.onWormChip && this.handlers.onWormChip(); });
+    // ...and so does the rot banner: a tap pans to the nearest rotten strand (M6 verify round).
+    const rbn = hud.querySelector('#hud-infect');
+    if (rbn && mineOn) rbn.addEventListener('click', (e) => { e.stopPropagation(); this.handlers.onRotChip && this.handlers.onRotChip(); });
     this.el.hudtop = hud.querySelector('.hudtop');   // _syncTopRow measures this against the Actions pill
     this.el.logdrop = hud.querySelector('#logdrop');
     this.el.loglist = hud.querySelector('#loglist');
@@ -37223,6 +37242,7 @@ function begin(newState) {
       attached: () => state.mineAttached | 0,
       // M6: the edge chevrons the LAST frame drew for off-screen attached worms ({x, y} screen, wx/wy world).
       chevrons: () => (state._mineChevrons || []).map((c) => Object.assign({}, c)),
+      rotChevron: () => (state._mineRotChevron ? Object.assign({}, state._mineRotChevron) : null),
       // How many ambient sight rings the LAST frame drew, and the switch behind them.
       sight: () => ({ on: !!(state.config.mine && state.config.mine.showSight),
                       drawn: state._mineSightDrawn | 0 }),
@@ -37810,6 +37830,18 @@ const handlers = {
       if (!w.attached) continue;
       const d = (w.x - camera.x) ** 2 + (w.y - camera.y) ** 2;
       if (d < bd) { bd = d; best = w; }
+    }
+    if (!best) return;
+    camera.x = best.x; camera.y = best.y; camera.clamp(); mineReleaseCamera();
+  },
+  // The rot banner points the same way: to the rotten strand nearest the view's centre.
+  onRotChip: () => {
+    if (!state || state.runOver || !state.substrate || !state.substrate.mine || !state.active) return;
+    let best = null, bd = Infinity;
+    for (const n of state.active.nodes) {
+      if (!n.infected) continue;
+      const d = (n.x - camera.x) ** 2 + (n.y - camera.y) ** 2;
+      if (d < bd) { bd = d; best = n; }
     }
     if (!best) return;
     camera.x = best.x; camera.y = best.y; camera.clamp(); mineReleaseCamera();
@@ -40150,6 +40182,7 @@ function renderFrame(time, dtFrames = 1) {
   drawTraps(time);
   drawTargetingCursor(time);
   if (state.substrate.mine) drawMineOnboard(time);   // M4: ghost finger, dead-end glow, tip rings, price-line label
+  if (state.substrate.mine) drawMineThreatMarks(time);   // M6: attach rings + chevrons, above the glow
   drawFloaters(time, dtFrames);  // floating "+N⚡" energy labels over piles (on top of the map)
   if (winCele) drawWinCelebration(time);   // win: mushrooms fruit + spores drift off on the wind
 
@@ -42808,6 +42841,84 @@ function drawHomeProps() {
   withWorldClip(() => ctx.drawImage(bush, s.x - sw / 2, by - sh, sw, sh));
 }
 
+// M6: THE MARKS THAT SAY WHERE A THREAT IS — the ring on the strand an attached worm drinks from, an
+// edge chevron for an attached worm off screen, and (verify round) one for ROT off screen while its
+// clock runs. Drawn AFTER `drawMineOnboard`, so the dead-end glow can never sit on top of the ring
+// (the verifier found a ring lost under two mint glow circles).
+function mineChevron(ex, ey, ang, fill, pulse) {
+  ctx.save();
+  ctx.translate(ex, ey);
+  // A dark disc under the arrow: a thin outline alone disappeared over blue-grey rock at the side
+  // edge (verify round), where the arrow was a 14 px red shape on a busy mid-tone.
+  ctx.fillStyle = 'rgba(12,8,6,0.62)';
+  ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill();
+  ctx.rotate(ang);
+  ctx.fillStyle = fill.replace('A', String(0.8 + 0.2 * pulse));
+  ctx.strokeStyle = 'rgba(12,8,6,0.9)'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(-9, -12); ctx.lineTo(-3, 0); ctx.lineTo(-9, 12); ctx.closePath();
+  ctx.stroke(); ctx.fill();
+  ctx.restore();
+}
+function mineChevronAt(time, hp) {
+  const cx = camera.viewW / 2, cy = camera.viewH / 2, dx = hp.x - cx, dy = hp.y - cy;
+  // Kept clear of the HUD stack at the top — rows, rot banner and hint, measured (`mineHudBandPx`,
+  // cached 300 ms: it reads the DOM) and never above 100 px — of the item kit at the bottom (78 px)
+  // and 24 px from the sides. A fixed 100 put the chevron on the rot banner at 390 px.
+  if (!state._mineChevBand || time - state._mineChevBand.at > 300) state._mineChevBand = { at: time, px: mineHudBandPx() };
+  const m = 24, mt = Math.max(100, (state._mineChevBand.px | 0) + 18), mb = 80;
+  const k = Math.min(Math.abs((cx - m) / (dx || 1e-6)), Math.abs(((dy < 0 ? cy - mt : cy - mb)) / (dy || 1e-6)));
+  return { x: cx + dx * k, y: cy + dy * k, ang: Math.atan2(dy, dx) };
+}
+function drawMineThreatMarks(time) {
+  const sub = state.substrate, worms = state.nematodes || [];
+  const z = camera.zoom, cs = sub.cellSize;
+  const chev = [];
+  state._mineRotChevron = null;
+  if (!state.active) { state._mineChevrons = chev; return; }
+  const pulse = 0.5 + 0.5 * Math.sin(time * 0.001 * Math.PI * 2);   // 1 Hz
+  const byId = state.active.byId;
+  const onScr = (p) => p.x >= 0 && p.y >= 0 && p.x <= camera.viewW && p.y <= camera.viewH;
+  ctx.save();
+  for (const w of worms) {
+    if (!w.attached) continue;
+    const host = (w.targetId != null && byId.get(w.targetId)) || w;
+    const hp = camera.worldToScreen(host.x, host.y);
+    if (onScr(hp)) {
+      const rr = Math.max(9, cs * 0.42 * z) * (1 + 0.35 * pulse);
+      // A dark halo under the red, so the ring reads on warm soil at every phase of the pulse (at
+      // 0.55 alpha with no halo it all but vanished on brown at the wide end of the beat).
+      const lw = Math.max(2, 2.6 * z);
+      ctx.beginPath(); ctx.arc(hp.x, hp.y, rr, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(20,10,8,0.55)'; ctx.lineWidth = lw + 2.5; ctx.stroke();
+      ctx.strokeStyle = `rgba(236,104,80,${0.8 + 0.2 * (1 - pulse)})`; ctx.lineWidth = lw; ctx.stroke();
+      continue;
+    }
+    const c = mineChevronAt(time, hp);
+    chev.push({ x: Math.round(c.x), y: Math.round(c.y), wx: w.x, wy: w.y });
+    mineChevron(c.x, c.y, c.ang, 'rgba(226,112,90,A)', pulse);
+  }
+  // ROT OFF SCREEN, WHILE ITS CLOCK RUNS: a mould-green chevron at the nearest rotten strand. On a
+  // 20 s clock the player cannot tap rot they cannot find (verify round). One O(nodes) pass, only
+  // while `mineInfect` is set.
+  if (state.mineInfect) {
+    let near = null, nd = Infinity, seen = false;
+    for (const n of state.active.nodes) {
+      if (!n.infected) continue;
+      const p = camera.worldToScreen(n.x, n.y);
+      if (onScr(p)) { seen = true; break; }
+      const d = (n.x - camera.x) ** 2 + (n.y - camera.y) ** 2;
+      if (d < nd) { nd = d; near = n; }
+    }
+    if (!seen && near) {
+      const c = mineChevronAt(time, camera.worldToScreen(near.x, near.y));
+      state._mineRotChevron = { x: Math.round(c.x), y: Math.round(c.y), wx: near.x, wy: near.y };
+      mineChevron(c.x, c.y, c.ang, 'rgba(150,200,70,A)', pulse);
+    }
+  }
+  ctx.restore();
+  state._mineChevrons = chev;
+}
+
 // Nematodes: small pale wriggling worms. They writhe in place, tint reddish
 // while feeding, and glisten green while stuck by a fresh Excrete. The Excrete
 // action fires a brief sticky pulse over the network.
@@ -42832,7 +42943,7 @@ function drawNematodes(time) {
     ctx.restore();
   }
 
-  if (!worms || !worms.length) { state._mineChevrons = []; return; }
+  if (!worms || !worms.length) return;
 
   // --- sight-range overlay: a soft glow clipped to what the worm can SEE (rock
   // blocks its line of sight), shown for SEARCHING worms (a worm that's already
@@ -42850,51 +42961,7 @@ function drawNematodes(time) {
     }
   }
 
-  // M6: AN ATTACHED WORM IS A THING YOU CAN FIND. In the mine it is drawn at 2.5x with a ring that
-  // pulses once a second on the strand it drinks from (a separate mark from the green sensing wash),
-  // and one that is OFF SCREEN gets a worm-coloured chevron at the screen edge pointing at it.
   const mineW = !!(sub && sub.mine);
-  const chev = [];
-  if (mineW && state.active) {
-    const pulse = 0.5 + 0.5 * Math.sin(time * 0.001 * Math.PI * 2);   // 1 Hz
-    const byId = state.active.byId;
-    ctx.save();
-    for (const w of worms) {
-      if (!w.attached) continue;
-      const host = (w.targetId != null && byId.get(w.targetId)) || w;
-      const hp = camera.worldToScreen(host.x, host.y);
-      const onScreen = hp.x >= 0 && hp.y >= 0 && hp.x <= camera.viewW && hp.y <= camera.viewH;
-      if (onScreen) {
-        const rr = Math.max(9, cs * 0.42 * z) * (1 + 0.35 * pulse);
-        // A dark halo under the red, so the ring reads on warm soil at every phase of the pulse (at
-        // 0.55 alpha with no halo it all but vanished on brown at the wide end of the beat).
-        const lw = Math.max(2, 2.6 * z);
-        ctx.beginPath(); ctx.arc(hp.x, hp.y, rr, 0, Math.PI * 2);
-        ctx.strokeStyle = 'rgba(20,10,8,0.55)'; ctx.lineWidth = lw + 2.5; ctx.stroke();
-        ctx.strokeStyle = `rgba(236,104,80,${0.8 + 0.2 * (1 - pulse)})`; ctx.lineWidth = lw; ctx.stroke();
-        continue;
-      }
-      // Off screen: a chevron on the edge, on the line from the view's centre to the worm.
-      const cx = camera.viewW / 2, cy = camera.viewH / 2, dx = hp.x - cx, dy = hp.y - cy;
-      // Kept clear of the HUD stack at the top — rows, rot banner and hint, measured (`mineHudBandPx`,
-      // cached 300 ms: it reads the DOM) and never above 100 px — of the item kit at the bottom (78 px)
-      // and 22 px from the sides. A fixed 100 put the chevron on the rot banner at 390 px.
-      if (!state._mineChevBand || time - state._mineChevBand.at > 300) state._mineChevBand = { at: time, px: mineHudBandPx() };
-      const m = 22, mt = Math.max(100, (state._mineChevBand.px | 0) + 16), mb = 78;
-      const k = Math.min(Math.abs((cx - m) / (dx || 1e-6)), Math.abs(((dy < 0 ? cy - mt : cy - mb)) / (dy || 1e-6)));
-      const ex = cx + dx * k, ey = cy + dy * k, ang = Math.atan2(dy, dx);
-      chev.push({ x: Math.round(ex), y: Math.round(ey), wx: w.x, wy: w.y });
-      ctx.save();
-      ctx.translate(ex, ey); ctx.rotate(ang);
-      ctx.fillStyle = `rgba(226,112,90,${0.75 + 0.25 * pulse})`;
-      ctx.strokeStyle = 'rgba(20,10,8,0.85)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(12, 0); ctx.lineTo(-7, -10); ctx.lineTo(-2, 0); ctx.lineTo(-7, 10); ctx.closePath();
-      ctx.stroke(); ctx.fill();
-      ctx.restore();
-    }
-    ctx.restore();
-  }
-  state._mineChevrons = chev;
 
   ctx.save();
   ctx.lineCap = 'round';
