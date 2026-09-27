@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). Next: M8.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). Next: M8.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5493,7 +5493,10 @@ Numbers here are measured, not planned.
   resting zoom (`m7-pillar-leg<N>-<k>[-old]-390.png`). The look is still the owner's call.
 - **journey-check 90 -> 96** (`world` +3 pillar gates +1 old-seam control; `stream` 3 -> 4: the
   one-per-frame assertion rewritten, + the lookahead-on stamp, + its page-errors line).
-- **`--mine` after verifier round 4:** SUITE_LINE
+- **`--mine` after verifier round 4: 1101 passed, 0 failed across 18 checks** (boot 22, store 124, mine 193,
+  ending 87, ship 58, phone 51, onboard 63, econ 79, counter 60, journey 96, zip 24, level 27, aim 9,
+  scale 26, threat 116, harvest 28, mould 20, core 18). The run before read 1100/1101 (ship's slow-art mask
+  comparison: the lookahead standing down during the held curtain, fixed as above).
 - **`--mine` after M7: 1046 passed, 0 failed across 18 checks** (boot 22, store 124, mine 193, ending 87,
   ship 58, phone 51, onboard 63, econ 79, counter 60, journey 41, zip 24, level 27, aim 9, scale 26,
   threat 116, harvest 28, mould 20, core 18). No existing assertion changed. GOTCHA: the runner parses
