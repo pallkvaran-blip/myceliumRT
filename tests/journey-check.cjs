@@ -29,10 +29,17 @@
  *            printed), closed ground at a seam within +0.05 of the chunk's own, drawn rock at seam columns
  *            -2..+1 within 0.15 of columns 6-17, spine per seam <= 2x an interior line's 90th percentile,
  *            no seam hairline longer than the longest interior line. Round 2's build (d6bb921) fails the
- *            two density gates (+0.14..0.17, +0.28..0.32). Controls: the free layout's flood (printed only
- *            — it passes through the seam slits); leg 2 with pass (e) off leaves anchors unjoined.
- *   stream   one chunk a frame, and the view widened 5 columns on a leg so a chunk whose seam band is on
- *            screen has its neighbour (lookahead off, so the widening alone is what is measured).
+ *            two density gates (+0.14..0.17, +0.28..0.32). Round 4: FREE-STANDING THIN WALLS (the auditor's
+ *            pillar metric, legprobe `world` / PILLAR_OK): pillar rows per seam line (mean) <= an interior
+ *            line's 90th percentile, the 90th-percentile seam <= the worst interior line, no seam pillar
+ *            run more than 2 rows taller than the tallest interior one — with a live negative control
+ *            (`MYCELIUM_OLD_SEAM_CHAIN`, round 3's seam, fails it). Controls: the free layout's flood
+ *            (printed only — it passes through the seam slits); leg 2 with pass (e)'s WALK off (trunk
+ *            stubs still carved) leaves anchors unjoined.
+ *   stream   the view widened 5 columns on a leg so a chunk whose seam band is on screen has its
+ *            neighbour (lookahead off, so the widening alone is what is measured); a view jump wanting
+ *            several chunks gets them one a frame, never on adjacent frames, each stamped on the next
+ *            frame; and with the lookahead ON, a chunk it makes while idle is collided on the next frame.
  *   island   on candidate seeds that were NOT curated, the taproot chamber's growth-lattice flood (held
  *            inside the island chunk) reaches the chunk's own seam column: the repair's guarantee
  *            survives the seal boulders and the stitch whatever the seed.
@@ -317,7 +324,21 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
            w.spineSeam != null && w.spineSeam <= 2 * w.spineMid90, `${w.spineSeam} per seam, interior mean ${w.spineMid}, 90th percentile ${w.spineMid90}`);
         ok(`leg ${leg}: no seam carries a longer vertical open run than the longest interior line`,
            w.hairSeam != null && w.hairSeam <= w.hairMid, `seam ${w.hairSeam} rows, interior max ${w.hairMid} (90th percentile ${w.hairMid90})`);
+        ok(`leg ${leg}: a chunk seam draws no more free-standing thin walls than an interior line (pillar rows: seam mean <= interior p90, seam p90 <= worst interior line, tallest seam run <= tallest interior + 2)`,
+           LP.PILLAR_OK(w), `seam mean ${w.pillarSeam} (p90 ${w.pillarSeam90}, tallest run ${w.pillarRunSeam}); interior mean ${w.pillarMid}, p90 ${w.pillarMid90}, worst ${w.pillarMidMax}, tallest run ${w.pillarRunMid}; worst seams [ci, rows, run] ${JSON.stringify(w.pillarWorst)}`);
         ok(`no page errors (world, leg ${leg})`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
+        await b.ctx.close();
+      }
+      {
+        // THE PILLAR GATE CAN FAIL: round 3's seam (seal 3 columns short, one-sided runs sealed by the
+        // chain, the chain on every gallery row), put back by a test knob on the same seed. Round 3's own
+        // build measured 14.7 / 14.5 / 16.2 pillar rows per seam against interior 90th percentiles of 11-12.
+        const b = await E.boot('#leg,1,2', 390, 844, { before: (page) => page.addInitScript(() => { window.MYCELIUM_OLD_SEAM_CHAIN = true; }) });
+        await b.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.leg && window.__game.mine.leg()
+          && window.__game.state.substrate._fineSolid), { timeout: 40000 });
+        const w = await LP.world(b.page);
+        ok('negative control: leg 2 with round 3\'s seam chain (`MYCELIUM_OLD_SEAM_CHAIN`) fails the pillar gate',
+           w.pillarSeam != null && !LP.PILLAR_OK(w), `seam mean ${w.pillarSeam} (p90 ${w.pillarSeam90}, run ${w.pillarRunSeam}); interior p90 ${w.pillarMid90}, worst ${w.pillarMidMax}, run ${w.pillarRunMid}`);
         await b.ctx.close();
       }
       {
@@ -339,7 +360,10 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
         // (Round 3: not "strands rewards" any more — rewards are no longer pass (e)'s job — and not "does
         // not reach the taproot" either: measured, leg 2 still crosses on the lattice without it, through
         // porous rock the carve's model calls closed. What pass (e) promises is the crossing IN THAT MODEL.)
-        ok('negative control: leg 2 with pass (e) switched off (`MYCELIUM_NO_REWARD_REPAIR`) leaves anchors unjoined in the carve\'s model (the assertion above can fail)',
+        // (Round 4: the knob skips only the WALK now. Round 3's also skipped the trunk stubs, and a trunk
+        // anchor is an edge cell that passes only once its stub is carved, so every trunk counted as
+        // unjoined by construction and this could not fail whatever the walk did.)
+        ok('negative control: leg 2 with pass (e)\'s walk switched off (`MYCELIUM_NO_REWARD_REPAIR`, trunk stubs still carved) leaves anchors unjoined in the carve\'s model (the assertion above can fail)',
            w.unjoined > 0, `${w.unjoined} unjoined`);
         await b.ctx.close();
       }
@@ -369,9 +393,61 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
       });
       ok('the neighbour of a chunk whose seam band is on screen is generated (lookahead off, view widened on a leg)', r.had,
          `view's east edge 2 columns inside chunk ${r.k}'s seam: chunk ${r.k + 1} ${r.had ? 'exists' : 'missing'}`);
-      ok('...and no frame generated more than one chunk', r.log.length > 0 && r.log.every((e) => e.made <= 1),
-         `${r.log.length} generating frames: ${r.log.map((e) => e.made + '@' + e.ms + 'ms').join(' ')}`);
+      // A VIEW JUMP THAT WANTS SEVERAL CHUNKS AT ONCE (verifier round 4: "no frame made more than one" re-read
+      // the frame loop's own `max: 1` and could not fail). Zoomed out over ungenerated ground the view wants
+      // 3+ new chunks on one frame; what must hold is what the cap and the stamp alternation buy: every one
+      // is made, one per frame, never on adjacent frames, and each is stamped on the very next frame.
+      const j = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, cw = s.config.mine.chunkCols, cam = g.camera;
+        const frame = () => new Promise((q) => requestAnimationFrame(() => q()));
+        const before = g.mine.chunks().slice(), n0 = g.mine.genLog().length, far = Math.max(...before) + 4;
+        cam.zoom = 0.2; g.mine.lookAt((far + 0.5) * cw * cs, sub.surfaceY + 20 * cs); cam.zoom = 0.2;
+        const half = (cam.viewW || 390) / 2 / cam.zoom;
+        const lo = Math.floor((cam.x - half) / cs) - 5, hi = Math.floor((cam.x + half) / cs) + 5;
+        const wanted = []; for (let ci = Math.floor(lo / cw); ci <= Math.floor(hi / cw); ci++) if (ci >= 0 && !before.includes(ci)) wanted.push(ci);
+        for (let f = 0; f < 120; f++) { await frame(); if (wanted.every((ci) => g.mine.chunks().includes(ci)) && !s._mineStampNext) break; }
+        for (let f = 0; f < 3; f++) await frame();
+        return { wanted, have: g.mine.chunks(), log: g.mine.genLog().slice(n0) };
+      });
+      const L = j.log, madeAll = j.wanted.length >= 2 && j.wanted.every((ci) => j.have.includes(ci));
+      const oneEach = L.length >= j.wanted.length && L.every((e) => e.made === 1);
+      const apart = L.every((e, i) => i === 0 || e.frame - L[i - 1].frame >= 2);
+      const stamped = L.every((e) => e.stampFrame === e.frame + 1);
+      ok('a view jump wanting several chunks at once gets every one, one per frame, never on adjacent frames, each stamped on the next frame',
+         madeAll && oneEach && apart && stamped,
+         `wanted ${JSON.stringify(j.wanted)}; ${L.length} generating frames: ${L.map((e) => `${e.cis}@f${e.frame}(stamp f${e.stampFrame}, ${e.ms}+${e.stampMs}ms)`).join(' ')}`);
       ok('no page errors (stream)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+      await b.ctx.close();
+    }
+    {
+      // THE SHIPPED PATH, LOOKAHEAD ON (verifier round 4: every streaming assertion ran with it off). Sit
+      // idle on a leg until the frame loop makes a chunk nobody asked for yet (`ahead: true`), then: it
+      // was stamped on the next frame, the watermark covers its sprites, and its rock is solid where the
+      // boot's own chunks are (sprite centres on the fine mask, the home chunk as the control).
+      const b = await E.boot('#leg,1,2');
+      await b.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.leg && window.__game.mine.leg()
+        && window.__game.state.substrate._fineSolid), { timeout: 40000 });
+      const r = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state, sub = s.substrate;
+        const frame = () => new Promise((q) => requestAnimationFrame(() => q()));
+        let e = null;
+        for (let f = 0; f < 900 && !e; f++) { await frame(); e = g.mine.genLog().find((x) => x.ahead); }
+        if (!e) return null;
+        for (let f = 0; f < 3; f++) await frame();
+        e = g.mine.genLog().find((x) => x.ahead);
+        const F = sub._fineSize, W = sub._fineCols, fs = sub._fineSolid;
+        const solidAt = (sp) => { const fc = Math.floor(sp.x / F), fr = Math.floor((sp.y - sub.surfaceY) / F), cell = sub.cellAtWorld(sp.x, sp.y);
+          return fs[fr * W + fc] === 1 || !!(cell && (cell.water || cell.maxNutrient > 0)); };
+        let n = 0, ok = 0; for (let i = e.s0; i < e.s1; i++) { n++; if (solidAt(sub.levelSprites[i])) ok++; }
+        // Control: the sprites of the chunks the boot made (stamped by the full solidifyRock).
+        const firstAhead = Math.min(...g.mine.genLog().map((x) => x.s0));
+        let cn = 0, cok = 0; for (let i = 0; i < Math.min(firstAhead, sub.levelSprites.length); i++) { cn++; if (solidAt(sub.levelSprites[i])) cok++; }
+        return { e, n, ok, cn, cok, from: sub._solidFrom | 0 };
+      });
+      ok('with the lookahead on, idle frames make a chunk ahead, and it is stamped on the next frame with its rock as solid as the boot\'s',
+         !!r && r.e.stampFrame === r.e.frame + 1 && r.from >= r.e.s1 && r.n > 0 && r.ok / r.n >= r.cok / r.cn - 0.02,
+         r ? `chunk ${r.e.cis} made @f${r.e.frame} (${r.e.ms} ms), stamped @f${r.e.stampFrame} (${r.e.stampMs} ms); watermark ${r.from} >= ${r.e.s1}; sprite centres solid ${r.ok}/${r.n} vs boot ${r.cok}/${r.cn}` : 'no lookahead chunk in 900 frames');
+      ok('no page errors (stream, lookahead on)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();
     }
     // ======================================================================================

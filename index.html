@@ -22928,14 +22928,17 @@ function mineGenerateChunk(state, ci) {
   // whose sprite would land on it is dropped below, and a seal boulder never covers `noPlug` ground.
   const repCut = J ? new Uint8Array(W * rows) : null;
   // TEST KNOB, journey-check's negative control only: `window.MYCELIUM_NO_REWARD_REPAIR = true` (an init
-  // script) skips the trunks and the repair, so the check can show the leg's crossing fails without
-  // them. Nothing in the game sets it.
+  // script) skips the WALK — the connectors that join the anchors — and still carves the trunk stubs,
+  // so the unjoined count judges the unrepaired carve by the same anchors and the same `pass` as the
+  // repaired one. (Round 3's knob skipped the trunks too, and a trunk anchor is an edge cell that only
+  // passes once its trunk is carved — so every trunk counted unjoined by construction and the control
+  // could not fail: verifier round 4.) Nothing in the game sets it.
   const repairOn = !!J && !(typeof window !== 'undefined' && window.MYCELIUM_NO_REWARD_REPAIR);
   // The only edge-column cells a journey chunk counts as passage: its trunk mouths (both seam cells
   // open, so the stitch never covers them). See THE EDGE COLUMNS below.
   const trunkCell = J ? new Uint8Array(W * rows) : null;
-  // The anchors and the `unjoined` count run on every journey chunk; with the test knob set nothing is
-  // carved (no trunks, no walk), so the count says what the carve alone leaves unjoined.
+  // The anchors and the `unjoined` count run on every journey chunk; with the test knob set only the walk
+  // is skipped, so the count says what the carve plus its trunk stubs leaves unjoined.
   if (J) {
     const seedJ = (state.mineSeed || state.seed || 1) >>> 0;
     const erng = mineChunkRng((seedJ ^ 0x2EAC) >>> 0, ci);
@@ -22985,7 +22988,7 @@ function mineGenerateChunk(state, ci) {
       if (s <= 0 || s >= nCh) continue;          // the world's own edge has no neighbour
       const tr = trunkOf(s);
       if (tr < 0) continue;
-      if (repairOn) { ecarve(ce, tr, 1.7, true); ecarve(ci2, tr, 1.7, false); }
+      ecarve(ce, tr, 1.7, true); ecarve(ci2, tr, 1.7, false);
       trunks.push(tr);
       anchors.push([at(ce, tr)]);
     }
@@ -23583,9 +23586,9 @@ function mineGenerateChunk(state, ci) {
     // stitch then placed: the same seed, different rock, depending on play. This mask is the chunk's
     // own cells straight after its rewards were stamped, which is what the live cells say on a fresh
     // generation, and it never changes afterwards.
-    const wetMask = new Uint8Array(W * rows);
+    const wetMask = new Uint8Array(W * rows);   // a missing cell reads DRY, as the live `dry()` said
     for (let r = 0; r < rows; r++)
-      for (let c = c0; c <= c1; c++) { const cell = sub.cellAt(c, r); if (!cell || cell.water || cell.maxNutrient > 0) wetMask[at(c, r)] = 1; }
+      for (let c = c0; c <= c1; c++) { const cell = sub.cellAt(c, r); if (cell && (cell.water || cell.maxNutrient > 0)) wetMask[at(c, r)] = 1; }
     (J._wet || (J._wet = {}))[ci] = wetMask;
     (J._open || (J._open = {}))[ci] = open;
     (J._noPlug || (J._noPlug = {}))[ci] = noPlug;
@@ -23980,11 +23983,12 @@ function mineEnsureChunks(state, view, opts) {
   }
   let made = 0;
   const t0 = (typeof performance !== 'undefined' && opts) ? performance.now() : 0;
+  const s0 = sub.levelSprites ? sub.levelSprites.length : 0, madeCis = [];
   for (const ci of list) {
     if (made >= max) break;
     if (ci < 0 || ci >= total || done[ci]) continue;
     done[ci] = mineGenerateChunk(state, ci) || true;
-    made++;
+    made++; madeCis.push(ci);
     // NEW ROCK HAS TO BE COLLIDED, AND IT MUST NOT COST A FULL RE-STAMP. `solidifyRock` rebuilds
     // both masks from EVERY sprite in the world — at a few thousand sprites that is a visible hitch
     // on every chunk, i.e. every few digs, which is exactly the frame the player is watching. So a
@@ -24000,7 +24004,10 @@ function mineEnsureChunks(state, view, opts) {
   // how many, how long, and whether it was the idle lookahead or a chunk the colony / view needed now.
   if (made && opts) {
     const log = (state._mineGenLog || (state._mineGenLog = []));
-    log.push({ made, ms: +(performance.now() - t0).toFixed(2), ahead: lookahead });
+    // `frame` (the frame loop's counter), the chunks made and the sprite range they appended: what
+    // journey-check needs to see the stamp land on the NEXT frame, lookahead chunks included.
+    log.push({ made, ms: +(performance.now() - t0).toFixed(2), ahead: lookahead, frame: state._mineFrameNo | 0,
+               cis: madeCis, s0, s1: sub.levelSprites ? sub.levelSprites.length : 0 });
     if (log.length > 256) log.shift();
   }
   return made;
@@ -40176,8 +40183,15 @@ function advanceSim(time) {
     // arriving) means the chunk a dig needs has usually been made already.
     // (TEST KNOB `window.MYCELIUM_NO_LOOKAHEAD`: journey-check's reverse-order determinism boot turns the
     // lookahead off, or the chunks it wants to generate backwards are made forwards on idle frames first.)
-    const busy = pointers.size > 0 || !!(state.active && state.active._colonizePending)
+    // ...and NOT while nothing is being played (verifier round 4): paused (the end screen and the held
+    // curtain included — `simPaused` covers runOver and the reveal hold) or the settings menu open. A
+    // lookahead chunk is a whole synchronous chunk, and those are frames the player is looking at (the
+    // end screen's count-up, the menu opening). The chunk will still be made on the next quiet frame
+    // of play. Splitting generation across frames (M9) is the lever that removes the hitch itself.
+    const menuOpen = (() => { const m = document.getElementById('settingsmenu'); return !!(m && !m.classList.contains('hidden')); })();
+    const busy = pointers.size > 0 || !!(state.active && state.active._colonizePending) || simPaused() || menuOpen
               || (typeof window !== 'undefined' && window.MYCELIUM_NO_LOOKAHEAD === true);
+    state._mineFrameNo = (state._mineFrameNo | 0) + 1;
     // ...AND NEVER THE STAMP ON THE SAME FRAME. Colliding a new chunk's sprites (`solidifyMineRock`,
     // `markCoverGrid` over ~700 sprites) costs about as much again as generating it — measured with a CDP
     // profile at ~9 ms a chunk on either layout — so a frame that generated leaves the stamp to the next
@@ -40187,7 +40201,7 @@ function advanceSim(time) {
       state._mineStampNext = false;
       const t0 = performance.now();
       solidifyMineRock();
-      const log = state._mineGenLog; if (log && log.length) log[log.length - 1].stampMs = +(performance.now() - t0).toFixed(2);
+      const log = state._mineGenLog; if (log && log.length) { const e = log[log.length - 1]; e.stampMs = +(performance.now() - t0).toFixed(2); e.stampFrame = state._mineFrameNo | 0; }
     }
     else {
       const made = mineEnsureChunks(state, { x0: camera.x - half, x1: camera.x + half },
