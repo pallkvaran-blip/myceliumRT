@@ -4,17 +4,28 @@
  *            96 m east / 24 m deep (within a cell), the island's surface is soil, both hills drawn, the
  *            knot and its filaments drawn; the plain DIG (`mine.play`) is still the free layout; the save's
  *            `p.mineJourney` defaults to leg 1 and `playJourney` follows it.
- *   determ   two boots of '#leg,1,2' give identical chunk records for chunks 0-8 and the same taproot.
+ *   determ   two boots of '#leg,1,2' — the second generating chunks 3-8 in REVERSE order — give identical
+ *            chunk records for chunks 0-8, the same taproot, the same seam stitches and the same rock
+ *            (a hash of every sprite in chunks 0-8, sorted, since the stitch's owner depends on order).
  *   free     '#mine,4242' chunk records 8-12 are byte-identical to the pre-M7 snapshot
  *            (tests/fixtures/m7-pre-chunks-4242.json, from be20b64).
- *   legs     legs 1-3 through tests/bots/legprobe.cjs's `measure`: the fine-mask flood from the home head
- *            reaches the taproot, the path is 1.3-2.0x the straight line, a rows 0-2 flood never passes
- *            column 66, legs 2-3 spend >= 50% of the cheapest-water route's east metres below 42 m, no
- *            straight lateral channel 3 cells tall runs more than 36 cells, and no creature sits above
- *            row 42; leg 1 ('calm') seeds none, leg 3 ('dry') no pocket above 42 m. One resting-zoom
- *            screenshot per leg around a sealed seam goes to tests/.artifacts/m7-leg<N>-seam-390.png.
+ *   legs     legs 1-3 through tests/bots/legprobe.cjs's `measure`, on the GROWTH LATTICE (growth's own
+ *            point/segment rule — hairlines count, which the first version's clearance model did not):
+ *            the fine-mask flood and the lattice reach the taproot, the shortest path is 1.3-2.0x the
+ *            straight line on the lattice AND on the plain fine mask, a rows 0-2 flood never passes column
+ *            66, legs 2-3 spend >= 50% of the cheapest-water route's east metres below 42 m and growth held
+ *            above 42 m cannot reach the island, no straight lateral channel 3 cells tall runs more than 36
+ *            cells, no seam carries a vertical hairline longer than a band, no sealed side above the floor
+ *            strip leaks, and no creature sits above row 42; leg 1 ('calm') seeds none, leg 3 ('dry') no
+ *            pocket above 42 m. Then REAL growth (mine.growFrom) follows the cheapest route and must land
+ *            at the taproot — on legs 2-3 with >= 50% of the landing strand's east travel below 42 m.
+ *            Each row's `E` agrees with its `eastM`. One resting-zoom screenshot per leg around a sealed
+ *            seam goes to tests/.artifacts/m7-leg<N>-seam-390.png.
+ *   island   on candidate seeds that were NOT curated, the taproot chamber's growth-lattice flood (held
+ *            inside the island chunk) reaches the chunk's own seam column: the repair's guarantee
+ *            survives the seal boulders and the stitch whatever the seed.
  *
- * `JOURNEY_ONLY=layout,determ,free,legs` runs a subset.
+ * `JOURNEY_ONLY=layout,determ,free,legs,island` runs a subset.
  */
 const path = require('path'), fs = require('fs');
 const H = require('./mine-harness.cjs');
@@ -27,13 +38,20 @@ fs.mkdirSync(ART, { recursive: true });
 const ONLY = (process.env.JOURNEY_ONLY || '').split(',').filter(Boolean);
 const want = (k) => !ONLY.length || ONLY.includes(k);
 
-const chunkRecs = (page, list) => page.evaluate(async (list) => {
-  const g = window.__game, s = g.state, cs = s.substrate.cellSize, cw = s.config.mine.chunkCols;
+const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse]) => {
+  const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, cw = s.config.mine.chunkCols;
+  // REVERSE: one chunk at a time from the east end, so the chunks of a seam arrive in the other order
+  // and each stitch is owned by the other chunk.
+  if (reverse) for (const ci of list.slice().reverse()) g.mine.ensureChunks((ci + 0.3) * cw * cs, (ci + 0.7) * cw * cs);
   g.mine.ensureChunks(Math.min(...list) * cw * cs, ((Math.max(...list) + 1) * cw - 1) * cs);
   const out = {};
   for (const ci of list) out[ci] = s.mineChunks[ci] ? JSON.stringify(s.mineChunks[ci]) : null;
-  return out;
-}, list);
+  const xMax = (Math.max(...list) + 1) * cw * cs - 1;
+  const sp = sub.levelSprites.filter((q) => q.x < xMax).map((q) => [q.key, q.x, q.y, q.w, q.h].join(',')).sort();
+  let h = 2166136261; for (const t of sp) for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  const st = {}; for (let k = Math.min(...list) + 1; k <= Math.max(...list); k++) st[k] = sub.mineJourney._stitched ? sub.mineJourney._stitched[k] : null;
+  return { out, sprites: sp.length, hash: h, stitched: JSON.stringify(st) };
+}, [list, !!reverse]);
 
 (async () => {
   const E = await H.start();
@@ -101,16 +119,20 @@ const chunkRecs = (page, list) => page.evaluate(async (list) => {
       const reads = [];
       for (let k = 0; k < 2; k++) {
         const b = await LP.openLeg(E, 2);
-        const recs = await chunkRecs(b.page, list);
+        const rr = await chunkRecs(b.page, list, k === 1), recs = rr.out;
         const tap = await b.page.evaluate(() => { const t = window.__game.mine.taproot(); const L = window.__game.mine.leg();
           return { x: t.x, y: t.y, seed: L.seed, rec: JSON.stringify(window.__game.state.mineChunks[Math.floor(L.layout.taproot.col / 24)].taproot) }; });
-        reads.push({ recs, tap, errs: b.errs.length });
+        reads.push({ recs, tap, errs: b.errs.length, hash: rr.hash, sprites: rr.sprites, stitched: rr.stitched });
         await b.ctx.close();
       }
       const same = list.filter((ci) => reads[0].recs[ci] && reads[0].recs[ci] === reads[1].recs[ci]);
       ok('two boots give identical chunk records for chunks 0-8', same.length === list.length,
          `${same.length}/${list.length} identical${same.length < list.length ? ', differ: ' + list.filter((c) => !same.includes(c)).join(',') : ''}`);
       ok('...and the same taproot', JSON.stringify(reads[0].tap) === JSON.stringify(reads[1].tap), JSON.stringify(reads[0].tap));
+      ok('...and the same rock, sprite for sprite, although the second boot generated chunks 3-8 in reverse order',
+         reads[0].hash === reads[1].hash && reads[0].sprites === reads[1].sprites && reads[0].sprites > 1000,
+         `${reads[0].sprites} / ${reads[1].sprites} sprites, hash ${reads[0].hash} / ${reads[1].hash}`);
+      ok('...and the same seam stitches', reads[0].stitched === reads[1].stitched && !/null/.test(reads[0].stitched), reads[0].stitched);
       ok('no page errors (determinism)', !reads[0].errs && !reads[1].errs);
     }
 
@@ -133,6 +155,22 @@ const chunkRecs = (page, list) => page.evaluate(async (list) => {
       ok("'#mine,4242' chunk records 8-12 are byte-identical to the pre-M7 snapshot", !diff.length && [8, 9, 10, 11, 12].every((c) => rec.out[c]),
          diff.length ? 'differ: ' + diff.join(',') : '5/5 identical');
       ok('...on the free layout (no journey, centre hill)', !rec.J && rec.home === 252, `home ${rec.home}`);
+      // CONTROL for the legs block's seam-hairline reading: the free layout has no stitch (its records
+      // are pinned; the slit there is the owner's call), so the same reading must SEE a slit there — or a
+      // "no hairline" pass on a leg would say nothing about the reading.
+      const fr = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, cw = s.config.mine.chunkCols;
+        for (let i = 0; i < 100 && !((sub._solidFrom | 0) === sub.levelSprites.length && sub._mineDirtyC0 == null); i++) await new Promise((r) => setTimeout(r, 100));
+        const fsz = sub._fineSize, W = sub._fineCols, H = sub._fineRows, fs = sub._fineSolid, K = Math.round(cs / fsz);
+        const cis = g.mine.chunks().sort((a, b) => a - b); let best = 0, n = 0;
+        for (const ci of cis) { if (!cis.includes(ci - 1)) continue; n++;
+          const sF = ci * cw * K; let run = 0;
+          for (let y = 0; y < H; y++) { let o = false; for (let x = sF - 2; x <= sF + 1 && !o; x++) if (!fs[y * W + x]) o = true;
+            if (o) { run++; if (run > best) best = run; } else run = 0; } }
+        return { rows: +(best / K).toFixed(1), seams: n, depth: sub.rows };
+      });
+      ok('control: the same seam reading sees the unstitched free layout\'s slit', fr.seams > 0 && fr.rows > 42,
+         `longest ${fr.rows} of ${fr.depth} rows over ${fr.seams} seams`);
       await b.ctx.close();
     }
 
@@ -141,20 +179,39 @@ const chunkRecs = (page, list) => page.evaluate(async (list) => {
       for (const leg of [1, 2, 3]) {
         console.log(`--- leg ${leg}`);
         const b = await LP.openLeg(E, leg);
-        const m = await LP.measure(b.page);
-        const extra = await b.page.evaluate(() => {
-          const s = window.__game.state, sub = s.substrate;
+        const m = await LP.measure(b.page, { route: true });
+        const route = m.route; delete m.route;
+        const extra = await b.page.evaluate((leg) => {
+          const g = window.__game, s = g.state, sub = s.substrate, cw = s.config.mine.chunkCols;
           const pockets = (sub.reservoirs || []).map((r) => r.r0);
-          return { pockets, worms: s.nematodes.length, clouds: s.clouds.length };
-        });
-        ok(`leg ${leg}: the fine-mask flood from the home head reaches the taproot chamber`, m.reach && m.reachClr,
-           `plain ${m.reach}, with clearance ${m.reachClr} (seed ${m.seed})`);
-        ok(`leg ${leg}: the shortest path is 1.3-2.0x the straight line`, m.ratio >= 1.3 && m.ratio <= 2.0, `${m.ratio}x`);
+          const row = g.mine.legRow(leg), lay = g.mine.leg().layout;
+          const jc = s.config.mine.journey.homeChunk;
+          return { pockets, worms: s.nematodes.length, clouds: s.clouds.length, E: row.E,
+                   Eof: Math.floor((lay.homeCol + Math.round(row.eastM)) / cw) - jc,
+                   ic0: Math.floor(lay.islandC0 / cw), ic1: Math.floor(lay.islandC1 / cw), rows: sub.rows };
+        }, leg);
+        ok(`leg ${leg}: the fine-mask flood AND the growth lattice from the home head reach the taproot chamber`, m.reach && m.reachLat,
+           `plain ${m.reach}, lattice ${m.reachLat} (seed ${m.seed})`);
+        ok(`leg ${leg}: the shortest path is 1.3-2.0x the straight line, on the growth lattice and on the plain fine mask`,
+           m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0, `lattice ${m.ratio}x, fine ${m.ratioFine}x`);
         ok(`leg ${leg}: a flood held to rows 0-2 never passes column 66`, m.crustMaxCol <= m.homeCol + 30, `farthest column ${m.crustMaxCol}`);
-        if (leg >= 2) ok(`leg ${leg}: the cheapest-water route spends >= 50% of its east metres below 42 m`, m.east42 >= 0.5,
-           `${(m.east42 * 100).toFixed(1)}% below 42 m, ${(m.east84 * 100).toFixed(1)}% below 84 m, ${m.water} water`);
+        if (leg >= 2) {
+          ok(`leg ${leg}: the cheapest-water growth route spends >= 50% of its east metres below 42 m`, m.east42 >= 0.5,
+             `${(m.east42 * 100).toFixed(1)}% below 42 m, ${(m.east84 * 100).toFixed(1)}% below 84 m, ${m.water} water (fine mask ${(m.east42Fine * 100).toFixed(1)}%)`);
+          ok(`leg ${leg}: growth held above 42 m cannot reach the island`, m.shallowMaxCol < m.islandC0,
+             `farthest column ${m.shallowMaxCol}, island from ${m.islandC0}`);
+        }
         ok(`leg ${leg}: no straight lateral channel 3 cells tall runs more than 36 cells`, m.lateral <= 36,
            `longest ${m.lateral} (row ${m.latAt && m.latAt.row}, ending col ${m.latAt && m.latAt.endCol})`);
+        ok(`leg ${leg}: no chunk seam carries a vertical hairline longer than a band (the seam slit is stitched)`, m.seamRunRows <= 42,
+           `longest ${m.seamRunRows} rows (chunk ${m.seamAt && m.seamAt.ci}, ending row ${m.seamAt && m.seamAt.endRow})`);
+        const floorRow = extra.rows - 6;
+        const leaksUp = (m.leaks || []).filter((l) => l[1] < floorRow);
+        ok(`leg ${leg}: no sealed seam side above the floor strip is crossable within 8 columns and 5 rows`,
+           m.sealN > 0 && leaksUp.length === 0 && m.sealLeak <= m.leaks.length,
+           `${m.sealLeak} of ${m.sealN} sides leak${m.leaks.length ? ' at ' + JSON.stringify(m.leaks) : ''} (floor strip from row ${floorRow})`);
+        ok(`leg ${leg}: the row's E agrees with its eastM (island chunk ${extra.ic0})`, extra.E === extra.Eof && extra.ic0 === extra.ic1 && extra.ic0 === 1 + extra.E,
+           `E ${extra.E}, from eastM ${extra.Eof}, island chunks ${extra.ic0}..${extra.ic1}`);
         ok(`leg ${leg}: no creature is placed above row 42`, m.shallowestRow >= 42, `shallowest creature row ${m.shallowestRow === 999 ? 'none' : m.shallowestRow}`);
         if (leg === 1) ok("leg 1 ('calm') seeds no creature at all", extra.worms === 0 && extra.clouds === 0 && m.shallowestRow === 999,
            `${extra.worms} worms, ${extra.clouds} clouds`);
@@ -179,9 +236,57 @@ const chunkRecs = (page, list) => page.evaluate(async (list) => {
         ok(`leg ${leg}: a sealed seam exists to frame, at the resting zoom`, !!seam && Math.abs(seam.zoom - seam.z0) < 1e-6,
            seam ? `seam col ${seam.col}, row ${seam.row} (${seam.n} sealed in the window), zoom ${seam.zoom.toFixed(3)}` : 'none');
         await b.page.screenshot({ path: path.join(ART, `m7-leg${leg}-seam-390.png`), animations: 'disabled', timeout: 8000 }).catch(() => {});
+        // Last: it grows the colony across the leg (threats removed, tank topped up).
+        const f = await LP.follow(b.page, route);
+        ok(`leg ${leg}: real growth (mine.growFrom) following the cheapest route lands at the taproot`, f.landed,
+           `${f.digs} digs, ${f.refused} refused, route ${Math.round(f.routeFrac * 100)}% walked, strand chain ${f.chainRatio}x`);
+        if (leg >= 2) ok(`leg ${leg}: ...and the landing strand spent >= 50% of its east travel below 42 m`, f.landed && f.east42 >= 0.5,
+           `${f.landed ? (f.east42 * 100).toFixed(1) + '% below 42 m, deepest ' + f.maxDepthM + ' m' : 'did not land'}`);
         ok(`no page errors (leg ${leg})`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
         await b.ctx.close();
       }
+    }
+    // ======================================================================================
+    if (want('island')) {
+      console.log('--- the taproot repair holds on seeds nobody curated');
+      const b = await LP.openLeg(E, 1);
+      const res = [];
+      for (const leg of [1, 2, 3]) for (let k = 0; k < 4; k++) {
+        const sd = ((leg * 7919 + (41 + k) * 104729 + 12345) % 2147483000) + 1;
+        await LP.playLeg(b.page, leg, sd);
+        const r = await b.page.evaluate(async () => {
+          const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, cw = s.config.mine.chunkCols;
+          const lay = g.mine.leg().layout, ic = Math.floor(lay.taproot.col / cw);
+          g.mine.ensureChunks((ic - 1) * cw * cs, ((ic + 2) * cw - 1) * cs);
+          for (let i = 0; i < 150 && !((sub._solidFrom | 0) === sub.levelSprites.length && sub._mineDirtyC0 == null); i++) await new Promise((q) => setTimeout(q, 100));
+          const fsz = sub._fineSize, W = sub._fineCols, fs = sub._fineSolid, K = Math.round(cs / fsz);
+          const c0 = ic * cw, c1 = c0 + cw - 1, x0 = c0 * K, x1 = (c1 + 1) * K - 1, H = sub._fineRows;
+          const open = (x, y) => x >= x0 && x <= x1 && y >= 0 && y < H && !fs[y * W + x];
+          const cx = (x) => (x + 0.5) * fsz, cy = (y) => sub.surfaceY + (y + 0.5) * fsz;
+          const seg = (a, bb, c, d) => { const ax = cx(a), ay = cy(bb), dx = cx(c) - ax, dy = cy(d) - ay, n = Math.max(1, Math.ceil(Math.hypot(dx, dy) / (fsz * 0.7)));
+            for (let i = 1; i <= n; i++) { const t = i / n, px = ax + dx * t, py = ay + dy * t; if (py <= sub.surfaceY + 2) return false;
+              const fc = Math.floor(px / fsz), fr = Math.floor((py - sub.surfaceY) / fsz); if (!open(fc, fr)) return false; } return true; };
+          const E8 = []; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) if (dx || dy) E8.push([dx, dy]);
+          for (const [a, bb] of [[3, 0], [3, 1], [2, 2], [1, 3]]) for (const [sa, sb] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { E8.push([a * sa, bb * sb]); E8.push([bb * sa, a * sb]); }
+          const tx = Math.floor((lay.taproot.col + 0.5) * K), ty = Math.floor((lay.taproot.row + 0.5) * K);
+          const seen = new Uint8Array(W * H), st = [];
+          if (open(tx, ty)) { seen[ty * W + tx] = 1; st.push([tx, ty]); }
+          let west = false, east = false;
+          while (st.length) {
+            const [x, y] = st.pop();
+            if (x < x0 + K) west = true; if (x > x1 - K) east = true;
+            for (const [dx, dy] of E8) { const nx = x + dx, ny = y + dy; if (!open(nx, ny) || seen[ny * W + nx] || !seg(x, y, nx, ny)) continue; seen[ny * W + nx] = 1; st.push([nx, ny]); }
+          }
+          const rec = s.mineChunks[ic] || {};
+          return { chamberOpen: st.length === 0 && seen[ty * W + tx] === 1, west, east, repairs: rec.taproot && rec.taproot.repairs, dropped: rec.sealsDropped | 0 };
+        });
+        res.push(Object.assign({ leg, seed: sd }, r));
+      }
+      const good = res.filter((r) => r.chamberOpen && (r.west || r.east));
+      ok('on 12 uncurated seeds (4 per leg) the chamber is open and its flood reaches the island chunk\'s own seam column',
+         good.length === res.length, res.map((r) => `L${r.leg}/${r.seed}: ${r.chamberOpen ? '' : 'CLOSED '}${r.west ? 'W' : ''}${r.east ? 'E' : ''}${r.west || r.east ? '' : 'none'} rep ${r.repairs}`).join(' · '));
+      ok('no page errors (island)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+      await b.ctx.close();
     }
   } catch (e) {
     fail++; console.log('  FAIL  harness: ' + (e && e.stack || e));

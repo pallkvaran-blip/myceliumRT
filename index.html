@@ -23263,22 +23263,21 @@ function mineGenerateChunk(state, ci) {
       // on leg 2 with only the both-closed rows stitched: 12 of 51 sealed sides crossable within 8
       // columns and 5 rows. So the stitch also runs through those rows and a chunk meets its neighbour
       // exactly where BOTH carves are open — the seam is as porous as the carve says and no more. The
-      // open side's dead end loses under a cell. Only for a run of at most 7 rows (longer is a link or a
-      // shaft running along the seam, which stays), with no `noPlug` cell (the head, a repair or a
-      // taproot connector) and no creature placed on it.
-      const creatures = [];
-      for (const k of [sI - 1, sI]) for (const sp of ((state.mineChunks[k] && state.mineChunks[k].spots) || [])) creatures.push(sp);
+      // open side's dead end loses under a cell. Only for a run of at most 10 rows (longer is a link or a
+      // shaft running along the seam, which stays) and with no `noPlug` cell (the head, a repair or a
+      // taproot connector). NOTHING HERE MAY ASK WHAT EITHER CHUNK PLACED AFTER ITS CARVE: the first
+      // version skipped runs near a placed creature, and since the second chunk's creatures come after
+      // this pass, the rock depended on which chunk came first (journey-check's reverse-order boot:
+      // seam 4 stitched 181 vs 160 sprites). No guard is needed — `spotFor` never picks a seam column.
       const oneA = (r) => !!oA[r * WA + WA - 1] && !oB[r * WB], oneB = (r) => !oA[r * WA + WA - 1] && !!oB[r * WB];
       for (const one of [oneA, oneB]) {
         const openA = one === oneA, npO = openA ? npA : npB, oO = openA ? oA : oB, WO = openA ? WA : WB, colO = openA ? WA - 1 : 0;
         for (let r = 0; r < rows;) {
           if (!one(r)) { r++; continue; }
           let r1 = r; while (r1 + 1 < rows && one(r1 + 1)) r1++;
-          let okRun = r1 - r + 1 <= 7;
+          let okRun = r1 - r + 1 <= 10;
           for (let rr = r; rr <= r1 && okRun; rr++) {
             if ((npO && npO[rr * WO + colO]) || !dry(colA, rr) || !dry(colB, rr)) okRun = false;
-            const yW = sub.surfaceY + (rr + 0.5) * cs;
-            for (const sp of creatures) if (Math.abs(sp.x - xs) < 1.6 * cs && Math.abs(sp.y - yW) < 1.2 * cs) okRun = false;
           }
           if (okRun) for (let rr = r; rr <= r1; rr++) cover[rr] = 1;
           r = r1 + 1;
@@ -23306,10 +23305,6 @@ function mineGenerateChunk(state, ci) {
           sub.levelSprites.push({ key: src.k, style: 'boulder', x: +xs.toFixed(1), y: +y.toFixed(1),
                                   w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
           n++;
-          // This chunk's creatures are placed after this pass: keep them off the stitch.
-          const ownC = sI === ci ? colB : colA;
-          for (let rr = Math.floor((y - h / 2 - sub.surfaceY) / cs); rr <= Math.floor((y + h / 2 - sub.surfaceY) / cs); rr++)
-            if (inChunk(ownC, rr)) taken[at(ownC, rr)] = 1;
           y0 += h * 0.5;
         }
         r = r1 + 1;
