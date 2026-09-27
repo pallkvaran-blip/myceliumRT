@@ -1,6 +1,6 @@
 /* A PHONE PLAYER CAN SEE AND USE EVERY CONTROL — the finishing plan's M3, as assertions.
  *
- *     node tests/phone-check.cjs            (PHONE_ONLY=hud,tap,cut,hint,loader runs blocks)
+ *     node tests/phone-check.cjs            (PHONE_ONLY=hud,tap,cut,armmiss,hint,loader runs blocks)
  *
  * The defects this pins, measured on `claude/deep-mine-finish` before the fix:
  *   - THE HUD RAN OFF A 390 px SCREEN. One row carried water, P, depth, the worm chip, the rot clock,
@@ -346,6 +346,124 @@ const touchCtx = (E, vw, vh) => E.browser.newContext({ viewport: { width: vw, he
         ok('...and disarms', r2.armed === null);
       } else ok('a rotten strand is on open canvas', false, `${r1.cand} candidates`);
       await b.page.screenshot({ path: path.join(ART, 'm3-cut-390.png') });
+      ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
+      await ctx.close();
+    }
+
+    // =========================================================================================
+    // 3b. AN ARMED ENZYME NEVER SWALLOWS A DIG (M6 verifier). A miss used to keep the arming and eat
+    //     the gesture, so a dose armed early — or with the only rot >300 u away — ate every drag-dig
+    //     and every tap-dig after it with the toast 'No rot within reach', and nothing said how to get
+    //     out. Now the kit refuses to arm with no rot on the map, a DRAG that lands away from rot
+    //     disarms and digs, and a TAP away from rot keeps the arming with a toast naming the way out.
+    //     PHONE_FILE=/path.html serves another build (the negative control).
+    // =========================================================================================
+    if (want('armmiss')) {
+      console.log('--- an armed enzyme that misses hands the dig back');
+      const ctx = await touchCtx(E, 390, 844);
+      const b = await E.bootMine(4242, 390, 844, { ctx, file: process.env.PHONE_FILE || undefined });
+      const cdp = await ctx.newCDPSession(b.page);
+      const touch = async (type, pts) => cdp.send('Input.dispatchTouchEvent', { type,
+        touchPoints: pts.map((p, i) => ({ x: p.x, y: p.y, id: i, radiusX: 4, radiusY: 4, force: 1 })) });
+      const dragDown = async (p) => {
+        await touch('touchStart', [p]);
+        for (let k = 1; k <= 8; k++) { await touch('touchMove', [{ x: p.x + 2 * k, y: p.y + 15 * k }]); await sleep(16); }
+        await touch('touchEnd', []);
+      };
+      // The deepest clean tip, on screen, and a snapshot of what a dig changes.
+      const snap = () => b.page.evaluate(({ SCR }) => {
+        const scr = new Function('return (' + SCR + ')')();
+        const g = window.__game, s = g.state; let tip = null;
+        for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+        const kit = document.getElementById('kit-amputate').getBoundingClientRect();
+        return { tip: scr(tip.x, tip.y), tipW: { x: tip.x, y: tip.y }, n: s.active.nodes.length, water: s.active.water,
+                 armed: g.mine.armed(), doses: g.mine.items().amputate | 0, rotten: g.mine.infect().rotten | 0,
+                 kit: { x: kit.left + kit.width / 2, y: kit.top + kit.height / 2, w: kit.width } };
+      }, { SCR });
+      const settle = async () => { await sleep(500); await b.page.evaluate(async () => {
+        for (let i = 0; i < 100 && window.__game.mine.revealing(); i++) await new Promise((r) => setTimeout(r, 50)); }); };
+      await b.page.evaluate(async ({ QUIET }) => {
+        new Function('return (' + QUIET + ')')()();
+        const g = window.__game, s = g.state;
+        s.active.water = 100000;
+        await window.__navDig({ targetM: 40, maxIters: 500 });
+        await new Promise((r) => setTimeout(r, 600));
+        for (let i = 0; i < 200 && g.mine.revealing(); i++) await new Promise((r) => setTimeout(r, 50));
+        const T = s._tappedWater || (s._tappedWater = new Set()); for (const q of (s.substrate.reservoirs || [])) T.add(q.id);
+        s.mineItems = { excrete: 0, amputate: 2 };
+        s.config.mine.infectionMs = 600000; s.config.mine.firstInfectionMs = 600000;
+        s.active.water = 1000;
+      }, { QUIET: QUIET.toString() });
+
+      // (a) No rot anywhere: the kit refuses to arm.
+      await b.page.waitForFunction(() => document.getElementById('kit-amputate').getBoundingClientRect().width > 0, { timeout: 5000 }).catch(() => {});
+      await sleep(200);
+      let a0 = await snap();
+      await b.page.touchscreen.tap(a0.kit.x, a0.kit.y);
+      let toast = ''; for (let i = 0; i < 8 && !toast; i++) { await sleep(60); toast = await b.page.evaluate(toastUp); }
+      const a1 = await snap();
+      ok('with no rot on the map the enzyme does not arm', a0.rotten === 0 && a1.armed === null && /no rot/i.test(toast),
+         `rotten ${a0.rotten}, armed ${a1.armed}, toast '${toast}', kit w ${Math.round(a0.kit.w)}`);
+
+      // (b) Armed with no rot left (the state a cut, or an older build, can leave): a drag from the
+      //     colony digs and disarms.
+      await b.page.evaluate(() => { window.__game.state._mineArmed = 'amputate'; });
+      a0 = await snap();
+      await dragDown(a0.tip); await settle();
+      const b1 = await snap();
+      ok('armed with no rot anywhere, a drag from the colony digs (nodes rise, water drops) and disarms',
+         b1.n > a0.n && b1.water < a0.water && b1.armed === null && b1.doses === a0.doses,
+         `nodes ${a0.n} -> ${b1.n}, water ${a0.water} -> ${b1.water}, armed ${b1.armed}, doses ${a0.doses} -> ${b1.doses}`);
+
+      // (c) Rot far away (a cloud parked on the root, 40 m above the tip): arm through the kit, then a
+      //     drag from the deepest tip digs, disarms and keeps the dose.
+      const rot = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state; s.config.trichoderma.moveSpeed = 0;
+        const r = s.active.nodes[0]; g.mine.spawnCloud(r.x, r.y);
+        for (let i = 0; i < 100 && !g.mine.infect().rotten; i++) await new Promise((res) => setTimeout(res, 50));
+        let tip = null; for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+        let d = Infinity; for (const n of s.active.nodes) if (n.infected) d = Math.min(d, Math.hypot(n.x - tip.x, n.y - tip.y));
+        return { rotten: g.mine.infect().rotten, dTip: Math.round(d) };
+      });
+      a0 = await snap();
+      await b.page.touchscreen.tap(a0.kit.x, a0.kit.y); await sleep(150);
+      const c0 = await snap();
+      ok('with rot on the map, tapping the enzyme arms it', rot.rotten > 0 && c0.armed === 'amputate', `${rot.rotten} rotten, ${rot.dTip} u from the tip, armed ${c0.armed}`);
+      await dragDown(c0.tip); await settle();
+      const c1 = await snap();
+      ok('armed, a drag from the colony that does not land near rot digs, disarms and keeps the dose',
+         rot.dTip > 320 && c1.n > c0.n && c1.water < c0.water && c1.armed === null && c1.doses === c0.doses,
+         `rot ${rot.dTip} u away; nodes ${c0.n} -> ${c1.n}, water ${c0.water} -> ${c1.water}, armed ${c1.armed}, doses ${c0.doses} -> ${c1.doses}`);
+
+      // (d) Armed, a TAP on open canvas far from the rot keeps the arming and says how to cancel; the
+      //     kit then cancels it.
+      await b.page.touchscreen.tap(c1.kit.x, c1.kit.y); await sleep(150);
+      const d0 = await b.page.evaluate(({ SCR }) => {
+        const scr = new Function('return (' + SCR + ')')();
+        const g = window.__game, s = g.state;
+        const R = s.active.nodes.filter((n) => n.infected), P = s.active.nodes.map((n) => scr(n.x, n.y));
+        for (let y = 200; y < innerHeight - 140; y += 8) for (let x = 30; x < innerWidth - 30; x += 8) {
+          const hit = document.elementFromPoint(x, y); if (!hit || hit.id !== 'game') continue;
+          let dp = Infinity; for (const p of P) dp = Math.min(dp, Math.hypot(p.x - x, p.y - y));
+          if (dp < 150) continue;   // not on the colony: a tap here is a cut attempt, never a dig
+          const w = g.camera.screenToWorld(x - document.getElementById('game').getBoundingClientRect().left,
+                                           y - document.getElementById('game').getBoundingClientRect().top);
+          let dr = Infinity; for (const n of R) dr = Math.min(dr, Math.hypot(n.x - w.x, n.y - w.y));
+          if (dr > 360) return { x, y, dr: Math.round(dr), armed: g.mine.armed(), doses: g.mine.items().amputate | 0 };
+        }
+        return null;
+      }, { SCR });
+      if (d0) {
+        await b.page.touchscreen.tap(d0.x, d0.y);
+        let t2 = ''; for (let i = 0; i < 8 && !t2; i++) { await sleep(60); t2 = await b.page.evaluate(toastUp); }
+        const d1 = await snap();
+        ok('armed, a tap far from the rot keeps the arming and the dose, and the toast names the way out',
+           d0.armed === 'amputate' && d1.armed === 'amputate' && d1.doses === d0.doses && /cancel/i.test(t2),
+           `${d0.dr} u from rot; armed ${d0.armed} -> ${d1.armed}, doses ${d0.doses} -> ${d1.doses}, toast '${t2}'`);
+        await b.page.touchscreen.tap(d1.kit.x, d1.kit.y); await sleep(150);
+        const d2 = await snap();
+        ok('...and tapping the enzyme again cancels it', d2.armed === null, `armed ${d2.armed}`);
+      } else ok('an open point far from both colony and rot exists', false, 'none found');
       ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
       await ctx.close();
     }

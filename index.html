@@ -37783,8 +37783,15 @@ const handlers = {
   onMineItem: (id) => {
     if (!state || state.runOver) return;
     if (id === 'amputate') {
+      // NOTHING TO CUT, NOTHING TO ARM. An armed dose owns the next tap, so arming it "to be ready"
+      // with no rot on the map would make that tap do nothing at all (M6 verifier).
+      if (state._mineArmed !== 'amputate' && !mineAnyRot(state)) {
+        ui.toast('No rot to cut — the enzyme is for rot.');
+        uiDirty = true;
+        return;
+      }
       state._mineArmed = state._mineArmed === 'amputate' ? null : 'amputate';
-      ui.toast(state._mineArmed ? 'Tap where to cut.' : 'Cut cancelled.');
+      ui.toast(state._mineArmed ? 'Tap the rot to cut it — tap the enzyme again to cancel.' : 'Cut cancelled.');
       uiDirty = true;
       return;
     }
@@ -38309,13 +38316,32 @@ function updateAim(e) {
 // AN ARMED CUT OWNS THE NEXT TAP, ahead of the dig. Checked at the START of both commit paths
 // rather than inside one of them: on a phone a tap and a tiny drag are the same gesture, so a press
 // meant as "cut here" arrives as a released aim about as often as it arrives as a click.
-function mineArmedTap(wx, wy) {
+//
+// RETURNS WHETHER IT CONSUMED THE GESTURE. A miss used to keep the arming and eat the gesture, so a
+// dose armed early (or with the only rot >300 u away) swallowed every dig after it with nothing on
+// screen saying how to get out (M6 verifier). Now:
+//   - no rot anywhere on the map: disarm and hand the gesture back (false) — the caller digs;
+//   - a DRAG (`opts.drag`) that did not land near rot: disarm and hand it back — a drag is a dig;
+//   - a TAP near no rot while rot exists elsewhere: keep the dose AND the arming (the player aimed at
+//     the wrong place, not at nothing), and the toast names the way out.
+function mineAnyRot(st) {
+  const net = st && st.active;
+  if (!net) return false;
+  for (const n of net.nodes) if (n.infected) return true;
+  return false;
+}
+function mineArmedTap(wx, wy, opts) {
   if (!state || !state.substrate || !state.substrate.mine || state._mineArmed !== 'amputate') return false;
   state._mineArmed = null;
+  if (!mineAnyRot(state)) { uiDirty = true; return false; }
   const r = mineUseAmputate(state, wx, wy);
-  // A tap with no rot in reach keeps the dose AND the arming (M6): the player aimed at the wrong
-  // place, not at nothing, and should not have to re-arm to try again.
-  if (r && r.noRot) state._mineArmed = 'amputate';
+  if (r && r.noRot) {
+    if (opts && opts.drag) { uiDirty = true; return false; }
+    state._mineArmed = 'amputate';
+    ui.toast('No rot within reach — tap on the rot, or tap the enzyme again to cancel.');
+    uiDirty = true;
+    return true;
+  }
   if (r && r.message) ui.toast(r.message);
   if (r && r.ok) {
     state.log(r.message, 'good');
@@ -38345,7 +38371,7 @@ function mineTapCommit(a, e) {
   if (Math.hypot(sx - a.startScreen.x, sy - a.startScreen.y) >= AIM_MIN_PX) return false;
   // Judged with the camera as it was at the PRESS (see `beginAim`), not as it is at release.
   const at = a.pressWorld || camera.screenToWorld(a.startScreen.x, a.startScreen.y);
-  if (state._mineArmed) return mineArmedTap(at.x, at.y);
+  if (state._mineArmed && mineArmedTap(at.x, at.y)) return true;
   const lim = (state.config.mine && state.config.mine.tapDigPx) || 48;
   if (a.pressOff > lim) return false;
   fireAim(Object.assign({}, a, { cur: { x: a.origin.x, y: a.origin.y }, dragged: true }));
@@ -38358,7 +38384,7 @@ function fireAim(a) {
   // way, so a blocked release doesn't leave a stale line armed on the map.
   if (draftLocked()) { aim = null; if (ui.clearPendingCard) ui.clearPendingCard(); if (ui.clearPendingAction) ui.clearPendingAction(); ui.resetHint(); uiDirty = true; return; }
   const ctx = { x: a.cur.x, y: a.cur.y, srcX: a.origin.x, srcY: a.origin.y };
-  if (mineArmedTap(a.cur.x, a.cur.y)) { aim = null; return; }
+  if (mineArmedTap(a.cur.x, a.cur.y, { drag: true })) { aim = null; return; }
   if (a.kind === 'mine') {
     const res = mineGrow(state, ctx);
     if (res.ok) {
