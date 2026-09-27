@@ -23058,6 +23058,7 @@ function mineGenerateChunk(state, ci) {
         for (let i = 0; i < seen.length; i++) if (seen[i]) { dist[i] = 0; buckets[0].push(i); }
         const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
         for (let k = dirs.length - 1; k > 0; k--) { const m = Math.floor(erng() * (k + 1)); const t = dirs[k]; dirs[k] = dirs[m]; dirs[m] = t; }
+        const dRc = dirs.map((d) => d[0]), dRr = dirs.map((d) => d[1]);
         let found = -1;
         for (let dcur = 0; dcur < buckets.length && found < 0; dcur++) {
           const bk = buckets[dcur];
@@ -23067,8 +23068,8 @@ function mineGenerateChunk(state, ci) {
             if (dist[i] !== dcur) continue;
             if (tgt[i]) { found = i; break; }
             const r = (i / W) | 0, c = (i % W) + c0;
-            for (const [dc, dr] of dirs) {
-              const cc = c + dc, rr = r + dr;
+            for (let k = 0; k < 4; k++) {
+              const dr = dRr[k], cc = c + dRc[k], rr = r + dr;
               if (cc < c0 || cc > c1 || rr < 0 || rr >= rows) continue;
               const j = rr * W + (cc - c0);
               let w;
@@ -23477,44 +23478,52 @@ function mineGenerateChunk(state, ci) {
     };
     // Computed on first use: a chunk whose seal boxes all sit on closed ground never needs it.
     let pre = null;
+    // Reused across calls (verifier round 3: a whole-chunk array per call and per flood was the pass's
+    // garbage): `boxMark` is set for the box's cells and cleared on the way out, `seenL` is stamped.
+    const boxMark = new Uint8Array(W * rows), seenL = new Int32Array(W * rows);
+    let stamp = 0;
     const safeBox = (bc0, bc1, br0, br1) => {
-      const box = new Uint8Array(W * rows);
+      const cells = [];
       let hitsOpen = false;
       for (let rr = br0; rr <= br1; rr++)
         for (let cc = bc0; cc <= bc1; cc++) {
           if (!inChunk(cc, rr)) continue;
           const j = at(cc, rr);
           if (keep[j] || noPlug[j] || (tapCut && tapCut[j])) return false;
-          box[j] = 1;
+          cells.push(j);
           if (open[j] && !wet[j] && !blocked[j]) hitsOpen = true;
         }
       // A box over CLOSED ground only cannot split anything: `label` ignores closed cells, so the labels
       // with it in place are the labels without it. Skipping the two whole-chunk floods is exact and is
       // most of this pass's cost (verifier round 3: a seal box usually sits in the seal's closed gap).
-      if (!hitsOpen) { for (let i = 0; i < box.length; i++) if (box[i]) blocked[i] = 1; return true; }
+      if (!hitsOpen) { for (const j of cells) blocked[j] = 1; return true; }
       if (!pre) pre = label(null);
       // Only a component the box touches can be split: re-flood each of those without the box's cells
       // and check it still reaches all of them (the same test as relabelling the chunk and comparing,
       // at the cost of the touched components alone). Kept, the labels stay valid with the box's
       // cells taken out — removing cells never merges components, and none was split.
+      for (const j of cells) boxMark[j] = 1;
       const hit = new Set();
-      for (let i = 0; i < box.length; i++) if (box[i] && pre[i] >= 0) hit.add(pre[i]);
+      for (const j of cells) if (pre[j] >= 0) hit.add(pre[j]);
+      let ok = true;
       for (const L of hit) {
         let first = -1, total = 0;
-        for (let i = 0; i < pre.length; i++) if (pre[i] === L && !box[i]) { total++; if (first < 0) first = i; }
+        for (let i = 0; i < pre.length; i++) if (pre[i] === L && !boxMark[i]) { total++; if (first < 0) first = i; }
         if (first < 0) continue;
-        const seenL = new Uint8Array(W * rows);
-        let sp = 0, got = 1; lst[sp++] = first; seenL[first] = 1;
+        stamp++;
+        let sp = 0, got = 1; lst[sp++] = first; seenL[first] = stamp;
         while (sp) {
           const j = lst[--sp], c = j % W;
-          for (const q of [c + 1 < W ? j + 1 : -1, c > 0 ? j - 1 : -1, j + W < pre.length ? j + W : -1, j - W]) {
-            if (q < 0 || seenL[q] || pre[q] !== L || box[q]) continue;
-            seenL[q] = 1; got++; lst[sp++] = q;
-          }
+          if (c + 1 < W && seenL[j + 1] !== stamp && pre[j + 1] === L && !boxMark[j + 1]) { seenL[j + 1] = stamp; got++; lst[sp++] = j + 1; }
+          if (c > 0 && seenL[j - 1] !== stamp && pre[j - 1] === L && !boxMark[j - 1]) { seenL[j - 1] = stamp; got++; lst[sp++] = j - 1; }
+          if (j + W < pre.length && seenL[j + W] !== stamp && pre[j + W] === L && !boxMark[j + W]) { seenL[j + W] = stamp; got++; lst[sp++] = j + W; }
+          if (j - W >= 0 && seenL[j - W] !== stamp && pre[j - W] === L && !boxMark[j - W]) { seenL[j - W] = stamp; got++; lst[sp++] = j - W; }
         }
-        if (got !== total) return false;
+        if (got !== total) { ok = false; break; }
       }
-      for (let i = 0; i < box.length; i++) if (box[i]) { blocked[i] = 1; pre[i] = -1; }
+      for (const j of cells) boxMark[j] = 0;
+      if (!ok) return false;
+      for (const j of cells) { blocked[j] = 1; pre[j] = -1; }
       return true;
     };
     for (const sd of J._sealed) {

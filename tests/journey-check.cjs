@@ -23,15 +23,16 @@
  *            Each row's `E` agrees with its `eastM`. Resting-zoom screenshots: one per leg around a sealed
  *            seam (tests/.artifacts/m7-leg<N>-seam-390.png) and nine per leg at seams 2-4 x rows 45, 70
  *            and 120 (m7-leg<N>-c<k>-r<row>-390.png) — the verifier's own framing.
- *   world    (M7 verifier round 2) EVERY chunk of legs 1-3 (legprobe `world`): every ore seam and every
- *            water pocket is reachable on the fine mask from the colony's root, no straight lateral
- *            channel 3 cells tall runs more than 36 cells anywhere in the leg world, and the ground within
- *            a cell of a chunk seam is no more than 0.2 more solid than the ground 6+ cells from one (the
- *            first stitch: 0.87 against 0.64, a dense line), and the seam line is not a column (rows of
- *            dense stripe down the line in runs >= 6: <= 10 per seam; 12.5-15.8 before round 2's fix,
- *            ~1 on an interior line). Controls: the free layout '#mine,4242'
- *            reaches every reward too; and leg 2 with the reward repair switched off
- *            (`MYCELIUM_NO_REWARD_REPAIR`) strands some, so the assertion can fail.
+ *   world    EVERY chunk of legs 1-3 (legprobe `world`), gates DERIVED FROM THE INTERIOR (verifier round 3):
+ *            >= 85% of ore seams and of pockets reachable from the root (the rest are gated content),
+ *            every pass-(e) anchor joined, no 3-cell-tall straight lateral over 36 cells (2-cell figure
+ *            printed), closed ground at a seam within +0.05 of the chunk's own, drawn rock at seam columns
+ *            -2..+1 within 0.15 of columns 6-17, spine per seam <= 2x an interior line's 90th percentile,
+ *            no seam hairline longer than the longest interior line. Round 2's build (d6bb921) fails the
+ *            two density gates (+0.14..0.17, +0.28..0.32). Controls: the free layout's flood (printed only
+ *            — it passes through the seam slits); leg 2 with pass (e) off leaves anchors unjoined.
+ *   stream   one chunk a frame, and the view widened 5 columns on a leg so a chunk whose seam band is on
+ *            screen has its neighbour (lookahead off, so the widening alone is what is measured).
  *   island   on candidate seeds that were NOT curated, the taproot chamber's growth-lattice flood (held
  *            inside the island chunk) reaches the chunk's own seam column: the repair's guarantee
  *            survives the seal boulders and the stitch whatever the seed.
@@ -269,6 +270,15 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
         // NOT COUNTED (verifier round 3): the frames are for eyes; the zoom they were taken at said nothing
         // about the seams. What they show is asserted over every seam in the `world` block.
         console.log(`  info  leg ${leg}: nine seam frames written (seams 2-4 x rows 45/70/120), ${framed} of 9 at the resting zoom`);
+        // ...and one OVERVIEW at zoom 0.18 (~60 columns, two and a half chunks, rows 0-80): a column every
+        // 24 cells is invisible in any one resting frame and obvious here — this is the view that showed
+        // round 2's. For eyes; not counted. The zoom goes back to rest afterwards.
+        await b.page.evaluate(async () => {
+          const g = window.__game, sub = g.state.substrate, cs = sub.cellSize, cw = g.state.config.mine.chunkCols, z0 = g.camera.zoom;
+          g.camera.zoom = 0.18; g.mine.lookAt(3.5 * cw * cs, sub.surfaceY + 40 * cs);
+          await new Promise((q) => setTimeout(q, 900)); window.__z0 = z0; });
+        await b.page.screenshot({ path: path.join(ART, `m7-leg${leg}-overview-390.png`), animations: 'disabled', timeout: 8000 }).catch(() => {});
+        await b.page.evaluate(() => { window.__game.camera.zoom = window.__z0; });
         // Last: it grows the colony across the leg (threats removed, tank topped up).
         const f = await LP.follow(b.page, route);
         ok(`leg ${leg}: real growth (mine.growFrom) following the cheapest route lands at the taproot`, f.landed,
