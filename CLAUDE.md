@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier round 1 landed: growth-lattice legprobe + real-growth follow, seam stitch, guarded seals, re-picked seeds; journey-check 62/62; --mine 1067/1067). Next: M8.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-2 landed: growth-lattice legprobe + real-growth follow, seam stitch, guarded seals, every reward reachable (pass e), seams no longer columns (band rock loop, off-seam shafts/links/rewards), no floor gallery, re-picked seeds 753368 / 2855867 / 1711767; journey-check 82/82). Next: M8.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5205,7 +5205,8 @@ Numbers here are measured, not planned.
 - **DRAWING:** `mineHillSpans()` (home + island, goalhill/goalbush); `drawMineTaproot` (canvas knot r 40,
   7 loops + glow, 5 filaments fading over 6 m). Hooks `mine.leg()`, `legRow(l)`, `taproot()` (+ `.drawn`),
   `hills()`.
-- **SEEDS (re-picked in the verifier round, see below):** leg 1 **2743219**, leg 2 **551829**, leg 3 **1816496**.
+- **SEEDS (re-picked in verifier round 2, see below):** leg 1 **753368**, leg 2 **2855867**, leg 3 **1711767**
+  (round 1's 2743219 / 551829 / 1816496 fail the round-2 carve).
   Re-pick whenever the carve OR any rock pass changes: `legprobe --pick N --file /.legprobe-snap.html`
   (a snapshot copy), then choose one whose `follow` landed.
 - **DEVIATIONS:** the crust pass, the seal boulders and the seam stitch (plan: clamp change and seal
@@ -5283,6 +5284,66 @@ Numbers here are measured, not planned.
   Fixture `tests/fixtures/m7-pre-chunks-4242.json` (from be20b64; equal to the M5 one) via
   `tests/fixture-chunks.cjs be20b64 --write --fixture <path>`. Screens `tests/.artifacts/m7-leg{1,2,3}-seam-390.png`,
   `m7-leg1-island-390.png`.
+**M7 VERIFIER FIXES (round 2) — every reward reachable, and the seams stop reading as columns.**
+- **(e) EVERY REWARD IS REACHABLE ON A LEG** (e6b3a82). The stitch closed the seam slit that had been
+  joining everything: fine-mask flood from the root, chunks 0-12, leg 1 101/104 seams + 49/52 pockets,
+  leg 2 73/104 + 37/52, leg 3 83/104 + 35/39 (free layout 104/104). `placed.stranded` could not see it
+  (its flood seeds from seam galleries, which a leg's seals close). Pass (e), journey-only, own rng
+  `seed ^ 0x2EAC`, after the plugs: a TRUNK per seam (a gallery-free row >= 21 in the first band whose
+  seal chance is <= 0.2, drawn from a hash of the SEAM so both chunks agree; each opens its side, so
+  both seam cells are open and the stitch leaves it) plus a Dial walk (open 0, closed 2 + 0-1 jitter,
+  + (9 - distance) within 8 columns of a seam, +4 within 2 rows of a gallery row) joining trunks, head,
+  taproot and every reward. Plugs whose sprite would land on a repair are dropped (draw kept, disc
+  given back). Test knob `window.MYCELIUM_NO_REWARD_REPAIR` (the negative control: leg 2 146/167).
+  Measured on the shipped seeds: **166/166 + 83/83, 167/167 + 83/83, 163/163 + 63/63** over all 21 chunks.
+- **THE COLUMN, MEASURED** (`tests/seam-pillar-probe.cjs`, a tool; `tests/seam-profile.cjs` prints
+  closed-ground solidity and open% by column offset from a seam). A "spine" row: the line's two cells
+  > 0.3 more solid than the denser ground 3-5 cells out. On 200a7e9: seams 36-41 spine rows per line,
+  12.5-15.8 of them in runs >= 6, against 12-15 / 0.7-1.7 on an interior line (columns 8 and 16). The
+  causes, each measured and fixed journey-only:
+  - **the chunk rock loop could not fill the seam band** (a sprite must fit its chunk, so near a seam
+    only 1-2 cell pieces fit) and the chain stacked small stones down the line. The chunk loop now skips
+    `SEAM_BAND` (4) columns beside a seam that has a neighbour; the stitch runs THE SAME LOOP over them
+    once both carves exist (slab across both chunks, band scale, `OVERLAP` against both chunks' `taken`,
+    kept on `J._taken`; boxes within 6 columns a side; seam-keyed rng `seed ^ 0x57C6`). Rows whose line
+    a band boulder's middle already crosses get no chain unless they must seal. Dirty range +-7.
+  - **the chain between seals was near-continuous** (0.15-0.9 cell gaps): now 2.5-6 cells, except on
+    gallery rows +-2, which step without a gap (a porous chain there joined two segments into a 46-cell
+    lateral, leg 2 row 57). Sealing pieces (`must`) are boulders: the band's scale, up to 6 closed
+    columns a side.
+  - **the carve put passages on both sides of a seam**: shafts pinned at their lean bound (clamped now
+    7 columns off a seam that has a neighbour), links (5) and reward rooms (5, same draws, remapped),
+    so a 3-6 cell wall stood with the seam down its middle. Carve-level pillar rows at seams 13-16 ->
+    3.5-4.3 per line (interior 9-11). Spurs and dead ends are refused on a gallery row +-2 (a room in a
+    segment gap was dug along the row).
+  - **TRIED AND DROPPED:** seam alcoves (dead-end bites into the band, hash-owned per seam window) carved
+    rooms that left the other side's band standing as a thinner, MORE isolated pillar; a second dense
+    band loop over the seal rows ("a seal is a mass") moved the spine by nothing (the flanks there were
+    open carve, not porous rock). Both removed.
+  - After: **6.0 / 6.8 / 7.3** spine rows in runs >= 6 per seam (legs 1-3), interior 0.8-1.2; all spine
+    rows 24-28 per seam line vs 12 interior — **still ~2x an interior line**, mostly the seal rows (a
+    walled gallery ends at a thin wall by design). The 27 seam frames (`m7-leg<N>-c<k>-r<row>-390.png`)
+    now read mostly as masses and corridors; a few still show a vertical wall. Owner call.
+- **NO JOURNEY GALLERY IN THE FLOOR STRIP** (`r < rows - 6`): the row-165 gallery's seals could only be
+  porous (no sprite fits below it; leg 2 leaked at seam 72 row 165), so the leak test had exempted the
+  floor strip. Exemption removed: "no sealed seam side is crossable" is `sealLeak === 0`.
+- **Crust rows 0-3 are always `must` at a seam** (200a7e9): a porous chain there let the rows 0-2 flood
+  cross seams (leg 1 candidates 67-71 against 66). `spotFor` keeps creatures 3.5 cells clear of the
+  taproot chamber.
+- **SEEDS RE-PICKED** (`legprobe --pick 36`, PASS + WPASS, top five dug): 6 / 15 / 9 of 36 pass. Leg 1
+  **753368** (lattice 1.427, fine 1.478; 66.5 water; real growth lands in 37 digs), leg 2 **2855867**
+  (1.540 / 1.592; cheapest route 99.0% below 42 m, 204.9 water; lands in 61 digs, strand 97.2% below
+  42 m), leg 3 **1711767** (1.450 / 1.495; 98.4%, 303.5 water; 80 digs, 97.7%). Rows 0-2 flood to col
+  44 / 47 / 47; longest lateral (whole world) 31 / 34 / 30; seam hairline 11 / 8.3 / 11.5 rows; sealed
+  sides 0/8, 0/38, 0/57 leak; seam solidity 0.693 / 0.720 / 0.727 vs 0.557 / 0.548 / 0.574 inside.
+  `legprobe --pick` reopens its page every 6 candidates and on any error (a long pick had died with
+  "Target page ... closed"). GOTCHA: `pkill -f <pattern>` in the same shell command matches the shell's
+  own command line and kills it (exit 144).
+- **journey-check 62 -> 82**: `world` block (whole leg world: rewards, lateral, seam density, the new
+  COLUMN assertion `spineSeam <= 10` with 200a7e9 as its measured negative control, free-layout and
+  no-repair controls) and nine seam frames per leg. Changed: 'no sealed side above the floor strip leaks'
+  -> 'no sealed seam side is crossable' (no exemption).
+
 - **`--mine` after M7: 1046 passed, 0 failed across 18 checks** (boot 22, store 124, mine 193, ending 87,
   ship 58, phone 51, onboard 63, econ 79, counter 60, journey 41, zip 24, level 27, aim 9, scale 26,
   threat 116, harvest 28, mould 20, core 18). No existing assertion changed. GOTCHA: the runner parses
