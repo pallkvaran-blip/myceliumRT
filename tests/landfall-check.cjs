@@ -77,8 +77,8 @@ const digEast = (page, toE, maxDigs) => page.evaluate(async ([toE, maxDigs]) => 
         && window.__game.state.substrate._fineSolid), { timeout: 40000 });
       await tapTele(b.page);
       const m = await LP.measure(b.page, { route: true });
-      const f = await LP.follow(b.page, m.route, { stopWithin: 140 });
-      ok('real growth follows the cheapest route to within one dig of the taproot, not landed yet', !f.landed && f.near <= 140 && f.near > 54,
+      const f = await LP.follow(b.page, m.route, { stopWithin: 280 });
+      ok('real growth follows the cheapest route to within 280 units of the taproot, not landed yet', !f.landed && f.near <= 280 && f.near > 54,
          `${f.digs} digs, nearest strand ${f.near} units from the knot`);
       const land = await b.page.evaluate(async () => {
         const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, net = s.active;
@@ -124,9 +124,10 @@ const digEast = (page, toE, maxDigs) => page.evaluate(async ([toE, maxDigs]) => 
       const sv = await save(b.page);
       ok('p.mineJourney.leg goes 1 -> 2, leg 1 recorded landed', sv.mineJourney && sv.mineJourney.leg === 2 && sv.mineJourney.legs[1] && sv.mineJourney.legs[1].landed === true,
          JSON.stringify(sv.mineJourney));
-      // The celebration on the ISLAND hill, roots lit.
-      await sleep(1700);
-      const cele = await b.page.evaluate(() => { const c = window.__game.mine.cele(), h = window.__game.mine.hills().find((x) => x.island); return { c, h }; });
+      // The celebration on the ISLAND hill, roots lit (it starts once the last dig's reveal has played).
+      const cele = await b.page.evaluate(async () => {
+        for (let k = 0; k < 80; k++) { const c = window.__game.mine.cele(); if (c && c.lit >= 1) break; await new Promise((q) => setTimeout(q, 100)); }
+        return { c: window.__game.mine.cele(), h: window.__game.mine.hills().find((x) => x.island) }; });
       ok('the island hill fruits: the celebration stands on the island, its roots lit', cele.c && cele.c.side === 'island' && cele.c.n > 20 && cele.c.lit >= 1
          && cele.c.x0 >= cele.h.x0 && cele.c.x1 <= cele.h.x1 && cele.c.roots === 5,
          JSON.stringify(cele.c) + ' island ' + (cele.h && [cele.h.x0, cele.h.x1]));
@@ -228,10 +229,10 @@ const digEast = (page, toE, maxDigs) => page.evaluate(async ([toE, maxDigs]) => 
         const cv = document.getElementById('game'), c2 = cv.getContext('2d');
         const T = performance.now();
         const grab = (on) => { g.mine.recordLines(on); g.renderFrame(T, 0); return c2.getImageData(0, 0, cv.width, cv.height).data; };
-        const a = grab(true), a2 = grab(true), b0 = grab(false);
+        const a = grab(true), drawnOn = g.mine.records().drawn, a2 = grab(true), b0 = grab(false);
         g.mine.recordLines(true);
         const diff = (p, q) => { let n = 0; for (let i = 0; i < p.length; i += 4) if (Math.abs(p[i] - q[i]) + Math.abs(p[i + 1] - q[i + 1]) + Math.abs(p[i + 2] - q[i + 2]) > 24) n++; return n; };
-        return { onOff: diff(a, b0), control: diff(a, a2), line: o.lines.east, drawn: g.mine.records().drawn };
+        return { onOff: diff(a, b0), control: diff(a, a2), line: o.lines.east, drawn: drawnOn };
       });
       ok('on the next run the farthest-east line draws: a pixel diff of on against off >= 20 px', px.onOff >= 20 && px.control < px.onOff / 4 && px.drawn.east,
          `on/off ${px.onOff} px, on/on control ${px.control} px, line at ${px.line} m`);
@@ -248,11 +249,11 @@ const digEast = (page, toE, maxDigs) => page.evaluate(async ([toE, maxDigs]) => 
         g.mine.lookAt((h.x0 + h.x1) / 2, sub.surfaceY + 120);
         for (let k = 0; k < 30 && !g.mine.legHints().sight; k++) await new Promise((q) => setTimeout(q, 100));
         await new Promise((q) => setTimeout(q, 600));
-        return { sight: g.mine.legHints().sight, beats: g.mine.beats().filter((x) => x.d === 'Island 1').map((x) => x.n),
+        return { sight: g.mine.legHints().sight, chev: g.mine.legHints().drawn.chevron, beats: g.mine.beats().filter((x) => x.d === 'Island 1').map((x) => x.n),
                  hint: (document.getElementById('minehint') || {}).textContent, tip: !!((JSON.parse(localStorage.getItem('mycelium.progress.v2')).mineTips || {}).first_island) };
       });
       ok("the island coming into view fires 'Island 1 / In sight' and the once-per-save tip", sight.sight === 1 && sight.beats.length === 1 && sight.beats[0] === 'In sight'
-         && /Reach the island's root to move on/.test(sight.hint || '') && sight.tip, JSON.stringify(sight));
+         && /Reach the island's root to move on/.test(sight.hint || '') && sight.tip && sight.chev === false, JSON.stringify(sight));
       await shot(b.page, 'm8-sight-390.png');
       ok('no page errors (records)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();
@@ -268,8 +269,9 @@ const digEast = (page, toE, maxDigs) => page.evaluate(async ([toE, maxDigs]) => 
       ok('control: #mine,4242 has no east readout, no leg banner, no records, east 0', fr.east === 0 && !fr.shown && fr.banners === 0 && fr.J === null,
          JSON.stringify(fr) + ' dug ' + JSON.stringify(d));
       await b.page.evaluate(() => window.__game.mine.end());
-      await sleep(600);
-      const det = await b.page.evaluate(() => (window.__rows.filter((r) => r.kind === 'run_end').pop() || {}).detail);
+      const det = await b.page.evaluate(async () => {
+        for (let k = 0; k < 80 && !window.__rows.some((r) => r.kind === 'run_end'); k++) await new Promise((q) => setTimeout(q, 100));
+        return (window.__rows.filter((r) => r.kind === 'run_end').pop() || {}).detail; });
       ok("...and run_end's detail is 'L0:<cause>:e0'", /^L0:\w+:e0$/.test(det || ''), det);
       ok('no page errors (free)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();

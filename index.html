@@ -41012,7 +41012,8 @@ function mineJourneyInit(time) {
     showMineBeat('Leg ' + J.leg, J.name || '', row && row.ruleLine, false, 'leg');
     o.banner = 1;
     // THE LEG'S FIRST RUN (leg 1: its first run that shows a banner, i.e. the save's second descent).
-    if (o.runsBefore <= (J.leg === 1 ? 1 : 0)) o.chevronUntil = time + 5000;
+    // WALL CLOCK, set and read (the frame loop's `time` and the render's are not the same clock).
+    if (o.runsBefore <= (J.leg === 1 ? 1 : 0)) o.chevronUntil = performance.now() + 5000;
   }
   return o;
 }
@@ -41035,6 +41036,7 @@ function mineJourneyTick(time, depth, east) {
     if (mineOnScreen(x0, y, 8) || mineOnScreen(x1, y, 8) || mineOnScreen((x0 + x1) / 2, y - cs * 0.8, 8)
         || (t && mineOnScreen(t.x, t.y, 8))) {
       o.sight = 1;
+      o.chevronUntil = 0;             // the island is on screen: no arrow pointing at it from the edge
       showMineBeat('Island ' + J.leg, 'In sight', null, true);
       if (!mineTipSeen('first_island')) mineTip('island', "Reach the island's root to move on",
         { ms: 5000, onShow: () => mineTipRecord('first_island') });
@@ -41077,7 +41079,7 @@ function drawMineJourney(time) {
     }
     ctx.restore();
   }
-  if (time < o.chevronUntil && !state.runOver) {
+  if (performance.now() < o.chevronUntil && !state.runOver) {
     const pulse = 0.5 + 0.5 * Math.sin(time * 0.006);
     const ex = W - 34, ey = Math.round(H * 0.5);
     mineChevron(ex, ey, 0, 'rgba(127,230,163,A)', pulse);
