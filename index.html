@@ -22349,7 +22349,11 @@ function mineGenerateChunk(state, ci) {
   // travel across. Reproduced with the real drag gesture at 390x844: ten left drags moved 430 units
   // and stopped, ten right drags moved NOTHING.
   const FIRST_GALLERY_ROW = 3;
-  for (let r = FIRST_GALLERY_ROW; r < rows - 1; r += every) galleryRows.push(r);
+  // JOURNEY: NO GALLERY IN THE FLOOR STRIP (M7 verifier round 2). The last spacing lands one at row 165
+  // of 168, where no sprite fits below it (a sprite must end above `contentBottom`), so its seals and
+  // its segment gaps could only be porous: legprobe's leak test had to exempt the floor strip for it
+  // (leg 2 leaked at seam 72 row 165). The free layout keeps its rows (its records are pinned).
+  for (let r = FIRST_GALLERY_ROW; r < (J ? rows - 6 : rows - 1); r += every) galleryRows.push(r);
   // A GALLERY IS BROKEN INTO SEGMENTS NOW, not run wall to wall. See `gallerySeg`/`galleryGap` in the
   // config for why that is the change that makes this a maze — the short version is that a full-width
   // corridor was how connectivity was guaranteed without cross-chunk state, and the owner has

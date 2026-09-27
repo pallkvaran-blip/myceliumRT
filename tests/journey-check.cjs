@@ -15,8 +15,9 @@
  *            straight line on the lattice AND on the plain fine mask, a rows 0-2 flood never passes column
  *            66, legs 2-3 spend >= 50% of the cheapest-water route's east metres below 42 m and growth held
  *            above 42 m cannot reach the island, no straight lateral channel 3 cells tall runs more than 36
- *            cells, no seam carries a vertical hairline longer than a band, no sealed side above the floor
- *            strip leaks, and no creature sits above row 42; leg 1 ('calm') seeds none, leg 3 ('dry') no
+ *            cells, no seam carries a vertical hairline longer than a band, no sealed side leaks (the
+ *            floor-strip exemption went with the floor gallery, verifier round 2), and no creature sits
+ *            above row 42; leg 1 ('calm') seeds none, leg 3 ('dry') no
  *            pocket above 42 m. Then REAL growth (mine.growFrom) follows the cheapest route and must land
  *            at the taproot — on legs 2-3 with >= 50% of the landing strand's east travel below 42 m.
  *            Each row's `E` agrees with its `eastM`. Resting-zoom screenshots: one per leg around a sealed
@@ -213,11 +214,11 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
            `longest ${m.lateral} (row ${m.latAt && m.latAt.row}, ending col ${m.latAt && m.latAt.endCol})`);
         ok(`leg ${leg}: no chunk seam carries a vertical hairline longer than a band (the seam slit is stitched)`, m.seamRunRows <= 42,
            `longest ${m.seamRunRows} rows (chunk ${m.seamAt && m.seamAt.ci}, ending row ${m.seamAt && m.seamAt.endRow})`);
-        const floorRow = extra.rows - 6;
-        const leaksUp = (m.leaks || []).filter((l) => l[1] < floorRow);
-        ok(`leg ${leg}: no sealed seam side above the floor strip is crossable within 8 columns and 5 rows`,
-           m.sealN > 0 && leaksUp.length === 0 && m.sealLeak <= m.leaks.length,
-           `${m.sealLeak} of ${m.sealN} sides leak${m.leaks.length ? ' at ' + JSON.stringify(m.leaks) : ''} (floor strip from row ${floorRow})`);
+        // (verifier round 2) No floor-strip exemption any more: a journey leg carves no gallery in the
+        // floor strip, so every sealed side is one the rock can seal.
+        ok(`leg ${leg}: no sealed seam side is crossable within 8 columns and 5 rows`,
+           m.sealN > 0 && m.sealLeak === 0 && !(m.leaks || []).length,
+           `${m.sealLeak} of ${m.sealN} sides leak${m.leaks.length ? ' at ' + JSON.stringify(m.leaks) : ''}`);
         ok(`leg ${leg}: the row's E agrees with its eastM (island chunk ${extra.ic0})`, extra.E === extra.Eof && extra.ic0 === extra.ic1 && extra.ic0 === 1 + extra.E,
            `E ${extra.E}, from eastM ${extra.Eof}, island chunks ${extra.ic0}..${extra.ic1}`);
         ok(`leg ${leg}: no creature is placed above row 42`, m.shallowestRow >= 42, `shallowest creature row ${m.shallowestRow === 999 ? 'none' : m.shallowestRow}`);

@@ -45,7 +45,7 @@ const WPASS = (w) => w.pilesOk === w.piles && w.pocketsOk === w.pockets && w.lat
   && w.seamSolid != null && w.seamSolid - w.midSolid <= 0.2;
 const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0
   && m.crustMaxCol <= m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42 && m.seamRunRows <= 42
-  && (m.leaks || []).every((l) => l[1] >= (m.rows || 168) - 6)   // no sealed side above the floor strip leaks
+  && m.sealLeak === 0                                            // no sealed side leaks (no gallery in the floor strip any more)
   && (leg < 2 || m.east42 >= 0.5);
 
 // Generate chunk 0 .. island+1, wait for the stamp, measure. Runs in the page.
