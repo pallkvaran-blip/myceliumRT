@@ -11,7 +11,7 @@
  *     margin; a breach claims ~10-25 strands (firstTouchRings 6, was 12).
  *   - Attached worms were 16 px squiggles, attached from off screen, and the chip pointed nowhere.
  *
- * Blocks (COUNTER_ONLY=flask,breed,cloud,breach,digbreach,clock,chevron,copy): each on a FRESH context.
+ * Blocks (COUNTER_ONLY=flask,breed,cloud,breach,digbreach,digcut,clock,chevron,copy): each on a FRESH context.
  */
 const path = require('path');
 const H = require('./mine-harness.cjs');
@@ -164,6 +164,7 @@ const COLONY = async ({ n, maxM, QUIET }) => {
         const t0 = performance.now();
         while (performance.now() - t0 < 60000) {
           await new Promise((res) => setTimeout(res, 250));
+          s.active.water = Math.max(s.active.water, 1e6);   // a trial must not end on fuel
           maxA = Math.max(maxA, g.mine.attached()); samples++;
         }
         return { chunks: g.mine.chunks().length, pop0, pop: s.nematodes.length, final: g.mine.attached(), maxA, samples,
@@ -172,7 +173,9 @@ const COLONY = async ({ n, maxM, QUIET }) => {
       await b.ctx.close();
       return r;
     };
-    const rs = await Promise.all([11, 22, 33, 44, 55].map(trial));
+    // Three then two at a time, not five: the box has 4 CPUs and a starved page ticks slowly (verify
+    // round 3: the standing "one heavy browser job at a time" rule).
+    const rs = (await Promise.all([11, 22, 33].map(trial))).concat(await Promise.all([44, 55].map(trial)));
     for (const [i, r] of rs.entries()) console.log(`        trial ${i + 1}: ${JSON.stringify(r)}`);
     const reach2 = rs.filter((r) => r.maxA >= 2).length;
     ok('6 chunks generated in every trial, under a world bound of 64 (was 16)',
@@ -180,6 +183,9 @@ const COLONY = async ({ n, maxM, QUIET }) => {
     ok('attached worms reach 2 or more in at least 4 of 5 trials (60 s, no flask)', reach2 >= 4,
        `${reach2} of 5: max attached ${rs.map((r) => r.maxA).join(', ')}`);
     ok('...and never exceed 6', rs.every((r) => r.maxA <= 6), rs.map((r) => r.maxA).join(', '));
+    // A trial whose run ENDED stops ticking, and then "never exceed 6" measured nothing (verify round 3).
+    ok('...with every trial\'s run still live at the end of its 60 s', rs.every((r) => r.over === false && r.samples >= 100),
+       rs.map((r) => `over ${r.over}, ${r.samples} samples`).join(', '));
 
     // THE CAP ITSELF, deterministically: five worms attached and a certain breed every tick. It must
     // land on exactly 6 and stay there.
@@ -326,13 +332,15 @@ const COLONY = async ({ n, maxM, QUIET }) => {
     ok('one dose at the breach centroid leaves 0 infected, 5/5', rows.every((r) => r.dose.ok && r.dose.rotten === 0),
        rows.map((r) => `${r.dose.rotten} (${r.dose.message})`).join(' | '));
     ok('...state.mineInfect is null within one tick', rows.every((r) => r.dose.infect === null), rows.map((r) => JSON.stringify(r.dose.infect)).join(', '));
-    ok('...at most 15 clean strands removed', rows.every((r) => r.dose.cleanRemoved <= 15), rows.map((r) => r.dose.cleanRemoved).join(', '));
+    // Was '...at most 15 clean strands removed' (the plan's bound, with a one-segment margin). The
+    // margin is gone (`cutMargin` 'none', verify round 3), so the tile's "only the rot" is the bound.
+    ok('...and no clean strand removed — only the rot', rows.every((r) => r.dose.cleanRemoved === 0), rows.map((r) => r.dose.cleanRemoved).join(', '));
     ok('...and the colony stays one live network (orphans keep living)', rows.every((r) => r.dose.alive && !r.dose.over && r.dose.oneNet && r.dose.nodes > 0
          && r.dose.networks === 1 && r.dose.removed === r.dose.said),
        rows.map((r) => `${r.dose.nodes} live, ${r.dose.orphans} orphans kept, removed ${r.dose.removed} of ${r.dose.said} cut, ${r.dose.networks} net`).join(', '));
 
-    // ORPHANS: a breach mid-fan, so clean tissue hangs off the rot. The cut takes the rot and its
-    // one-segment margin and nothing else — the tissue below it keeps living (plan M6 risk).
+    // ORPHANS: a breach mid-fan, so clean tissue hangs off the rot. The cut takes the rot and
+    // nothing else — the tissue below it keeps living (plan M6 risk).
     {
       const b = await E.bootMine(909);
       await colony(b.page, 150, 30);
@@ -462,6 +470,33 @@ const COLONY = async ({ n, maxM, QUIET }) => {
     ok('...growing into a parked cloud: 25 or fewer, 2/2 seeds', into.every((r) => !r.err && r.first > 0 && r.first <= 25), fmt(into));
     ok('...and one dose at the centroid cures every one', rows.every((r) => !r.err && r.ok && r.rottenAfter === 0 && r.infect === null && !r.over),
        rows.map((r) => r.err || `${r.rottenAfter} left`).join(', '));
+  }
+
+  // =========================================================================================
+  // 4c. THE ENZYME AFTER DIGGING INTO THE MOULD — the player digs into a parked cloud and keeps
+  //     digging (3 more digs) before dosing, so a fresh fan runs beside the rot. With the old
+  //     one-segment clean margin a dose cut 11-20 clean strands against 6-16 rot here (verifier: up
+  //     to 43), which made the tile's "only the rot" false. CUT_CONTROL=1 restores that margin.
+  // =========================================================================================
+  if (want('digcut')) {
+    console.log('--- one dose after digging into the mould cuts only the rot');
+    const P = require('./enzyme-cut-probe.cjs');
+    const margin = process.env.CUT_CONTROL === '1' ? 'segment' : null;
+    const rows = [];
+    for (const seed of [7, 101, 555, 8080]) {
+      const b = await E.bootMine(seed);
+      await b.page.evaluate(P.COLONY, { n: 150, maxM: 30, QUIET: P.QUIET.toString() });
+      const r = await b.page.evaluate(P.DIGCUT, { mode: 'into', margin, after: 3 });
+      rows.push(Object.assign({ seed }, r));
+      console.log(`        seed ${seed}: ${JSON.stringify(r)}`);
+      await b.ctx.close();
+    }
+    const fmt = (f) => rows.map((r) => r.err || f(r)).join(', ');
+    ok('dug into a parked cloud and kept digging: one dose cures, 4/4 seeds',
+       rows.every((r) => !r.err && r.doses === 1 && r.rottenAfter === 0 && r.clockNull && !r.over),
+       fmt((r) => `${r.doses} dose(s), ${r.rottenAfter} left, clock ${r.clockNull ? 'cleared' : 'running'}`));
+    ok('...and it cuts no clean strand — only the rot', rows.every((r) => !r.err && r.rotCut > 0 && r.cleanCut === 0),
+       fmt((r) => `[rot ${r.rotCut}, clean ${r.cleanCut}]`));
   }
 
   // =========================================================================================
@@ -700,6 +735,52 @@ const COLONY = async ({ n, maxM, QUIET }) => {
        && /the colony is clean/.test(cut.toast), `${arm.rotten} -> ${cut.rotten} rotten, ${JSON.stringify(cut.toast)}`);
     ok('no page errors', b.errs.length === 0, b.errs.slice(0, 3).join(' | '));
     await b.ctx.close();
+
+    // AN EMPTY KIT ON A FRESH SAVE (verify round 3): the store's flask and enzyme tiles only appear
+    // once a second descent is banked (M5 `mineShelfOpen`), so a run-1 player told "in the store"
+    // was sent to a tile that is not there. The tips say "soon" until the shelf is open — with the
+    // shelf-open save as the control, which must still say "in the store".
+    const EMPTY = async (page, open) => page.evaluate(async (open) => {
+      const g0 = window.__game;
+      if (open) { g0.store.revealAll(); g0.mine.playSeed(909); await new Promise((res) => setTimeout(res, 1500)); }
+      return JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').mineRuns | 0;
+    }, open);
+    const WORMTIP = (page) => page.evaluate(async () => {
+      const g = window.__game, s = g.state;
+      s.config.mine.worms.breedPerSec = 0;
+      s.mineItems = Object.assign({}, s.mineItems, { excrete: 0, amputate: 0 });
+      const tip = s.active.nodes.filter((q) => !q.infected).sort((a, b) => b.y - a.y)[0];
+      g.mine.spawnWorm(tip.x + 5, tip.y);
+      let hint = '';
+      for (let i = 0; i < 60 && !/worm/i.test(hint); i++) { await new Promise((res) => setTimeout(res, 100)); hint = document.getElementById('minehint').textContent; }
+      s.nematodes.length = 0;
+      return hint;
+    });
+    {
+      const f = await E.bootMine(909);
+      const runs = await EMPTY(f.page, false);
+      await colony(f.page, 70, 20);
+      const wt = await WORMTIP(f.page);
+      await f.page.evaluate(() => { window.__game.state.mineItems.amputate = 0; });
+      await BREACH(f.page, [0.4]);
+      const rh = await f.page.evaluate(async () => {
+        let hint = '';
+        for (let i = 0; i < 60 && !/Rot!/.test(hint); i++) { await new Promise((res) => setTimeout(res, 100)); hint = document.getElementById('minehint').textContent; }
+        return hint;
+      });
+      ok('a fresh save with an empty kit: the worm tip says the store will stock flasks soon, not that it has them',
+         runs < 2 && wt === 'A worm is drinking your water. Mucus flasks kill worms — the store will stock them soon.', `mineRuns ${runs}, ${JSON.stringify(wt)}`);
+      ok('...and the rot tip says the store will sell a cure soon', rh === 'Rot! In 30 s the colony fruits — the store will sell a cure soon.', JSON.stringify(rh));
+      await f.ctx.close();
+      const o = await E.bootMine(909);
+      const runs2 = await EMPTY(o.page, true);
+      await colony(o.page, 70, 20);
+      const wt2 = await WORMTIP(o.page);
+      ok('...control: once the shelf is open (2 descents banked) it says "in the store"', runs2 >= 2
+         && wt2 === 'A worm is drinking your water. Mucus flasks kill worms — in the store.', `mineRuns ${runs2}, ${JSON.stringify(wt2)}`);
+      ok('no page errors (empty-kit tips)', f.errs.length === 0 && o.errs.length === 0, f.errs.concat(o.errs).slice(0, 3).join(' | '));
+      await o.ctx.close();
+    }
   }
 
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);

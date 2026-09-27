@@ -568,17 +568,17 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       s.mineOre = 5; s.active.phosphorus = 5;
       s.config.mine.infectionMs = 60000;             // so only the overrun, not the clock, can end it
       const reached = g.mine.maxDepth();
-      const nodes = s.active.nodes.slice();
-      // A PARKED cloud on EVERY strand (was a moving one on every third). Every third relied on
-      // `colonizeReachablePiles`' downstream rot claim to reach the rest; the mine turns that claim off
-      // (M6 verify round 2) and its rot does not race past `spreadTurns` (2), so 5 side twigs of 38
-      // stayed clean for good — and a cloud dropped on a twig creeps toward the chain (clouds target
-      // non-side strands) before the contact pass, out of the twig's reach. What this block tests is
-      // the ENDING once everything is rotten, not how rot spreads.
-      s.config.trichoderma.moveSpeed = 0;
-      for (let i = 0; i < nodes.length; i += 1) g.mine.spawnCloud(nodes[i].x, nodes[i].y);
+      // EVERY STRAND IS MARKED ROTTEN DIRECTLY, on every poll until the run ends. Two earlier setups
+      // raced the spread and flaked: clouds on every third strand leaned on `colonizeReachablePiles`'
+      // downstream claim (off in the mine since M6 verify round 2), and a parked cloud on EVERY
+      // strand still left side twigs clean on ~half the boots (a cloud breaches the nearest clean
+      // NON-side strand, is spent and fades, and mine rot stops racing after `spreadTurns`), so the
+      // overrun never completed (20014 ms, M6 verify round 3). This block tests the ENDING once
+      // everything is rotten — tickWorld's healthyCount() === 0 branch — not how rot spreads.
+      const rotAll = () => { for (const n of s.active.nodes) if (!n.infected) { n.infected = true; n._infAge = 0; } };
       const t0 = performance.now();
-      while (!s.runOver && performance.now() - t0 < 20000) await new Promise((res) => setTimeout(res, 20));
+      rotAll();
+      while (!s.runOver && performance.now() - t0 < 20000) { await new Promise((res) => setTimeout(res, 20)); if (!s.runOver) rotAll(); }
       const res = s.runResult || {};
       const logs = (s.logEntries || []).map((e) => e.message);
       return { reached, ms: performance.now() - t0, over: s.runOver,
