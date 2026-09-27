@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 BUILT (see below). Next: M7.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verified: counter 46/46, acceptance 7 0/27 infected, median drain 0.3). Next: M7.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5015,7 +5015,7 @@ Numbers here are measured, not planned.
   ending 87, ship 58, phone 44, onboard 63, econ 79, zip 24, level 27, aim 9, scale 26, threat 116,
   harvest 28, mould 20, core 18) — green on the first full sweep.
 
-### M6 — Threats you can read and answer (BUILT)
+### M6 — Threats you can read and answer (DONE)
 
 - **ALL MINE-ONLY, on the cfg clone in `configForLevel`** (shared keys, the campaign's tuning untouched —
   threat 116/116, mould 20/20 after): `nematodes.killHits` 3 -> 1 (`CONFIG.mine.excreteKillHits`),
@@ -5053,7 +5053,8 @@ Numbers here are measured, not planned.
   `p.mineSeen.rot`). **GOTCHA for probes:** a fresh save's first breach is now 30 s — mine-check's
   deadline probes had to shorten `firstInfectionMs` too.
 - **VISIBILITY:** `drawNematodes` (mine) draws attached worms 2.5x (line 2x) and a 1 Hz red ring on the
-  host strand; an off-screen attached worm gets an edge chevron (top margin 100 px, clear of the HUD)
+  host strand; an off-screen attached worm gets an edge chevron (top margin = measured HUD stack
+  `mineHudBandPx()` + 16, min 100, cached 300 ms; bottom 78 px, clear of the kit)
   recorded in `state._mineChevrons` (hook `mine.chevrons()`). `#hud-worms` tap -> `handlers.onWormChip`
   pans to the attached worm nearest the view centre and releases the camera.
 - **COPY:** rot banner hint line (`#hud-infecthint`): 'tap the enzyme, then the rot' / 'now tap the rot'
@@ -5062,15 +5063,32 @@ Numbers here are measured, not planned.
   — in the store.'), first_rot 'Rot! Arm the enzyme and tap the rot.' (or 'Rot! In 30 s the colony fruits
   — the store sells a cure.'), first_cloud 'Mould: one touch starts a 30 s rot clock'. Tiles: 'Kills every
   worm on or near the colony.' / 'Tap the rot: one dose cuts out one whole patch of rot, and only the rot.'
-- **CHECKS:** `tests/counter-check.cjs` ('counter', in `--mine`, 44 assertions, ~5 min;
+- **CHECKS:** `tests/counter-check.cjs` ('counter', in `--mine`, 46 assertions, ~5 min;
   `COUNTER_ONLY=flask,breed,cloud,breach,clock,chevron,copy`; breed runs 5 contexts in parallel for 60 s).
   `tests/bots/threatcareer.cjs` = acceptance 7 (career.cjs with the new 'kit' strategy: first rung of
-  flask and enzyme when offered, then cheapest). Shots `tests/.artifacts/m6-{chevron,attached,rot}-390.png`.
+  flask and enzyme when offered, then cheapest). Shots `tests/.artifacts/m6-{chevron,chevron-up,attached,rot}-390.png`.
 - **CHANGED ASSERTIONS (mine-check, old -> new):** 'a flask ... hits them' (`stuck`) -> '...kills them'
   (killed 1, 0 left); 'one that lands removes strands' now lands on a pinned-cloud breach (a dose refuses
   with no rot); 'caps the population far below the campaign's' `cap < 150/4` -> maxAttached 6, bound
   <= 64 and < 75; 'a breach starts the colony-wide deadline' bound = the armed clock (30 s first); the
   deadline probe sets `firstInfectionMs` 2500 too. mine 193/193, store 124/124.
+- **VERIFY ROUND (after a container restart killed the first):**
+  - Chevron margin was a fixed 100 px: a worm straight above pointed from y 100, under the first-worm
+    hint (stack bottom 148). Now y 164. The ring was `rgba(226,112,90,0.55..0.95)` with no halo and read
+    **5 red px** at the faint end of the 1 Hz beat (68 at another phase — the old pixel test measured the
+    phase); now a dark halo under it at 0.8-1.0: 91 / 81 px at the wide / tight end.
+  - counter 44 -> 46: the enzyme cut does not cascade (`removed === cut`, 1 network, 2-5 orphans kept
+    per seed) plus a mid-fan cut (subtree 87: 25 cut, 1 orphan, 128 live) — the old 'one live network'
+    test was byId consistency only; and the chevron-below-the-HUD assertion. The ring assertion now
+    renders both ends of the pulse.
+  - **Measured (counter):** flask: 3 attached drank 6 in 10 s, 0 after, attached 0 next tick. Breeding
+    soak max attached 6/6/6/3/6. Cloud 285-290 u -> 7.0-7.5 s (14-15 ticks; wall 6.5-7.2 s), control
+    1.5 s. Breach 17/24/16/20/20 strands, one dose -> 0 rotten, 3-8 clean cut. Two contacts: dose 1
+    leaves 21 rotten + clock, dose 2 clears. Clock 29.8 s first, 19.8 s next and next descent.
+  - **Acceptance 7 (`threatcareer.cjs`, 4242/909/11 x 12, kit):** 36 of 36 runs `dry`, **0 of 27
+    infected in runs 4-12**; median worm drain **0.30** per run (max 43.8 and 27.1 — runs where the
+    worms re-attached after the flask stock was spent); 26 runs used a flask, 8 a dose (every
+    infection cured).
 
 ## Two games on the title screen: Survival and Campaign
 
