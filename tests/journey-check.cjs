@@ -186,6 +186,6 @@ const chunkRecs = (page, list) => page.evaluate(async (list) => {
   } catch (e) {
     fail++; console.log('  FAIL  harness: ' + (e && e.stack || e));
   } finally { await E.close(); }
-  console.log(`\njourney-check: ${pass} passed, ${fail} failed`);
+  console.log(`\n==== ${pass} passed, ${fail} failed ====`);
   process.exit(fail ? 1 : 0);
 })();

@@ -55,7 +55,7 @@ const CHECKS = [
   ['counter',   'counter-check.cjs', 330, false],
   // M7: journey leg worlds — the west hill / east island / taproot layout, determinism, the free
   // layout's pinned records, and legs 1-3 through tests/bots/legprobe.cjs's measure.
-  ['journey',   'journey-check.cjs', 300, false],
+  ['journey',   'journey-check.cjs', 40,  false],
   // M2: THE RELEASE GATE, on a throwaway --no-shrink zip of the working tree (dev flag patched off):
   // the prune keeps the mine's bands, and title -> descent -> end -> store -> Descend plays clean.
   ['zip',       'itchzip-check.cjs --fresh', 60, false],
