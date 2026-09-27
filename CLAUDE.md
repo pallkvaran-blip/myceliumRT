@@ -5092,6 +5092,9 @@ Numbers here are measured, not planned.
   - **ending-check's infected-ending probe hung on M6's 30 s first clock** (it set `infectionMs` 6000
     and polled 20 s; a fresh save's first rot now reads `firstInfectionMs`): 85/87 in the first full
     `--mine`. It sets `firstInfectionMs` 6000 too (same fix as mine-check's deadline probe); 87/87.
+  - **`--mine` after M6: 984 passed, 0 failed across 17 checks** — boot 22, store 124, mine 193, ending
+    87, ship 58, phone 44, onboard 63, econ 79, counter 46, zip 24, level 27, aim 9, scale 26, threat
+    116, harvest 28, mould 20, core 18 (acceptance 8: threat 116/116 and mould 20/20 unchanged).
 
 ## Two games on the title screen: Survival and Campaign
 
