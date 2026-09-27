@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verified: counter 46/46, acceptance 7 0/27 infected, median drain 0.3). Next: M7.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-2 landed: breach while digging 2-13, armed enzyme never eats a dig; --mine 998/998). Next: M7.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5037,14 +5037,15 @@ Numbers here are measured, not planned.
   and `infectFreshGrowth`, inert in the campaign) — a breach DISC seeds neighbouring filaments that are
   NOT graph-linked through rot, so a links-only flood left rot behind. Plus clean strands within one
   segment; `_removeNodes` (orphans keep living); `cell.trich` cleared under the cut. No rot in reach:
-  refused, dose kept, and `mineArmedTap` keeps the arming. Message 'Cut out 17 rotten strands — the
+  refused, dose kept (arming rules: see VERIFY ROUND 2). Message 'Cut out 17 rotten strands — the
   colony is clean.' / '— rot remains elsewhere.'
 - **DEVIATION — BREACH SIZE:** the plan's 6 rings measured **39-53 strands** a breach on a 150-strand mine
   colony at radius 1.5 (31-46 at radius 0): a mine dig fans ~19 filaments from one strand, so a 1.5-cell
   disc holds 9-17 seeds, each with its own ring walk. 2 rings / radius 0 (the disc floors at the
   cloud's reach, ~1.05 cells, so what the mould covers is still infected): **16-24** on the 5 seeds;
   a knot of ~20 strands under one cloud (seed 7 in a wider sweep) still reads 30-40. The breach size is
-  seed count, not rings.
+  seed count, not rings. **Those numbers are a cloud on a SETTLED colony — see VERIFY ROUND 2 for a
+  breach while digging, which was 15-104 until the downstream claim was turned off.**
 - **CLOUD:** from first sense at 285-290 units, contact in 13-14 ticks = **6.5-7.0 s** (5 seeds; timed in
   world ticks incl. the sensing tick, since wall clock read 5.99 on one frame-merged run); control at
   2.5: 1.5 s. The Lipschitz bound makes >= 6.0 s certain for cloud reach <= 47 u from 280 u.
@@ -5052,8 +5053,8 @@ Numbers here are measured, not planned.
   `infectionMs` 20000 after, in the same run (`_mineRotMet`) and later runs (`mineSeenNow.rot` ->
   `p.mineSeen.rot`). **GOTCHA for probes:** a fresh save's first breach is now 30 s — mine-check's
   deadline probes had to shorten `firstInfectionMs` too.
-- **VISIBILITY:** `drawNematodes` (mine) draws attached worms 2.5x (line 2x) and a 1 Hz red ring on the
-  host strand; an off-screen attached worm gets an edge chevron (top margin = measured HUD stack
+- **VISIBILITY:** `drawNematodes` (mine) draws attached worms 2.5x (line 2x); `drawMineThreatMarks` (after
+  `drawMineOnboard`) draws a 1 Hz red ring on the host strand; an off-screen attached worm gets an edge chevron (top margin = measured HUD stack
   `mineHudBandPx()` + 16, min 100, cached 300 ms; bottom 78 px, clear of the kit)
   recorded in `state._mineChevrons` (hook `mine.chevrons()`). `#hud-worms` tap -> `handlers.onWormChip`
   pans to the attached worm nearest the view centre and releases the camera.
@@ -5064,7 +5065,7 @@ Numbers here are measured, not planned.
   — the store sells a cure.'), first_cloud 'Mould: one touch starts a 30 s rot clock'. Tiles: 'Kills every
   worm on or near the colony.' / 'Tap the rot: one dose cuts out one whole patch of rot, and only the rot.'
 - **CHECKS:** `tests/counter-check.cjs` ('counter', in `--mine`, 46 assertions, ~5 min;
-  `COUNTER_ONLY=flask,breed,cloud,breach,clock,chevron,copy`; breed runs 5 contexts in parallel for 60 s).
+  `COUNTER_ONLY=flask,breed,cloud,breach,digbreach,clock,chevron,copy`; breed runs 5 contexts in parallel for 60 s).
   `tests/bots/threatcareer.cjs` = acceptance 7 (career.cjs with the new 'kit' strategy: first rung of
   flask and enzyme when offered, then cheapest). Shots `tests/.artifacts/m6-{chevron,chevron-up,attached,rot}-390.png`.
 - **CHANGED ASSERTIONS (mine-check, old -> new):** 'a flask ... hits them' (`stuck`) -> '...kills them'
@@ -5095,6 +5096,40 @@ Numbers here are measured, not planned.
   - **`--mine` after M6: 984 passed, 0 failed across 17 checks** — boot 22, store 124, mine 193, ending
     87, ship 58, phone 44, onboard 63, econ 79, counter 46, zip 24, level 27, aim 9, scale 26, threat
     116, harvest 28, mould 20, core 18 (acceptance 8: threat 116/116 and mould 20/20 unchanged).
+- **VERIFY ROUND 2 (two verifiers):**
+  - **A BREACH WHILE DIGGING WAS 15-104 STRANDS, and the verifiers' suspect was wrong.** Confirmed with
+    their probe (`tests/breach-real-probe.cjs creep|into`): creep 31/30/15/26/36-104, into
+    14/9/10/6/81. Overriding `freshGrowthRings` and `growInfectBurst` moved NOTHING (creep still
+    31/29/15/26/104). Instrumented each infection path: the contact pass added +4; the cause was
+    **`colonizeReachablePiles`' rot-before-harvest pass**, which re-runs every tick of a dig's arrival
+    window, marked 2 strands standing in mould and then claimed their WHOLE SUBTREE (+21, +32) — the
+    downstream claim CLAUDE.md says was removed from the tick years ago, alive in the pile-claim path.
+    New shared knob **`trichoderma.harvestRotDescendants`** (default true = campaign unchanged); the
+    mine's clone sets false, plus `freshGrowthRings` 0 and `growInfectBurst` 2. After: creep
+    **9/5/7/2/13** (next tick 10/8/9/2/17), into **7/8**; one dose cures all. Settled-colony breach
+    unchanged (17/24/16/20/20); dense knot seed 7: 15 (5 seeds). Decision: in the mine a dig pushed past
+    a cloud keeps its clean far end (no goal; growing from clean tissue beyond rot is allowed).
+  - **THE MINE'S ROT DOES NOT CREEP.** `trichoderma.spreadTurns` (2) stops an infection racing after two
+    ticks, and `spreadDepthPerTurn` 0.35 accumulates its first ring on the third — so a breach never
+    grows by the race at all; the "slow creep" in `CONFIG.mine.trych`'s comment is not what runs. Left
+    as is (it is the balance the breach numbers above were measured on); owner's call for M14.
+  - **AN ARMED ENZYME SWALLOWED EVERY DIG** (confirmed; control 4 of 7 fail on 4761c3e: an armed drag
+    dug nothing, 277 -> 277 nodes). Now the kit refuses to arm with no rot on the map; `mineArmedTap`
+    returns whether it consumed the gesture: no rot anywhere -> disarm and dig; a DRAG landing >300 u
+    from rot -> disarm and dig (dose kept); a TAP away from rot while rot exists -> stays armed, toast
+    '...or tap the enzyme again to cancel.' phone-check `armmiss` (7).
+  - Minors: ring + chevrons are `drawMineThreatMarks`, after the onboarding glow (control with the old
+    order: 0 / 0 red px under a glow, now 122 / 91); rot off screen gets a green chevron
+    (`mine.rotChevron()`) and the rot banner pans to it (`onRotChip`); chevrons 15 px on a dark disc;
+    `_mineNew` is a 6-tick count (a newborn that never attaches frees its slot); the enzyme's
+    clean-margin pass is bucketed. Left: the career bot's counters stay omniscient (followup).
+  - **ending-check's rot-overrun probe** relied on the downstream claim (every-third moving clouds left 5
+    side twigs of 38 clean: a cloud on a twig creeps toward the chain first). It parks a cloud on every
+    strand now; assertions unchanged, 87/87.
+  - counter 46 -> 53 (digbreach 3, knot 1, glow ring 1, rot chevron 1, banner 1); phone 44 -> 51.
+  - **`--mine` after round 2: 998 passed, 0 failed across 17 checks** (boot 22, store 124, mine 193,
+    ending 87, ship 58, phone 51, onboard 63, econ 79, counter 53, zip 24, level 27, aim 9, scale 26,
+    threat 116, harvest 28, mould 20, core 18). The first full run read ending 84/87 (the probe above).
 
 ## Two games on the title screen: Survival and Campaign
 
