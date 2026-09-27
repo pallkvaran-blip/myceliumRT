@@ -3896,9 +3896,9 @@ const CONFIG = {
       legs: [
         { leg: 1, name: 'First Light', seed: 648639, E: 4, eastM: 96, depthM: 24,
           sealByBand: [0.12, 0.12, 0.12], rule: 'calm', bonus: 20 },
-        { leg: 2, name: 'The Coal Road', seed: 2122764, E: 6, eastM: 144, depthM: 58,
+        { leg: 2, name: 'The Coal Road', seed: 4531531, E: 6, eastM: 144, depthM: 58,
           sealByBand: [0.55, 0.12, 0.12], rule: 'standard', bonus: 30 },
-        { leg: 3, name: 'Dry Ground', seed: 1397580, E: 8, eastM: 192, depthM: 72,
+        { leg: 3, name: 'Dry Ground', seed: 2654328, E: 8, eastM: 192, depthM: 72,
           sealByBand: [0.70, 0.12, 0.12], rule: 'dry', bonus: 40 },
       ],
     },
@@ -22950,16 +22950,13 @@ function mineGenerateChunk(state, ci) {
     return { b, lib: libFor(b) };
   };
   const x0World = c0 * cs, x1World = (c1 + 1) * cs;
-  // THE SEAM SLIT, and the journey's answer to it (M7). A sprite must fit inside its own chunk, and a
-  // boulder's alpha falls off before its box does — so every chunk seam carries a vertical slit of open
-  // soil 2-3 fine cells wide (18-27 units) down the whole depth, on BOTH layouts. A strand is a line,
-  // so it threads one: measured on leg 2 a hairline cheapest-water route ran shallow (5% of its east
-  // metres below 42 m, 107 water) where the clearance route went deep (99%, 218) — the slits carried
-  // the colony past sealed seams. On a journey leg rock may reach `seamPad` into the neighbour, but only
-  // from ground this chunk has CLOSED at its own edge cell, so the neighbour's corridor mouths lose at
-  // most that much where this side is walled anyway. The free layout keeps its pinned records: 0.
-  const seamPad = J ? 0.7 * cs : 0;
-  const sx0 = x0World - seamPad, sx1 = x1World + seamPad;
+  // THE SEAM SLIT (M7 finding, left as it is). A sprite must fit inside its own chunk and a boulder's
+  // alpha falls off before its box does, so every chunk seam carries a vertical slit of soil 2-3 fine
+  // cells wide down the whole depth, on BOTH layouts — a hairline a strand can thread. Tried on the
+  // journey: letting rock reach 0.7 cell into the neighbour from this chunk's closed edge cells. It
+  // closed the slits and cost cross-seam connectivity badly — of 50 candidate seeds per leg, the
+  // taproot stopped being reachable (with legprobe's clearance rule) on 29 / 38 / 44 against 1 / 1 / 4 —
+  // so it was taken out.
   // HOW MUCH SOLID ROOM IS THERE HERE? The extent of the unopened SLAB the cell sits in, measured
   // along each axis from the cell and returned as the slab's own bounds — not as half-extents about
   // the cell. THAT DISTINCTION IS MOST OF THE DENSITY, and it took a measurement to see: a candidate
@@ -22996,8 +22993,7 @@ function mineGenerateChunk(state, ci) {
       // would be collided there before that chunk was carved, so a corridor could be walled off by a
       // rock belonging to a chunk generated earlier — the one failure this whole design exists to
       // make impossible.
-      const wLo = Math.max(sx0, c - slab.l === c0 ? sx0 : (c - slab.l) * cs);
-      const wHi = Math.min(sx1, c + slab.rt === c1 ? sx1 : (c + slab.rt + 1) * cs);
+      const wLo = Math.max(x0World, (c - slab.l) * cs), wHi = Math.min(x1World, (c + slab.rt + 1) * cs);
       // THE SPRITE'S CENTRE STAYS IN THE BAND ITS LIBRARY CAME FROM. `libAtRow` picks the rock by the
       // candidate's row and the placement is then free within the slab — up to 8 cells — so without
       // this a candidate near a band seam lands the other side of it and the map carries rock from a
@@ -23022,12 +23018,9 @@ function mineGenerateChunk(state, ci) {
         if (w < cs * 0.9 || h < cs * 0.9) continue;
         // Anywhere in the slab that fits, so the rock does not sit on the candidate lattice.
         const x = rf(wLo + w / 2, wHi - w / 2), y = rf(hLo + h / 2, hHi - h / 2);
-        if (x - w / 2 < sx0 || x + w / 2 > sx1) continue;
+        if (x - w / 2 < x0World || x + w / 2 > x1World) continue;
         if (y - h / 2 < crustY || y + h / 2 > contentBottom) continue;
-        // The box is tested inside THIS chunk only; the pad beyond a seam (journey) is judged by the
-        // edge cell it grows from, which the slab walk above already found closed.
-        const bc0 = Math.max(seamPad ? c0 : -Infinity, Math.floor((x - w / 2) / cs)),
-              bc1 = Math.min(seamPad ? c1 : Infinity, Math.floor((x + w / 2) / cs));
+        const bc0 = Math.floor((x - w / 2) / cs), bc1 = Math.floor((x + w / 2) / cs);
         const br0 = Math.floor((y - h / 2 - sub.surfaceY) / cs), br1 = Math.floor((y + h / 2 - sub.surfaceY) / cs);
         let clear = true, cells = 0, already = 0;
         for (let rr = br0; rr <= br1 && clear; rr++)
@@ -23144,13 +23137,12 @@ function mineGenerateChunk(state, ci) {
         if (!sd[side]) continue;
         const lib = libFor(bandOfRow(sd.row));
         if (!lib.length) continue;
-        // Straddling the pad beyond the seam as well (see `seamPad`): the wall has to close the slit.
-        const x = side === 'L' ? (c0 + SEAM_W / 2) * cs - seamPad / 2 : (c1 + 1 - SEAM_W / 2) * cs + seamPad / 2;
-        for (const [wc, hc, dy] of [[SEAM_W + seamPad / cs, 4.4, 0], [(SEAM_W + seamPad / cs) * 0.9, 3.4, srng() < 0.5 ? -0.9 : 0.9]]) {
+        const x = side === 'L' ? (c0 + SEAM_W / 2) * cs : (c1 + 1 - SEAM_W / 2) * cs;
+        for (const [wc, hc, dy] of [[SEAM_W, 4.4, 0], [SEAM_W * 0.9, 3.4, srng() < 0.5 ? -0.9 : 0.9]]) {
           const src = lib[Math.floor(srng() * lib.length)];
           const sc = Math.min(wc * cs / src.w, hc * cs / src.h);
           const w = src.w * sc, h = src.h * sc, y = sub.surfaceY + (sd.row + 0.5 + dy) * cs;
-          if (x - w / 2 < sx0 - 0.01 || x + w / 2 > sx1 + 0.01) continue;
+          if (x - w / 2 < x0World - 0.01 || x + w / 2 > x1World + 0.01) continue;
           if (y - h / 2 < crustY || y + h / 2 > contentBottom) continue;
           sub.levelSprites.push({ key: src.k, style: 'boulder', x: +x.toFixed(1), y: +y.toFixed(1),
                                   w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
@@ -23252,9 +23244,7 @@ function mineEnsureChunks(state, view) {
     // masks already published (`solidifyMineRock`). The COLUMN range, not the sprite watermark
     // alone, because a chunk also stamps water pockets, whose cells the fine mask has to be told
     // about and which lie nowhere near any new sprite's bounding box.
-    // (A journey chunk's rock reaches a pad over each seam — `seamPad` — so its dirty range does too.)
-    const pad = sub.mineJourney ? 1 : 0;
-    const c0 = Math.max(0, mineChunkRange(cfg, ci).c0 - pad), c1 = Math.min(sub.cols - 1, mineChunkRange(cfg, ci).c1 + pad);
+    const { c0, c1 } = mineChunkRange(cfg, ci);
     sub._mineDirtyC0 = Math.min(sub._mineDirtyC0 != null ? sub._mineDirtyC0 : c0, c0);
     sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : c1, c1);
   }
