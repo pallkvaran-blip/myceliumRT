@@ -16,7 +16,14 @@
  * Measured on `mineHomeCol`, and on the fine mask (`solidAtWorld`) rather than `cell.rock`, because
  * the coarse flag is not what growth is tested against and a sprite overhangs its cells.
  *
- *   NODE_PATH=/opt/node22/lib/node_modules node tests/void-probe.cjs [seed]
+ * A FOURTH READING (M7 verifier fix): THE SEAM HAIRLINE. A sprite must fit inside its own chunk and
+ * a boulder's alpha falls off before its box does, so every chunk seam can carry a slit of soil 2-3
+ * FINE cells wide — invisible to the 3-wide channel reading and to the per-column coarse sample, and a
+ * strand threads it (growth tests points). Per seam: the longest run of fine rows in which any fine
+ * cell within 2 of the seam line is open. The free layout carries it at every seam, the full depth
+ * (owner's call); the journey legs stitch their seams (`mineGenerateChunk` pass (d)).
+ *
+ *   NODE_PATH=/opt/node22/lib/node_modules node tests/void-probe.cjs [seed | leg<N>]
  */
 const http = require('http'), fs = require('fs'), path = require('path');
 const { chromium } = require('playwright');
@@ -40,13 +47,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   page.on('pageerror', (e) => console.log('PAGEERROR:', e.message));
   await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
   const seed = process.argv[2] || 4242;
-  await page.goto(`http://127.0.0.1:${port}/index.html#mine,${seed}`);
+  const legM = /^leg(\d)$/.exec(String(seed));
+  await page.goto(`http://127.0.0.1:${port}/index.html` + (legM ? `#leg,1,${legM[1]}` : `#mine,${seed}`));
   await page.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 }).catch(() => {});
   await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
   await page.waitForFunction(() => !!(window.__game && window.__game.state
     && window.__game.state.substrate && window.__game.state.substrate.mine), { timeout: 40000 });
   await page.waitForFunction(() => !!window.__game.state.substrate._fineSolid, { timeout: 20000 });
   await sleep(1500);
+  // Seven chunks around the hill, stamped, so the seam reading has seams to read.
+  await page.evaluate(() => { const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, cw = s.config.mine.chunkCols;
+    const hx = (sub.mineHomeCol + 0.5) * cs; g.mine.ensureChunks(Math.max(0, hx - 3.5 * cw * cs), hx + 3.5 * cw * cs); });
+  await page.waitForFunction(() => { const sub = window.__game.state.substrate;
+    return (sub._solidFrom | 0) === sub.levelSprites.length && sub._mineDirtyC0 == null; }, { timeout: 30000, polling: 100 }).catch(() => {});
 
   const r = await page.evaluate(() => {
     const g = window.__game, s = g.state, sub = s.substrate;
@@ -105,7 +118,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     };
     const stair = stairFor((i, r2) => !solidAt(lo + i, r2));
     const stairWide = stairFor(wide);
-    return { stair, stairWide, home, col, rows: sub.rows, worst, worstCol, lo, hi,
+    // 4. THE SEAM HAIRLINE, on the fine mask.
+    const fsz = sub._fineSize, FW = sub._fineCols, FH = sub._fineRows, fs = sub._fineSolid, K = Math.round(sub.cellSize / fsz);
+    const seams = [];
+    for (let ci = Math.min(...cis) + 1; ci <= Math.max(...cis); ci++) {
+      const sF = ci * cc * K; let run = 0, best = 0;
+      for (let y = 0; y < FH; y++) {
+        let o = false;
+        for (let x = sF - 2; x <= sF + 1 && !o; x++) if (x >= 0 && x < FW && !fs[y * FW + x]) o = true;
+        if (o) { run++; if (run > best) best = run; } else run = 0;
+      }
+      seams.push({ col: ci * cc, rows: +(best / K).toFixed(1) });
+    }
+    return { stair, stairWide, home, col, rows: sub.rows, worst, worstCol, lo, hi, seams,
              top: runs.slice(0, 8), median: runs[runs.length >> 1],
              repairs: (() => {
                const mc = s.mineChunks;
@@ -122,6 +147,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log(`longest unbroken run in ONE column: ${r.worst} of ${r.rows} (col ${r.worstCol})`);
   console.log(`  top runs ${r.top.join(', ')}   median column ${r.median}`);
   console.log(`descent repairs opened per chunk: [${r.repairs.join(', ')}]`);
+  const full = r.seams.filter((x) => x.rows >= r.rows - 1).length;
+  console.log(`SEAM HAIRLINE (fine mask, open within 2 fine cells of the seam): longest ${Math.max(0, ...r.seams.map((x) => x.rows))} of ${r.rows} rows; ${full} of ${r.seams.length} seams run the full depth`);
+  console.log('  ' + r.seams.map((x) => `col ${x.col}: ${x.rows}`).join(' · '));
   let line = '';
   for (const v of r.col) line += v ? '#' : '.';
   console.log('start column, top to bottom (# rock, . open):');

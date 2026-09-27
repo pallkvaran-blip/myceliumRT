@@ -3878,10 +3878,13 @@ const CONFIG = {
     // TAPROOT — a carved chamber (radius `taprootR` cells) the colony has to reach. `landfallCells`
     // is how close a clean strand must come to the knot (M8 ends the run on it).
     //
-    // A row: `seed` (curated by tests/bots/legprobe.cjs from 50 candidates: the taproot must be
-    // reachable over the fine mask, the path 1.3-2.0x the straight line, the crust closed, no
-    // straight lateral channel, and from leg 2 the cheapest-water route mostly below 42 m),
-    // `E` (island chunk = homeChunk + E), `eastM`/`depthM` (the taproot, 1 m = 1 cell),
+    // A row: `seed` (curated by tests/bots/legprobe.cjs --pick: the taproot reachable on the fine
+    // mask AND on the growth lattice — growth's own point/segment rule, hairlines included — the
+    // shortest growth path 1.3-2.0x the straight line, the crust closed, no straight lateral channel,
+    // no seam hairline longer than a band, from leg 2 the cheapest-water route mostly below 42 m, and
+    // then REAL growth (mine.growFrom) following that route landing at the taproot),
+    // `E` (island chunk = homeChunk + E; must agree with `eastM`, journey-check asserts it),
+    // `eastM`/`depthM` (the taproot, 1 m = 1 cell),
     // `sealByBand` (the chance a gallery is walled at a seam, per 42 m band — the shallow road
     // breaks; bands past the list use `gallerySealChance`), `rule` (the leg's one rule, applied on
     // the run's config clone in main.js `configForLevel`) and `bonus` (M8's landfall bonus).
@@ -3894,11 +3897,11 @@ const CONFIG = {
       taprootR: 2.5,
       landfallCells: 1.5,
       legs: [
-        { leg: 1, name: 'First Light', seed: 648639, E: 4, eastM: 96, depthM: 24,
+        { leg: 1, name: 'First Light', seed: 2743219, E: 4, eastM: 96, depthM: 24,
           sealByBand: [0.12, 0.12, 0.12], rule: 'calm', bonus: 20 },
-        { leg: 2, name: 'The Coal Road', seed: 4531531, E: 6, eastM: 144, depthM: 58,
+        { leg: 2, name: 'The Coal Road', seed: 551829, E: 6, eastM: 144, depthM: 58,
           sealByBand: [0.55, 0.12, 0.12], rule: 'standard', bonus: 30 },
-        { leg: 3, name: 'Dry Ground', seed: 2654328, E: 8, eastM: 192, depthM: 72,
+        { leg: 3, name: 'Dry Ground', seed: 1816496, E: 8, eastM: 192, depthM: 72,
           sealByBand: [0.70, 0.12, 0.12], rule: 'dry', bonus: 40 },
       ],
     },
@@ -22788,7 +22791,14 @@ function mineGenerateChunk(state, ci) {
         for (let dc = -k; dc <= k; dc++)
           if (inChunk(sp.c + dc, sp.r + dr)) water[at(sp.c + dc, sp.r + dr)] = 1;
     }
-    const isTarget = (c, r) => (c === c0 || c === c1) && galleryRows.indexOf(r) >= 0;
+    // A SEAM THIS CHUNK SEALED IS NOT A WAY OUT (M7 verifier fix). The seal draw ran above, so this
+    // chunk's own walled sides are known; a connector aimed at one would run into the seal boulders
+    // placed on it below. The NEIGHBOUR's seals are not asked — they are its own rng, and asking
+    // would make this chunk's carve depend on which of the two was generated first.
+    const ownSealed = new Set();
+    for (const sd of J._sealed || []) if (sd.ci === ci) { if (sd.L) ownSealed.add('L' + sd.row); if (sd.R) ownSealed.add('R' + sd.row); }
+    const isTarget = (c, r) => galleryRows.indexOf(r) >= 0
+      && ((c === c0 && !ownSealed.has('L' + r)) || (c === c1 && !ownSealed.has('R' + r)));
     const seen = new Uint8Array(W * rows), par = new Int32Array(W * rows);
     let repairs = 0;
     for (let guard = 0; guard < 40; guard++) {
@@ -23106,7 +23116,10 @@ function mineGenerateChunk(state, ci) {
           if (w < cs * 0.9 || h < cs * 0.9) break;
           const x = Math.max(x0World + w / 2, Math.min(x1World - w / 2, (c - l + (l + rt + 1) / 2) * cs));
           const y = sub.surfaceY + h * 0.18;
-          const bc0 = Math.floor((x - w / 2) / cs), bc1 = Math.floor((x + w / 2) / cs);
+          // `- 0.01`: a sprite exactly the slab's width ends ON the next column's edge, and floor()
+          // would count that column (open, or outside the chunk) as covered — the full-width
+          // candidate always failed its own box test and only the shrunk ones placed.
+          const bc0 = Math.floor((x - w / 2) / cs), bc1 = Math.floor((x + w / 2 - 0.01) / cs);
           const br1 = Math.floor((y + h / 2 - sub.surfaceY) / cs);
           let clear = x - w / 2 >= x0World && x + w / 2 <= x1World;
           for (let rr = 0; rr <= br1 && clear; rr++)
@@ -23131,6 +23144,65 @@ function mineGenerateChunk(state, ci) {
   // may never reach into a neighbour). Their own rng; journey-only.
   if (J && J._sealed) {
     const srng = mineChunkRng(((state.mineSeed || state.seed || 1) ^ 0x5EA1) >>> 0, ci);
+    // A SEAL BOULDER MAY NOT CUT ANYTHING BUT THE SEAL (M7 verifier fix). It used to check only the
+    // chunk's bounds, so it could land on the taproot's connector (whose target was a seam cell), on a
+    // vertical link or a broken shaft crossing the seam columns, or on the one way into an ore spur —
+    // and the connectivity sweep above, which counts `stranded`, had already run. Now a candidate is
+    // DROPPED unless every connected piece of the carve (open, not water) outside its box stays one
+    // piece with it in place, and unless its box misses every reward's footprint and every cell the
+    // head, the descent repair or the taproot marked `noPlug`. So the sweep's count stays true and no
+    // guarantee the carve made can be undone by a seal. The draws on `srng` are the same either way.
+    const wet = new Uint8Array(W * rows), keep = new Uint8Array(W * rows);
+    for (const sp of spots) {
+      const k = Math.ceil((sp.kind === 'water' ? 2.8 : 2.2) + 1);
+      for (let dr = -k; dr <= k; dr++)
+        for (let dc = -k; dc <= k; dc++) {
+          if (!inChunk(sp.c + dc, sp.r + dr)) continue;
+          keep[at(sp.c + dc, sp.r + dr)] = 1;
+          if (sp.kind === 'water' && dc * dc + dr * dr <= 1.5 * 1.5) wet[at(sp.c + dc, sp.r + dr)] = 1;
+        }
+    }
+    const blocked = new Uint8Array(W * rows);
+    const label = (extra) => {
+      const lab = new Int32Array(W * rows).fill(-1);
+      let n = 0;
+      for (let i = 0; i < lab.length; i++) {
+        if (lab[i] >= 0 || !open[i] || wet[i] || blocked[i] || (extra && extra[i])) continue;
+        const st = [i]; lab[i] = n;
+        while (st.length) {
+          const j = st.pop(), r = (j / W) | 0, c = j % W;
+          for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const cc = c + dc, rr = r + dr;
+            if (cc < 0 || cc >= W || rr < 0 || rr >= rows) continue;
+            const q = rr * W + cc;
+            if (lab[q] >= 0 || !open[q] || wet[q] || blocked[q] || (extra && extra[q])) continue;
+            lab[q] = n; st.push(q);
+          }
+        }
+        n++;
+      }
+      return lab;
+    };
+    let pre = label(null);
+    const safeBox = (bc0, bc1, br0, br1) => {
+      const box = new Uint8Array(W * rows);
+      for (let rr = br0; rr <= br1; rr++)
+        for (let cc = bc0; cc <= bc1; cc++) {
+          if (!inChunk(cc, rr)) continue;
+          const j = at(cc, rr);
+          if (keep[j] || noPlug[j] || (tapCut && tapCut[j])) return false;
+          box[j] = 1;
+        }
+      const post = label(box), map = new Map();
+      for (let i = 0; i < pre.length; i++) {
+        if (pre[i] < 0 || box[i]) continue;
+        const m = map.get(pre[i]);
+        if (m === undefined) map.set(pre[i], post[i]); else if (m !== post[i]) return false;
+      }
+      for (let i = 0; i < box.length; i++) if (box[i]) blocked[i] = 1;
+      pre = label(null);
+      return true;
+    };
     for (const sd of J._sealed) {
       if (sd.ci !== ci) continue;
       for (const side of ['L', 'R']) {
@@ -23144,14 +23216,109 @@ function mineGenerateChunk(state, ci) {
           const w = src.w * sc, h = src.h * sc, y = sub.surfaceY + (sd.row + 0.5 + dy) * cs;
           if (x - w / 2 < x0World - 0.01 || x + w / 2 > x1World + 0.01) continue;
           if (y - h / 2 < crustY || y + h / 2 > contentBottom) continue;
+          const bc0 = Math.floor((x - w / 2) / cs), bc1 = Math.floor((x + w / 2 - 0.01) / cs);
+          const br0 = Math.floor((y - h / 2 - sub.surfaceY) / cs), br1 = Math.floor((y + h / 2 - sub.surfaceY) / cs);
+          if (!safeBox(bc0, bc1, br0, br1)) { placed.sealsDropped = (placed.sealsDropped | 0) + 1; continue; }
           sub.levelSprites.push({ key: src.k, style: 'boulder', x: +x.toFixed(1), y: +y.toFixed(1),
                                   w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
           placed.rocks++; placed.seals = (placed.seals | 0) + 1;
-          const bc0 = Math.floor((x - w / 2) / cs), bc1 = Math.floor((x + w / 2 - 0.01) / cs);
-          const br0 = Math.floor((y - h / 2 - sub.surfaceY) / cs), br1 = Math.floor((y + h / 2 - sub.surfaceY) / cs);
           for (let rr = br0; rr <= br1; rr++) for (let cc = bc0; cc <= bc1; cc++) if (inChunk(cc, rr)) taken[at(cc, rr)] = 1;
         }
       }
+    }
+  }
+  // --- (d) THE SEAM STITCH, on a journey leg only (M7 verifier fix) -----------------
+  // Every sprite must fit inside its own chunk and a boulder's alpha falls off before its box does, so
+  // each chunk seam carried a vertical SLIT of soil 2-3 fine cells wide from the surface to the floor —
+  // a hairline a strand threads (growth tests points, sampled every 0.7 fine cells), which made every
+  // seal pointless and was, measured on legprobe's growth lattice, a free rock-free line down the whole
+  // depth at every 24th column. The owner has rejected a rock-free vertical line twice.
+  //
+  // A stitch waits until BOTH chunks of a seam exist, then puts rock straddling the seam line only on
+  // rows where BOTH seam columns are closed in their own carves — so it can never wall off anything
+  // either carve opened (the pad tried before this reached from one side's closed cells into the
+  // neighbour's OPEN ground, and cut the corridors that meet at a seam). Owned by whichever chunk comes
+  // second, drawn from a rng keyed on the SEAM (`seed ^ 0x57C4`, seam index), so the rock is the same
+  // whichever order the two were generated in; recorded on `J._stitched`, not in either chunk record
+  // (a record must not depend on generation order).
+  if (J) {
+    (J._open || (J._open = {}))[ci] = open;
+    (J._noPlug || (J._noPlug = {}))[ci] = noPlug;
+    (J._stitched || (J._stitched = {}));
+    for (const nb of [ci - 1, ci + 1]) {
+      const sI = Math.max(ci, nb);
+      if (!J._open[nb] || J._stitched[sI] != null) continue;
+      const oA = J._open[sI - 1], oB = J._open[sI];
+      const WA = (oA.length / rows) | 0, WB = (oB.length / rows) | 0;
+      const colA = sI * (M.chunkCols | 0) - 1, colB = colA + 1, xs = colB * cs;
+      const qrng = mineChunkRng(((state.mineSeed || state.seed || 1) ^ 0x57C4) >>> 0, sI);
+      const dry = (c, r) => { const cell = sub.cellAt(c, r); return !cell || (!cell.water && !(cell.maxNutrient > 0)); };
+      const npA = J._noPlug[sI - 1], npB = J._noPlug[sI];
+      const cover = new Uint8Array(rows);
+      for (let r = 0; r < rows; r++) cover[r] = !oA[r * WA + WA - 1] && !oB[r * WB] && dry(colA, r) && dry(colB, r) ? 1 : 0;
+      // ...AND WHERE ONLY ONE SIDE CARVED UP TO THE SEAM. There the carve says the passage STOPS at the
+      // seam (a sealed gallery, a spur or a dead end that happens to touch it), and the slit beside it
+      // was the way round: the neighbour's closed ground is only as solid as the sprites the rock loop
+      // managed to fit, and a sprite must fit inside its chunk, so near the seam it is porous. Measured
+      // on leg 2 with only the both-closed rows stitched: 12 of 51 sealed sides crossable within 8
+      // columns and 5 rows. So the stitch also runs through those rows and a chunk meets its neighbour
+      // exactly where BOTH carves are open — the seam is as porous as the carve says and no more. The
+      // open side's dead end loses under a cell. Only for a run of at most 7 rows (longer is a link or a
+      // shaft running along the seam, which stays), with no `noPlug` cell (the head, a repair or a
+      // taproot connector) and no creature placed on it.
+      const creatures = [];
+      for (const k of [sI - 1, sI]) for (const sp of ((state.mineChunks[k] && state.mineChunks[k].spots) || [])) creatures.push(sp);
+      const oneA = (r) => !!oA[r * WA + WA - 1] && !oB[r * WB], oneB = (r) => !oA[r * WA + WA - 1] && !!oB[r * WB];
+      for (const one of [oneA, oneB]) {
+        const openA = one === oneA, npO = openA ? npA : npB, oO = openA ? oA : oB, WO = openA ? WA : WB, colO = openA ? WA - 1 : 0;
+        for (let r = 0; r < rows;) {
+          if (!one(r)) { r++; continue; }
+          let r1 = r; while (r1 + 1 < rows && one(r1 + 1)) r1++;
+          let okRun = r1 - r + 1 <= 7;
+          for (let rr = r; rr <= r1 && okRun; rr++) {
+            if ((npO && npO[rr * WO + colO]) || !dry(colA, rr) || !dry(colB, rr)) okRun = false;
+            const yW = sub.surfaceY + (rr + 0.5) * cs;
+            for (const sp of creatures) if (Math.abs(sp.x - xs) < 1.6 * cs && Math.abs(sp.y - yW) < 1.2 * cs) okRun = false;
+          }
+          if (okRun) for (let rr = r; rr <= r1; rr++) cover[rr] = 1;
+          r = r1 + 1;
+        }
+      }
+      const both = (r) => cover[r] === 1;
+      let n = 0;
+      for (let r = 0; r < rows;) {
+        if (!both(r)) { r++; continue; }
+        let r1 = r; while (r1 + 1 < rows && both(r1 + 1)) r1++;
+        // Tile the run [r, r1] with sprites centred on the seam, 1.7 cells across (inside the two seam
+        // columns), up to 3.2 cells tall, each overlapping the last by half. A run from row 0 starts
+        // above the soil line, clipped there like the crust.
+        const top = sub.surfaceY + r * cs, bot = sub.surfaceY + (r1 + 1) * cs;
+        let y0 = r === 0 ? sub.surfaceY - cs * 0.6 : top;
+        for (let guard = 0; guard < 200 && y0 < bot - cs * 0.25; guard++) {
+          const lib = libFor(bandOfRow(Math.min(rows - 1, Math.max(0, Math.floor((y0 - sub.surfaceY) / cs) + 1))));
+          if (!lib.length) break;
+          const src = lib[Math.floor(qrng() * lib.length)];
+          const hMax = Math.min(3.2 * cs, bot - y0);
+          const sc = Math.min(1.7 * cs / src.w, hMax / src.h);
+          const w = src.w * sc, h = src.h * sc;
+          if (w < cs * 0.8 || h < cs * 0.5) break;
+          const y = Math.min(y0 + h / 2, bot - h / 2);
+          sub.levelSprites.push({ key: src.k, style: 'boulder', x: +xs.toFixed(1), y: +y.toFixed(1),
+                                  w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
+          n++;
+          // This chunk's creatures are placed after this pass: keep them off the stitch.
+          const ownC = sI === ci ? colB : colA;
+          for (let rr = Math.floor((y - h / 2 - sub.surfaceY) / cs); rr <= Math.floor((y + h / 2 - sub.surfaceY) / cs); rr++)
+            if (inChunk(ownC, rr)) taken[at(ownC, rr)] = 1;
+          y0 += h * 0.5;
+        }
+        r = r1 + 1;
+      }
+      J._stitched[sI] = n;
+      // The stitch reaches into the neighbour's first column: widen the dirty range so the
+      // incremental stamp reconciles its `cell.rock` too.
+      sub._mineDirtyC0 = Math.min(sub._mineDirtyC0 != null ? sub._mineDirtyC0 : colA, colA);
+      sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : colB, colB);
     }
   }
   for (let i = 0; i < open.length; i++) if (open[i]) placed.open++;
@@ -40520,13 +40687,14 @@ function renderFrame(time, dtFrames = 1) {
   drawRockPiles();              // lone boulders (gated) — over food/earth
   drawRockFormations();         // large AI rock-formation sprites (gated) — over food/earth, embedded in soil
   drawRockColumns();            // path-blocking vertical rock columns (gated) — barriers from the surface down
+  if (state.substrate.mine) drawMineTaproot(time, 'roots');   // the taproot's filaments hang BEHIND the rock (M7)
   drawLevelRocks();             // hand-authored rock sprites (level editor) — no-op on generated maps
   drawLakes();                  // lake basins (matted) — over rocks so a boulder can't spill into the water
   drawReservoirs();             // underground water pockets (matted) — small water sources along the route
   drawMountains();              // mountain barriers rendered as a sprite over the wall (gated)
   drawCities();                 // city skylines over the concrete barriers (gated)
   drawSurfaceProps();           // optional above-ground sprites: trees/grass/houses (gated)
-  if (state.substrate.mine) { drawMineProps(); drawMineTaproot(time); }   // trees on the hills; the leg's taproot (M7)
+  if (state.substrate.mine) { drawMineProps(); drawMineTaproot(time, 'knot'); }   // trees on the hills; the leg's taproot (M7)
   else drawHomeProps();         // one small tree on the left home hill (over its backdrop)
   drawGoalProps();              // summery bush clusters on the goal soil (over the hill backdrop)
 
@@ -43239,18 +43407,23 @@ function mineTaprootGeom() {
   return { x: (J.taproot.col + 0.5) * cs, y: sub.surfaceY + (J.taproot.row + 0.5) * cs, r: 40,
            x0: J.islandC0 * cs, x1: (J.islandC1 + 1) * cs, fade: 6 * cs };
 }
-function drawMineTaproot(time) {
+// TWO PASSES (M7 verifier fix): `part === 'roots'` draws the filaments BEFORE the rock, so they hang
+// behind it and show only through soil (drawn over the crust they read as tissue a strand could use);
+// `part === 'knot'` draws the knot after, inside its carved chamber, with the glow held inside it.
+let _mineTaprootRoots = 0;
+function drawMineTaproot(time, part) {
   const g = mineTaprootGeom();
-  _mineTaprootDrawn = null;
-  if (!g) return;
+  if (part !== 'roots') _mineTaprootDrawn = null;
+  if (!g) { _mineTaprootRoots = 0; return; }
   const sub = state.substrate, z = camera.zoom;
   const pulse = 0.5 + 0.5 * Math.sin(time * 0.001 * Math.PI * 2 / 1.6);
-  const drawn = { knot: false, filaments: 0 };
+  const drawn = { knot: false, filaments: _mineTaprootRoots };
   withWorldClip(() => {
     ctx.save();
     ctx.lineCap = 'round';
     // Filaments: five hanging threads, deterministic per island, alpha falling to 0 at `fade`.
-    for (let i = 0; i < 5; i++) {
+    if (part === 'roots') drawn.filaments = 0;
+    for (let i = 0; i < 5 && part === 'roots'; i++) {
       const t = (i + 0.5) / 5, fx = g.x0 + (g.x1 - g.x0) * (0.15 + 0.7 * t);
       const len = g.fade * (0.55 + 0.45 * Math.abs(Math.sin(i * 2.3 + 1)));
       const sway = Math.sin(i * 1.7 + 0.4) * 22;
@@ -43266,10 +43439,15 @@ function drawMineTaproot(time) {
     }
     // The knot.
     const k = camera.worldToScreen(g.x, g.y), R = g.r * z;
-    if (k.x > -R * 3 && k.x < camera.viewW + R * 3 && k.y > -R * 3 && k.y < camera.viewH + R * 3) {
-      const glow = ctx.createRadialGradient(k.x, k.y, R * 0.2, k.x, k.y, R * (2.1 + 0.4 * pulse));
+    if (part !== 'roots' && k.x > -R * 3 && k.x < camera.viewW + R * 3 && k.y > -R * 3 && k.y < camera.viewH + R * 3) {
+      // The glow stays INSIDE the chamber (M7 verifier fix): at 2.5 knot radii it reached ~100 units
+      // against a 90-unit chamber and lit the rock around it.
+      const chamber = (+(sub.mineJourney && sub.mineJourney.taprootR) || 2.5) * sub.cellSize * z * 0.95;
+      const gr = Math.min(R * (2.1 + 0.4 * pulse), chamber);
+      const glow = ctx.createRadialGradient(k.x, k.y, R * 0.2, k.x, k.y, gr);
       glow.addColorStop(0, `rgba(127,230,163,${0.34 + 0.2 * pulse})`); glow.addColorStop(1, 'rgba(127,230,163,0)');
-      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(k.x, k.y, R * (2.1 + 0.4 * pulse), 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(k.x, k.y, gr, 0, Math.PI * 2); ctx.fill();
+      drawn.glowR = gr / z;
       ctx.strokeStyle = `rgba(190,255,214,${0.7 + 0.3 * pulse})`; ctx.lineWidth = Math.max(1.5, 3 * z);
       for (let i = 0; i < 7; i++) {      // a tangle of loops, not a disc
         const a0 = i * 0.9 + time * 0.00025 * (i % 2 ? 1 : -1);
@@ -43283,7 +43461,8 @@ function drawMineTaproot(time) {
     }
     ctx.restore();
   });
-  _mineTaprootDrawn = drawn;
+  if (part === 'roots') _mineTaprootRoots = drawn.filaments;
+  else _mineTaprootDrawn = drawn;
 }
 
 function drawHomeProps() {
