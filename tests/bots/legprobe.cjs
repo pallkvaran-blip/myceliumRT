@@ -48,7 +48,13 @@ const H = require('../mine-harness.cjs');
 // pass-(e) anchor joined.
 const WPASS = (w) => w.pilesOk >= 0.85 * w.piles && w.pocketsOk >= 0.85 * w.pockets && w.lateral <= 36 && w.unjoined === 0
   && w.seamSolid != null && w.seamSolid - w.midSolid <= 0.05 && w.spineSeam != null && w.spineSeam <= 2 * w.spineMid90
-  && w.hairSeam != null && w.hairSeam <= w.hairMid && w.bandSol != null && w.bandSol - w.inSol <= 0.15;
+  && w.hairSeam != null && w.hairSeam <= w.hairMid && w.bandSol != null && w.bandSol - w.inSol <= 0.15
+  && PILLAR_OK(w);
+// Round 4: FREE-STANDING THIN WALLS (the auditor's pillar metric, `world`): the mean seam line carries no
+// more pillar rows than an interior line's 90th percentile, the 90th-percentile seam no more than the
+// worst interior line, and no seam a pillar run more than 2 rows taller than the tallest interior one.
+const PILLAR_OK = (w) => w.pillarSeam != null && w.pillarSeam <= w.pillarMid90 && w.pillarSeam90 <= w.pillarMidMax
+  && w.pillarRunSeam <= w.pillarRunMid + 2;
 const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0
   && m.crustMaxCol <= m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42 && m.seamRunRows <= 42
   && m.sealLeak === 0                                            // no sealed side leaks (no gallery in the floor strip any more)
@@ -487,8 +493,38 @@ async function world(page) {
         hairSeam = +Math.max(...hs).toFixed(1); hairMid = +hm[hm.length - 1].toFixed(1); hairMid90 = +hm[Math.floor(0.9 * (hm.length - 1))].toFixed(1);
       }
     }
+    // FREE-STANDING THIN WALLS (verifier round 4, the auditor's pillar metric verbatim): a row is a PILLAR
+    // row on a vertical line when the band within 0.75 cell of the line is >= 50% drawn rock while the
+    // ground 2-4 cells out on BOTH sides is <= 30% — a one-stone-wide wall standing in soil. The density
+    // gates above average solidity and cannot see thinness or isolation; this can. Rows 4..rows-7, per
+    // seam line and per interior line (6/9/12/15/18 cells into every chunk with both neighbours).
+    let pillarSeam = null, pillarSeam90 = null, pillarMid = null, pillarMid90 = null, pillarMidMax = null, pillarRunSeam = null, pillarRunMid = null, pillarWorst = null;
+    {
+      const frac = (ca, cb, r) => { let n = 0, t = 0; const xa = Math.round(ca * K), xb = Math.round(cb * K);
+        for (let y = r * K; y < (r + 1) * K; y++) for (let x = xa; x < xb; x++) { if (x < 0 || x >= W) continue; t++; n += solid[y * W + x]; }
+        return t ? n / t : 0; };
+      const line = (L) => { let best = 0, run = 0, tot = 0;
+        for (let r = 4; r < sub.rows - 6; r++) {
+          if (frac(L - 0.75, L + 0.75, r) >= 0.5 && frac(L - 4, L - 2, r) <= 0.3 && frac(L + 2, L + 4, r) <= 0.3) { run++; tot++; if (run > best) best = run; }
+          else run = 0;
+        }
+        return { best, tot }; };
+      const sl = [], ml = [];
+      for (const ci of cis) { if (cis.includes(ci - 1)) sl.push(ci * cw);
+        if (cis.includes(ci - 1) && cis.includes(ci + 1)) for (const k of [6, 9, 12, 15, 18]) ml.push(ci * cw + k); }
+      if (sl.length && ml.length) {
+        const S = sl.map((L) => Object.assign({ L }, line(L))), I = ml.map(line);
+        const q = (a, p) => { const v = a.slice().sort((x, y) => x - y); return v[Math.floor(p * (v.length - 1))]; };
+        const st = S.map((o) => o.tot), it = I.map((o) => o.tot);
+        pillarSeam = +(st.reduce((a, v) => a + v, 0) / st.length).toFixed(1); pillarSeam90 = q(st, 0.9);
+        pillarMid = +(it.reduce((a, v) => a + v, 0) / it.length).toFixed(1); pillarMid90 = q(it, 0.9); pillarMidMax = Math.max(...it);
+        pillarRunSeam = Math.max(...S.map((o) => o.best)); pillarRunMid = Math.max(...I.map((o) => o.best));
+        pillarWorst = S.slice().sort((a, b) => b.tot - a.tot).slice(0, 3).map((o) => [o.L / cw, o.tot, o.best]);
+      }
+    }
     return { chunks: cis.length, piles, pilesOk, pockets, pocketsOk, strandedAt, lateral, latAt, seamSolid, midSolid, spineSeam, spineMid, spineMid90,
-             profile, bandSol, inSol, hairSeam, hairMid, hairMid90, lateral2, lat2At, unjoined, sprites: sub.levelSprites.length };
+             profile, bandSol, inSol, hairSeam, hairMid, hairMid90, lateral2, lat2At, unjoined, sprites: sub.levelSprites.length,
+             pillarSeam, pillarSeam90, pillarMid, pillarMid90, pillarMidMax, pillarRunSeam, pillarRunMid, pillarWorst };
   });
 }
 
@@ -567,7 +603,7 @@ async function openLeg(E, leg, seed, vw = 390, vh = 844, file) {
   return b;
 }
 
-module.exports = { measure, world, follow, playLeg, openLeg, PASS, WPASS };
+module.exports = { measure, world, follow, playLeg, openLeg, PASS, WPASS, PILLAR_OK };
 
 if (require.main === module) (async () => {
   const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
@@ -609,7 +645,7 @@ if (require.main === module) (async () => {
             continue;
           }
           if (ok) good.push(m);
-          console.log(`leg ${leg} cand ${k} seed ${sd}: ${ok ? 'PASS' : '    '} reach ${m.reach}/${m.reachLat} ratio ${m.ratio} (fine ${m.ratioFine}) water ${m.water} e42 ${m.east42} e84 ${m.east84} shallow ${m.shallowMaxCol} crust ${m.crustMaxCol} lat ${m.lateral} seam ${m.seamRunRows} leak ${m.sealLeak}/${m.sealN} creat ${m.shallowestRow} tapRep ${m.tapRec && m.tapRec.repairs}${m.world ? ` | world lat ${m.world.lateral} ore ${m.world.pilesOk}/${m.world.piles} pk ${m.world.pocketsOk}/${m.world.pockets} seam ${m.world.seamSolid}/${m.world.midSolid} spine ${m.world.spineSeam}/${m.world.spineMid90} hair ${m.world.hairSeam}/${m.world.hairMid}` : ''}`);
+          console.log(`leg ${leg} cand ${k} seed ${sd}: ${ok ? 'PASS' : '    '} reach ${m.reach}/${m.reachLat} ratio ${m.ratio} (fine ${m.ratioFine}) water ${m.water} e42 ${m.east42} e84 ${m.east84} shallow ${m.shallowMaxCol} crust ${m.crustMaxCol} lat ${m.lateral} seam ${m.seamRunRows} leak ${m.sealLeak}/${m.sealN} creat ${m.shallowestRow} tapRep ${m.tapRec && m.tapRec.repairs}${m.world ? ` | world lat ${m.world.lateral} ore ${m.world.pilesOk}/${m.world.piles} pk ${m.world.pocketsOk}/${m.world.pockets} seam ${m.world.seamSolid}/${m.world.midSolid} spine ${m.world.spineSeam}/${m.world.spineMid90} hair ${m.world.hairSeam}/${m.world.hairMid} pillar ${m.world.pillarSeam}/${m.world.pillarMid90} p90 ${m.world.pillarSeam90}/${m.world.pillarMidMax} run ${m.world.pillarRunSeam}/${m.world.pillarRunMid}` : ''}`);
         }
         console.log(`leg ${leg}: ${good.length} of ${pick} candidates pass`);
         // Prefer a ratio near the middle of the band, then (legs 2+) the deepest crossing.

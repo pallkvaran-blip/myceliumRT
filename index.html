@@ -3896,6 +3896,7 @@ const CONFIG = {
     journey: {
       homeChunk: 1,
       islandCols: 12,
+      sealCols: 6,           // columns a walled gallery stops short of the seam (free layout: 3)
       taprootR: 2.5,
       landfallCells: 1.5,
       legs: [
@@ -22187,6 +22188,7 @@ function mineJourneyLayout(config, journey, leg) {
     homeCol, islandC0: col - (ic >> 1), islandC1: col - (ic >> 1) + ic - 1,
     taproot: { col, row: rowR }, taprootR: +J.taprootR || 2.5,
     sealByBand: (row.sealByBand || []).slice(),
+    sealCols: Math.max(3, +J.sealCols || 3),
   };
 }
 function mineLevelDef(config, seed, opts) {
@@ -22390,7 +22392,17 @@ function mineGenerateChunk(state, ci) {
     const v = J.sealByBand[bandOfRow(gr)];
     return v == null ? sealCh : Math.max(0, Math.min(0.95, +v || 0));
   };
-  const SEAM_W = 3;               // how many columns at a seam a seal covers
+  // How many columns at a seam a seal covers. JOURNEY: `journey.sealCols` (6, verifier round 4). At 3 a
+  // walled gallery stopped 3 short of the seam, its carve radius (1.15-1.9) ate two of those, and the
+  // neighbour's corridor ran up to the seam — a ONE-CELL wall between two corridor ends, which the
+  // stitch's chain then drew as a free-standing stone pillar on the seam line. At 6 the wall is ~4
+  // cells of closed ground the seam band's rock loop fills like any other slab. Measured (pillar rows
+  // per seam against ~5-6 on an interior line): 3 -> 8.9 / 11.4 / 11.9, 6 -> 6.3 / 5.2 / 6.2 with the
+  // two stitch changes below. The free layout keeps 3 (its chunk records are pinned).
+  // Test knob `MYCELIUM_OLD_SEAM_CHAIN` puts back round 3's seam (seal 3 columns, one-sided runs sealed,
+  // the chain on every gallery row): journey-check's negative control for the pillar gate.
+  const OLD_SEAM = !!(J && typeof window !== 'undefined' && window.MYCELIUM_OLD_SEAM_CHAIN);
+  const SEAM_W = J && !OLD_SEAM ? (J.sealCols | 0 || 3) : 3;
   const SEAM_BAND = 4;            // journey: columns either side of a seam the stitch's rock loop owns
   for (let gi = 0; gi < galleryRows.length; gi++) {
     const gr = galleryRows[gi];
@@ -23626,7 +23638,15 @@ function mineGenerateChunk(state, ci) {
           let r1 = r; while (r1 + 1 < rows && one(r1 + 1)) r1++;
           let okRun = r1 - r + 1 <= 10;
           for (let rr = r; rr <= r1 && okRun; rr++) if (!dry(colA, rr) || !dry(colB, rr)) okRun = false;
-          if (okRun) for (let rr = r; rr <= r1; rr++) { cover[rr] = 1; must[rr] = 1; }
+          // COVERED, NOT `must` (verifier round 4). A one-sided run was also a `must` row, so the chain
+          // sealed it wherever it fell — and away from a walled gallery that is a one-stone wall between
+          // a corridor ending at the seam and the neighbour's closed ground, standing in open soil: the
+          // pillar in the auditor's frames (leg 2 seam 72 row 57, the ".###...." rows). The leak it
+          // guarded is a SEALED SIDE's, and every sealed side's rows are `must` from the seal window
+          // above; elsewhere a one-sided run is just where a corridor meets the seam. Measured on the
+          // round-3 seeds: pillar rows per seam 10.1 / 9.2 / 9.7 -> 8.9 / 7.5 / 8.4, sealed sides still
+          // 0 leaking of 13 / 36 / 53.
+          if (okRun) for (let rr = r; rr <= r1; rr++) { cover[rr] = 1; if (OLD_SEAM) must[rr] = 1; }
           r = r1 + 1;
         }
       }
@@ -23737,7 +23757,39 @@ function mineGenerateChunk(state, ci) {
       // the rock beside it, and a vertical open run down a seam is no longer than one down an interior
       // line (legprobe `hairSeam` against `hairMid`: 29-32 rows against interior maxima of 51-53 and
       // 90th percentiles of 29-38) — i.e. the slit is gone and the seam is ordinary ground.
+      // A GALLERY ROW NEEDS THE CHAIN ONLY WHERE THE TWO SIDES WOULD MAKE A LONG CHANNEL (verifier round
+      // 4). `tight` exists for acceptance 7 (no straight lateral channel over 36 cells): two segments
+      // ending either side of the seam, joined through porous rock. But on most gallery rows the
+      // segments either side are short, and a chain there is a one-stone wall between two corridor
+      // ends — a free-standing pillar on the seam line (the auditor's frames). The carve answers how
+      // long the joined run could be: the open run into A from the seam, the closed gap, the open run
+      // into B. Under `TIGHT_RUN` it cannot reach 36 however porous the gap, so the row is left alone.
+      const TIGHT_RUN = 30;
+      // A closed gap of 1-2 cells inside a run counts as passage: the rock loop cannot fit a sprite in it,
+      // so it is drawn porous (leg 3, row 74: one closed cell mid-chunk, and a 52-cell channel).
+      const runOn = (r) => {
+        let a = WA - 1, gA = 0; while (a >= 0 && !oA[r * WA + a] && gA < 4) { a--; gA++; }
+        let nA = 0;
+        for (;;) { while (a >= 0 && oA[r * WA + a]) { a--; nA++; }
+          let g = 0; while (a - g >= 0 && !oA[r * WA + a - g] && g < 3) g++;
+          if (!nA || g > 2 || a - g < 0 || !oA[r * WA + a - g]) break; a -= g; nA += g; }
+        let bq = 0, gB = 0; while (bq < WB && !oB[r * WB + bq] && gB < 4) { bq++; gB++; }
+        let nB = 0;
+        for (;;) { while (bq < WB && oB[r * WB + bq]) { bq++; nB++; }
+          let g = 0; while (bq + g < WB && !oB[r * WB + bq + g] && g < 3) g++;
+          if (!nB || g > 2 || bq + g >= WB || !oB[r * WB + bq + g]) break; bq += g; nB += g; }
+        // A run that reaches the far edge of its chunk may continue into the next one: count it long.
+        if (a < 0 && nA) nA += rows; if (bq >= WB && nB) nB += rows;
+        return nA + gA + gB + nB;
+      };
+      if (!OLD_SEAM) for (let r = 0; r < rows; r++) if (tight[r] && !must[r]) {
+        let long = false;
+        for (let q = Math.max(0, r - 1); q <= Math.min(rows - 1, r + 1) && !long; q++) if (runOn(q) >= TIGHT_RUN) long = true;
+        if (!long) tight[r] = 0;
+      }
       for (let r = 0; r < rows; r++) if (!must[r] && !tight[r]) cover[r] = 0;
+      // Diagnostic (probes only): which rows this seam's chain had a job on.
+      (J._stitchRows || (J._stitchRows = {}))[sI] = { must: must.slice(), tight: tight.slice(), cover: cover.slice() };
       // (1) THE CHAIN: pieces down each covered run, each straddling the seam line. TWO DENSITIES
       // (verifier round 2). The first chain was 1.7 cells wide, centred, stepped by exactly half and
       // laid over EVERY covered row — a straight, continuous column of identical stones down every
