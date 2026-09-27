@@ -569,7 +569,14 @@ const progress = () => JSON.parse(localStorage.getItem('mycelium.progress.v2') |
       s.config.mine.infectionMs = 60000;             // so only the overrun, not the clock, can end it
       const reached = g.mine.maxDepth();
       const nodes = s.active.nodes.slice();
-      for (let i = 0; i < nodes.length; i += 3) g.mine.spawnCloud(nodes[i].x, nodes[i].y);
+      // A PARKED cloud on EVERY strand (was a moving one on every third). Every third relied on
+      // `colonizeReachablePiles`' downstream rot claim to reach the rest; the mine turns that claim off
+      // (M6 verify round 2) and its rot does not race past `spreadTurns` (2), so 5 side twigs of 38
+      // stayed clean for good — and a cloud dropped on a twig creeps toward the chain (clouds target
+      // non-side strands) before the contact pass, out of the twig's reach. What this block tests is
+      // the ENDING once everything is rotten, not how rot spreads.
+      s.config.trichoderma.moveSpeed = 0;
+      for (let i = 0; i < nodes.length; i += 1) g.mine.spawnCloud(nodes[i].x, nodes[i].y);
       const t0 = performance.now();
       while (!s.runOver && performance.now() - t0 < 20000) await new Promise((res) => setTimeout(res, 20));
       const res = s.runResult || {};
