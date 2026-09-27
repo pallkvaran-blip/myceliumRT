@@ -1,6 +1,9 @@
 /* THE CHUNK-RECORD FIXTURE, REGENERATED FROM A NAMED COMMIT — a tool; prints, and fails only on --check.
  *
- *     node tests/fixture-chunks.cjs [sha=769b1a3] [--check] [--write]
+ *     node tests/fixture-chunks.cjs [sha=769b1a3] [--check] [--write] [--fixture <path>]
+ *
+ * `--fixture` names another snapshot file (M7: tests/fixtures/m7-pre-chunks-4242.json, taken from
+ * be20b64, the last commit before M7's generator edit; journey-check compares the tree against it).
  *
  * econ-check's "'#mine,4242' chunk records 8-12 are identical to the pre-M5 snapshot" compares against
  * tests/fixtures/m5-pre-chunks-4242.json. That file landed in b46b6e2, AFTER M5's generator edit
@@ -12,8 +15,10 @@
  */
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const H = require('./mine-harness.cjs');
-const sha = (process.argv.slice(2).find((a) => !a.startsWith('--')) || '769b1a3');
-const FIX = path.join(H.ROOT, 'tests', 'fixtures', 'm5-pre-chunks-4242.json');
+const fxI = process.argv.indexOf('--fixture');
+const fxArg = fxI > 0 ? process.argv[fxI + 1] : null;
+const sha = (process.argv.slice(2).find((a, i, all) => !a.startsWith('--') && all[i - 1] !== '--fixture') || '769b1a3');
+const FIX = fxArg ? path.resolve(H.ROOT, fxArg) : path.join(H.ROOT, 'tests', 'fixtures', 'm5-pre-chunks-4242.json');
 (async () => {
   const html = execFileSync('git', ['show', sha + ':index.html'], { cwd: H.ROOT, maxBuffer: 64 << 20 }).toString('utf8');
   const tmp = path.join(H.ROOT, '.fixture-' + sha + '.html');
@@ -33,7 +38,7 @@ const FIX = path.join(H.ROOT, 'tests', 'fixtures', 'm5-pre-chunks-4242.json');
       for (const ci of [8, 9, 10, 11, 12]) out[ci] = s.mineChunks[ci] ? JSON.parse(JSON.stringify(s.mineChunks[ci])) : null;
       return out;
     });
-    const raw = JSON.parse(fs.readFileSync(FIX, 'utf8'));
+    const raw = fs.existsSync(FIX) ? JSON.parse(fs.readFileSync(FIX, 'utf8')) : {};
     const snap = raw.chunks || raw;
     const diff = [8, 9, 10, 11, 12].filter((ci) => JSON.stringify(rec[ci]) !== JSON.stringify(snap[ci]));
     const all = [8, 9, 10, 11, 12].every((ci) => rec[ci]);

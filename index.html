@@ -3872,6 +3872,36 @@ const CONFIG = {
     followLerp: 0.12,            // how quickly the camera eases back to the dig, per frame
     // --- the depth beat -----------------------------------------------------
     beatMs: 2200,                // how long the "42 m - Anthracite" flash stays up
+    // --- THE JOURNEY (finishing plan M7) --------------------------------------
+    // A leg is the same 504 x 168 streamed world with a different LAYOUT: the hill in chunk
+    // `homeChunk` (column 36, the WEST), an island `islandCols` wide to the EAST, and under it the
+    // TAPROOT — a carved chamber (radius `taprootR` cells) the colony has to reach. `landfallCells`
+    // is how close a clean strand must come to the knot (M8 ends the run on it).
+    //
+    // A row: `seed` (curated by tests/bots/legprobe.cjs from 50 candidates: the taproot must be
+    // reachable over the fine mask, the path 1.3-2.0x the straight line, the crust closed, no
+    // straight lateral channel, and from leg 2 the cheapest-water route mostly below 42 m),
+    // `E` (island chunk = homeChunk + E), `eastM`/`depthM` (the taproot, 1 m = 1 cell),
+    // `sealByBand` (the chance a gallery is walled at a seam, per 42 m band — the shallow road
+    // breaks; bands past the list use `gallerySealChance`), `rule` (the leg's one rule, applied on
+    // the run's config clone in main.js `configForLevel`) and `bonus` (M8's landfall bonus).
+    //
+    // JOURNEY-ONLY. The free layout ('#mine,<seed>', DIG until M8) reads none of this, and its
+    // chunk records are pinned byte-identical to the pre-M7 snapshot.
+    journey: {
+      homeChunk: 1,
+      islandCols: 12,
+      taprootR: 2.5,
+      landfallCells: 1.5,
+      legs: [
+        { leg: 1, name: 'First Light', seed: 648639, E: 4, eastM: 96, depthM: 24,
+          sealByBand: [0.12, 0.12, 0.12], rule: 'calm', bonus: 20 },
+        { leg: 2, name: 'The Coal Road', seed: 2122764, E: 6, eastM: 144, depthM: 58,
+          sealByBand: [0.55, 0.12, 0.12], rule: 'standard', bonus: 30 },
+        { leg: 3, name: 'Dry Ground', seed: 1397580, E: 8, eastM: 192, depthM: 72,
+          sealByBand: [0.70, 0.12, 0.12], rule: 'dry', bonus: 40 },
+      ],
+    },
   },
 
   dev: {
@@ -14016,6 +14046,12 @@ function loadProgress() {
   if (!p.mats || typeof p.mats !== 'object') p.mats = {};
   // THE MINE'S ONE-SHOT TIPS (M4): { id: true } once each has been shown — once per SAVE, not per run.
   if (!p.mineTips || typeof p.mineTips !== 'object') p.mineTips = {};
+  // THE JOURNEY (M7): which journey and leg the next journey descent starts on, and per-leg records
+  // ({runs, bestDepth, bestEast}, written by M8's landfall). Absent means journey 1, leg 1.
+  if (!p.mineJourney || typeof p.mineJourney !== 'object') p.mineJourney = { journey: 1, leg: 1, legs: {} };
+  if (!(p.mineJourney.journey > 0)) p.mineJourney.journey = 1;
+  if (!(p.mineJourney.leg > 0)) p.mineJourney.leg = 1;
+  if (!p.mineJourney.legs || typeof p.mineJourney.legs !== 'object') p.mineJourney.legs = {};
   if (migrateProgress(p)) saveProgress(p);   // one-time roster-swap migrations; persist if anything changed
   return p;
 }
@@ -19972,7 +20008,10 @@ function buildLevel(config, level) {
   // The mine's hill is a WHOLE hill standing on the middle of the surface, not the half-hill
   // hugging the left frame every other map gets — so this is its full width in columns, and
   // `mineHomeCol` is where its peak sits. main.js drawMineHill reads both.
-  sub.mineHomeCol = isMine ? (sub.cols >> 1) : null;
+  // THE JOURNEY LAYOUT (M7) puts the hill WEST (`lay.homeCol`, column 36) and carries the island and
+  // its taproot on `lay.journey`; the free layout keeps the middle column.
+  sub.mineHomeCol = isMine ? (lay.homeCol != null ? Math.max(0, Math.min(sub.cols - 1, lay.homeCol | 0)) : (sub.cols >> 1)) : null;
+  sub.mineJourney = isMine && lay.journey ? JSON.parse(JSON.stringify(lay.journey)) : null;
   sub.homeCols = isMine ? 12 : Math.max(6, startCols + 4);
   sub.authored = true;              // renderers/solidify take the levelSprites path
   sub.rockColumns = [];             // authored maps express columns as formation sprites
@@ -20003,6 +20042,11 @@ function buildLevel(config, level) {
   if (isMine) {
     const h = sub.mineHomeCol, half = Math.max(2, (sub.homeCols >> 1));
     for (let c = h - half; c <= h + half; c++)
+      if (c >= 0 && c < sub.cols) { sub.surface[c].soil = true; sub.surface[c].barrier = null; }
+    // ...and on a journey leg the ISLAND's columns are living ground too (not `goal`: landfall is the
+    // taproot, below it, and M8 ends the run there).
+    const J = sub.mineJourney;
+    if (J) for (let c = J.islandC0; c <= J.islandC1; c++)
       if (c >= 0 && c < sub.cols) { sub.surface[c].soil = true; sub.surface[c].barrier = null; }
   }
   for (let c = goalStart; c < sub.cols; c++) {
@@ -22115,13 +22159,45 @@ function mineDepthReached(state) {
 // water pocket and creature is generated per CHUNK by `mineGenerateChunk`, as the colony approaches.
 // That is the owner's "generate as I go", and it is also the only way a shaft this wide is
 // affordable: generating 21 chunks up front would place ~13,000 sprites for a run that visits four.
-function mineLevelDef(config, seed) {
+// THE JOURNEY LAYOUT (M7): `opts = {layout: 'journey', journey, leg}` builds leg `leg` of journey
+// `journey` — the hill in chunk `journey.homeChunk` (the WEST), the island and its taproot to the east
+// — on the leg's CURATED seed unless `seed` pins another (legprobe's candidates). Journeys past the
+// first reuse Journey I's table until they have their own. Everything the generator and the renderer
+// need travels on `layout`; buildLevel copies it onto the substrate (`sub.mineJourney`).
+function mineLegRow(config, leg) {
+  const J = mineCfg(config).journey;
+  if (!J || !J.legs || !J.legs.length) return null;
+  const l = Math.max(1, Math.min(J.legs.length, leg | 0 || 1));
+  return J.legs[l - 1];
+}
+function mineJourneyLayout(config, journey, leg) {
+  const M = mineCfg(config), J = M.journey, row = mineLegRow(config, leg);
+  if (!J || !row) return null;
+  const cw = M.chunkCols | 0;
+  const homeCol = (J.homeChunk | 0) * cw + (cw >> 1);
+  const col = homeCol + Math.round(row.eastM), rowR = Math.round(row.depthM);
+  const ic = J.islandCols | 0 || 12;
+  return {
+    journey: Math.max(1, journey | 0 || 1), leg: row.leg, name: row.name, rule: row.rule || 'standard',
+    homeCol, islandC0: col - (ic >> 1), islandC1: col - (ic >> 1) + ic - 1,
+    taproot: { col, row: rowR }, taprootR: +J.taprootR || 2.5,
+    sealByBand: (row.sealByBand || []).slice(),
+  };
+}
+function mineLevelDef(config, seed, opts) {
   const M = mineCfg(config);
   const box = mineWorldBox(config);
+  const jl = opts && opts.layout === 'journey' ? mineJourneyLayout(config, opts.journey, opts.leg) : null;
+  if (jl) {
+    const row = mineLegRow(config, jl.leg);
+    if (!(seed > 0)) seed = (row && row.seed) || 1;
+  }
+  const lay = { mine: true, startCols: 2, goalCols: 0, summerCols: 0, clearChannels: false };
+  if (jl) { lay.homeCol = jl.homeCol; lay.journey = jl; }
   return {
     format: LEVEL_FORMAT, version: LEVEL_VERSION,
-    id: 'mine-' + ((seed >>> 0) || 1).toString(36),
-    name: 'The Deep Mine',
+    id: jl ? ('leg-' + jl.journey + '-' + jl.leg) : 'mine-' + ((seed >>> 0) || 1).toString(36),
+    name: jl ? jl.name : 'The Deep Mine',
     campaignLevel: null,
     mine: true,                                 // buildLevel's centre-hill layout; no goal
     // FOUR ASSET FOLDERS, NOT ONE. `loadLevelAssets(id)` filters the deferred manifest by the
@@ -22131,7 +22207,7 @@ function mineLevelDef(config, seed) {
     assetsFromAll: M.bands.map((b) => b.assetsFrom),
     world: { width: box.width, height: box.height, surfaceY: box.surfaceY, cellSize: box.cellSize,
              bottomBuffer: M.bottomBuffer, coreDepthFrac: 1 },
-    layout: { mine: true, startCols: 2, goalCols: 0, summerCols: 0, clearChannels: false },
+    layout: lay,
     // Nothing is placed from here — see `mineGenerateChunk`. Zeroed ceilings plus `respawn: false`
     // is what keeps the procedural seeders and the top-ups out, so the mine's population is exactly
     // what this module places, chunk by chunk.
@@ -22146,7 +22222,11 @@ function mineLevelDef(config, seed) {
 // Chunks are numbered from 0 at the left edge. The HOME chunk is the middle one, and the colony
 // roots at the middle of it.
 const mineChunkCount = (config) => 2 * (mineCfg(config).chunksEachWay | 0) + 1;
-const mineHomeChunk = (config) => (mineCfg(config).chunksEachWay | 0);
+// The journey layout moves the hill WEST (chunk 1): with a substrate the home chunk is read off where
+// buildLevel actually put the hill; without one it is the free layout's middle chunk.
+const mineHomeChunk = (config, sub) => (sub && sub.mineHomeCol != null)
+  ? Math.floor(sub.mineHomeCol / (mineCfg(config).chunkCols | 0))
+  : (mineCfg(config).chunksEachWay | 0);
 function mineChunkRange(config, ci) {
   const w = mineCfg(config).chunkCols | 0;
   return { c0: ci * w, c1: ci * w + w - 1 };
@@ -22201,6 +22281,14 @@ function mineGenerateChunk(state, ci) {
   const rf = (a, b) => a + rng() * (b - a);
   const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
   const home = sub.mineHomeCol != null ? sub.mineHomeCol : (cols >> 1);
+  // THE JOURNEY LAYOUT (M7), null on the free layout. Every journey-only branch below reads it, and
+  // none of them adds or reorders a draw on `rng` — the free layout's chunk records are pinned.
+  const J = sub.mineJourney || null;
+  // (a) THE CRUST CLOSES on a journey leg: a sprite may reach the surface (drawLevelRocks already
+  // clips at it). Free layout: rock is refused above half a cell, so the top of row 0 stays 5-7%
+  // solid — a colony crawls 168 m east for 82 water at 0-5 m, and a surface goal would never ask
+  // anyone to go down.
+  const crustY = sub.surfaceY + cs * (J ? 0.05 : 0.5);
 
   // `open` and `taken` are CHUNK-LOCAL, indexed [row][col-c0]. Chunk-local because nothing outside
   // needs them and because a world-sized pair of these per chunk is the cost this design exists to
@@ -22280,10 +22368,22 @@ function mineGenerateChunk(state, ci) {
   // is fine — it is the same wall either way — and it doubles the effective seal rate, which is why
   // `gallerySealChance` is well under a half.
   const sealCh = Math.max(0, Math.min(0.95, +M.gallerySealChance || 0));
+  // (b) THE SHALLOW ROAD BREAKS on a journey leg: the SAME draw, compared against the leg's per-band
+  // chance (`sealByBand`) instead of the one number. No row is reserved, forced open or painted — a
+  // sealed seam is the rock the maze already uses.
+  const sealAt = (gr) => {
+    if (!J || !J.sealByBand) return sealCh;
+    const v = J.sealByBand[bandOfRow(gr)];
+    return v == null ? sealCh : Math.max(0, Math.min(0.95, +v || 0));
+  };
   const SEAM_W = 3;               // how many columns at a seam a seal covers
   for (let gi = 0; gi < galleryRows.length; gi++) {
     const gr = galleryRows[gi];
-    const sealL = rng() < sealCh, sealR = rng() < sealCh;
+    const sealP = sealAt(gr);
+    const sealL = rng() < sealP, sealR = rng() < sealP;
+    // Journey only (the free layout's chunk records are pinned): which seams this chunk walled, so a
+    // check can frame one (M7 acceptance 9) without re-deriving the draw.
+    if (J && (sealL || sealR)) (J._sealed || (J._sealed = [])).push({ ci, row: gr, L: sealL, R: sealR });
     let r = gr;
     let c = c0;
     // Start on a random phase so every gallery does not begin its first wall at the same column,
@@ -22472,7 +22572,11 @@ function mineGenerateChunk(state, ci) {
       carve(spot[0], spot[1], 2.2);                 // room to work around the seam
       spots.push({ kind: 'ore', c: spot[0], r: spot[1], band: b });
     }
-    for (let i = 0; i < (M.reservoirsPerBand | 0); i++) {
+    // Per band when it is a list (a journey leg's rule, e.g. 'dry': none above 42 m); a number is
+    // every band, exactly as before.
+    const resN = Array.isArray(M.reservoirsPerBand) ? (M.reservoirsPerBand[Math.min(M.reservoirsPerBand.length - 1, b)] | 0)
+                                                     : (M.reservoirsPerBand | 0);
+    for (let i = 0; i < resN; i++) {
       const spot = offRouteSpot(rLo + 1, rHi - 1);
       if (!spot) continue;
       // A pocket's cells are IMPASSABLE (stampReservoir sets rock + water), so it is carved a ROOM
@@ -22646,6 +22750,103 @@ function mineGenerateChunk(state, ci) {
     }
   }
 
+  // --- (c) THE TAPROOT, in the island chunk of a journey leg only (M7) --------
+  // A chamber of radius `taprootR` at the taproot, then the descent repair GENERALISED: flood from the
+  // chamber and, while no gallery cell on either seam is reached, open the shortest connector (radius
+  // 1.7, the repair's followable width) to the nearest open ground the flood has not reached. On its
+  // OWN rng, `mineChunkRng(seed ^ 0x7A9, ci)`, so the chunk rng's draws above are exactly the free
+  // layout's. It runs after the plugs, so no plug can wall it off; a plug whose sprite would land on
+  // what it opened is dropped instead (the ground it closed stays closed and gets ordinary rock).
+  const tapCut = J && J.taproot && c0 <= J.taproot.col && J.taproot.col <= c1 ? new Uint8Array(W * rows) : null;
+  if (tapCut) {
+    const trng = mineChunkRng(((state.mineSeed || state.seed || 1) ^ 0x7A9) >>> 0, ci);
+    const tc = J.taproot.col, tr = clamp(J.taproot.row | 0, 3, rows - 4), TR = +J.taprootR || 2.5;
+    const jcarve = (c, r, rad) => {
+      const k = Math.ceil(rad), r2 = rad * rad;
+      for (let dr = -k; dr <= k; dr++)
+        for (let dc = -k; dc <= k; dc++) {
+          if (dc * dc + dr * dr > r2) continue;
+          const cc = c + dc, rr = r + dr;
+          if (!inChunk(cc, rr)) continue;
+          const j = at(cc, rr);
+          if (!open[j]) tapCut[j] = 1;
+          open[j] = 1; noPlug[j] = 1;
+        }
+    };
+    // Nothing may sit IN the chamber: a reward there would be collected by landfall itself, and a
+    // pocket (solid water) would fill it. Removed before stamping; the rng is not touched.
+    for (let i = spots.length - 1; i >= 0; i--) {
+      const sp = spots[i];
+      if (Math.hypot(sp.c - tc, sp.r - tr) <= TR + 3.5) spots.splice(i, 1);
+    }
+    jcarve(tc, tr, TR);
+    const water = new Uint8Array(W * rows);
+    for (const sp of spots) {
+      if (sp.kind !== 'water') continue;
+      const k = Math.ceil(sp.rad) + 1;
+      for (let dr = -k; dr <= k; dr++)
+        for (let dc = -k; dc <= k; dc++)
+          if (inChunk(sp.c + dc, sp.r + dr)) water[at(sp.c + dc, sp.r + dr)] = 1;
+    }
+    const isTarget = (c, r) => (c === c0 || c === c1) && galleryRows.indexOf(r) >= 0;
+    const seen = new Uint8Array(W * rows), par = new Int32Array(W * rows);
+    let repairs = 0;
+    for (let guard = 0; guard < 40; guard++) {
+      seen.fill(0);
+      const stack = [at(tc, tr)]; seen[at(tc, tr)] = 1;
+      let hit = false;
+      while (stack.length) {
+        const i = stack.pop(), r = (i / W) | 0, c = (i % W) + c0;
+        if (isTarget(c, r)) hit = true;
+        for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const cc = c + dc, rr = r + dr;
+          if (!inChunk(cc, rr)) continue;
+          const j = at(cc, rr);
+          if (seen[j] || !open[j] || water[j]) continue;
+          seen[j] = 1; stack.push(j);
+        }
+      }
+      if (hit) break;
+      // The nearest open ground the flood has not reached, by a breadth-first walk out of the flooded
+      // set THROUGH closed ground (water excluded) — its parent chain is the connector. With nothing
+      // open left to join, walk to the nearest seam gallery cell whatever it is.
+      par.fill(-1);
+      const q = []; let qh = 0, found = -1;
+      const dist = new Uint8Array(W * rows);
+      for (let i = 0; i < seen.length; i++) if (seen[i]) { dist[i] = 1; q.push(i); }
+      // Visit neighbours in an order drawn from the taproot's own rng, so connectors do not all lean
+      // the same way (a fixed order makes every one an L that turns right first).
+      const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+      for (let k = dirs.length - 1; k > 0; k--) { const m = Math.floor(trng() * (k + 1)); const t = dirs[k]; dirs[k] = dirs[m]; dirs[m] = t; }
+      const anyOpenLeft = (() => { for (let i = 0; i < open.length; i++) if (open[i] && !seen[i] && !water[i]) return true; return false; })();
+      while (qh < q.length && found < 0) {
+        const i = q[qh++], r = (i / W) | 0, c = (i % W) + c0;
+        for (const [dc, dr] of dirs) {
+          const cc = c + dc, rr = r + dr;
+          if (!inChunk(cc, rr)) continue;
+          const j = at(cc, rr);
+          if (dist[j] || water[j]) continue;
+          dist[j] = 1; par[j] = i;
+          if (anyOpenLeft ? (open[j] && !seen[j]) : isTarget(cc, rr)) { found = j; break; }
+          q.push(j);
+        }
+      }
+      if (found < 0) break;
+      for (let j = found; j >= 0 && !seen[j]; j = par[j]) jcarve((j % W) + c0, (j / W) | 0, 1.7);
+      repairs++;
+    }
+    // Drop a plug whose sprite (sized `(rad * 2 + 1.6)` cells across) would land on what this opened.
+    for (let i = plugSpots.length - 1; i >= 0; i--) {
+      const p = plugSpots[i], ext = p.rad + 0.8 + 0.5;
+      let hitCut = false;
+      for (let rr = Math.floor(p.r - ext); rr <= Math.ceil(p.r + ext) && !hitCut; rr++)
+        for (let cc = Math.floor(p.c - ext); cc <= Math.ceil(p.c + ext); cc++)
+          if (inChunk(cc, rr) && tapCut[at(cc, rr)]) { hitCut = true; break; }
+      if (hitCut) plugSpots.splice(i, 1);
+    }
+    placed.taproot = { col: tc, row: tr, repairs };
+  }
+
   // --- the connectivity sweep, chunk-local ---------------------------------
   // Carving guarantees the ROUTES but not the rewards: a water pocket carved across the neck of
   // something can sever what is beyond it, which cost an unreachable ore seam on the fixed-width
@@ -22749,6 +22950,16 @@ function mineGenerateChunk(state, ci) {
     return { b, lib: libFor(b) };
   };
   const x0World = c0 * cs, x1World = (c1 + 1) * cs;
+  // THE SEAM SLIT, and the journey's answer to it (M7). A sprite must fit inside its own chunk, and a
+  // boulder's alpha falls off before its box does — so every chunk seam carries a vertical slit of open
+  // soil 2-3 fine cells wide (18-27 units) down the whole depth, on BOTH layouts. A strand is a line,
+  // so it threads one: measured on leg 2 a hairline cheapest-water route ran shallow (5% of its east
+  // metres below 42 m, 107 water) where the clearance route went deep (99%, 218) — the slits carried
+  // the colony past sealed seams. On a journey leg rock may reach `seamPad` into the neighbour, but only
+  // from ground this chunk has CLOSED at its own edge cell, so the neighbour's corridor mouths lose at
+  // most that much where this side is walled anyway. The free layout keeps its pinned records: 0.
+  const seamPad = J ? 0.7 * cs : 0;
+  const sx0 = x0World - seamPad, sx1 = x1World + seamPad;
   // HOW MUCH SOLID ROOM IS THERE HERE? The extent of the unopened SLAB the cell sits in, measured
   // along each axis from the cell and returned as the slab's own bounds — not as half-extents about
   // the cell. THAT DISTINCTION IS MOST OF THE DENSITY, and it took a measurement to see: a candidate
@@ -22785,7 +22996,8 @@ function mineGenerateChunk(state, ci) {
       // would be collided there before that chunk was carved, so a corridor could be walled off by a
       // rock belonging to a chunk generated earlier — the one failure this whole design exists to
       // make impossible.
-      const wLo = Math.max(x0World, (c - slab.l) * cs), wHi = Math.min(x1World, (c + slab.rt + 1) * cs);
+      const wLo = Math.max(sx0, c - slab.l === c0 ? sx0 : (c - slab.l) * cs);
+      const wHi = Math.min(sx1, c + slab.rt === c1 ? sx1 : (c + slab.rt + 1) * cs);
       // THE SPRITE'S CENTRE STAYS IN THE BAND ITS LIBRARY CAME FROM. `libAtRow` picks the rock by the
       // candidate's row and the placement is then free within the slab — up to 8 cells — so without
       // this a candidate near a band seam lands the other side of it and the map carries rock from a
@@ -22793,7 +23005,7 @@ function mineGenerateChunk(state, ci) {
       // you go down; it never leaks upward). Measured as 2 anthracite sprites in band 1.
       const bandTop = sub.surfaceY + b * M.bandRows * cs;
       const bandBot = sub.surfaceY + Math.min(rows, (b + 1) * M.bandRows) * cs;
-      const hLo = Math.max(sub.surfaceY + cs * 0.5, sub.surfaceY + (r - slab.u) * cs, bandTop);
+      const hLo = Math.max(crustY, sub.surfaceY + (r - slab.u) * cs, bandTop);
       const hHi = Math.min(contentBottom, sub.surfaceY + (r + slab.d + 1) * cs, bandBot);
       const maxW = wHi - wLo, maxH = hHi - hLo;
       if (maxW < cs || maxH < cs) continue;
@@ -22810,9 +23022,12 @@ function mineGenerateChunk(state, ci) {
         if (w < cs * 0.9 || h < cs * 0.9) continue;
         // Anywhere in the slab that fits, so the rock does not sit on the candidate lattice.
         const x = rf(wLo + w / 2, wHi - w / 2), y = rf(hLo + h / 2, hHi - h / 2);
-        if (x - w / 2 < x0World || x + w / 2 > x1World) continue;
-        if (y - h / 2 < sub.surfaceY + cs * 0.5 || y + h / 2 > contentBottom) continue;
-        const bc0 = Math.floor((x - w / 2) / cs), bc1 = Math.floor((x + w / 2) / cs);
+        if (x - w / 2 < sx0 || x + w / 2 > sx1) continue;
+        if (y - h / 2 < crustY || y + h / 2 > contentBottom) continue;
+        // The box is tested inside THIS chunk only; the pad beyond a seam (journey) is judged by the
+        // edge cell it grows from, which the slab walk above already found closed.
+        const bc0 = Math.max(seamPad ? c0 : -Infinity, Math.floor((x - w / 2) / cs)),
+              bc1 = Math.min(seamPad ? c1 : Infinity, Math.floor((x + w / 2) / cs));
         const br0 = Math.floor((y - h / 2 - sub.surfaceY) / cs), br1 = Math.floor((y + h / 2 - sub.surfaceY) / cs);
         let clear = true, cells = 0, already = 0;
         for (let rr = br0; rr <= br1 && clear; rr++)
@@ -22852,7 +23067,7 @@ function mineGenerateChunk(state, ci) {
     const w = src.w * sc, h = src.h * sc;
     const x = (p.c + 0.5) * cs, y = sub.surfaceY + (p.r + 0.5) * cs;
     if (x - w / 2 < x0World || x + w / 2 > x1World) continue;
-    if (y - h / 2 < sub.surfaceY + cs * 0.5 || y + h / 2 > contentBottom) continue;
+    if (y - h / 2 < crustY || y + h / 2 > contentBottom) continue;
     sub.levelSprites.push({ key: src.k, style: 'boulder', x: +x.toFixed(1), y: +y.toFixed(1),
                             w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
     placed.rocks++;
@@ -22861,6 +23076,91 @@ function mineGenerateChunk(state, ci) {
     for (let rr = br0; rr <= br1; rr++)
       for (let cc = bc0; cc <= bc1; cc++)
         if (inChunk(cc, rr) && !taken[at(cc, rr)]) { taken[at(cc, rr)] = 1; bandCover[b]++; }
+  }
+  // --- (a, continued) THE CRUST, on a journey leg only (M7) ------------------
+  // Letting sprites reach the surface is not enough by itself: the rock loop drops each sprite at a
+  // RANDOM height inside its slab, so rows 0-1 are covered only by chance, and a boulder's alpha is
+  // round — flush with the soil line its top leaves the first fine rows open. Measured on leg 2 with
+  // the clamp alone: a flood held to rows 0-2 ran from the head to the END of the generated window
+  // (column 215). So every stretch of closed ground under the surface gets boulders whose middle SITS
+  // ON the soil line (a third of each above it, clipped by drawLevelRocks like the soil line clips any
+  // rock), two passes offset by half a sprite. Their whole in-ground box must miss the carve, like any
+  // rock here. Its own rng, after every other rock, and journey-only.
+  if (J) {
+    const crng = mineChunkRng(((state.mineSeed || state.seed || 1) ^ 0xC857) >>> 0, ci);
+    const lib0 = libFor(0);
+    const cover = new Uint8Array(W);       // how many crust sprites already span each column
+    const closed = (cc, rr) => inChunk(cc, rr) && !open[at(cc, rr)];
+    for (let pass = 0; pass < 2 && lib0.length; pass++) {
+      for (let c = c0; c <= c1; c++) {
+        if (!closed(c, 0) || cover[c - c0] > pass) continue;
+        // The slab under the soil line here: closed along row 0 either way, and down from row 0.
+        let l = 0, rt = 0, d = 0;
+        while (l < 4 && closed(c - l - 1, 0)) l++;
+        while (rt < 4 && closed(c + rt + 1, 0)) rt++;
+        while (d < 3 && closed(c, d + 1)) d++;
+        // Biggest of three candidates that fits: width inside the slab, the in-ground 68% of the
+        // height inside row d (a sprite centred 18% of its height below the soil line).
+        const wMax = (l + rt + 1) * cs, hMax = (d + 1) * cs / 0.7;
+        let best = null;
+        for (let k = 0; k < 3; k++) {
+          const src = lib0[Math.floor(crng() * lib0.length)];
+          const sc = Math.min(wMax / src.w, hMax / src.h);
+          if (!best || src.w * src.h * sc * sc > best.a) best = { src, sc, a: src.w * src.h * sc * sc };
+        }
+        for (let shrink = 0; shrink < 3; shrink++) {
+          const sc = best.sc * (1 - shrink * 0.2), w = best.src.w * sc, h = best.src.h * sc;
+          if (w < cs * 0.9 || h < cs * 0.9) break;
+          const x = Math.max(x0World + w / 2, Math.min(x1World - w / 2, (c - l + (l + rt + 1) / 2) * cs));
+          const y = sub.surfaceY + h * 0.18;
+          const bc0 = Math.floor((x - w / 2) / cs), bc1 = Math.floor((x + w / 2) / cs);
+          const br1 = Math.floor((y + h / 2 - sub.surfaceY) / cs);
+          let clear = x - w / 2 >= x0World && x + w / 2 <= x1World;
+          for (let rr = 0; rr <= br1 && clear; rr++)
+            for (let cc = bc0; cc <= bc1; cc++) if (!closed(cc, rr)) { clear = false; break; }
+          if (!clear) continue;
+          sub.levelSprites.push({ key: best.src.k, style: 'boulder', x: +x.toFixed(1), y: +y.toFixed(1),
+                                  w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
+          placed.rocks++; placed.crust = (placed.crust | 0) + 1;
+          for (let rr = 0; rr <= br1; rr++) for (let cc = bc0; cc <= bc1; cc++) if (inChunk(cc, rr)) taken[at(cc, rr)] = 1;
+          for (let cc = Math.max(c0, bc0); cc <= Math.min(c1, bc1); cc++) cover[cc - c0]++;
+          break;
+        }
+      }
+    }
+  }
+  // --- (b, continued) A SEALED SEAM GETS ITS OWN ROCK, on a journey leg only (M7) ----
+  // Same lesson as the plugs: the seal is ground the carve left CLOSED, but only ~2 columns of it (the
+  // gallery's own carve radius eats into the third), and the rock loop only fills closed ground whose
+  // whole box fits — so a sealed seam was closed in the carve and open on the map. Measured on leg 3
+  // before this: 33 of 41 band-0 sealed sides crossable on the fine mask. So each sealed side gets two
+  // overlapping boulders spanning the seam columns and the gallery's height, inside the chunk (a sprite
+  // may never reach into a neighbour). Their own rng; journey-only.
+  if (J && J._sealed) {
+    const srng = mineChunkRng(((state.mineSeed || state.seed || 1) ^ 0x5EA1) >>> 0, ci);
+    for (const sd of J._sealed) {
+      if (sd.ci !== ci) continue;
+      for (const side of ['L', 'R']) {
+        if (!sd[side]) continue;
+        const lib = libFor(bandOfRow(sd.row));
+        if (!lib.length) continue;
+        // Straddling the pad beyond the seam as well (see `seamPad`): the wall has to close the slit.
+        const x = side === 'L' ? (c0 + SEAM_W / 2) * cs - seamPad / 2 : (c1 + 1 - SEAM_W / 2) * cs + seamPad / 2;
+        for (const [wc, hc, dy] of [[SEAM_W + seamPad / cs, 4.4, 0], [(SEAM_W + seamPad / cs) * 0.9, 3.4, srng() < 0.5 ? -0.9 : 0.9]]) {
+          const src = lib[Math.floor(srng() * lib.length)];
+          const sc = Math.min(wc * cs / src.w, hc * cs / src.h);
+          const w = src.w * sc, h = src.h * sc, y = sub.surfaceY + (sd.row + 0.5 + dy) * cs;
+          if (x - w / 2 < sx0 - 0.01 || x + w / 2 > sx1 + 0.01) continue;
+          if (y - h / 2 < crustY || y + h / 2 > contentBottom) continue;
+          sub.levelSprites.push({ key: src.k, style: 'boulder', x: +x.toFixed(1), y: +y.toFixed(1),
+                                  w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
+          placed.rocks++; placed.seals = (placed.seals | 0) + 1;
+          const bc0 = Math.floor((x - w / 2) / cs), bc1 = Math.floor((x + w / 2 - 0.01) / cs);
+          const br0 = Math.floor((y - h / 2 - sub.surfaceY) / cs), br1 = Math.floor((y + h / 2 - sub.surfaceY) / cs);
+          for (let rr = br0; rr <= br1; rr++) for (let cc = bc0; cc <= bc1; cc++) if (inChunk(cc, rr)) taken[at(cc, rr)] = 1;
+        }
+      }
+    }
   }
   for (let i = 0; i < open.length; i++) if (open[i]) placed.open++;
   placed.cells = W * rows;
@@ -22923,7 +23223,7 @@ function mineEnsureChunks(state, view) {
   const M = mineCfg(cfg);
   const done = (state.mineChunks = state.mineChunks || {});
   const total = mineChunkCount(cfg);
-  const want = new Set([mineHomeChunk(cfg)]);
+  const want = new Set([mineHomeChunk(cfg, sub)]);
   const add = (x0, x1) => {
     for (let ci = mineChunkOfCol(cfg, sub.colAtX(x0)); ci <= mineChunkOfCol(cfg, sub.colAtX(x1)); ci++) want.add(ci);
   };
@@ -22952,7 +23252,9 @@ function mineEnsureChunks(state, view) {
     // masks already published (`solidifyMineRock`). The COLUMN range, not the sprite watermark
     // alone, because a chunk also stamps water pockets, whose cells the fine mask has to be told
     // about and which lie nowhere near any new sprite's bounding box.
-    const { c0, c1 } = mineChunkRange(cfg, ci);
+    // (A journey chunk's rock reaches a pad over each seam — `seamPad` — so its dirty range does too.)
+    const pad = sub.mineJourney ? 1 : 0;
+    const c0 = Math.max(0, mineChunkRange(cfg, ci).c0 - pad), c1 = Math.min(sub.cols - 1, mineChunkRange(cfg, ci).c1 + pad);
     sub._mineDirtyC0 = Math.min(sub._mineDirtyC0 != null ? sub._mineDirtyC0 : c0, c0);
     sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : c1, c1);
   }
@@ -23796,7 +24098,7 @@ function mineEndRun(state, cause) {
   return state.runResult;
 }
 
-  return { MINE_ROCKS, mineLevelDef, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
+  return { MINE_ROCKS, mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
            mineDepthReached, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
            mineDigCost, mineCheapestCost, mineNextHeatLine, mineHeatLines,
@@ -33708,7 +34010,7 @@ const __m_main = (function () {
   const { CONFIG, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, isRealtime, setMode, setGame, isCampaignGame, isMineGame, timeify, roundsToTime, devUI } = __m_config;
   const { createState, createPuzzleState, createLevelState, seedLevelThreats } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
-  const { mineLevelDef, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
+  const { mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost, mineNextHeatLine,
           mineHeatLines, mineRayOpen, mineOccupied, mineBestDownRay, mineOpenTips, minePileCentre, mineResCentre, mineFocusNode,
@@ -34083,6 +34385,18 @@ function configForLevel(level) {
     // and then every dig was refused as 'Solid rock' with the run still live. `mineGrow` ends the
     // run with cause 'full' near this.
     if (cfg.mine.maxNodes) cfg.growth.maxNodes = Math.max(100, cfg.mine.maxNodes | 0);
+    // THE LEG'S ONE RULE (M7), on this clone and existing knobs only. 'calm' (leg 1): no creature
+    // anywhere. 'dry' (leg 3): no water pocket above 42 m (`reservoirsPerBand` becomes per band).
+    // 'standard' (leg 2) changes nothing: worms from 42 m, mould from 84 m.
+    if (mineLeg) {
+      const row = mineLegRow(cfg, mineLeg.leg);
+      const rule = row && row.rule;
+      if (rule === 'calm') cfg.mine.threatBands = cfg.mine.threatBands.map(() => ({ worms: 0, clouds: 0 }));
+      if (rule === 'dry') {
+        const n = Array.isArray(cfg.mine.reservoirsPerBand) ? cfg.mine.reservoirsPerBand : cfg.mine.bands.map(() => cfg.mine.reservoirsPerBand | 0);
+        cfg.mine.reservoirsPerBand = n.map((v, i) => (i === 0 ? 0 : v | 0));
+      }
+    }
   }
   return cfg;
 }
@@ -34106,6 +34420,10 @@ function leaveSandbox() { bootSandbox = false; }
 // taken from the clock there would generate a DIFFERENT shaft every time anything re-entered the
 // run. Set once by `beginMineRun`.
 let mineSeed = 0;
+// THE JOURNEY LEG THIS DESCENT IS ON (M7): `{journey, leg}`, or null for the free layout. Set by
+// `beginMineRun`, read by `levelDefFor` (the layout) and `configForLevel` (the leg's rule). Until M8
+// only '#leg,<j>,<l>' and `__game.mine.playLeg` start one — the plain DIG is still the free descent.
+let mineLeg = null;
 // The depth, in metres, whose band beat has already been shown. Per RUN, so re-entering the mine
 // plays the beats again.
 let mineBeatBand = -1;
@@ -34203,7 +34521,8 @@ function levelDefFor(n) {
   // there are no levels in the mine, so this is asked once. `mineSeed` is fixed at run start so a
   // resume or a re-entry rebuilds the SAME shaft — a re-roll would hand the player a different
   // mine at the depth they left off at.
-  if (mineRun()) return mineLevelDef(CONFIG, mineSeed || 1);
+  if (mineRun()) return mineLevelDef(CONFIG, mineSeed || 1,
+    mineLeg ? { layout: 'journey', journey: mineLeg.journey, leg: mineLeg.leg } : undefined);
   // SURVIVAL NEVER SERVES A CAMPAIGN MAP, and the fall-through that let it is the whole reason
   // this reads as a branch on the GAME rather than a chain of fallbacks. `levelForNumber(n)`
   // answers "which map claims campaign slot n", and it does not care which game is being played
@@ -34339,8 +34658,25 @@ function startRun() {
 // the run here (`stockRun`) exactly as every other game reads them.
 // `seed` pins the shaft (M2: `__game.mine.playSeed` used to call this and then `startRun` AGAIN on
 // the pinned seed — two world builds per call, one `run_start` row; the '#mine,<n>' boot did the same).
-function beginMineRun(seed) {
+// `opts.journey` (M7) starts a JOURNEY leg instead of the free layout: `{journey, leg}` names it, and
+// `{journey: true}` alone reads the save's `p.mineJourney` (absent = journey 1, leg 1). The leg's
+// CURATED seed is used unless `seed` pins another (legprobe's candidates).
+function beginMineRun(seed, opts) {
   setGame('mine');
+  mineLeg = null;
+  if (opts && opts.journey) {
+    let j = opts.journey === true ? 0 : opts.journey | 0, l = opts.leg | 0;
+    if (!(j > 0) || !(l > 0)) {
+      let mj = null; try { mj = loadProgress().mineJourney; } catch (_) {}
+      if (!(j > 0)) j = (mj && mj.journey) | 0 || 1;
+      if (!(l > 0)) l = (mj && mj.leg) | 0 || 1;
+    }
+    const row = mineLegRow(CONFIG, l);
+    if (row) {
+      mineLeg = { journey: j, leg: row.leg };
+      if (!(seed > 0)) seed = row.seed;
+    }
+  }
   playtestLevel = null; chosenSpecies = null; bootSandbox = false;
   currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0;
   // TEST KNOB (M5 round 2): `window.MYCELIUM_NEXT_MINE_SEED`, consumed once, pins the shaft of a
@@ -37342,7 +37678,7 @@ function begin(newState) {
       drained: () => +(state.mineDrained || 0).toFixed(2),
       chunkOf: (x) => mineChunkOfCol(state.config, state.substrate.colAtX(x)),
       chunkCount: () => mineChunkCount(state ? state.config : CONFIG),
-      homeChunk: () => mineHomeChunk(state ? state.config : CONFIG),
+      homeChunk: () => mineHomeChunk(state ? state.config : CONFIG, state && state.substrate),
       depth: () => mineDepthReached(state),
       band: (m) => mineBandAt(state ? state.config : CONFIG, m),
       bands: () => (state ? state.config : CONFIG).mine.bands.map((b) => b.theme),
@@ -37399,6 +37735,17 @@ function begin(newState) {
       play: () => { beginMineRun(); return true; },
       // Pin the shaft: the only way to look at the same generated map twice.
       playSeed: (n) => { beginMineRun((n >>> 0) || 1); return true; },
+      // A journey leg (M7): the curated seed, or `seed` pinned (legprobe's candidates).
+      // The save's journey leg (`p.mineJourney`), the route M8's DIG will take.
+      playJourney: () => { beginMineRun(undefined, { journey: true }); return true; },
+      playLeg: (j, l, seed) => { beginMineRun(seed > 0 ? seed >>> 0 : undefined, { journey: j || 1, leg: l || 1 }); return true; },
+      // The leg this descent is on and its layout as the substrate carries it (null on the free layout).
+      leg: () => (mineLeg ? Object.assign({}, mineLeg, { seed: mineSeed,
+        layout: state && state.substrate && state.substrate.mineJourney ? JSON.parse(JSON.stringify(state.substrate.mineJourney)) : null,
+        homeCol: state && state.substrate ? state.substrate.mineHomeCol : null }) : null),
+      taproot: () => { const g = mineTaprootGeom(); return g ? Object.assign({}, g, { drawn: _mineTaprootDrawn }) : null; },
+      hills: () => mineHillSpans().map((h) => Object.assign({}, h)),
+      legRow: (l) => { const r = mineLegRow(state ? state.config : CONFIG, l); return r ? JSON.parse(JSON.stringify(r)) : null; },
     },
     survival: {
       maps: () => survivalMaps().map((l) => l.id),
@@ -40189,7 +40536,7 @@ function renderFrame(time, dtFrames = 1) {
   drawMountains();              // mountain barriers rendered as a sprite over the wall (gated)
   drawCities();                 // city skylines over the concrete barriers (gated)
   drawSurfaceProps();           // optional above-ground sprites: trees/grass/houses (gated)
-  if (state.substrate.mine) drawMineProps();   // two trees on the centre hill
+  if (state.substrate.mine) { drawMineProps(); drawMineTaproot(time); }   // trees on the hills; the leg's taproot (M7)
   else drawHomeProps();         // one small tree on the left home hill (over its backdrop)
   drawGoalProps();              // summery bush clusters on the goal soil (over the hill backdrop)
 
@@ -42851,35 +43198,102 @@ function mineHillSpan() {
   const c0 = Math.max(0, h - half), c1 = Math.min(sub.cols - 1, h + half);
   return { x0: c0 * cs, x1: (c1 + 1) * cs };
 }
+// EVERY HILL ON THIS MAP (M7): the home hill, plus on a journey leg the ISLAND over the taproot —
+// its soil columns exactly (buildLevel makes them soil), same art.
+function mineHillSpans() {
+  const out = [Object.assign({ island: false }, mineHillSpan())];
+  const J = state.substrate.mineJourney, cs = state.substrate.cellSize;
+  if (J) out.push({ x0: J.islandC0 * cs, x1: (J.islandC1 + 1) * cs, island: true });
+  return out;
+}
 function drawMineHill() {
   const hill = asset('goalhill'); if (!hill) return;
   const sub = state.substrate, z = camera.zoom;
-  const { x0, x1 } = mineHillSpan();
-  const wWorld = x1 - x0, hWorld = wWorld * (hill.height / hill.width);
-  const sw = wWorld * z, sh = hWorld * z;
-  const left = camera.worldToScreen(x0, sub.surfaceY);
-  const by = left.y + sh * HILL_BASE_DROP;          // flat base just ON the soil line, mound above
-  if (left.x > camera.viewW || left.x + sw < 0) return;
-  withWorldClip(() => ctx.drawImage(hill, left.x, by - sh, sw, sh));
+  for (const { x0, x1 } of mineHillSpans()) {
+    const wWorld = x1 - x0, hWorld = wWorld * (hill.height / hill.width);
+    const sw = wWorld * z, sh = hWorld * z;
+    const left = camera.worldToScreen(x0, sub.surfaceY);
+    const by = left.y + sh * HILL_BASE_DROP;          // flat base just ON the soil line, mound above
+    if (left.x > camera.viewW || left.x + sw < 0) continue;
+    withWorldClip(() => ctx.drawImage(hill, left.x, by - sh, sw, sh));
+  }
 }
 function drawMineProps() {
   const bush = asset('goalbush'); if (!bush) return;
   const sub = state.substrate, z = camera.zoom, cs = sub.cellSize;
-  const { x0, x1 } = mineHillSpan();
   const aspect = bush.width / bush.height;
   withWorldClip(() => {
-    // Two clusters, off-centre either side of the shaft head — the middle is where the colony
-    // comes out of the ground, and a bush drawn over it hides the one thing on this screen the
-    // player is looking for.
-    for (const [t, hCells] of [[0.22, 2.0], [0.78, 1.4]]) {
-      const hWorld = cs * hCells, wWorld = hWorld * aspect;
-      const s = camera.worldToScreen(x0 + (x1 - x0) * t, sub.surfaceY);
-      const sw = wWorld * z, sh = hWorld * z;
-      const by = s.y + sh * 0.05;
-      if (s.x < -sw || s.x > camera.viewW + sw) continue;
-      ctx.drawImage(bush, s.x - sw / 2, by - sh, sw, sh);
+    for (const { x0, x1, island } of mineHillSpans()) {
+      // Two clusters, off-centre either side of the shaft head — the middle is where the colony
+      // comes out of the ground, and a bush drawn over it hides the one thing on this screen the
+      // player is looking for. The island mirrors the pair, so the two hills do not read as copies.
+      for (const [t, hCells] of island ? [[0.3, 1.5], [0.74, 2.1]] : [[0.22, 2.0], [0.78, 1.4]]) {
+        const hWorld = cs * hCells, wWorld = hWorld * aspect;
+        const s = camera.worldToScreen(x0 + (x1 - x0) * t, sub.surfaceY);
+        const sw = wWorld * z, sh = hWorld * z;
+        const by = s.y + sh * 0.05;
+        if (s.x < -sw || s.x > camera.viewW + sw) continue;
+        ctx.drawImage(bush, s.x - sw / 2, by - sh, sw, sh);
+      }
     }
   });
+}
+// THE TAPROOT (M7): a pulsing mint knot (radius ~40 units) in its carved chamber under the island, and
+// a few short filaments hanging from the island hill that fade out within ~6 m — so the island reads as
+// ROOTED without giving away how deep the knot is. Canvas-drawn; no asset. The hook reports what drew.
+let _mineTaprootDrawn = null;
+function mineTaprootGeom() {
+  const sub = state && state.substrate, J = sub && sub.mineJourney;
+  if (!J || !J.taproot) return null;
+  const cs = sub.cellSize;
+  return { x: (J.taproot.col + 0.5) * cs, y: sub.surfaceY + (J.taproot.row + 0.5) * cs, r: 40,
+           x0: J.islandC0 * cs, x1: (J.islandC1 + 1) * cs, fade: 6 * cs };
+}
+function drawMineTaproot(time) {
+  const g = mineTaprootGeom();
+  _mineTaprootDrawn = null;
+  if (!g) return;
+  const sub = state.substrate, z = camera.zoom;
+  const pulse = 0.5 + 0.5 * Math.sin(time * 0.001 * Math.PI * 2 / 1.6);
+  const drawn = { knot: false, filaments: 0 };
+  withWorldClip(() => {
+    ctx.save();
+    ctx.lineCap = 'round';
+    // Filaments: five hanging threads, deterministic per island, alpha falling to 0 at `fade`.
+    for (let i = 0; i < 5; i++) {
+      const t = (i + 0.5) / 5, fx = g.x0 + (g.x1 - g.x0) * (0.15 + 0.7 * t);
+      const len = g.fade * (0.55 + 0.45 * Math.abs(Math.sin(i * 2.3 + 1)));
+      const sway = Math.sin(i * 1.7 + 0.4) * 22;
+      const a = camera.worldToScreen(fx, sub.surfaceY + 4), b = camera.worldToScreen(fx + sway, sub.surfaceY + len);
+      if (Math.max(a.x, b.x) < -20 || Math.min(a.x, b.x) > camera.viewW + 20 || b.y < -20 || a.y > camera.viewH + 20) continue;
+      const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
+      grad.addColorStop(0, 'rgba(127,230,163,0.75)'); grad.addColorStop(1, 'rgba(127,230,163,0)');
+      ctx.strokeStyle = grad; ctx.lineWidth = Math.max(1.2, 2.2 * z);
+      ctx.beginPath(); ctx.moveTo(a.x, a.y);
+      const m = camera.worldToScreen(fx - sway * 0.6, sub.surfaceY + len * 0.5);
+      ctx.quadraticCurveTo(m.x, m.y, b.x, b.y); ctx.stroke();
+      drawn.filaments++;
+    }
+    // The knot.
+    const k = camera.worldToScreen(g.x, g.y), R = g.r * z;
+    if (k.x > -R * 3 && k.x < camera.viewW + R * 3 && k.y > -R * 3 && k.y < camera.viewH + R * 3) {
+      const glow = ctx.createRadialGradient(k.x, k.y, R * 0.2, k.x, k.y, R * (2.1 + 0.4 * pulse));
+      glow.addColorStop(0, `rgba(127,230,163,${0.34 + 0.2 * pulse})`); glow.addColorStop(1, 'rgba(127,230,163,0)');
+      ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(k.x, k.y, R * (2.1 + 0.4 * pulse), 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(190,255,214,${0.7 + 0.3 * pulse})`; ctx.lineWidth = Math.max(1.5, 3 * z);
+      for (let i = 0; i < 7; i++) {      // a tangle of loops, not a disc
+        const a0 = i * 0.9 + time * 0.00025 * (i % 2 ? 1 : -1);
+        ctx.beginPath();
+        ctx.ellipse(k.x, k.y, R * (0.55 + 0.08 * (i % 3)) * (1 + 0.06 * pulse), R * (0.3 + 0.05 * (i % 2)), a0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.fillStyle = `rgba(214,255,228,${0.8 + 0.2 * pulse})`;
+      ctx.beginPath(); ctx.arc(k.x, k.y, R * 0.22, 0, Math.PI * 2); ctx.fill();
+      drawn.knot = true; drawn.sx = k.x; drawn.sy = k.y; drawn.r = R;
+    }
+    ctx.restore();
+  });
+  _mineTaprootDrawn = drawn;
 }
 
 function drawHomeProps() {
@@ -43309,6 +43723,12 @@ function enterGame() {
   // THE DEEP MINE, straight in. `#mine` rolls a fresh shaft; `#mine,<n>` pins the seed, which is
   // the only way to look at the same generated map twice — every mine check that measures the
   // geometry needs that, and so does anyone chasing a report about one particular shaft.
+  // A JOURNEY LEG, straight in (M7): '#leg,<journey>,<leg>' — the tools' route; the plain DIG is the
+  // free descent until M8. '#leg,1,2,<seed>' pins a candidate seed instead of the curated one.
+  else if (dest === '#leg') {
+    const j = parseInt(parts[1], 10), l = parseInt(parts[2], 10), sd = parseInt(parts[3], 10);
+    beginMineRun(sd > 0 ? sd : undefined, { journey: j > 0 ? j : 1, leg: l > 0 ? l : 1 });
+  }
   else if (dest === '#mine') {
     const want = parseInt(parts[1], 10);
     // ONE WORLD BUILD (M2 fix): this was `beginMineRun(); if (want > 0) { mineSeed = want; startRun(); }`,

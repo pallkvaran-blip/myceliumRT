@@ -5,3 +5,4 @@ dist/
 
 # Screenshots the checks drop for eyeballing. Regenerated on every run; several are megabytes.
 tests/.artifacts/
+.legprobe-snap.html
