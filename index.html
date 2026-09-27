@@ -361,6 +361,10 @@
     .minebeat .mb-c { margin-top: 6px; font-size: clamp(13px, 3.6vw, 18px); font-weight: 700;
       color: #ffb070; text-shadow: 0 1px 12px rgba(0,0,0,0.95); }
     .minebeat.small .mb-d { font-size: clamp(20px, 6vw, 32px); }
+    /* THE LEG BANNER (M8): 'LEG 3 / DRY GROUND / No water pockets above 42 m' — the rule in pale mint,
+       not the price orange. */
+    .minebeat.leg .mb-d { text-transform: uppercase; letter-spacing: 0.08em; }
+    .minebeat.leg .mb-c { color: #d7efe0; font-weight: 600; }
     @media (prefers-reduced-motion: reduce) { .minebeat { transition: none; } }
     /* THE JOURNEY STRIP (M8): eight islands in a row, the rooted ones lit mint, the leg being played
        ringed. One builder (main.js mineJourneyStripHTML) for the title, the end screen and the store. */
@@ -3918,11 +3922,11 @@ const CONFIG = {
       landfallCells: 1.5,
       legs: [
         { leg: 1, name: 'First Light', seed: 2114845, E: 4, eastM: 96, depthM: 24,
-          sealByBand: [0.12, 0.12, 0.12], rule: 'calm', bonus: 20 },
+          sealByBand: [0.12, 0.12, 0.12], rule: 'calm', bonus: 20, ruleLine: 'No threats — the island lies east' },
         { leg: 2, name: 'The Coal Road', seed: 1703848, E: 6, eastM: 144, depthM: 58,
-          sealByBand: [0.55, 0.12, 0.12], rule: 'standard', bonus: 30 },
+          sealByBand: [0.55, 0.12, 0.12], rule: 'standard', bonus: 30, ruleLine: 'Worms from 42 m' },
         { leg: 3, name: 'Dry Ground', seed: 36103, E: 8, eastM: 192, depthM: 72,
-          sealByBand: [0.70, 0.12, 0.12], rule: 'dry', bonus: 40 },
+          sealByBand: [0.70, 0.12, 0.12], rule: 'dry', bonus: 40, ruleLine: 'No water pockets above 42 m' },
       ],
     },
   },
@@ -36364,6 +36368,10 @@ function mineRecordLeg(r) {
       firstLand = !rec.landed;
       rec.landed = true;
       mj.leg = Math.max(mj.leg, Math.min(MINE_JOURNEY_LEGS, L + 1));
+      // THE STORE'S LEG GATES (M5's `mineTrackRevealed`: flasks from leg 2, the enzyme from leg 4) read
+      // `p.mineSeen.leg`, which nothing set until there were legs to reach.
+      p.mineSeen = p.mineSeen || {};
+      p.mineSeen.leg = Math.max(p.mineSeen.leg | 0, mj.leg);
     }
     mj.legs[L] = rec;
     p.mineJourney = { journey: mj.journey, leg: mj.leg, legs: mj.legs };
@@ -38790,6 +38798,25 @@ function begin(newState) {
       taproot: () => { const g = mineTaprootGeom(); return g ? Object.assign({}, g, { drawn: _mineTaprootDrawn }) : null; },
       hills: () => mineHillSpans().map((h) => Object.assign({}, h)),
       legRow: (l) => { const r = mineLegRow(state ? state.config : CONFIG, l); return r ? JSON.parse(JSON.stringify(r)) : null; },
+      // M8: the leg's saved records (`deepest`/`farthest`), the lines this run draws (as they stood at
+      // its start), what drew last frame, and the NEW DEEPEST / NEW FARTHEST beats fired this run.
+      records: () => {
+        const J = state && state.substrate && state.substrate.mineJourney, o = state && state._mineJ;
+        if (!J) return null;
+        const rec = mineLegRecord(loadProgress(), J.journey, J.leg) || {};
+        return { leg: J.leg | 0, deepest: rec.bestDepth | 0, farthest: rec.bestEast | 0, runs: rec.runs | 0, landed: !!rec.landed,
+                 lines: o ? Object.assign({}, o.lines) : null, drawn: o ? Object.assign({}, o.drawn) : null,
+                 beats: o ? { deep: o.deep | 0, east: o.east | 0 } : null };
+      },
+      // Hide / show the record lines (the pixel-diff control).
+      recordLines: (on) => { if (state && state._mineJ) state._mineJ.hide = !on; return !!(state && state._mineJ); },
+      legHints: () => { const o = state && state._mineJ; return o ? { banner: o.banner, chevronUntil: o.chevronUntil, sight: o.sight,
+        runsBefore: o.runsBefore, drawn: Object.assign({}, o.drawn), now: performance.now() } : null; },
+      beats: () => _mineBeatLog.slice(),
+      east: () => (state ? state.mineMaxEast | 0 : 0),
+      islandReached: () => !!(state && mineIslandReached(state)),
+      journey: () => mineJourneyNow(),
+      stripHTML: () => mineJourneyStripHTML(mineJourneyNow()),
     },
     survival: {
       maps: () => survivalMaps().map((l) => l.id),
@@ -40687,11 +40714,16 @@ function mineBeat(depth) {
 // frame or two, and two of these overlapping is unreadable.
 let _mineBeatEl = null, _mineBeatT = 0;
 // `cost` (M4.5) is a second line, 'Digs now cost N'; `small` is a price line's own beat.
-function showMineBeat(depthText, name, cost, small) {
+// `kind` (M8) adds a class: 'leg' is the leg banner, whose third line is the leg's rule, not a price.
+// Every beat is counted in `_mineBeatLog` (text + time), which is how a check counts NEW FARTHEST.
+const _mineBeatLog = [];
+function showMineBeat(depthText, name, cost, small, kind) {
   try {
+    _mineBeatLog.push({ d: String(depthText), n: String(name || ''), c: String(cost || ''), kind: kind || '', at: performance.now() });
+    if (_mineBeatLog.length > 60) _mineBeatLog.shift();
     if (_mineBeatEl) { clearTimeout(_mineBeatT); _mineBeatEl.remove(); _mineBeatEl = null; }
     const el = document.createElement('div');
-    el.className = 'minebeat' + (small ? ' small' : '');
+    el.className = 'minebeat' + (small ? ' small' : '') + (kind ? ' ' + kind : '');
     el.id = 'mineBeat';
     el.innerHTML = `<div class="mb-d">${depthText}</div>` + (name ? `<div class="mb-n">${name}</div>` : '')
       + (cost ? `<div class="mb-c">${cost}</div>` : '');
@@ -40951,6 +40983,108 @@ function mineThreatTips(time) {
         valid: () => !c.spent && mineOnScreen(c.cx, c.cy, 30), onShow: () => mineTipRecord('first_cloud') });
       break;
     }
+  }
+}
+// ===================== THE JOURNEY IN THE WORLD (M8) =====================
+// Per run, on a journey leg: the leg banner at the start, a 5 s east-edge chevron on the leg's first
+// run, 'ISLAND N IN SIGHT' when the island hill or its knot comes into view (plus a once-per-save
+// tip), and the leg's two RECORD LINES — best depth and farthest east, as they stood when the run
+// began — each firing one NEW DEEPEST / NEW FARTHEST beat when crossed. `state._mineJ`; hook
+// `__game.mine.records()` / `.legHints()`.
+//
+// THE SAVE'S VERY FIRST DESCENT GETS NO BANNER AND NO CHEVRON (the plan's first minute: "nothing else
+// is on screen"); run 2 is where 'LEG 1 · FIRST LIGHT' and 'Island 1 is east' arrive.
+function mineJourneyInit(time) {
+  const sub = state.substrate, J = sub.mineJourney;
+  const o = state._mineJ = { leg: J.leg | 0, name: J.name || '', t0: time, banner: 0, chevronUntil: 0,
+    sight: 0, deep: 0, east: 0, lines: { deep: 0, east: 0 }, drawn: { deep: false, east: false, chevron: false },
+    hide: false, runsBefore: 0 };
+  let rec = null;
+  try { rec = mineLegRecord(loadProgress(), J.journey, J.leg); } catch (_) {}
+  o.lines.deep = rec ? rec.bestDepth | 0 : 0;
+  o.lines.east = rec ? rec.bestEast | 0 : 0;
+  o.runsBefore = rec ? rec.runs | 0 : 0;
+  if (!state._mineFirst) {
+    const row = mineLegRow(state.config, J.leg);
+    showMineBeat('Leg ' + J.leg, J.name || '', row && row.ruleLine, false, 'leg');
+    o.banner = 1;
+    // THE LEG'S FIRST RUN (leg 1: its first run that shows a banner, i.e. the save's second descent).
+    if (o.runsBefore <= (J.leg === 1 ? 1 : 0)) o.chevronUntil = time + 5000;
+  }
+  return o;
+}
+function mineJourneyTick(time, depth, east) {
+  const sub = state.substrate, J = sub && sub.mineJourney;
+  if (!J) return;
+  const o = state._mineJ || mineJourneyInit(time);
+  // A RECORD IS CROSSED ONCE PER RUN: past the line the run began with, and only when there was one.
+  if (!o.deep && o.lines.deep > 0 && depth > o.lines.deep) {
+    o.deep = 1; showMineBeat('New deepest', depth + ' m', null, true); state.log(`New deepest on this leg: ${depth} m.`, 'good');
+  }
+  if (!o.east && o.lines.east > 0 && east > o.lines.east) {
+    o.east = 1; showMineBeat('New farthest', east + ' m east', null, true); state.log(`New farthest on this leg: ${east} m east.`, 'good');
+  }
+  // ISLAND N IN SIGHT: the hill (its two ends and its crown) or the knot on screen.
+  if (!o.sight && time - (o.sightAt || 0) > 200) {
+    o.sightAt = time;
+    const cs = sub.cellSize, x0 = J.islandC0 * cs, x1 = (J.islandC1 + 1) * cs, y = sub.surfaceY - cs * 0.3;
+    const t = mineTaprootXY(sub);
+    if (mineOnScreen(x0, y, 8) || mineOnScreen(x1, y, 8) || mineOnScreen((x0 + x1) / 2, y - cs * 0.8, 8)
+        || (t && mineOnScreen(t.x, t.y, 8))) {
+      o.sight = 1;
+      showMineBeat('Island ' + J.leg, 'In sight', null, true);
+      if (!mineTipSeen('first_island')) mineTip('island', "Reach the island's root to move on",
+        { ms: 5000, onShow: () => mineTipRecord('first_island') });
+    }
+  }
+}
+// The world marks: the record lines (dashed, 0.35 alpha, labelled at the screen edge) and the east
+// chevron. Drawn after the colony, before the onboarding glow.
+function drawMineJourney(time) {
+  const o = state._mineJ, sub = state.substrate;
+  if (!o || !sub || !sub.mineJourney) return;
+  o.drawn = { deep: false, east: false, chevron: false };
+  const cs = sub.cellSize, W = camera.viewW, H = camera.viewH;
+  if (!o.hide) {
+    ctx.save();
+    ctx.setLineDash([9, 7]); ctx.lineWidth = 2;
+    ctx.font = '600 12px system-ui, sans-serif'; ctx.textBaseline = 'bottom';
+    if (o.lines.deep > 0) {
+      const q = camera.worldToScreen(0, sub.surfaceY + o.lines.deep * cs);
+      if (q.y > 0 && q.y < H) {
+        ctx.strokeStyle = 'rgba(242,236,224,0.35)';
+        ctx.beginPath(); ctx.moveTo(0, q.y); ctx.lineTo(W, q.y); ctx.stroke();
+        ctx.fillStyle = 'rgba(242,236,224,0.7)'; ctx.textAlign = 'left';
+        ctx.fillText('deepest ' + o.lines.deep + ' m', 10, q.y - 3);
+        o.drawn.deep = true;
+      }
+    }
+    if (o.lines.east > 0) {
+      const homeX = ((sub.mineHomeCol != null ? sub.mineHomeCol : sub.cols >> 1) + 0.5) * cs;
+      const q = camera.worldToScreen(homeX + o.lines.east * cs, sub.surfaceY);
+      if (q.x > 0 && q.x < W) {
+        ctx.strokeStyle = 'rgba(159,224,189,0.35)';
+        ctx.beginPath(); ctx.moveTo(q.x, Math.max(0, q.y)); ctx.lineTo(q.x, H); ctx.stroke();
+        ctx.save(); ctx.translate(q.x - 4, Math.max(mineHudBandPx() + 90, q.y + 12));
+        ctx.rotate(-Math.PI / 2); ctx.fillStyle = 'rgba(159,224,189,0.75)'; ctx.textAlign = 'right';
+        ctx.fillText('farthest ' + o.lines.east + ' m', 0, 0);
+        ctx.restore();
+        o.drawn.east = true;
+      }
+    }
+    ctx.restore();
+  }
+  if (time < o.chevronUntil && !state.runOver) {
+    const pulse = 0.5 + 0.5 * Math.sin(time * 0.006);
+    const ex = W - 34, ey = Math.round(H * 0.5);
+    mineChevron(ex, ey, 0, 'rgba(127,230,163,A)', pulse);
+    ctx.save();
+    ctx.font = '700 14px system-ui, sans-serif'; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(12,8,6,0.85)'; ctx.fillStyle = '#bfffd6';
+    const label = 'Island ' + o.leg + ' is east';
+    ctx.strokeText(label, ex - 24, ey); ctx.fillText(label, ex - 24, ey);
+    ctx.restore();
+    o.drawn.chevron = true;
   }
 }
 // THE PRICE-LINE BEATS (M4.5). A band beat whose depth IS a price line carries 'Digs now cost N'
@@ -41223,6 +41357,7 @@ function mineFrame(time, dt) {
   // ...AND OF EAST (M8), on a journey leg: the reach payout's east term and the '→ 64 m' readout.
   const east = mineEastReached(state);
   if (east > (state.mineMaxEast | 0)) { state.mineMaxEast = east; uiDirty = true; }
+  if (state.substrate.mineJourney) mineJourneyTick(time, Math.max(depth, state.mineMaxDepth | 0), state.mineMaxEast | 0);
   // LANDFALL (M8): a clean strand within 1.5 cells of the taproot ends the run THIS frame, ROOTED.
   // Banked at once (the bank is idempotent; the end screen's call finds it paid), so the leg's
   // advance and the island bonus are in the save before the celebration plays — a tab closed during
@@ -41673,6 +41808,7 @@ function renderFrame(time, dtFrames = 1) {
   drawNematodes(time);
   drawTraps(time);
   drawTargetingCursor(time);
+  if (state.substrate.mine) drawMineJourney(time);   // M8: record lines, the east chevron
   if (state.substrate.mine) drawMineOnboard(time);   // M4: ghost finger, dead-end glow, tip rings, price-line label
   if (state.substrate.mine) drawMineThreatMarks(time);   // M6: attach rings + chevrons, above the glow
   drawFloaters(time, dtFrames);  // floating "+N⚡" energy labels over piles (on top of the map)
