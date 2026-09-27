@@ -3752,6 +3752,9 @@ const CONFIG = {
       moveSpeed: 0.5,
       firstTouchRings: 2,
       firstTouchRadius: 0,
+      freshGrowthRings: 0,
+      growInfectBurst: 2,
+      harvestRotDescendants: false,
     },
     // THE SAVE'S FIRST INFECTION GETS A LONGER CLOCK (M6): 30 s the first time the colony meets rot
     // (`p.mineSeen.rot` unset), `infectionMs` (20 s) ever after. The first meeting is where the
@@ -17601,14 +17604,27 @@ class Network {
     for (const n of this.nodes) {
       if (n.infected || n.side || !grownIn(n)) continue;
       const c = substrate.cellAtWorld(n.x, n.y);
-      if (c && c.trich >= th && !proofed(n)) n.infected = true;
+      if (c && c.trich >= th && !proofed(n)) {
+        n.infected = true;
+        // The mine (harvestRotDescendants false) treats this as a breach point like any other: its
+        // own clock, and the renderer's creep starts here. Only on that branch, so the campaign
+        // is untouched.
+        if (tri.harvestRotDescendants === false) { n._infSeed = true; n._infAge = 0; }
+      }
     }
     // ...and the downstream invariant with it, or the runner that reached the pile is clean
     // while the strand it grew out of is rot. Same rule as threats.js infectDescendants; kept
     // here as a few lines rather than reaching across the module boundary, since Network is
     // where the parent/child topology lives.
+    //
+    // THE MINE TURNS THIS OFF (`trichoderma.harvestRotDescendants` false, CONFIG.mine.trych). There
+    // it runs on every tick of a dig's arrival window, so a strand near the fan's hub drifting
+    // under a cloud took the WHOLE fan below it in one tick — measured 21-104 strands on a
+    // 150-strand colony against a contact breach of ~4 (tests/breach-real-probe.cjs). The mine has
+    // no goal to protect and lets the player grow from clean tissue beyond rot, so the downstream
+    // claim has nothing to guard there; the strands actually standing in mould are still taken.
     const rotStack = [];
-    for (const n of this.nodes) if (n.infected) rotStack.push(n);
+    if (tri.harvestRotDescendants !== false) for (const n of this.nodes) if (n.infected) rotStack.push(n);
     while (rotStack.length) {
       const n = rotStack.pop();
       for (const cid of n.children) {
@@ -33973,6 +33989,9 @@ function configForLevel(level) {
     if (mt.moveSpeed != null) cfg.trichoderma.moveSpeed = mt.moveSpeed;
     if (mt.firstTouchRings != null) cfg.trichoderma.firstTouchRings = mt.firstTouchRings;
     if (mt.firstTouchRadius != null) cfg.trichoderma.firstTouchRadius = mt.firstTouchRadius;
+    if (mt.freshGrowthRings != null) cfg.trichoderma.freshGrowthRings = mt.freshGrowthRings;
+    if (mt.growInfectBurst != null) cfg.trichoderma.growInfectBurst = mt.growInfectBurst;
+    if (mt.harvestRotDescendants != null) cfg.trichoderma.harvestRotDescendants = mt.harvestRotDescendants;
     // M6: the flask kills in one burst over a wider reach (see `CONFIG.mine.excreteKillHits`).
     if (cfg.mine.excreteKillHits) cfg.nematodes.killHits = Math.max(1, cfg.mine.excreteKillHits | 0);
     if (cfg.mine.excreteRange) cfg.actions.excrete.range = Math.max(1, +cfg.mine.excreteRange);

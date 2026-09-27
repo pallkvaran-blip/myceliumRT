@@ -11,7 +11,7 @@
  *     margin; a breach claims ~10-25 strands (firstTouchRings 6, was 12).
  *   - Attached worms were 16 px squiggles, attached from off screen, and the chip pointed nowhere.
  *
- * Blocks (COUNTER_ONLY=flask,breed,cloud,breach,clock,chevron,copy): each on a FRESH context.
+ * Blocks (COUNTER_ONLY=flask,breed,cloud,breach,digbreach,clock,chevron,copy): each on a FRESH context.
  */
 const path = require('path');
 const H = require('./mine-harness.cjs');
@@ -380,6 +380,76 @@ const COLONY = async ({ n, maxM, QUIET }) => {
        `${miss.message} — ${miss.left} left`);
     ok('no page errors', b.errs.length === 0, b.errs.slice(0, 3).join(' | '));
     await b.ctx.close();
+  }
+
+  // =========================================================================================
+  // 4b. A BREACH WHILE DIGGING — the cloud creeps in at the mine's own speed while the player digs
+  //     toward it (and, second, digs INTO a parked cloud). The breach block above drops a cloud on a
+  //     SETTLED colony, which never sees what happens while a dig is arriving: `colonizeReachablePiles`
+  //     re-runs every tick of the arrival window and its rot-before-harvest pass used to claim every
+  //     strand DOWNSTREAM of one caught in mould — measured 21-104 strands of a ~150 colony at first
+  //     contact (verifier probe, tests/breach-real-probe.cjs). The mine turns that claim off
+  //     (`trichoderma.harvestRotDescendants` false). COUNTER_CONTROL=1 turns it back on.
+  // =========================================================================================
+  if (want('digbreach')) {
+    console.log('--- a breach while digging toward the mould stays small');
+    const CONTROL = process.env.COUNTER_CONTROL === '1';
+    const RUN = (page, mode) => page.evaluate(async ({ mode, CONTROL }) => {
+      const g = window.__game, s = g.state, sub = s.substrate;
+      if (CONTROL) s.config.trichoderma.harvestRotDescendants = true;
+      const clean = () => s.active.nodes.filter((q) => !q.infected);
+      const tip = clean().sort((a, b) => b.y - a.y)[0];
+      // A spot in open ground, in sight of the deepest tip, D away from every strand.
+      const D = mode === 'creep' ? 150 : 75;
+      let spot = null;
+      for (let k = 0; k < 400 && !spot; k++) {
+        const a = k * 2.399, x = tip.x + Math.cos(a) * D, y = tip.y + Math.sin(a) * D;
+        if (y < sub.surfaceY + 30 || sub.solidAtWorld(x, y) || !sub.segmentClear(tip.x, tip.y, x, y)) continue;
+        let m = 1e9; for (const q of clean()) m = Math.min(m, Math.hypot(q.x - x, q.y - y));
+        if (m >= D - 20) spot = { x, y };
+      }
+      if (!spot) return { err: 'no spot' };
+      if (mode === 'into') s.config.trichoderma.moveSpeed = 0;
+      g.mine.spawnCloud(spot.x, spot.y);
+      await new Promise((r) => setTimeout(r, 300));
+      let first = null, grows = 0; const t0 = performance.now();
+      while (performance.now() - t0 < 20000) {
+        const inf = s.active.nodes.filter((q) => q.infected).length;
+        if (inf) { first = inf; break; }
+        if (grows < 10) {
+          const c = clean().sort((a, b) => Math.hypot(a.x - spot.x, a.y - spot.y) - Math.hypot(b.x - spot.x, b.y - spot.y))[0];
+          g.mine.growFrom(c.x, c.y, spot.x, spot.y); grows++;
+        }
+        await new Promise((r) => setTimeout(r, mode === 'creep' ? 700 : 900));
+      }
+      if (first == null) return { err: 'no contact', grows };
+      const t1 = s.turn; for (let i = 0; i < 40 && s.turn === t1; i++) await new Promise((r) => setTimeout(r, 25));
+      const rot = s.active.nodes.filter((q) => q.infected);
+      let x = 0, y = 0; for (const q of rot) { x += q.x; y += q.y; }
+      s.mineItems = Object.assign({}, s.mineItems, { amputate: 1 });
+      const d = g.mine.useAmputate(x / rot.length, y / rot.length);
+      const t2 = s.turn; for (let i = 0; i < 40 && s.turn === t2; i++) await new Promise((r) => setTimeout(r, 25));
+      return { grows, first, next: rot.length, nodes: s.active.nodes.length, ok: d.ok,
+               rottenAfter: s.active.nodes.filter((q) => q.infected).length, infect: s.mineInfect, over: !!s.runOver };
+    }, { mode, CONTROL });
+    const rows = [];
+    for (const [mode, seeds] of [['creep', [4242, 909, 11, 5, 2024]], ['into', [909, 2024]]]) {
+      for (const seed of seeds) {
+        const b = await E.bootMine(seed);
+        const c = await colony(b.page, 150, 30);
+        const r = await RUN(b.page, mode);
+        rows.push(Object.assign({ mode, seed, colony: c.nodes }, r));
+        console.log(`        ${mode} seed ${seed}: colony ${c.nodes}, ${JSON.stringify(r)}`);
+        await b.ctx.close();
+      }
+    }
+    const creep = rows.filter((r) => r.mode === 'creep'), into = rows.filter((r) => r.mode === 'into');
+    const fmt = (rs) => rs.map((r) => r.err || `${r.first} (next tick ${r.next})`).join(', ');
+    ok('a cloud creeping onto a colony being dug toward: first contact infects 25 strands or fewer, 5/5 seeds',
+       creep.every((r) => !r.err && r.first > 0 && r.first <= 25), fmt(creep));
+    ok('...growing into a parked cloud: 25 or fewer, 2/2 seeds', into.every((r) => !r.err && r.first > 0 && r.first <= 25), fmt(into));
+    ok('...and one dose at the centroid cures every one', rows.every((r) => !r.err && r.ok && r.rottenAfter === 0 && r.infect === null && !r.over),
+       rows.map((r) => r.err || `${r.rottenAfter} left`).join(', '));
   }
 
   // =========================================================================================
