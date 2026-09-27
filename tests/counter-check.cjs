@@ -459,8 +459,26 @@ const COLONY = async ({ n, maxM, QUIET }) => {
     const c0 = r.chev[0] || {};
     ok('off screen, chevrons().length is 1, on the screen edge', r.off && r.chev.length === 1
        && c0.x >= 0 && c0.x <= r.view.w && c0.y >= 0 && c0.y <= r.view.h
-       && (c0.x <= 30 || c0.x >= r.view.w - 30 || c0.y <= 110 || c0.y >= r.view.h - 30),
+       && (c0.x <= 30 || c0.x >= r.view.w - 30 || c0.y <= 240 || c0.y >= r.view.h - 90),
        `off=${r.off}, ${JSON.stringify(r.chev)}`);
+    // STRAIGHT UP: the chevron sits below the HUD stack (rows, rot banner, hint), not on it. A fixed
+    // 100 px margin put it on the worm tip / rot banner at 390 px.
+    const up = await b.page.evaluate(async (w) => {
+      const g = window.__game;
+      g.mine.lookAt(w.x, w.y + 1500);
+      await new Promise((res) => setTimeout(res, 500));
+      const top = document.getElementById('game').getBoundingClientRect().top;
+      let band = 0;
+      for (const sel of ['.minerows', '#hud-infect', '#minehint']) {
+        const n = document.querySelector('#ui > .hud.minehud ' + sel);
+        if (!n || n.hidden) continue; const rr = n.getBoundingClientRect(); if (rr.height > 0) band = Math.max(band, rr.bottom - top);
+      }
+      return { chev: g.mine.chevrons(), band: Math.round(band) };
+    }, r.worm);
+    await b.page.screenshot({ path: path.join(ART, 'm6-chevron-up-390.png'), timeout: 8000, animations: 'disabled' }).catch(() => {});
+    const cu = up.chev[0] || {};
+    ok('...a worm straight above points from below the HUD stack, not over it', up.chev.length === 1 && up.band > 0 && cu.y > up.band + 8 && cu.y < up.band + 60,
+       `chevron y ${cu.y}, HUD stack bottom ${up.band}`);
     // THE CHIP, pressed for real.
     await b.page.click('#hud-worms', { timeout: 4000 }).catch((e) => console.log('   click failed: ' + e.message));
     await sleep(300);
@@ -472,14 +490,21 @@ const COLONY = async ({ n, maxM, QUIET }) => {
     const px = await b.page.evaluate(async (w) => {
       // Pixels in a ring around the host: the pulsing ring is warm red.
       const g = window.__game, s = g.state;
-      g.renderFrame(performance.now());
+      // Both ends of the 1 Hz beat (pulse = sin(2*pi*t/1000)): t = 250 mod 1000 is the widest, faintest
+      // ring, 750 the tightest. A single frame at an arbitrary time measured the phase, not the ring.
       const cv = document.getElementById('game'), ctx = cv.getContext('2d');
-      const q = g.camera.worldToScreen(w.x, w.y), k = cv.width / cv.clientWidth;
-      const R = 34 * k, img = ctx.getImageData(Math.max(0, q.x * k - R), Math.max(0, q.y * k - R), 2 * R, 2 * R).data;
-      let red = 0; for (let i = 0; i < img.length; i += 4) if (img[i] > 170 && img[i + 1] < 140 && img[i + 2] < 120) red++;
-      return { red };
+      const count = (t) => {
+        g.renderFrame(t);
+        const q = g.camera.worldToScreen(w.x, w.y), k = cv.width / cv.clientWidth;
+        const R = 34 * k, img = ctx.getImageData(Math.max(0, q.x * k - R), Math.max(0, q.y * k - R), 2 * R, 2 * R).data;
+        let red = 0; for (let i = 0; i < img.length; i += 4) if (img[i] > 170 && img[i + 1] < 140 && img[i + 2] < 120) red++;
+        return red;
+      };
+      const base = Math.ceil(performance.now() / 1000) * 1000;
+      return { wide: count(base + 250), tight: count(base + 750) };
     }, r.worm);
-    ok('the attached worm wears a red ring', px.red > 40, `${px.red} red px within 34 px of the worm`);
+    ok('the attached worm wears a red ring, at both ends of its pulse', px.wide > 40 && px.tight > 40,
+       `${px.wide} / ${px.tight} red px within 34 px of the worm (wide / tight)`);
     ok('no page errors', b.errs.length === 0, b.errs.slice(0, 3).join(' | '));
     await b.ctx.close();
   }

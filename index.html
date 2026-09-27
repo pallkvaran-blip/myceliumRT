@@ -42821,16 +42821,22 @@ function drawNematodes(time) {
       const onScreen = hp.x >= 0 && hp.y >= 0 && hp.x <= camera.viewW && hp.y <= camera.viewH;
       if (onScreen) {
         const rr = Math.max(9, cs * 0.42 * z) * (1 + 0.35 * pulse);
-        ctx.strokeStyle = `rgba(226,112,90,${0.55 + 0.4 * (1 - pulse)})`;
-        ctx.lineWidth = Math.max(2, 2.6 * z);
-        ctx.beginPath(); ctx.arc(hp.x, hp.y, rr, 0, Math.PI * 2); ctx.stroke();
+        // A dark halo under the red, so the ring reads on warm soil at every phase of the pulse (at
+        // 0.55 alpha with no halo it all but vanished on brown at the wide end of the beat).
+        const lw = Math.max(2, 2.6 * z);
+        ctx.beginPath(); ctx.arc(hp.x, hp.y, rr, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(20,10,8,0.55)'; ctx.lineWidth = lw + 2.5; ctx.stroke();
+        ctx.strokeStyle = `rgba(236,104,80,${0.8 + 0.2 * (1 - pulse)})`; ctx.lineWidth = lw; ctx.stroke();
         continue;
       }
       // Off screen: a chevron on the edge, on the line from the view's centre to the worm.
       const cx = camera.viewW / 2, cy = camera.viewH / 2, dx = hp.x - cx, dy = hp.y - cy;
-      // Kept clear of the HUD rows at the top (~100 px) and 22 px from the other edges.
-      const m = 22, mt = 100;
-      const k = Math.min(Math.abs((cx - m) / (dx || 1e-6)), Math.abs(((dy < 0 ? cy - mt : cy - m)) / (dy || 1e-6)));
+      // Kept clear of the HUD stack at the top — rows, rot banner and hint, measured (`mineHudBandPx`,
+      // cached 300 ms: it reads the DOM) and never above 100 px — of the item kit at the bottom (78 px)
+      // and 22 px from the sides. A fixed 100 put the chevron on the rot banner at 390 px.
+      if (!state._mineChevBand || time - state._mineChevBand.at > 300) state._mineChevBand = { at: time, px: mineHudBandPx() };
+      const m = 22, mt = Math.max(100, (state._mineChevBand.px | 0) + 16), mb = 78;
+      const k = Math.min(Math.abs((cx - m) / (dx || 1e-6)), Math.abs(((dy < 0 ? cy - mt : cy - mb)) / (dy || 1e-6)));
       const ex = cx + dx * k, ey = cy + dy * k, ang = Math.atan2(dy, dx);
       chev.push({ x: Math.round(ex), y: Math.round(ey), wx: w.x, wy: w.y });
       ctx.save();
