@@ -40183,13 +40183,15 @@ function advanceSim(time) {
     // arriving) means the chunk a dig needs has usually been made already.
     // (TEST KNOB `window.MYCELIUM_NO_LOOKAHEAD`: journey-check's reverse-order determinism boot turns the
     // lookahead off, or the chunks it wants to generate backwards are made forwards on idle frames first.)
-    // ...and NOT while nothing is being played (verifier round 4): paused (the end screen and the held
-    // curtain included — `simPaused` covers runOver and the reveal hold) or the settings menu open. A
-    // lookahead chunk is a whole synchronous chunk, and those are frames the player is looking at (the
-    // end screen's count-up, the menu opening). The chunk will still be made on the next quiet frame
-    // of play. Splitting generation across frames (M9) is the lever that removes the hitch itself.
+    // ...and NOT once the run is over or while the settings menu is open (verifier round 4): a lookahead
+    // chunk is a whole synchronous chunk, and those are frames the player is looking at (the end screen's
+    // count-up, the menu opening). NOT the whole of `simPaused()`: that includes the held curtain, which
+    // is a black screen — the cheapest frames there are — and a boot whose art is slow would then make
+    // its lookahead chunk after the reveal instead (ship-check's slow-art mask comparison saw exactly
+    // that: 3485 sprites against the reference's 2774). Splitting generation across frames (M9) is the
+    // lever that removes the hitch itself.
     const menuOpen = (() => { const m = document.getElementById('settingsmenu'); return !!(m && !m.classList.contains('hidden')); })();
-    const busy = pointers.size > 0 || !!(state.active && state.active._colonizePending) || simPaused() || menuOpen
+    const busy = pointers.size > 0 || !!(state.active && state.active._colonizePending) || !!state.runOver || menuOpen
               || (typeof window !== 'undefined' && window.MYCELIUM_NO_LOOKAHEAD === true);
     state._mineFrameNo = (state._mineFrameNo | 0) + 1;
     // ...AND NEVER THE STAMP ON THE SAME FRAME. Colliding a new chunk's sprites (`solidifyMineRock`,
