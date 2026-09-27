@@ -5159,7 +5159,13 @@ Numbers here are measured, not planned.
   - **Acceptance 7 has a UI mode**: `threatcareer.cjs --ui` (botrun `uiItems`) — a flask by a real kit click
     1.5 s after a worm attaches; a dose 1.5 s after rot appears, only on rot on screen below the HUD (a real
     click on the rot banner pans to it), by a real kit click and a real canvas click on the middle of the
-    visible rot. The in-page `useItems` stays as the upper bound.
+    visible rot. The in-page `useItems` stays as the upper bound. **Measured (4242/909/11 x 12, --ui):
+    0 of 27 infected in runs 4-12, median worm drain 1.60** (26 runs used a flask, 14 a dose; drain tail
+    27.5 and 46.9 on 4242 runs 5-6, the flask stock spent — the round-1 balance followup). **GOTCHA: the
+    first --ui run read 3 of 27 infected** because the bot clicked the rot banner and then dug in the same
+    step, and the dig re-arms the follow camera, so the rot never came on screen (7-11 banner clicks in a
+    row). It now waits for the pan and cuts before digging. Two doses left rot behind, both a separate
+    cloud's patch (ids logged); the next tap cured it.
   - **Still open, owner's call (M14):** the mine's rot does not creep (see round 2); the walled-with-water
     run never ends by itself (M4: verifier's UI run sat 71 refusals at 27 m with 42 water, live > 2 min).
   - counter 53 -> 60 (digcut 2, empty-kit tips 4, soak live 1; breach '...at most 15 clean strands removed'
