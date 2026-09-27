@@ -5436,9 +5436,9 @@ Numbers here are measured, not planned.
 - **TOOLS (committed, not in the runner):** `tests/chunkgen-probe.cjs` (per-chunk generation ms; `PLAY=1`
   the frame loop's genLog); legprobe `world()` now reports `profile` / `bandSol` / `inSol`, `hairSeam` /
   `hairMid` / `hairMid90`, `spineMid90`, `lateral2`, `unjoined`.
-- **journey-check 82 -> 90** (world block rewritten as above, +1 unjoined per leg, drawn-solidity gate per
-  leg, the repair control re-pointed; nine-frames assertions dropped from the count (-3); the free-layout
-  control printed only (-1); new `stream` block (3)).
+- **journey-check 82 -> 90**: `world` 17 -> 25 (per leg: + unjoined, + drawn solidity, + seam hairline; the
+  free-layout control printed only, the repair control re-pointed), the nine-frames assertions no longer
+  counted (-3), the new `stream` block (+3).
 - **`--mine` after verifier round 3: 1095 passed, 0 failed across 18 checks** (boot 22, store 124, mine 193,
   ending 87, ship 58, phone 51, onboard 63, econ 79, counter 60, journey 90, zip 24, level 27, aim 9,
   scale 26, threat 116, harvest 28, mould 20, core 18). The full run before the two lookahead-aware test
