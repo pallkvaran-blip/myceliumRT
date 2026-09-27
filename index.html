@@ -3899,11 +3899,11 @@ const CONFIG = {
       taprootR: 2.5,
       landfallCells: 1.5,
       legs: [
-        { leg: 1, name: 'First Light', seed: 753368, E: 4, eastM: 96, depthM: 24,
+        { leg: 1, name: 'First Light', seed: 858097, E: 4, eastM: 96, depthM: 24,
           sealByBand: [0.12, 0.12, 0.12], rule: 'calm', bonus: 20 },
-        { leg: 2, name: 'The Coal Road', seed: 2855867, E: 6, eastM: 144, depthM: 58,
+        { leg: 2, name: 'The Coal Road', seed: 3274783, E: 6, eastM: 144, depthM: 58,
           sealByBand: [0.55, 0.12, 0.12], rule: 'standard', bonus: 30 },
-        { leg: 3, name: 'Dry Ground', seed: 1711767, E: 8, eastM: 192, depthM: 72,
+        { leg: 3, name: 'Dry Ground', seed: 36103, E: 8, eastM: 192, depthM: 72,
           sealByBand: [0.70, 0.12, 0.12], rule: 'dry', bonus: 40 },
       ],
     },
@@ -22884,7 +22884,9 @@ function mineGenerateChunk(state, ci) {
     placed.taproot = { col: tc, row: tr, repairs };
   }
 
-  // --- (e) EVERY REWARD IS REACHABLE, on a journey leg only (M7 verifier round 2) -----------
+  // --- (e) THE LEG'S CROSSING IS JOINED, on a journey leg only (M7 verifier rounds 2-3) -----
+  // (Round 2 joined every reward too; round 3 joins only the trunks, the head and the taproot — see the
+  // anchors below for why. The history is kept because it is why the trunks exist.)
   // THE SEAM STITCH (pass d) REVEALED THE CARVE'S OWN TOPOLOGY, AND ON A LEG THAT STRANDS A THIRD OF
   // THE REWARDS. A seal is drawn per gallery PER SIDE, and a gallery crosses a seam only where both
   // chunks left it unsealed AND both segments reached the seam — on leg 2's shallow band (0.55) that
@@ -22900,8 +22902,8 @@ function mineGenerateChunk(state, ci) {
   //     least 21 and in the first band whose seal chance is low (legs 2-3: below 42 m, so the broken
   //     shallow road stays broken). Each chunk opens its side of it (radius 1.7, the edge column and
   //     the one beside it), so both seam cells are open there and the stitch leaves the row alone;
-  //   · a flood-and-repair joining the trunks, the head, the taproot chamber and EVERY reward into
-  //     one piece: a 0-1 breadth-first walk out of the flooded set (open ground free, closed ground
+  //   · a flood-and-repair joining the trunks, the head and the taproot chamber (round 2: and every
+  //     reward) into one piece: a 0-1 breadth-first walk out of the flooded set (open ground free, closed ground
   //     one) to the nearest piece holding an anchor it has not reached, and the closed cells of that
   //     walk carved at radius 1.7. Joining through existing passage is what keeps it short.
   // THE EDGE COLUMNS DO NOT COUNT except at a trunk mouth: the stitch puts rock over a one-sided run of
@@ -22914,13 +22916,15 @@ function mineGenerateChunk(state, ci) {
   // whose sprite would land on it is dropped below, and a seal boulder never covers `noPlug` ground.
   const repCut = J ? new Uint8Array(W * rows) : null;
   // TEST KNOB, journey-check's negative control only: `window.MYCELIUM_NO_REWARD_REPAIR = true` (an init
-  // script) skips the trunks and the repair, so the check can show its reward assertion fails without
+  // script) skips the trunks and the repair, so the check can show the leg's crossing fails without
   // them. Nothing in the game sets it.
   const repairOn = !!J && !(typeof window !== 'undefined' && window.MYCELIUM_NO_REWARD_REPAIR);
   // The only edge-column cells a journey chunk counts as passage: its trunk mouths (both seam cells
   // open, so the stitch never covers them). See THE EDGE COLUMNS below.
   const trunkCell = J ? new Uint8Array(W * rows) : null;
-  if (repairOn) {
+  // The anchors and the `unjoined` count run on every journey chunk; with the test knob set nothing is
+  // carved (no trunks, no walk), so the count says what the carve alone leaves unjoined.
+  if (J) {
     const seedJ = (state.mineSeed || state.seed || 1) >>> 0;
     const erng = mineChunkRng((seedJ ^ 0x2EAC) >>> 0, ci);
     const nCh = mineChunkCount(cfg);
@@ -22969,7 +22973,7 @@ function mineGenerateChunk(state, ci) {
       if (s <= 0 || s >= nCh) continue;          // the world's own edge has no neighbour
       const tr = trunkOf(s);
       if (tr < 0) continue;
-      ecarve(ce, tr, 1.7, true); ecarve(ci2, tr, 1.7, false);
+      if (repairOn) { ecarve(ce, tr, 1.7, true); ecarve(ci2, tr, 1.7, false); }
       trunks.push(tr);
       anchors.push([at(ce, tr)]);
     }
@@ -22985,8 +22989,8 @@ function mineGenerateChunk(state, ci) {
     // contrast, not the seam rock alone, was the column in the frames (tests/seam-profile.cjs, legprobe
     // `profile`). It also removed the owner's gated content ("yes fine that some areas are only reachable
     // with upgrades"). So only the head, the trunks and the taproot are joined — the leg's crossing —
-    // and the rewards are left to the maze: 92-99% of seams and 94-99% of pockets reachable on the
-    // shipped seeds, the rest walled in like the free layout's (journey-check gates >= 85%).
+    // and the rewards are left to the maze: 90-97% of seams and 96-100% of pockets reachable on the
+    // shipped seeds (all 21 chunks), the rest walled in (journey-check gates >= 85%).
     // PLUG ZONES: a plug's sprite is `(rad * 2 + 1.6)` cells across, so it overhangs the disc it closed
     // and walls the corridor cells beside it. Those cells are not a path this pass can promise, and a
     // connector carved through one would drop the plug (below) — which re-opens a corridor and, done
@@ -23026,7 +23030,7 @@ function mineGenerateChunk(state, ci) {
       }
     };
     let repairs = 0, cut = 0;
-    if (anchors.length > 1) {
+    if (repairOn && anchors.length > 1) {
       const dist = new Int32Array(W * rows), par = new Int32Array(W * rows);
       // ...and 4 more within 2 rows of a gallery row: the cheapest join between two segments of one
       // gallery is straight along its row, which re-made the wall-to-wall corridor the segmenting

@@ -36,7 +36,7 @@
  *            inside the island chunk) reaches the chunk's own seam column: the repair's guarantee
  *            survives the seal boulders and the stitch whatever the seed.
  *
- * `JOURNEY_ONLY=layout,determ,free,legs,world,island` runs a subset.
+ * `JOURNEY_ONLY=layout,determ,free,legs,world,stream,island` runs a subset.
  */
 const path = require('path'), fs = require('fs');
 const H = require('./mine-harness.cjs');
@@ -325,11 +325,44 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
         const b = await E.boot('#leg,1,2', 390, 844, { before: (page) => page.addInitScript(() => { window.MYCELIUM_NO_REWARD_REPAIR = true; }) });
         await b.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.leg && window.__game.mine.leg()
           && window.__game.state.substrate._fineSolid), { timeout: 40000 });
-        const m = await LP.measure(b.page);
-        ok('negative control: leg 2 with pass (e) switched off (`MYCELIUM_NO_REWARD_REPAIR`) does not reach the taproot on the growth lattice',
-           !m.reachLat, `lattice ${m.reachLat}, plain ${m.reach}`);
+        const w = await LP.world(b.page);
+        // (Round 3: not "strands rewards" any more — rewards are no longer pass (e)'s job — and not "does
+        // not reach the taproot" either: measured, leg 2 still crosses on the lattice without it, through
+        // porous rock the carve's model calls closed. What pass (e) promises is the crossing IN THAT MODEL.)
+        ok('negative control: leg 2 with pass (e) switched off (`MYCELIUM_NO_REWARD_REPAIR`) leaves anchors unjoined in the carve\'s model (the assertion above can fail)',
+           w.unjoined > 0, `${w.unjoined} unjoined`);
         await b.ctx.close();
       }
+    }
+    // ======================================================================================
+    if (want('stream')) {
+      console.log('--- streaming on a leg: one chunk a frame, and a visible chunk always has its neighbour');
+      // (verifier round 3) Generation is synchronous (tests/chunkgen-probe.cjs: ~9 ms a chunk on the free
+      // layout, 15-25 ms on a leg, headless desktop), so the frame loop makes at most ONE chunk a frame,
+      // plus an idle lookahead; and on a leg the view is widened by 5 columns, because a chunk's seam
+      // band is bare soil until its neighbour exists (the stitch fills it).
+      const b = await E.boot('#leg,1,2', 390, 844, { before: (page) => page.addInitScript(() => { window.MYCELIUM_NO_LOOKAHEAD = true; }) });
+      await b.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.leg && window.__game.mine.leg()
+        && window.__game.state.substrate._fineSolid), { timeout: 40000 });
+      const r = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, cw = s.config.mine.chunkCols;
+        const sleep = (ms) => new Promise((q) => setTimeout(q, ms));
+        await sleep(800);
+        const k = Math.max(...g.mine.chunks());
+        // Park the view so its east edge rests 2 columns inside chunk k's east seam.
+        const half = (g.camera.viewW || 390) / 2 / g.camera.zoom;
+        const edge = ((k + 1) * cw - 2) * cs;
+        g.mine.lookAt(edge - half, sub.surfaceY + 20 * cs);
+        await sleep(900);
+        const had = g.mine.chunks().includes(k + 1);
+        return { k, had, log: g.mine.genLog() };
+      });
+      ok('the neighbour of a chunk whose seam band is on screen is generated (lookahead off, view widened on a leg)', r.had,
+         `view's east edge 2 columns inside chunk ${r.k}'s seam: chunk ${r.k + 1} ${r.had ? 'exists' : 'missing'}`);
+      ok('...and no frame generated more than one chunk', r.log.length > 0 && r.log.every((e) => e.made <= 1),
+         `${r.log.length} generating frames: ${r.log.map((e) => e.made + '@' + e.ms + 'ms').join(' ')}`);
+      ok('no page errors (stream)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+      await b.ctx.close();
     }
     // ======================================================================================
     if (want('island')) {
