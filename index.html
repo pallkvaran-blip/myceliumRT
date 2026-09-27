@@ -22472,12 +22472,12 @@ function mineGenerateChunk(state, ci) {
       // over 168 rows drifts right across the chunk, so a "shaft" erodes most of its width and the
       // solid slabs the rock needs never exist.
       const lean = 4;
-      // JOURNEY: never within 7 columns of a seam (M7 verifier round 2). A shaft pinned at its lean
-      // bound beside a seam, facing the neighbour's shaft pinned at ITS bound, left a 4-6 cell wall with
-      // the seam down its middle for 30-40 rows — the stitch then drew that wall solid, and it was the
-      // column in the seam frames (`tests/seam-pillar-probe.cjs`). Same draws; only the clamp moves.
-      const sLo = J && c0 > 0 ? c0 + 7 : c0 + 1, sHi = J && c1 < cols - 1 ? c1 - 7 : c1 - 1;
-      col = clamp(col + dir, Math.max(sLo, home0 - lean), Math.min(sHi, home0 + lean));
+      // (Round 2 clamped a journey shaft 7 columns off a seam, links and reward rooms 5. Round 3 took
+      // that out: keeping every opening away from the seams left a closed band ~10 columns wide at
+      // every seam, and the band's dense rock against the open middle WAS the column — drawn solidity
+      // by column in the chunk ran 0.32 in the middle to 0.67 at the seam, against a flat 0.45-0.55 on
+      // the free layout. The journey carve is the free layout's carve again here.)
+      col = clamp(col + dir, Math.max(c0 + 1, home0 - lean), Math.min(c1 - 1, home0 + lean));
     }
   }
   // --- vertical links: the maze's junctions ---------------------------------
@@ -22498,9 +22498,7 @@ function mineGenerateChunk(state, ci) {
       // (that pair of galleries is joined elsewhere, or not at all), not a failure to work around.
       let col = -1;
       for (let t = 0; t < 8; t++) {
-        // Journey: links stay 5 columns clear of a seam, for the shafts' reason above (same draw).
-        const cand = J ? c0 + 5 + Math.floor(ri(Math.max(1, W - 2)) * Math.max(1, W - 10) / Math.max(1, W - 2))
-                       : c0 + 1 + ri(Math.max(1, W - 2));
+        const cand = c0 + 1 + ri(Math.max(1, W - 2));
         if (galleryAt[gi][cand - c0] >= 0 && galleryAt[gi + 1][cand - c0] >= 0) { col = cand; break; }
       }
       if (col < 0) continue;
@@ -22567,9 +22565,7 @@ function mineGenerateChunk(state, ci) {
   const offRouteSpot = (rLo, rHi) => {
     for (let tries = 0; tries < 500; tries++) {
       const r = rLo + ri(Math.max(1, rHi - rLo)), cq = ri(Math.max(1, W - 4));
-      // Journey: 5 columns clear of a seam (same draw), or reward rooms on both sides of a seam left
-      // a thin wall down it for the stitch to draw solid (M7 verifier round 2, seam-pillar-probe).
-      const c = J ? c0 + 5 + Math.floor(cq * Math.max(1, W - 10) / Math.max(1, W - 4)) : c0 + 2 + cq;
+      const c = c0 + 2 + cq;
       if (open[at(c, r)] || onRoute[at(c, r)]) continue;   // must be untouched AND off the route
       // Journey: not on a gallery row (±2). A spur runs straight from the corridor, so a room in the
       // gap between two segments of a gallery was dug along the row and joined them — one straight
@@ -22979,14 +22975,18 @@ function mineGenerateChunk(state, ci) {
     }
     if (c0 <= home && home <= c1) { const a = []; for (let c = home - 1; c <= home + 1; c++) if (inChunk(c, 1)) a.push(at(c, 1)); anchors.unshift(a); }
     if (tapCut) anchors.push([at(J.taproot.col, clamp(J.taproot.row | 0, 3, rows - 4))]);
-    for (const sp of spots) {
-      if (sp.kind === 'ore') { anchors.push([at(sp.c, sp.r)]); continue; }
-      const a = [], k = Math.ceil(sp.rad) + 2;
-      for (let dr = -k; dr <= k; dr++)
-        for (let dc = -k; dc <= k; dc++)
-          if (inChunk(sp.c + dc, sp.r + dr) && !isEdge(sp.c + dc) && open[at(sp.c + dc, sp.r + dr)] && !water[at(sp.c + dc, sp.r + dr)]) a.push(at(sp.c + dc, sp.r + dr));
-      if (a.length) anchors.push(a);
-    }
+    // THE REWARDS ARE NOT ANCHORS ANY MORE (verifier round 3). Round 2 joined every ore seam and pocket
+    // to the trunks, and the carve's model of "joined" is pessimistic: it counts closed ground as a
+    // wall, while the drawn rock over closed ground is porous (a boulder's alpha fills ~35% of its box),
+    // so growth reaches most of what the carve calls stranded. Measured on leg 2 with no repair at all:
+    // 146 of 167 seams reached on the fine mask. Joining them all anyway cost 8-12 connectors a chunk,
+    // opened the chunk's middle (drawn solidity at columns 6-17: 0.40, against 0.49 on the free layout)
+    // and left the seam band — which the connectors avoid — standing up as a denser column: that
+    // contrast, not the seam rock alone, was the column in the frames (tests/seam-profile.cjs, legprobe
+    // `profile`). It also removed the owner's gated content ("yes fine that some areas are only reachable
+    // with upgrades"). So only the head, the trunks and the taproot are joined — the leg's crossing —
+    // and the rewards are left to the maze: 92-99% of seams and 94-99% of pockets reachable on the
+    // shipped seeds, the rest walled in like the free layout's (journey-check gates >= 85%).
     // PLUG ZONES: a plug's sprite is `(rad * 2 + 1.6)` cells across, so it overhangs the disc it closed
     // and walls the corridor cells beside it. Those cells are not a path this pass can promise, and a
     // connector carved through one would drop the plug (below) — which re-opens a corridor and, done
@@ -23002,20 +23002,27 @@ function mineGenerateChunk(state, ci) {
         const j = at(p.c + dc, p.r + dr), d = Math.max(Math.abs(dc), Math.abs(dr));
         if (d < pzd[j]) pzd[j] = d;
       }
+    // `pass` is STRICT, always: a plug zone's open cells never count unless promised (`noPlug`). The
+    // fallback (`usePz` off) only lets the WALK through plug zones, and whatever it walks through there
+    // is promised, which drops the plug. It used to relax `pass` itself, so the flood counted open
+    // cells under a kept plug's sprite as joined and the walk never promised them: on leg 1, 9 of 21
+    // chunks "joined" a trunk only through rock (verifier round 3, `placed.reach.unjoined`).
     let usePz = true;
-    const pass = (j) => open[j] && !water[j] && (!isEdge((j % W) + c0) || trunkCell[j]) && !(usePz && pzd[j] <= 3 && !noPlug[j]);
+    const pass = (j) => open[j] && !water[j] && (!isEdge((j % W) + c0) || trunkCell[j]) && !(pzd[j] <= 3 && !noPlug[j]);
     const seen = new Uint8Array(W * rows), tgt = new Uint8Array(W * rows);
+    // `pass` answered once per walk (verifier round 3: per-cell closure calls were most of this pass's
+    // cost); the carve at the end of a walk still asks the live `pass`, since it changes as it carves.
+    const passA = new Uint8Array(W * rows), fst = new Int32Array(W * rows);
+    const refreshPass = () => { for (let j = 0; j < passA.length; j++) passA[j] = pass(j) ? 1 : 0; };
     const fl = (from, mark) => {
-      const st = [];
-      for (const j of from) if (pass(j) && !mark[j]) { mark[j] = 1; st.push(j); }
-      while (st.length) {
-        const i = st.pop(), r = (i / W) | 0, c = (i % W) + c0;
-        for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-          const cc = c + dc, rr = r + dr;
-          if (!inChunk(cc, rr)) continue;
-          const j = at(cc, rr);
-          if (!mark[j] && pass(j)) { mark[j] = 1; st.push(j); }
-        }
+      let sp = 0;
+      for (const j of from) if (passA[j] && !mark[j]) { mark[j] = 1; fst[sp++] = j; }
+      while (sp) {
+        const i = fst[--sp], c = i % W;
+        if (c + 1 < W && !mark[i + 1] && passA[i + 1]) { mark[i + 1] = 1; fst[sp++] = i + 1; }
+        if (c > 0 && !mark[i - 1] && passA[i - 1]) { mark[i - 1] = 1; fst[sp++] = i - 1; }
+        if (i + W < passA.length && !mark[i + W] && passA[i + W]) { mark[i + W] = 1; fst[sp++] = i + W; }
+        if (i - W >= 0 && !mark[i - W] && passA[i - W]) { mark[i - W] = 1; fst[sp++] = i - W; }
       }
     };
     let repairs = 0, cut = 0;
@@ -23029,6 +23036,7 @@ function mineGenerateChunk(state, ci) {
       const jit = new Uint8Array(W * rows);
       for (let i = 0; i < jit.length; i++) jit[i] = erng() < 0.5 ? 1 : 0;
       for (let guard = 0; guard < 60; guard++) {
+        refreshPass();
         seen.fill(0); fl(anchors[0], seen);
         const left = anchors.filter((a) => !a.some((j) => seen[j]));
         if (!left.length) break;
@@ -23036,11 +23044,11 @@ function mineGenerateChunk(state, ci) {
         for (const a of left) { fl(a, tgt); for (const j of a) tgt[j] = 1; }
         // The walk: open ground costs 0; closed ground (not water, 3+ columns in from a seam, rows
         // 4..rows-4) costs 2, plus 0-1 of per-cell jitter so a connector wanders instead of running dead
-        // straight, plus 4 within 4 columns of a seam. THE SEAM PENALTY IS WHAT KEEPS PASS (e) FROM
-        // DRAWING THE LINE THE STITCH WAS BUILT TO REMOVE: a plain 0-1 walk leaves a trunk mouth by the
-        // first legal column and runs down it, so both chunks grew a vertical connector 3 columns off
-        // the seam and the stitch sat in a 2-cell wall between them — leg 1 seam 72, rows 101-131, a
-        // stacked column in every frame. Dial's algorithm over small integer costs.
+        // straight. Dial's algorithm over small integer costs. (Round 2 added up to +9 within 8 columns
+        // of a seam, to stop a trunk's connector running down beside the seam; with only the trunks,
+        // head and taproot to join (round 3) the connectors are few, and the penalty's real effect was
+        // to push every connector into the chunk's middle — part of the open-middle / dense-seam contrast
+        // that read as a column. Measured without it: spine 6.5-7.8 per seam, inside 2x an interior line.)
         dist.fill(1 << 30); par.fill(-1);
         const buckets = [[]];
         for (let i = 0; i < seen.length; i++) if (seen[i]) { dist[i] = 0; buckets[0].push(i); }
@@ -23057,12 +23065,13 @@ function mineGenerateChunk(state, ci) {
             const r = (i / W) | 0, c = (i % W) + c0;
             for (const [dc, dr] of dirs) {
               const cc = c + dc, rr = r + dr;
-              if (!inChunk(cc, rr)) continue;
-              const j = at(cc, rr);
+              if (cc < c0 || cc > c1 || rr < 0 || rr >= rows) continue;
+              const j = rr * W + (cc - c0);
               let w;
-              if (pass(j) || tgt[j]) w = 0;
+              if (passA[j] || tgt[j]) w = 0;
               else if (!water[j] && !open[j] && cc >= c0 + 3 && cc <= c1 - 3 && rr >= 4 && rr <= rows - 4 && !(usePz && pzd[j] <= 4))
-                w = 2 + jit[j] + Math.max(0, 9 - Math.min(cc - c0, c1 - cc)) + (nearGal[rr] ? 4 : 0);
+                w = 2 + jit[j] + (nearGal[rr] ? 4 : 0);
+              else if (!usePz && open[j] && !water[j] && cc > c0 && cc < c1) w = 1;   // through a plug zone: promised below
               else continue;
               const nd = dcur + w;
               if (nd >= dist[j]) continue;
@@ -23082,7 +23091,16 @@ function mineGenerateChunk(state, ci) {
         repairs++;
       }
     }
-    placed.reach = { trunks, repairs, cut };
+    // ANCHORS LEFT UNJOINED (verifier round 3): the walk gives up when nothing connects even through a
+    // plug zone, and that used to be silent — `stranded` counts rewards only, so a trunk or the taproot
+    // left out of the leg's crossing was invisible. Counted here in the pass's own model (plug zones
+    // closed unless promised), and journey-check asserts 0.
+    let unjoined = 0;
+    if (anchors.length > 1) {
+      usePz = true; refreshPass(); seen.fill(0); fl(anchors[0], seen);
+      for (const a of anchors) if (!a.some((j) => seen[j])) unjoined++;
+    }
+    placed.reach = { trunks, repairs, cut, unjoined };
   }
   // A PLUG WHOSE SPRITE WOULD LAND ON A JOURNEY REPAIR IS DROPPED (the taproot's connector, pass e's
   // connectors). Its sprite is sized `(rad * 2 + 1.6)` cells, so it overhangs the disc it closed by
@@ -23102,9 +23120,17 @@ function mineGenerateChunk(state, ci) {
         }
       if (!hitCut) continue;
       p.skip = true;
-      for (const j of p.closed) open[j] = 1;
       placed.plugsDropped = (placed.plugsDropped | 0) + 1;
     }
+    // Give a dropped plug's cells back — but NOT one a KEPT plug's disc also covers (verifier round 3).
+    // `closed` lists only the cells that were open when that plug closed them, so where two discs
+    // overlap the shared cells sit on the first plug's list; reopening them when it was dropped left
+    // open carve under the second plug's sprite, i.e. a carve that claims passage where the map has
+    // rock (misleading the connectivity sweep and the stitch's `openAB`).
+    const kept = plugSpots.filter((p) => !p.skip);
+    const underKept = (j) => { const r = (j / W) | 0, c = (j % W) + c0;
+      for (const k of kept) { const dc = c - k.c, dr = r - k.r; if (dc * dc + dr * dr <= k.rad * k.rad) return true; } return false; };
+    for (const p of plugSpots) if (p.skip) for (const j of p.closed) if (!underKept(j)) open[j] = 1;
   }
 
   // --- the connectivity sweep, chunk-local ---------------------------------
@@ -23424,44 +23450,67 @@ function mineGenerateChunk(state, ci) {
         }
     }
     const blocked = new Uint8Array(W * rows);
+    // Component labels of the carve (open, not water, not under a kept seal box). A typed stack and the
+    // four neighbours unrolled: the same components, numbered in the same scan order.
+    const lst = new Int32Array(W * rows);
     const label = (extra) => {
       const lab = new Int32Array(W * rows).fill(-1);
+      const ok = (q) => lab[q] < 0 && open[q] && !wet[q] && !blocked[q] && !(extra && extra[q]);
       let n = 0;
       for (let i = 0; i < lab.length; i++) {
-        if (lab[i] >= 0 || !open[i] || wet[i] || blocked[i] || (extra && extra[i])) continue;
-        const st = [i]; lab[i] = n;
-        while (st.length) {
-          const j = st.pop(), r = (j / W) | 0, c = j % W;
-          for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-            const cc = c + dc, rr = r + dr;
-            if (cc < 0 || cc >= W || rr < 0 || rr >= rows) continue;
-            const q = rr * W + cc;
-            if (lab[q] >= 0 || !open[q] || wet[q] || blocked[q] || (extra && extra[q])) continue;
-            lab[q] = n; st.push(q);
-          }
+        if (!ok(i)) continue;
+        let sp = 0; lst[sp++] = i; lab[i] = n;
+        while (sp) {
+          const j = lst[--sp], c = j % W;
+          if (c + 1 < W && ok(j + 1)) { lab[j + 1] = n; lst[sp++] = j + 1; }
+          if (c > 0 && ok(j - 1)) { lab[j - 1] = n; lst[sp++] = j - 1; }
+          if (j + W < lab.length && ok(j + W)) { lab[j + W] = n; lst[sp++] = j + W; }
+          if (j - W >= 0 && ok(j - W)) { lab[j - W] = n; lst[sp++] = j - W; }
         }
         n++;
       }
       return lab;
     };
-    let pre = label(null);
+    // Computed on first use: a chunk whose seal boxes all sit on closed ground never needs it.
+    let pre = null;
     const safeBox = (bc0, bc1, br0, br1) => {
       const box = new Uint8Array(W * rows);
+      let hitsOpen = false;
       for (let rr = br0; rr <= br1; rr++)
         for (let cc = bc0; cc <= bc1; cc++) {
           if (!inChunk(cc, rr)) continue;
           const j = at(cc, rr);
           if (keep[j] || noPlug[j] || (tapCut && tapCut[j])) return false;
           box[j] = 1;
+          if (open[j] && !wet[j] && !blocked[j]) hitsOpen = true;
         }
-      const post = label(box), map = new Map();
-      for (let i = 0; i < pre.length; i++) {
-        if (pre[i] < 0 || box[i]) continue;
-        const m = map.get(pre[i]);
-        if (m === undefined) map.set(pre[i], post[i]); else if (m !== post[i]) return false;
+      // A box over CLOSED ground only cannot split anything: `label` ignores closed cells, so the labels
+      // with it in place are the labels without it. Skipping the two whole-chunk floods is exact and is
+      // most of this pass's cost (verifier round 3: a seal box usually sits in the seal's closed gap).
+      if (!hitsOpen) { for (let i = 0; i < box.length; i++) if (box[i]) blocked[i] = 1; return true; }
+      if (!pre) pre = label(null);
+      // Only a component the box touches can be split: re-flood each of those without the box's cells
+      // and check it still reaches all of them (the same test as relabelling the chunk and comparing,
+      // at the cost of the touched components alone). Kept, the labels stay valid with the box's
+      // cells taken out — removing cells never merges components, and none was split.
+      const hit = new Set();
+      for (let i = 0; i < box.length; i++) if (box[i] && pre[i] >= 0) hit.add(pre[i]);
+      for (const L of hit) {
+        let first = -1, total = 0;
+        for (let i = 0; i < pre.length; i++) if (pre[i] === L && !box[i]) { total++; if (first < 0) first = i; }
+        if (first < 0) continue;
+        const seenL = new Uint8Array(W * rows);
+        let sp = 0, got = 1; lst[sp++] = first; seenL[first] = 1;
+        while (sp) {
+          const j = lst[--sp], c = j % W;
+          for (const q of [c + 1 < W ? j + 1 : -1, c > 0 ? j - 1 : -1, j + W < pre.length ? j + W : -1, j - W]) {
+            if (q < 0 || seenL[q] || pre[q] !== L || box[q]) continue;
+            seenL[q] = 1; got++; lst[sp++] = q;
+          }
+        }
+        if (got !== total) return false;
       }
-      for (let i = 0; i < box.length; i++) if (box[i]) blocked[i] = 1;
-      pre = label(null);
+      for (let i = 0; i < box.length; i++) if (box[i]) { blocked[i] = 1; pre[i] = -1; }
       return true;
     };
     for (const sd of J._sealed) {
@@ -23503,6 +23552,16 @@ function mineGenerateChunk(state, ci) {
   // the same whichever order the two were generated in; recorded on `J._stitched`, not in either chunk
   // record (a record must not depend on generation order).
   if (J) {
+    // WHAT WAS WET OR HELD FOOD WHEN THIS CHUNK WAS MADE (verifier round 3). The stitch keeps rock off
+    // water and food cells, and it used to ask the LIVE cells — so a cloud eating a pile beside a seam
+    // (`devourFood` zeroes `maxNutrient`) before the neighbour chunk streamed in changed the rock the
+    // stitch then placed: the same seed, different rock, depending on play. This mask is the chunk's
+    // own cells straight after its rewards were stamped, which is what the live cells say on a fresh
+    // generation, and it never changes afterwards.
+    const wetMask = new Uint8Array(W * rows);
+    for (let r = 0; r < rows; r++)
+      for (let c = c0; c <= c1; c++) { const cell = sub.cellAt(c, r); if (!cell || cell.water || cell.maxNutrient > 0) wetMask[at(c, r)] = 1; }
+    (J._wet || (J._wet = {}))[ci] = wetMask;
     (J._open || (J._open = {}))[ci] = open;
     (J._noPlug || (J._noPlug = {}))[ci] = noPlug;
     (J._taken || (J._taken = {}))[ci] = taken;
@@ -23515,7 +23574,8 @@ function mineGenerateChunk(state, ci) {
       const colA = sI * (M.chunkCols | 0) - 1, colB = colA + 1, xs = colB * cs;
       const seedS = (state.mineSeed || state.seed || 1) >>> 0;
       const qrng = mineChunkRng((seedS ^ 0x57C4) >>> 0, sI);
-      const dry = (c, r) => { const cell = sub.cellAt(c, r); return !cell || (!cell.water && !(cell.maxNutrient > 0)); };
+      const wA = J._wet[sI - 1], wB = J._wet[sI], cA0w = (sI - 1) * (M.chunkCols | 0), cB0w = sI * (M.chunkCols | 0);
+      const dry = (c, r) => c < colB ? !wA[r * WA + (c - cA0w)] : !wB[r * WB + (c - cB0w)];
       const cover = new Uint8Array(rows);
       for (let r = 0; r < rows; r++) cover[r] = !oA[r * WA + WA - 1] && !oB[r * WB] && dry(colA, r) && dry(colB, r) ? 1 : 0;
       // ...AND WHERE ONLY ONE SIDE CARVED UP TO THE SEAM. There the carve says the passage STOPS at the
@@ -23596,20 +23656,25 @@ function mineGenerateChunk(state, ci) {
         const k = c - cB0; return k >= WB || !!oB[r * WB + k];
       };
       const bxLo = colA - 6, bxHi = colB + 6;
-      const bt = new Uint8Array((bxHi - bxLo + 1) * rows);
-      const btAt = (c, r) => r * (bxHi - bxLo + 1) + (c - bxLo);
-      const takenAB = (c, r) => bt[btAt(c, r)] || (c < colB ? tA[r * WA + (c - cA0)] : tB[r * WB + (c - cB0)]);
+      // The band loop's per-cell questions, answered once over its window (verifier round 3: calling
+      // `openAB` / `dry` / taken-lookups through closures per cell was ~40% of a leg chunk's generation).
+      // `wOpen` = openAB, `wBlk` = openAB || !dry, `wTk` = takenAB; same answers, so the same rock.
+      const bw = bxHi - bxLo + 1, wOpen = new Uint8Array(bw * rows), wBlk = new Uint8Array(bw * rows), wTk = new Uint8Array(bw * rows);
+      for (let r = 0; r < rows; r++) for (let c = bxLo; c <= bxHi; c++) {
+        const k = r * bw + (c - bxLo), o = openAB(c, r);
+        wOpen[k] = o ? 1 : 0; wBlk[k] = o || !dry(c, r) ? 1 : 0;
+        wTk[k] = (c < colB ? tA[r * WA + (c - cA0)] : tB[r * WB + (c - cB0)]) ? 1 : 0;
+      }
       const brng = mineChunkRng((seedS ^ 0x57C6) >>> 0, sI);
-      const crossed = new Uint8Array(rows);
       const LIMB = 8;
       const bandLoop = (rowOk, cLo, cHi, ovl, brng) => {
       for (let r = 1; r < rows; r++) {
         if (!rowOk(r)) continue;
         for (let c = cLo; c <= cHi; c++) {
-          if (openAB(c, r) || !dry(c, r)) continue;
+          if (wBlk[r * bw + (c - bxLo)]) continue;
           const lib = libBlend(r, brng);
           if (!lib.length) continue;
-          const free = (cc, rr) => cc >= bxLo && cc <= bxHi && !openAB(cc, rr);
+          const free = (cc, rr) => cc >= bxLo && cc <= bxHi && rr >= 0 && rr < rows && !wOpen[rr * bw + (cc - bxLo)];
           let l = 0, rt = 0, u = 0, d = 0;
           while (l < LIMB && free(c - l - 1, r)) l++;
           while (rt < LIMB && free(c + rt + 1, r)) rt++;
@@ -23633,18 +23698,15 @@ function mineGenerateChunk(state, ci) {
             let clear = true, cells = 0, already = 0;
             for (let rr = br0; rr <= br1 && clear; rr++)
               for (let cc = bc0; cc <= bc1; cc++) {
-                if (openAB(cc, rr) || !dry(cc, rr)) { clear = false; break; }
-                cells++; if (takenAB(cc, rr)) already++;
+                const k = rr * bw + (cc - bxLo);
+                if (wBlk[k]) { clear = false; break; }
+                cells++; if (wTk[k]) already++;
               }
             if (!clear || !cells || already / cells > ovl) continue;
-            for (let rr = br0; rr <= br1; rr++) for (let cc = bc0; cc <= bc1; cc++) bt[btAt(cc, rr)] = 1;
+            for (let rr = br0; rr <= br1; rr++) for (let cc = bc0; cc <= bc1; cc++) wTk[rr * bw + (cc - bxLo)] = 1;
             sub.levelSprites.push({ key: src.k, style: 'boulder', x: +x.toFixed(1), y: +y.toFixed(1),
                                     w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
             n++;
-            // The line crosses this piece's solid middle: those rows need no chain unless they SEAL.
-            if (Math.abs(x - xs) <= 0.3 * w)
-              for (let rr = Math.floor((y - 0.3 * h - sub.surfaceY) / cs); rr <= Math.floor((y + 0.3 * h - sub.surfaceY) / cs); rr++)
-                if (rr >= 0 && rr < rows) crossed[rr] = 1;
             break;
           }
         }
@@ -23653,7 +23715,16 @@ function mineGenerateChunk(state, ci) {
       bandLoop(() => true, colA - SEAM_BAND + 1, colB + SEAM_BAND - 1, OVERLAP, brng);
       const tight = new Uint8Array(rows);
       for (const gr of galleryRows) for (let rr = Math.max(0, gr - 2); rr <= Math.min(rows - 1, gr + 2); rr++) tight[rr] = 1;
-      for (let r = 0; r < rows; r++) if (crossed[r] && !must[r] && !tight[r]) cover[r] = 0;
+      // THE CHAIN RUNS ONLY WHERE IT HAS A JOB (verifier round 3): on `must` rows (it seals) and on gallery
+      // rows ±2 (`tight`, where two segments meeting either side of the seam would otherwise be joined
+      // through porous rock into one straight channel). Round 2 also laid a gapped chain down every other
+      // covered row "to break the slit", and that chain, on the one line every 24 columns, is what drew
+      // the line: seam closed-ground solidity 0.70-0.75 against 0.61-0.64 in the chunk, i.e. the seam was
+      // the densest rock on the map. Without it the band loop (0) leaves the line exactly as porous as
+      // the rock beside it, and a vertical open run down a seam is no longer than one down an interior
+      // line (legprobe `hairSeam` against `hairMid`: 29-32 rows against interior maxima of 51-53 and
+      // 90th percentiles of 29-38) — i.e. the slit is gone and the seam is ordinary ground.
+      for (let r = 0; r < rows; r++) if (!must[r] && !tight[r]) cover[r] = 0;
       // (1) THE CHAIN: pieces down each covered run, each straddling the seam line. TWO DENSITIES
       // (verifier round 2). The first chain was 1.7 cells wide, centred, stepped by exactly half and
       // laid over EVERY covered row — a straight, continuous column of identical stones down every
@@ -23662,12 +23733,8 @@ function mineGenerateChunk(state, ci) {
       //   · on a `must` row (a one-sided run, or within 6 rows of a walled gallery — the leak test's window is 5) it SEALS: pieces
       //     overlap by 55-70% of their height (at 40-60% a one-sided run's thin wall leaked between two
       //     round ends: leg 3 seam 168 row 147);
-      //   · everywhere else it only has to BREAK THE SLIT: rows the band loop (0) already crossed with a
-      //     boulder's middle get nothing, and elsewhere a piece is followed by a gap of 2.5-6 cells, never
-      //     past the next `must` row (it was 0.15-0.9, which drew a near-continuous stripe down the line;
-      //     the leaks that dense chain once answered are the `must` windows' job). The slit that is left
-      //     is broken every few rows, which is what stops it being the full-depth rock-free line (seam
-      //     hairline <= a band, legprobe).
+      //   · on a gallery row ±2 (`tight`) it steps without a gap;
+      //   · nowhere else (round 3, above). Round 2's gapped slit-breaking chain on every other row is gone.
       // Each piece is 1.6-4.2 cells wide (as the closed columns beside the seam allow, <= 3 a side),
       // 1.6-3.6 tall, from the rock loop's blended library, drawn UNDER the chunks' own rock (`under`),
       // and sits up to 18% of its width off the line — the line stays in the middle ~64% of every piece,
@@ -23803,31 +23870,53 @@ function mineGenerateChunk(state, ci) {
 //
 // One-shot per chunk (`state.mineChunks`), so this is a couple of arithmetic comparisons on every
 // frame that generates nothing.
-function mineEnsureChunks(state, view) {
+// `opts` (the frame loop's, M7 verifier round 3): `max` caps how many chunks one call may generate, and
+// `ahead` (columns) is the IDLE LOOKAHEAD — when nothing needed generating, one chunk within `ahead`
+// further columns of the colony / the view is generated instead, so the chunk the player is heading
+// for is usually made on a quiet frame rather than on the one a dig asks for it. `seamPad` (columns)
+// widens the view on a journey leg so a visible chunk's neighbour exists: the ground beside a seam is
+// the stitch's to fill (`bandSkip`) and stays bare soil until both chunks are there. Tests and boot
+// call with none of these, which is the old behaviour: everything wanted, at once.
+function mineEnsureChunks(state, view, opts) {
   const sub = state.substrate, cfg = state.config;
   if (!sub || !sub.mine) return 0;
   const M = mineCfg(cfg);
   const done = (state.mineChunks = state.mineChunks || {});
   const total = mineChunkCount(cfg);
   const want = new Set([mineHomeChunk(cfg, sub)]);
-  const add = (x0, x1) => {
-    for (let ci = mineChunkOfCol(cfg, sub.colAtX(x0)); ci <= mineChunkOfCol(cfg, sub.colAtX(x1)); ci++) want.add(ci);
+  const cs = sub.cellSize;
+  const add = (x0, x1, into = want) => {
+    for (let ci = mineChunkOfCol(cfg, sub.colAtX(x0)); ci <= mineChunkOfCol(cfg, sub.colAtX(x1)); ci++) into.add(ci);
   };
   const net = state.active;
+  let lo = Infinity, hi = -Infinity;
   if (net && net.nodes.length) {
-    let lo = Infinity, hi = -Infinity;
     for (const n of net.nodes) { if (n.x < lo) lo = n.x; if (n.x > hi) hi = n.x; }
-    const pad = (M.preloadCols | 0) * sub.cellSize;
+    const pad = (M.preloadCols | 0) * cs;
     add(lo - pad, hi + pad);
   }
+  const sp = opts && opts.seamPad && sub.mineJourney ? opts.seamPad * cs : 0;
   // ...AND WHATEVER THE CAMERA CAN SEE. The player may now zoom out, and ungenerated ground is bare
   // SOIL rather than rock — so without this, pulling back frames a clean brown void where the map
   // has not been built yet, which reads as the world ending rather than as streaming. `zoomRange`'s
   // lower bound is what keeps the bill small: at 0.4x of the resting zoom the view is ~2.5 screens
   // across, which is two chunks, not twenty.
-  if (view && view.x1 > view.x0) add(view.x0, view.x1);
+  if (view && view.x1 > view.x0) add(view.x0 - sp, view.x1 + sp);
+  const max = opts && opts.max > 0 ? opts.max : Infinity;
+  let list = [...want], lookahead = false;
+  if (opts && opts.ahead && !list.some((ci) => ci >= 0 && ci < total && !done[ci])) {
+    lookahead = true;
+    const more = new Set(), a = opts.ahead * cs, pad = (M.preloadCols | 0) * cs;
+    if (lo <= hi) add(lo - pad - a, hi + pad + a, more);
+    if (view && view.x1 > view.x0) add(view.x0 - sp - a, view.x1 + sp + a, more);
+    // Nearest first, so the chunk made on a quiet frame is the one the colony will reach soonest.
+    const mid = lo <= hi ? (lo + hi) / 2 : (view ? (view.x0 + view.x1) / 2 : 0), cwW = (M.chunkCols | 0) * cs;
+    list = [...more].sort((p, q) => Math.abs((p + 0.5) * cwW - mid) - Math.abs((q + 0.5) * cwW - mid));
+  }
   let made = 0;
-  for (const ci of want) {
+  const t0 = (typeof performance !== 'undefined' && opts) ? performance.now() : 0;
+  for (const ci of list) {
+    if (made >= max) break;
     if (ci < 0 || ci >= total || done[ci]) continue;
     done[ci] = mineGenerateChunk(state, ci) || true;
     made++;
@@ -23841,6 +23930,13 @@ function mineEnsureChunks(state, view) {
     const { c0, c1 } = mineChunkRange(cfg, ci);
     sub._mineDirtyC0 = Math.min(sub._mineDirtyC0 != null ? sub._mineDirtyC0 : c0, c0);
     sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : c1, c1);
+  }
+  // What the frame loop's calls cost (`__game.mine.genLog()`): one entry per call that made a chunk —
+  // how many, how long, and whether it was the idle lookahead or a chunk the colony / view needed now.
+  if (made && opts) {
+    const log = (state._mineGenLog || (state._mineGenLog = []));
+    log.push({ made, ms: +(performance.now() - t0).toFixed(2), ahead: lookahead });
+    if (log.length > 256) log.shift();
   }
   return made;
 }
@@ -38201,6 +38297,8 @@ function begin(newState) {
       chunks: () => Object.keys((state && state.mineChunks) || {}).map(Number).sort((a, b) => a - b),
       // Generate every chunk the world span [x0, x1] touches (M5's rich-seam / determinism checks).
       ensureChunks: (x0, x1) => mineEnsureChunks(state, { x0, x1 }),
+      // The frame loop's chunk generation, one entry per frame that made one: { made, ms, ahead }.
+      genLog: () => (state._mineGenLog || []).slice(),
       // The heat staircase the run's config prices against (M5 acceptance 6).
       heatLines: () => mineHeatLines(state.config),
       // Park a worm exactly where you want one. `mine-check` cannot measure a drain rate against
@@ -40005,7 +40103,15 @@ function advanceSim(time) {
     mineNoteDig();
     // The camera's own span, so a zoomed-out look never frames ground that has not been generated.
     const half = (camera.viewW || 0) / 2 / Math.max(0.01, camera.zoom || 1);
-    mineEnsureChunks(state, { x0: camera.x - half, x1: camera.x + half });
+    // AT MOST ONE CHUNK A FRAME, AND THE NEXT ONE ON A QUIET FRAME (M7 verifier round 3). Generation is
+    // synchronous — measured with tests/chunkgen-probe.cjs at ~9 ms a chunk on the free layout and
+    // 15-22 ms on a leg (headless desktop; a phone is several times slower) — so a camera jump that
+    // wanted three chunks used to pay all three on one frame. One a frame caps the hitch at one chunk,
+    // and the idle lookahead (a chunk further out, only while no finger is down and no grow is
+    // arriving) means the chunk a dig needs has usually been made already.
+    const busy = pointers.size > 0 || !!(state.active && state.active._colonizePending);
+    mineEnsureChunks(state, { x0: camera.x - half, x1: camera.x + half },
+                     { max: 1, ahead: busy ? 0 : (state.config.mine.chunkCols | 0), seamPad: 5 });
     solidifyMineRock();
     mineUnboxArrived();
   }

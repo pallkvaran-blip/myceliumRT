@@ -407,7 +407,7 @@ async function world(page) {
     // cells are > 0.3 more solid than the denser of the ground 3-5 cells out either side — a dense stripe
     // down the line, which is what "the seam reads as a column" measured as. Counted as rows in runs of
     // >= 6 per line, for every seam and, as the reference, for columns 8 and 16 of every interior chunk.
-    let spineSeam = null, spineMid = null;
+    let spineSeam = null, spineMid = null, spineMid90 = null;
     if (JO) {
       const solR = (ca, cb, r) => { let n = 0, t = 0; for (let y = r * K; y < r * K + K; y++) for (let x = ca * K; x < (cb + 1) * K; x++) { t++; if (solid[y * W + x]) n++; } return n / t; };
       const runs6 = (L) => { let run = 0, tot = 0;
@@ -417,12 +417,48 @@ async function world(page) {
         }
         return tot + (run >= 6 ? run : 0); };
       const seams = [], mids = [];
-      for (const ci of cis) { if (cis.includes(ci - 1)) seams.push(ci * cw); if (cis.includes(ci - 1) && cis.includes(ci + 1)) mids.push(ci * cw + 8, ci * cw + 16); }
+      // Interior lines 6, 8, 12, 16 and 18 cells in (round 3: was 8 and 16) — the gate is derived from
+      // their spread (`spineMid90`, the 90th percentile per line), not from an older build.
+      for (const ci of cis) { if (cis.includes(ci - 1)) seams.push(ci * cw); if (cis.includes(ci - 1) && cis.includes(ci + 1)) mids.push(ci * cw + 6, ci * cw + 8, ci * cw + 12, ci * cw + 16, ci * cw + 18); }
       spineSeam = +(seams.reduce((a, L) => a + runs6(L), 0) / seams.length).toFixed(1);
-      spineMid = +(mids.reduce((a, L) => a + runs6(L), 0) / mids.length).toFixed(1);
+      const pm = mids.map(runs6).sort((a, b) => a - b);
+      spineMid = +(pm.reduce((a, v) => a + v, 0) / pm.length).toFixed(1);
+      spineMid90 = pm[Math.floor(0.9 * (pm.length - 1))];
     }
-    return { chunks: cis.length, piles, pilesOk, pockets, pocketsOk, strandedAt, lateral, latAt, seamSolid, midSolid, spineSeam, spineMid,
-             sprites: sub.levelSprites.length };
+    // THE SEAM AGAINST AN INTERIOR LINE, WITH NO SPECIAL TREATMENT (verifier round 3). Every number here
+    // is measured the same way at every seam line and at the interior lines 6, 12 and 18 cells into every
+    // chunk with both neighbours, so a seam that reads as ordinary rock scores like an interior line and
+    // the gates can be derived from the interior rather than from an old build:
+    //   · profile — drawn solidity (all cells, rows 3..rows-7) by column within the chunk (0..cw-1),
+    //     averaged over those chunks; `bandSol` = offsets -2..+1 about the seam, `inSol` = offsets 6..17;
+    //   · hair — the longest run of fine rows down a line with an open fine cell within 2 of it (the
+    //     slit test, `measure`'s seamRunRows, over the whole world): seam max against interior max/p90.
+    let profile = null, bandSol = null, inSol = null, hairSeam = null, hairMid = null, hairMid90 = null;
+    {
+      const inner = cis.filter((ci) => cis.includes(ci - 1) && cis.includes(ci + 1));
+      if (inner.length) {
+        const acc = new Float64Array(cw), cnt = new Float64Array(cw);
+        for (const ci of inner) for (let k = 0; k < cw; k++) { const c = ci * cw + k;
+          for (let r = 3; r < sub.rows - 6; r++) { let n = 0; for (let y = r * K; y < r * K + K; y++) for (let x = c * K; x < c * K + K; x++) if (solid[y * W + x]) n++;
+            acc[k] += n / (K * K); cnt[k]++; } }
+        profile = Array.from(acc, (v, k) => +(v / cnt[k]).toFixed(3));
+        const mean = (ks) => +(ks.reduce((a, k) => a + profile[(k + cw) % cw], 0) / ks.length).toFixed(3);
+        bandSol = mean([-2, -1, 0, 1]); inSol = mean([6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17]);
+      }
+      const hair = (L) => { const sx = L * K; let best = 0, run = 0;
+        for (let y = 3 * K; y < (sub.rows - 6) * K; y++) { let o = false;
+          for (let x = sx - 2; x <= sx + 1 && !o; x++) if (x >= 0 && x < W && !solid[y * W + x]) o = true;
+          if (o) { run++; if (run > best) best = run; } else run = 0; }
+        return best / K; };
+      const seamL = [], midL = [];
+      for (const ci of cis) { if (cis.includes(ci - 1)) seamL.push(ci * cw); if (cis.includes(ci - 1) && cis.includes(ci + 1)) midL.push(ci * cw + 6, ci * cw + 12, ci * cw + 18); }
+      if (seamL.length && midL.length) {
+        const hs = seamL.map(hair), hm = midL.map(hair).sort((a, b) => a - b);
+        hairSeam = +Math.max(...hs).toFixed(1); hairMid = +hm[hm.length - 1].toFixed(1); hairMid90 = +hm[Math.floor(0.9 * (hm.length - 1))].toFixed(1);
+      }
+    }
+    return { chunks: cis.length, piles, pilesOk, pockets, pocketsOk, strandedAt, lateral, latAt, seamSolid, midSolid, spineSeam, spineMid, spineMid90,
+             profile, bandSol, inSol, hairSeam, hairMid, hairMid90, sprites: sub.levelSprites.length };
   });
 }
 
