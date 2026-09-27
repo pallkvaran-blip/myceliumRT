@@ -39,7 +39,7 @@ const routes = process.argv.slice(2).length ? process.argv.slice(2) : ['leg,1,1'
           }, +process.env.PLAY_DIGS || 40);
           all.push(...r.log.map((e) => e.ms));
           const need = r.log.filter((e) => !e.ahead), ahead = r.log.filter((e) => e.ahead);
-          console.log(`#${route} play: ${r.digs} digs to col ${r.east}; ${r.log.length} generating frames (max ${Math.max(0, ...r.log.map((e) => e.made))} chunks in one), ${ahead.length} idle lookahead / ${need.length} needed now; needed ms [${need.map((e) => e.ms).join(' ')}]`);
+          console.log(`#${route} play: ${r.digs} digs to col ${r.east}; ${r.log.length} generating frames (max ${Math.max(0, ...r.log.map((e) => e.made))} chunks in one), ${ahead.length} idle lookahead / ${need.length} needed now; gen ms [${r.log.map((e) => e.ms + (e.ahead ? 'a' : '')).join(' ')}]; stamp ms on the next frame [${r.log.map((e) => e.stampMs).join(' ')}]`);
           await b.ctx.close();
           continue;
         }

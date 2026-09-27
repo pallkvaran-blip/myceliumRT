@@ -40126,9 +40126,22 @@ function advanceSim(time) {
     // lookahead off, or the chunks it wants to generate backwards are made forwards on idle frames first.)
     const busy = pointers.size > 0 || !!(state.active && state.active._colonizePending)
               || (typeof window !== 'undefined' && window.MYCELIUM_NO_LOOKAHEAD === true);
-    mineEnsureChunks(state, { x0: camera.x - half, x1: camera.x + half },
-                     { max: 1, ahead: busy ? 0 : (state.config.mine.chunkCols | 0), seamPad: 5 });
-    solidifyMineRock();
+    // ...AND NEVER THE STAMP ON THE SAME FRAME. Colliding a new chunk's sprites (`solidifyMineRock`,
+    // `markCoverGrid` over ~700 sprites) costs about as much again as generating it — measured with a CDP
+    // profile at ~9 ms a chunk on either layout — so a frame that generated leaves the stamp to the next
+    // frame, and that frame generates nothing. A new chunk is always at least the colony pad (26
+    // columns) or a view's width from any growth, so one frame uncollided cannot be grown into.
+    if (state._mineStampNext) {
+      state._mineStampNext = false;
+      const t0 = performance.now();
+      solidifyMineRock();
+      const log = state._mineGenLog; if (log && log.length) log[log.length - 1].stampMs = +(performance.now() - t0).toFixed(2);
+    }
+    else {
+      const made = mineEnsureChunks(state, { x0: camera.x - half, x1: camera.x + half },
+                                    { max: 1, ahead: busy ? 0 : (state.config.mine.chunkCols | 0), seamPad: 5 });
+      if (made) state._mineStampNext = true; else solidifyMineRock();
+    }
     mineUnboxArrived();
   }
   if (_lastSimTime < 0) _lastSimTime = time;

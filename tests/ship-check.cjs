@@ -497,8 +497,14 @@ const openStore = async (page) => {
         const g = window.__game, s = g.state, sub = s.substrate, cam = g.camera;
         const cw = s.config.mine.chunkCols * sub.cellSize, x0 = s.active.nodes[0].x, n0 = sub.levelSprites.length;
         let behind = 0, gen = 0;
+        // (M7 verifier round 3) Each step frames a chunk that does NOT exist yet: the frame loop's idle
+        // lookahead makes the next chunk on quiet frames, so "one chunk-width further on" could already be
+        // there and a step measured nothing. The lookahead is off for the steps; the stamp still lands on
+        // the frame after the generating one (hence <= 2).
+        window.MYCELIUM_NO_LOOKAHEAD = true;
         for (let k = 1; k <= 3; k++) {
-          cam.zoom = 0.4; cam.x = x0 + k * cw;
+          const next = Math.max(...g.mine.chunks()) + 1;
+          cam.zoom = 0.4; cam.x = (next + 0.5) * cw;
           const nA = sub.levelSprites.length;
           for (let f = 0; f < 180 && sub.levelSprites.length === nA; f++) await frame();
           if (sub.levelSprites.length > nA) gen++;

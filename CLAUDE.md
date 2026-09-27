@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-2 landed: growth-lattice legprobe + real-growth follow, seam stitch, guarded seals, every reward reachable (pass e), seams no longer columns (band rock loop, off-seam shafts/links/rewards), no floor gallery, re-picked seeds 753368 / 2855867 / 1711767; journey-check 82/82). Next: M8.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-3 landed; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check RESULT_J). Next: M8.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5205,8 +5205,8 @@ Numbers here are measured, not planned.
 - **DRAWING:** `mineHillSpans()` (home + island, goalhill/goalbush); `drawMineTaproot` (canvas knot r 40,
   7 loops + glow, 5 filaments fading over 6 m). Hooks `mine.leg()`, `legRow(l)`, `taproot()` (+ `.drawn`),
   `hills()`.
-- **SEEDS (re-picked in verifier round 2, see below):** leg 1 **753368**, leg 2 **2855867**, leg 3 **1711767**
-  (round 1's 2743219 / 551829 / 1816496 fail the round-2 carve).
+- **SEEDS (re-picked in verifier round 3, see below):** leg 1 **858097**, leg 2 **3274783**, leg 3 **36103**
+  (round 2's 753368 / 2855867 / 1711767 and round 1's 2743219 / 551829 / 1816496 fail the round-3 carve).
   Re-pick whenever the carve OR any rock pass changes: `legprobe --pick N --file /.legprobe-snap.html`
   (a snapshot copy), then choose one whose `follow` landed.
 - **DEVIATIONS:** the crust pass, the seal boulders and the seam stitch (plan: clamp change and seal
@@ -5280,12 +5280,12 @@ Numbers here are measured, not planned.
   1.795 / 1.775; cheapest route 71 / 286 / 334 water, 0% / 95.5% / 96.4% below 42 m; real growth lands
   in 48 / 93 / 100 digs, landing strand 0% / 95.4% / 95.6% below 42 m, chain 1.60 / 1.77 / 1.79x;
   rows 0-2 flood to col 62 / 46 / 45; longest lateral 24 / 23 / 23; seam hairline 5.8 / 4.5 / 4.8.
-- **CHECKS:** `tests/journey-check.cjs` ('journey', in `--mine`, 62 after the verifier round; `JOURNEY_ONLY=layout,determ,free,legs,island`).
+- **CHECKS:** `tests/journey-check.cjs` ('journey', in `--mine`, RESULT_J after verifier round 3; `JOURNEY_ONLY=layout,determ,free,legs,world,stream,island`).
   Fixture `tests/fixtures/m7-pre-chunks-4242.json` (from be20b64; equal to the M5 one) via
   `tests/fixture-chunks.cjs be20b64 --write --fixture <path>`. Screens `tests/.artifacts/m7-leg{1,2,3}-seam-390.png`,
   `m7-leg1-island-390.png`.
 **M7 VERIFIER FIXES (round 2) — every reward reachable, and the seams stop reading as columns.**
-- **(e) EVERY REWARD IS REACHABLE ON A LEG** (e6b3a82). The stitch closed the seam slit that had been
+- **(e) EVERY REWARD IS REACHABLE ON A LEG** (e6b3a82; **superseded in round 3** — pass (e) now joins only the crossing, and the off-seam clamps / seam penalty / slit-breaking chain below were taken out). The stitch closed the seam slit that had been
   joining everything: fine-mask flood from the root, chunks 0-12, leg 1 101/104 seams + 49/52 pockets,
   leg 2 73/104 + 37/52, leg 3 83/104 + 35/39 (free layout 104/104). `placed.stranded` could not see it
   (its flood seeds from seam galleries, which a leg's seals close). Pass (e), journey-only, own rng
@@ -5351,6 +5351,91 @@ Numbers here are measured, not planned.
   three legs; 0 of 126 creature spots inside drawn rock (legs 2, 3); leg-2 renderFrame at three seams
   19.3 / 15.4 / 12.6 ms against 16.2 / 16.4 / 15.0 on 200a7e9 (one run each, 5,835 vs 6,733 sprites).
 
+**M7 VERIFIER FIXES (round 3) — the column was a CONTRAST, and pass (e) was half of it.**
+- **CONFIRMED** (`tests/seam-profile.cjs`, and legprobe `world().profile`, drawn solidity by column in the
+  chunk over every chunk with both neighbours): on the round-2 build leg 3 ran **0.32 in the chunk's
+  middle to 0.67 at the seam**, the free layout a flat 0.45-0.55 (cols 1-22; 0/23 are its slit). Closed-
+  ground density +0.14 / +0.17 / +0.15 at the seam; the seam frames and a zoom-0.18 overview showed a
+  column every 24 cells in band 0. Three causes, all journey-only, each measured:
+  - **the off-seam clamps** (shafts 7 cols, links and reward rooms 5) left a closed band ~10 cols wide at
+    every seam — removed; the journey carve is the free carve again there;
+  - **pass (e) joined every reward**, 8-12 connectors a chunk at radius 1.7, all >= 3 cols from a seam
+    and pushed further by its seam penalty (+9 within 8 cols): the chunk middle went to 31-47% open
+    against 21-28% with no repair. Its model is pessimistic — closed carve counts as wall, drawn rock
+    over it is porous — so with NO repair leg 2 already reached 146/167 seams. **The rewards are no longer
+    anchors** (head, trunks, taproot only) and the seam penalty is gone;
+  - **the gapped slit-breaking chain** on every non-seal row put one extra line of rock on the seam line.
+    The chain now runs only on `must` rows (it seals) and gallery rows +-2 (`tight`). Without it the
+    band loop leaves the line as porous as the rock beside it, and a vertical open run down a seam is no
+    longer than one down an interior line (below).
+- **THE SEAL STILL NEEDS ITS CHAIN, measured**: dropping it on `must` rows too (`mustCross`, band-loop
+  boulders crossing the line instead) leaked 17/45, 27/99, 35/107 sealed sides; no chain at all put the
+  full-depth slit back (seam hairline 70-90 rows). On legs 2-3 band 0 is mostly `must` rows (3 galleries
+  sealed at 0.55-0.7 per side), so a wall at most band-0 seams is the broken shallow road itself.
+- **GATES DERIVED FROM THE INTERIOR** (journey-check `world`, legprobe WPASS), old -> new: closed-ground
+  density `<= +0.2` -> `<= +0.05`; NEW drawn solidity at seam cols -2..+1 within 0.15 of cols 6-17 (free
+  layout's own seam-adjacent excess +0.06; round 2 +0.28..0.32); spine `<= 10` -> `<= 2 x spineMid90`
+  (interior lines 6/8/12/16/18; note round 2's 6.0-7.3 passes this on legs 1-2 — the density gates are
+  what catch it); NEW seam hairline `<= longest interior line`; rewards `100%` -> `>= 85%` (gated
+  content); NEW `placed.reach.unjoined === 0`. Leg-window hairline stays `<= 42` and now reads ~20-30,
+  not round 1's 4.5-6: that was the slit-breaking chain, and an interior line reads 50-70 max.
+- **pass (e) WAS "JOINING" THROUGH ROCK**: the `usePz` fallback relaxed `pass` itself, so the flood counted
+  open cells under a KEPT plug's sprite as joined and the walk never promised them — `unjoined` (new) read
+  1-2 on 9 of 21 leg-1 chunks. `pass` is strict now; only the walk may cross a plug zone, and what it
+  crosses is promised (the plug drops). 0 on all 63 leg chunks.
+- **A DROPPED PLUG REOPENS only cells no KEPT plug's disc covers** (`closed` lists only what each plug
+  closed first, so overlapping discs used to reopen carve under a kept sprite).
+- **THE STITCH READS A GENERATION-TIME MASK** (`J._wet[ci]`, water or food right after the chunk's rewards
+  were stamped), not live cells: a cloud eating a pile before the neighbour streamed in changed the rock.
+- **LEAK TEST, ±1 ROW RECORDED** (legprobe): the allowance for a row beside a both-open row is kept and
+  written down — limited to trunk rows, leg 3 (this build and round 2's) "leaks" at seam 72 / gallery 147
+  by crossing at row 142, one row below a spur crossing carved open on both sides at rows 139-141.
+- **GENERATION COST** (`tests/chunkgen-probe.cjs`, headless desktop, one chunk per call): round-2 build
+  legs median 35 / 48 / 34 ms, p90 61-90, max 104; free 9 ms. Now (same probe, 3 boots each): median 26.8 / 23.3 / 28.3, p90 40-50, max 60-63; free
+  11.7 in the same (busier) session — legs ~2.2x free, from ~4x. Remaining extra per leg chunk, timed pass by
+  pass: the stitch ~4 ms, pass (e) ~2.5, seals ~1. Exact speedups (sprites
+  and records byte-identical, checked by hash): a seal box over closed ground skips the labelling, a box
+  over open ground re-floods only the components it touches; band-loop and pass-(e) per-cell closures
+  replaced by arrays. **And the frame loop makes at most ONE chunk a frame** (`mineEnsureChunks` opts
+  `{max, ahead, seamPad}`) plus an IDLE LOOKAHEAD (a chunk further out, only while no finger is down and
+  no grow is arriving), and widens the view 5 cols on a leg so a visible chunk's seam band has its
+  neighbour (it is bare soil until the stitch runs). **The stamp waits one frame too**: colliding a
+  chunk (`markCoverGrid`) costs ~9-20 ms, as much as generating it, so a generating frame leaves
+  `solidifyMineRock` to the next frame (`state._mineStampNext`), which generates nothing. A new chunk is
+  always >= the colony pad (26 cols) from growth, so one uncollided frame cannot be grown into.
+  `__game.mine.genLog()` records every generating frame `{made, ms, ahead, stampMs}`; free layout, 40
+  east digs: 8 generating frames, 1 chunk each, gen 13-43 ms, stamp 3-22 ms the frame after. Test knob
+  `window.MYCELIUM_NO_LOOKAHEAD`. **A phone is several times slower than this harness: one chunk plus one
+  stamp is still a visible frame there — splitting generation across frames is the next lever (M9's
+  long-run performance).**
+- **MINORS:** 2-cell-tall lateral (`lateral2`) now printed — acceptance 7's 3-cell gate is blind to deep
+  galleries (radius 1.15-1.7): 30.3 / 34 / 28.5 cells on the shipped seeds (3-cell 29 / 31 / 27), round 2's
+  37 / 45 / 52; free '#mine,4242' 32.3 (owner's call whether 36 should hold at 2 cells). Free-layout reward "control" is information
+  only (it floods through the slits). The nine seam frames are no longer counted. Determinism's reverse
+  boot turns the lookahead off and asserts only chunks 0-2 existed first.
+- **OWNER CALLS:** gated rewards on legs are back (seams 163/168, 160/168, 151/167; pockets 82/84, 81/84, 63/63 —
+  the rest walled in); band-0 seams on legs 2-3 are walls by
+  design. Frames: `tests/.artifacts/m7-leg<N>-seam-390.png`, the nine `m7-leg<N>-c<k>-r<row>-390.png` and a
+  new zoom-0.18 `m7-leg<N>-overview-390.png` (~60 cols, 2.5 chunks), the view that showed round 2's column.
+- **CHANGED SETUPS IN OTHER CHECKS (the lookahead):** mine-check's "the world streams sideways" block
+  boots with `MYCELIUM_NO_LOOKAHEAD` (with it on, the boot's settle already made chunks 8 and 12, so
+  "digging left makes a chunk west of the boot's" measured the lookahead; boot chunks [8..12] -> [9..11]
+  again); ship-check's "chunks streamed after it are collided within 2 frames" frames the next chunk
+  that does NOT exist yet, lookahead off (a step one chunk-width on could already exist: 2 of 3 made).
+  Assertions and bounds unchanged.
+- **SEEDS RE-PICKED** (`legprobe --pick 36` against the new WPASS): 8 / 9 / 4 of 36 pass; top five dug.
+  Shipped **858097 / 3274783 / 36103**, measured: lattice ratio 1.512 / 1.589 / 1.402 (fine 1.56 / 1.677 /
+  1.448); cheapest route 70.5 / 211.8 / 251.7 water, legs 2-3 100% / 98.6% of east metres below 42 m;
+  real growth lands in 40 / 75 / 76 digs (landing strand 98.7% / 97.5% below 42 m); growth held above
+  42 m stops at col 46 / 49 (islands 174 / 222); crust flood to col 43 / 46 / 46; sealed sides 0/16,
+  0/42, 0/58 leak; whole world: closed-ground density -0.054 / -0.039 / -0.001, drawn seam excess +0.057
+  / +0.064 / +0.113, spine 6.7 / 6.8 / 10.2 (interior p90 6 / 7 / 7), seam hairline 24 / 41 / 31.8 rows
+  (interior max 72.5 / 47.8 / 69), lateral 29 / 31 / 27; 0 unjoined anchors; negative control without
+  pass (e): 39 unjoined on leg 2 (it still CROSSES on the lattice through porous rock, which is why the
+  old "does not reach the taproot" could not be the control).
+- **TOOLS (committed, not in the runner):** `tests/chunkgen-probe.cjs` (per-chunk generation ms; `PLAY=1`
+  the frame loop's genLog); legprobe `world()` now reports `profile` / `bandSol` / `inSol`, `hairSeam` /
+  `hairMid` / `hairMid90`, `spineMid90`, `lateral2`, `unjoined`.
 - **`--mine` after M7: 1046 passed, 0 failed across 18 checks** (boot 22, store 124, mine 193, ending 87,
   ship 58, phone 51, onboard 63, econ 79, counter 60, journey 41, zip 24, level 27, aim 9, scale 26,
   threat 116, harvest 28, mould 20, core 18). No existing assertion changed. GOTCHA: the runner parses

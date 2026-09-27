@@ -70,11 +70,12 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   // ONE BROWSER CONTEXT PER BLOCK. Reusing one across cases has leaked state into later assertions
   // in this project before, and this check deliberately ends a run (which writes the wallet) in the
   // middle of it.
-  const boot = async (hash, vw = 390, vh = 844, returning) => {
+  const boot = async (hash, vw = 390, vh = 844, returning, noLookahead) => {
     const ctx = await browser.newContext({ viewport: { width: vw, height: vh } });
     const page = await ctx.newPage();
     const errs = []; page.on('pageerror', (e) => errs.push(String(e && e.message)));
     await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+    if (noLookahead) await page.addInitScript(() => { window.MYCELIUM_NO_LOOKAHEAD = true; });
     // A RETURNING SAVE (M4): a fresh save's first visit skips the title, so the title block seeds one.
     if (returning) await page.addInitScript(() => {
       try { if (!localStorage.getItem('mycelium.progress.v2')) localStorage.setItem('mycelium.progress.v2', JSON.stringify({ runsDone: 1 })); } catch (_) {}
@@ -84,8 +85,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
     return { ctx, page, errs };
   };
-  const bootMine = async (seed, vw, vh) => {
-    const b = await boot('#mine,' + seed, vw, vh);
+  const bootMine = async (seed, vw, vh, noLookahead) => {
+    const b = await boot('#mine,' + seed, vw, vh, false, noLookahead);
     await b.page.waitForFunction(() => !!(window.__game && window.__game.mine
       && window.__game.state && window.__game.state.substrate && window.__game.state.substrate.mine),
       { timeout: 40000 });
@@ -1461,7 +1462,12 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
   //     existed at boot.
   console.log('--- the world streams sideways');
   {
-    const b = await bootMine(4242);
+    // (M7 verifier round 3) THE IDLE LOOKAHEAD IS OFF HERE: it makes a chunk beyond the colony pad on
+    // quiet frames, so by the end of the boot's own settle it had already made chunk 8 west and 12 east,
+    // and "digging left generates a chunk west of the boot's" then measured the lookahead rather than the
+    // colony-driven stream this block is about. Boot's chunks were [9, 10, 11] before the lookahead
+    // existed and are again with it off. (journey-check's determinism boot asserts the lookahead runs.)
+    const b = await bootMine(4242, undefined, undefined, true);
     const dig = async (dir, n) => {
       for (let i = 0; i < n; i++) {
         const ok = await b.page.evaluate((d) => {
