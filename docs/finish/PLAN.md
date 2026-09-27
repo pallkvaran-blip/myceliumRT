@@ -1096,6 +1096,9 @@ H. KNOWN GAPS THE BOTS MUST SETTLE
 - Curated seeds must be re-picked whenever the carve changes.
 
 
+**As built.** Seeds (legprobe --pick 50, clearance routes): leg 1 648639, leg 2 4531531, leg 3 2654328. Two journey-only additions the measurements forced: a CRUST pass (boulders centred just below the soil line; the 0.05-cell clamp alone left a rows 0-2 flood running the whole window) and two boulders per SEALED seam (without them 33 of 41 band-0 sealed sides were passable on the fine mask). legprobe's Dijkstra uses lib.cjs's clearance rule; with hairlines allowed the cheapest routes run shallower (printed, not gated). Chunk seams carry a 2-3 fine-cell slit on both layouts; a 0.7-cell seam pad closed it but cut reachability to the taproot on most candidates, so it was removed. Leg rules 1-3 ('calm', 'standard', 'dry') are applied on the cfg clone already.
+
+
 ### M8 — Journey I, part 2: landfall, the next leg, visible progress
 
 **Goal.** The game gets a destination: DIG starts Leg 1, reaching the taproot roots the colony on the island and opens the next fixed world, and every attempt leaves visible progress.

@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). Next: M7.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 BUILT (leg worlds, journey-check 41/41). Next: M8.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5173,6 +5173,57 @@ Numbers here are measured, not planned.
   - **`--mine` after round 3: 1005 passed, 0 failed across 17 checks** (boot 22, store 124, mine 193,
     ending 87, ship 58, phone 51, onboard 63, econ 79, counter 60, zip 24, level 27, aim 9, scale 26,
     threat 116, harvest 28, mould 20, core 18), green on the first full run.
+
+### M7 — Journey I, part 1: fixed leg worlds with a taproot in the east (BUILT)
+
+- **ROUTE, NOT YET THE GAME.** '#leg,<j>,<l>[,<seed>]', `__game.mine.playLeg(j, l, seed)` and
+  `playJourney()` (reads `p.mineJourney`, defaulted `{journey:1, leg:1, legs:{}}` in `loadProgress`)
+  start a leg; the plain DIG (`mine.play`, title, end screen) is still the free layout until M8.
+  `beginMineRun(seed, {journey, leg})` sets main's `mineLeg`; `levelDefFor` passes
+  `mineLevelDef(CONFIG, seed, {layout:'journey', journey, leg})`; `configForLevel` applies the leg rule.
+- **CONFIG.mine.journey** `{homeChunk 1, islandCols 12, taprootR 2.5, landfallCells 1.5, legs[3]}`, each row
+  `{seed, E, eastM, depthM, sealByBand, rule, bonus}`. Rules on the cfg clone: 'calm' (leg 1) zeroes
+  `threatBands`; 'dry' (leg 3) makes `reservoirsPerBand` a per-band list `[0,1,1,1]` (the generator
+  now accepts a list; a number is unchanged). 'standard' (leg 2) changes nothing.
+- **LAYOUT:** `mineJourneyLayout` -> `layout.homeCol` 36, `layout.journey {islandC0/C1, taproot {col,row},
+  taprootR, sealByBand, ...}`. buildLevel puts it on `sub.mineHomeCol` / `sub.mineJourney` and makes the
+  island's 12 columns soil (not goal). `mineHomeChunk(config, sub)` reads the hill off the substrate.
+  Map id `leg-<j>-<l>`.
+- **GENERATOR (journey-only; free layout records pinned):** `const J = sub.mineJourney`.
+  (a) `crustY` = surfaceY + 0.05 cs (free 0.5) at all three clamps, PLUS a crust pass (own rng
+  `seed ^ 0xC857`): boulders centred 18% of their height BELOW the soil line over every stretch of closed
+  surface ground — the clamp alone did nothing (rock loop drops sprites at random heights; a boulder's
+  round top leaves fine rows 0-3 open): a rows 0-2 flood ran to the window's end (col 215).
+  (b) the seal draw compares `rng() < sealAt(gr)` (leg's `sealByBand[band]`, else `gallerySealChance`),
+  same draw; sealed sides are recorded on `J._sealed`, and each gets two boulders spanning the seam
+  columns (own rng `seed ^ 0x5EA1`) — 33 of 41 band-0 sealed sides were crossable on the fine mask
+  without them (leg-2 pass rate 3 -> 19 of 50).
+  (c) island chunk: chamber carve r 2.5 + flood-and-repair (BFS through closed ground to the nearest
+  unflooded open cell, r 1.7 connectors, until a seam gallery cell is reached) on `mineChunkRng(seed ^
+  0x7A9, ci)`, after the plugs; plugs whose sprite would land on what it opened are dropped; ore/pocket
+  spots within 3.5 cells of the chamber removed. Record `taproot {col,row,repairs}`.
+- **DRAWING:** `mineHillSpans()` (home + island, goalhill/goalbush); `drawMineTaproot` (canvas knot r 40,
+  7 loops + glow, 5 filaments fading over 6 m). Hooks `mine.leg()`, `legRow(l)`, `taproot()` (+ `.drawn`),
+  `hills()`.
+- **SEEDS** (`tests/bots/legprobe.cjs --pick 50`; re-pick whenever the carve changes): leg 1 **648639**,
+  leg 2 **4531531**, leg 3 **2654328**; 14 / 19 / 29 of 50 candidates passed. Measured on them: ratio
+  1.646 / 1.638 / 1.624, rows-0-2 flood to col 49 / 53 / 45 (limit 66), longest straight 3-tall lateral
+  25 / 30 / 31 (limit 36), cheapest-water route 95 / 210 / 359 water with 20% / 83% / 92% of its east
+  metres below 42 m, shallowest creature row none / 44 / 49.
+- **legprobe's routes use lib.cjs's CLEARANCE rule** (a fine cell and its 4 neighbours open). With no
+  clearance (a hairline counts) the cheapest routes are 60 / 105 / 193 water and only 0% / 42% / 80%
+  below 42 m — printed as `waterHair`/`east42Hair`, not gated. Hairlines are between boulders
+  everywhere; the plan's "Dijkstra over fine cells" is read as the bots' passable cells (deviation).
+- **SEAM SLIT (finding, both layouts, left):** a sprite must fit its chunk and alpha falls off before the
+  box, so every chunk seam has a 2-3 fine-cell soil slit down the whole depth. A 0.7-cell pad into the
+  neighbour closed them and made the taproot unreachable (clearance) on 29 / 38 / 44 of 50 candidates
+  (against 1 / 1 / 4) — removed. A real fix needs cross-chunk knowledge (stitch when the 2nd neighbour exists).
+- **DEVIATIONS:** the crust pass and the seal boulders (plan: clamp change and seal draw only);
+  sprites half above the soil line (clipped) rather than the 0.05-cell clamp for the crust pass.
+- **CHECKS:** `tests/journey-check.cjs` ('journey', in `--mine`, 41; `JOURNEY_ONLY=layout,determ,free,legs`).
+  Fixture `tests/fixtures/m7-pre-chunks-4242.json` (from be20b64; equal to the M5 one) via
+  `tests/fixture-chunks.cjs be20b64 --write --fixture <path>`. Screens `tests/.artifacts/m7-leg{1,2,3}-seam-390.png`,
+  `m7-leg1-island-390.png`.
 
 ## Two games on the title screen: Survival and Campaign
 
