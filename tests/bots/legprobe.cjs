@@ -42,7 +42,7 @@ const H = require('../mine-harness.cjs');
 // the same comparison journey-check makes (it used `<` here and `<=` there).
 // WPASS: the whole-world gates (`world`), checked on a candidate that passes PASS.
 const WPASS = (w) => w.pilesOk === w.piles && w.pocketsOk === w.pockets && w.lateral <= 36
-  && w.seamSolid != null && w.seamSolid - w.midSolid <= 0.2;
+  && w.seamSolid != null && w.seamSolid - w.midSolid <= 0.2 && w.spineSeam != null && w.spineSeam <= 10;
 const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0
   && m.crustMaxCol <= m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42 && m.seamRunRows <= 42
   && m.sealLeak === 0                                            // no sealed side leaks (no gallery in the floor strip any more)
@@ -403,7 +403,25 @@ async function world(page) {
       }
       seamSolid = +(a0 / n0).toFixed(3); midSolid = +(a1 / n1).toFixed(3);
     }
-    return { chunks: cis.length, piles, pilesOk, pockets, pocketsOk, strandedAt, lateral, latAt, seamSolid, midSolid,
+    // THE SPINE (verifier round 2; tests/seam-pillar-probe.cjs is the long form): rows where a line's two
+    // cells are > 0.3 more solid than the denser of the ground 3-5 cells out either side — a dense stripe
+    // down the line, which is what "the seam reads as a column" measured as. Counted as rows in runs of
+    // >= 6 per line, for every seam and, as the reference, for columns 8 and 16 of every interior chunk.
+    let spineSeam = null, spineMid = null;
+    if (JO) {
+      const solR = (ca, cb, r) => { let n = 0, t = 0; for (let y = r * K; y < r * K + K; y++) for (let x = ca * K; x < (cb + 1) * K; x++) { t++; if (solid[y * W + x]) n++; } return n / t; };
+      const runs6 = (L) => { let run = 0, tot = 0;
+        for (let r = 3; r < sub.rows - 6; r++) {
+          const sp = solR(L - 1, L, r) - Math.max(solR(L - 5, L - 3, r), solR(L + 2, L + 4, r)) > 0.3;
+          if (sp) run++; else { if (run >= 6) tot += run; run = 0; }
+        }
+        return tot + (run >= 6 ? run : 0); };
+      const seams = [], mids = [];
+      for (const ci of cis) { if (cis.includes(ci - 1)) seams.push(ci * cw); if (cis.includes(ci - 1) && cis.includes(ci + 1)) mids.push(ci * cw + 8, ci * cw + 16); }
+      spineSeam = +(seams.reduce((a, L) => a + runs6(L), 0) / seams.length).toFixed(1);
+      spineMid = +(mids.reduce((a, L) => a + runs6(L), 0) / mids.length).toFixed(1);
+    }
+    return { chunks: cis.length, piles, pilesOk, pockets, pocketsOk, strandedAt, lateral, latAt, seamSolid, midSolid, spineSeam, spineMid,
              sprites: sub.levelSprites.length };
   });
 }

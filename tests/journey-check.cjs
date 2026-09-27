@@ -27,7 +27,9 @@
  *            water pocket is reachable on the fine mask from the colony's root, no straight lateral
  *            channel 3 cells tall runs more than 36 cells anywhere in the leg world, and the ground within
  *            a cell of a chunk seam is no more than 0.2 more solid than the ground 6+ cells from one (the
- *            first stitch: 0.87 against 0.64, a dense line). Controls: the free layout '#mine,4242'
+ *            first stitch: 0.87 against 0.64, a dense line), and the seam line is not a column (rows of
+ *            dense stripe down the line in runs >= 6: <= 10 per seam; 12.5-15.8 before round 2's fix,
+ *            ~1 on an interior line). Controls: the free layout '#mine,4242'
  *            reaches every reward too; and leg 2 with the reward repair switched off
  *            (`MYCELIUM_NO_REWARD_REPAIR`) strands some, so the assertion can fail.
  *   island   on candidate seeds that were NOT curated, the taproot chamber's growth-lattice flood (held
@@ -281,6 +283,12 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
            `longest ${w.lateral} (row ${w.latAt && w.latAt.row}, ending col ${w.latAt && w.latAt.endCol})`);
         ok(`leg ${leg}: the ground at a chunk seam is no denser than the chunk's own (+0.2 at most)`,
            w.seamSolid != null && w.seamSolid - w.midSolid <= 0.2, `closed-ground solidity ${w.seamSolid} within a cell of a seam, ${w.midSolid} 6+ cells in`);
+        // (verifier round 2) THE COLUMN, measured: rows in runs of >= 6 per line where the seam line is a
+        // dense stripe (> 0.3 more solid than the ground 3-5 cells out). Negative control, measured:
+        // the round-2 WIP build (200a7e9, its own seeds) reads 12.6 / 15.8 / 12.5 on legs 1-3 and fails;
+        // this one 6.0 / 6.8 / 7.3; an interior line reads 0.8-1.2. Bound 10.
+        ok(`leg ${leg}: a chunk seam is not a column of rock (spine rows in runs >= 6 per seam <= 10)`,
+           w.spineSeam != null && w.spineSeam <= 10, `${w.spineSeam} per seam, ${w.spineMid} per interior line`);
         ok(`no page errors (world, leg ${leg})`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
         await b.ctx.close();
       }
