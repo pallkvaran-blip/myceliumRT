@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-3 landed; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check RESULT_J). Next: M8.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-3 landed; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). Next: M8.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5280,7 +5280,7 @@ Numbers here are measured, not planned.
   1.795 / 1.775; cheapest route 71 / 286 / 334 water, 0% / 95.5% / 96.4% below 42 m; real growth lands
   in 48 / 93 / 100 digs, landing strand 0% / 95.4% / 95.6% below 42 m, chain 1.60 / 1.77 / 1.79x;
   rows 0-2 flood to col 62 / 46 / 45; longest lateral 24 / 23 / 23; seam hairline 5.8 / 4.5 / 4.8.
-- **CHECKS:** `tests/journey-check.cjs` ('journey', in `--mine`, RESULT_J after verifier round 3; `JOURNEY_ONLY=layout,determ,free,legs,world,stream,island`).
+- **CHECKS:** `tests/journey-check.cjs` ('journey', in `--mine`, 90 after verifier round 3; `JOURNEY_ONLY=layout,determ,free,legs,world,stream,island`).
   Fixture `tests/fixtures/m7-pre-chunks-4242.json` (from be20b64; equal to the M5 one) via
   `tests/fixture-chunks.cjs be20b64 --write --fixture <path>`. Screens `tests/.artifacts/m7-leg{1,2,3}-seam-390.png`,
   `m7-leg1-island-390.png`.
@@ -5436,6 +5436,14 @@ Numbers here are measured, not planned.
 - **TOOLS (committed, not in the runner):** `tests/chunkgen-probe.cjs` (per-chunk generation ms; `PLAY=1`
   the frame loop's genLog); legprobe `world()` now reports `profile` / `bandSol` / `inSol`, `hairSeam` /
   `hairMid` / `hairMid90`, `spineMid90`, `lateral2`, `unjoined`.
+- **journey-check 82 -> 90** (world block rewritten as above, +1 unjoined per leg, drawn-solidity gate per
+  leg, the repair control re-pointed; nine-frames assertions dropped from the count (-3); the free-layout
+  control printed only (-1); new `stream` block (3)).
+- **`--mine` after verifier round 3: 1095 passed, 0 failed across 18 checks** (boot 22, store 124, mine 193,
+  ending 87, ship 58, phone 51, onboard 63, econ 79, counter 60, journey 90, zip 24, level 27, aim 9,
+  scale 26, threat 116, harvest 28, mould 20, core 18). The full run before the two lookahead-aware test
+  setups read 1093/1095 (mine's "digging left generates them the other way", ship's "chunks streamed after
+  it are collided within 2 frames" — both the lookahead, see CHANGED SETUPS).
 - **`--mine` after M7: 1046 passed, 0 failed across 18 checks** (boot 22, store 124, mine 193, ending 87,
   ship 58, phone 51, onboard 63, econ 79, counter 60, journey 41, zip 24, level 27, aim 9, scale 26,
   threat 116, harvest 28, mould 20, core 18). No existing assertion changed. GOTCHA: the runner parses
