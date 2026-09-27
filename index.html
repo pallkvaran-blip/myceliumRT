@@ -1824,8 +1824,9 @@
     .ss-mineend-depth .ss-mineend-m { font-size:0.36em; font-weight:600; margin-left:0.14em;
       color:var(--ss-ink-dim,#8aa193); letter-spacing:.04em; }
     /* '· 140 m east' on a journey leg (M8): the depth stays the big number, east rides beside it. */
-    .ss-mineend-depth .ss-mineend-east { font-size:0.3em; font-weight:600; color:var(--ss-ink-dim,#8aa193);
-      letter-spacing:.03em; white-space:nowrap; }
+    .ss-mineend-east { margin:2px 0 0; font-size:clamp(13px,2.2vw,16px); font-weight:600; color:var(--ss-ink-dim,#8aa193);
+      letter-spacing:.03em; }
+    .ss-mineend-east b { color:#cfe8d8; }
     .ss-mineend .mj-strip { margin-top: clamp(6px,1.4vh,14px); }
     .ss-minego .mj-strip { margin-top: 8px; }
     .ss-mineend-best { margin:2px 0 0; font-family:var(--ss-serif,Georgia,serif); font-style:italic;
@@ -31957,8 +31958,9 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
     : (best && best.m > depth ? '<p class="ss-mineend-best">Deepest ' + (best.m | 0) + ' m — ' + ((best.m | 0) - (depth | 0)) + ' m to go</p>' : '');
   root.innerHTML =
     '<div class="ss-win-title" role="img" aria-label="' + (rooted ? 'Rooted' : 'Spored') + '"></div>' +
-    '<p class="ss-mineend-depth">' + (depth | 0) + '<span class="ss-mineend-m">m</span>'
-      + (onLeg ? '<span class="ss-mineend-east"> down · ' + east + ' m east</span>' : '') + '</p>' +
+    '<p class="ss-mineend-depth">' + (depth | 0) + '<span class="ss-mineend-m">m</span></p>' +
+    // ON A LEG, HOW FAR EAST too (M8) — its own line, so the depth element stays the one number.
+    (onLeg ? '<p class="ss-mineend-east">down · <b>' + east + ' m</b> east</p>' : '') +
     // WHAT ENDED IT, in one line, BRANCHED ON THE CAUSE (never on `died`) — see MINE_RUN_ENDING.
     '<p class="ss-win-sub ss-mineend-why">' + esc(mineEndingLine(cause, depth, { leg, next: nextLeg, nextName })) + '</p>' +
     records +
@@ -40526,8 +40528,13 @@ function advanceSim(time) {
       const log = state._mineGenLog; if (log && log.length) { const e = log[log.length - 1]; e.stampMs = +(performance.now() - t0).toFixed(2); e.stampFrame = state._mineFrameNo | 0; }
     }
     else {
+      // NO LOOKAHEAD ON THE FIRST TWO FRAMES (M8): frame 1 is the reveal frame, and a lookahead chunk
+      // made there (20 ms on a leg, 37 on the free layout, measured with genLog) is time the first
+      // visit's curtain waits for — the leg's slower chunks had pushed it past 600 ms. From frame 3 on,
+      // exactly as before.
+      const early = (state._mineFrameNo | 0) < 3;
       const made = mineEnsureChunks(state, { x0: camera.x - half, x1: camera.x + half },
-                                    { max: 1, ahead: busy ? 0 : (state.config.mine.chunkCols | 0), seamPad: 5 });
+                                    { max: 1, ahead: busy || early ? 0 : (state.config.mine.chunkCols | 0), seamPad: 5 });
       if (made) state._mineStampNext = true; else solidifyMineRock();
     }
     mineUnboxArrived();

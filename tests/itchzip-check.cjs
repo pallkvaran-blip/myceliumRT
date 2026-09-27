@@ -316,14 +316,19 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     ok('the store opens from the end screen', toStore && store);
     const devOnStore = await devHere();
     ok('no dev buttons in the store', devOnStore.length === 0, devOnStore.join(', '));
-    const seed1 = await page.evaluate(() => window.__game.mine.seed());
+    // M8: was 'a fresh shaft' (a new seed). DIG is the JOURNEY now and a leg is one FIXED world, so run 2
+    // replays the save's leg on the same seed: what is asserted is a NEW RUN (a new state) on that leg.
+    await page.evaluate(() => { window.__s1 = window.__game.state; });
     const desc = await page.evaluate(() => { const b = document.getElementById('ssDescend'); if (b) b.click(); return !!b; });
-    const run2 = await page.waitForFunction((s1) => {
+    const run2 = await page.waitForFunction(() => {
       const g = window.__game, s = g && g.state;
-      return !!(s && s.substrate && s.substrate.mine && !s.runOver && g.mine.seed() !== s1 && s.substrate._rockSolidified && !document.getElementById('speciesSelect'));
-    }, seed1, { timeout: 40000 }).then(() => true).catch(() => false);
+      return !!(s && s !== window.__s1 && s.substrate && s.substrate.mine && s.substrate.mineJourney && !s.runOver && s.substrate._rockSolidified && !document.getElementById('speciesSelect'));
+    }, null, { timeout: 40000 }).then(() => true).catch(() => false);
     const rs = await page.evaluate(() => window.__rs.slice());
-    ok('Descend starts run 2 on a fresh shaft', desc && run2 && rs.length === 2, `${rs.length} run_start row(s)`);
+    const leg2 = await page.evaluate(() => { const L = window.__game.mine.leg(), p = JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}');
+      return { leg: L && L.leg, save: p.mineJourney && p.mineJourney.leg }; });
+    ok('Descend starts run 2 on the save\'s journey leg', desc && run2 && rs.length === 2 && leg2.leg === leg2.save,
+       `${rs.length} run_start row(s), leg ${leg2.leg} (save ${leg2.save})`);
     await sleep(1500);
     const saw = await page.evaluate(() => window.__sawLevelIntro);
     ok('#levelIntro was never visible, on either run', saw === 0, `${saw} sample(s) with it up`);

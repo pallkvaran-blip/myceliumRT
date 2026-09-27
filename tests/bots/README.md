@@ -34,6 +34,17 @@ traces, and never fail.
   the progressive reveal still hides, and takes the buy orders `cheapest`, `power`, `knowledge`.
 - `lib.cjs`'s `digAlong` aims a full `mineGrowReach` ahead since M5 (it aimed a fixed 120-130 units,
   which wasted most of a bought Grow strength), and `step({policy: 'naive'})` delegates to `naiveStep`.
+- `journey.cjs` (M8 acceptance 3; `node tests/run.mjs journeybot` runs the default save): a fresh save on
+  the plain URL (the first visit goes straight into Leg 1), then descent after descent through the REAL end
+  screen -> Store -> cheapest buys -> Descend. The SENSIBLE player knows the leg (a leg is one fixed world):
+  each run it takes legprobe's cheapest-water growth-lattice route to the taproot and digs along it with the
+  real tank, flask/enzyme as career.cjs; after 25 stalled steps it falls back to `Q.step({goal: 'island'})`
+  (lib.cjs's flood bot with the taproot as goal). `--naive`: the naive JOURNEY player — always the clean tip
+  nearest the knot, along the most open of 7 rays about the bearing to it. FAILS (`====`) unless landfall 1
+  comes by run 5 (naive: 8) and legs 2 / 3 within 7 runs each.
+  - **The flood bot alone could not do it** (first try: 43-93 m east in 4 runs, then stuck at 4 m east with
+    the whole leg known): the clearance flood plans through gaps growth will not follow, and each dig added
+    1-2 filaments. The lattice route is growth's own rule.
 - `navdive.cjs`: a path-following dive that reaches the floor from states where a deepest-tip-only
   probe stalls. It is the reason the "colony boxes itself in" conclusion was wrong: those four
   mine-check failures were a probe digging only from the deepest tip, not a sealed pocket.

@@ -151,16 +151,21 @@ const tag = 'journey-' + (naive ? 'naive-' : '') + label;
     await waitRun();
   }
   // THE GATES: landfall k at run <= sum(need[0..k]) measured from the previous landfall.
-  let pass = true, prev = 0; const why = [];
+  let pass = true, prev = 0, np = 0, nf = 0; const why = [];
   for (let k = 0; k < legsWanted; k++) {
     const L = landAt[k];
     const okK = !!L && L.run - prev <= need[k];
-    why.push(`landfall ${k + 1}: ${L ? 'run ' + L.run + ' (' + (L.run - prev) + ' after the last, want <= ' + need[k] + ')' : 'none in ' + (run - 1) + ' runs'}`);
+    const w = `landfall ${k + 1}: ${L ? 'run ' + L.run + ' (' + (L.run - prev) + ' after the last, want <= ' + need[k] + ')' : 'none in ' + Math.min(run, maxRuns) + ' runs'}`;
+    why.push(w);
+    console.log(`  ${okK ? 'PASS' : 'FAIL'}  ${tag} ${w}`); okK ? np++ : nf++;
     if (!okK) pass = false;
     if (L) prev = L.run;
   }
-  if (errs.length) { pass = false; why.push('page errors: ' + errs.slice(0, 2).join(' | ')); }
-  console.log(`==== ${tag}: ${pass ? 'PASS' : 'FAIL'} — ${why.join('; ')}`);
+  console.log(`  ${errs.length ? 'FAIL' : 'PASS'}  ${tag} no page errors  ${errs.slice(0, 2).join(' | ')}`); errs.length ? nf++ : np++;
+  if (errs.length) pass = false;
+  console.log(`${tag}: ${pass ? 'PASS' : 'FAIL'} — ${why.join('; ')}`);
+  // The runner's fence (tests/run.mjs parses exactly this).
+  console.log(`\n==== ${np} passed, ${nf} failed ====`);
   await env.close();
   process.exit(pass ? 0 : 1);
 })();
