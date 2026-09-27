@@ -3884,7 +3884,7 @@ const CONFIG = {
     // no seam hairline longer than a band, no sealed seam side crossable, from leg 2 the cheapest-water
     // route mostly below 42 m; over the WHOLE leg world every reward reachable, no lateral channel, the
     // seams no denser than the chunks and not a column (legprobe WPASS); and then REAL growth
-    // (mine.growFrom) following that route landing at the taproot. Re-picked in M7 verifier round 2),
+    // (mine.growFrom) following that route landing at the taproot. Re-picked in M7 verifier rounds 2, 3 and 4 — round 4 adds the pillar gate, PILLAR_OK),
     // `E` (island chunk = homeChunk + E; must agree with `eastM`, journey-check asserts it),
     // `eastM`/`depthM` (the taproot, 1 m = 1 cell),
     // `sealByBand` (the chance a gallery is walled at a seam, per 42 m band — the shallow road
@@ -3900,9 +3900,9 @@ const CONFIG = {
       taprootR: 2.5,
       landfallCells: 1.5,
       legs: [
-        { leg: 1, name: 'First Light', seed: 858097, E: 4, eastM: 96, depthM: 24,
+        { leg: 1, name: 'First Light', seed: 2114845, E: 4, eastM: 96, depthM: 24,
           sealByBand: [0.12, 0.12, 0.12], rule: 'calm', bonus: 20 },
-        { leg: 2, name: 'The Coal Road', seed: 3274783, E: 6, eastM: 144, depthM: 58,
+        { leg: 2, name: 'The Coal Road', seed: 1703848, E: 6, eastM: 144, depthM: 58,
           sealByBand: [0.55, 0.12, 0.12], rule: 'standard', bonus: 30 },
         { leg: 3, name: 'Dry Ground', seed: 36103, E: 8, eastM: 192, depthM: 72,
           sealByBand: [0.70, 0.12, 0.12], rule: 'dry', bonus: 40 },
