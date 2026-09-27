@@ -23252,6 +23252,7 @@ function mineGenerateChunk(state, ci) {
       const WA = (oA.length / rows) | 0, WB = (oB.length / rows) | 0;
       const colA = sI * (M.chunkCols | 0) - 1, colB = colA + 1, xs = colB * cs;
       const qrng = mineChunkRng(((state.mineSeed || state.seed || 1) ^ 0x57C4) >>> 0, sI);
+      const brng = mineChunkRng(((state.mineSeed || state.seed || 1) ^ 0x57C5) >>> 0, sI);
       const dry = (c, r) => { const cell = sub.cellAt(c, r); return !cell || (!cell.water && !(cell.maxNutrient > 0)); };
       const npA = J._noPlug[sI - 1], npB = J._noPlug[sI];
       const cover = new Uint8Array(rows);
@@ -23288,10 +23289,21 @@ function mineGenerateChunk(state, ci) {
       for (let r = 0; r < rows;) {
         if (!both(r)) { r++; continue; }
         let r1 = r; while (r1 + 1 < rows && both(r1 + 1)) r1++;
-        // Tile the run [r, r1] with sprites centred on the seam, 1.7 cells across (inside the two seam
-        // columns), up to 3.2 cells tall, each overlapping the last by half. A run from row 0 starts
-        // above the soil line, clipped there like the crust.
+        // Tile the run [r, r1]. A run from row 0 starts above the soil line, clipped there like the crust.
         const top = sub.surfaceY + r * cs, bot = sub.surfaceY + (r1 + 1) * cs;
+        const ext = (oo, WO, inward, ra, rb) => {      // closed columns beside the seam over rows ra..rb (<= 3)
+          let k = 0;
+          for (; k < 3; k++) {
+            let all = true;
+            for (let rr = Math.max(0, ra); rr <= Math.min(rows - 1, rb) && all; rr++) if (oo[rr * WO + inward(k)]) all = false;
+            if (!all) break;
+          }
+          return k || 0.85;
+        };
+        // (1) THE SEAL: a chain centred on the seam line, 1.7 cells wide, <= 3.2 tall, each piece
+        // overlapping the last by half. Measured, this is what closes the slit — pieces placed off
+        // the line (tried alone first) leave the line on their thin edge alpha and a sealed side
+        // leaked again (leg 1: 0 -> 3 of 17).
         let y0 = r === 0 ? sub.surfaceY - cs * 0.6 : top;
         for (let guard = 0; guard < 200 && y0 < bot - cs * 0.25; guard++) {
           const lib = libFor(bandOfRow(Math.min(rows - 1, Math.max(0, Math.floor((y0 - sub.surfaceY) / cs) + 1))));
@@ -23307,13 +23319,42 @@ function mineGenerateChunk(state, ci) {
           n++;
           y0 += h * 0.5;
         }
+        // (2) THE LOOK: that chain alone read in a frame as a column of small stones down every seam —
+        // a line of its own. So larger pieces go over it, sized from the ground both carves left closed
+        // beside the seam (up to 3 columns a side), 1.7-3.6 cells wide and 2.2-4.2 tall, anywhere that
+        // still straddles the line, stepped by 60-90% of their height: the chain disappears into the
+        // mass beside it. ITS OWN RNG (`seed ^ 0x57C5`, seam index): the chain above is the seal and
+        // must not change when the look is retuned — widening these pieces with a shared rng re-drew
+        // the chain and opened a leak it had not had (leg 2, seam 192 row 57).
+        y0 = r === 0 ? sub.surfaceY - cs * 0.6 : top;
+        for (let guard = 0; guard < 200 && y0 < bot - cs * 0.5; guard++) {
+          const lib = libFor(bandOfRow(Math.min(rows - 1, Math.max(0, Math.floor((y0 - sub.surfaceY) / cs) + 1))));
+          if (!lib.length) break;
+          const src = lib[Math.floor(brng() * lib.length)];
+          const hT = Math.min((2.2 + 2 * brng()) * cs, bot - y0);
+          const ra = Math.floor((y0 - sub.surfaceY) / cs), rb = Math.floor((y0 + hT - 0.01 - sub.surfaceY) / cs);
+          const eA = ext(oA, WA, (k) => WA - 1 - k, ra, rb), eB = ext(oB, WB, (k) => k, ra, rb);
+          const xLo = xs - eA * cs, xHi = xs + eB * cs;
+          const wT = Math.min(xHi - xLo, (1.7 + 1.9 * brng()) * cs);
+          const sc = Math.min(wT / src.w, hT / src.h);
+          const w = src.w * sc, h = src.h * sc;
+          if (w < cs * 0.8 || h < cs * 0.5) break;
+          const m = Math.min(0.6 * cs, w / 2);
+          const lo = Math.max(xLo + w / 2, xs + m - w / 2), hi = Math.min(xHi - w / 2, xs - m + w / 2);
+          const x = hi > lo ? lo + (hi - lo) * brng() : xs;
+          const y = Math.min(y0 + h / 2, bot - h / 2);
+          sub.levelSprites.push({ key: src.k, style: 'boulder', x: +x.toFixed(1), y: +y.toFixed(1),
+                                  w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
+          n++;
+          y0 += h * (0.6 + 0.3 * brng());
+        }
         r = r1 + 1;
       }
       J._stitched[sI] = n;
-      // The stitch reaches into the neighbour's first column: widen the dirty range so the
+      // The stitch reaches up to three columns into either chunk: widen the dirty range so the
       // incremental stamp reconciles its `cell.rock` too.
-      sub._mineDirtyC0 = Math.min(sub._mineDirtyC0 != null ? sub._mineDirtyC0 : colA, colA);
-      sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : colB, colB);
+      sub._mineDirtyC0 = Math.min(sub._mineDirtyC0 != null ? sub._mineDirtyC0 : colA - 2, colA - 2);
+      sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : colB + 2, colB + 2);
     }
   }
   for (let i = 0; i < open.length; i++) if (open[i]) placed.open++;
