@@ -495,7 +495,7 @@ if (require.main === module) (async () => {
   let bad = 0;
   try {
     for (const leg of legs) {
-      const b = await openLeg(E, leg, seedArg || 0, 390, 844, file);
+      let b = await openLeg(E, leg, seedArg || 0, 390, 844, file);
       if (!pick) {
         const m = await measure(b.page, { route: doFollow });
         const route0 = m.route; delete m.route;
@@ -510,10 +510,20 @@ if (require.main === module) (async () => {
         const good = [];
         for (let k = 0; k < pick; k++) {
           const sd = ((leg * 7919 + k * 104729 + 12345) % 2147483000) + 1;
-          await playLeg(b.page, leg, sd);
-          const m = await measure(b.page);
-          let ok = PASS(m, leg);
-          if (ok) { const w = await world(b.page); m.world = w; ok = WPASS(w); }
+          // A FRESH PAGE EVERY 6 CANDIDATES, and after any failure: one page replaying world after world
+          // was killed mid-pick ("Target page ... has been closed") and took the whole pick with it.
+          if (k && k % 6 === 0) { await b.ctx.close().catch(() => {}); b = await openLeg(E, leg, 0, 390, 844, file); }
+          let m, ok;
+          try {
+            await playLeg(b.page, leg, sd);
+            m = await measure(b.page);
+            ok = PASS(m, leg);
+            if (ok) { const w = await world(b.page); m.world = w; ok = WPASS(w); }
+          } catch (e) {
+            console.log(`leg ${leg} cand ${k} seed ${sd}: ERROR ${String(e && e.message || e).slice(0, 120)}`);
+            await b.ctx.close().catch(() => {}); b = await openLeg(E, leg, 0, 390, 844, file);
+            continue;
+          }
           if (ok) good.push(m);
           console.log(`leg ${leg} cand ${k} seed ${sd}: ${ok ? 'PASS' : '    '} reach ${m.reach}/${m.reachLat} ratio ${m.ratio} (fine ${m.ratioFine}) water ${m.water} e42 ${m.east42} e84 ${m.east84} shallow ${m.shallowMaxCol} crust ${m.crustMaxCol} lat ${m.lateral} seam ${m.seamRunRows} leak ${m.sealLeak}/${m.sealN} creat ${m.shallowestRow} tapRep ${m.tapRec && m.tapRec.repairs}${m.world ? ` | world lat ${m.world.lateral} ore ${m.world.pilesOk}/${m.world.piles} pk ${m.world.pocketsOk}/${m.world.pockets} seam ${m.world.seamSolid}/${m.world.midSolid}` : ''}`);
         }
@@ -523,10 +533,13 @@ if (require.main === module) (async () => {
         // The lattice is an upper bound on what growth passes: DIG the top few, and keep only those
         // real growth can follow to the taproot.
         for (const m of good.slice(0, 5)) {
-          await playLeg(b.page, leg, m.seed);
-          const r = await measure(b.page, { route: true });
-          const f = await follow(b.page, r.route);
-          console.log('  ', m.seed, 'follow', JSON.stringify(f), JSON.stringify(Object.assign({}, m, { route: undefined })));
+          try {
+            await b.ctx.close().catch(() => {}); b = await openLeg(E, leg, 0, 390, 844, file);
+            await playLeg(b.page, leg, m.seed);
+            const r = await measure(b.page, { route: true });
+            const f = await follow(b.page, r.route);
+            console.log('  ', m.seed, 'follow', JSON.stringify(f), JSON.stringify(Object.assign({}, m, { route: undefined })));
+          } catch (e) { console.log('  ', m.seed, 'follow ERROR', String(e && e.message || e).slice(0, 120)); }
         }
       }
       if (b.errs.length) console.log('page errors:', b.errs.slice(0, 3));

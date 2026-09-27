@@ -22385,6 +22385,7 @@ function mineGenerateChunk(state, ci) {
     return v == null ? sealCh : Math.max(0, Math.min(0.95, +v || 0));
   };
   const SEAM_W = 3;               // how many columns at a seam a seal covers
+  const SEAM_BAND = 4;            // journey: columns either side of a seam the stitch's rock loop owns
   for (let gi = 0; gi < galleryRows.length; gi++) {
     const gr = galleryRows[gi];
     const sealP = sealAt(gr);
@@ -22465,7 +22466,12 @@ function mineGenerateChunk(state, ci) {
       // over 168 rows drifts right across the chunk, so a "shaft" erodes most of its width and the
       // solid slabs the rock needs never exist.
       const lean = 4;
-      col = clamp(col + dir, Math.max(c0 + 1, home0 - lean), Math.min(c1 - 1, home0 + lean));
+      // JOURNEY: never within 7 columns of a seam (M7 verifier round 2). A shaft pinned at its lean
+      // bound beside a seam, facing the neighbour's shaft pinned at ITS bound, left a 4-6 cell wall with
+      // the seam down its middle for 30-40 rows — the stitch then drew that wall solid, and it was the
+      // column in the seam frames (`tests/seam-pillar-probe.cjs`). Same draws; only the clamp moves.
+      const sLo = J && c0 > 0 ? c0 + 7 : c0 + 1, sHi = J && c1 < cols - 1 ? c1 - 7 : c1 - 1;
+      col = clamp(col + dir, Math.max(sLo, home0 - lean), Math.min(sHi, home0 + lean));
     }
   }
   // --- vertical links: the maze's junctions ---------------------------------
@@ -22486,7 +22492,9 @@ function mineGenerateChunk(state, ci) {
       // (that pair of galleries is joined elsewhere, or not at all), not a failure to work around.
       let col = -1;
       for (let t = 0; t < 8; t++) {
-        const cand = c0 + 1 + ri(Math.max(1, W - 2));
+        // Journey: links stay 5 columns clear of a seam, for the shafts' reason above (same draw).
+        const cand = J ? c0 + 5 + Math.floor(ri(Math.max(1, W - 2)) * Math.max(1, W - 10) / Math.max(1, W - 2))
+                       : c0 + 1 + ri(Math.max(1, W - 2));
         if (galleryAt[gi][cand - c0] >= 0 && galleryAt[gi + 1][cand - c0] >= 0) { col = cand; break; }
       }
       if (col < 0) continue;
@@ -22552,8 +22560,15 @@ function mineGenerateChunk(state, ci) {
   };
   const offRouteSpot = (rLo, rHi) => {
     for (let tries = 0; tries < 500; tries++) {
-      const r = rLo + ri(Math.max(1, rHi - rLo)), c = c0 + 2 + ri(Math.max(1, W - 4));
+      const r = rLo + ri(Math.max(1, rHi - rLo)), cq = ri(Math.max(1, W - 4));
+      // Journey: 5 columns clear of a seam (same draw), or reward rooms on both sides of a seam left
+      // a thin wall down it for the stitch to draw solid (M7 verifier round 2, seam-pillar-probe).
+      const c = J ? c0 + 5 + Math.floor(cq * Math.max(1, W - 10) / Math.max(1, W - 4)) : c0 + 2 + cq;
       if (open[at(c, r)] || onRoute[at(c, r)]) continue;   // must be untouched AND off the route
+      // Journey: not on a gallery row (±2). A spur runs straight from the corridor, so a room in the
+      // gap between two segments of a gallery was dug along the row and joined them — one straight
+      // channel across chunks (46 cells on leg 2, row 57; acceptance 7 is 36).
+      if (J && galleryRows.some((g) => Math.abs(g - r) <= 2)) continue;
       const from = routeNear(c, r, SPUR_MAX);
       if (!from) continue;
       const d = Math.abs(c - from[0]) + Math.abs(r - from[1]);
@@ -22606,6 +22621,7 @@ function mineGenerateChunk(state, ci) {
     for (let i = 0; i < (M.deadEndsPerBand | 0); i++) {
       const r = rLo + ri(Math.max(1, rHi - rLo)), c = c0 + 2 + ri(Math.max(1, W - 4));
       if (open[at(c, r)] || onRoute[at(c, r)]) continue;
+      if (J && galleryRows.some((g) => Math.abs(g - r) <= 2)) continue;   // same reason as the reward spurs
       const from = routeNear(c, r, Math.max(3, deLen[1] | 0));
       if (!from) continue;
       const d = Math.abs(c - from[0]) + Math.abs(r - from[1]);
@@ -23040,7 +23056,7 @@ function mineGenerateChunk(state, ci) {
               let w;
               if (pass(j) || tgt[j]) w = 0;
               else if (!water[j] && !open[j] && cc >= c0 + 3 && cc <= c1 - 3 && rr >= 4 && rr <= rows - 4 && !(usePz && pzd[j] <= 4))
-                w = 2 + jit[j] + (Math.min(cc - c0, c1 - cc) <= 4 ? 4 : 0) + (nearGal[rr] ? 4 : 0);
+                w = 2 + jit[j] + Math.max(0, 9 - Math.min(cc - c0, c1 - cc)) + (nearGal[rr] ? 4 : 0);
               else continue;
               const nd = dcur + w;
               if (nd >= dist[j]) continue;
@@ -23226,8 +23242,13 @@ function mineGenerateChunk(state, ci) {
   // EVERY CELL IS A CANDIDATE, not every second one. With a high overlap allowance the cost of a
   // dense lattice is bounded by the band targets rather than by the sweep, and a stride of 2 left
   // alpha gaps a stride of 1 fills.
+  // ON A JOURNEY LEG THE GROUND BESIDE A SEAM IS LEFT TO THE STITCH (M7 verifier round 2): within
+  // `SEAM_BAND` columns of a seam that has a neighbour, no candidate here — the stitch fills that band
+  // with the same loop once both chunks exist, sprites free to straddle the line. See pass (d).
+  const bandSkip = (c) => !!J && ((c - c0 < SEAM_BAND && c0 > 0) || (c1 - c < SEAM_BAND && c1 < cols - 1));
   for (let r = 1; r < rows; r += 1) {
     for (let c = c0 + 1; c <= c1; c += 1) {
+      if (bandSkip(c)) continue;
       const { b, lib } = libAtRow(r);
       if (!lib.length || bandCover[b] >= bandTarget[b]) continue;
       const slab = slabAt(c, r);
@@ -23478,6 +23499,7 @@ function mineGenerateChunk(state, ci) {
   if (J) {
     (J._open || (J._open = {}))[ci] = open;
     (J._noPlug || (J._noPlug = {}))[ci] = noPlug;
+    (J._taken || (J._taken = {}))[ci] = taken;
     (J._stitched || (J._stitched = {}));
     for (const nb of [ci - 1, ci + 1]) {
       const sI = Math.max(ci, nb);
@@ -23541,9 +23563,9 @@ function mineGenerateChunk(state, ci) {
         const b = bandOfRow(rr), t = (rr - b * M.bandRows) / M.bandRows;
         return b > 0 && t < M.blendFrac && rf() > t / M.blendFrac ? libFor(b - 1) : libFor(b);
       };
-      const ext = (oo, WO, inward, ra, rb) => {      // closed columns beside the seam over rows ra..rb (<= 3)
+      const ext = (oo, WO, inward, ra, rb, maxK = 3) => {   // closed columns beside the seam over rows ra..rb
         let k = 0;
-        for (; k < 3; k++) {
+        for (; k < maxK; k++) {
           let all = true;
           for (let rr = Math.max(0, ra); rr <= Math.min(rows - 1, rb) && all; rr++) if (oo[rr * WO + inward(k)]) all = false;
           if (!all) break;
@@ -23551,6 +23573,81 @@ function mineGenerateChunk(state, ci) {
         return k || 0.85;
       };
       let n = 0;
+      // (0) THE SEAM BAND'S OWN ROCK LOOP (verifier round 2: "break the column"). The chain alone left
+      // the band beside every seam to sprites that had to fit inside their chunk, so near a seam the
+      // rock loop could only drop pieces a cell or two wide and the stitch then stacked its own small
+      // stones down the line: a column of pebbles between two masses of large boulders, in every seam
+      // frame. The chunk's loop now skips the `SEAM_BAND` columns beside a seam (`bandSkip`), and this
+      // runs THE SAME LOOP over them once both carves are known: every closed cell a candidate, the
+      // slab measured across both chunks, the band's own scale, `OVERLAP` against both chunks' taken
+      // maps — and a sprite free to straddle the line (its box inside both chunks, 7 columns a side).
+      // Seam-keyed rng (`seed ^ 0x57C6`), so the rock does not depend on generation order.
+      const tA = J._taken[sI - 1], tB = J._taken[sI];
+      const cA0 = (sI - 1) * (M.chunkCols | 0), cB0 = sI * (M.chunkCols | 0);
+      const openAB = (c, r) => {
+        if (r < 0 || r >= rows) return true;
+        if (c < colB) { const k = c - cA0; return k < 0 || !!oA[r * WA + k]; }
+        const k = c - cB0; return k >= WB || !!oB[r * WB + k];
+      };
+      const bxLo = colA - 6, bxHi = colB + 6;
+      const bt = new Uint8Array((bxHi - bxLo + 1) * rows);
+      const btAt = (c, r) => r * (bxHi - bxLo + 1) + (c - bxLo);
+      const takenAB = (c, r) => bt[btAt(c, r)] || (c < colB ? tA[r * WA + (c - cA0)] : tB[r * WB + (c - cB0)]);
+      const brng = mineChunkRng((seedS ^ 0x57C6) >>> 0, sI);
+      const crossed = new Uint8Array(rows);
+      const LIMB = 8;
+      const bandLoop = (rowOk, cLo, cHi, ovl, brng) => {
+      for (let r = 1; r < rows; r++) {
+        if (!rowOk(r)) continue;
+        for (let c = cLo; c <= cHi; c++) {
+          if (openAB(c, r) || !dry(c, r)) continue;
+          const lib = libBlend(r, brng);
+          if (!lib.length) continue;
+          const free = (cc, rr) => cc >= bxLo && cc <= bxHi && !openAB(cc, rr);
+          let l = 0, rt = 0, u = 0, d = 0;
+          while (l < LIMB && free(c - l - 1, r)) l++;
+          while (rt < LIMB && free(c + rt + 1, r)) rt++;
+          while (u < LIMB && free(c, r - u - 1)) u++;
+          while (d < LIMB && free(c, r + d + 1)) d++;
+          const b = bandOfRow(r);
+          const bandTop = sub.surfaceY + b * M.bandRows * cs, bandBot = sub.surfaceY + Math.min(rows, (b + 1) * M.bandRows) * cs;
+          const wLo = Math.max(bxLo * cs, (c - l) * cs), wHi = Math.min((bxHi + 1) * cs, (c + rt + 1) * cs);
+          const hLo = Math.max(crustY, sub.surfaceY + (r - u) * cs, bandTop), hHi = Math.min(contentBottom, sub.surfaceY + (r + d + 1) * cs, bandBot);
+          if (wHi - wLo < cs || hHi - hLo < cs) continue;
+          for (let attempt = 0; attempt < 5; attempt++) {
+            const src = lib[Math.floor(brng() * lib.length)];
+            const sc0 = bands[b].scale[0] + (bands[b].scale[1] - bands[b].scale[0]) * brng();
+            const sc = Math.min(sc0, (wHi - wLo) / src.w, (hHi - hLo) / src.h) * (1 - attempt * 0.17);
+            const w = src.w * sc, h = src.h * sc;
+            if (w < cs * 0.9 || h < cs * 0.9) continue;
+            const x = wLo + w / 2 + (wHi - wLo - w) * brng(), y = hLo + h / 2 + (hHi - hLo - h) * brng();
+            const bc0 = Math.floor((x - w / 2) / cs), bc1 = Math.floor((x + w / 2) / cs);
+            const br0 = Math.floor((y - h / 2 - sub.surfaceY) / cs), br1 = Math.floor((y + h / 2 - sub.surfaceY) / cs);
+            if (bc0 < bxLo || bc1 > bxHi || br0 < 0 || br1 >= rows) continue;
+            let clear = true, cells = 0, already = 0;
+            for (let rr = br0; rr <= br1 && clear; rr++)
+              for (let cc = bc0; cc <= bc1; cc++) {
+                if (openAB(cc, rr) || !dry(cc, rr)) { clear = false; break; }
+                cells++; if (takenAB(cc, rr)) already++;
+              }
+            if (!clear || !cells || already / cells > ovl) continue;
+            for (let rr = br0; rr <= br1; rr++) for (let cc = bc0; cc <= bc1; cc++) bt[btAt(cc, rr)] = 1;
+            sub.levelSprites.push({ key: src.k, style: 'boulder', x: +x.toFixed(1), y: +y.toFixed(1),
+                                    w: +w.toFixed(1), h: +h.toFixed(1), rot: 0 });
+            n++;
+            // The line crosses this piece's solid middle: those rows need no chain unless they SEAL.
+            if (Math.abs(x - xs) <= 0.3 * w)
+              for (let rr = Math.floor((y - 0.3 * h - sub.surfaceY) / cs); rr <= Math.floor((y + 0.3 * h - sub.surfaceY) / cs); rr++)
+                if (rr >= 0 && rr < rows) crossed[rr] = 1;
+            break;
+          }
+        }
+      }
+      };
+      bandLoop(() => true, colA - SEAM_BAND + 1, colB + SEAM_BAND - 1, OVERLAP, brng);
+      const tight = new Uint8Array(rows);
+      for (const gr of galleryRows) for (let rr = Math.max(0, gr - 2); rr <= Math.min(rows - 1, gr + 2); rr++) tight[rr] = 1;
+      for (let r = 0; r < rows; r++) if (crossed[r] && !must[r] && !tight[r]) cover[r] = 0;
       // (1) THE CHAIN: pieces down each covered run, each straddling the seam line. TWO DENSITIES
       // (verifier round 2). The first chain was 1.7 cells wide, centred, stepped by exactly half and
       // laid over EVERY covered row — a straight, continuous column of identical stones down every
@@ -23559,11 +23656,12 @@ function mineGenerateChunk(state, ci) {
       //   · on a `must` row (a one-sided run, or within 6 rows of a walled gallery — the leak test's window is 5) it SEALS: pieces
       //     overlap by 55-70% of their height (at 40-60% a one-sided run's thin wall leaked between two
       //     round ends: leg 3 seam 168 row 147);
-      //   · everywhere else it leaves a gap of 0.15-0.9 of a cell after each piece, never past the next
-      //     `must` row (0.4-2.2 matched the interior's density exactly, and made the seams as porous as
-      //     the closed ground either side: the leg paths shortened to 1.16-1.30x the straight line and
-      //     sealed sides leaked 4-5 rows off their gallery). The slit that is left is broken every few rows, which
-      //     is what stops it being the full-depth rock-free line (seam hairline <= a band, legprobe).
+      //   · everywhere else it only has to BREAK THE SLIT: rows the band loop (0) already crossed with a
+      //     boulder's middle get nothing, and elsewhere a piece is followed by a gap of 2.5-6 cells, never
+      //     past the next `must` row (it was 0.15-0.9, which drew a near-continuous stripe down the line;
+      //     the leaks that dense chain once answered are the `must` windows' job). The slit that is left
+      //     is broken every few rows, which is what stops it being the full-depth rock-free line (seam
+      //     hairline <= a band, legprobe).
       // Each piece is 1.6-4.2 cells wide (as the closed columns beside the seam allow, <= 3 a side),
       // 1.6-3.6 tall, from the rock loop's blended library, drawn UNDER the chunks' own rock (`under`),
       // and sits up to 18% of its width off the line — the line stays in the middle ~64% of every piece,
@@ -23581,34 +23679,46 @@ function mineGenerateChunk(state, ci) {
           let placedOne = false;
           for (let attempt = 0; attempt < 3 && !placedOne; attempt++) {
             const src = lib[Math.floor(qrng() * lib.length)];
-            const hT = Math.min((1.6 + 2.0 * qrng()) * cs, bot - y0);
-            const ra = Math.floor((y0 - sub.surfaceY) / cs), rb = Math.floor((y0 + hT - 0.01 - sub.surfaceY) / cs);
-            const eA = ext(oA, WA, (k) => WA - 1 - k, ra, rb), eB = ext(oB, WB, (k) => k, ra, rb);
-            // On a `must` row a piece spans all the closed ground beside the seam (up to 3 columns a
-            // side): the leak test's lattice threads the porous closed cells round a narrower one (leg 3,
-            // seam 192 row 95).
+            const hR = (1.6 + 2.0 * qrng()) * cs;
+            const ra0 = Math.floor((y0 - sub.surfaceY) / cs);
             let mustRow = false;
-            for (let q = Math.max(0, ra); q <= Math.min(rows - 1, rb) && !mustRow; q++) if (must[q]) mustRow = true;
+            for (let q = Math.max(0, ra0); q <= Math.min(rows - 1, ra0 + 2) && !mustRow; q++) if (must[q]) mustRow = true;
+            // A SEALING piece is a BOULDER, not a pebble (verifier round 2): as big as the band's own scale
+            // and the closed ground beside the seam allow (up to 6 columns a side), so a seal reads as one
+            // of the masses around it rather than a stack of small stones down the line — measured with
+            // `tests/seam-pillar-probe.cjs`, which counts free-standing strips of rock on a line.
+            const bHi = bands[bandOfRow(Math.min(rows - 1, Math.max(0, ra0)))].scale[1];
+            const hT = Math.min(mustRow ? Math.max(hR, Math.min(src.h * bHi, (2.4 + 2.4 * qrng()) * cs)) : hR, bot - y0);
+            const ra = ra0, rb = Math.floor((y0 + hT - 0.01 - sub.surfaceY) / cs);
+            const eA = ext(oA, WA, (k) => WA - 1 - k, ra, rb, mustRow ? 6 : 3), eB = ext(oB, WB, (k) => k, ra, rb, mustRow ? 6 : 3);
+            // On a `must` row a piece spans all the closed ground beside the seam it can: the leak test's
+            // lattice threads the porous closed cells round a narrower one (leg 3, seam 192 row 95).
             const wR = (1.6 + 2.6 * qrng()) * cs;
-            const wT = Math.min((eA + eB) * cs, mustRow ? Math.max(wR, (eA + eB) * cs) : wR);
+            const wT = Math.min((eA + eB) * cs, mustRow ? Math.max(wR, Math.min((eA + eB) * cs, src.w * bHi)) : wR);
             const sc = Math.min(wT / src.w, hT / src.h);
             const w = src.w * sc, h = src.h * sc;
             if (w < cs * 0.8 || h < cs * 0.5) continue;
-            const lo = Math.max(xs - eA * cs + w / 2, xs - 0.18 * w), hi = Math.min(xs + eB * cs - w / 2, xs + 0.18 * w);
+            const off = mustRow ? 0.22 : 0.18;
+            const lo = Math.max(xs - eA * cs + w / 2, xs - off * w), hi = Math.min(xs + eB * cs - w / 2, xs + off * w);
             const x = hi > lo ? lo + (hi - lo) * qrng() : Math.max(xs - eA * cs + w / 2, Math.min(xs + eB * cs - w / 2, xs));
             const y = Math.min(y0 + h / 2, bot - h / 2);
             sub.levelSprites.push({ key: src.k, style: 'boulder', x: +x.toFixed(1), y: +y.toFixed(1),
                                     w: +w.toFixed(1), h: +h.toFixed(1), rot: 0, under: 1 });
             n++; placedOne = true;
-            // A piece over a `must` row (or just above one) steps by overlap; anywhere else the chain is
-            // as porous as the rock loop's ground — a gap of 0.4-2.2 cells after the piece, never past
-            // the next `must` row.
+            // A piece over a `must` row (or just above one) steps by overlap; anywhere else a gap of
+            // 2.5-6 cells follows it, never past the next `must` row.
             let mustHere = false;
             for (let q = Math.max(0, ra); q <= Math.min(rows - 1, rb + 1) && !mustHere; q++) if (must[q]) mustHere = true;
+            // ...and ON A GALLERY ROW (±2) it steps without a gap: two gallery segments that stop either
+            // side of the seam leave a short closed gap on the row, and a porous chain there joined them
+            // into one straight channel (46 cells on leg 2, row 57; acceptance 7 is 36).
+            let tightHere = false;
+            for (let q = Math.max(0, ra); q <= Math.min(rows - 1, rb + 1) && !tightHere; q++) if (tight[q]) tightHere = true;
             if (mustHere) y0 += h * (0.3 + 0.15 * qrng());
+            else if (tightHere) y0 += h * (0.55 + 0.2 * qrng());
             else {
-              let ny = y0 + h + (0.15 + 0.75 * qrng()) * cs;
-              for (let q = rb + 1; q < rows && sub.surfaceY + q * cs < ny; q++) if (must[q]) { ny = Math.min(ny, sub.surfaceY + q * cs - cs * 0.3); break; }
+              let ny = y0 + h + (2.5 + 3.5 * qrng()) * cs;
+              for (let q = rb + 1; q < rows && sub.surfaceY + q * cs < ny; q++) if (must[q] || tight[q]) { ny = Math.min(ny, sub.surfaceY + q * cs - cs * 0.3); break; }
               y0 = Math.max(y0 + h * 0.3, ny);
             }
           }
@@ -23625,8 +23735,8 @@ function mineGenerateChunk(state, ci) {
       J._stitched[sI] = n;
       // The chain reaches up to three columns into either chunk: widen the dirty range so the
       // incremental stamp reconciles its `cell.rock` too.
-      sub._mineDirtyC0 = Math.min(sub._mineDirtyC0 != null ? sub._mineDirtyC0 : colA - 3, colA - 3);
-      sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : colB + 3, colB + 3);
+      sub._mineDirtyC0 = Math.min(sub._mineDirtyC0 != null ? sub._mineDirtyC0 : colA - 7, colA - 7);
+      sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : colB + 7, colB + 7);
     }
   }
   for (let i = 0; i < open.length; i++) if (open[i]) placed.open++;
