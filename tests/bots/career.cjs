@@ -20,7 +20,7 @@ function runSeed(seed, k) {
   for (let r = 1; r <= runs; r++) {
     await page.evaluate(() => { window.__qa.bad = new Map(); });
     const res = await playDescent(page, { label: `${tag}-r${r}`, shots: r === 1 || r === runs || r % 4 === 0, shotEvery: 30,
-      bot: { useItems: true } });
+      bot: { useItems: true }, uiItems: process.env.UI_ITEMS === '1' });
     // To the store
     const done = await page.$('#ssMineDone');
     if (!done) { console.log('no end screen; run state', JSON.stringify(res.end)); }

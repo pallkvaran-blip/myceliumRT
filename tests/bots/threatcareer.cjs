@@ -4,19 +4,26 @@
  *   - infected endings in runs 4-12 are 20% or fewer (the phase-1 playtest saw about half);
  *   - the median worm drain per run (`mine.drained()`, the water owed to worms) is 3 or less.
  *
- *     node tests/bots/threatcareer.cjs [seeds=4242,909,11] [runs=12]
+ *     node tests/bots/threatcareer.cjs [seeds=4242,909,11] [runs=12] [--ui]
+ *
+ * --ui (M6 verify round 3): the items are played THROUGH THE UI (botrun `uiItems`): a flask 1.5 s after
+ * a worm attaches, a dose 1.5 s after rot appears and only on rot on screen below the HUD (the rot
+ * banner is clicked to find it), each a real click on the kit and on the canvas. Without it the bot
+ * is omniscient (hooks, the densest rot from the full node list): an upper bound, not a playtest.
  *
  * Slow (~12-15 min a seed, one at a time: the bot is wall-clock sensitive). Not in the runner.
  */
 const { spawnSync } = require('child_process');
 const fs = require('fs'), path = require('path');
 const { OUT } = require('./lib.cjs');
-const seeds = (process.argv[2] || '4242,909,11').split(',').map(Number);
-const runs = +(process.argv[3] || 12);
-const env = Object.assign({}, process.env, { NODE_PATH: process.env.NODE_PATH || '/opt/node22/lib/node_modules' });
+const UI = process.argv.includes('--ui');
+const argv = process.argv.filter((a) => a !== '--ui');
+const seeds = (argv[2] || '4242,909,11').split(',').map(Number);
+const runs = +(argv[3] || 12);
+const env = Object.assign({}, process.env, { NODE_PATH: process.env.NODE_PATH || '/opt/node22/lib/node_modules' }, UI ? { UI_ITEMS: '1' } : {});
 const rows = [];
 for (const seed of seeds) {
-  const tag = `threat-kit-${seed}`;
+  const tag = `threat-kit${UI ? '-ui' : ''}-${seed}`;
   if (!process.env.REUSE) {
     const r = spawnSync(process.execPath, [path.join(__dirname, 'career.cjs'), String(seed), String(runs), 'kit', tag], { env, encoding: 'utf8', timeout: 45 * 60000 });
     process.stdout.write((r.stdout || '').split('\n').filter((l) => /^R\d+|errors/.test(l)).join('\n') + '\n');
