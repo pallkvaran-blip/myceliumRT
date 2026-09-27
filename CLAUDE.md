@@ -5344,6 +5344,13 @@ Numbers here are measured, not planned.
   no-repair controls) and nine seam frames per leg. Changed: 'no sealed side above the floor strip leaks'
   -> 'no sealed seam side is crossable' (no exemption).
 
+- **`--mine` after verifier round 2: 1087 passed, 0 failed across 18 checks** (journey 62 -> 82; boot 22,
+  store 124, mine 193, ending 87, ship 58, phone 51, onboard 63, econ 79, counter 60, zip 24, level 27,
+  aim 9, scale 26, threat 116, harvest 28, mould 20, core 18 unchanged). Final verify: all 21 chunks
+  generated in natural and two shuffled orders give identical sprites, chunk records and stitches on all
+  three legs; 0 of 126 creature spots inside drawn rock (legs 2, 3); leg-2 renderFrame at three seams
+  19.3 / 15.4 / 12.6 ms against 16.2 / 16.4 / 15.0 on 200a7e9 (one run each, 5,835 vs 6,733 sprites).
+
 - **`--mine` after M7: 1046 passed, 0 failed across 18 checks** (boot 22, store 124, mine 193, ending 87,
   ship 58, phone 51, onboard 63, econ 79, counter 60, journey 41, zip 24, level 27, aim 9, scale 26,
   threat 116, harvest 28, mould 20, core 18). No existing assertion changed. GOTCHA: the runner parses
