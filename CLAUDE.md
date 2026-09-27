@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 BUILT (leg worlds, journey-check 41/41). Next: M8.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 BUILT (leg worlds, journey-check 41/41; --mine 1046/1046). Next: M8.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5224,6 +5224,10 @@ Numbers here are measured, not planned.
   Fixture `tests/fixtures/m7-pre-chunks-4242.json` (from be20b64; equal to the M5 one) via
   `tests/fixture-chunks.cjs be20b64 --write --fixture <path>`. Screens `tests/.artifacts/m7-leg{1,2,3}-seam-390.png`,
   `m7-leg1-island-390.png`.
+- **`--mine` after M7: 1046 passed, 0 failed across 18 checks** (boot 22, store 124, mine 193, ending 87,
+  ship 58, phone 51, onboard 63, econ 79, counter 60, journey 41, zip 24, level 27, aim 9, scale 26,
+  threat 116, harvest 28, mould 20, core 18). No existing assertion changed. GOTCHA: the runner parses
+  `==== N passed, M failed ====`; a check printing any other summary reads as "did not report".
 
 ## Two games on the title screen: Survival and Campaign
 
