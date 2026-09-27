@@ -362,6 +362,16 @@
       color: #ffb070; text-shadow: 0 1px 12px rgba(0,0,0,0.95); }
     .minebeat.small .mb-d { font-size: clamp(20px, 6vw, 32px); }
     @media (prefers-reduced-motion: reduce) { .minebeat { transition: none; } }
+    /* THE JOURNEY STRIP (M8): eight islands in a row, the rooted ones lit mint, the leg being played
+       ringed. One builder (main.js mineJourneyStripHTML) for the title, the end screen and the store. */
+    .mj-strip { display: flex; gap: 9px; justify-content: center; align-items: center; margin: 10px auto 0; }
+    .mj-dot { width: 11px; height: 11px; border-radius: 50%; box-sizing: border-box;
+      background: rgba(215,230,220,0.14); border: 1px solid rgba(215,230,220,0.34); }
+    .mj-dot.lit { background: #7fe6a3; border-color: #bfffd6; box-shadow: 0 0 8px rgba(127,230,163,0.7); }
+    .mj-dot.cur { border: 2px solid #f2ece0; box-shadow: 0 0 0 3px rgba(242,236,224,0.18); }
+    .mj-dot.lit.cur { box-shadow: 0 0 8px rgba(127,230,163,0.7), 0 0 0 3px rgba(242,236,224,0.18); }
+    /* THE LEG'S EAST on the HUD's row 1 (M8): '→ 64 m', shown on a journey leg only. */
+    .minehud #hud-east .rk { margin-left: 1px; }
     /* Resource marks (bolt / water drop / phosphorus spark) — inherit currentColor. */
     .ri { display: inline-block; width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.14em; }
     .res .ri { width: 16px; height: 16px; align-self: center; }
@@ -1192,6 +1202,8 @@
     #titleScreen .ts-record b { font-style:normal; font-weight:700; color:rgba(159,224,189,0.92); }
     #titleScreen .ts-record-none { color:rgba(215,230,220,0.34); }
     #titleScreen .ts-banked { font-style:normal; margin-top:6px; color:rgba(159,224,189,0.95); }
+    #titleScreen .ts-gap { margin-top:6px; font-size:clamp(12px,1.9vw,15px); }
+    #titleScreen .mj-strip { margin-top:12px; }
     /* The empty left-hand slot on the mine's row — see the markup. Zero-size and unclickable, so it
        holds the grid column open without being a target or affecting the row's height.
        DELIBERATELY NOT `.ts-act`: that class means "a New/Old button and its caption", and three
@@ -1807,6 +1819,11 @@
       text-shadow:0 2px 10px rgba(0,0,0,0.9), 0 0 34px rgba(127,230,163,0.22); }
     .ss-mineend-depth .ss-mineend-m { font-size:0.36em; font-weight:600; margin-left:0.14em;
       color:var(--ss-ink-dim,#8aa193); letter-spacing:.04em; }
+    /* '· 140 m east' on a journey leg (M8): the depth stays the big number, east rides beside it. */
+    .ss-mineend-depth .ss-mineend-east { font-size:0.3em; font-weight:600; color:var(--ss-ink-dim,#8aa193);
+      letter-spacing:.03em; white-space:nowrap; }
+    .ss-mineend .mj-strip { margin-top: clamp(6px,1.4vh,14px); }
+    .ss-minego .mj-strip { margin-top: 8px; }
     .ss-mineend-best { margin:2px 0 0; font-family:var(--ss-serif,Georgia,serif); font-style:italic;
       font-size:clamp(12px,2vw,15px); color:var(--ss-ink-dim,#8aa193); }
     .ss-mineend-best.ss-new { font-style:normal; font-weight:700; color:#7fe6a3; letter-spacing:.05em;
@@ -22154,6 +22171,41 @@ function mineDepthReached(state) {
   for (const n of net.nodes) { if (!n.infected && n.y > best) best = n.y; }
   return mineDepthM(sub, best);
 }
+// THE FARTHEST EAST (M8), in whole metres (1 m = 1 cell) of the living colony east of the HILL's
+// root column: max over clean strands of (x - homeX) / cs. Journey legs only — the free layout's east
+// term is 0 by the plan (a centre hill has no east to travel toward), so this is 0 there.
+function mineEastReached(state) {
+  const net = state && state.active, sub = state && state.substrate;
+  if (!net || !sub || !sub.mineJourney) return 0;
+  const cs = sub.cellSize;
+  const homeX = ((sub.mineHomeCol != null ? sub.mineHomeCol : (sub.cols >> 1)) + 0.5) * cs;
+  let best = homeX;
+  for (const n of net.nodes) { if (!n.infected && n.x > best) best = n.x; }
+  return Math.max(0, Math.floor((best - homeX) / cs));
+}
+// THE TAPROOT'S CENTRE, in world units (the same point `mineTaprootGeom` draws the knot at).
+function mineTaprootXY(sub) {
+  const J = sub && sub.mineJourney;
+  if (!J || !J.taproot) return null;
+  const cs = sub.cellSize;
+  return { x: (J.taproot.col + 0.5) * cs, y: sub.surfaceY + (J.taproot.row + 0.5) * cs };
+}
+// LANDFALL (M8): any CLEAN strand within `journey.landfallCells` (1.5 cells = 54 units) of the knot's
+// centre. Infected tissue is not the colony arriving — it cannot harvest, draft or be grown from, so it
+// cannot take root either.
+function mineIslandReached(state) {
+  const net = state && state.active, sub = state && state.substrate;
+  const t = mineTaprootXY(sub);
+  if (!net || !t) return false;
+  const J = mineCfg(state.config).journey || {};
+  const r = (+J.landfallCells || 1.5) * sub.cellSize, r2 = r * r;
+  for (const n of net.nodes) {
+    if (n.infected) continue;
+    const dx = n.x - t.x, dy = n.y - t.y;
+    if (dx * dx + dy * dy <= r2) return true;
+  }
+  return false;
+}
 
 // -----------------------------------------------------------------------------
 // GENERATION
@@ -24758,7 +24810,9 @@ function mineStuckState(state) {
 //   full      the node cap
 //   devoured  the colony was stripped to nothing (tickWorld's catch; no mine worm eats strands, so
 //             this is an edge — it reads as the plain fruiting line)
-const MINE_END_CAUSES = ['dry', 'fruit', 'infected', 'abandon', 'quit', 'full', 'devoured'];
+//   island    LANDFALL (M8): a clean strand reached the leg's taproot. ROOTED: the leg's island bonus
+//             on the first landfall of that leg, and the next Descend starts the next leg.
+const MINE_END_CAUSES = ['dry', 'fruit', 'infected', 'abandon', 'quit', 'full', 'devoured', 'island'];
 // The run's DEPTH is the running maximum of clean depth (`state.mineMaxDepth`, kept by the frame
 // loop), not where the deepest living strand is at the moment it ends: rot is not progress, but it
 // does not unmake the metres already reached either. An infected ending used to report 99 m after
@@ -24815,9 +24869,18 @@ function mineEndRun(state, cause) {
   state.mineMaxDepth = depth;
   // `ore` IS THE WHOLE PHOSPHORUS PAYOUT now (M5): reach + seams. `seams` and `reach` carry the split
   // for the end screen's rows.
+  // The running maximum of east, like depth: refreshed here too, so an ending on the very frame a dig
+  // landed pays for where it landed.
+  const east = Math.max(state.mineMaxEast | 0, mineEastReached(state));
+  state.mineMaxEast = east;
   const seams = Math.max(0, Math.round(state.mineOre || 0));
   const reach = mineReachPay(state, why);
-  const ore = reach + seams;
+  // THE ISLAND BONUS (M8), on a landfall only, and only the FIRST landfall of that leg: main decides
+  // "first" off the save when the run starts and puts it on the config clone (`mine.islandBonus`,
+  // 0 on a leg already landed) — the engine cannot read the save.
+  const bonus = why === 'island' ? Math.max(0, (mineCfg(state.config).islandBonus | 0)) : 0;
+  const ore = reach + seams + bonus;
+  const J = state.substrate && state.substrate.mineJourney;
   // THE WHOLE COLONY TURNS, ALL AT ONCE. The deadline expiring is not "the rot finally reached
   // everything" — it is the colony giving up — so it reads as one event rather than as the spread
   // suddenly sprinting. Marked before `alive` goes false so the last frame drawn is green.
@@ -24827,7 +24890,10 @@ function mineEndRun(state, cause) {
   // FULL PAYOUT EITHER WAY, and it is load-bearing: Amputate is bought, so an early player who
   // meets mould with nothing in the bag has no answer at all. Ending their run sooner is a fair
   // cost; taking the ore they already dug would not be.
-  state.runResult = { mine: true, depth, ore, seams, reach, reachRaw: mineReachRaw(state), spores: 0, bodies: 0, died: false,
+  state.runResult = { mine: true, depth, ore, seams, reach, bonus, east, reachRaw: mineReachRaw(state), spores: 0, bodies: 0, died: false,
+                      // THE LEG (M8): null on the free layout. Carried so the bank, the journey record
+                      // and the telemetry do not have to read a state that may have moved on.
+                      leg: J ? (J.leg | 0) : 0, journey: J ? (J.journey | 0) : 0,
                       // EVERY MATERIAL THE DESCENT DUG, not just the Phosphorus. A copy, because
                       // `presentMineEnd` banks from this after the state has moved on.
                       mats: Object.assign({}, state.mineMats || {}),
@@ -24845,13 +24911,14 @@ function mineEndRun(state, cause) {
     quit: `You left the descent at ${depth} m — ${ore} Phosphorus banked.`,
     full: `The colony fills every passage it can reach at ${depth} m, and fruits — ${ore} Phosphorus banked.`,
     devoured: `The colony fruits and spores at ${depth} m — ${ore} Phosphorus banked.`,
+    island: `The colony took root on Island ${J ? J.leg | 0 : 1} — ${ore} Phosphorus banked.`,
   };
   if (state.log) state.log(LOG[why], 'good');
   return state.runResult;
 }
 
   return { MINE_ROCKS, mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
-           mineDepthReached, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
+           mineDepthReached, mineEastReached, mineIslandReached, mineTaprootXY, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
            mineDigCost, mineCheapestCost, mineNextHeatLine, mineHeatLines,
            mineMaterials, mineMaterialFor, mineMaterialById, mineMatTag,
@@ -28596,6 +28663,8 @@ class UI {
         + `<span class="res" id="hud-digcost">${RES_ICON.water}<span class="rv" id="hud-digcostn">2</span>`
         + `<span class="rk">a dig</span></span>`
         + `<span class="res d"><span class="rv" id="hud-depth">0</span><span class="rk">m</span></span>`
+        // HOW FAR EAST (M8), on a journey leg only: the island is east, and east pays too.
+        + `<span class="res d" id="hud-east" hidden><span class="rk">→</span><span class="rv" id="hud-eastn">0</span><span class="rk">m</span></span>`
       : cardsOn
       ? `<span class="res e">${RES_ICON.energy}<span class="rv" id="hud-energy">0</span><span class="rd" id="hud-energy-inc"></span></span>`
         + `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span><span class="rd" id="hud-water-inc"></span></span>`
@@ -29545,6 +29614,10 @@ class UI {
       this._resText('hud-water', Math.floor(net.water || 0), s);
       this._resText('hud-phosphorus', this._mineHudP(), s);
       text('hud-depth', String(s.mineDepth | 0));
+      const onLeg = !!(s.substrate && s.substrate.mineJourney);
+      const he = document.getElementById('hud-east');
+      if (he && he.hidden === onLeg) he.hidden = !onLeg;
+      if (onLeg) text('hud-eastn', String(s.mineMaxEast | 0));
       // The carried deep materials. Rebuilt only when the SET of them changes — this refreshes every
       // world tick and the row sits under the pill the player is reading.
       const mr = document.getElementById('matrow');
@@ -31462,7 +31535,7 @@ function upgradeTile(u, progress, onBuy, opts) {
   return node;
 }
 
-function showSpeciesSelect({ onPick, onDev, onLevel, mine }) {
+function showSpeciesSelect({ onPick, onDev, onLevel, mine, journeyStrip }) {
   let progress = loadProgress();
   // THE MINE'S VERSION OF THIS SCREEN IS THE SAME SCREEN WITH TWO SECTIONS TAKEN OUT (owner: "The
   // upgrade store does not have new species - just the upgrades"). It is not a second screen,
@@ -31544,7 +31617,9 @@ function showSpeciesSelect({ onPick, onDev, onLevel, mine }) {
         // is off the bottom of the screen on arrival.
         (mineOn
           ? '<div class="ss-minego"><button class="ss-descend" id="ssDescend" type="button">Descend</button>'
-            + '<p class="ss-minenote" id="ssMineNote"></p></div>'
+            + '<p class="ss-minenote" id="ssMineNote"></p>'
+            // THE JOURNEY STRIP (M8), in the store's header, under the button that continues it.
+            + (journeyStrip || '') + '</div>'
           : '') +
         '<section class="ss-section">' +
           '<div class="ss-rowlabel"><span class="ss-lk">Upgrades</span><span class="ss-rule"></span></div>' +
@@ -31817,20 +31892,28 @@ const MINE_RUN_ENDING = {
   abandon: (m) => 'You ended the descent at ' + m + ' m. Everything dug is banked.',
   quit: (m) => 'You left the descent at ' + m + ' m. Everything dug is banked.',
   full: () => 'The colony fills every passage it can reach, and fruits.',
+  // LANDFALL (M8): `o` = {leg, next, nextName} — the island is numbered by the leg it ends.
+  island: (m, o) => 'Your colony took root on Island ' + ((o && o.leg) | 0 || 1) + '. Leg '
+    + ((o && o.next) | 0 || 2) + (o && o.nextName ? ', ' + o.nextName + ',' : '') + ' starts there.',
   other: (m) => 'The colony fruits and spores at ' + m + ' m. Everything dug is banked.',
 };
-function mineEndingLine(cause, depth) {
+function mineEndingLine(cause, depth, o) {
   const f = MINE_RUN_ENDING[cause] || MINE_RUN_ENDING.other;
-  return f(depth | 0);
+  return f(depth | 0, o);
 }
-function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best, balance, cause, first, onDone, onDescend }) {
+function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best, balance, cause, first, onDone, onDescend,
+                       east, bonus, leg, nextLeg, nextName, stripHTML, legRec, islandEast }) {
+  const rooted = cause === 'island';
+  const onLeg = (leg | 0) > 0;
+  bonus = Math.max(0, bonus | 0);
+  east = Math.max(0, east | 0);
   const root = el('div', 'ss-win ss-mineend'); root.id = 'ssMineEnd';
   // THE GROWN WORDMARK IS A WORD, AND THE DEPTH IS PLAIN TYPE UNDER IT — a grown digit is a smudge,
   // and this is the one number the player wants exactly.
   const matList = mats ? Object.keys(mats).filter((k) => k !== 'phosphorus' && (mats[k] | 0) > 0) : [];
   const sc = seamCount || {};
   seams = seams != null ? seams | 0 : 0;
-  reach = reach != null ? reach | 0 : Math.max(0, (ore | 0) - seams);
+  reach = reach != null ? reach | 0 : Math.max(0, (ore | 0) - seams - bonus);
   // ROWS BY SOURCE (M5), counted up: what the depth paid, what the seams paid, and each deep material
   // by name. `data-n` carries the final figure so nothing reading the screen has to wait for the count.
   const row = (label, n, mark, unit) =>
@@ -31840,23 +31923,40 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
   // floored payout, so a dry run at 12 m read 'Depth 12 m +5' while the HUD had counted +2 for it —
   // the floor dressed up as a depth rate. The rows still add up to the total under them.
   reachRaw = reachRaw != null ? Math.min(reach, Math.max(0, reachRaw | 0)) : reach;
-  let rows = row('Depth ' + (depth | 0) + ' m', reachRaw, RI.phos);
+  // ON A LEG THE REACH IS TWO ROWS (M8): what the depth paid and what the east paid, each at its own
+  // rate (1 P per 5 m down, 1 P per 10 m east) — the split the HUD's count already makes.
+  const eastPay = onLeg ? Math.min(reachRaw, Math.floor(east / 10)) : 0;
+  let rows = row('Depth ' + (depth | 0) + ' m', reachRaw - eastPay, RI.phos);
+  if (onLeg) rows += row('East ' + east + ' m', eastPay, RI.phos);
   if (reach > reachRaw) rows += row('Minimum payout', reach - reachRaw, RI.phos);
   // ALWAYS SHOWN, ×0 +0 included (M5 verifier fix): the plan's end screen has a Phosphorus-seams row,
   // and a descent that found none is the case where the row says the most — P comes from seams too.
   rows += row('Phosphorus seams ×' + (sc.phosphorus | 0), seams, RI.phos);
   for (const k of matList) rows += row(esc(matName(k)) + ' seams ×' + (sc[k] | 0), mats[k] | 0, matMark(k), matName(k));
+  // THE ISLAND BONUS (M8), last before the total: the landfall's own reward.
+  if (bonus > 0) rows += row('Island bonus', bonus, RI.phos);
   // THE RECORDS LINE: run 1 says so; a new best names it; otherwise how far the best still is.
+  // ON A LEG, THE LEG'S OWN RECORDS (M8): a new deepest / farthest on THIS leg, or the gap to the
+  // island's root.
+  const lw = legRec && legRec.was;
+  const legLine = !onLeg || !legRec || rooted ? ''
+    : (lw && east > (lw.east | 0) && (lw.east | 0) > 0) ? '<p class="ss-mineend-best ss-new">New farthest on this leg: ' + east + ' m east</p>'
+    // ...else THE GAP (the plan's near goal): 'Island 2: your farthest is 26 m short'.
+    : islandEast > 0 ? '<p class="ss-mineend-best ss-mineend-gap">Island ' + (leg | 0) + ': your farthest is '
+        + Math.max(0, (islandEast | 0) - Math.max(east, legRec.bestEast | 0)) + ' m short</p>'
+    : '';
   const records = first
     ? '<p class="ss-mineend-best ss-new ss-mineend-first">Your first descent</p>'
+    : legLine ? legLine
     : best && best.isNew
     ? '<p class="ss-mineend-best ss-new">New deepest: ' + (depth | 0) + ' m</p>'
     : (best && best.m > depth ? '<p class="ss-mineend-best">Deepest ' + (best.m | 0) + ' m — ' + ((best.m | 0) - (depth | 0)) + ' m to go</p>' : '');
   root.innerHTML =
-    '<div class="ss-win-title" role="img" aria-label="Spored"></div>' +
-    '<p class="ss-mineend-depth">' + (depth | 0) + '<span class="ss-mineend-m">m</span></p>' +
+    '<div class="ss-win-title" role="img" aria-label="' + (rooted ? 'Rooted' : 'Spored') + '"></div>' +
+    '<p class="ss-mineend-depth">' + (depth | 0) + '<span class="ss-mineend-m">m</span>'
+      + (onLeg ? '<span class="ss-mineend-east"> down · ' + east + ' m east</span>' : '') + '</p>' +
     // WHAT ENDED IT, in one line, BRANCHED ON THE CAUSE (never on `died`) — see MINE_RUN_ENDING.
-    '<p class="ss-win-sub ss-mineend-why">' + esc(mineEndingLine(cause, depth)) + '</p>' +
+    '<p class="ss-win-sub ss-mineend-why">' + esc(mineEndingLine(cause, depth, { leg, next: nextLeg, nextName })) + '</p>' +
     records +
     '<div class="ss-me-rows">' + rows + '</div>' +
     '<p class="ss-win-earned">+<span class="ss-count" data-n="' + (ore | 0) + '">' + (ore | 0) + '</span>' + RI.phos +
@@ -31866,9 +31966,12 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
     '<div class="ss-me-acts">' +
       '<button class="ss-win-btn ss-me-descend" id="ssMineDescend" type="button">Descend</button>' +
       '<button class="ss-me-store" id="ssMineDone" type="button">Store</button>' +
-    '</div>';
+    '</div>' +
+    // THE JOURNEY STRIP (M8), last: 8 islands, the rooted ones lit.
+    (stripHTML || '');
+  if (rooted) root.classList.add('ss-rooted');
   document.body.appendChild(root);
-  const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: 'SPORED', stepRate: 3.2, fitWidth: true });
+  const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: rooted ? 'ROOTED' : 'SPORED', stepRate: 3.2, fitWidth: true });
   // THE COUNT-UP (M5): timer-stepped rather than rAF (a throttled page still lands on the final
   // figure), 12 steps over ~600 ms, each element ending exactly on its `data-n`.
   const counts = Array.from(root.querySelectorAll('.ss-count'));
@@ -32275,8 +32378,9 @@ const __m_render_title_screen = (function () {
 const el = (t, c, h) => { const n = document.createElement(t); if (c) n.className = c; if (h != null) n.innerHTML = h; return n; };
 const rnd = (a = 0, b = 1) => a + Math.random() * (b - a);
 const TITLE = 'MYCELIUM';
+const esc1 = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onStore, onCredits, playerName, note }) {
+function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onStore, onCredits, playerName, note, journey }) {
   const reduce = matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const root = el('div'); root.id = 'titleScreen';
@@ -32339,7 +32443,8 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
     '<div class="ts-menu">' +
       '<div class="ts-block ts-top">' +
         '<div class="ts-actions ts-one">' +
-          '<span class="ts-act ts-solo"><span class="ts-cap">start a new descent</span>' +
+          // THE CAPTION NAMES THE LEG (M8): 'Continue · Leg 2 of 8 · The Coal Road'.
+          '<span class="ts-act ts-solo"><span class="ts-cap" id="tsJourneyCap">' + esc1(journey && journey.caption ? journey.caption : 'start a new descent') + '</span>' +
             '<button class="ts-btn ts-solo" id="tsNewMine" type="button">Dig</button></span>' +
         '</div>' +
       '</div>' +
@@ -32349,6 +32454,9 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
             ? '<div class="ts-record">deepest descent <b>' + bestM + ' m</b></div>'
             : '<div class="ts-record ts-record-none">water is your fuel</div>') +
         '</div>' +
+        // THE JOURNEY STRIP and the near goal (M8).
+        (journey && journey.stripHTML ? journey.stripHTML : '') +
+        (journey && journey.gap ? '<div class="ts-record ts-gap" id="tsGap">' + esc1(journey.gap) + '</div>' : '') +
         // WHAT WAS JUST BANKED (M1) — an exit's '+23 P banked', or a closed tab's leftover.
         (note ? '<div class="ts-record ts-banked" id="tsBanked">' + String(note).replace(/[&<>"]/g, '') + '</div>' : '') +
       '</div>' +
@@ -34763,6 +34871,7 @@ const __m_main = (function () {
   const { createState, createPuzzleState, createLevelState, seedLevelThreats } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
   const { mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
+          mineEastReached, mineIslandReached, mineTaprootXY,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost, mineNextHeatLine,
           mineHeatLines, mineRayOpen, mineOccupied, mineBestDownRay, mineOpenTips, minePileCentre, mineResCentre, mineFocusNode,
@@ -35143,6 +35252,12 @@ function configForLevel(level) {
     if (mineLeg) {
       const row = mineLegRow(cfg, mineLeg.leg);
       const rule = row && row.rule;
+      // THE ISLAND BONUS (M8), decided HERE off the save because the engine cannot read it: the leg's
+      // `bonus` on its FIRST landfall, 0 once that leg has been landed (a replay pays reach and seams).
+      try {
+        const rec = mineLegRecord(loadProgress(), mineLeg.journey, row ? row.leg : mineLeg.leg);
+        cfg.mine.islandBonus = rec && rec.landed ? 0 : Math.max(0, (row && row.bonus) | 0);
+      } catch (_) { cfg.mine.islandBonus = Math.max(0, (row && row.bonus) | 0); }
       if (rule === 'calm') cfg.mine.threatBands = cfg.mine.threatBands.map(() => ({ worms: 0, clouds: 0 }));
       if (rule === 'dry') {
         const n = Array.isArray(cfg.mine.reservoirsPerBand) ? cfg.mine.reservoirsPerBand : cfg.mine.bands.map(() => cfg.mine.reservoirsPerBand | 0);
@@ -35479,12 +35594,13 @@ function showPicker() {
     // rest. The dev quick-start and the map list are left wired: they are gated on the dev flag and
     // the mine's shelf does not render them, so passing them costs nothing and keeps one call site.
     mine: isMineGame(),
+    journeyStrip: isMineGame() ? (() => { try { return mineJourneyStripHTML(mineJourneyNow(), 'mj-store'); } catch (_) { return ''; } })() : '',
     // Both normal routes CLEAR playtestLevel. It used to be settable only by the boot
     // hash, which skips the picker — now the dev map buttons below set it from inside the
     // picker, and levelDefFor() prefers it over every campaign slot, so leaving it set
     // would silently serve the authored map for the rest of the session.
     onPick: (sp, startLevel) => {
-      if (isMineGame()) { beginMineRun(); return; }
+      if (isMineGame()) { beginMineRun(undefined, { journey: true }); return; }
       playtestLevel = null; chosenSpecies = sp; currentLevel = Math.max(1, (startLevel | 0) || 1); runStartLevel = currentLevel; carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores(); stockRun(); logEvent('run_start', { species: sp && sp.id, level: currentLevel, cause: 'new' }); startRunWithLoadout(sp);
     },
     onDev: () => { playtestLevel = null; chosenSpecies = null; currentLevel = 1; runStartLevel = 1; carryOver = null; runSpores = 0; runTips = new Set(); runSporeMult = beginRunSpores(); startRun(); },
@@ -35926,7 +36042,14 @@ function mineBank(r) {
   // an ending that did not go through it is priced off the state the same way.
   const ore = Math.max(0, (r.ore != null ? r.ore : (state ? mineBankable(state, r.cause) : 0)) | 0);
   const seams = Math.max(0, (r.seams != null ? r.seams : (state && state.mineOre)) | 0);
-  const reach = Math.max(0, ore - seams);
+  const bonus = Math.max(0, r.bonus | 0);
+  const reach = Math.max(0, ore - seams - bonus);
+  // THE LEG AND ITS EAST (M8) — off the result, or off the state for an ending that did not go
+  // through `mineEndRun` (the plan's risk: a worm or rot ending that builds its own result).
+  const J = state && state.substrate && state.substrate.mineJourney;
+  if (r.leg == null) r.leg = J ? J.leg | 0 : 0;
+  const east = Math.max(0, (r.east != null ? r.east : (state ? Math.max(state.mineMaxEast | 0, mineEastReached(state)) : 0)) | 0);
+  if (r.east == null) r.east = east;
   // What the DEPTH earned before the 5 P floor (M5 round 2): the end screen shows it on the Depth row
   // and the floor's lift on a row of its own, so the screen agrees with the HUD's count.
   const reachRaw = Math.min(reach, Math.max(0, (r.reachRaw != null ? r.reachRaw : (state ? mineReachRaw(state) : reach)) | 0));
@@ -35972,11 +36095,22 @@ function mineBank(r) {
     // `n` is the ore banked and `level` the DEPTH in metres. `ms` is how long the descent lasted and
     // `detail` its cause, so the funnel can tell a soft lock from a choice (M1).
     const ms = r.ms || (state && state.mineStartedAt ? Date.now() - state.mineStartedAt : 0);
+    // THE LEG (M8): a journey descent is recorded on its leg (runs, best depth, farthest east; a
+    // landfall marks it landed and moves the save on). `r.depth` may be missing on a result built
+    // elsewhere, so the record takes the figures just resolved.
+    r._legRec = r.leg > 0 && digs > 0 && !bootCounted
+      ? mineRecordLeg({ leg: r.leg, cause: r.cause, digs, depth, east }) : null;
+    // `detail` is 'L<leg>:<cause>:e<east m>' (M8; L0 is the free layout), so the funnel can tell a
+    // leg-2 soft lock from a leg-1 choice and read how far east the run got.
     logEvent('run_end', { level: depth, cause: r.cause || 'dry', turns: state && state.turn, n: ore,
-                          ms, detail: r.cause || 'dry' });
+                          ms, detail: 'L' + (r.leg | 0) + ':' + (r.cause || 'dry') + ':e' + east });
+    // ONE 'island' EVENT PER LANDFALL, `n` = the runs this leg took (this one included).
+    if (r.cause === 'island' && r.leg > 0) logEvent('island', { level: r.leg | 0, n: (r._legRec && r._legRec.runs) | 0,
+      detail: 'L' + (r.leg | 0) + (r._legRec && r._legRec.firstLand ? ':first' : ':again'), ms });
   }
   const seamCount = r.seamCount || (state && state.mineSeams) || {};
-  return { depth, ore, seams, reach, reachRaw, mats, seamCount, best: r._mineBest || mineBestNow() };
+  return { depth, ore, seams, reach, reachRaw, mats, seamCount, best: r._mineBest || mineBestNow(),
+           bonus, east, leg: r.leg | 0, legRec: r._legRec || null };
 }
 // Whether the ending in hand is a mine descent that must NOT count as a finished run (see mineBank).
 function mineRunUncounted() {
@@ -36001,11 +36135,21 @@ function presentMineEnd(r) {
     reachRaw: paid.reachRaw, seamCount: paid.seamCount,
     best: paid.best, cause: r.cause, first: !!(state && state._mineFirst),
     balance: sporesBalance(),
+    // THE JOURNEY (M8): the leg's east, the island bonus, where the next descent starts, the strip.
+    ...(() => {
+      if (!(paid.leg > 0)) return { leg: 0, east: 0, bonus: 0 };
+      const jn = mineJourneyNow();
+      const nx = paid.leg + 1, nrow = mineLegRow(CONFIG, nx);
+      const row = mineLegRow(CONFIG, paid.leg);
+      return { leg: paid.leg, east: paid.east, bonus: paid.bonus, legRec: paid.legRec,
+               nextLeg: nx, nextName: nrow && nrow.leg === nx ? nrow.name : '',
+               islandEast: row ? row.eastM | 0 : 0, stripHTML: mineJourneyStripHTML(jn, 'mj-end') };
+    })(),
     // [Store] (secondary, `#ssMineDone`) opens the shelf; [Descend] (primary) goes straight into the
     // next run, the same `beginMineRun` the store's Descend reaches — so Buy on the next-goal card and
     // then Descend is two clicks from this screen to a live run (M5).
     onDone: () => { runEndThen(() => { setGame('mine'); showPicker(); }); },
-    onDescend: () => { runEndThen(() => { setGame('mine'); endRunSpores(); runSporeMult = 1; hideCanvas(); raiseHandoff(); beginMineRun(); }); },
+    onDescend: () => { runEndThen(() => { setGame('mine'); endRunSpores(); runSporeMult = 1; hideCanvas(); raiseHandoff(); beginMineRun(undefined, { journey: true }); }); },
   });
 }
 // SETTINGS > EXIT TO TITLE (M1). It used to be 'Save & exit', which dropped to the title without
@@ -36159,6 +36303,74 @@ function minePendingNote(b) {
 // The deepest descent on this save, in metres. Its own field rather than the high-score board:
 // that board is per MODE and ranks survival's level number, and `checkHighScore` is gated off for
 // anything that is not survival — so a depth would have to be dressed as a level to get in.
+// ===================== THE JOURNEY'S SAVE (M8) =====================
+// `p.mineJourney = {journey, leg, legs: {<leg>: {runs, bestDepth, bestEast, landed}}}`. `leg` is the
+// leg the NEXT descent starts; a landfall moves it on. Journey I is `MINE_JOURNEY_LEGS` (8) legs, but
+// only the rows in `CONFIG.mine.journey.legs` are BUILT (legs 4-8 arrive in M9): a save whose leg is
+// past the last built row plays the last built row (`mineLegRow` clamps), labelled as that row, and
+// its bonus is not paid twice (`landed`).
+const MINE_JOURNEY_LEGS = 8;
+function mineJourneySave(p) {
+  const mj = p && p.mineJourney && typeof p.mineJourney === 'object' ? p.mineJourney : {};
+  const legs = mj.legs && typeof mj.legs === 'object' ? mj.legs : {};
+  return { journey: Math.max(1, mj.journey | 0 || 1), leg: Math.max(1, Math.min(MINE_JOURNEY_LEGS, mj.leg | 0 || 1)), legs };
+}
+function mineLegRecord(p, journey, leg) {
+  const mj = mineJourneySave(p);
+  const r = mj.legs[leg | 0];
+  return r && typeof r === 'object' ? r : null;
+}
+// What the title, the end screen and the store header say about the journey: the leg the next descent
+// PLAYS (clamped to the built rows), its name, how many islands are lit, and each leg's state.
+function mineJourneyNow(p) {
+  const mj = mineJourneySave(p || loadProgress());
+  const row = mineLegRow(CONFIG, mj.leg);
+  const played = row ? row.leg : 1;
+  const lit = [];
+  for (let l = 1; l <= MINE_JOURNEY_LEGS; l++) lit.push(!!(mj.legs[l] && mj.legs[l].landed));
+  const runs = Object.keys(mj.legs).reduce((a, k) => a + ((mj.legs[k] && mj.legs[k].runs) | 0), 0);
+  return { journey: mj.journey, leg: played, saveLeg: mj.leg, total: MINE_JOURNEY_LEGS,
+           name: row ? row.name : '', lit, islands: lit.filter(Boolean).length, runs,
+           rec: mj.legs[played] || null };
+}
+// THE JOURNEY STRIP (M8): 8 dots, the islands landed lit, the leg being played ringed. One markup
+// builder for the title, the end screen and the store header, so they cannot disagree.
+function mineJourneyStripHTML(j, cls) {
+  j = j || mineJourneyNow();
+  let dots = '';
+  for (let l = 1; l <= j.total; l++) {
+    const on = j.lit[l - 1], cur = l === j.leg;
+    dots += '<span class="mj-dot' + (on ? ' lit' : '') + (cur ? ' cur' : '') + '" data-leg="' + l + '"'
+      + ' title="Island ' + l + (on ? ' — rooted' : cur ? ' — next' : '') + '"></span>';
+  }
+  return '<div class="mj-strip' + (cls ? ' ' + cls : '') + '" data-lit="' + j.islands + '" data-leg="' + j.leg
+    + '" role="img" aria-label="Journey: ' + j.islands + ' of ' + j.total + ' islands rooted, leg ' + j.leg + ' next">' + dots + '</div>';
+}
+// Records a BANKED journey descent on its leg: runs, best depth, farthest east; a landfall marks the
+// leg landed and moves the save on to the next leg. Returns the leg's record after the write.
+function mineRecordLeg(r) {
+  if (!r || !(r.leg > 0)) return null;
+  try {
+    const p = loadProgress();
+    const mj = mineJourneySave(p);
+    const L = r.leg | 0;
+    const rec = Object.assign({ runs: 0, bestDepth: 0, bestEast: 0, landed: false }, mj.legs[L] || {});
+    const was = { depth: rec.bestDepth | 0, east: rec.bestEast | 0, landed: !!rec.landed };
+    if ((r.digs | 0) > 0) rec.runs = (rec.runs | 0) + 1;
+    rec.bestDepth = Math.max(rec.bestDepth | 0, r.depth | 0);
+    rec.bestEast = Math.max(rec.bestEast | 0, r.east | 0);
+    let firstLand = false;
+    if (r.cause === 'island') {
+      firstLand = !rec.landed;
+      rec.landed = true;
+      mj.leg = Math.max(mj.leg, Math.min(MINE_JOURNEY_LEGS, L + 1));
+    }
+    mj.legs[L] = rec;
+    p.mineJourney = { journey: mj.journey, leg: mj.leg, legs: mj.legs };
+    saveProgress(p);
+    return Object.assign({}, rec, { was, firstLand });
+  } catch (_) { return null; }
+}
 function mineRecordDepth(depth) {
   try {
     const p = loadProgress();
@@ -36263,6 +36475,9 @@ function presentRunOver() {
   // release spores on the wind BEFORE the run-over card appears. Puzzle/sandbox skip it.
   if (state.won && state.mode !== 'puzzle') startWinCelebration(finish);
   else if (state.runResult && state.runResult.died && cardsCampaign()) startDeathCelebration(finish);
+  // LANDFALL (M8): the island hill fruits, the filaments lit from the knot up to it, before ROOTED.
+  // Already banked (mineFrame banks a landfall the frame it happens).
+  else if (state.substrate && state.substrate.mine && state.runResult && state.runResult.cause === 'island') startCelebration('island', finish);
   else finish();
 }
 
@@ -36353,9 +36568,17 @@ function hillRiseAtX(img, x, x0, wWorld, hWorld, mirrored) {
 function startCelebration(side, onFinish) {
   const sub = state.substrate, cs = sub.cellSize, surfY = sub.surfaceY;
   const hill = asset('goalhill');
-  const home = side === 'home';
+  const home = side === 'home', island = side === 'island';
   let colLo, span, wWorld;
-  if (home) {
+  const J = sub.mineJourney;
+  if (island) {
+    // THE ISLAND (M8): the hill `drawMineHill` draws over the island's soil columns, unmirrored, from
+    // its first column — so `hillRiseAtX` below reads the same silhouette the player sees.
+    if (!J) { onFinish(); return; }
+    colLo = J.islandC0;
+    span = Math.max(4, (J.islandC1 - J.islandC0 + 1) | 0);
+    wWorld = span * cs;
+  } else if (home) {
     span = homeHillCols();                                   // visible slope width in columns (cols 0..span)
     colLo = 0;
     wWorld = span * 2 * cs;                                   // full hill (peak off-frame left)
@@ -36374,6 +36597,9 @@ function startCelebration(side, onFinish) {
   // hill running -halfW..+halfW (peak at world x=0, only the right slope on screen);
   // `drawGoalBackdrop` runs it unmirrored from the goal column to the map's right edge.
   const hillX0 = home ? -span * cs : colLo * cs;
+  // The island's hill is drawn `wWorld` wide and its height from the sprite's aspect, like the home
+  // and goal hills, and it sits on the soil line with the same `HILL_BASE_DROP`.
+
   // 0.75 of the local hill top at the far end of the depth range: high enough to read as "up
   // the slope", low enough that the cap still sits inside the green rather than perched on its
   // outline. It COLLAPSES WITH THE HILL, which is the whole fix — where the art has descended
@@ -36381,13 +36607,18 @@ function startCelebration(side, onFinish) {
   const RISE_OF_TOP = 0.75;
   // Keep mushrooms off the trees (goal hill has two bushes; home hill has one small tree).
   const bush = asset('goalbush'), bAsp = bush ? bush.width / bush.height : 1;
-  const treeCols = home ? [[Math.max(1, Math.round(span * 0.5)), 1.7]] : [[colLo + 4, 3.0], [colLo + 9, 2.2]];
+  // The island's two bushes stand at 0.3 and 0.74 of its span (`drawMineProps`).
+  const treeCols = island ? [[colLo + Math.round(span * 0.3) - 0.5, 1.5], [colLo + Math.round(span * 0.74) - 0.5, 2.1]]
+    : home ? [[Math.max(1, Math.round(span * 0.5)), 1.7]] : [[colLo + 4, 3.0], [colLo + 9, 2.2]];
   const treeZones = treeCols.map(([col, hC]) => [(col + 0.5) * cs, cs * hC * bAsp * 0.5]);
   const underTree = (x) => treeZones.some(([c, hw]) => Math.abs(x - c) < hw);
   const N = 46, mushrooms = [];
   for (let i = 0; i < N; i++) {
-    let fx = 0.03 + Math.random() * 0.94, x = (colLo + 1 + fx * (span - 1)) * cs;   // horizontal fraction across the hill
-    for (let tries = 0; tries < 6 && underTree(x); tries++) { fx = 0.03 + Math.random() * 0.94; x = (colLo + 1 + fx * (span - 1)) * cs; }
+    // The island's mound is short and whole: keep its mushrooms off its two thin skirts.
+    const fxAt = () => island ? 0.15 + Math.random() * 0.7 : 0.03 + Math.random() * 0.94;
+    const xAt = (f) => island ? (colLo + f * span) * cs : (colLo + 1 + f * (span - 1)) * cs;
+    let fx = fxAt(), x = xAt(fx);   // horizontal fraction across the hill
+    for (let tries = 0; tries < 6 && underTree(x); tries++) { fx = fxAt(); x = xAt(fx); }
     if (underTree(x)) continue;                              // landed on a tree every try — skip this one
     const d = Math.random();                                // depth: 0 = foreground (low + big), 1 = far (high + small)
     // WHERE IS THE GROUND AT THIS x? Off the sprite's alpha, so it is the drawn silhouette and
@@ -36419,14 +36650,26 @@ function startCelebration(side, onFinish) {
   // a living hill with spores still sailing off on the breeze — never a fade to black, never a
   // frozen scene. `omni` (a DEATH) means the wind carries spores LEFT AND RIGHT; a WIN streams
   // them RIGHT. Cleared only when the next run/level begins (begin/backToPicker set winCele=null).
-  winCele = { start: 0, onFinish, finished: false, mushrooms, spores: [], side, omni: home, persist: true };
+  // THE ISLAND'S ROOTS LIGHT UP (M8): filaments from the knot up to the hill, lit bottom to top over
+  // the first ~1.4 s — the colony arriving from below is what fruits the hill.
+  const roots = island && J && J.taproot ? (() => {
+    const kx = (J.taproot.col + 0.5) * cs, ky = surfY + (J.taproot.row + 0.5) * cs;
+    const out = [];
+    for (let i = 0; i < 5; i++) {
+      const tx = (colLo + span * (0.2 + 0.6 * (i + 0.5) / 5)) * cs;
+      out.push({ x0: kx, y0: ky, x1: tx, y1: surfY + 2, bend: (i - 2) * 0.18 });
+    }
+    return out;
+  })() : null;
+  winCele = { start: 0, onFinish, finished: false, mushrooms, spores: [], side, omni: home, persist: true, roots };
   // Frame the hill HIGH — on desktop in the TOP THIRD so it never sits under the bottom
   // card carousel / the win-or-death card; centre it a little left (room for spores to
   // sail off), sky above for the drift.
-  const cx = (colLo + span * (home ? 0.5 : 0.45)) * cs;
+  const cx = (colLo + span * (home || island ? 0.5 : 0.45)) * cs;
   const z = Math.max(0.85, Math.min(1.7, camera.viewW / ((span + 7) * cs)));
   const anchorY = isDesktopWide() ? 0.32 : 0.6;
   focusWorld(cx, surfY - 18, z, anchorY, home ? 0.38 : 0.42);
+  if (island) mineReleaseCamera();   // the follow camera stands down on runOver anyway; this keeps a dig-less frame from re-arming it
 }
 
 function emitSpores(list, m, n, time, bothWays) {
@@ -36448,6 +36691,36 @@ function emitSpores(list, m, n, time, bothWays) {
     });
   }
 }
+
+// The landfall's lit filaments (M8): each a curve from the taproot knot to the hill's soil line,
+// drawn up to `lit` of its length and glowing. `drawCeleRoots.lit` is what a check reads.
+function drawCeleRoots(roots, t, time) {
+  const lit = Math.max(0, Math.min(1, t / 1400));
+  drawCeleRoots.lit = lit;
+  if (lit <= 0) return;
+  ctx.save(); ctx.lineCap = 'round'; ctx.globalCompositeOperation = 'lighter';
+  const z = camera.zoom, pulse = 0.5 + 0.5 * Math.sin(time * 0.004);
+  for (const r of roots) {
+    const pts = [];
+    const N = 24;
+    for (let k = 0; k <= Math.round(N * lit); k++) {
+      const u = k / N;
+      const x = r.x0 + (r.x1 - r.x0) * u + Math.sin(u * Math.PI) * r.bend * (r.y0 - r.y1);
+      const y = r.y0 + (r.y1 - r.y0) * u;
+      pts.push(camera.worldToScreen(x, y));
+    }
+    if (pts.length < 2) continue;
+    for (const [w, a] of [[7, 0.18], [2.6, 0.85]]) {
+      ctx.strokeStyle = `rgba(160,255,196,${a * (0.8 + 0.2 * pulse)})`;
+      ctx.lineWidth = Math.max(1.2, w * z);
+      ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+drawCeleRoots.lit = 0;
 
 function drawCeleMushroom(m, g, time) {
   if (g <= 0) return;
@@ -36482,6 +36755,7 @@ function drawWinCelebration(time) {
   if (!winCele) return;
   if (!winCele.start) winCele.start = time;
   const t = time - winCele.start;
+  if (winCele.roots) drawCeleRoots(winCele.roots, t, time);
   const omni = !!winCele.omni, persist = !!winCele.persist;
   for (const m of winCele.mushrooms) {
     const mt = t - m.delay; if (mt <= 0) continue;
@@ -36612,7 +36886,22 @@ function showMainMenu(opts) {
   // stays mounted behind the title, and the 560 ms fade-out is exactly long enough to read it.
   raiseHandoff();
   playMenuMusic();   // title theme: backrooms-vol29, fading in over its first 20s
+  // THE JOURNEY ON THE TITLE (M8): 'Continue · Leg N of 8 · <name>' over DIG once the save has dug a
+  // descent or landed an island, the strip, and the gap to the leg's island.
+  const jn = (() => { try { return mineJourneyNow(); } catch (_) { return null; } })();
+  const journey = jn && OFFER_MINE ? (() => {
+    const p = loadProgress();
+    const begun = mineRunsBanked(p) > 0 || jn.islands > 0 || jn.saveLeg > 1;
+    const row = mineLegRow(CONFIG, jn.leg);
+    const best = jn.rec ? jn.rec.bestEast | 0 : 0;
+    return {
+      caption: (begun ? 'Continue · ' : '') + 'Leg ' + jn.leg + ' of ' + jn.total + (jn.name ? ' · ' + jn.name : ''),
+      stripHTML: mineJourneyStripHTML(jn, 'mj-title'),
+      gap: best > 0 && row && !(jn.rec && jn.rec.landed) ? 'Island ' + jn.leg + ': your farthest is ' + Math.max(0, (row.eastM | 0) - best) + ' m short' : '',
+    };
+  })() : null;
   showTitleScreen({          // title → Survival New (wipe unlocks) / Continue (keep unlocks) → picker
+    journey,
     // New Game collects the player's high-score name (pre-filled with their last one).
     playerName: loadPlayerName(),
     // `mode` is which of the two games the pressed button starts: 'turn' (the original,
@@ -36639,7 +36928,8 @@ function showMainMenu(opts) {
       // store belongs AFTER a descent, where the end screen's "To the store" button puts it, and
       // where the Phosphorus you just banked is burning a hole in your pocket. The title's own
       // Upgrades link is how a player who came back later reaches it without digging first.
-      if (isMineGame()) { beginMineRun(); return; }
+      // THE JOURNEY (M8): DIG starts the save's leg — `p.mineJourney.leg`, leg 1 on a fresh save.
+      if (isMineGame()) { beginMineRun(undefined, { journey: true }); return; }
       // The opening goes between New and the picker, and only for the campaign — the survival
       // ladder has no story to tell and never had this screen.
       if (isCampaignGame()) showCampaignOpening(() => showPicker());
@@ -40930,6 +41220,19 @@ function mineFrame(time, dt) {
   // THE RUNNING MAXIMUM OF CLEAN DEPTH (M1). What the run pays and records: rot is not progress,
   // but it does not unmake the metres already reached.
   if (depth > (state.mineMaxDepth | 0)) state.mineMaxDepth = depth;
+  // ...AND OF EAST (M8), on a journey leg: the reach payout's east term and the '→ 64 m' readout.
+  const east = mineEastReached(state);
+  if (east > (state.mineMaxEast | 0)) { state.mineMaxEast = east; uiDirty = true; }
+  // LANDFALL (M8): a clean strand within 1.5 cells of the taproot ends the run THIS frame, ROOTED.
+  // Banked at once (the bank is idempotent; the end screen's call finds it paid), so the leg's
+  // advance and the island bonus are in the save before the celebration plays — a tab closed during
+  // it cannot lose the landfall.
+  if (mineIslandReached(state)) {
+    const r = mineEndRun(state, 'island');
+    if (r) { try { mineBank(r); } catch (_) {} }
+    uiDirty = true; presentRunOver();
+    return;
+  }
   mineReachFeedback();
   mineSeenFlush(time);
   mineBeat(depth);
@@ -44572,7 +44875,8 @@ function enterGame() {
   // Returning players get the title. Hook: `window.__menu.firstVisit()`.
   // NOT under the dev UI flag (verifier): `?dev=1` is how the owner reaches the title and the
   // store's dev column, and a fresh profile opened that way must still land on the title.
-  else if (OFFER_MINE && mineFirstVisit() && !devUI()) beginMineRun();
+  // M8: into LEG 1 of the journey, not the free layout.
+  else if (OFFER_MINE && mineFirstVisit() && !devUI()) beginMineRun(undefined, { journey: true });
   else showMainMenu();
 }
 function mineFirstVisit() {
