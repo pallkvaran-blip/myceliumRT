@@ -107,7 +107,11 @@ const tag = 'journey-' + (naive ? 'naive-' : '') + label;
   let run = 0;
   for (run = 1; run <= maxRuns; run++) {
     const leg0 = await page.evaluate(() => window.__game.mine.leg().leg);
-    await page.evaluate(() => { window.__qa.bad = new Map(); window.__qa._glowUsed = new Set(); window.__qa._knew = false; window.__qa._nref = new Map(); window.__qa._dead = new Set(); });
+    // The naive player REMEMBERS THE WALLS of a leg across its runs (a leg is one fixed world — "failure
+    // reads as map knowledge"): the dead-end regions carry over until the leg changes. Node ids restart
+    // every run, so the per-strand refusal count does not.
+    await page.evaluate((leg) => { const Q = window.__qa; Q.bad = new Map(); Q._glowUsed = new Set(); Q._knew = false; Q._nref = new Map();
+      if (Q._deadLeg !== leg) { Q._dead = new Set(); Q._deadLeg = leg; } }, leg0);
     let res;
     if (naive) res = await playDescent(page, { label: `${tag}-r${run}`, paceMs, maxSteps: 500, shots: false, bot: { policy: 'naive', goal: 'island' } });
     else {
