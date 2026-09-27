@@ -40109,7 +40109,10 @@ function advanceSim(time) {
     // wanted three chunks used to pay all three on one frame. One a frame caps the hitch at one chunk,
     // and the idle lookahead (a chunk further out, only while no finger is down and no grow is
     // arriving) means the chunk a dig needs has usually been made already.
-    const busy = pointers.size > 0 || !!(state.active && state.active._colonizePending);
+    // (TEST KNOB `window.MYCELIUM_NO_LOOKAHEAD`: journey-check's reverse-order determinism boot turns the
+    // lookahead off, or the chunks it wants to generate backwards are made forwards on idle frames first.)
+    const busy = pointers.size > 0 || !!(state.active && state.active._colonizePending)
+              || (typeof window !== 'undefined' && window.MYCELIUM_NO_LOOKAHEAD === true);
     mineEnsureChunks(state, { x0: camera.x - half, x1: camera.x + half },
                      { max: 1, ahead: busy ? 0 : (state.config.mine.chunkCols | 0), seamPad: 5 });
     solidifyMineRock();

@@ -41,8 +41,14 @@ const H = require('../mine-harness.cjs');
 // The plan: the rows-0-2 flood "never passes column 66 (home + 30)" — reaching 66 is allowed, so `<=`,
 // the same comparison journey-check makes (it used `<` here and `<=` there).
 // WPASS: the whole-world gates (`world`), checked on a candidate that passes PASS.
-const WPASS = (w) => w.pilesOk === w.piles && w.pocketsOk === w.pockets && w.lateral <= 36
-  && w.seamSolid != null && w.seamSolid - w.midSolid <= 0.2 && w.spineSeam != null && w.spineSeam <= 10;
+// Round 3: every seam gate is DERIVED FROM THE INTERIOR (an interior line measured the same way), not set
+// between an old build and a new one — seam closed-ground solidity within +0.05 of the chunk's own, the
+// spine within 2x an interior line's 90th percentile, no seam hairline longer than the longest interior
+// one — and rewards are >= 85% reachable (the rest walled in, the owner's gated content), with every
+// pass-(e) anchor joined.
+const WPASS = (w) => w.pilesOk >= 0.85 * w.piles && w.pocketsOk >= 0.85 * w.pockets && w.lateral <= 36 && w.unjoined === 0
+  && w.seamSolid != null && w.seamSolid - w.midSolid <= 0.05 && w.spineSeam != null && w.spineSeam <= 2 * w.spineMid90
+  && w.hairSeam != null && w.hairSeam <= w.hairMid && w.bandSol != null && w.bandSol - w.inSol <= 0.15;
 const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0
   && m.crustMaxCol <= m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42 && m.seamRunRows <= 42
   && m.sealLeak === 0                                            // no sealed side leaks (no gallery in the floor strip any more)
@@ -280,6 +286,13 @@ async function measure(page, opts) {
             // below a both-open mouth is round and leaves the mouth's own fringe (leg 2 seam 192: the
             // trunk at rows 105-107, the "leak" a hop from row 108 into it). A slit is caught anywhere
             // else.
+            // (verifier round 3: the ±1 row is RECORDED here, not a quiet widening.) Why a row beside a
+            // both-open row is the same crossing: a carved crossing is a corridor ~2.3-3.4 cells tall, so
+            // the drawn rock at the rows just above and below it is the corridor's own round-ended fringe.
+            // Measured with the allowance limited to pass (e)'s trunk rows: leg 3 (round-3 build, and the
+            // round-2 build too) leaks at seam 72 / gallery 147 by crossing at ROW 142 — one row below a
+            // spur crossing carved open on both sides at rows 139-141, just outside the ±5 window. That is
+            // a way across the seam the carve made, not a hole in the seal.
             const both1 = (fy) => { const rr = (fy / K) | 0; return carveBoth(seamC, rr) || carveBoth(seamC, rr - 1) || carveBoth(seamC, rr + 1); };
             if ((x < sF) !== (nx < sF) && (both1(y) || both1(ny))) continue;
             if (!segOk(x, y, nx, ny)) continue;
@@ -433,6 +446,23 @@ async function world(page) {
     //     averaged over those chunks; `bandSol` = offsets -2..+1 about the seam, `inSol` = offsets 6..17;
     //   · hair — the longest run of fine rows down a line with an open fine cell within 2 of it (the
     //     slit test, `measure`'s seamRunRows, over the whole world): seam max against interior max/p90.
+    // ...and the lateral channel at the GALLERY'S OWN height, 2 cells (8 fine rows) fully open — acceptance
+    // 7 is written at 3 cells, and a deep gallery (radius 1.15-1.7) is shorter than that, so the 3-cell
+    // gate cannot see a deep corridor at all. Information only; the owner's call.
+    let lateral2 = 0, lat2At = null;
+    {
+      const h = 2 * K;
+      for (let y0 = 0; y0 + h <= Hh; y0++) {
+        let run = 0;
+        for (let x = 0; x < W; x++) {
+          let o = true; for (let y = y0; y < y0 + h && o; y++) if (solid[y * W + x]) o = false;
+          if (o) { run++; if (run > lateral2) { lateral2 = run; lat2At = { row: (y0 / K) | 0, endCol: (x / K) | 0 }; } } else run = 0;
+        }
+      }
+      lateral2 = +(lateral2 / K).toFixed(1);
+    }
+    let unjoined = 0;
+    for (const ci of cis) { const rec = s.mineChunks[ci]; if (rec && rec.reach) unjoined += rec.reach.unjoined | 0; }
     let profile = null, bandSol = null, inSol = null, hairSeam = null, hairMid = null, hairMid90 = null;
     {
       const inner = cis.filter((ci) => cis.includes(ci - 1) && cis.includes(ci + 1));
@@ -458,7 +488,7 @@ async function world(page) {
       }
     }
     return { chunks: cis.length, piles, pilesOk, pockets, pocketsOk, strandedAt, lateral, latAt, seamSolid, midSolid, spineSeam, spineMid, spineMid90,
-             profile, bandSol, inSol, hairSeam, hairMid, hairMid90, sprites: sub.levelSprites.length };
+             profile, bandSol, inSol, hairSeam, hairMid, hairMid90, lateral2, lat2At, unjoined, sprites: sub.levelSprites.length };
   });
 }
 
@@ -579,7 +609,7 @@ if (require.main === module) (async () => {
             continue;
           }
           if (ok) good.push(m);
-          console.log(`leg ${leg} cand ${k} seed ${sd}: ${ok ? 'PASS' : '    '} reach ${m.reach}/${m.reachLat} ratio ${m.ratio} (fine ${m.ratioFine}) water ${m.water} e42 ${m.east42} e84 ${m.east84} shallow ${m.shallowMaxCol} crust ${m.crustMaxCol} lat ${m.lateral} seam ${m.seamRunRows} leak ${m.sealLeak}/${m.sealN} creat ${m.shallowestRow} tapRep ${m.tapRec && m.tapRec.repairs}${m.world ? ` | world lat ${m.world.lateral} ore ${m.world.pilesOk}/${m.world.piles} pk ${m.world.pocketsOk}/${m.world.pockets} seam ${m.world.seamSolid}/${m.world.midSolid}` : ''}`);
+          console.log(`leg ${leg} cand ${k} seed ${sd}: ${ok ? 'PASS' : '    '} reach ${m.reach}/${m.reachLat} ratio ${m.ratio} (fine ${m.ratioFine}) water ${m.water} e42 ${m.east42} e84 ${m.east84} shallow ${m.shallowMaxCol} crust ${m.crustMaxCol} lat ${m.lateral} seam ${m.seamRunRows} leak ${m.sealLeak}/${m.sealN} creat ${m.shallowestRow} tapRep ${m.tapRec && m.tapRec.repairs}${m.world ? ` | world lat ${m.world.lateral} ore ${m.world.pilesOk}/${m.world.piles} pk ${m.world.pocketsOk}/${m.world.pockets} seam ${m.world.seamSolid}/${m.world.midSolid} spine ${m.world.spineSeam}/${m.world.spineMid90} hair ${m.world.hairSeam}/${m.world.hairMid}` : ''}`);
         }
         console.log(`leg ${leg}: ${good.length} of ${pick} candidates pass`);
         // Prefer a ratio near the middle of the band, then (legs 2+) the deepest crossing.

@@ -52,7 +52,9 @@ const want = (k) => !ONLY.length || ONLY.includes(k);
 const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse]) => {
   const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, cw = s.config.mine.chunkCols;
   // REVERSE: one chunk at a time from the east end, so the chunks of a seam arrive in the other order
-  // and each stitch is owned by the other chunk.
+  // and each stitch is owned by the other chunk. `pre` is what existed before (the boot's own chunks;
+  // the reverse boot turns the idle lookahead off so it cannot make the rest forwards first).
+  const pre = g.mine.chunks();
   if (reverse) for (const ci of list.slice().reverse()) g.mine.ensureChunks((ci + 0.3) * cw * cs, (ci + 0.7) * cw * cs);
   g.mine.ensureChunks(Math.min(...list) * cw * cs, ((Math.max(...list) + 1) * cw - 1) * cs);
   const out = {};
@@ -61,7 +63,7 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
   const sp = sub.levelSprites.filter((q) => q.x < xMax).map((q) => [q.key, q.x, q.y, q.w, q.h].join(',')).sort();
   let h = 2166136261; for (const t of sp) for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
   const st = {}; for (let k = Math.min(...list) + 1; k <= Math.max(...list); k++) st[k] = sub.mineJourney._stitched ? sub.mineJourney._stitched[k] : null;
-  return { out, sprites: sp.length, hash: h, stitched: JSON.stringify(st) };
+  return { out, sprites: sp.length, hash: h, stitched: JSON.stringify(st), pre };
 }, [list, !!reverse]);
 
 (async () => {
@@ -129,11 +131,15 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
       const list = [0, 1, 2, 3, 4, 5, 6, 7, 8];
       const reads = [];
       for (let k = 0; k < 2; k++) {
-        const b = await LP.openLeg(E, 2);
+        const b = k === 1 ? await E.boot('#leg,1,2', 390, 844, { before: (page) => page.addInitScript(() => { window.MYCELIUM_NO_LOOKAHEAD = true; }) })
+                          : await LP.openLeg(E, 2);
+        if (k === 1) await b.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.leg && window.__game.mine.leg()
+          && window.__game.state.substrate._fineSolid), { timeout: 40000 });
+        await sleep(1500);   // idle frames: on the first boot the lookahead runs, on the second it must not
         const rr = await chunkRecs(b.page, list, k === 1), recs = rr.out;
         const tap = await b.page.evaluate(() => { const t = window.__game.mine.taproot(); const L = window.__game.mine.leg();
           return { x: t.x, y: t.y, seed: L.seed, rec: JSON.stringify(window.__game.state.mineChunks[Math.floor(L.layout.taproot.col / 24)].taproot) }; });
-        reads.push({ recs, tap, errs: b.errs.length, hash: rr.hash, sprites: rr.sprites, stitched: rr.stitched });
+        reads.push({ recs, tap, errs: b.errs.length, hash: rr.hash, sprites: rr.sprites, stitched: rr.stitched, pre: rr.pre });
         await b.ctx.close();
       }
       const same = list.filter((ci) => reads[0].recs[ci] && reads[0].recs[ci] === reads[1].recs[ci]);
@@ -141,8 +147,9 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
          `${same.length}/${list.length} identical${same.length < list.length ? ', differ: ' + list.filter((c) => !same.includes(c)).join(',') : ''}`);
       ok('...and the same taproot', JSON.stringify(reads[0].tap) === JSON.stringify(reads[1].tap), JSON.stringify(reads[0].tap));
       ok('...and the same rock, sprite for sprite, although the second boot generated chunks 3-8 in reverse order',
-         reads[0].hash === reads[1].hash && reads[0].sprites === reads[1].sprites && reads[0].sprites > 1000,
-         `${reads[0].sprites} / ${reads[1].sprites} sprites, hash ${reads[0].hash} / ${reads[1].hash}`);
+         reads[0].hash === reads[1].hash && reads[0].sprites === reads[1].sprites && reads[0].sprites > 1000
+         && reads[1].pre.every((c) => c <= 2) && reads[0].pre.some((c) => c > 2),
+         `${reads[0].sprites} / ${reads[1].sprites} sprites, hash ${reads[0].hash} / ${reads[1].hash}; before the reverse walk: [${reads[1].pre}] (first boot, lookahead on: [${reads[0].pre}])`);
       ok('...and the same seam stitches', reads[0].stitched === reads[1].stitched && !/null/.test(reads[0].stitched), reads[0].stitched);
       ok('no page errors (determinism)', !reads[0].errs && !reads[1].errs);
     }
@@ -259,7 +266,9 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
           if (seam && Math.abs(z - seam.z0) < 1e-6) framed++;
           await b.page.screenshot({ path: path.join(ART, `m7-leg${leg}-c${c}-r${r}-390.png`), animations: 'disabled', timeout: 8000 }).catch(() => {});
         }
-        ok(`leg ${leg}: nine more seam frames (seams 2-4 x rows 45/70/120) at the resting zoom`, framed === 9, `${framed} of 9`);
+        // NOT COUNTED (verifier round 3): the frames are for eyes; the zoom they were taken at said nothing
+        // about the seams. What they show is asserted over every seam in the `world` block.
+        console.log(`  info  leg ${leg}: nine seam frames written (seams 2-4 x rows 45/70/120), ${framed} of 9 at the resting zoom`);
         // Last: it grows the colony across the leg (threats removed, tank topped up).
         const f = await LP.follow(b.page, route);
         ok(`leg ${leg}: real growth (mine.growFrom) following the cheapest route lands at the taproot`, f.landed,
@@ -272,42 +281,53 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
     }
     // ======================================================================================
     if (want('world')) {
-      console.log('--- the whole leg world: rewards, lateral channels, seam density');
+      console.log('--- the whole leg world: rewards, lateral channels, and the seams against an interior line');
+      // (verifier round 3) EVERY SEAM GATE IS DERIVED FROM THE INTERIOR — an interior line (6, 8, 12, 16 or
+      // 18 cells into a chunk) measured the same way — rather than set between an old build and a new one.
+      // Negative control, measured on the round-2 build (d6bb921, same seeds): closed-ground density
+      // +0.14 / +0.17 / +0.15 over the chunk's own, drawn solidity by column +0.28 / +0.32 / +0.29 at the
+      // seam over the chunk's middle — both gates below fail there. (Its spine, 6.0-7.3 per seam, sits
+      // inside 2x an interior line's 90th percentile on legs 1-2; the density gates are what see it.)
       for (const leg of [1, 2, 3]) {
         const b = await LP.openLeg(E, leg);
         const w = await LP.world(b.page);
-        ok(`leg ${leg}: every ore seam and every water pocket in all ${w.chunks} chunks is reachable from the root`,
-           w.piles > 0 && w.pilesOk === w.piles && w.pocketsOk === w.pockets,
-           `seams ${w.pilesOk}/${w.piles}, pockets ${w.pocketsOk}/${w.pockets}${w.strandedAt.length ? ' stranded ' + JSON.stringify(w.strandedAt) : ''}`);
+        // Rewards: the leg joins its CROSSING (head, trunks, taproot) and leaves the rewards to the maze,
+        // so some are walled in — the owner's gated content — and most are not (was: every one, round 2).
+        ok(`leg ${leg}: >= 85% of ore seams and of water pockets in all ${w.chunks} chunks are reachable from the root (the rest are gated)`,
+           w.piles > 0 && w.pilesOk >= 0.85 * w.piles && w.pocketsOk >= 0.85 * w.pockets,
+           `seams ${w.pilesOk}/${w.piles}, pockets ${w.pocketsOk}/${w.pockets}${w.strandedAt.length ? ' stranded e.g. ' + JSON.stringify(w.strandedAt.slice(0, 3)) : ''}`);
+        ok(`leg ${leg}: every anchor pass (e) joins (head, trunks, taproot) is joined in its own model`, w.unjoined === 0, `${w.unjoined} unjoined`);
         ok(`leg ${leg}: no straight lateral channel 3 cells tall runs more than 36 cells anywhere in the leg world`, w.lateral <= 36,
-           `longest ${w.lateral} (row ${w.latAt && w.latAt.row}, ending col ${w.latAt && w.latAt.endCol})`);
-        ok(`leg ${leg}: the ground at a chunk seam is no denser than the chunk's own (+0.2 at most)`,
-           w.seamSolid != null && w.seamSolid - w.midSolid <= 0.2, `closed-ground solidity ${w.seamSolid} within a cell of a seam, ${w.midSolid} 6+ cells in`);
-        // (verifier round 2) THE COLUMN, measured: rows in runs of >= 6 per line where the seam line is a
-        // dense stripe (> 0.3 more solid than the ground 3-5 cells out). Negative control, measured:
-        // the round-2 WIP build (200a7e9, its own seeds) reads 12.6 / 15.8 / 12.5 on legs 1-3 and fails;
-        // this one 6.0 / 6.8 / 7.3; an interior line reads 0.8-1.2. Bound 10.
-        ok(`leg ${leg}: a chunk seam is not a column of rock (spine rows in runs >= 6 per seam <= 10)`,
-           w.spineSeam != null && w.spineSeam <= 10, `${w.spineSeam} per seam, ${w.spineMid} per interior line`);
+           `longest ${w.lateral} (row ${w.latAt && w.latAt.row}, ending col ${w.latAt && w.latAt.endCol}); 2 cells tall: ${w.lateral2} (row ${w.lat2At && w.lat2At.row}) — information, acceptance 7 is written at 3`);
+        ok(`leg ${leg}: the closed ground at a chunk seam is no denser than the chunk's own (+0.05 at most; was +0.2)`,
+           w.seamSolid != null && w.seamSolid - w.midSolid <= 0.05, `closed-ground solidity ${w.seamSolid} within a cell of a seam, ${w.midSolid} 6+ cells in (${(w.seamSolid - w.midSolid).toFixed(3)})`);
+        ok(`leg ${leg}: drawn rock at the seam (columns -2..+1) is within 0.15 of the chunk's middle (columns 6-17)`,
+           w.bandSol != null && w.bandSol - w.inSol <= 0.15, `${w.bandSol} at the seam, ${w.inSol} in the middle (+${(w.bandSol - w.inSol).toFixed(3)})`);
+        ok(`leg ${leg}: a chunk seam is no more a stripe than an interior line (spine rows per seam <= 2x an interior line's 90th percentile; was <= 10)`,
+           w.spineSeam != null && w.spineSeam <= 2 * w.spineMid90, `${w.spineSeam} per seam, interior mean ${w.spineMid}, 90th percentile ${w.spineMid90}`);
+        ok(`leg ${leg}: no seam carries a longer vertical open run than the longest interior line`,
+           w.hairSeam != null && w.hairSeam <= w.hairMid, `seam ${w.hairSeam} rows, interior max ${w.hairMid} (90th percentile ${w.hairMid90})`);
         ok(`no page errors (world, leg ${leg})`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
         await b.ctx.close();
       }
       {
+        // INFORMATION ONLY (verifier round 3): the free layout reaches every reward through the seam
+        // SLITS it still has — with the four fine columns at every seam forced solid the same flood
+        // reaches 4 of 168 — so as a control for the flood it proves nothing, and it is not counted.
         const b = await E.boot('#mine,4242');
         await b.page.waitForFunction(() => !!(window.__game && window.__game.state && window.__game.state.substrate
           && window.__game.state.substrate._fineSolid), { timeout: 40000 });
         const w = await LP.world(b.page);
-        ok('control: the free layout reaches every reward over the same world-wide flood', w.piles > 0 && w.pilesOk === w.piles && w.pocketsOk === w.pockets,
-           `seams ${w.pilesOk}/${w.piles}, pockets ${w.pocketsOk}/${w.pockets}`);
+        console.log(`  info  free layout '#mine,4242': seams ${w.pilesOk}/${w.piles}, pockets ${w.pocketsOk}/${w.pockets} (through the seam slits), lateral ${w.lateral}, 2-tall ${w.lateral2}`);
         await b.ctx.close();
       }
       {
         const b = await E.boot('#leg,1,2', 390, 844, { before: (page) => page.addInitScript(() => { window.MYCELIUM_NO_REWARD_REPAIR = true; }) });
         await b.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.leg && window.__game.mine.leg()
           && window.__game.state.substrate._fineSolid), { timeout: 40000 });
-        const w = await LP.world(b.page);
-        ok('negative control: leg 2 with the reward repair switched off strands rewards (the assertion above can fail)',
-           w.pilesOk + w.pocketsOk < w.piles + w.pockets, `seams ${w.pilesOk}/${w.piles}, pockets ${w.pocketsOk}/${w.pockets}`);
+        const m = await LP.measure(b.page);
+        ok('negative control: leg 2 with pass (e) switched off (`MYCELIUM_NO_REWARD_REPAIR`) does not reach the taproot on the growth lattice',
+           !m.reachLat, `lattice ${m.reachLat}, plain ${m.reach}`);
         await b.ctx.close();
       }
     }
