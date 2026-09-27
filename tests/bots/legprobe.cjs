@@ -38,8 +38,13 @@
 const path = require('path');
 const H = require('../mine-harness.cjs');
 
+// The plan: the rows-0-2 flood "never passes column 66 (home + 30)" — reaching 66 is allowed, so `<=`,
+// the same comparison journey-check makes (it used `<` here and `<=` there).
+// WPASS: the whole-world gates (`world`), checked on a candidate that passes PASS.
+const WPASS = (w) => w.pilesOk === w.piles && w.pocketsOk === w.pockets && w.lateral <= 36
+  && w.seamSolid != null && w.seamSolid - w.midSolid <= 0.2;
 const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0
-  && m.crustMaxCol < m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42 && m.seamRunRows <= 42
+  && m.crustMaxCol <= m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42 && m.seamRunRows <= 42
   && (leg < 2 || m.east42 >= 0.5);
 
 // Generate chunk 0 .. island+1, wait for the stamp, measure. Runs in the page.
@@ -220,6 +225,28 @@ async function measure(page, opts) {
         if (o) { run++; if (run > seamRun) { seamRun = run; seamAt = { ci, endRow: (y / K) | 0 }; } } else run = 0;
       }
     }
+    // 3b'. A FREE-STANDING RIDGE DOWN THE SEAM (M7 verifier round 2): the stitch's first chain was a
+    // straight column of stones standing in soil. Per column x, the longest run of fine rows where x is
+    // rock and the fine cells 2 cells to BOTH sides are not (a wall at most ~4 cells thick with open
+    // ground either side), counting a row where some x within 1 fine cell of the line qualifies.
+    // Measured at every seam line and, as the control, at three interior columns per chunk (6, 12 and
+    // 18 cells in): `ridgeSeam` should look like `ridgeMid`, i.e. a seam should read like any rock.
+    const ridgeAt = (xc) => {
+      let best = 0, run = 0;
+      for (let y = 0; y < Hh; y++) {
+        let q = false;
+        for (let x = xc - 1; x <= xc + 1 && !q; x++)
+          if (inWin(x, y) && solid[y * W + x] && open(x - 2 * K, y) && open(x + 2 * K, y)) q = true;
+        if (q) { run++; if (run > best) best = run; } else run = 0;
+      }
+      return best;
+    };
+    const ridgeSeams = [], ridgeMids = [];
+    for (let ci = Math.min(...cis); ci <= Math.max(...cis); ci++) {
+      if (ci > Math.min(...cis)) ridgeSeams.push(ridgeAt(ci * cw * K));
+      for (const off of [6, 12, 18]) ridgeMids.push(ridgeAt((ci * cw + off) * K));
+    }
+    const pct = (a, q) => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.min(b.length - 1, Math.floor(q * b.length))] : 0; };
     // 3c. SEALED SEAMS, locally: for every seam side the generator walled, can the growth lattice get
     // from beyond the seal (4 cells west of the seam) to beyond it on the other side (4 cells east),
     // staying within 8 columns and 5 rows of the gallery? A leaky seal is a crossing the map claims
@@ -247,8 +274,13 @@ async function measure(page, opts) {
             const nx = x + dx, ny = y + dy;
             if (!inW(nx, ny) || !latOk(nx, ny) || seen[idx(nx, ny)]) continue;
             // Crossing the seam line where BOTH carves are open there is a corridor the carve made (a
-            // spur or dead end from each side meeting), not a leak through the seal: not counted.
-            if ((x < sF) !== (nx < sF) && (carveBoth(seamC, (y / K) | 0) || carveBoth(seamC, (ny / K) | 0))) continue;
+            // spur or dead end from each side meeting, or pass e's trunk mouth), not a leak through the
+            // seal: not counted — nor within ONE ROW of such a crossing, where the stitch's first piece
+            // below a both-open mouth is round and leaves the mouth's own fringe (leg 2 seam 192: the
+            // trunk at rows 105-107, the "leak" a hop from row 108 into it). A slit is caught anywhere
+            // else.
+            const both1 = (fy) => { const rr = (fy / K) | 0; return carveBoth(seamC, rr) || carveBoth(seamC, rr - 1) || carveBoth(seamC, rr + 1); };
+            if ((x < sF) !== (nx < sF) && (both1(y) || both1(ny))) continue;
             if (!segOk(x, y, nx, ny)) continue;
             seen[idx(nx, ny)] = 1; st.push([nx, ny]);
           }
@@ -277,6 +309,9 @@ async function measure(page, opts) {
       waterClr: +cheapClr.cost.toFixed(1), east42Clr: shc.east ? +(shc.e42 / shc.east).toFixed(3) : 0,
       shallowMaxCol: Math.floor(fShallow.maxX / K), islandC0: lay.islandC0,
       crustMaxCol: Math.floor(fc.maxX / K), sealN, sealLeak, leaks, lateral, latAt, seamRunRows: +(seamRun / K).toFixed(1), seamAt,
+      // in coarse rows: the worst seam, the seams' median, and the interior columns' median and 90th percentile
+      ridgeSeam: +(Math.max(0, ...ridgeSeams) / K).toFixed(1), ridgeSeamMed: +(pct(ridgeSeams, 0.5) / K).toFixed(1),
+      ridgeMidMed: +(pct(ridgeMids, 0.5) / K).toFixed(1), ridgeMid90: +(pct(ridgeMids, 0.9) / K).toFixed(1), ridgeMidMax: +(Math.max(0, ...ridgeMids) / K).toFixed(1),
       shallowestRow: shallowestRow === Infinity ? 999 : shallowestRow, liveClouds,
       chunks: cis.length,
     };
@@ -284,6 +319,92 @@ async function measure(page, opts) {
     if (opts && opts.route) out.route = cheap.path.map((i) => [+cxW(i % W).toFixed(1), +cyW((i / W) | 0).toFixed(1)]);
     return out;
   }, opts || {});
+}
+
+// THE WHOLE LEG WORLD (M7 verifier round 2): every chunk, not only home to island+1 — a reward
+// stranded past the island, or a straight floor channel in chunk 19, is still on the map the player
+// can dig into. Generates all chunks, waits for the stamp, and measures on the real fine mask:
+//   · rewards — ore seams and water pockets the 4-neighbour flood from the colony's root reaches (a
+//     pocket counts if a non-water cell within 2 of it is reached: mine-check's rule);
+//   · lateral — the longest straight lateral channel 3 cells tall, over every chunk;
+//   · seamSolid / midSolid — mean fine-mask solidity of carve-CLOSED cells within one cell of a chunk
+//     seam, and 6+ cells from one (the look: a seam as dense as the ground beside it reads as rock,
+//     a denser strip reads as a line — the first stitch measured 0.87 against 0.64).
+// Works on the free layout too (no `_open`: the solidity pair is null there).
+async function world(page) {
+  await page.evaluate(() => {
+    const g = window.__game, s = g.state, cs = s.substrate.cellSize, cw = s.config.mine.chunkCols;
+    g.mine.ensureChunks(0, (s.substrate.cols - 1) * cs);
+  });
+  await page.waitForFunction(() => {
+    const sub = window.__game.state.substrate;
+    return !!sub._fineSolid && (sub._solidFrom | 0) === sub.levelSprites.length && sub._mineDirtyC0 == null;
+  }, { timeout: 90000, polling: 200 });
+  return page.evaluate(() => {
+    const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, cw = s.config.mine.chunkCols;
+    const fsz = sub._fineSize, W = sub._fineCols, Hh = sub._fineRows, solid = sub._fineSolid, K = Math.round(cs / fsz);
+    const cis = g.mine.chunks().slice().sort((a, b) => a - b);
+    const root = s.active.nodes[0];
+    const seen = new Uint8Array(W * Hh);
+    const sx = Math.floor(root.x / fsz), sy = Math.max(0, Math.floor((root.y - sub.surfaceY) / fsz));
+    const st = [sy * W + sx]; seen[st[0]] = 1;
+    while (st.length) {
+      const i = st.pop(), y = (i / W) | 0, x = i % W;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= Hh) continue;
+        const j = ny * W + nx;
+        if (seen[j] || solid[j]) continue;
+        seen[j] = 1; st.push(j);
+      }
+    }
+    const cellSeen = (col, row) => { const p = sub.cellCenter(col, row);
+      const fx = Math.floor(p.x / fsz), fy = Math.floor((p.y - sub.surfaceY) / fsz);
+      return fx >= 0 && fy >= 0 && fx < W && fy < Hh && !!seen[fy * W + fx]; };
+    let piles = 0, pilesOk = 0, pockets = 0, pocketsOk = 0; const strandedAt = [];
+    for (const pile of (sub.foodPiles || [])) {
+      piles++;
+      if (pile.cells.some((idx) => cellSeen(idx % sub.cols, (idx / sub.cols) | 0))) pilesOk++;
+      else if (strandedAt.length < 8) strandedAt.push(['ore', pile.cells[0] % sub.cols, (pile.cells[0] / sub.cols) | 0]);
+    }
+    for (const r of (sub.reservoirs || [])) {
+      pockets++;
+      let near = false;
+      for (let row = r.r0 - 2; row <= r.r1 + 2 && !near; row++)
+        for (let col = r.c0 - 2; col <= r.c1 + 2 && !near; col++) {
+          const c = sub.cellAt(col, row); if (c && !c.water && cellSeen(col, row)) near = true;
+        }
+      if (near) pocketsOk++; else if (strandedAt.length < 8) strandedAt.push(['pocket', r.c0, r.r0]);
+    }
+    const oc = (c, r) => r >= 0 && r < sub.rows && !sub.solidAtWorld((c + 0.5) * cs, sub.surfaceY + (r + 0.5) * cs);
+    let lateral = 0, latAt = null;
+    for (let r = 0; r < sub.rows; r++) {
+      let run = 0;
+      for (let c = 0; c < sub.cols; c++) {
+        if (oc(c, r) && oc(c, r - 1) && oc(c, r + 1)) { run++; if (run > lateral) { lateral = run; latAt = { row: r, endCol: c }; } }
+        else run = 0;
+      }
+    }
+    let seamSolid = null, midSolid = null;
+    const JO = sub.mineJourney && sub.mineJourney._open;
+    if (JO) {
+      let a0 = 0, n0 = 0, a1 = 0, n1 = 0;
+      for (const ci of cis) {
+        const o = JO[ci]; if (!o) continue; const Wc = o.length / sub.rows;
+        for (let r = 3; r < sub.rows - 6; r++) for (let k = 0; k < Wc; k++) {
+          if (o[r * Wc + k]) continue;
+          const c = ci * cw + k, d = Math.min(Math.abs(c + 0.5 - ci * cw), Math.abs(c + 0.5 - (ci + 1) * cw));
+          const nearSeam = d < 1 && c > 0 && c < sub.cols - 1, mid = d >= 6;
+          if (!nearSeam && !mid) continue;
+          let n = 0; for (let y = r * K; y < r * K + K; y++) for (let x = c * K; x < c * K + K; x++) if (solid[y * W + x]) n++;
+          if (nearSeam) { a0 += n / (K * K); n0++; } else { a1 += n / (K * K); n1++; }
+        }
+      }
+      seamSolid = +(a0 / n0).toFixed(3); midSolid = +(a1 / n1).toFixed(3);
+    }
+    return { chunks: cis.length, piles, pilesOk, pockets, pocketsOk, strandedAt, lateral, latAt, seamSolid, midSolid,
+             sprites: sub.levelSprites.length };
+  });
 }
 
 // REAL GROWTH ALONG THE CHEAPEST LATTICE ROUTE (M7 verifier fix): the lattice is a model, so its
@@ -361,7 +482,7 @@ async function openLeg(E, leg, seed, vw = 390, vh = 844, file) {
   return b;
 }
 
-module.exports = { measure, follow, playLeg, openLeg, PASS };
+module.exports = { measure, world, follow, playLeg, openLeg, PASS, WPASS };
 
 if (require.main === module) (async () => {
   const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
@@ -376,7 +497,10 @@ if (require.main === module) (async () => {
       const b = await openLeg(E, leg, seedArg || 0, 390, 844, file);
       if (!pick) {
         const m = await measure(b.page, { route: doFollow });
-        const ok = PASS(m, leg);
+        const route0 = m.route; delete m.route;
+        m.world = await world(b.page);
+        m.route = route0;
+        const ok = PASS(m, leg) && WPASS(m.world);
         if (!ok) bad++;
         const route = m.route; delete m.route;
         console.log(`leg ${leg} seed ${m.seed}: ${ok ? 'PASS' : 'FAIL'} ` + JSON.stringify(m));
@@ -387,9 +511,10 @@ if (require.main === module) (async () => {
           const sd = ((leg * 7919 + k * 104729 + 12345) % 2147483000) + 1;
           await playLeg(b.page, leg, sd);
           const m = await measure(b.page);
-          const ok = PASS(m, leg);
+          let ok = PASS(m, leg);
+          if (ok) { const w = await world(b.page); m.world = w; ok = WPASS(w); }
           if (ok) good.push(m);
-          console.log(`leg ${leg} cand ${k} seed ${sd}: ${ok ? 'PASS' : '    '} reach ${m.reach}/${m.reachLat} ratio ${m.ratio} (fine ${m.ratioFine}) water ${m.water} e42 ${m.east42} e84 ${m.east84} shallow ${m.shallowMaxCol} crust ${m.crustMaxCol} lat ${m.lateral} seam ${m.seamRunRows} leak ${m.sealLeak}/${m.sealN} creat ${m.shallowestRow} tapRep ${m.tapRec && m.tapRec.repairs}`);
+          console.log(`leg ${leg} cand ${k} seed ${sd}: ${ok ? 'PASS' : '    '} reach ${m.reach}/${m.reachLat} ratio ${m.ratio} (fine ${m.ratioFine}) water ${m.water} e42 ${m.east42} e84 ${m.east84} shallow ${m.shallowMaxCol} crust ${m.crustMaxCol} lat ${m.lateral} seam ${m.seamRunRows} leak ${m.sealLeak}/${m.sealN} creat ${m.shallowestRow} tapRep ${m.tapRec && m.tapRec.repairs}${m.world ? ` | world lat ${m.world.lateral} ore ${m.world.pilesOk}/${m.world.piles} pk ${m.world.pocketsOk}/${m.world.pockets} seam ${m.world.seamSolid}/${m.world.midSolid}` : ''}`);
         }
         console.log(`leg ${leg}: ${good.length} of ${pick} candidates pass`);
         // Prefer a ratio near the middle of the band, then (legs 2+) the deepest crossing.
