@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 BUILT (leg worlds, journey-check 41/41; --mine 1046/1046). Next: M8.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier round 1 landed: growth-lattice legprobe + real-growth follow, seam stitch, guarded seals, re-picked seeds; journey-check 62/62; --mine 1067/1067). Next: M8.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5205,22 +5205,81 @@ Numbers here are measured, not planned.
 - **DRAWING:** `mineHillSpans()` (home + island, goalhill/goalbush); `drawMineTaproot` (canvas knot r 40,
   7 loops + glow, 5 filaments fading over 6 m). Hooks `mine.leg()`, `legRow(l)`, `taproot()` (+ `.drawn`),
   `hills()`.
-- **SEEDS** (`tests/bots/legprobe.cjs --pick 50`; re-pick whenever the carve changes): leg 1 **648639**,
-  leg 2 **4531531**, leg 3 **2654328**; 14 / 19 / 29 of 50 candidates passed. Measured on them: ratio
-  1.646 / 1.638 / 1.624, rows-0-2 flood to col 49 / 53 / 45 (limit 66), longest straight 3-tall lateral
-  25 / 30 / 31 (limit 36), cheapest-water route 95 / 210 / 359 water with 20% / 83% / 92% of its east
-  metres below 42 m, shallowest creature row none / 44 / 49.
-- **legprobe's routes use lib.cjs's CLEARANCE rule** (a fine cell and its 4 neighbours open). With no
-  clearance (a hairline counts) the cheapest routes are 60 / 105 / 193 water and only 0% / 42% / 80%
-  below 42 m — printed as `waterHair`/`east42Hair`, not gated. Hairlines are between boulders
-  everywhere; the plan's "Dijkstra over fine cells" is read as the bots' passable cells (deviation).
-- **SEAM SLIT (finding, both layouts, left):** a sprite must fit its chunk and alpha falls off before the
-  box, so every chunk seam has a 2-3 fine-cell soil slit down the whole depth. A 0.7-cell pad into the
-  neighbour closed them and made the taproot unreachable (clearance) on 29 / 38 / 44 of 50 candidates
-  (against 1 / 1 / 4) — removed. A real fix needs cross-chunk knowledge (stitch when the 2nd neighbour exists).
-- **DEVIATIONS:** the crust pass and the seal boulders (plan: clamp change and seal draw only);
-  sprites half above the soil line (clipped) rather than the 0.05-cell clamp for the crust pass.
-- **CHECKS:** `tests/journey-check.cjs` ('journey', in `--mine`, 41; `JOURNEY_ONLY=layout,determ,free,legs`).
+- **SEEDS (re-picked in the verifier round, see below):** leg 1 **2743219**, leg 2 **551829**, leg 3 **1816496**.
+  Re-pick whenever the carve OR any rock pass changes: `legprobe --pick N --file /.legprobe-snap.html`
+  (a snapshot copy), then choose one whose `follow` landed.
+- **DEVIATIONS:** the crust pass, the seal boulders and the seam stitch (plan: clamp change and seal
+  draw only); sprites half above the soil line (clipped) rather than the 0.05-cell clamp for the crust.
+
+**M7 VERIFIER FIXES (round 1) — the first build measured with the wrong model.**
+- **CONFIRMED on the old seeds (648639 / 4531531 / 2654328):** legprobe's routes used lib.cjs's
+  CLEARANCE rule (a fine cell + 4 neighbours open), but growth places a node wherever the point is not
+  under drawn rock and samples a segment every 0.7 fine cells — it threads hairlines. On the GROWTH
+  LATTICE the ratio was **1.209 / 1.153 / 1.190** (claimed 1.646 / 1.638 / 1.624), leg 2's cheapest
+  route **42.4%** below 42 m, and real growth (`mine.growFrom`, threats out, tank topped up) walked
+  it to the leg-2 taproot in **58 digs at 42.4%**. Every chunk seam carried a **168-row** hairline.
+- **THE GROWTH LATTICE (legprobe):** nodes = open fine-cell centres; edges = 8 unit steps + 16 hops of
+  segment length (~2.8-3.2 fine cells), each checked with `_segmentClear`'s own sampling (0.7 fine
+  cells, `surfaceY + 2`). An UPPER bound on growth (a strand cannot follow every unit wiggle), which is
+  the conservative side for "is the cheapest crossing deep?". Reach, ratio and the cheapest route use
+  it; `ratioFine` (plain 8-neighbour, no corner cutting) is gated too; clearance numbers are
+  information only. `follow(page, route)` digs the route with `mine.growFrom` and reports landing and
+  the landing strand's ANCESTRY share below 42 m. **GOTCHA: the lattice can be too generous** —
+  leg-2 candidate 3903157 passed every lattice gate and real growth stalled at 84% of the route, so
+  `--pick` digs its top five.
+- **(d) THE SEAM STITCH (journey-only; free-layout records and sprites untouched).** When BOTH chunks of
+  a seam exist, rock straddles the seam wherever the two carves do not BOTH open it: rows closed on both
+  sides, and rows where one side's run at the seam is a dead end of <= 10 rows with no `noPlug` cell
+  (longer = a link or shaft along the seam, left). Two layers: a CHAIN centred on the line (1.7 cells,
+  <= 3.2 tall, 50% overlap; rng `seed ^ 0x57C4` keyed on the seam) is the seal; larger pieces
+  (1.7-3.6 x 2.2-4.2 cells, sized from <= 3 closed columns each side, straddling the line; rng
+  `seed ^ 0x57C5`) go over it so it does not read as a column of stones. Counted on
+  `J._stitched[seam]`, never in a chunk record. Each chunk's carve and `noPlug` are kept on `J._open` /
+  `J._noPlug`. Dirty range widened +-3 columns. Measured: seam hairline **168 -> 4.5-6 rows**; sealed
+  sides crossable within 8 cols / 5 rows (`sealLeak`) 12 of 51 (both-closed rows only) -> **0/17,
+  0/55, 0/63** on the curated seeds.
+  - **ORDER-INDEPENDENT OR IT IS A BUG:** the first stitch skipped runs near PLACED creatures; the
+    second chunk's creatures come after the pass, so the rock depended on generation order (seam 4:
+    181 vs 160 sprites). journey-check's reverse-order boot caught it. No guard is needed: `spotFor`
+    never picks a seam column.
+  - **ONE RNG FOR THE SEAL, ANOTHER FOR THE LOOK:** off-centre pieces alone leaked (leg 1 0 -> 3 of
+    17); widening the look pieces on the shared rng re-drew the chain and opened a leak.
+  - **COST: seams now meet only where both carves reach them**, which the slit used to hide.
+    Candidate pass rates (first stitch version): leg 1 11/30, leg 2 7/40 at sealByBand 0.55 (2/30 at
+    0.8, most unreachable — so 0.55 stays), leg 3 10/30. Cheapest-water routes rose to 71 / 286 / 334
+    water (old seeds on the clearance model: 95 / 210 / 359). M14 calibration.
+  - **LOOKS: owner call.** In `m7-leg2-seam-390.png` the stitched seam still reads as a band of rock
+    down the frame: the rock loop leaves ground near a seam under-filled (a sprite must fit its chunk),
+    so the stitch is often the only rock there.
+- **SEAL BOULDERS ARE GUARDED:** a candidate is dropped (`placed.sealsDropped`) if its box covers a
+  reward footprint, a `noPlug`/taproot cell, or SPLITS any connected piece of the carve (component
+  labels before/after). `placed.stranded` stays true. **The taproot repair never targets a seam this
+  chunk sealed** (own seals only — asking the neighbour's would make the carve order-dependent).
+- **CRUST:** `bc1` uses `- 0.01` (a full-width candidate always failed its own box test).
+- **DRAWING:** the taproot filaments are drawn BEFORE the rock (behind it, visible through soil); the
+  knot's glow is held inside the chamber (`drawn.glowR`). Leg 1's knot at 24 m is on screen with the
+  island at resting zoom — owner call.
+- **SEAM SLIT ON THE FREE LAYOUT: left, owner's call.** `tests/void-probe.cjs [seed|leg<N>]` prints the
+  seam hairline: '#mine,4242' **7 of 7 seams run the full 168 rows**; leg 2 longest 4.5.
+- **legprobe also:** clouds read `cy` (42 live clouds per leg had been skipped), `shallowMaxCol` (the
+  lattice held above 42 m: legs 2 / 3 stop at col 47, islands at 174 / 222), `sealLeak`, `seamRunRows`.
+- **journey-check 41 -> 62** (`JOURNEY_ONLY=layout,determ,free,legs,island`). Changed, old -> new: reach
+  `reach && reachClr` -> `reach && reachLat`; ratio (clearance) -> lattice AND fine in [1.3, 2.0];
+  east42 (clearance) -> lattice. New: growth held above 42 m cannot reach the island (legs 2-3); real
+  growth lands (all legs) with >= 50% of the landing strand's east travel below 42 m (legs 2-3); seam
+  hairline <= 42 rows, plus a free-layout control that must see its slit; no sealed side above the
+  floor strip (rows >= rows - 6, where no sprite fits) leaks; each row's `E` agrees with `eastM`; the
+  determinism boot generates chunks 3-8 in reverse and compares a sorted sprite hash and the stitches;
+  island block: on 12 uncurated seeds the chamber's lattice flood reaches the island chunk's own seam
+  column.
+- **`--mine` after the verifier round: 1067 passed, 0 failed across 18 checks** (journey 41 -> 62; every
+  other check unchanged: boot 22, store 124, mine 193, ending 87, ship 58, phone 51, onboard 63, econ 79,
+  counter 60, zip 24, level 27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18).
+- **MEASURED on the curated seeds (legs 1 / 2 / 3):** lattice ratio 1.531 / 1.668 / 1.693, fine 1.715 /
+  1.795 / 1.775; cheapest route 71 / 286 / 334 water, 0% / 95.5% / 96.4% below 42 m; real growth lands
+  in 48 / 93 / 100 digs, landing strand 0% / 95.4% / 95.6% below 42 m, chain 1.60 / 1.77 / 1.79x;
+  rows 0-2 flood to col 62 / 46 / 45; longest lateral 24 / 23 / 23; seam hairline 5.8 / 4.5 / 4.8.
+- **CHECKS:** `tests/journey-check.cjs` ('journey', in `--mine`, 62 after the verifier round; `JOURNEY_ONLY=layout,determ,free,legs,island`).
   Fixture `tests/fixtures/m7-pre-chunks-4242.json` (from be20b64; equal to the M5 one) via
   `tests/fixture-chunks.cjs be20b64 --write --fixture <path>`. Screens `tests/.artifacts/m7-leg{1,2,3}-seam-390.png`,
   `m7-leg1-island-390.png`.
