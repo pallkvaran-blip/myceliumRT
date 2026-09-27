@@ -58,7 +58,11 @@ const PILLAR_OK = (w) => w.pillarSeam != null && w.pillarSeam <= w.pillarMid90 &
 const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0
   && m.crustMaxCol <= m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42 && m.seamRunRows <= 42
   && m.sealLeak === 0                                            // no sealed side leaks (no gallery in the floor strip any more)
-  && (leg < 2 || m.east42 >= 0.5);
+  && (leg < 2 || m.east42 >= 0.5)
+  // M8: LEG 1'S SHALLOW ROAD CARRIES YOU EAST (the leg table's crossing band 0-42 m; "on leg 1 the shallow
+  // galleries carry you east"). M7's leg-1 seed 2114845 did not: the lattice held above 42 m stopped at
+  // column 97, 29 short of the island, and the naive journey bot sat at that wall for 8 runs.
+  && (leg !== 1 || m.shallowMaxCol >= m.islandC0);
 
 // Generate chunk 0 .. island+1, wait for the stamp, measure. Runs in the page.
 async function measure(page, opts) {

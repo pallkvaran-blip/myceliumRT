@@ -294,15 +294,33 @@ async function injectBot(page) {
       if (opts.followGlow !== false && fresh.length) {
         const t = fresh[0]; Q._glowUsed.add(t.id); src = { x: t.x, y: t.y }; ang = t.ang; mode = 'glow';
       } else if (opts.goal === 'island' && g.mine.taproot && g.mine.taproot()) {
-        // THE NAIVE JOURNEY PLAYER (M8): knows only "the island is east and its root is down there":
-        // always digs from the clean tip NEAREST THE KNOT (straight line), along the most open of 7
-        // rays fanned about the bearing to it (the same free `solidAtWorld` look the ghost's ray uses).
+        // THE NAIVE JOURNEY PLAYER (M8) knows only the plan's one line, "dig down and east": always
+        // digs from the clean tip furthest DOWN + EAST (east capped at the knot), along the most open of 7
+        // rays fanned about the down-east diagonal (the same free `solidAtWorld` look the ghost's ray
+        // uses) — and straight at the knot once it is within 300 units (the knot is on screen by then).
+        // Straight-line "nearest the knot" was tried first and sat at the same wall 57 m east for 8 runs.
+        // Depth counts only down to one band below the knot (a root hangs under its island; the knot's
+        // filaments show under the hill), and a tip refused twice this run is left for another.
         const tap = g.mine.taproot(), sub = s.substrate;
-        let tip = null, td = Infinity;
-        for (const n of Q.live()) { const d = Math.hypot(n.x - tap.x, n.y - tap.y); if (d < td) { td = d; tip = n; } }
+        const homeX = (sub.mineHomeCol + 0.5) * sub.cellSize, capY = tap.y + 42 * sub.cellSize;
+        Q._nref = Q._nref || new Map();
+        let tip = null, tsc = -Infinity, near = null, nd = Infinity;
+        // ...and a DEAD END is remembered: a region (2x2 cells) where a dig was refused or added under 2 new
+        // cells is not dug from again this run — a naive player still stops hitting the same wall.
+        Q._dead = Q._dead || new Set();
+        const rk = (n) => Math.floor(n.x / 72) + ',' + Math.floor(n.y / 72);
+        for (const n of Q.live()) {
+          if ((Q._nref.get(n.id) | 0) >= 2 || Q._dead.has(rk(n))) continue;
+          const sc = Math.min(n.x, tap.x) - homeX + Math.min(n.y, capY) - sub.surfaceY;
+          if (sc > tsc) { tsc = sc; tip = n; }
+          const d = Math.hypot(n.x - tap.x, n.y - tap.y); if (d < nd) { nd = d; near = n; }
+        }
         if (!tip) return { stuck: true };
-        src = { x: tip.x, y: tip.y }; mode = 'toward';
-        const base = Math.atan2(tap.y - tip.y, tap.x - tip.x);
+        if (nd < 500) tip = near;
+        src = { x: tip.x, y: tip.y, id: tip.id, key: rk(tip) }; mode = 'toward';
+        // Down-east until under the island (or below one band under the knot); then at the knot.
+        const under = Math.abs(tip.x - tap.x) < 20 * sub.cellSize || tip.y > capY;
+        const base = nd < 500 || under ? Math.atan2(tap.y - tip.y, tap.x - tip.x) : Math.PI / 4;
         let bestA = base, bestC = -1;
         for (const k of [0, 1, -1, 2, -2, 3, -3]) {
           const a = base + k * 0.35;
@@ -326,6 +344,8 @@ async function injectBot(page) {
         const ray = g.mine.bestDownRay(tip.x, tip.y); if (ray) ang = ray.ang;
       }
       const r = g.mine.growFrom(src.x, src.y, src.x + Math.cos(ang) * reach, src.y + Math.sin(ang) * reach);
+      if (src.id != null && !r.ok) { Q._nref = Q._nref || new Map(); Q._nref.set(src.id, (Q._nref.get(src.id) | 0) + 1); }
+      if (src.key && (!r.ok || (r.newCells | 0) < 2)) (Q._dead = Q._dead || new Set()).add(src.key);
       return { mode, ok: r.ok, msg: r.message, newCells: r.newCells, depth: g.mine.depth(), maxDepth: g.mine.maxDepth(),
                water: s.active.water, nudges: glow.nudges };
     };

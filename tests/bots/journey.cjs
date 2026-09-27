@@ -107,7 +107,7 @@ const tag = 'journey-' + (naive ? 'naive-' : '') + label;
   let run = 0;
   for (run = 1; run <= maxRuns; run++) {
     const leg0 = await page.evaluate(() => window.__game.mine.leg().leg);
-    await page.evaluate(() => { window.__qa.bad = new Map(); window.__qa._glowUsed = new Set(); window.__qa._knew = false; });
+    await page.evaluate(() => { window.__qa.bad = new Map(); window.__qa._glowUsed = new Set(); window.__qa._knew = false; window.__qa._nref = new Map(); window.__qa._dead = new Set(); });
     let res;
     if (naive) res = await playDescent(page, { label: `${tag}-r${run}`, paceMs, maxSteps: 500, shots: false, bot: { policy: 'naive', goal: 'island' } });
     else {

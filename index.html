@@ -24225,6 +24225,13 @@ function mineOpenTips(state, count, keep) {
   if (!net || !sub) return [];
   const occ = mineOccupied(state), len = mineGrowReach(state.config);
   const water = net.water, scored = [];
+  // ON A JOURNEY LEG THE WAY IS DOWN AND EAST (M8), the plan's own words: a tip scores by how far down
+  // PLUS how far east its open ray ends, so a dead end on the way to the island glows the way on. Not the
+  // straight-line distance to the knot: that greedy measure glowed the same wall again and again (the
+  // naive journey bot sat at 57 m east for 8 runs) and would be a route-finder, which the compass (M10)
+  // is priced not to be. The free layout keeps depth alone.
+  const tap = mineTaprootXY(sub);
+  const homeX = ((sub.mineHomeCol != null ? sub.mineHomeCol : sub.cols >> 1) + 0.5) * sub.cellSize;
   for (const n of net.nodes) {
     if (n.infected || n.colon || n.children.length) continue;
     if (mineGrowCost(state.config, mineDepthM(sub, n.y)) > water) continue;
@@ -24234,7 +24241,11 @@ function mineOpenTips(state, count, keep) {
       const ang = Math.PI * i / 7;
       const r = mineRayOpen(sub, n.x, n.y, ang, len, occ);
       if (r.fresh < 2) continue;
-      const sc = (n.y - sub.surfaceY) + r.clear * Math.sin(ang) + 0.3 * r.clear;
+      // Depth counts down to one band below the knot (a root hangs under its island, not in the core).
+      const sc = tap
+        ? Math.min(n.x + Math.cos(ang) * r.clear, tap.x) - homeX
+          + Math.min(n.y + r.clear * Math.sin(ang), tap.y + mineCfg(state.config).bandRows * sub.cellSize) - sub.surfaceY + 0.3 * r.clear
+        : (n.y - sub.surfaceY) + r.clear * Math.sin(ang) + 0.3 * r.clear;
       if (sc > best) { best = sc; bang = ang; bclear = r.clear; }
     }
     if (best > -Infinity) scored.push({ id: n.id, x: n.x, y: n.y, ang: bang, clear: bclear, score: best });
