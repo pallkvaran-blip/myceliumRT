@@ -636,8 +636,26 @@ async function follow(page, route, opts = {}) {
 async function navigate(page, o = {}) {
   return page.evaluate(async (o) => {
     const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, net = s.active;
-    s.nematodes.length = 0; s.clouds.length = 0;
-    for (const c of sub.cells) if (c && c.trich) c.trich = 0;
+    // `o.threats` (M9 verify 3): KEEP the worms and the mould, and play on the wall clock — `o.paceMs` of real
+    // time after every accepted dig (900, a bot's pace), so worms attach and drink and clouds creep and breach
+    // while the route is dug. A flask is thrown whenever a worm is attached and one is in the bag; a dose cuts
+    // the rot as soon as any appears (the navigator cannot dig from rot). The worm drain is read off
+    // `state.mineDrained` (the owed total, whole units leave the tank) and reported beside the dig water.
+    if (!o.threats) {
+      s.nematodes.length = 0; s.clouds.length = 0;
+      for (const c of sub.cells) if (c && c.trich) c.trich = 0;
+    }
+    const drained0 = +(s.mineDrained || 0);
+    let flasks = 0, cuts = 0, breaches = 0;
+    const kit = async () => {
+      if (!o.threats) return;
+      if ((s.mineAttached | 0) > 0 && ((s.mineItems || {}).excrete | 0) > 0) { const r = g.mine.useExcrete(); if (r && r.ok) flasks++; }
+      const rot = net.nodes.find((n) => n.infected);
+      if (rot) {
+        breaches++;
+        if (((s.mineItems || {}).amputate | 0) > 0) { const r = g.mine.useAmputate(rot.x, rot.y); if (r && r.ok) cuts++; }
+      }
+    };
     s.config.growth.maxNodes = 1e6;
     const lay = g.mine.leg().layout, cw = s.config.mine.chunkCols;
     const fsz = sub._fineSize, W = sub._fineCols, Hh = sub._fineRows, solid = sub._fineSolid, K = Math.round(cs / fsz);
@@ -727,16 +745,20 @@ async function navigate(page, o = {}) {
         const near = net.nodes.filter((n) => !n.infected).map((n) => [(n.x - px) ** 2 + (n.y - py) ** 2, n]).sort((a, b) => a[0] - b[0]);
         src = near[Math.min(near.length - 1, 1 + Math.floor(fails / 6))][1];
       }
+      await kit();
+      if (s.runOver) break;
       net.water = 9999;
       const r = g.mine.growFrom(src.x, src.y, P.pts[t][0], P.pts[t][1]);
-      if (r && r.ok) { digs++; spent += (r.cost | 0); fails = 0; }
+      if (r && r.ok) { digs++; spent += (r.cost | 0); fails = 0; if (o.threats) await new Promise((res) => setTimeout(res, o.paceMs || 900)); }
       else { refused++; fails++; }
       if (stalls > 60) break;
       if (o.trace && trace.length < 400) trace.push([digs, r && r.ok ? 1 : 0, Math.round(src.x), Math.round(src.y), Math.round(P.pts[t][0]), Math.round(P.pts[t][1]), P.pts.length, r && r.made, r && r.message && r.message.slice(0, 20)]);
       if (digs % 8 === 7) await new Promise((res) => setTimeout(res, 0));
     }
     let nearest = Infinity; for (const n of net.nodes) if (!n.infected) nearest = Math.min(nearest, Math.hypot(n.x - tx, n.y - ty));
-    return { landed: landed(), digs, refused, spent, plans, pops, stalls, near: +nearest.toFixed(1), nodes: net.nodes.length, trace: o.trace ? trace : undefined };
+    return { landed: landed(), digs, refused, spent, plans, pops, stalls, near: +nearest.toFixed(1), nodes: net.nodes.length, trace: o.trace ? trace : undefined,
+             drained: +((s.mineDrained || 0) - drained0).toFixed(2), flasks, cuts, breachFrames: breaches, over: !!s.runOver, cause: s.runResult && s.runResult.cause,
+             worms: s.nematodes.length, clouds: s.clouds.length };
   }, o);
 }
 
@@ -759,25 +781,30 @@ const BARE = { water: 0, grow: 0, heat: 0 };
 // reach, and REAL growth (`follow`) digs it, summing what each accepted dig charged. `supply` is the
 // kit's start water plus half the route's pockets (+10 each). `frac` = spent / supply. Plays the leg
 // fresh first, since a follow grows the colony.
-async function kitWater(page, leg, seed, kit) {
+async function kitWater(page, leg, seed, kit, o = {}) {
   await playLeg(page, leg, seed);
-  const sw = await page.evaluate((k) => {
+  const sw = await page.evaluate(([k, thr]) => {
     const s = window.__game.state, base = window.__cfg.mine.startWater | 0;
     s.config.mine.growSteps = 2 + (k.grow | 0);
     s.config.mine.heatBonus = 14 * (k.heat | 0);
+    // WITH THE CREATURES (M9 verify 3), the kit's flasks and doses go in the bag.
+    if (thr) s.mineItems = { excrete: k.flask | 0, amputate: k.enzyme | 0 };
     return base + 12 * (k.water | 0);
-  }, kit);
+  }, [kit, !!o.threats]);
   const m = await measure(page, { route: true, gFactor: Math.pow((2 + (kit.grow | 0)) / 2, 0.8) });
   // The look-ahead scales with the dig's reach (70 units is a grow-2 dig's half): aimed 70 units ahead,
   // a grow-5 dig still lands wherever its fan goes and the follower re-aims from the nearest strand, so
   // the kit's longer dig bought 0.72x the digs where the plan's model says 0.48x.
   const reachU = 3 * (2 + (kit.grow | 0)) * 25.5;
   const f = process.env.KIT_FOLLOW ? await follow(page, m.route, { ahead: +(process.env.KIT_AHEAD || 0.6) * reachU })
-    : await navigate(page, { ahead: +process.env.KIT_ABS || 100 });
+    : await navigate(page, { ahead: +process.env.KIT_ABS || 100, threats: !!o.threats, paceMs: o.paceMs });
   const supply = sw + 5 * (m.routePockets | 0);
-  return { startWater: sw, pockets: m.routePockets, supply, model: m.water, spent: f.spent, landed: f.landed,
+  const out = { startWater: sw, pockets: m.routePockets, supply, model: m.water, spent: f.spent, landed: f.landed,
            frac: +(f.spent / supply).toFixed(3), modelFrac: +(m.water / supply).toFixed(3),
            east42: m.east42, east84: m.east84, digs: f.digs, routeFrac: f.routeFrac };
+  if (o.threats) Object.assign(out, { drained: f.drained, fracWithDrain: +((f.spent + f.drained) / supply).toFixed(3), flasks: f.flasks, cuts: f.cuts,
+    breachFrames: f.breachFrames, over: f.over, cause: f.cause, worms: f.worms, clouds: f.clouds });
+  return out;
 }
 
 async function playLeg(page, leg, seed) {
@@ -991,6 +1018,13 @@ if (require.main === module) (async () => {
           const kok = KIT_OK(leg, kk, bb, m);
           if (!kok) { bad++; badLegs.add(leg); }
           console.log(`  kit ${kok ? 'PASS' : 'FAIL'} arrival ` + JSON.stringify(kk) + '\n      bare ' + JSON.stringify(bb));
+          // `--threats` (M9 verify 3): the arrival kit again WITH the leg's worms and mould, on the wall clock
+          // (a dig every `--pace` ms, 900), the flasks and doses in the bag. Printed, not gated: the gate is the
+          // plan's (the route's water), this is what the creatures add to it.
+          if (process.argv.includes('--threats')) {
+            const kt = await kitWater(b.page, leg, m.seed, KIT[leg] || KIT[8], { threats: true, paceMs: +arg('--pace', 900) });
+            console.log('      with creatures ' + JSON.stringify(kt));
+          }
         }
       } else {
         const good = [];

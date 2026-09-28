@@ -19,17 +19,21 @@
  *            records the same wallet); p.mineJourney is {journey 2, leg 1, done [1]} with Journey I's leg
  *            records kept in `past`; ROOTED says the Promised Land and has one button; Continue plays the
  *            finale — the camera pulls back (zoom falls), eight island bursts 300 ms apart, the line, the
- *            credits — and closing the credits lands on the title with the 'Journey I' badge and 'Begin
+ *            credits; when the line is up the knot and the colony dug around it are on screen above the
+ *            strip — and closing the credits lands on the title with the 'Journey I' badge and 'Begin
  *            Journey II', whose DIG plays Journey II leg 1 on Journey I's leg-1 seed. A tap on the finale
  *            overlay skips to the credits (second boot).
  *   perf     a leg-8 state grown to >= 4,000 strands (legprobe `perfState`: the navigator toward the knot, the
  *            tank topped up, its worms and clouds PUT BACK and a 20-strand rotten patch with the clock running),
- *            390x844, headless: `renderFrame` median <= 20 ms and p95 <= 33 ms over 60 synchronous frames at
- *            the resting zoom (pans printed); a zoom that moves every frame builds no memo buffer and costs no
- *            more than drawing live; `mineFrame` (timed in advanceSim) median AND p95 <= 2 ms once settled;
- *            the mine's own frame code walks the colony at most twice a frame (`mine.passes()`); and counting
- *            EVERY read of the strand array (legprobe `censusInstall`), a frame with no world tick walks it at
- *            most twice and a world-tick frame at most 24 times (not once per creature).
+ *            390x844, headless, at dsf 1 AND dsf 2 (a phone's backing store): `renderFrame` median <= 20 ms
+ *            and p95 <= 33 ms over 60 synchronous frames at the resting zoom (pans printed); a zoom that moves
+ *            every frame builds no memo buffer and costs no more than drawing live (3 interleaved on/off
+ *            pairs); the three memos draw the live frame, and a seam emptied under a standing leaf buffer
+ *            leaves it; `mineFrame` (timed in advanceSim) median AND p95 <= 2 ms once settled; the mine's own
+ *            frame code walks the colony at most twice a frame (`mine.passes()`); and counting EVERY read of
+ *            the strand array (legprobe `censusInstall`, removed again before the timings), a frame with no
+ *            world tick walks it at most twice — settled AND while digging every 350 ms — and a world-tick
+ *            frame at most 18 times (not once per creature).
  *
  *   stale    (M9 verify) two tabs on Journey I leg 8: the second landfall, after the first rolled the save to
  *            Journey II, pays no second bonus and leaves Journey II untouched (its record goes to `past`).

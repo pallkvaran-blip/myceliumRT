@@ -1218,6 +1218,13 @@ and a rot patch, with a Proxy census of every read of the strand array: no-tick 
 frames 18 (gated <= 24 as a regression bound — the shared engine's 2 Hz step; owner to confirm that 5c means the
 frame code), mineFrame median and p95 <= 2 ms once settled. Acceptance 2a still fails; `tests/bots/legshort.cjs`
 measured that shortening alone would need leg 7 at 168 m and leg 6 at 144 m (shorter than legs 4-5) — owner / M14.
+**VERIFY ROUND 3 (M9).** Fixed: frames after a dig walked the colony 4 times (census now digs every 350 ms; now 1.02:
+an infection generation keys the colony summary and the renderer's rot scan, the summary keeps the colony's cells and
+tips, `_rebuildCaches` is one walk); world-tick frames 16 (gated <= 18); the rock memo walked every sprite every frame
+(the zoom A/B, now 3 interleaved pairs, reads 0.97-1.03); a leaf-layer memo (dsf 2 rest 22 -> 15-16 ms); acceptance 5
+now gated at dsf 1 and dsf 2; the finale's pull-back frames the colony at the knot (it framed the island hill, 140 m
+above). Acceptance 2a re-measured WITH the creatures (`legprobe --kit --threats`): legs 2 / 3 / 6 at 0.86 / 1.01 / 0.98
+of supply, legs 7 and 8 do not land (the rot clock, doses spent; the navigator does not avoid mould) — owner / M14.
 
 
 ### M10 — Compasses: sell precision, through rock
