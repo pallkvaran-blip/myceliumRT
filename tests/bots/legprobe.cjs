@@ -852,11 +852,12 @@ if (require.main === module) (async () => {
         }
       } else {
         const good = [];
-        for (let k = 0; k < pick; k++) {
+        const from = +arg('--from', 0);
+        for (let k = from; k < from + pick; k++) {
           const sd = ((leg * 7919 + k * 104729 + 12345) % 2147483000) + 1;
           // A FRESH PAGE EVERY 6 CANDIDATES, and after any failure: one page replaying world after world
           // was killed mid-pick ("Target page ... has been closed") and took the whole pick with it.
-          if (k && k % 6 === 0) { await b.ctx.close().catch(() => {}); b = await openLeg(E, leg, 0, 390, 844, file); }
+          if (k > from && k % 6 === 0) { await b.ctx.close().catch(() => {}); b = await openLeg(E, leg, 0, 390, 844, file); }
           let m, ok;
           try {
             await playLeg(b.page, leg, sd);
