@@ -163,6 +163,20 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
         // can be made without digging.
         s.active.water = 999; const d = g.mine.grow(0, 1);
         await new Promise((r) => setTimeout(r, 200));
+        // A COLONY AT THE KNOT (M9 verify 3), so the finale's frame has something to hold: the deepest strand is
+        // carried into the taproot chamber 2.2 cells west of the knot (outside the 1.5-cell landfall) and digs
+        // there, away from the knot, before the landing strand is planted.
+        const sub = s.substrate, cs = sub.cellSize, k = g.mine.taproot();
+        let deep = null; for (const n of s.active.nodes) if (!n.infected && (!deep || n.y > deep.y)) deep = n;
+        deep.x = k.x - 2.2 * cs; deep.y = k.y; g.mine.aggInvalidate();
+        let near = 0;
+        for (const a of [Math.PI, Math.PI * 0.8, Math.PI * 1.2, Math.PI * 0.6, Math.PI * 1.4]) {
+          s.active.water = 999;
+          const r = g.mine.growFrom(deep.x, deep.y, deep.x + Math.cos(a) * 150, deep.y + Math.sin(a) * 150);
+          if (r && r.ok) near++;
+          await new Promise((q) => setTimeout(q, 120));
+        }
+        window.__nearDigs = near;
         g.mine.plantAtTaproot();
         for (let k = 0; k < 60 && !s.runOver; k++) await new Promise((r) => setTimeout(r, 25));
         const r = s.runResult || {};
@@ -193,22 +207,33 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
       await b.page.click('#ssMineFinale').catch(() => {});
       // Sample the finale.
       const shotP = b.page.waitForFunction(() => { const f = window.__game.mine.finale(); return f && f.bursts >= 6; }, { timeout: 9000, polling: 40 })
-        .then(() => shot(b.page, 'm9-promised-strip-390.png')).catch(() => {});
+        .then(() => shot(b.page, 'm9-promised-strip-390.png'))
+        .then(() => b.page.waitForFunction(() => { const f = window.__game.mine.finale(); return f && f.text; }, { timeout: 9000, polling: 40 }))
+        .then(() => shot(b.page, 'm9-promised-line-390.png')).catch(() => {});
       const tl = await b.page.evaluate(async () => {
-        const g = window.__game, out = [], t0 = performance.now();
+        const g = window.__game, out = [], t0 = performance.now(); let lineView = null;
         while (performance.now() - t0 < 9000) {
           const f = g.mine.finale();
           out.push({ t: Math.round(performance.now() - t0), ph: f && f.phase, b: f && f.bursts, z: f && f.zoomNow, cr: f && f.creditsOpen });
+          if (f && f.text && !lineView) lineView = f.view;
           if (f && f.creditsOpen) break;
           await new Promise((r) => setTimeout(r, 60));
         }
-        return { out, f: g.mine.finale(), sfx: (window.__sfx && window.__sfx.counts.finale) | 0 };
+        return { out, f: g.mine.finale(), sfx: (window.__sfx && window.__sfx.counts.finale) | 0, lineView, nearDigs: window.__nearDigs };
       });
       await shotP;
       const f = tl.f || {};
       const zs = tl.out.filter((x) => x.ph === 'pull' && x.z).map((x) => x.z);
       const gaps = (f.burstAt || []).slice(1).map((v, i) => v - f.burstAt[i]);
       ok('the camera pulls back first (zoom falls during the pull)', zs.length >= 3 && zs[zs.length - 1] < zs[0] * 0.9 && f.z1 < f.z0, `zoom ${zs[0]} -> ${zs[zs.length - 1]} (target ${f.z1})`);
+      // THE PULL-BACK FRAMES THE COLONY (M9 verify 3): the first version framed the island's hill, 140 m above
+      // the knot, and the line 'Your colony spans the world' stood over bare rock with no strand on screen.
+      // When the line is up: the knot is on screen in the view's upper 55% (above the strip), with the strands
+      // grown around it there too.
+      const lineView = tl.lineView || {};
+      ok('when the line appears, the knot and the colony around it are on screen above the strip', !!lineView.knotX && lineView.knotX >= 0 && lineView.knotX <= lineView.vw
+         && lineView.knotY >= 0 && lineView.knotY <= lineView.vh * 0.55 && lineView.strandsUp >= 10,
+         JSON.stringify({ frame: f.frame, lineView, nearDigs: tl.nearDigs }));
       // Timers only fire late, never early, and each burst is scheduled at i x 300 ms from the first: the
       // mean gap is the schedule, a single gap carries two timers' lateness.
       const meanGap = gaps.length ? (f.burstAt[7] - f.burstAt[0]) / 7 : 0;

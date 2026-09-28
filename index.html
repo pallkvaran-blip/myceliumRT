@@ -19049,7 +19049,9 @@ function infectNetwork(net, state) {
     let maxB = 0;
     for (const c of liveClouds) maxB = Math.max(maxB, c.r * cs, (t.firstTouchRadius || 0) * cs);
     gcs = Math.max(cs, maxB);
-    grid = new Map();
+    grid = Number.isFinite(gcs) && gcs > 0 ? new Map() : null;
+  }
+  if (grid) {
     const nodes = net.nodes;
     for (let i = 0; i < nodes.length; i++) {
       const n = nodes[i];
@@ -19059,7 +19061,9 @@ function infectNetwork(net, state) {
     }
   }
   const nearCloud = (cloud, breach) => {
-    if (!grid) return net.nodes;
+    // A radius or a centre that is not a number (none is made that way today) keeps the old per-cloud walk,
+    // whose comparisons with NaN it reproduces exactly; the bucket ranges would come out empty (M9 verify 3).
+    if (!grid || !Number.isFinite(gcs) || !Number.isFinite(breach) || !Number.isFinite(cloud.cx) || !Number.isFinite(cloud.cy)) return net.nodes;
     const x0 = Math.floor((cloud.cx - breach) / gcs), x1 = Math.floor((cloud.cx + breach) / gcs);
     const y0 = Math.floor((cloud.cy - breach) / gcs), y1 = Math.floor((cloud.cy + breach) / gcs);
     const idx = [];
@@ -36714,8 +36718,8 @@ function presentMineEnd(r) {
 // point below loses nothing. The sequence, each step timed on the wall clock (setTimeout, not rAF: a
 // throttled page still reaches the credits):
 //   1. ROOTED (the end screen, rows and all) -> Continue, or on its own after `finaleHoldMs`;
-//   2. THE CAMERA PULLS BACK over the double-width island (`FINALE_PULL_MS`, eased; the run is over so
-//      nothing else moves it);
+//   2. THE CAMERA PULLS BACK ONTO THE COLONY AT THE TAPROOT (`FINALE_PULL_MS`, eased; the run is over so
+//      nothing else moves it) — see `mineFinaleFrame`;
 //   3. A CANVAS JOURNEY STRIP: eight island mounds on a mint thread, each bursting into spores 300 ms
 //      apart over a rising chord (`playFinaleNote`);
 //   4. 'The Promised Land. Your colony spans the world.';
@@ -36730,16 +36734,54 @@ function startPromisedFinale(paid) {
   const cs = sub ? sub.cellSize : 36;
   const Mz = (state && state.config && state.config.mine) || CONFIG.mine;
   const lo = Math.max(camera.minZoomForBounds(), mineZoom() * (((Mz.zoomRange) || [0.4])[0]));
+  const fr = mineFinaleFrame(sub, J, cs, lo);
   const F = _mineFinale = {
     t0: performance.now(), phase: 'pull', over: false, bursts: 0, text: false, credits: false, skipped: false,
-    z0: camera.zoom, x0: camera.x, y0: camera.y, z1: lo,
-    x1: J ? ((J.islandC0 + J.islandC1 + 1) / 2) * cs : camera.x,
-    y1: sub ? sub.surfaceY + cs * 4 : camera.y,
+    z0: camera.zoom, x0: camera.x, y0: camera.y, z1: fr.z, x1: fr.x, y1: fr.y, frame: fr.why,
     burstAt: [], wallet: sporesBalance(), bankedBefore: !!(state && state.runResult && state.runResult._minePaid),
     journeyDone: (paid && paid.legRec && paid.legRec.finished) | 0, timers: [], el: null,
   };
   document.body.classList.add('mine-finale');
   F.timers.push(setTimeout(() => mineFinaleStrip(F), FINALE_PULL_MS));
+}
+// WHERE THE PULL-BACK LANDS (M9 verify 3). It used to frame the island's surface (its hill, 4 cells down),
+// and on leg 8 the taproot is 140 m below that: at the zoom floor a phone sees ~98 m, so the frame held the
+// hill and bare rock and not one strand of the colony, under the line 'Your colony spans the world'.
+// The frame now holds THE COLONY WHERE IT ARRIVED: the knot at 38% of the view's height (the strip and the
+// line darken the lower half), and x drawn toward the strands around it (the colony comes in from the
+// west). When the whole descent — the island's hill down to the knot — fits in the view's upper 55% at the
+// zoom floor, the hill is kept in the frame as well. One walk of the colony, once, when the finale starts.
+// THE ZOOM IS RAISED FROM THE FLOOR WHEN THE WORLD'S BOTTOM WOULD PUSH THE KNOT DOWN: the camera is clamped
+// to the world, and on leg 8 (knot 140 m, floor 168 m) the floor zoom's ~98 m view cannot centre that low —
+// measured, the knot landed at 60% of the height, under the strip. Stepped up x1.12 (one wheel tick) until
+// the clamped camera holds the knot at or above 42%, never past the resting zoom.
+function mineFinaleFrame(sub, J, cs, z0) {
+  const knot = sub ? mineTaprootXY(sub) : null;
+  if (!knot || !(z0 > 0)) return { x: J ? ((J.islandC0 + J.islandC1 + 1) / 2) * cs : camera.x, y: sub ? sub.surfaceY + cs * 4 : camera.y, z: z0, why: 'island' };
+  const save = { x: camera.x, y: camera.y, zoom: camera.zoom };
+  const zMax = Math.max(z0, mineZoom());
+  let out = null;
+  for (let z = z0; !out; z = Math.min(zMax, z * 1.12)) {
+    const fr = mineFinaleFrameAt(sub, knot, cs, z);
+    camera.zoom = z; camera.x = fr.x; camera.y = fr.y; camera.clamp();
+    const q = camera.worldToScreen(knot.x, knot.y);
+    if (q.y <= camera.viewH * 0.42 || z >= zMax) out = Object.assign(fr, { x: camera.x, y: camera.y, z });
+  }
+  camera.x = save.x; camera.y = save.y; camera.zoom = save.zoom;
+  return out;
+}
+function mineFinaleFrameAt(sub, knot, cs, z) {
+  const vw = camera.viewW / z, vh = camera.viewH / z;
+  let sx = 0, n = 0;
+  for (const s of (state.active ? state.active.nodes : [])) {
+    if (s.infected || Math.abs(s.x - knot.x) > vw || Math.abs(s.y - knot.y) > vh * 0.6) continue;
+    sx += s.x; n++;
+  }
+  const mx = n ? sx / n : knot.x;
+  const x = Math.max(knot.x - 0.3 * vw, Math.min(knot.x + 0.3 * vw, (knot.x + mx) / 2));
+  const top = sub.surfaceY - cs * 3;                  // the island's hill and trees
+  if (knot.y - top <= 0.5 * vh) return { x, y: top + 0.5 * vh - 0.04 * vh, why: 'island+colony', near: n };
+  return { x, y: knot.y + (0.5 - 0.38) * vh, why: 'colony', near: n };
 }
 // Eases the camera toward the pull-back framing; called from renderFrame every frame while it runs.
 function mineFinaleCamera(now) {
@@ -36835,6 +36877,14 @@ function mineFinaleInfo() {
   return F ? { phase: F.phase, bursts: F.bursts, burstAt: F.burstAt.slice(), text: F.text, credits: F.credits, skipped: F.skipped, over: F.over,
                z0: F.z0, z1: F.z1, zoomNow: F.zoomNow, wallet: F.wallet, bankedBefore: F.bankedBefore,
                journeyDone: F.journeyDone, t0: F.t0, overlay: !!(F.el && F.el.isConnected), drawN: F.drawN | 0,
+               frame: F.frame, x1: F.x1, y1: F.y1,
+               // (M9 verify 3) what the frame holds right now: the knot's screen point, and the clean strands in
+               // the view's upper 55% (the strip and the line darken the rest).
+               view: (() => { const sub = state && state.substrate, k = sub && mineTaprootXY(sub); if (!k) return null;
+                 const q = camera.worldToScreen(k.x, k.y); let up = 0;
+                 for (const n of (state.active ? state.active.nodes : [])) { if (n.infected) continue; const w = camera.worldToScreen(n.x, n.y);
+                   if (w.x >= 0 && w.x <= camera.viewW && w.y >= 0 && w.y <= camera.viewH * 0.55) up++; }
+                 return { knotX: Math.round(q.x), knotY: Math.round(q.y), vw: camera.viewW, vh: camera.viewH, strandsUp: up }; })(),
                creditsOpen: !!document.getElementById('crOverlay') } : null;
 }
 // SETTINGS > EXIT TO TITLE (M1). It used to be 'Save & exit', which dropped to the title without
