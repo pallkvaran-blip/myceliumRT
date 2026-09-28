@@ -3,7 +3,7 @@
 // `Q.step({goal: 'island'})` (or the naive journey policy), and then follows the REAL end screen ->
 // Store -> buy -> Descend, which starts whichever leg the save is on. Landfalls are read off the save.
 //
-//   node tests/bots/journey.cjs <save-label> [--naive [--compass]] [--pace 900] [--legs 3] [--runs 19]
+//   node tests/bots/journey.cjs <save-label> [--naive [--compass] [--lean east|downeast]] [--pace 900] [--legs 3] [--runs 19]
 //                                          [--strat cheapest] [--need 5,7,7]
 //
 // `--need a,b,c`: landfall 1 by run a, landfall 2 within b more runs, landfall 3 within c more (the
@@ -26,6 +26,9 @@ async function followRun(page, route, paceMs) {
     W.__jb = { route, cum, k: 0, best: 0, stall: 0 };
   }, route);
   const t0 = Date.now(); let digs = 0, steps = 0, mode = 'route';
+  // THE KIT, TALLIED (M8 verify 2): leg-3 runs ended 'infected' with the enzyme bought, and the per-run
+  // line said nothing about whether a dose was used, what it cut, or what was left.
+  const kit = { flask: 0, cut: 0, cutMsgs: [], rotSeen: 0 };
   const start = await page.evaluate(() => window.__qa.snapshot());
   while (steps++ < 600) {
     const r = await page.evaluate((mode) => {
@@ -35,12 +38,13 @@ async function followRun(page, route, paceMs) {
       const it = g.mine.items();
       if (g.mine.attached() >= 1 && it.excrete > 0) acts.push(g.mine.useExcrete().message);
       const inf = g.mine.infect();
+      const rot = net.nodes.reduce((a, n) => a + (n.infected ? 1 : 0), 0);
       if (inf.on && it.amputate > 0) {
         const bad = net.nodes.filter((n) => n.infected); let best = null, bn = -1; const R = s.config.mine.cutRadius || 220;
         for (const c of bad) { let k = 0; for (const o of bad) if ((o.x - c.x) ** 2 + (o.y - c.y) ** 2 < R * R * 0.8) k++; if (k > bn) { bn = k; best = c; } }
         if (best) acts.push(g.mine.useAmputate(best.x, best.y).message);
       }
-      if (mode === 'flood') { const a = W.__qa.step({ goal: 'island', useItems: false }); return { ok: a.ok, msg: a.msg, mode: 'flood', acts, over: a.over, stuck: a.stuck }; }
+      if (mode === 'flood') { const a = W.__qa.step({ goal: 'island', useItems: false }); return { ok: a.ok, msg: a.msg, mode: 'flood', acts, rot, over: a.over, stuck: a.stuck }; }
       const route = J.route, near = 18;
       for (let j = Math.min(route.length - 1, J.k + 400); j > J.k; j--) {
         const [px, py] = route[j]; let okN = false;
@@ -56,8 +60,10 @@ async function followRun(page, route, paceMs) {
       for (const n of net.nodes) { if (n.infected) continue; const d = (n.x - route[ks][0]) ** 2 + (n.y - route[ks][1]) ** 2; if (d < sd) { sd = d; src = n; } }
       if (!src) return { stuck: true };
       const res = g.mine.growFrom(src.x, src.y, route[t][0], route[t][1]);
-      return { ok: res && res.ok, msg: res && res.message, mode: 'route', stall: J.stall, frac: +(J.best / (route.length - 1)).toFixed(3), acts };
+      return { ok: res && res.ok, msg: res && res.message, mode: 'route', stall: J.stall, frac: +(J.best / (route.length - 1)).toFixed(3), acts, rot };
     }, mode);
+    if (r.acts) for (const m of r.acts) { if (/Mucus/.test(m)) kit.flask++; else { kit.cut++; if (kit.cutMsgs.length < 4) kit.cutMsgs.push(String(m).slice(0, 60)); } }
+    if (r.rot) kit.rotSeen = Math.max(kit.rotSeen, r.rot);
     if (r.over) break;
     if (r.ok) digs++;
     if (mode === 'route' && r.stall > 25) mode = 'flood';
@@ -71,7 +77,7 @@ async function followRun(page, route, paceMs) {
     await page.evaluate(() => { const b = document.getElementById('set-forcefruit'); if (b) b.click(); });
     await sleep(800);
   }
-  return { digs, seconds: Math.round((Date.now() - t0) / 1000), start, mode };
+  return { digs, seconds: Math.round((Date.now() - t0) / 1000), start, mode, kit };
 }
 
 const argv = process.argv.slice(2);
@@ -80,12 +86,17 @@ const label = argv[0] && !argv[0].startsWith('--') ? argv[0] : '4242';
 const naive = argv.includes('--naive');
 // `--compass` (M8 verify, naive only): the naive player holding the M10 island needle (a bearing).
 const compass = argv.includes('--compass');
+// `--lean east|downeast` (naive only, M8 verify 2): which reading of the leg the naive player takes.
+// 'east' (the default) takes the leg's own words — "the island lies east", the east chevron — and digs
+// from the farthest-east tip toward due east; 'downeast' is the first naive journey player (tip farthest
+// down + east, rays about the down-east diagonal, depth capped one band under the knot).
+const lean = arg('--lean', 'east');
 const paceMs = +arg('--pace', 900);
 const legsWanted = +arg('--legs', naive ? 1 : 3);
 const need = String(arg('--need', naive ? '8' : '5,7,7')).split(',').map(Number);
 const maxRuns = +arg('--runs', need.slice(0, legsWanted).reduce((a, b) => a + b, 0));
 const strat = arg('--strat', 'cheapest');
-const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-') : '') + label;
+const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean === 'east' ? '' : lean + '-')) : '') + label;
 
 (async () => {
   const env = await launch();
@@ -115,7 +126,7 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-') : '') 
     await page.evaluate((leg) => { const Q = window.__qa; Q.bad = new Map(); Q._glowUsed = new Set(); Q._knew = false; Q._nref = new Map();
       if (Q._deadLeg !== leg) { Q._dead = new Set(); Q._deadLeg = leg; } }, leg0);
     let res;
-    if (naive) res = await playDescent(page, { label: `${tag}-r${run}`, paceMs, maxSteps: 500, shots: false, bot: { policy: 'naive', goal: 'island', compass } });
+    if (naive) res = await playDescent(page, { label: `${tag}-r${run}`, paceMs, maxSteps: 500, shots: false, bot: { policy: 'naive', goal: 'island', compass, lean: lean === 'east' ? 'east' : null } });
     else {
       // The route is planned on a snapshot of the leg's own world (every chunk to the island generated,
       // which is order-independent), then dug in THIS run with its real tank.
@@ -150,7 +161,7 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-') : '') 
     const row = { run, leg: leg0, cause: rr.cause, depth: rr.depth, east: rr.east, ore: rr.ore, bonus: rr.bonus, digs: res.digs,
                   seconds: res.seconds, start: res.start.water, islands: jn.islands, nextLeg: jn.leg, bought };
     log.push(row);
-    console.log(`R${run} leg ${leg0} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}`);
+    console.log(`R${run} leg ${leg0} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}${res.kit ? ` | kit: flask x${res.kit.flask}, cut x${res.kit.cut}${res.kit.cutMsgs.length ? ' [' + res.kit.cutMsgs.join(' / ') + ']' : ''}, most rot ${res.kit.rotSeen}` : ''}`);
     fs.writeFileSync(`${OUT}/${tag}.json`, JSON.stringify(log, null, 1));
     if (landAt.length >= legsWanted) break;
     await page.click('#ssDescend').catch(() => {});

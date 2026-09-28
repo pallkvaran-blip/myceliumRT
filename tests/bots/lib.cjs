@@ -309,9 +309,15 @@ async function injectBot(page) {
         // cells is not dug from again this run — a naive player still stops hitting the same wall.
         Q._dead = Q._dead || new Set();
         const rk = (n) => Math.floor(n.x / 72) + ',' + Math.floor(n.y / 72);
+        // `lean: 'east'` (M8 verify 2): the player who takes the leg's own words literally — the banner
+        // says "the island lies east" and the chevron points east, and nothing on leg 1 says go down —
+        // digs from the clean tip farthest EAST (ties to the deeper, down to the knot's depth), along
+        // the most open of 7 rays fanned about due east (+-60 deg: up-east to down-east).
+        const east = opts.lean === 'east';
         for (const n of Q.live()) {
           if ((Q._nref.get(n.id) | 0) >= 2 || Q._dead.has(rk(n))) continue;
-          const sc = Math.min(n.x, tap.x) - homeX + Math.min(n.y, capY) - sub.surfaceY;
+          const sc = east ? Math.min(n.x, tap.x) - homeX + 0.25 * (Math.min(n.y, tap.y) - sub.surfaceY)
+            : Math.min(n.x, tap.x) - homeX + Math.min(n.y, capY) - sub.surfaceY;
           if (sc > tsc) { tsc = sc; tip = n; }
           const d = Math.hypot(n.x - tap.x, n.y - tap.y); if (d < nd) { nd = d; near = n; }
         }
@@ -324,7 +330,7 @@ async function injectBot(page) {
         src = { x: tip.x, y: tip.y, id: tip.id, key: rk(tip) }; mode = 'toward';
         // Down-east until under the island (or below one band under the knot); then at the knot.
         const under = Math.abs(tip.x - tap.x) < 20 * sub.cellSize || tip.y > capY;
-        const base = opts.compass || nd < 500 || under ? Math.atan2(tap.y - tip.y, tap.x - tip.x) : Math.PI / 4;
+        const base = opts.compass || nd < 500 || (!east && under) ? Math.atan2(tap.y - tip.y, tap.x - tip.x) : east ? 0 : Math.PI / 4;
         let bestA = base, bestC = -1;
         for (const k of [0, 1, -1, 2, -2, 3, -3]) {
           const a = base + k * 0.35;

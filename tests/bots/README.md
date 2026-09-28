@@ -39,9 +39,15 @@ traces, and never fail.
   screen -> Store -> cheapest buys -> Descend. The SENSIBLE player knows the leg (a leg is one fixed world):
   each run it takes legprobe's cheapest-water growth-lattice route to the taproot and digs along it with the
   real tank, flask/enzyme as career.cjs; after 25 stalled steps it falls back to `Q.step({goal: 'island'})`
-  (lib.cjs's flood bot with the taproot as goal). `--naive`: the naive JOURNEY player — always the clean tip
-  nearest the knot, along the most open of 7 rays about the bearing to it. FAILS (`====`) unless landfall 1
-  comes by run 5 (naive: 8) and legs 2 / 3 within 7 runs each.
+  (lib.cjs's flood bot with the taproot as goal). `--naive`: the naive JOURNEY player — `--lean east` (the
+  default since M8 verify 2) takes the leg's words ("the island lies east"): the clean tip farthest east,
+  along the most open of 7 rays about due east; `--lean downeast` is the first version (farthest down +
+  east, rays about the diagonal); `--compass` aims along the true bearing to the knot. Each run's line
+  carries a kit tally (flasks, cuts and their messages, the most rot seen). FAILS (`====`) unless
+  landfall 1 comes by run 5 (naive: 8) and legs 2 / 3 within 7 runs each.
+- `legnaive.cjs`: the naive journey player SCREENED fast on a leg-1 seed (one run, tank topped up and
+  counted, grow 3), alone or over legprobe's candidate sequence with PASS + WPASS — what showed that no
+  re-pick in k 36-155 is landed by either naive policy (header).
   - **The flood bot alone could not do it** (first try: 43-93 m east in 4 runs, then stuck at 4 m east with
     the whole leg known): the clearance flood plans through gaps growth will not follow, and each dig added
     1-2 filaments. The lattice route is growth's own rule.
