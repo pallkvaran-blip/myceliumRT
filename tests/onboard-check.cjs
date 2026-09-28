@@ -94,12 +94,16 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       const cdp = await ctx.newCDPSession(page);
       await page.touchscreen.tap(195, 420);
       await page.waitForFunction(() => window.__t.hint || window.__t.title, null, { timeout: 30000, polling: 8 }).catch(() => {});
-      const tHint = Date.now();
       let T = await page.evaluate(() => Object.assign({}, window.__t));
       if (T.hint) {
         const root = await page.evaluate(() => { const g = window.__game, r = document.getElementById('game').getBoundingClientRect();
           const n = g.state.active.nodes[0], q = g.camera.worldToScreen(n.x, n.y); return { x: r.left + q.x, y: r.top + q.y }; });
-        await sleep(Math.max(0, 200 - (Date.now() - tHint)));
+        // 200 ms AFTER THE HINT ON THE PAGE'S CLOCK (M8 verify 3): the harness sees the hint through a
+        // polled waitForFunction, so a Node-side 200 ms sleep began late; the lag is read off the page,
+        // and the moment the gesture is SENT is stamped there too, so the detail can say send vs arrival.
+        const lag = await page.evaluate(() => performance.now() - window.__t.hint);
+        await sleep(Math.max(0, 200 - lag));
+        await page.evaluate(() => { window.__t.sent = performance.now(); });
         const tp = (x, y) => [{ x, y, id: 0, radiusX: 4, radiusY: 4, force: 1 }];
         // A FINGER DOES NOT WAIT FOR THE PAGE (M8 verify 2). The drag used to await each CDP touch
         // event's ack before sending the next, and an ack waits for the renderer to take the event at a
@@ -123,8 +127,11 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       ok('a fresh save never shows the title', !T.title && T.run != null, `title ${rel('title')}, run at ${rel('run')} ms`);
       ok('...the curtain lifts within 600 ms of the gate tap', rel('seen') != null && rel('seen') <= 600,
          `${rel('seen')} ms (class dropped at ${rel('drop')} ms; the old 8 ms poll noticed at ${rel('reveal')} ms)`);
-      ok('...and a drag begun 200 ms after #minehint shows is accepted within 2.5 s of the tap',
-         rel('dig') != null && rel('dig') <= 2500, `hint at ${rel('hint')} ms, the drag's press reached the page at ${rel('down')} ms, dig accepted at ${rel('dig')} ms`);
+      // NAMED FOR WHAT IS MEASURED (M8 verify 3): the gesture is SENT >= 200 ms after the hint shows (page
+      // clock); a busy main thread takes the press later than that, and the detail prints both.
+      ok('...and a drag sent at least 200 ms after #minehint shows is accepted within 2.5 s of the tap',
+         rel('dig') != null && rel('dig') <= 2500 && rel('sent') != null && rel('sent') - rel('hint') >= 199,
+         `hint at ${rel('hint')} ms, drag sent at ${rel('sent')} ms (+${rel('sent') - rel('hint')}), its press reached the page at ${rel('down')} ms (+${rel('down') - rel('hint')}), dig accepted at ${rel('dig')} ms`);
       ok('the gate tap unlocked audio (AudioContext running)', T.audio === 'running', String(T.audio));
       await page.screenshot({ path: path.join(ART, 'm4-first-visit-390.png') });
       // THE SECOND BOOT of the same save: the dug descent is banked at boot (hidden-tab pending), so

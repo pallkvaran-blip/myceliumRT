@@ -87,7 +87,7 @@ const naive = argv.includes('--naive');
 // `--compass` (M8 verify, naive only): the naive player holding the M10 island needle (a bearing).
 const compass = argv.includes('--compass');
 // `--lean east|downeast` (naive only, M8 verify 2): which reading of the leg the naive player takes.
-// 'east' (the default) takes the leg's own words — "the island lies east", the east chevron — and digs
+// 'east' (the default) takes the east chevron ('Island N is east'; the banner said "the island lies east" until M8 verify 3) — and digs
 // from the farthest-east tip toward due east; 'downeast' is the first naive journey player (tip farthest
 // down + east, rays about the down-east diagonal, depth capped one band under the knot).
 const lean = arg('--lean', 'east');

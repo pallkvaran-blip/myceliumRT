@@ -310,7 +310,7 @@ async function injectBot(page) {
         Q._dead = Q._dead || new Set();
         const rk = (n) => Math.floor(n.x / 72) + ',' + Math.floor(n.y / 72);
         // `lean: 'east'` (M8 verify 2): the player who takes the leg's own words literally — the banner
-        // says "the island lies east" and the chevron points east, and nothing on leg 1 says go down —
+        // said "the island lies east" (until M8 verify 3; now "dig down, then east") and the chevron points east —
         // digs from the clean tip farthest EAST (ties to the deeper, down to the knot's depth), along
         // the most open of 7 rays fanned about due east (+-60 deg: up-east to down-east).
         const east = opts.lean === 'east';

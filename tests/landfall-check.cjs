@@ -234,10 +234,10 @@ const waitLeg = (page) => page.waitForFunction(() => !!(window.__game && window.
       await sleep(400);
       const r1 = await b.page.evaluate(() => { const g = window.__game, L = g.mine.leg(), s = g.state;
         return { journey: !!s.substrate.mineJourney, leg: L && L.leg, home: L && L.homeCol, hints: g.mine.legHints(),
-                 banner: g.mine.beats().filter((x) => x.kind === 'leg').map((x) => [x.d, x.n, x.c]) }; });
+                 banner: g.mine.beats().filter((x) => x.kind === 'leg').map((x) => [x.d, x.n, x.c]), ruleLine: window.__cfg.mine.journey.legs[0].ruleLine }; });
       ok('the title\'s DIG starts the journey: leg 1, home column 36', r1.journey && r1.leg === 1 && r1.home === 36, JSON.stringify(r1));
       ok('...with the leg banner and the chevron (not the save\'s first descent)', r1.banner.length === 1 && r1.banner[0][0] === 'Leg 1'
-         && r1.banner[0][2] === 'No threats — the island lies east' && r1.hints.drawn.chevron, JSON.stringify(r1));
+         && r1.banner[0][2] === r1.ruleLine && /dig down, then east/.test(r1.ruleLine) && r1.hints.drawn.chevron, JSON.stringify(r1));
       const d1 = await digEast(b.page, 30);
       const fb1 = await b.page.evaluate(() => window.__game.mine.beats().filter((x) => x.d === 'New farthest').length);
       ok('a first run on the leg (no record yet) fires no NEW FARTHEST', fb1 === 0 && d1.east >= 20, `${fb1} beats at ${d1.east} m east (hook ${d1.hook})`);
