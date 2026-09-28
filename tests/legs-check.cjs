@@ -345,8 +345,16 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
     }
     // ======================================================================================
     if (want('perf')) {
-      console.log('— a leg-8 state at 4,000 strands, 390x844, its worms and clouds put back and a rotten patch');
-      const b = await LP.openLeg(E, 8, 0);
+      // TWICE (M9 verify 3): at dsf 1, and at dsf 2 — a phone's backing store (renderScale caps the DPR at 2:
+      // 780x1688 for this viewport), where the frame has a fraction of the dsf-1 headroom and a regression
+      // there was invisible to the dsf-1-only gate. The pass census and the mineFrame gates are run once
+      // (at dsf 1: they count walks and time the sim, neither depends on the backing store).
+      for (const dsf of [1, 2]) await perfBlock(dsf);
+    }
+    async function perfBlock(dsf) {
+      const D = dsf === 1 ? '' : ` [dsf ${dsf}]`;
+      console.log(`— a leg-8 state at 4,000 strands, 390x844 dsf ${dsf}, its worms and clouds put back and a rotten patch`);
+      const b = await LP.openLeg(E, 8, 0, 390, 844, undefined, { dsf });
       await LP.measure(b.page);
       // THE STATE (legprobe `perfState`): the navigator toward the knot, stopping short of it, then digs from
       // strands spread over the colony to 4,200. M9 verify 2: the navigator removes every creature, so the
@@ -357,19 +365,28 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
       const nav = st.nav;
       await b.page.evaluate(() => { const g = window.__game; g.state.active.water = 9999; });
       await sleep(3000);          // the fill's reveal lands, the camera settles
-      await b.page.evaluate(() => { const g = window.__game; g.state.active.water = 9999; g.mine.passesReset(); g.state._mineFrameMs = []; });
-      await sleep(3000);          // SETTLED live frames, the camera following the colony
-      const live = await b.page.evaluate(() => ({ passes: window.__game.mine.passes(), mf: window.__game.mine.frameMs(), nodes: window.__game.state.active.nodes.length,
-        worms: window.__game.state.nematodes.length, clouds: window.__game.state.clouds.length, rot: window.__game.state.active.nodes.filter((n) => n.infected).length,
-        clock: !!window.__game.state.mineInfect }));
-      // EVERY WHOLE-COLONY WALK, NOT ONLY THE DECLARED ONES (M9 verify 2): `mine.passes()` counts the walks the
-      // mine's frame code declares; the census (legprobe `censusInstall`) wraps `net.nodes` in a Proxy and counts
-      // every indexed read by anyone — renderer, world tick, for-of and index loops alike — as equivalent passes
-      // (reads / length) per frame. A frame with no world tick must walk the colony at most twice; a world-tick
-      // frame (2 Hz) is the shared engine's step and is printed, with a regression bound that fails if a walk
-      // per CREATURE comes back (the contact pass walked the colony once per cloud: 90 on this state).
-      await LP.censusInstall(b.page);
-      const cen = await LP.censusRead(b.page, 3000);
+      let live = null, cen = null;
+      if (dsf === 1) {
+        await b.page.evaluate(() => { const g = window.__game; g.state.active.water = 9999; g.mine.passesReset(); g.state._mineFrameMs = []; });
+        await sleep(3000);          // SETTLED live frames, the camera following the colony
+        live = await b.page.evaluate(() => ({ passes: window.__game.mine.passes(), mf: window.__game.mine.frameMs(), nodes: window.__game.state.active.nodes.length,
+          worms: window.__game.state.nematodes.length, clouds: window.__game.state.clouds.length, rot: window.__game.state.active.nodes.filter((n) => n.infected).length,
+          clock: !!window.__game.state.mineInfect }));
+        // EVERY WHOLE-COLONY WALK, NOT ONLY THE DECLARED ONES (M9 verify 2): `mine.passes()` counts the walks the
+        // mine's frame code declares; the census (legprobe `censusInstall`) wraps `net.nodes` in a Proxy and counts
+        // every indexed read by anyone — renderer, world tick, for-of and index loops alike — as equivalent passes
+        // (reads / length) per frame. A frame with no world tick must walk the colony at most twice; a world-tick
+        // frame (2 Hz) is the shared engine's step and is printed, with a regression bound that fails if a walk
+        // per CREATURE comes back (the contact pass walked the colony once per cloud: 90 on this state).
+        // AND WHILE DIGGING (M9 verify 3): the census used to run on a SETTLED colony only, so it never saw the
+        // frame after a dig — the renderer's structure rebuild, the summary's fold and whatever the dig threw
+        // away — which a verifier measured at 4-6 walks. `digEvery` digs every 350 ms through the census window.
+        await LP.censusInstall(b.page);
+        const settled = await LP.censusRead(b.page, 3000);
+        const digging = await LP.censusRead(b.page, 6000, { digEvery: 350 });
+        await LP.censusRemove(b.page);   // the Proxy comes off before anything below is timed (M9 verify 3)
+        cen = { settled, digging };
+      }
       // A SYNCHRONOUS renderFrame ONLY RECORDS: the raster is deferred until the canvas flushes, which in
       // a loop of synchronous frames lands on every ~15th (400-590 ms there, the rest ~5 ms). Each frame
       // is therefore closed with a 1-pixel readback, which forces its raster inside the timing.
@@ -389,12 +406,20 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
         }
         cam.zoom = z0;
         const st1 = g.mine.memoStats(), d = (k, f) => (st1[k] ? (st1[k][f] - (st0[k] ? st0[k][f] : 0)) : 0);
-        return { ms: out.slice(4), builds: d('earth', 'builds') + d('rock', 'builds'), live: d('earth', 'live') + d('rock', 'live'), hits: d('earth', 'hits') + d('rock', 'hits') };
+        const sum3 = (f) => d('earth', f) + d('rock', f) + d('leaf', f);
+        return { ms: out.slice(4), builds: sum3('builds'), live: sum3('live'), hits: sum3('hits') };
       }, mode);
+      const memoKnob = (off) => b.page.evaluate((off) => { window.MYCELIUM_NO_EARTH_MEMO = off; window.MYCELIUM_NO_ROCK_MEMO = off; window.MYCELIUM_NO_LEAF_MEMO = off; }, off);
       await b.page.evaluate(() => { const g = window.__game; g.mine.lookAt(g.camera.x, g.camera.y); });
-      const rest = await rfRun('rest'), pan = await rfRun('pan'), fast = await rfRun('fast'), zoom = await rfRun('zoom');
-      const zoomOff = await (async () => { await b.page.evaluate(() => { window.MYCELIUM_NO_EARTH_MEMO = true; window.MYCELIUM_NO_ROCK_MEMO = true; });
-        const r = await rfRun('zoom'); await b.page.evaluate(() => { window.MYCELIUM_NO_EARTH_MEMO = false; window.MYCELIUM_NO_ROCK_MEMO = false; }); return r; })();
+      const rest = await rfRun('rest'), pan = await rfRun('pan'), fast = await rfRun('fast');
+      // THE ZOOM A/B IS INTERLEAVED, THREE PAIRS (M9 verify 3): one run on then one run off measured the host
+      // drifting between them as much as the memos (on/off 33.6/33.9, 36.0/33.5, 39.2/34.0 in three runs of the
+      // old build). On, off, on, off, on, off, and the medians of all on frames against all off frames.
+      const zOn = [], zOff = []; let zb = 0, zl = 0;
+      for (let k = 0; k < 3; k++) {
+        const on = await rfRun('zoom'); zOn.push(...on.ms); zb += on.builds; zl += on.live;
+        await memoKnob(true); const off = await rfRun('zoom'); zOff.push(...off.ms); await memoKnob(false);
+      }
       const rf = rest.ms;
       // The memo draws the same picture: one frame with the earth and rock memos on, one with them off.
       const same = await b.page.evaluate(() => {
@@ -402,34 +427,72 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
         const grab = () => { g.renderFrame(t, 1); return c.getImageData(0, 0, cv.width, cv.height).data; };
         g.mine.memoReset();          // built at THIS camera, so the comparison is the content, not a sub-pixel offset
         const on = grab();
-        window.MYCELIUM_NO_EARTH_MEMO = true; window.MYCELIUM_NO_ROCK_MEMO = true;
+        window.MYCELIUM_NO_EARTH_MEMO = true; window.MYCELIUM_NO_ROCK_MEMO = true; window.MYCELIUM_NO_LEAF_MEMO = true;
         const off = grab();
-        window.MYCELIUM_NO_EARTH_MEMO = false; window.MYCELIUM_NO_ROCK_MEMO = false;
+        window.MYCELIUM_NO_EARTH_MEMO = false; window.MYCELIUM_NO_ROCK_MEMO = false; window.MYCELIUM_NO_LEAF_MEMO = false;
         let sum = 0, big = 0; for (let i = 0; i < on.length; i += 4) { const d = Math.abs(on[i] - off[i]) + Math.abs(on[i + 1] - off[i + 1]) + Math.abs(on[i + 2] - off[i + 2]); sum += d; if (d > 48) big++; }
         return { mean: +(sum / (on.length / 4) / 3).toFixed(3), big, px: on.length / 4, stats: g.mine.memoStats() };
       });
-      await shot(b.page, 'm9-perf-4000-390.png');
-      const mfs = live.mf.map((x) => x[0]), mfNoTick = live.mf.filter((x) => !x[1]).map((x) => x[0]);
+      // A SEAM EMPTIED UNDER A STANDING LEAF BUFFER (M9 verify 3): the leaf memo must not keep drawing a heap
+      // the colony has eaten. The nearest on-screen unpaid seam is emptied (its cells' nutrient to 0, as a claim
+      // does) while the buffer holds it; frames run on past the leaves' fade, and the frame with the memos on
+      // must match the frame drawn live, AND differ from the frame before the claim where the heap stood.
+      const claim = await b.page.evaluate(() => {
+        const g = window.__game, s = g.state, sub = s.substrate, cam = g.camera, cv = document.getElementById('game'), c = cv.getContext('2d');
+        let t = performance.now();
+        const onScreen = (p) => { const q = p.cells[0], x = ((q % sub.cols) + 0.5) * sub.cellSize, y = sub.surfaceY + (((q / sub.cols) | 0) + 0.5) * sub.cellSize;
+          const w = cam.worldToScreen(x, y); return w.x > 40 && w.x < cam.viewW - 40 && w.y > 120 && w.y < cam.viewH - 120; };
+        const pile = sub.foodPiles.find((p) => !p.rewarded && p.cells.some((i) => sub.cells[i].nutrient > 0) && onScreen(p));
+        if (!pile) return { none: true };
+        const frames = (n) => { for (let i = 0; i < n; i++) { t += 16.7; g.renderFrame(t, 1); } };
+        const grab = () => { t += 16.7; g.renderFrame(t, 1); return c.getImageData(0, 0, cv.width, cv.height).data; };
+        const diff = (a, b2) => { let n = 0; for (let i = 0; i < a.length; i += 4) if (Math.abs(a[i] - b2[i]) + Math.abs(a[i + 1] - b2[i + 1]) + Math.abs(a[i + 2] - b2[i + 2]) > 48) n++; return n; };
+        frames(8);
+        const st0 = g.mine.memoStats().leaf;
+        const before = grab();
+        const st1 = g.mine.memoStats().leaf;
+        for (const i of pile.cells) sub.cells[i].nutrient = 0;
+        frames(3); t += 700; frames(8);      // past LEAF_FADE_MS (460) on the frame clock
+        const on = grab();
+        window.MYCELIUM_NO_LEAF_MEMO = true; g.renderFrame(t, 1); const off = c.getImageData(0, 0, cv.width, cv.height).data; window.MYCELIUM_NO_LEAF_MEMO = false;   // the SAME clock as `on`
+        return { heldHit: st1.hits > st0.hits, vsLive: diff(on, off), vsBefore: diff(on, before), px: on.length / 4 };
+      });
+      await shot(b.page, dsf === 1 ? 'm9-perf-4000-390.png' : `m9-perf-4000-390-dsf${dsf}.png`);
       const f2 = (a) => `median ${med(a).toFixed(2)}, p95 ${pct(a, 0.95).toFixed(2)}`;
-      ok(`the state holds >= 4,000 strands with its creatures and a rotten patch (${live.nodes})`, live.nodes >= 4000 && live.worms >= 20 && live.clouds >= 10 && live.rot >= 10 && live.clock,
-         JSON.stringify({ digs: nav.digs, landed: nav.landed, worms: live.worms, clouds: live.clouds, rot: live.rot, clock: live.clock, kept: st.kept }));
-      ok('renderFrame median <= 20 ms and p95 <= 33 ms (camera at rest, raster forced per frame)', med(rf) <= 20 && pct(rf, 0.95) <= 33,
+      const nodes = await b.page.evaluate(() => window.__game.state.active.nodes.length);
+      if (live) {
+        ok(`the state holds >= 4,000 strands with its creatures and a rotten patch (${live.nodes})`, live.nodes >= 4000 && live.worms >= 20 && live.clouds >= 10 && live.rot >= 10 && live.clock,
+           JSON.stringify({ digs: nav.digs, landed: nav.landed, worms: live.worms, clouds: live.clouds, rot: live.rot, clock: live.clock, kept: st.kept }));
+      } else ok(`the state holds >= 4,000 strands${D} (${nodes})`, nodes >= 4000, JSON.stringify({ digs: nav.digs, kept: st.kept }));
+      ok(`renderFrame median <= 20 ms and p95 <= 33 ms (camera at rest, raster forced per frame)${D}`, med(rf) <= 20 && pct(rf, 0.95) <= 33,
          `rest ${f2(rf)} over ${rf.length} frames; printed, not gated: pan 3 px ${f2(pan.ms)}, pan 12 px ${f2(fast.ms)} (memo builds ${fast.builds}, live ${fast.live}, hits ${fast.hits})`);
       // A ZOOM THAT MOVES EVERY FRAME BUILDS NO BUFFER (M9 verify 2): with "build on the second stale frame" a
       // zoom tween alternated live frames with 1.69x builds, for both layers, and cost more than no memo at all.
-      ok('while the zoom moves every frame the memos build nothing and draw live, and the tween costs no more than with the memos off (median within 15%)',
-         zoom.builds === 0 && zoom.live >= 100 && med(zoom.ms) <= med(zoomOff.ms) * 1.15,
-         `zoom tween memos on ${f2(zoom.ms)} (builds ${zoom.builds}, live ${zoom.live}), off ${f2(zoomOff.ms)}`);
-      ok('the earth and rock memos draw the same frame as drawing live (mean channel diff < 1, < 0.5% of pixels off by > 16)', same.mean < 1 && same.big < same.px * 0.005, JSON.stringify(same));
-      ok('mineFrame <= 2 ms once settled: median AND p95 over the live frames (max printed)', mfs.length >= 20 && med(mfs) <= 2 && pct(mfs, 0.95) <= 2,
-         `median ${med(mfs).toFixed(3)} ms, p95 ${pct(mfs, 0.95).toFixed(3)}, max ${Math.max(...mfs).toFixed(3)} over ${mfs.length} frames (no-tick median ${med(mfNoTick).toFixed(3)})`);
-      ok('at most 2 whole-colony passes in any frame of the mine\'s own frame code (mine.passes)', live.passes && live.passes.frames >= 20 && live.passes.max <= 2,
-         JSON.stringify(live.passes));
-      ok('at most 2 whole-colony walks in any frame without a world tick, counting EVERY read of the strand array (census)', cen.noTick.frames >= 20 && cen.noTick.max <= 2,
-         JSON.stringify(cen.noTick));
-      ok('a world-tick frame walks the colony a bounded number of times, not once per creature (census <= 24; printed by caller)', cen.tick.frames >= 2 && cen.tick.max <= 24,
-         JSON.stringify(cen.tick));
-      ok('no page errors (perf)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+      ok(`while the zoom moves every frame the memos build nothing and draw live, and the tween costs no more than with the memos off (median within 15%, 3 interleaved pairs)${D}`,
+         zb === 0 && zl >= 450 && med(zOn) <= med(zOff) * 1.15,
+         `zoom tween memos on ${f2(zOn)} (builds ${zb}, live ${zl}), off ${f2(zOff)}, on/off ${(med(zOn) / med(zOff)).toFixed(3)}`);
+      ok(`the earth, leaf and rock memos draw the same frame as drawing live (mean channel diff < 1, < 0.5% of pixels off by > 16)${D}`, same.mean < 1 && same.big < same.px * 0.005, JSON.stringify(same));
+      ok(`a seam emptied under a standing leaf buffer leaves the frame as drawing live does (the heap goes)${D}`,
+         !claim.none && claim.heldHit && claim.vsLive < claim.px * 0.0005 && claim.vsBefore > 40, JSON.stringify(claim));
+      if (live) {
+        const mfs = live.mf.map((x) => x[0]), mfNoTick = live.mf.filter((x) => !x[1]).map((x) => x[0]);
+        ok('mineFrame <= 2 ms once settled: median AND p95 over the live frames (max printed)', mfs.length >= 20 && med(mfs) <= 2 && pct(mfs, 0.95) <= 2,
+           `median ${med(mfs).toFixed(3)} ms, p95 ${pct(mfs, 0.95).toFixed(3)}, max ${Math.max(...mfs).toFixed(3)} over ${mfs.length} frames (no-tick median ${med(mfNoTick).toFixed(3)})`);
+        ok('at most 2 whole-colony passes in any frame of the mine\'s own frame code (mine.passes)', live.passes && live.passes.frames >= 20 && live.passes.max <= 2,
+           JSON.stringify(live.passes));
+        const { settled, digging } = cen;
+        ok('at most 2 whole-colony walks in any frame without a world tick on a SETTLED colony, counting EVERY read of the strand array (census)', settled.noTick.frames >= 20 && settled.noTick.max <= 2,
+           JSON.stringify(settled.noTick));
+        // 4.01 on every frame after a dig before M9 verify 3 (mineAgg's rebuild 1, _rebuildCaches 2, _scheduleInfection 1).
+        ok('...and WHILE DIGGING (a dig every 350 ms): every frame without a world tick, the frames after a dig among them, at most 2',
+           digging.digOk >= 8 && digging.digFrames.frames >= 5 && digging.noTick.frames >= 20 && digging.noTick.max <= 2,
+           `digs ${digging.digOk}/${digging.digs}; after a dig ${JSON.stringify({ frames: digging.digFrames.frames, max: digging.digFrames.max, worst: digging.digFrames.worst })}; all no-tick ${JSON.stringify({ frames: digging.noTick.frames, max: digging.noTick.max, over2: digging.noTick.over2 })}`);
+        // 18-21 before M9 verify 3 (healthyCount x4, mineAgg/_scheduleInfection on every tick); 16 after.
+        ok('a world-tick frame walks the colony a bounded number of times, not once per creature (census <= 18, settled and digging; printed by caller)',
+           settled.tick.frames >= 2 && digging.tick.frames >= 2 && settled.tick.max <= 18 && digging.tick.max <= 18,
+           `settled max ${settled.tick.max}, digging max ${digging.tick.max}; digging by caller ${JSON.stringify(digging.tick.whyPerFrame)}`);
+      }
+      ok(`no page errors (perf)${D}`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();
     }
   } catch (e) { fail++; console.log('  FAIL  harness error: ' + (e && e.stack || e)); }
