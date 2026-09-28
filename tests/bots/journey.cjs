@@ -77,7 +77,12 @@ async function followRun(page, route, paceMs) {
     await page.evaluate(() => { const b = document.getElementById('set-forcefruit'); if (b) b.click(); });
     await sleep(800);
   }
-  return { digs, seconds: Math.round((Date.now() - t0) / 1000), start, mode, kit };
+  // WHERE THE ROUTE STOPPED (M8 verify 3): the furthest route point a clean strand reached, as metres east /
+  // metres down, so a leg's stall points can be read off repeated careers.
+  const reached = await page.evaluate(() => { const J = window.__jb, s = window.__game.state, sub = s.substrate, cs = sub.cellSize;
+    const p = J.route[J.best], hx = (sub.mineHomeCol + 0.5) * cs;
+    return { frac: +(J.best / (J.route.length - 1)).toFixed(3), east: Math.round((p[0] - hx) / cs), down: Math.round((p[1] - sub.surfaceY) / cs) }; });
+  return { digs, seconds: Math.round((Date.now() - t0) / 1000), start, mode, kit, reached };
 }
 
 const argv = process.argv.slice(2);
@@ -161,7 +166,7 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     const row = { run, leg: leg0, cause: rr.cause, depth: rr.depth, east: rr.east, ore: rr.ore, bonus: rr.bonus, digs: res.digs,
                   seconds: res.seconds, start: res.start.water, islands: jn.islands, nextLeg: jn.leg, bought };
     log.push(row);
-    console.log(`R${run} leg ${leg0} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}${res.kit ? ` | kit: flask x${res.kit.flask}, cut x${res.kit.cut}${res.kit.cutMsgs.length ? ' [' + res.kit.cutMsgs.join(' / ') + ']' : ''}, most rot ${res.kit.rotSeen}` : ''}`);
+    console.log(`R${run} leg ${leg0} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}${res.kit ? ` | kit: flask x${res.kit.flask}, cut x${res.kit.cut}${res.kit.cutMsgs.length ? ' [' + res.kit.cutMsgs.join(' / ') + ']' : ''}, most rot ${res.kit.rotSeen}` : ''}${res.reached ? ` | route ${res.reached.frac} to ${res.reached.east} m east / ${res.reached.down} m, ended in ${res.mode}` : ''}`);
     fs.writeFileSync(`${OUT}/${tag}.json`, JSON.stringify(log, null, 1));
     if (landAt.length >= legsWanted) break;
     await page.click('#ssDescend').catch(() => {});

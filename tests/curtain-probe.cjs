@@ -66,6 +66,15 @@ const runs = +(process.argv[2] || 3) || 3, PROF = process.argv.includes('--profi
           while (p != null) { const pn = byId.get(p); const f = pn.callFrame.functionName; if (f && !CANVAS.has(f)) { name = f; break; } p = parent.get(p); }
           by.set(name, (by.get(name) || 0) + us);
         }
+        // INCLUSIVE time of the named steps of the tap handler (M8 verify 3): self time alone cannot say
+        // how the world build splits between the state, the chunks and begin().
+        const incl = new Map(), WANT = ['beginMineRun', 'startRun', 'start', 'createLevelState', 'buildLevel', 'begin',
+          'mineEnsureChunks', 'mineGenerateChunk', 'renderFrame', 'solidifyRock', 'drawLevelRocks', 'revealMap'];
+        for (const [id, us] of counts) {
+          const seen = new Set(); let p = id;
+          while (p != null) { const f = byId.get(p).callFrame.functionName; if (WANT.includes(f) && !seen.has(f)) { seen.add(f); incl.set(f, (incl.get(f) || 0) + us); } p = parent.get(p); }
+        }
+        console.log('   inclusive: ' + WANT.filter((k) => incl.has(k)).map((k) => `${k} ${(incl.get(k) / 1000).toFixed(1)}`).join(' · '));
         console.log('   canvas-call self time by caller:');
         [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).forEach(([k, us]) => console.log(`     ${(us / 1000).toFixed(1).padStart(7)} ms  ${k}`));
       }
