@@ -1827,7 +1827,10 @@
     .ss-mineend-east { margin:2px 0 0; font-size:clamp(13px,2.2vw,16px); font-weight:600; color:var(--ss-ink-dim,#8aa193);
       letter-spacing:.03em; }
     .ss-mineend-east b { color:#cfe8d8; }
-    .ss-mineend .mj-strip { margin-top: clamp(6px,1.4vh,14px); }
+    .ss-mineend-eastrow { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; column-gap:14px; row-gap:2px; margin:2px 0 0; }
+    .ss-mineend-eastrow .ss-mineend-east { margin:0; }
+    .ss-mineend .mj-strip { margin:0; gap:7px; }
+    .ss-mineend .mj-dot { width:9px; height:9px; }
     .ss-minego .mj-strip { margin-top: 8px; }
     .ss-mineend-best { margin:2px 0 0; font-family:var(--ss-serif,Georgia,serif); font-style:italic;
       font-size:clamp(12px,2vw,15px); color:var(--ss-ink-dim,#8aa193); }
@@ -29581,15 +29584,25 @@ class UI {
     const pc = document.getElementById('hud-phos');
     if (pc && pc.hidden !== !(phos > 0)) pc.hidden = !(phos > 0);
     const r2 = document.getElementById('hudrow2');
-    if (r2) {
-      const mr = document.getElementById('matrow'), wm = document.getElementById('hud-worms');
-      const any = phos > 0 || !!(mr && !mr.classList.contains('hidden')) || !!(wm && !wm.hidden);
-      if (r2.hidden !== !any) r2.hidden = !any;
-    }
     const ui = document.getElementById('ui');
     const lim = (s.config.mine && s.config.mine.hudTwoRowsBelowPx) || 430;
     const two = !!ui && ui.clientWidth > 0 && ui.clientWidth < lim;
     if (this._mineTwo !== two) { this._mineTwo = two; hud.classList.toggle('two', two); }
+    // THE EAST READOUT MOVES TO ROW 2 WHEN THE ROWS STACK (M8 verify). Row 1 is water, the price and the
+    // depth, sized in M3 for a 296 px box; '→ 192 m' on top of it needed 263-279 px of a 232 px pill at
+    // 360x640 (and 198 at 320), so its number ran under the gear. Row 2 wraps by design, so it goes there
+    // — first, since it is the leg's progress — and back to row 1 when the rows sit side by side.
+    const he = document.getElementById('hud-east');
+    if (he && r2) {
+      const want = two ? r2 : this.el.hudtop.querySelector('.resrow');
+      if (want && he.parentNode !== want) { if (two) r2.insertBefore(he, r2.firstChild); else want.appendChild(he); }
+    }
+    if (r2) {
+      const mr = document.getElementById('matrow'), wm = document.getElementById('hud-worms');
+      const any = phos > 0 || !!(mr && !mr.classList.contains('hidden')) || !!(wm && !wm.hidden)
+        || !!(he && two && !he.hidden);
+      if (r2.hidden !== !any) r2.hidden = !any;
+    }
   }
 
   // THE FRUIT NOW PILL (M1). Called from `update` and ALSO every frame by the mine's own clock,
@@ -31911,8 +31924,13 @@ const MINE_RUN_ENDING = {
   quit: (m) => 'You left the descent at ' + m + ' m. Everything dug is banked.',
   full: () => 'The colony fills every passage it can reach, and fruits.',
   // LANDFALL (M8): `o` = {leg, next, nextName} — the island is numbered by the leg it ends.
-  island: (m, o) => 'Your colony took root on Island ' + ((o && o.leg) | 0 || 1) + '. Leg '
-    + ((o && o.next) | 0 || 2) + (o && o.nextName ? ', ' + o.nextName + ',' : '') + ' starts there.',
+  // ...and when the next leg is not BUILT yet (legs 4-8 arrive in M9) the next descent replays the last
+  // built one, so the line says that instead of promising a leg that does not exist (M8 verify: it read
+  // 'Leg 4 starts there' and the next Descend opened Leg 3 again).
+  island: (m, o) => 'Your colony took root on Island ' + ((o && o.leg) | 0 || 1) + '. '
+    + (o && o.nextBuilt === false
+      ? 'Leg ' + ((o.next | 0) || 2) + ' is not open yet — the next descent replays Leg ' + ((o.leg | 0) || 1) + '.'
+      : 'Leg ' + ((o && o.next) | 0 || 2) + (o && o.nextName ? ', ' + o.nextName + ',' : '') + ' starts there.'),
   other: (m) => 'The colony fruits and spores at ' + m + ' m. Everything dug is banked.',
 };
 function mineEndingLine(cause, depth, o) {
@@ -31973,9 +31991,11 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
     '<div class="ss-win-title" role="img" aria-label="' + (rooted ? 'Rooted' : 'Spored') + '"></div>' +
     '<p class="ss-mineend-depth">' + (depth | 0) + '<span class="ss-mineend-m">m</span></p>' +
     // ON A LEG, HOW FAR EAST too (M8) — its own line, so the depth element stays the one number.
-    (onLeg ? '<p class="ss-mineend-east">down · <b>' + east + ' m</b> east</p>' : '') +
+    // ...and THE JOURNEY STRIP beside it (M8 verify): it was the screen's last row, under the buttons,
+    // and on a short phone (360x640: 25 px, 640x360: 79 px) it was the part pushed off the bottom.
+    (onLeg ? '<div class="ss-mineend-eastrow"><p class="ss-mineend-east">down · <b>' + east + ' m</b> east</p>' + (stripHTML || '') + '</div>' : '') +
     // WHAT ENDED IT, in one line, BRANCHED ON THE CAUSE (never on `died`) — see MINE_RUN_ENDING.
-    '<p class="ss-win-sub ss-mineend-why">' + esc(mineEndingLine(cause, depth, { leg, next: nextLeg, nextName })) + '</p>' +
+    '<p class="ss-win-sub ss-mineend-why">' + esc(mineEndingLine(cause, depth, { leg, next: nextLeg, nextName, nextBuilt: !!nextName })) + '</p>' +
     records +
     '<div class="ss-me-rows">' + rows + '</div>' +
     '<p class="ss-win-earned">+<span class="ss-count" data-n="' + (ore | 0) + '">' + (ore | 0) + '</span>' + RI.phos +
@@ -31985,9 +32005,7 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
     '<div class="ss-me-acts">' +
       '<button class="ss-win-btn ss-me-descend" id="ssMineDescend" type="button">Descend</button>' +
       '<button class="ss-me-store" id="ssMineDone" type="button">Store</button>' +
-    '</div>' +
-    // THE JOURNEY STRIP (M8), last: 8 islands, the rooted ones lit.
-    (stripHTML || '');
+    '</div>';
   if (rooted) root.classList.add('ss-rooted');
   document.body.appendChild(root);
   const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: rooted ? 'ROOTED' : 'SPORED', stepRate: 3.2, fitWidth: true });
@@ -36059,9 +36077,9 @@ function mineBank(r) {
     : (state ? Math.max(state.mineMaxDepth | 0, state.mineDepth | 0) : 0)) | 0);
   // `ore` is the WHOLE Phosphorus payout (M5): reach (at least 5) + seams — `mineEndRun` writes it, and
   // an ending that did not go through it is priced off the state the same way.
-  const ore = Math.max(0, (r.ore != null ? r.ore : (state ? mineBankable(state, r.cause) : 0)) | 0);
+  let ore = Math.max(0, (r.ore != null ? r.ore : (state ? mineBankable(state, r.cause) : 0)) | 0);
   const seams = Math.max(0, (r.seams != null ? r.seams : (state && state.mineOre)) | 0);
-  const bonus = Math.max(0, r.bonus | 0);
+  let bonus = Math.max(0, r.bonus | 0);
   const reach = Math.max(0, ore - seams - bonus);
   // THE LEG AND ITS EAST (M8) — off the result, or off the state for an ending that did not go
   // through `mineEndRun` (the plan's risk: a worm or rot ending that builds its own result).
@@ -36075,6 +36093,13 @@ function mineBank(r) {
   const mats = (r.mats && Object.keys(r.mats).length ? r.mats : (state && state.mineMats)) || null;
   if (!r._minePaid) {
     r._minePaid = true;
+    // THE ISLAND BONUS IS PAID ONCE PER LEG, checked again at the bank (M8 verify): the run decided it
+    // off the save when it STARTED, so two descents of one leg in flight at once (two tabs) could both
+    // land and both be paid. The second finds the leg already landed and banks reach and seams only.
+    if (bonus > 0 && r.cause === 'island' && r.leg > 0) {
+      let rec = null; try { rec = mineLegRecord(loadProgress(), r.journey | 0, r.leg | 0); } catch (_) {}
+      if (rec && rec.landed) { ore -= bonus; r.ore = ore; r.bonus = bonus = 0; }
+    }
     // WHAT ANOTHER PAGE'S BOOT ALREADY BANKED OF THIS RUN (a second tab, or a fresh load while this
     // one sat hidden or in the back-forward cache) is not paid again: only the rest is.
     const key = mineRunKey(state);
@@ -36117,8 +36142,8 @@ function mineBank(r) {
     // THE LEG (M8): a journey descent is recorded on its leg (runs, best depth, farthest east; a
     // landfall marks it landed and moves the save on). `r.depth` may be missing on a result built
     // elsewhere, so the record takes the figures just resolved.
-    r._legRec = r.leg > 0 && digs > 0 && !bootCounted
-      ? mineRecordLeg({ leg: r.leg, cause: r.cause, digs, depth, east }) : null;
+    r._legRec = r.leg > 0 && digs > 0
+      ? mineRecordLeg({ leg: r.leg, cause: r.cause, digs, depth, east, countRun: !bootCounted }) : null;
     // `detail` is 'L<leg>:<cause>:e<east m>' (M8; L0 is the free layout), so the funnel can tell a
     // leg-2 soft lock from a leg-1 choice and read how far east the run got.
     logEvent('run_end', { level: depth, cause: r.cause || 'dry', turns: state && state.turn, n: ore,
@@ -36236,7 +36261,11 @@ function minePendingWrite() {
     const P = Math.max(0, P0 - tk.P), mats = {};
     for (const k of Object.keys(mats0)) { const n = Math.max(0, (mats0[k] | 0) - (tk.mats[k] | 0)); if (n) mats[k] = n; }
     const map = minePendingMap(p);
-    map[key] = { P, mats, depth, digs: r && r.digs != null ? r.digs | 0 : (state.mineDigs | 0), at: Date.now() };
+    // THE LEG AND ITS EAST (M8 verify), so a boot that banks this record can put the descent on its leg.
+    const J = state.substrate.mineJourney;
+    const east = r && r.east != null ? r.east | 0 : Math.max(state.mineMaxEast | 0, mineEastReached(state));
+    map[key] = { P, mats, depth, digs: r && r.digs != null ? r.digs | 0 : (state.mineDigs | 0), at: Date.now(),
+                 leg: J ? J.leg | 0 : 0, east };
     p.minePending = map;
     saveProgress(p);
     return true;
@@ -36293,6 +36322,9 @@ function minePendingBankAtBoot() {
       const dug = pend.digs != null ? (pend.digs | 0) > 0 : dP > 0;
       const already = key !== 'legacy' && !!(p.mineTaken && key in p.mineTaken);
       if (dug && !already) { p.mineRuns = mineRunsBanked(p) + 1; countRuns++; }
+      // ...AND ON ITS LEG (M8 verify): runs and bests, once per run as above. A record is never a
+      // landfall (a landfall is banked on the frame it happens), so this cannot move the journey on.
+      if (dug && (pend.leg | 0) > 0) mineLegApply(p, { leg: pend.leg | 0, cause: 'pending', digs: pend.digs | 0 || 1, depth: d, east: pend.east | 0 }, !already);
       if (dug && !(p.mineBest >= d)) p.mineBest = d;
       if (key !== 'legacy') {
         p.mineTaken = p.mineTaken || {};
@@ -36371,28 +36403,37 @@ function mineRecordLeg(r) {
   if (!r || !(r.leg > 0)) return null;
   try {
     const p = loadProgress();
-    const mj = mineJourneySave(p);
-    const L = r.leg | 0;
-    const rec = Object.assign({ runs: 0, bestDepth: 0, bestEast: 0, landed: false }, mj.legs[L] || {});
-    const was = { depth: rec.bestDepth | 0, east: rec.bestEast | 0, landed: !!rec.landed };
-    if ((r.digs | 0) > 0) rec.runs = (rec.runs | 0) + 1;
-    rec.bestDepth = Math.max(rec.bestDepth | 0, r.depth | 0);
-    rec.bestEast = Math.max(rec.bestEast | 0, r.east | 0);
-    let firstLand = false;
-    if (r.cause === 'island') {
-      firstLand = !rec.landed;
-      rec.landed = true;
-      mj.leg = Math.max(mj.leg, Math.min(MINE_JOURNEY_LEGS, L + 1));
-      // THE STORE'S LEG GATES (M5's `mineTrackRevealed`: flasks from leg 2, the enzyme from leg 4) read
-      // `p.mineSeen.leg`, which nothing set until there were legs to reach.
-      p.mineSeen = p.mineSeen || {};
-      p.mineSeen.leg = Math.max(p.mineSeen.leg | 0, mj.leg);
-    }
-    mj.legs[L] = rec;
-    p.mineJourney = { journey: mj.journey, leg: mj.leg, legs: mj.legs };
+    const out = mineLegApply(p, r, r.countRun !== false);
     saveProgress(p);
-    return Object.assign({}, rec, { was, firstLand });
+    return out;
   } catch (_) { return null; }
+}
+// The same record, applied to a progress object in hand (the boot-time bank writes it in the same save
+// as the payout). `countRun` false: a boot elsewhere already counted this descent's run on the leg (a
+// second tab, or a reload while this one sat hidden) — the bests and a LANDFALL still land (M8 verify:
+// skipping the whole record there left a landfall unrecorded, the leg unchanged and its bonus payable
+// again on the next descent).
+function mineLegApply(p, r, countRun) {
+  const mj = mineJourneySave(p);
+  const L = r.leg | 0;
+  const rec = Object.assign({ runs: 0, bestDepth: 0, bestEast: 0, landed: false }, mj.legs[L] || {});
+  const was = { depth: rec.bestDepth | 0, east: rec.bestEast | 0, landed: !!rec.landed };
+  if (countRun && (r.digs | 0) > 0) rec.runs = (rec.runs | 0) + 1;
+  rec.bestDepth = Math.max(rec.bestDepth | 0, r.depth | 0);
+  rec.bestEast = Math.max(rec.bestEast | 0, r.east | 0);
+  let firstLand = false;
+  if (r.cause === 'island') {
+    firstLand = !rec.landed;
+    rec.landed = true;
+    mj.leg = Math.max(mj.leg, Math.min(MINE_JOURNEY_LEGS, L + 1));
+    // THE STORE'S LEG GATES (M5's `mineTrackRevealed`: flasks from leg 2, the enzyme from leg 4) read
+    // `p.mineSeen.leg`, which nothing set until there were legs to reach.
+    p.mineSeen = p.mineSeen || {};
+    p.mineSeen.leg = Math.max(p.mineSeen.leg | 0, mj.leg);
+  }
+  mj.legs[L] = rec;
+  p.mineJourney = { journey: mj.journey, leg: mj.leg, legs: mj.legs };
+  return Object.assign({}, rec, { was, firstLand });
 }
 function mineRecordDepth(depth) {
   try {

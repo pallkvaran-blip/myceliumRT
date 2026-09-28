@@ -20,8 +20,22 @@
  *   free     '#mine,4242' (the free layout) carries none of it: no east readout, no banner, east 0, and
  *            run_end's detail is 'L0:<cause>:e0'.
  *
- * Screens: tests/.artifacts/m8-{rooted,leg2-banner,title,store,records,sight}-390.png.
- * `LANDFALL_ONLY=land,records,free` runs a subset.
+ *   hud      (M8 verify) a leg's HUD at its widest (120 water, 168 m, 192 m east, P, three materials) stays
+ *            on the play surface at 390x844, 360x640 and 320x568, row 1 clear of the gear — at 360 the east
+ *            readout ran under the gear before it moved to row 2 when the rows stack.
+ *   fit      (M8 verify) ROOTED at 360x640 fits with nothing scrolling and the strip on screen (the strip
+ *            was the last row, 25 px below the fold).
+ *   tabs     (M8 verify) two tabs of one profile: a boot that banks a leg descent's pending record puts
+ *            it on the leg (runs, farthest east), and the live tab's later LANDFALL is still recorded
+ *            (leg 1 -> 2, runs not counted twice, the bonus paid once). Before, the bank skipped the whole
+ *            leg record whenever a boot had counted the run.
+ *   twice    (M8 verify) a landfall on a leg another descent has landed since this one started pays no
+ *            second bonus (checked at the bank, not only at run start); the island event says ':again'.
+ *   replay   (M8 verify) a save past the built legs (leg 4) plays leg 3, labelled Leg 3, pays no bonus,
+ *            and ROOTED says the next leg is not open yet instead of promising it.
+ *
+ * Screens: tests/.artifacts/m8-{rooted,leg2-banner,title,store,records,sight,hud-360,rooted-360}-390.png.
+ * `LANDFALL_ONLY=land,records,free,hud,fit,tabs,twice,replay` runs a subset.
  */
 const path = require('path'), fs = require('fs');
 const H = require('./mine-harness.cjs');
@@ -54,6 +68,29 @@ const digEast = async (page, toE) => {
     return { east: Math.floor((b - homeX) / cs), hook: g.mine.east() };
   }).then((r) => Object.assign(r, { digs: f.digs }));
 };
+
+
+// Lands the colony on the leg's taproot: the follower to within 280 units, then growFrom at the knot
+// from the nearest clean strand. Resolves once the mine frame has ended the run (or not, after 3 s).
+const landNow = async (page) => {
+  const m = await LP.measure(page, { route: true });
+  await LP.follow(page, m.route, { stopWithin: 280 });
+  return page.evaluate(async () => {
+    const g = window.__game, s = g.state, net = s.active, t = g.mine.taproot();
+    const R = (s.config.mine.journey.landfallCells || 1.5) * s.substrate.cellSize;
+    const bal0 = g.store.balance();
+    for (let k = 0; k < 8 && !net.nodes.some((n) => !n.infected && Math.hypot(n.x - t.x, n.y - t.y) <= R); k++) {
+      let src = null, sd = 1e9;
+      for (const n of net.nodes) { if (n.infected) continue; const d = Math.hypot(n.x - t.x, n.y - t.y); if (d < sd) { sd = d; src = n; } }
+      net.water = 999; g.mine.growFrom(src.x, src.y, t.x, t.y);
+    }
+    for (let k = 0; k < 30 && !s.runOver; k++) await new Promise((q) => setTimeout(q, 100));
+    const r = s.runResult || {};
+    return { over: !!s.runOver, cause: r.cause, ore: r.ore, bonus: r.bonus, seams: r.seams, reach: r.reach, leg: r.leg, bal0, bal1: g.store.balance() };
+  });
+};
+const waitLeg = (page) => page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.leg && window.__game.mine.leg()
+  && window.__game.state.substrate._fineSolid && !window.__game.state.runOver), { timeout: 40000 });
 
 (async () => {
   const E = await H.start();
@@ -273,6 +310,145 @@ const digEast = async (page, toE) => {
         return (window.__rows.filter((r) => r.kind === 'run_end').pop() || {}).detail; });
       ok("...and run_end's detail is 'L0:<cause>:e0'", /^L0:\w+:e0$/.test(det || ''), det);
       ok('no page errors (free)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+      await b.ctx.close();
+    }
+
+    // ======================================================================================
+    if (want('hud')) {
+      console.log('— a leg\'s HUD at its widest stays on the play surface');
+      for (const [w, h] of [[390, 844], [360, 640], [320, 568]]) {
+        const b = await E.boot('#leg,1,3', w, h);
+        await waitLeg(b.page);
+        await sleep(800);
+        const r = await b.page.evaluate(async () => {
+          const s = window.__game.state;
+          const push = () => { s.active.water = 120; s.mineMaxEast = 192; s.mineMaxDepth = 168; s.mineDepth = 168; s.mineOre = 327;
+            s.mineMats = { anthracite: 18, garnet: 23, hematite: 21 }; };
+          push(); await new Promise((q) => setTimeout(q, 1300)); push(); await new Promise((q) => setTimeout(q, 600));
+          const box = document.getElementById('ui').getBoundingClientRect(), gear = document.getElementById('gearbtn').getBoundingClientRect();
+          const bad = [];
+          for (const e of document.querySelectorAll('#ui .minerows *')) {
+            if (e.closest('[hidden]')) continue;
+            const q = e.getBoundingClientRect(); if (!q.width) continue;
+            if (q.left < box.left - 0.5 || q.right > box.right + 0.5) bad.push((e.id || e.className) + ' x ' + Math.round(q.left) + '-' + Math.round(q.right));
+          }
+          const top = document.querySelector('.hudtop .resrow');
+          const t = top.getBoundingClientRect();
+          const he = document.getElementById('hud-east'), heq = he.getBoundingClientRect();
+          const inRow2 = !!he.closest('#hudrow2');
+          return { bad, overflow: top.scrollWidth - top.clientWidth, row1: [Math.round(t.left), Math.round(t.right)], gear: [Math.round(gear.left), Math.round(gear.right)],
+                   east: [Math.round(heq.left), Math.round(heq.right), Math.round(heq.top)], text: he.textContent, inRow2,
+                   two: document.querySelector('#ui > .hud.minehud').classList.contains('two') };
+        });
+        ok(`${w}x${h}: every HUD piece on the play surface, row 1 not overflowing and clear of the gear, the east readout showing '→ 192 m'`,
+           !r.bad.length && r.overflow <= 0 && r.row1[1] <= r.gear[0] && /192/.test(r.text) && r.east[1] > r.east[0] && (!r.two || r.inRow2),
+           JSON.stringify(r));
+        if (w === 360) await shot(b.page, 'm8-hud-360.png');
+        await b.ctx.close();
+      }
+    }
+    // ======================================================================================
+    if (want('fit')) {
+      console.log('— ROOTED fits a short phone');
+      const b = await E.boot('#leg,1,1', 360, 640);
+      await waitLeg(b.page);
+      const L = await landNow(b.page);
+      await b.page.waitForSelector('#ssMineEnd', { timeout: 25000 }).catch(() => {});
+      await sleep(1500);
+      const f = await b.page.evaluate(() => { const e = document.getElementById('ssMineEnd'); if (!e) return null;
+        const st = e.querySelector('.mj-strip').getBoundingClientRect(), d = document.getElementById('ssMineDescend').getBoundingClientRect();
+        return { sh: e.scrollHeight, ch: e.clientHeight, strip: [Math.round(st.top), Math.round(st.bottom)], descend: [Math.round(d.top), Math.round(d.bottom)], vh: innerHeight }; });
+      ok('360x640: ROOTED fits with nothing scrolling, the strip and Descend on screen', L.cause === 'island' && f && f.sh <= f.ch && f.strip[1] <= f.vh && f.descend[1] <= f.vh,
+         JSON.stringify({ cause: L.cause, f }));
+      await shot(b.page, 'm8-rooted-360.png');
+      await b.ctx.close();
+    }
+    // ======================================================================================
+    if (want('tabs')) {
+      console.log('— two tabs: a boot banks a leg descent, the live tab lands');
+      const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 } });
+      const a = await E.boot('#leg,1,1', 390, 844, { ctx });
+      await waitLeg(a.page);
+      const hide = (page, v) => page.evaluate((v) => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => v });
+        document.dispatchEvent(new Event('visibilitychange')); }, v);
+      const m = await LP.measure(a.page, { route: true });
+      await LP.follow(a.page, m.route, { stopWithin: 280 });
+      await sleep(400);
+      const e0 = await a.page.evaluate(() => window.__game.mine.east());
+      await hide(a.page, 'hidden');
+      const pend = Object.values((await save(a.page)).minePending || {})[0] || null;
+      const bb = await E.boot('', 390, 844, { ctx });
+      await bb.page.waitForSelector('#titleScreen', { timeout: 20000 }).catch(() => {});
+      await sleep(1200);
+      const p1 = await save(bb.page);
+      const l1 = (p1.mineJourney && p1.mineJourney.legs && p1.mineJourney.legs[1]) || null;
+      ok("the boot that banks the pending record puts the descent on its leg (runs 1, farthest east)", pend && pend.leg === 1 && l1 && l1.runs === 1 && l1.bestEast === e0 && !l1.landed,
+         JSON.stringify({ pend, leg1: l1, e0 }));
+      await hide(a.page, 'visible');
+      const w0 = (await save(a.page)).minerals | 0;
+      const L = await a.page.evaluate(async () => {
+        const g = window.__game, s = g.state, net = s.active, t = g.mine.taproot();
+        for (let k = 0; k < 8 && !s.runOver; k++) { let src = null, sd = 1e9;
+          for (const n of net.nodes) { if (n.infected) continue; const d = Math.hypot(n.x - t.x, n.y - t.y); if (d < sd) { sd = d; src = n; } }
+          net.water = 999; g.mine.growFrom(src.x, src.y, t.x, t.y); await new Promise((q) => setTimeout(q, 120)); }
+        for (let k = 0; k < 30 && !s.runOver; k++) await new Promise((q) => setTimeout(q, 100));
+        const r = s.runResult || {}; return { cause: r.cause, ore: r.ore, bonus: r.bonus };
+      });
+      await sleep(400);
+      const p2 = await save(a.page);
+      const l2 = p2.mineJourney && p2.mineJourney.legs && p2.mineJourney.legs[1];
+      ok('...and the live tab\'s landfall is still recorded: leg 1 -> 2, landed, the run counted once', L.cause === 'island' && p2.mineJourney.leg === 2 && l2 && l2.landed && l2.runs === 1,
+         JSON.stringify({ L, journey: p2.mineJourney }));
+      ok('...the bonus paid once, on top of what the boot did not bank', L.bonus === 20 && (p2.minerals | 0) - w0 === L.ore - (pend ? pend.P : 0),
+         `wallet ${w0} -> ${p2.minerals | 0}, run ore ${L.ore} less the boot's ${pend && pend.P}`);
+      ok('no page errors (tabs)', !a.errs.length && !bb.errs.length, a.errs.concat(bb.errs).slice(0, 2).join(' | '));
+      await ctx.close();
+    }
+    // ======================================================================================
+    if (want('twice')) {
+      console.log('— a second landfall of a leg pays no second bonus');
+      const b = await E.boot('#leg,1,1', 390, 844);
+      await waitLeg(b.page);
+      await tapTele(b.page);
+      const cfgBonus = await b.page.evaluate(() => window.__game.state.config.mine.islandBonus);
+      // Another descent lands leg 1 while this one is in flight.
+      await b.page.evaluate(() => { const p = JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}');
+        p.mineJourney = { journey: 1, leg: 2, legs: { 1: { runs: 1, bestDepth: 30, bestEast: 96, landed: true } } };
+        localStorage.setItem('mycelium.progress.v2', JSON.stringify(p)); });
+      const L = await landNow(b.page);
+      await b.page.waitForSelector('#ssMineEnd', { timeout: 25000 }).catch(() => {});
+      await sleep(900);
+      const es = await b.page.evaluate(() => Array.from(document.querySelectorAll('#ssMineEnd .ss-me-row')).map((r) => r.innerText.replace(/\s+/g, ' ').trim()));
+      const isl = await b.page.evaluate(() => window.__rows.filter((r) => r.kind === 'island').map((r) => r.detail));
+      ok('the run started owing 20, and the landfall banks reach + seams only (no Island bonus row), island event L1:again',
+         cfgBonus === 20 && L.cause === 'island' && L.bonus === 0 && L.bal1 - L.bal0 === L.reach + L.seams && L.ore === L.reach + L.seams
+         && !es.some((r) => /Island bonus/.test(r)) && isl.length === 1 && isl[0] === 'L1:again',
+         JSON.stringify({ cfgBonus, L, rows: es, isl }));
+      await b.ctx.close();
+    }
+    // ======================================================================================
+    if (want('replay')) {
+      console.log('— a save past the built legs replays the last one');
+      const b = await E.boot('', 390, 844, { before: async (page) => page.addInitScript(() => { if (!localStorage.getItem('mycelium.progress.v2'))
+        localStorage.setItem('mycelium.progress.v2', JSON.stringify({ runsDone: 6, mineRuns: 6, mineBest: 90, migratedMineShelfV2: true,
+          mineJourney: { journey: 1, leg: 4, legs: { 1: { runs: 1, landed: true }, 2: { runs: 3, landed: true }, 3: { runs: 2, bestEast: 150, landed: true } } } })); }) });
+      await b.page.waitForSelector('#tsNewMine', { timeout: 20000 }).catch(() => {});
+      await sleep(2600);
+      const t = await b.page.evaluate(() => ({ cap: (document.getElementById('tsJourneyCap') || {}).textContent, lit: document.querySelectorAll('#titleScreen .mj-dot.lit').length }));
+      await b.page.click('#tsNewMine');
+      await waitLeg(b.page);
+      await sleep(600);
+      const L0 = await b.page.evaluate(() => ({ leg: window.__game.mine.leg().leg, bonus: window.__game.state.config.mine.islandBonus }));
+      const L = await landNow(b.page);
+      await b.page.waitForSelector('#ssMineEnd', { timeout: 25000 }).catch(() => {});
+      await sleep(900);
+      const why = await b.page.evaluate(() => ((document.querySelector('#ssMineEnd .ss-mineend-why') || {}).textContent || ''));
+      const sv = await save(b.page);
+      ok("save leg 4: the title reads Leg 3, DIG plays leg 3 owing no bonus, and ROOTED says leg 4 is not open yet",
+         t.cap === 'Continue · Leg 3 of 8 · Dry Ground' && t.lit === 3 && L0.leg === 3 && L0.bonus === 0 && L.cause === 'island' && L.bonus === 0
+         && /Island 3\. Leg 4 is not open yet — the next descent replays Leg 3\./.test(why) && sv.mineJourney.leg === 4,
+         JSON.stringify({ t, L0, L: { cause: L.cause, bonus: L.bonus }, why, leg: sv.mineJourney.leg }));
+      ok('no page errors (replay)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();
     }
   } catch (e) { fail++; console.log('  FAIL  harness error: ' + (e && e.stack || e)); }
