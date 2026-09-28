@@ -40,31 +40,20 @@ const waitRun = (page) => page.waitForFunction(() => { const s = window.__game &
   return !!(s && s.substrate && s.substrate.mine && !s.runOver && s.substrate._fineSolid && s._mineJ !== undefined && s._mineFrameN > 2); },
   { timeout: 40000, polling: 100 }).catch(() => {});
 
-// Dig strictly east from the east-most clean strand, tank topped up, threats out — until the colony's
-// east reaches `toE` metres (or `digs` digs). Returns the colony's east measured by a scan of the nodes.
-const digEast = (page, toE, maxDigs) => page.evaluate(async ([toE, maxDigs]) => {
-  const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize;
-  s.nematodes.length = 0; s.clouds.length = 0;
-  const homeX = (sub.mineHomeCol + 0.5) * cs;
-  const scan = () => { let b = homeX; for (const n of s.active.nodes) if (!n.infected && n.x > b) b = n.x; return Math.floor((b - homeX) / cs); };
-  let digs = 0, fails = 0;
-  while (scan() < toE && digs < maxDigs && !s.runOver) {
-    const ns = s.active.nodes.filter((n) => !n.infected).sort((a, b) => b.x - a.x).slice(0, 6);
-    s.active.water = 999;
-    let r = null;
-    for (const n of ns) {
-      for (const [dx, dy] of [[150, 10], [150, 60], [140, -40], [120, 110], [100, 150]]) {
-        r = g.mine.growFrom(n.x, n.y, n.x + dx, n.y + dy);
-        if (r && r.ok) break;
-      }
-      if (r && r.ok) break;
-    }
-    digs++;
-    if (!r || !r.ok) { if (++fails > 8) break; } else fails = 0;
-    await new Promise((q) => setTimeout(q, 160));
-  }
-  return { east: scan(), digs, hook: g.mine.east() };
-}, [toE, maxDigs]);
+// Grow the colony east along the leg's cheapest lattice route (legprobe's follower: threats out, tank
+// topped up) until a clean strand is `toE` metres east of the hill. Returns the colony's east measured by
+// a scan of the nodes, and the hook's running maximum.
+const digEast = async (page, toE) => {
+  const m = await LP.measure(page, { route: true });
+  const x = await page.evaluate((toE) => { const sub = window.__game.state.substrate; return (sub.mineHomeCol + 0.5 + toE) * sub.cellSize; }, toE);
+  const f = await LP.follow(page, m.route, { stopEastX: x, stopWithin: 200 });
+  await sleep(300);
+  return page.evaluate(() => {
+    const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, homeX = (sub.mineHomeCol + 0.5) * cs;
+    let b = homeX; for (const n of s.active.nodes) if (!n.infected && n.x > b) b = n.x;
+    return { east: Math.floor((b - homeX) / cs), hook: g.mine.east() };
+  }).then((r) => Object.assign(r, { digs: f.digs }));
+};
 
 (async () => {
   const E = await H.start();
@@ -202,7 +191,7 @@ const digEast = (page, toE, maxDigs) => page.evaluate(async ([toE, maxDigs]) => 
       ok('the title\'s DIG starts the journey: leg 1, home column 36', r1.journey && r1.leg === 1 && r1.home === 36, JSON.stringify(r1));
       ok('...with the leg banner and the chevron (not the save\'s first descent)', r1.banner.length === 1 && r1.banner[0][0] === 'Leg 1'
          && r1.banner[0][2] === 'No threats — the island lies east' && r1.hints.drawn.chevron, JSON.stringify(r1));
-      const d1 = await digEast(b.page, 30, 40);
+      const d1 = await digEast(b.page, 30);
       const fb1 = await b.page.evaluate(() => window.__game.mine.beats().filter((x) => x.d === 'New farthest').length);
       ok('a first run on the leg (no record yet) fires no NEW FARTHEST', fb1 === 0 && d1.east >= 20, `${fb1} beats at ${d1.east} m east (hook ${d1.hook})`);
       await b.page.evaluate(() => window.__game.mine.end());
@@ -237,9 +226,9 @@ const digEast = (page, toE, maxDigs) => page.evaluate(async ([toE, maxDigs]) => 
       ok('on the next run the farthest-east line draws: a pixel diff of on against off >= 20 px', px.onOff >= 20 && px.control < px.onOff / 4 && px.drawn.east,
          `on/off ${px.onOff} px, on/on control ${px.control} px, line at ${px.line} m`);
       await shot(b.page, 'm8-records-390.png');
-      const d2 = await digEast(b.page, px.line + 8, 40);
+      const d2 = await digEast(b.page, px.line + 8);
       const b2 = await b.page.evaluate(() => ({ n: window.__game.mine.beats().filter((x) => x.d === 'New farthest').length, rec: window.__game.mine.records().beats }));
-      const d3 = await digEast(b.page, d2.east + 12, 20);
+      const d3 = await digEast(b.page, d2.east + 12);
       const b3 = await b.page.evaluate(() => window.__game.mine.beats().filter((x) => x.d === 'New farthest').length);
       ok('crossing it fires exactly one NEW FARTHEST beat, however far past it the run goes', d2.east > px.line && b2.n === 1 && b2.rec.east === 1 && b3 === 1,
          `line ${px.line} m; east ${d2.east} -> ${d3.east} m; beats ${b2.n} then ${b3}`);
@@ -248,9 +237,16 @@ const digEast = (page, toE, maxDigs) => page.evaluate(async ([toE, maxDigs]) => 
         const g = window.__game, h = g.mine.hills().find((x) => x.island), sub = g.state.substrate;
         g.mine.lookAt((h.x0 + h.x1) / 2, sub.surfaceY + 120);
         for (let k = 0; k < 30 && !g.mine.legHints().sight; k++) await new Promise((q) => setTimeout(q, 100));
-        await new Promise((q) => setTimeout(q, 600));
+        // The tip is one line in a queue: another line (a dead-end nudge) can be up first, for up to ~5 s.
+        let hint = '', tip = false;
+        for (let k = 0; k < 90 && !tip; k++) {
+          await new Promise((q) => setTimeout(q, 100));
+          const h = (document.getElementById('minehint') || {}).textContent || '';
+          if (/Reach the island/.test(h)) hint = h;
+          tip = !!((JSON.parse(localStorage.getItem('mycelium.progress.v2')).mineTips || {}).first_island) && !!hint;
+        }
         return { sight: g.mine.legHints().sight, chev: g.mine.legHints().drawn.chevron, beats: g.mine.beats().filter((x) => x.d === 'Island 1').map((x) => x.n),
-                 hint: (document.getElementById('minehint') || {}).textContent, tip: !!((JSON.parse(localStorage.getItem('mycelium.progress.v2')).mineTips || {}).first_island) };
+                 hint, tip };
       });
       ok("the island coming into view fires 'Island 1 / In sight' and the once-per-save tip", sight.sight === 1 && sight.beats.length === 1 && sight.beats[0] === 'In sight'
          && /Reach the island's root to move on/.test(sight.hint || '') && sight.tip && sight.chev === false, JSON.stringify(sight));
@@ -263,7 +259,10 @@ const digEast = (page, toE, maxDigs) => page.evaluate(async ([toE, maxDigs]) => 
       console.log('— the free layout is untouched');
       const b = await E.bootMine(4242, 390, 844, { returning: true });
       await tapTele(b.page);
-      const d = await digEast(b.page, 20, 15).catch(() => ({}));
+      const d = await b.page.evaluate(async () => { const g = window.__game, s = g.state; let ok = 0;
+        for (let i = 0; i < 12; i++) { const ns = s.active.nodes.filter((n) => !n.infected).sort((a, c) => c.x - a.x); s.active.water = 999;
+          const r = g.mine.growFrom(ns[0].x, ns[0].y, ns[0].x + 150, ns[0].y + 40); if (r && r.ok) ok++; await new Promise((q) => setTimeout(q, 150)); }
+        return { digs: ok }; });
       const fr = await b.page.evaluate(() => ({ east: window.__game.mine.east(), shown: !document.getElementById('hud-east').hidden,
         banners: window.__game.mine.beats().filter((x) => x.kind === 'leg').length, J: window.__game.mine.records() }));
       ok('control: #mine,4242 has no east readout, no leg banner, no records, east 0', fr.east === 0 && !fr.shown && fr.banners === 0 && fr.J === null,

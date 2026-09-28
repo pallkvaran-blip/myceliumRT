@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). Next: M8.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. Next: M8 verify, then M9.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5205,7 +5205,7 @@ Numbers here are measured, not planned.
 - **DRAWING:** `mineHillSpans()` (home + island, goalhill/goalbush); `drawMineTaproot` (canvas knot r 40,
   7 loops + glow, 5 filaments fading over 6 m). Hooks `mine.leg()`, `legRow(l)`, `taproot()` (+ `.drawn`),
   `hills()`.
-- **SEEDS (re-picked in verifier round 4, see below):** leg 1 **2114845**, leg 2 **1703848**, leg 3 **36103**
+- **SEEDS (re-picked in verifier round 4, see below; M8 re-picked leg 1 -> 1905387):** leg 1 **2114845**, leg 2 **1703848**, leg 3 **36103**
   (round 2's 753368 / 2855867 / 1711767 and round 1's 2743219 / 551829 / 1816496 fail the round-3 carve).
   Re-pick whenever the carve OR any rock pass changes: `legprobe --pick N --file /.legprobe-snap.html`
   (a snapshot copy), then choose one whose `follow` landed.
@@ -5501,6 +5501,89 @@ Numbers here are measured, not planned.
   ship 58, phone 51, onboard 63, econ 79, counter 60, journey 41, zip 24, level 27, aim 9, scale 26,
   threat 116, harvest 28, mould 20, core 18). No existing assertion changed. GOTCHA: the runner parses
   `==== N passed, M failed ====`; a check printing any other summary reads as "did not report".
+
+### M8 — Journey I, part 2: landfall, the next leg, visible progress (BUILT)
+
+- **DIG IS THE JOURNEY.** The first visit, the title's Dig, the end screen's Descend and the store's Descend
+  all call `beginMineRun(undefined, {journey: true})` (the save's `p.mineJourney.leg`). The free layout stays
+  for '#mine,<seed>' and the `__game.mine.play()` / `playSeed` hooks (mine-check's 193 pins use them).
+- **LANDFALL** (`mineIslandReached`, `__m_engine_mine`): any clean strand within `journey.landfallCells` (1.5
+  cells = 54 u) of the knot (`mineTaprootXY`). `mineFrame` asks it right after the depth/east maxima and
+  ends the run THAT frame (`mineEndRun(state, 'island')`) and **banks it at once** (`mineBank` is
+  idempotent; the end screen's call finds it paid), so the leg advance and the bonus are saved before the
+  ~5 s celebration. Measured: over 1 mine frame after the landing growFrom (frames 11 -> 12).
+- **THE BONUS** is decided in main (`configForLevel` -> `cfg.mine.islandBonus`: the row's `bonus` unless the
+  leg is already `landed`, else 0) because the engine cannot read the save; `mineEndRun` adds it to `ore`
+  (the whole P payout) and carries `bonus`, `east`, `leg`, `journey` on `runResult`.
+- **EAST PAYS:** `mineEastReached` = max over clean strands of floor((x - homeX)/cs), journey only (0 free);
+  `mineFrame` keeps the running max `state.mineMaxEast` (already read by `mineReachRaw`). HUD `#hud-east`
+  ('→ 64 m', row 1, legs only). Landfall on leg 1: wallet 0 -> 40 = max(5, 11 + 9) + 0 seams + 20.
+- **THE SAVE:** `p.mineJourney = {journey, leg, legs: {L: {runs, bestDepth, bestEast, landed}}}`, written by
+  `mineRecordLeg` from `mineBank` (runs only for a descent that dug). A landfall sets `landed`, moves `leg`
+  to L+1 (cap 8) and sets `p.mineSeen.leg` (M5's store gates: flasks at leg 2, enzyme at leg 4 — nothing set
+  it before). `mineJourneyNow(p)` / `mineJourneyStripHTML` feed the title, end screen and store.
+  - **DEVIATION: only legs 1-3 are built (M9 adds 4-8).** A save whose leg is past the table plays the last
+    built row (`mineLegRow` clamps), labelled as that row; its bonus is not paid twice.
+- **SCREENS:** end screen grows ROOTED (`aria-label` Rooted) with 'Your colony took root on Island L. Leg
+  L+1, <name>, starts there.', rows Depth / East / Minimum payout / seams / **Island bonus**, a 'down · N m
+  east' line under the depth (its own element: mine-check reads `.ss-mineend-depth` as the one number), the
+  leg's 'New farthest on this leg' or 'Island L: your farthest is N m short', and the strip. Title:
+  `#tsJourneyCap` 'Continue · Leg N of 8 · <name>' (no 'Continue · ' until the save has banked a run or
+  landed), the strip, `#tsGap`. Store: the strip under Descend. `.mj-strip` / `.mj-dot.lit` / `.cur`.
+- **CELEBRATION:** `startCelebration('island')` over the island's soil columns (the hill `drawMineHill`
+  draws, unmirrored, `hillRiseAtX` off its alpha), 5 lit roots from the knot to the hill
+  (`drawCeleRoots`, lit over 1.4 s). Hook `mine.cele()`.
+- **IN THE WORLD (`state._mineJ`, `mineJourneyInit/Tick`, `drawMineJourney`):** the leg banner
+  (`showMineBeat('Leg N', name, row.ruleLine, false, 'leg')`) at every run start EXCEPT the save's very first
+  descent (deviation: the plan's first minute has nothing else on screen); a 5 s east chevron 'Island N is
+  east' on the leg's first run (leg 1: the save's second descent), on the WALL clock (`performance.now()`:
+  the frame loop's `time` is not the render's), dropped once the island is in sight; 'Island N / In sight'
+  when the hill or the knot is on screen, plus the once-per-save tip `first_island`; the leg's record
+  lines (as they stood at the run's start, 0.35 alpha, labelled at the edge) and ONE NEW DEEPEST / NEW
+  FARTHEST beat each when crossed (only if a record exists). Every beat is logged (`mine.beats()`).
+  Hooks: `records()`, `recordLines(on)`, `legHints()`, `east()`, `islandReached()`, `journey()`, `frameN()`.
+- **TELEMETRY:** `run_end.detail` = 'L<leg>:<cause>:e<east m>' (L0 = free layout); `logEvent('island',
+  {level: L, n: runs on the leg, detail: 'L1:first'})` once per landfall.
+- **THE FIRST-VISIT CURTAIN** went to 615-622 ms (onboard's 600 ms bound) because leg chunks cost ~2x free
+  ones. Fix: no lookahead chunk on the first two frames (the reveal frame had been generating one, 20 ms on
+  a leg / 37 free, genLog): handoff drop 462-552 -> 386-471 ms (curtain-probe, 5 runs each).
+- **CHANGED ASSERTIONS:** ending-check run_end detail 'dry' -> 'L0:dry:e0', 'fruit' -> 'L0:fruit:e0';
+  itchzip 'Descend starts run 2 on a fresh shaft' (a new seed) -> '...on the save's journey leg' (a new
+  state, leg = save; a leg is one fixed world, so the seed repeats).
+- **CHECKS:** `tests/landfall-check.cjs` ('landfall', in `--mine`, 33; `LANDFALL_ONLY=land,records,free`).
+  Screens `tests/.artifacts/m8-{rooted,leg2-banner,title,store,records,sight}-390.png`. legprobe `follow`
+  takes `stopWithin`.
+- **JOURNEY BOT** `tests/bots/journey.cjs <save> [--naive]` ('journeybot', slow, not in `--mine`). The
+  SENSIBLE player knows the leg (fixed world): legprobe's cheapest-water lattice route, dug with the real
+  tank, flask/enzyme as career.cjs, flood bot (`Q.step({goal:'island'})`) after 25 stalled steps; cheapest
+  buyer; real end screen -> Store -> Descend. Deviation: lib.cjs's flood bot alone went 43-93 m east in 4
+  runs and then sat at 4 m east with the whole leg known (its clearance paths are not growth's; 1-2
+  filaments a dig). The NAIVE journey player: always the clean tip nearest the knot, along the most open
+  of 7 rays about the bearing to it (the plan's naive policy digs straight down and could never go east).
+- **LEG 1 RE-PICKED: 2114845 -> 1905387.** M7's seed had no shallow road: legprobe's lattice held above
+  42 m stopped at column 97, 29 short of the island (col 126), so leg 1 — "the shallow galleries carry you
+  east", crossing band 0-42 m — needed a dive, and the naive bot sat at that wall 57-61 m east. New PASS
+  gate (legprobe): leg 1's `shallowMaxCol >= islandC0`. 1 of 36 candidates passes; 1905387: lattice 1.303
+  (fine 1.357), cheapest 67.8 water, shallow road to col 130, crust col 61, lateral 27, 0/12 leaks, world
+  ore 168/168, pockets 83/84, pillar 8.3 (interior p90 11); real growth lands in 33 digs.
+- **THE DEAD-END NUDGE ON A LEG glows the way down-and-east** (`mineOpenTips`: east of the ray's end,
+  capped at the knot, + depth, capped one band under the knot) instead of depth alone. Straight-line
+  distance to the knot was tried first and glowed the same wall run after run — and would be a route
+  finder, which the compass (M10) is priced not to be. The free layout keeps depth.
+- **MEASURED — journey bot, sensible (acceptance 3a/b), fresh saves 4242 / 909 / 11, paceMs 900:**
+  landfall 1 on run 1 / 1 / 1, landfall 2 on run 6 / 6 / 7 (5 / 5 / 6 after), landfall 3 on run 8 / 8 / 9
+  (2 / 2 / 2 after): **PASS**. On the old leg-1 seed: runs 2 / 2 / 2, 7 / 6 / 5, 9 / 9 / 7. The saves play
+  the same fixed worlds, so the three differ only by timing. Runs last 29-54 s at 900 ms a dig (31-54
+  digs). **Leg 1 now falls on run 1 for a map-knowing player — below the plan's run 3-5 (G3): M14's knob
+  is leg 1's E +1 / a deeper taproot.**
+- **MEASURED — naive journey player (acceptance 3c): FAIL.** Save 4242, 8 runs, no landfall on either
+  seed. Old seed: stuck at 57-61 m east (the missing shallow road) under every policy tried; new seed:
+  67 m east for runs 1-6, then 78 and 100 m east at 55-64 m deep once dead ends were remembered across
+  runs (the knot is at 96 m east / 24 m). Policies tried, in order: nearest-the-knot tip (57 m east x8),
+  down+east with depth uncapped (to 97 m east at 97 m deep), capped at one band under the knot, a
+  refused-twice skip, a dead-end region memory in-run, then across runs. Owner / M14: leg 1's shallow road
+  is winding and the naive player cannot read it; levers are a wider shallow crossing on leg 1 (seed or
+  sealByBand), the M10 island compass, or accepting that leg 1 needs map reading.
 
 ## Two games on the title screen: Survival and Campaign
 

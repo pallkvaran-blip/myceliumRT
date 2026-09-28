@@ -556,6 +556,8 @@ async function follow(page, route, opts = {}) {
     const nearKnot = () => { let b = Infinity; for (const n of net.nodes) if (!n.infected) b = Math.min(b, Math.hypot(n.x - tx, n.y - ty)); return b; };
     while (!hit && digs < maxDigs && !s.runOver) {
       if (o.stopWithin && nearKnot() <= o.stopWithin) break;
+      // `stopEastX` (M8's records probe): stop once a clean strand is at least this far east (world x).
+      if (o.stopEastX && net.nodes.some((n) => !n.infected && n.x >= o.stopEastX)) break;
       // Furthest route point with a clean strand near it.
       for (let j = Math.min(route.length - 1, k + 400); j > k; j--) {
         const [px, py] = route[j];
