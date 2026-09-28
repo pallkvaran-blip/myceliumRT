@@ -64,7 +64,7 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       await page.addInitScript(() => {
         window.MYCELIUM_SUPABASE = { url: '', anonKey: '' };
         const T = window.__t = {};
-        document.addEventListener('pointerdown', () => { if (!T.tap) T.tap = performance.now(); }, true);
+        document.addEventListener('pointerdown', () => { const n = performance.now(); if (!T.tap) T.tap = n; else if (T.hint && !T.down) T.down = n; }, true);
         // WHEN THE CURTAIN ACTUALLY LIFTS (M5 round 2). The poll below cannot see it: the curtain drops
         // at the END of the map's first frame, the next frame is due at once, and an 8 ms timer is
         // starved until after it — so the polled time carried a whole second frame plus scheduling
@@ -90,18 +90,28 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       });
       await page.goto(E.base + '/index-nodev.html', { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
+      // The CDP session exists before the tap, so opening it is not charged to the player's drag.
+      const cdp = await ctx.newCDPSession(page);
       await page.touchscreen.tap(195, 420);
-      await page.waitForFunction(() => window.__t.hint || window.__t.title, null, { timeout: 30000 }).catch(() => {});
+      await page.waitForFunction(() => window.__t.hint || window.__t.title, null, { timeout: 30000, polling: 8 }).catch(() => {});
+      const tHint = Date.now();
       let T = await page.evaluate(() => Object.assign({}, window.__t));
       if (T.hint) {
-        await sleep(200);
-        const cdp = await ctx.newCDPSession(page);
         const root = await page.evaluate(() => { const g = window.__game, r = document.getElementById('game').getBoundingClientRect();
           const n = g.state.active.nodes[0], q = g.camera.worldToScreen(n.x, n.y); return { x: r.left + q.x, y: r.top + q.y }; });
+        await sleep(Math.max(0, 200 - (Date.now() - tHint)));
         const tp = (x, y) => [{ x, y, id: 0, radiusX: 4, radiusY: 4, force: 1 }];
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: tp(root.x, root.y) });
-        for (let i = 1; i <= 6; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: tp(root.x, root.y + i * 20) }); await sleep(16); }
-        await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+        // A FINGER DOES NOT WAIT FOR THE PAGE (M8 verify 2). The drag used to await each CDP touch
+        // event's ack before sending the next, and an ack waits for the renderer to take the event at a
+        // frame boundary (~3 frames each on this host): 8 events took 1.4-1.8 s, so "a drag begun 200 ms
+        // after the hint" began ~665 ms after it and ended ~2 s later — the harness's own queueing,
+        // charged to the game. The gesture is now sent on a real finger's clock (a sample every 16 ms,
+        // ~110 ms end to end) and the page takes it at its own frame rate, as it takes a real touch.
+        const at = (ms, ev) => new Promise((q) => setTimeout(() => cdp.send('Input.dispatchTouchEvent', ev).then(q, q), ms));
+        const sends = [at(0, { type: 'touchStart', touchPoints: tp(root.x, root.y) })];
+        for (let i = 1; i <= 6; i++) sends.push(at(i * 16, { type: 'touchMove', touchPoints: tp(root.x, root.y + i * 20) }));
+        sends.push(at(7 * 16, { type: 'touchEnd', touchPoints: [] }));
+        await Promise.all(sends);
         await page.waitForFunction(() => window.__t.dig, null, { timeout: 4000 }).catch(() => {});
       }
       T = await page.evaluate(() => Object.assign({}, window.__t, { audio: window.__sfx && window.__sfx.ctxState(),
@@ -114,7 +124,7 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       ok('...the curtain lifts within 600 ms of the gate tap', rel('seen') != null && rel('seen') <= 600,
          `${rel('seen')} ms (class dropped at ${rel('drop')} ms; the old 8 ms poll noticed at ${rel('reveal')} ms)`);
       ok('...and a drag begun 200 ms after #minehint shows is accepted within 2.5 s of the tap',
-         rel('dig') != null && rel('dig') <= 2500, `hint at ${rel('hint')} ms, dig accepted at ${rel('dig')} ms`);
+         rel('dig') != null && rel('dig') <= 2500, `hint at ${rel('hint')} ms, the drag's press reached the page at ${rel('down')} ms, dig accepted at ${rel('dig')} ms`);
       ok('the gate tap unlocked audio (AudioContext running)', T.audio === 'running', String(T.audio));
       await page.screenshot({ path: path.join(ART, 'm4-first-visit-390.png') });
       // THE SECOND BOOT of the same save: the dug descent is banked at boot (hidden-tab pending), so

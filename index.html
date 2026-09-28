@@ -42686,6 +42686,45 @@ function _spriteMip(img, w, h, filter) {
   return c;
 }
 
+// THE ROCK IS DRAWN FROM A MIP (M8 verify 2). A traced rock sprite is the 4x upscale's own pixels —
+// hundreds to a couple of thousand px a side — drawn at tens to a few hundred device px, and sampling
+// that source every frame WAS the frame: on a leg at 390x844 dsf 2 the rock pass took 57 ms of a 58 ms
+// renderFrame, 60.8 ms against 1.9 ms from mips (dsf 1: 16.2 against 1.6), and the first frame, which
+// also decodes the art, is what the first-visit curtain waits for. It is SOURCE sampling, not fill:
+// the same sprites, overlap and destination pixels, drawn from a canvas near their drawn size, cost a
+// thirtieth. `_spriteMip`'s idea (a power-of-two bracket at or above the DEVICE size, built once with
+// a high-quality downscale), with its own cache because rocks need a pixel budget rather than an
+// entry cap: a zoom sweep visits several brackets per image. Collision is untouched — it reads the
+// original's alpha (`_alphaMask`), never what is drawn. `window.MYCELIUM_NO_ROCK_MIP` is the A/B knob.
+let _rockDpr = 1;
+const _rockMipCache = new Map();
+let _rockMipPx = 0;
+const ROCK_MIP_BUDGET_PX = 24e6;   // ~96 MB of canvas; a pathological zoom sweep starts over
+function _rockMip(img, w, h) {
+  const iw = img.width | 0, ih = img.height | 0;
+  if (!iw || !ih) return null;                       // not decoded yet — the caller draws the original
+  const need = Math.max(w, h);
+  // Nothing to gain within 2x of the art's own size: draw the original.
+  if (!(need > 0) || Math.max(iw, ih) < need * 2) return null;
+  let b = 16; while (b < need) b *= 2;
+  const id = img.__mipId || (img.__mipId = ++_mipSeq);
+  const key = id + '|' + b;
+  const hit = _rockMipCache.get(key);
+  if (hit) return hit;
+  // NO PER-FRAME BUILD BUDGET: building a mip costs LESS than drawing its original once (the map's
+  // first frame, which also decodes the art: rock pass 56-60 ms with mips against 67-88 direct; a
+  // 6 ms budget left the second frame drawing originals at 50-60 ms).
+  const sc = Math.min(1, b / Math.max(iw, ih));
+  const cw = Math.max(1, Math.round(iw * sc)), ch = Math.max(1, Math.round(ih * sc));
+  if (_rockMipPx + cw * ch > ROCK_MIP_BUDGET_PX) { _rockMipCache.clear(); _rockMipPx = 0; }
+  const c = document.createElement('canvas');
+  c.width = cw; c.height = ch;
+  const cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+  cx.drawImage(img, 0, 0, cw, ch);
+  _rockMipCache.set(key, c); _rockMipPx += cw * ch;
+  return c;
+}
 function _drawLeafHeap(sets, col, row, kind, alphaMul) {
   const isNut = kind === 'nut';
   const isDuff = kind === 'duff';
@@ -43710,6 +43749,7 @@ function drawLevelRocks() {
   // between them rather than as a column laid on top — it is appended last (it waits for both chunks),
   // and in array order it painted over its neighbours. Collision does not care: the mask is the union.
   const layered = !!(sub.mine && sub.mineJourney);
+  _rockDpr = ctx.getTransform().a || 1;
   for (let pass = layered ? 0 : 1; pass < 2; pass++)
   for (const s of sprites) {
     if (layered && (pass === 0) !== !!s.under) continue;
@@ -43725,7 +43765,9 @@ function drawLevelRocks() {
       ctx.save();
       ctx.translate(c.x, c.y);
       if (s.rot) ctx.rotate(s.rot);
-      ctx.drawImage(img, -sw / 2, -sh / 2, sw, sh);
+      // FROM A MIP, NOT THE FULL-SIZE ART (M8 verify 2) — see `_rockMip`.
+      const mip = window.MYCELIUM_NO_ROCK_MIP ? null : _rockMip(img, sw * _rockDpr, sh * _rockDpr);
+      ctx.drawImage(mip || img, -sw / 2, -sh / 2, sw, sh);
       ctx.restore();
     }
   }

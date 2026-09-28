@@ -44,7 +44,9 @@
  *            inside the island chunk) reaches the chunk's own seam column: the repair's guarantee
  *            survives the seal boulders and the stitch whatever the seed.
  *
- * `JOURNEY_ONLY=layout,determ,free,legs,world,stream,island` runs a subset.
+ *   mip      (M8 verify 2) the rock pass draws from mips: the same picture as the full-size art, at a
+ *            fraction of the frame.
+ * `JOURNEY_ONLY=layout,determ,free,legs,world,stream,island,mip` runs a subset.
  */
 const path = require('path'), fs = require('fs');
 const H = require('./mine-harness.cjs');
@@ -491,6 +493,39 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
          good.length === res.length, res.map((r) => `L${r.leg}/${r.seed}: ${r.chamberOpen ? '' : 'CLOSED '}${r.west ? 'W' : ''}${r.east ? 'E' : ''}${r.west || r.east ? '' : 'none'} rep ${r.repairs}`).join(' · '));
       ok('no page errors (island)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();
+    }
+    // ======================================================================================
+    if (want('mip')) {
+      // THE ROCK IS DRAWN FROM MIPS (M8 verify 2): a leg's rock pass sampled full-size traced art every
+      // frame — 57 ms of a 58 ms renderFrame at 390x844 dsf 2. Same page, same clock, both ways: the
+      // picture must be the same picture, and the frame a fraction of the cost.
+      console.log('— the rock pass draws from mips');
+      const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+      const b = await E.boot('#leg,1,1', 390, 844, { ctx });
+      await b.page.waitForFunction(() => window.__game && window.__game.state.substrate._fineSolid, null, { timeout: 40000 });
+      await sleep(2500);
+      const r = await b.page.evaluate(() => {
+        const g = window.__game, c = document.getElementById('game'), x = c.getContext('2d'), T = 1000;
+        const grab = (off) => { window.MYCELIUM_NO_ROCK_MIP = off; g.renderFrame(T, 0); g.renderFrame(T, 0); return x.getImageData(0, 0, c.width, c.height).data; };
+        const time = (off) => { window.MYCELIUM_NO_ROCK_MIP = off; const a = [];
+          for (let i = 0; i < 9; i++) { const t = performance.now(); g.renderFrame(T, 0); a.push(performance.now() - t); }
+          a.sort((p, q) => p - q); return a[4]; };
+        const A = grab(1), B = grab(0), A2 = grab(1);
+        let sum = 0, big = 0, ctl = 0, n = 0;
+        for (let i = 0; i < A.length; i += 4) {
+          const d = Math.abs(A[i] - B[i]) + Math.abs(A[i + 1] - B[i + 1]) + Math.abs(A[i + 2] - B[i + 2]);
+          const e = Math.abs(A[i] - A2[i]) + Math.abs(A[i + 1] - A2[i + 1]) + Math.abs(A[i + 2] - A2[i + 2]);
+          sum += d; n++; if (d > 48) big++; if (e > 48) ctl++;
+        }
+        const off = time(1), on = time(0);
+        window.MYCELIUM_NO_ROCK_MIP = 0;
+        return { mean: +(sum / n / 3).toFixed(2), bigPct: +(big / n * 100).toFixed(3), ctlPct: +(ctl / n * 100).toFixed(3), off: +off.toFixed(1), on: +on.toFixed(1) };
+      });
+      ok('drawn from mips, the frame is the same picture: mean channel difference < 1.5, under 1% of pixels off by > 16 a channel (control 0)',
+         r.mean < 1.5 && r.bigPct < 1 && r.ctlPct === 0, JSON.stringify(r));
+      ok('...and renderFrame costs under a third of the full-size draw (same page, same clock)', r.on * 3 < r.off, `${r.on} ms against ${r.off} ms`);
+      ok('no page errors (mip)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+      await ctx.close();
     }
   } catch (e) {
     fail++; console.log('  FAIL  harness: ' + (e && e.stack || e));
