@@ -352,6 +352,9 @@ const waitLeg = (page) => page.waitForFunction(() => !!(window.__game && window.
       console.log('— ROOTED fits a short phone');
       const b = await E.boot('#leg,1,1', 360, 640);
       await waitLeg(b.page);
+      // Deep materials are a row each, and three is the case that pushed the strip (then the screen's
+      // last row) below the fold: 25 px at 360x640 before the fix (two still fitted — a guard there).
+      await b.page.evaluate(() => { window.__game.state.mineMats = { anthracite: 6, garnet: 4, hematite: 3 }; window.__game.state.mineSeams = { anthracite: 2, garnet: 1, hematite: 1 }; });
       const L = await landNow(b.page);
       await b.page.waitForSelector('#ssMineEnd', { timeout: 25000 }).catch(() => {});
       await sleep(1500);
