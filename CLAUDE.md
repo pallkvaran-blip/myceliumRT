@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; --mine 1143/1145 (onboard's first-visit timing pair fails on this host on pre-M8 builds too); 3c re-measured with the island compass bearing — still FAIL. Next: M9.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; --mine 1143/1145 (onboard's first-visit timing pair fails on this host on pre-M8 builds too); 3c re-measured with the island compass bearing — still FAIL. VERIFY ROUND 2 landed: a landing dig at the node cap lands, 'New farthest' baseline = the record at run start, corrected log line, nextBuilt explicit, readable leg caption, `run.mjs` exact names, landfall-check reads final figures (49/49); rock sprites drawn from mips (leg frame 58 -> 2.4 ms at dsf 2; journey-check 99/99); onboard's drag harness on a finger's clock (drag bound passes); 3c still FAILS (east-reading naive 0/8; no legprobe candidate in k 36-155 is naive-landable); 3b spread 1/5/8, 1/6/8, 1/10/11 (leg-2 tail misses 7); --mine 1152/1153 (the 600 ms curtain on this host). Next: M9.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5639,6 +5639,64 @@ Numbers here are measured, not planned.
   frame after the reveal is a 60-70 ms long task at dsf 2 on this container (median 61-68 ms on all three
   builds), and each of the harness's six CDP touch moves waits for one — the drag alone takes 1.4 s of wall
   clock. The 1134/1134 run passed these on a faster host. Tolerance left as is.
+
+**M8 VERIFY ROUND 2**
+- **A LANDING DIG THAT CROSSES THE NODE CAP WAS FILED 'full' (confirmed).** `mineGrow`'s post-grow cap test
+  ended the run before the frame's landfall test: cause 'full', bonus 0, leg 1 `legs {}`. Both of
+  `mineGrow`'s cap tests now stand down when `mineIslandReached` (the frame, which tests the island before the
+  cap, ends it ROOTED). landfall-check `cap`.
+- **'New farthest' became 'N m short' when a boot banked the run first (confirmed).** The record line compared
+  against `was` read at bank time, which the boot had already raised to this run's own east. The baseline is
+  now the leg record as the run began (`state._mineJ.lines`, what the in-world line and beat use).
+  landfall-check `best`.
+- **The event log quoted the bonus-inclusive payout when the bank dropped a second bonus**: the bank now logs
+  'Island N was already rooted — no second island bonus. X Phosphorus banked.' after `mineEndRun`'s line.
+  `nextBuilt` is passed explicitly (`!!(nrow && nrow.leg === nx)`), not inferred from the next row's name.
+- **Title caption** `#tsJourneyCap` 13-17 px at 78% (was the generic `.ts-cap`, 8-11 px at 30%).
+- **`run.mjs <name>`: an exact check name picks that check only** — `run.mjs journey` also started
+  `journeybot` (an hour); non-names still match by substring.
+- **landfall-check's row assertion raced the count-up** ('Island bonus +15' of 20): rows are read off each
+  count's `data-n`. landfall-check 44 -> 49 (cap 2, best 2, twice +1: the log line); the three new behaviour
+  assertions FAIL on 7828ac3.
+- **ROCK SPRITES ARE DRAWN FROM MIPS (`_rockMip` in `drawLevelRocks`).** Found chasing the onboard timing pair:
+  on a leg at 390x844 dsf 2 the rock pass was **57 ms of a 58 ms renderFrame** (dsf 1: 16 of 17) — SOURCE
+  sampling of full-size traced art, not fill: the same sprites drawn from canvases near their device size cost
+  **2.4 ms**, live frames 64-72 -> **7-8 ms**. Power-of-two bracket >= the DEVICE size (`ctx.getTransform().a`),
+  high-quality downscale, 24 Mpx budget. **No per-frame build budget**: building a mip costs less than one
+  original draw (first-frame rock pass 56-60 ms vs 67-88), a 6 ms budget left frame 2 drawing originals. Same
+  picture: mean channel diff 0.54, 0.2% of pixels off by > 16/channel (an off/off control reads 0).
+  `window.MYCELIUM_NO_ROCK_MIP` is the A/B knob. journey-check `mip` (96 -> 99). Collision is untouched.
+- **ONBOARD'S DRAG WAS THE HARNESS, THE CURTAIN IS THE HOST.** The drag awaited each CDP touch event's ack
+  (~3 frames each), so "a drag begun 200 ms after the hint" began ~665 ms after it and took 1.4-1.8 s. It now
+  opens the CDP session before the tap and sends the gesture on a finger's clock (16 ms steps, ~110 ms):
+  dig accepted **2641-2880 -> 1334-1480 ms**, same 2.5 s bound. The curtain bound (600 ms) is unchanged and
+  still fails some runs here (527-675 ms; efb8d02 649-718 per the verifier): instrumented, the first frame's
+  cost is `solidifyRock` (90-160 ms) and the paint after the reveal (~85 ms after the class drops), NOT the
+  rock draw (skipping it entirely moved nothing); the click handler (world build) is 240-360 ms. Reordering
+  the mask preload (so the home band decodes last) measured no change and was reverted. The lever left is
+  building the first leg's world before the tap — owner / M9 performance.
+- **3c STILL FAILS, now measured against the map rather than one policy.** `journey.cjs 4242 --naive` with
+  the new default `--lean east` (the leg's own words: farthest-east tip, rays about due east): 0 of 8, best 82
+  m east (run 1), then 67 x4. `tests/bots/legnaive.cjs` (fast one-run screen, tank topped up and counted,
+  grow 3): the curated seed — east 93 m east, no landing in 400 water; down-east 67 m. legprobe's candidates
+  k 36-155: **5 of 120 pass PASS + WPASS and neither policy lands any of them** (best 69 m east); most
+  candidates with a shallow road fail the 1.3-2.0 path-ratio gate (1.12-1.30). Leg 1's shallow road (map
+  dump) runs east along rows 2-4, drops through a slot near col 112, and reaches the knot (col 132, row 24)
+  only by a crack at cols 139-140 past it — map reading. So a re-pick under today's gates cannot close 3c.
+  Owner / M14: relax leg 1's ratio gate, a straighter shallow road, or accept map reading (or M10's compass
+  plus a road the bearing can follow).
+- **3a/3b SPREAD (three sensible careers, same fixed worlds — the labels only change timing):** 4242 **1 / 5 /
+  8**, 909 **1 / 6 / 8**, 11 **1 / 10 / 11** (leg 2 took 9 runs: FAIL). Leg 2 across every sample so far
+  (4, 5, 9 here; 5, 5, 6, 7 before; the verifier's 5, 7): median 5 — under the plan's "more than 7 at the
+  median" pull-in rule, so the island stays; the tail misses 3b's per-save 7. Leg 2's dry ends sit at 88 m
+  deep / 81-131 m east (the 84 m price line). Leg 3: 3 / 2 / 1 runs. **The verifier's leg-3 'infected' runs
+  did not reproduce**: 0 infected endings in 3 careers; the one rot met (9 strands) was cut clean by two
+  doses. journey.cjs now prints a kit tally per run (flasks, cuts and their messages, most rot seen).
+- **`--mine` after verify round 2: 1152 passed, 1 failed across 19 checks** (boot 22, store 124, mine 193,
+  ending 87, ship 58, phone 51, onboard **62/63**, econ 79, counter 60, journey 99, landfall 49, zip 24, level
+  27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18). The red is the curtain bound (628 ms; class
+  dropped at 530 ms): the ~100 ms after the drop is the browser's first paint of the revealed page, inside
+  the same task — removing every `backdrop-filter` changed nothing (probe A/B x6). Not widened.
 
 ## Two games on the title screen: Survival and Campaign
 
