@@ -788,8 +788,13 @@ async function playLeg(page, leg, seed) {
   }, [leg, seed || 0], { timeout: 30000, polling: 100 });
 }
 
-async function openLeg(E, leg, seed, vw = 390, vh = 844, file) {
-  const b = await E.boot('#leg,1,' + leg + (seed ? ',' + seed : ''), vw, vh, file ? { file } : {});
+async function openLeg(E, leg, seed, vw = 390, vh = 844, file, o = {}) {
+  // `o.dsf` (M9 verify 3): a context at that device scale factor (renderScale caps the DPR at 2, which is
+  // what a phone's backing store renders at: 780x1688 for a 390x844 viewport).
+  const opts = file ? { file } : {};
+  if (o.dsf) opts.ctx = await E.browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: o.dsf });
+  const b = await E.boot('#leg,1,' + leg + (seed ? ',' + seed : ''), vw, vh, opts);
+  if (opts.ctx) b.ctx = opts.ctx;
   await b.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.leg
     && window.__game.mine.leg() && window.__game.state.substrate._fineSolid), { timeout: 40000 });
   return b;
@@ -857,6 +862,7 @@ async function censusInstall(page) {
     const SAMPLE = 509;
     const wrap = (arr) => {
       if (!arr || arr.__isCensus) return arr;
+      C.target = arr;
       return new Proxy(arr, { get(t, k, r) {
         if (k === '__isCensus') return true;
         if (C.on && C.cur && typeof k === 'string' && k.charCodeAt(0) <= 57 && k.charCodeAt(0) >= 48) {
@@ -874,32 +880,64 @@ async function censusInstall(page) {
     let cur = wrap(net.nodes);
     Object.defineProperty(net, 'nodes', { configurable: true, get() { return cur; }, set(v) { cur = wrap(v); } });
     const raf0 = window.requestAnimationFrame.bind(window);
+    C.raf0 = window.requestAnimationFrame;
     window.requestAnimationFrame = (cb) => raf0((t) => {
       if (!C.on) return cb(t);
-      const st = window.__game.state, turn0 = st.turn;
+      const st = window.__game.state, turn0 = st.turn, dig = C.dug; C.dug = false;
       C.cur = { reads: 0, why: {} };
       try { return cb(t); }
       finally { const f = C.cur; C.cur = null; const len = Math.max(1, cur.length);
-        C.frames.push({ tick: st.turn !== turn0, eq: +(f.reads / len).toFixed(2), why: f.why, len }); }
+        C.frames.push({ tick: st.turn !== turn0, dig, eq: +(f.reads / len).toFixed(2), why: f.why, len }); }
     });
+    // THE CENSUS COMES OFF AGAIN (M9 verify 3): the accessor and the Proxy stayed on `net.nodes` for the rest
+    // of the page, so every renderer walk timed after a census went through the trap. `censusRemove` puts
+    // the plain array back (whatever array the accessor holds now) and the original rAF.
+    C.remove = () => { delete net.nodes; net.nodes = C.target;
+      window.requestAnimationFrame = raf0; C.on = false; return true; };
     return true;
   });
 }
-async function censusRead(page, ms) {
-  await page.evaluate(() => { window.__census.frames = []; window.__census.on = true; });
+async function censusRemove(page) {
+  return page.evaluate(() => { const C = window.__census; return !!(C && C.remove && C.remove()); });
+}
+// `o.digEvery` (M9 verify 3): WHILE THE CENSUS RUNS, DIG — one `growFrom` every `digEvery` ms from a clean
+// strand spread over the colony (away from the knot, so it cannot land), in a direction that turns with
+// each dig, the tank topped up. The first census only ever read a SETTLED colony, and a colony that is
+// being dug is the one a player has: the frame after a dig carries the renderer's structure rebuild, the
+// colony summary's fold and whatever the dig invalidated. Frames that follow a dig are flagged `dig`.
+async function censusRead(page, ms, o = {}) {
+  await page.evaluate((o) => {
+    const C = window.__census; C.frames = []; C.dug = false; C.on = true; C.digs = 0; C.digOk = 0;
+    if (o.digEvery) {
+      C.digT = setInterval(() => {
+        const g = window.__game, s = g.state, net = s.active, t = g.mine.taproot();
+        if (s.runOver) return;
+        const k = ++C.digs;
+        const live = net.nodes.filter((n) => !n.infected && (!t || Math.hypot(n.x - t.x, n.y - t.y) > 700));
+        if (!live.length) return;
+        const src = live[(k * 7919) % live.length], a = (k * 2.39996) % (Math.PI * 2);
+        net.water = 9999;
+        const r = g.mine.growFrom(src.x, src.y, src.x + Math.cos(a) * 200, src.y + Math.sin(a) * 200);
+        if (r && r.ok) { C.digOk++; C.dug = true; }
+      }, o.digEvery);
+    }
+  }, o);
   await new Promise((r) => setTimeout(r, ms));
   return page.evaluate(() => {
-    const C = window.__census; C.on = false;
-    const sum = (arr) => { const why = {}; let max = 0; const eqs = arr.map((f) => f.eq).sort((a, b) => a - b);
-      for (const f of arr) { max = Math.max(max, f.eq); for (const k in f.why) why[k] = (why[k] | 0) + f.why[k]; }
+    const C = window.__census; C.on = false; if (C.digT) { clearInterval(C.digT); C.digT = null; }
+    const sum = (arr) => { const why = {}; let max = 0, worst = null; const eqs = arr.map((f) => f.eq).sort((a, b) => a - b);
+      for (const f of arr) { if (f.eq > max) { max = f.eq; worst = f; } for (const k in f.why) why[k] = (why[k] | 0) + f.why[k]; }
       const len = arr.length ? arr[arr.length - 1].len : 0;
       const w = {}; for (const k in why) w[k] = +(why[k] / Math.max(1, len) / Math.max(1, arr.length)).toFixed(2);   // equivalent passes per frame, by caller
-      return { frames: arr.length, max, median: eqs.length ? eqs[eqs.length >> 1] : 0, p95: eqs.length ? eqs[Math.min(eqs.length - 1, Math.floor(eqs.length * 0.95))] : 0, whyPerFrame: w }; };
-    return { all: sum(C.frames), tick: sum(C.frames.filter((f) => f.tick)), noTick: sum(C.frames.filter((f) => !f.tick)) };
+      const ww = {}; if (worst) for (const k in worst.why) ww[k] = +(worst.why[k] / worst.len).toFixed(2);          // the heaviest frame, by caller
+      return { frames: arr.length, max, over2: arr.filter((f) => f.eq > 2).length, median: eqs.length ? eqs[eqs.length >> 1] : 0,
+               p95: eqs.length ? eqs[Math.min(eqs.length - 1, Math.floor(eqs.length * 0.95))] : 0, whyPerFrame: w, worst: ww }; };
+    return { digs: C.digs, digOk: C.digOk, all: sum(C.frames), tick: sum(C.frames.filter((f) => f.tick)), noTick: sum(C.frames.filter((f) => !f.tick)),
+             digFrames: sum(C.frames.filter((f) => f.dig && !f.tick)) };
   });
 }
 
-module.exports = { measure, world, follow, navigate, playLeg, openLeg, kitWater, perfState, censusInstall, censusRead, KIT, BARE, PASS, WPASS, PILLAR_OK, KIT_OK };
+module.exports = { measure, world, follow, navigate, playLeg, openLeg, kitWater, perfState, censusInstall, censusRead, censusRemove, KIT, BARE, PASS, WPASS, PILLAR_OK, KIT_OK };
 
 if (require.main === module) (async () => {
   const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };

@@ -17750,7 +17750,7 @@ class Network {
       if (n.infected || n.side || !grownIn(n)) continue;
       const c = substrate.cellAtWorld(n.x, n.y);
       if (c && c.trich >= th && !proofed(n)) {
-        n.infected = true;
+        n.infected = true; this._infGen = (this._infGen | 0) + 1;
         // The mine (harvestRotDescendants false) treats this as a breach point like any other: its
         // own clock, and the renderer's creep starts here. Only on that branch, so the campaign
         // is untouched.
@@ -17775,7 +17775,7 @@ class Network {
       for (const cid of n.children) {
         const c = this.byId.get(cid);
         if (!c || c.infected || proofed(c)) continue;
-        c.infected = true; rotStack.push(c);
+        c.infected = true; this._infGen = (this._infGen | 0) + 1; rotStack.push(c);
       }
     }
 
@@ -18054,9 +18054,19 @@ class Network {
   }
 
   // Healthy (uninfected) strand count.
+  // REMEMBERED UNTIL SOMETHING CAN HAVE CHANGED IT (M9 verify 3): a world tick asked this four times
+  // (the death test inside the loop, the two after it, `recomputeVitality`), each a walk of every strand.
+  // The count moves only when a strand is added (length), removed (`_removeNodes`: a new array and a
+  // `_aggVer` bump) or flips `infected` (every such path bumps `_infGen`) — and `tickWorld` bumps
+  // `_hcEpoch` as it starts, so a strand edited by hand between steps (a probe, a check) is counted
+  // afresh on the next step exactly as before.
   healthyCount() {
+    const k = this._hcKey;
+    if (k && k.a === this.nodes && k.n === this.nodes.length && k.ig === (this._infGen | 0)
+        && k.v === (this._aggVer | 0) && k.e === (this._hcEpoch | 0)) return k.c;
     let c = 0;
     for (const n of this.nodes) if (!n.infected) c++;
+    this._hcKey = { a: this.nodes, n: this.nodes.length, ig: this._infGen | 0, v: this._aggVer | 0, e: this._hcEpoch | 0, c };
     return c;
   }
 
@@ -19081,7 +19091,8 @@ function infectNetwork(net, state) {
       // `_infPatch` (M6): which breach this rot belongs to, one id per cloud, inherited by every
       // walk below — the mine's Cutting enzyme cuts out one breach whole. Inert in the campaign.
       const pid = mineCloudPatch(sub, cloud);
-      for (const n of seeds) { n.infected = true; n._infSeed = true; n._infAge = 0; n._infPatch = pid; }   // a NEW infection, with its own clock
+      for (const n of seeds) { n.infected = true; n._infSeed = true; n._infAge = 0; n._infPatch = pid; }
+      if (seeds.length) net._infGen = (net._infGen | 0) + 1;   // THE INFECTION GENERATION (M9 verify 3): see Network._infGen   // a NEW infection, with its own clock
       for (const n of seeds) {
         // Guaranteed (chance 1), unlike the race below: the cost of being touched is a fixed
         // number of rings, not a dice roll per ring.
@@ -19207,7 +19218,7 @@ function infectStrandsInMould(net, state) {
     // infectNetwork's contact pass. Growing INTO mould can catch several strands at once, and
     // each of them is a genuine point of contact, so each seeds its own wave.
     if (cell && cell.trich >= th && !cellProofed(sub, n)) {
-      n.infected = true; n._infSeed = true; n._infAge = 0; hit++; seeds.push(n);   // a new infection, own clock
+      n.infected = true; n._infSeed = true; n._infAge = 0; hit++; seeds.push(n); net._infGen = (net._infGen | 0) + 1;   // a new infection, own clock
       if (sub.mine && cell.trichPatch != null) n._infPatch = cell.trichPatch;      // M6: one dose takes the breach
     }
   }
@@ -19296,7 +19307,7 @@ function infectDescendants(net, sub) {
     for (const cid of n.children) {
       const c = byId.get(cid);
       if (!c || c.infected || cellProofed(sub, c)) continue;
-      c.infected = true; claimed++;
+      c.infected = true; claimed++; net._infGen = (net._infGen | 0) + 1;
       stack.push(c);
     }
   }
@@ -19323,7 +19334,7 @@ function infectFreshGrowth(net, seed, depth, sub, sinceId) {
       const step = (o) => {
         if (!o || seen.has(o.id)) return;
         seen.add(o.id);
-        if (o.id >= sinceId && !o.infected && !cellProofed(sub, o)) { o.infected = true; o._infAge = seedAge; o._infPatch = seed._infPatch; claimed++; }
+        if (o.id >= sinceId && !o.infected && !cellProofed(sub, o)) { o.infected = true; o._infAge = seedAge; o._infPatch = seed._infPatch; claimed++; net._infGen = (net._infGen | 0) + 1; }
         next.push(o);
       };
       if (n.parentId != null) step(net.byId.get(n.parentId));
@@ -19347,11 +19358,11 @@ function infectAround(network, seed, depth, chance, rng, sub) {
     for (const n of frontier) {
       if (n.parentId != null) {
         const p = network.byId.get(n.parentId);
-        if (p && !p.infected && !cellProofed(sub, p) && (chance >= 1 || rng() < chance)) { p.infected = true; p._infAge = age; p._infPatch = patch; next.push(p); }
+        if (p && !p.infected && !cellProofed(sub, p) && (chance >= 1 || rng() < chance)) { p.infected = true; p._infAge = age; p._infPatch = patch; next.push(p); network._infGen = (network._infGen | 0) + 1; }
       }
       for (const cid of n.children) {
         const c = network.byId.get(cid);
-        if (c && !c.infected && !cellProofed(sub, c) && (chance >= 1 || rng() < chance)) { c.infected = true; c._infAge = age; c._infPatch = patch; next.push(c); }
+        if (c && !c.infected && !cellProofed(sub, c) && (chance >= 1 || rng() < chance)) { c.infected = true; c._infAge = age; c._infPatch = patch; next.push(c); network._infGen = (network._infGen | 0) + 1; }
       }
     }
     frontier = next;
@@ -21517,7 +21528,7 @@ function cureRadius(state, ctx, r) {
     if ((n.x - ctx.x) ** 2 + (n.y - ctx.y) ** 2 <= r * r) {
       // Healing clears the rot AND its deadline. rotAge is what counts a strand down to falling
       // away, so leaving it set would cure the strand and then delete it anyway a step later.
-      if (n.infected) { n.infected = false; n.rotAge = 0; healed++; }
+      if (n.infected) { n.infected = false; n.rotAge = 0; healed++; state.active._infGen = (state.active._infGen | 0) + 1; }
       n.health = 1;
     }
   }
@@ -22288,11 +22299,21 @@ function mineAgg(state) {
   // A MINE COLONY (asked of the mine's colony on its first frame): the renderer scans it incrementally
   // (`NetworkRenderer.scheduleReveal` / `_scheduleInfection`, M9 verify 2), off the versions kept here.
   net._incr = true;
-  const nodes = net.nodes, ver = net._aggVer | 0;
+  // KEYED ON TWO VERSIONS (M9 verify 3): `_aggVer` (a removal) and `_infGen` (THE INFECTION GENERATION —
+  // every path that sets or clears a strand's `infected` bumps it: the contact pass, growing into mould,
+  // the pile claim's rot-before-harvest, the ring walks, a cure, the forced ending). Strands never move,
+  // so those are the only two ways a strand already folded in can change. The dig and the world tick used
+  // to throw the summary away unconditionally ("they MAY have infected something"), which made every dig
+  // frame and every tick frame walk the colony once more for nothing.
+  const nodes = net.nodes, ver = net._aggVer | 0, ig = net._infGen | 0;
   let A = net._mineAgg;
-  if (!A || A.ver !== ver || A.len > nodes.length || A.sub !== sub) {
-    A = net._mineAgg = { ver, sub, len: 0, minX: Infinity, maxX: -Infinity, deep: null, shallow: null,
-                         eastX: -Infinity, anyInf: false, inf: [], knotD2: Infinity, knot: null };
+  if (!A || A.ver !== ver || A.ig !== ig || A.len > nodes.length || A.sub !== sub) {
+    A = net._mineAgg = { ver, ig, sub, len: 0, minX: Infinity, maxX: -Infinity, deep: null, shallow: null,
+                         eastX: -Infinity, anyInf: false, inf: [], knotD2: Infinity, knot: null,
+                         // THE CELLS THE COLONY STANDS IN (every strand / clean strands) and ITS TIPS (strands
+                         // with no children, pile mats excluded), for the dead-end nudge and the dig's
+                         // new-ground count — both used to walk every strand to rebuild these.
+                         cells: new Set(), cellsClean: new Set(), tips: new Set() };
     if (nodes.length) mineNodePass(state, 'agg');
   }
   if (A.len === nodes.length) return A;
@@ -22302,7 +22323,14 @@ function mineAgg(state) {
     const n = nodes[i];
     if (n.x < A.minX) A.minX = n.x;
     if (n.x > A.maxX) A.maxX = n.x;
+    const ck = sub.index(sub.colAtX(n.x), sub.rowAtY(n.y));
+    A.cells.add(ck);
+    // A strand appended with a parent takes that parent off the tip set (a removal, which could give a
+    // parent back its tip status, rebuilds the summary). Children come after their parent in the array.
+    if (n.parentId != null) { const p = net.byId.get(n.parentId); if (p) A.tips.delete(p); }
+    if (!n.colon && !n.children.length) A.tips.add(n);
     if (n.infected) { A.anyInf = true; A.inf.push(n); continue; }
+    A.cellsClean.add(ck);
     if (!A.deep || n.y > A.deep.y) A.deep = n;
     if (!A.shallow || n.y < A.shallow.y) A.shallow = n;
     if (n.x > A.eastX) A.eastX = n.x;
@@ -24299,12 +24327,23 @@ function minePileCentre(sub, pile) {
 // is generated (at least the stream pad from any strand). So: the strands appended since the last call
 // (the tail of `net.nodes`, ids in order), plus those still animating in (a pocket pays when the strand
 // touching it has GROWN IN, so they are checked again until they have). New water anywhere
-// (`stampReservoir` bumps `sub._waterGen`) rescans everything once.
+// (`stampReservoir` bumps `sub._waterGen`) rescans everything once — UNLESS NONE OF IT CAN BE TOUCHED
+// (M9 verify 3): a new chunk is generated at least the stream pad beyond the colony, so its pockets lie
+// outside the colony's x extent (the summary's, `mineAgg`) and no existing strand can be within contact
+// distance of them. The rescan walked the whole colony on the frame each watery chunk was stamped (3 of
+// the passes a dig frame made). Pockets whose columns do reach the colony (a probe stamping water under
+// tissue) still rescan, as does anything the reservoir list cannot account for.
 function mineWaterScan(state) {
   const net = state.active, sub = state.substrate;
   let W = state._mineWaterScan;
-  if (!W || W.net !== net || W.gen !== (sub._waterGen | 0)) {
-    W = state._mineWaterScan = { net, gen: sub._waterGen | 0, lastId: -Infinity, wait: [] };
+  const gen = sub._waterGen | 0, nres = (sub.reservoirs || []).length;
+  if (W && W.net === net && W.gen !== gen && nres >= W.resN) {
+    const A = mineAgg(state), cs = sub.cellSize, md = ((state.config.growth && state.config.growth.waterContactDist != null) ? state.config.growth.waterContactDist : cs * 0.6) + cs;   // waterContactDist2's own distance, + a cell
+    const added = sub.reservoirs.slice(W.resN);
+    if (A && isFinite(A.minX) && added.every((r) => (r.c1 + 1) * cs + md < A.minX || r.c0 * cs - md > A.maxX)) { W.gen = gen; W.resN = nres; }
+  }
+  if (!W || W.net !== net || W.gen !== gen) {
+    W = state._mineWaterScan = { net, gen, resN: nres, lastId: -Infinity, wait: [] };
     if (net.nodes.length) mineNodePass(state, 'water');
   }
   const nodes = net.nodes, fresh = [];
@@ -24364,12 +24403,11 @@ function mineRayOpen(sub, x, y, ang, len, occ) {
   }
   return { clear, fresh };
 }
-// The coarse cells the colony's CLEAN tissue stands in.
+// The coarse cells the colony's CLEAN tissue stands in — off the colony summary (M9 verify 3), which keeps
+// the set as strands arrive; it used to be a walk of every strand per call. Read-only to callers.
 function mineOccupied(state) {
-  mineNodePass(state, 'occupied');
-  const sub = state.substrate, occ = new Set();
-  for (const n of state.active.nodes) if (!n.infected) occ.add(sub.index(sub.colAtX(n.x), sub.rowAtY(n.y)));
-  return occ;
+  const A = mineAgg(state);
+  return A ? A.cellsClean : new Set();
 }
 // THE MOST OPEN OF 7 DOWNWARD RAYS from a strand (30..150 degrees, 90 = straight down), scored by
 // clear length with a lean toward straight down. {ang, clear} or null when all seven are walled.
@@ -24391,10 +24429,27 @@ function mineBestDownRay(state, node) {
 // and it scores the depth its clear end reaches (plus a little for length). Scoring the fresh cell
 // count alone (the first version) lit shallow side pockets — measured, a naive bot following the
 // glow spent its tank there and went 28 -> 34 m on seed 4242 and 19 m on 909.
+// THE TIPS COME OFF THE COLONY SUMMARY (M9 verify 3): `mineAgg`'s tip set, in array order, instead of a
+// walk of every strand; and a caller that picks twice (the nudge: tips on screen first, any tip as the
+// fallback) scores once — `mineOpenTipsScored` — and filters (`mineOpenTipsPick`). Same result as scoring
+// under the filter: a tip's score does not depend on which others are kept.
 function mineOpenTips(state, count, keep) {
+  return mineOpenTipsPick(mineOpenTipsScored(state), count, keep);
+}
+function mineOpenTipsPick(scored, count, keep) {
+  const out = [];
+  for (const t of scored) {
+    if (keep && !keep(t.n)) continue;
+    if (out.every((o) => Math.hypot(o.x - t.x, o.y - t.y) >= 100)) out.push({ id: t.id, x: t.x, y: t.y, ang: t.ang, clear: t.clear, score: t.score });
+    if (out.length >= (count || 2)) break;
+  }
+  return out;
+}
+function mineOpenTipsScored(state) {
   const net = state.active, sub = state.substrate;
   if (!net || !sub) return [];
-  const occ = mineOccupied(state), len = mineGrowReach(state.config);
+  const A = mineAgg(state);
+  const occ = A ? A.cellsClean : new Set(), len = mineGrowReach(state.config);
   const water = net.water, scored = [];
   // ON A JOURNEY LEG THE WAY IS DOWN AND EAST (M8), the plan's own words: a tip scores by how far down
   // PLUS how far east its open ray ends, so a dead end on the way to the island glows the way on. Not the
@@ -24403,10 +24458,9 @@ function mineOpenTips(state, count, keep) {
   // is priced not to be. The free layout keeps depth alone.
   const tap = mineTaprootXY(sub);
   const homeX = ((sub.mineHomeCol != null ? sub.mineHomeCol : sub.cols >> 1) + 0.5) * sub.cellSize;
-  for (const n of net.nodes) {
+  for (const n of (A ? A.tips : net.nodes)) {
     if (n.infected || n.colon || n.children.length) continue;
     if (mineGrowCost(state.config, mineDepthM(sub, n.y)) > water) continue;
-    if (keep && !keep(n)) continue;
     let best = -Infinity, bang = Math.PI / 2, bclear = 0;
     for (let i = 0; i < 8; i++) {
       const ang = Math.PI * i / 7;
@@ -24419,15 +24473,10 @@ function mineOpenTips(state, count, keep) {
         : (n.y - sub.surfaceY) + r.clear * Math.sin(ang) + 0.3 * r.clear;
       if (sc > best) { best = sc; bang = ang; bclear = r.clear; }
     }
-    if (best > -Infinity) scored.push({ id: n.id, x: n.x, y: n.y, ang: bang, clear: bclear, score: best });
+    if (best > -Infinity) scored.push({ n, id: n.id, x: n.x, y: n.y, ang: bang, clear: bclear, score: best });
   }
   scored.sort((a, b) => b.score - a.score);
-  const out = [];
-  for (const t of scored) {
-    if (out.every((o) => Math.hypot(o.x - t.x, o.y - t.y) >= 100)) out.push(t);
-    if (out.length >= (count || 2)) break;
-  }
-  return out;
+  return scored;
 }
 
 // -----------------------------------------------------------------------------
@@ -24510,6 +24559,10 @@ function mineGrow(state, ctx) {
     return { ok: false, full: true, message: 'The colony fills every passage it can reach, and fruits.' };
   }
   const before = net.nextNodeId;
+  // The cells every strand stood in before this dig (the summary's set, a snapshot: the summary folds the
+  // new strands into the same Set on its next read).
+  const aggB = mineAgg(state);
+  const oldCells = aggB && aggB.len === net.nodes.length ? new Set(aggB.cells) : null;
   // THE DIG LANDS WHERE YOU PRESSED (M2). If the pressed strand is walled this way, the grow may
   // fall back to a strand within `fallDist` of it, and only one on the SAME price step — otherwise a
   // shallow press bought deep growth at the shallow price (or a deep press grew at 1 m).
@@ -24544,19 +24597,27 @@ function mineGrow(state, ctx) {
   }
   const origin = net._lastGrowOrigin;
   net.water -= cost;
-  // A dig can infect strands it grew FROM (growing into mould), so the colony summary rebuilds (M9).
-  mineAggInvalidate(state);
+  // A dig that infects strands (growing into mould, the pile claim's rot-before-harvest) bumps
+  // `net._infGen`, and the colony summary rebuilds off that (M9 verify 3); one that infects nothing
+  // folds its new strands in, with no walk of the old ones.
   state.mineWalledRun = 0;      // a dig that landed ends a run of walled presses (the nudge's count)
   // HOW MUCH NEW GROUND THIS DIG TOOK (M4, the dead-end nudge): distinct coarse cells its new
-  // strands stand in that no older strand does. O(nodes) once per dig, not per frame.
+  // strands stand in that no older strand does. The old strands' cells come off the summary taken
+  // BEFORE the grow (`oldCells`), so only the new strands — the tail of the array — are visited.
   let newCells = 0;
   {
-    const old = new Set(), fresh = new Set();
-    for (const n of net.nodes) {
-      const k = sub.index(sub.colAtX(n.x), sub.rowAtY(n.y));
-      if (n.id < before) old.add(k); else if (!n.colon) fresh.add(k);
+    const fresh = new Set(), nodes = net.nodes;
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const n = nodes[i];
+      if (n.id < before) { if (!oldCells) continue; break; }
+      if (!n.colon) fresh.add(sub.index(sub.colAtX(n.x), sub.rowAtY(n.y)));
     }
-    for (const k of fresh) if (!old.has(k)) newCells++;
+    if (oldCells) { for (const k of fresh) if (!oldCells.has(k)) newCells++; }
+    else {
+      const old = new Set();
+      for (const n of nodes) if (n.id < before) old.add(sub.index(sub.colAtX(n.x), sub.rowAtY(n.y)));
+      for (const k of fresh) if (!old.has(k)) newCells++;
+    }
   }
   state._mineLastNewCells = newCells;
   state.mineDigs = (state.mineDigs | 0) + 1;   // this descent's accepted digs (the tip queue's first line clears on one)
@@ -25078,7 +25139,7 @@ function mineEndRun(state, cause) {
   // THE WHOLE COLONY TURNS, ALL AT ONCE. The deadline expiring is not "the rot finally reached
   // everything" — it is the colony giving up — so it reads as one event rather than as the spread
   // suddenly sprinting. Marked before `alive` goes false so the last frame drawn is green.
-  if (why === 'infected') { for (const n of net.nodes) { n.infected = true; n._infAge = 0; } mineAggInvalidate(state); }   // the renderer schedules the green off the summary's version
+  if (why === 'infected') { for (const n of net.nodes) { n.infected = true; n._infAge = 0; } net._infGen = (net._infGen | 0) + 1; mineAggInvalidate(state); }   // the renderer schedules the green off the summary's version
   net.fruited = true; net.alive = false;
   state.runOver = true;
   // FULL PAYOUT EITHER WAY, and it is load-bearing: Amputate is bought, so an early player who
@@ -25123,7 +25184,7 @@ function mineEndRun(state, cause) {
            MINE_END_CAUSES,
            mineInfectionCheck, mineInfectionLeft,
            mineItemCount, mineUseExcrete, mineUseAmputate,
-           mineRayOpen, mineOccupied, mineBestDownRay, mineOpenTips, minePileCentre, mineResCentre,
+           mineRayOpen, mineOccupied, mineBestDownRay, mineOpenTips, mineOpenTipsScored, mineOpenTipsPick, minePileCentre, mineResCentre,
            OUT_OF_FUEL_GRACE_MS };
 })();
 
@@ -25164,6 +25225,8 @@ function tickWorld(state, phase = 'both') {
   const { config, substrate } = state;
   const doMove = phase !== 'attack';
   const doAttack = phase !== 'move';
+  // A new step counts the healthy strands afresh (Network.healthyCount's memo, M9 verify 3).
+  for (const n of (state.networks || [state.active])) if (n) n._hcEpoch = (n._hcEpoch | 0) + 1;
 
   if (doMove) {
     // Snapshot worm positions BEFORE they move so a trap can test the swept path
@@ -25219,8 +25282,11 @@ function tickWorld(state, phase = 'both') {
 
     // 1c) The rot races further along the filaments.
     infectNetwork(net, state);
-    // THE MINE'S COLONY SUMMARY (M9, `mineAgg`) rebuilds once per world tick: the contact pass and the
-    // pile claim above can infect strands that are already folded into it.
+    // THE MINE'S COLONY SUMMARY (M9, `mineAgg`) rebuilds once per world tick. The contact pass and the
+    // pile claim above bump `net._infGen` when they infect (M9 verify 3), which the summary is keyed on,
+    // so this is the SAFETY NET rather than the mechanism: anything that flips `infected` without the
+    // generation (a probe or a check editing strands by hand, a path added later) is seen within one tick,
+    // as it always was. It costs the tick frame one walk; frames without a tick no longer rebuild at all.
     if (substrate && substrate.mine) net._aggVer = (net._aggVer | 0) + 1;
 
     // 2) Starvation if the colony is out of Energy (prunes strands).
@@ -27637,17 +27703,16 @@ class NetworkRenderer {
     // walk (a strand not yet reached by a child starts at 1 — the same sum, since a parent before its
     // child in the array gets the child's share on the child's turn either way) and the centroid into
     // the path walk (same order, so the same floating-point sum).
+    // ONE WALK, NOT TWO (M9 verify 3). The backward walk that sums the subtree sizes is also where the
+    // paths are built now: a strand's children always sit AFTER it in `net.nodes` (strands are only ever
+    // appended with an existing parent, and a removal compacts in order), so by the time the backward walk
+    // reaches a strand every child has already added its share — its size is final. The per-strand
+    // outputs (edges, tips, the growing list) come out in reverse and are flipped once at the end, so
+    // their order is the old forward order; the batched Path2Ds are a union stroked in one call, so the
+    // order of their sub-paths does not change a pixel. A dig frame walked the colony twice here, which
+    // with nothing else was already the whole 2-pass budget of acceptance 5c.
     const size = new Map();
     const order = net.nodes;
-    // process leaves->root by repeatedly summing (n small so cheap)
-    for (let i = order.length - 1; i >= 0; i--) {
-      const n = order[i];
-      if (!size.has(n.id)) size.set(n.id, 1);
-      if (n.parentId != null) {
-        const ps = size.get(n.parentId) || 1;
-        size.set(n.parentId, ps + (size.get(n.id) || 1));
-      }
-    }
     this.subtreeSize = size;
 
     const root = net.nodes[0];
@@ -27695,7 +27760,13 @@ class NetworkRenderer {
     };
 
     let sumX = 0, sumY = 0;
-    for (const n of net.nodes) {
+    for (let i = order.length - 1; i >= 0; i--) {
+      const n = order[i];
+      if (!size.has(n.id)) size.set(n.id, 1);
+      if (n.parentId != null) {
+        const ps = size.get(n.parentId) || 1;
+        size.set(n.parentId, ps + (size.get(n.id) || 1));
+      }
       sumX += n.x; sumY += n.y;
       if (n.children.length === 0) this.tips.push(n);
       n._protected = isWarded(n);
@@ -27728,6 +27799,7 @@ class NetworkRenderer {
         }
       }
     }
+    this.edges.reverse(); this.tips.reverse(); growing.reverse();
     this.batches = {
       cream: creamPaths.map((path, i) => ({ w: BW[i] * sc, path })),
       infected: { w: 1.2 * sc, path: infectedPath },
@@ -27902,14 +27974,15 @@ class NetworkRenderer {
     const net = this.network, byId = net.byId, r = this.config.render;
     // ON A MINE COLONY, ONLY WHEN SOMETHING CAN HAVE ROTTED (M9 verify 2). This is a walk of every strand
     // and it ran on every frame — at 4,000 strands one of the three whole-colony passes a settled mine
-    // frame made. In the mine a strand's `infected` changes only inside a world tick, a dig or a removal,
-    // and every one of those bumps `net._aggVer` (the colony summary's version, `mineAggInvalidate`), so
-    // an unchanged version and length means there is nothing new to schedule. Other colonies (the
-    // campaign's, whose cards cure and infect between ticks) keep the walk on every frame.
+    // frame made. Keyed on the INFECTION GENERATION (`net._infGen`, M9 verify 3: bumped by every path that
+    // sets or clears `infected`) and the removal version (`net._aggVer`, `_removeNodes`): with both
+    // unchanged no strand can have rotted or healed, so there is nothing new to schedule. It used to key
+    // on the colony's LENGTH too, which re-ran the walk after every dig that infected nothing. Other
+    // colonies (the campaign's, whose cards cure and infect between ticks) keep the walk on every frame.
     if (net._incr) {
-      const v = net._aggVer | 0, len = net.nodes.length;
-      if (this._infVer === v && this._infLen === len) return;
-      this._infVer = v; this._infLen = len;
+      const v = net._aggVer | 0, ig = net._infGen | 0;
+      if (this._infVer === v && this._infGenSeen === ig) return;
+      this._infVer = v; this._infGenSeen = ig;
     }
     const creep = r.infectCreepMs != null ? r.infectCreepMs : 300;
     const ceiling = now + (r.infectMaxLagMs != null ? r.infectMaxLagMs : 2500);
@@ -35259,7 +35332,7 @@ const __m_main = (function () {
           mineEastReached, mineIslandReached, mineTaprootXY,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost, mineNextHeatLine,
-          mineHeatLines, mineRayOpen, mineOccupied, mineBestDownRay, mineOpenTips, minePileCentre, mineResCentre, mineFocusNode,
+          mineHeatLines, mineRayOpen, mineOccupied, mineBestDownRay, mineOpenTips, mineOpenTipsScored, mineOpenTipsPick, minePileCentre, mineResCentre, mineFocusNode,
           mineMaterials, mineMaterialFor, mineMaterialById,
           mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun,
@@ -41622,8 +41695,9 @@ function mineNudge(time) {
   const band = mineHudBandPx();
   const seen = (n) => { const q = camera.worldToScreen(n.x, n.y);
     return q.x >= 24 && q.x <= camera.viewW - 24 && q.y >= band + 20 && q.y <= camera.viewH - 24; };
-  let tips = mineOpenTips(state, 2, seen);
-  if (!tips.length) tips = mineOpenTips(state, 2);
+  const scored = mineOpenTipsScored(state);
+  let tips = mineOpenTipsPick(scored, 2, seen);
+  if (!tips.length) tips = mineOpenTipsPick(scored, 2);
   if (!tips.length) return false;
   const glow = o.glow = { tips, until: time + MINE_GLOW_MS, at: time };
   o.nudges++;
