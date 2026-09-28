@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; --mine 1143/1145 (onboard's first-visit timing pair fails on this host on pre-M8 builds too); 3c re-measured with the island compass bearing — still FAIL. VERIFY ROUND 2 landed: a landing dig at the node cap lands, 'New farthest' baseline = the record at run start, corrected log line, nextBuilt explicit, readable leg caption, `run.mjs` exact names, landfall-check reads final figures (49/49); rock sprites drawn from mips (leg frame 58 -> 2.4 ms at dsf 2; journey-check 99/99); onboard's drag harness on a finger's clock (drag bound passes); 3c still FAILS (east-reading naive 0/8; no legprobe candidate in k 36-155 is naive-landable); 3b spread 1/5/8, 1/6/8, 1/10/11 (leg-2 tail misses 7); --mine 1152/1153 (the 600 ms curtain on this host). VERIFY ROUND 3 landed: leg 1's banner 'No threats — dig down, then east'; leg 2 pulled in (E 5, 120 m east, same seed) -> 3b 9/9 careers (leg 2 in 3-6 runs, median 4); the first visit's world prebuilt behind the gate (curtain 622-730 -> 435-492 ms); onboard 67/67; 3c still FAILS (naive 0/8 east, 0/8 down-east; opening the shallow road does not close it either — owner / M14); --mine 1157/1157. Next: M9.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; --mine 1143/1145 (onboard's first-visit timing pair fails on this host on pre-M8 builds too); 3c re-measured with the island compass bearing — still FAIL. VERIFY ROUND 2 landed: a landing dig at the node cap lands, 'New farthest' baseline = the record at run start, corrected log line, nextBuilt explicit, readable leg caption, `run.mjs` exact names, landfall-check reads final figures (49/49); rock sprites drawn from mips (leg frame 58 -> 2.4 ms at dsf 2; journey-check 99/99); onboard's drag harness on a finger's clock (drag bound passes); 3c still FAILS (east-reading naive 0/8; no legprobe candidate in k 36-155 is naive-landable); 3b spread 1/5/8, 1/6/8, 1/10/11 (leg-2 tail misses 7); --mine 1152/1153 (the 600 ms curtain on this host). VERIFY ROUND 3 landed: leg 1's banner 'No threats — dig down, then east'; leg 2 pulled in (E 5, 120 m east, same seed) -> 3b 9/9 careers (leg 2 in 3-6 runs, median 4); the first visit's world prebuilt behind the gate (curtain 622-730 -> 435-492 ms); onboard 67/67; 3c still FAILS (naive 0/8 east, 0/8 down-east; opening the shallow road does not close it either — owner / M14); --mine 1157/1157. M9 BUILT: legs 4-8 (seeds 1300770 / 4660017 / 3097001 / 2895462 / 1437175) with their rules as config knobs, the Promised Land (cause 'promised', finale -> credits -> 'Journey I' badge + 'Begin Journey II', save rolls to journey 2), mineAgg + incremental pocket scan + per-frame pass counter, earth/rock layer memos (leg 8 @ 4,200 strands: 10-11 ms still, forced raster); legs-check 39/39; acceptance 2 (kit <= 70%) FAILS on legs 2, 3, 6, 7, 8 — measured, owner / M14. Next: M9 verify, then M10.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5731,6 +5731,88 @@ Numbers here are measured, not planned.
 - **`--mine` after verify round 3: 1157 passed, 0 failed across 19 checks** (boot 22, store 124, mine 193, ending
   87, ship 58, phone 51, onboard 67, econ 79, counter 60, journey 99, landfall 49, zip 24, level 27, aim 9,
   scale 26, threat 116, harvest 28, mould 20, core 18).
+
+### M9 — Journey I, part 3: legs 4-8, escalation, the Promised Land, long-run performance (BUILT; acceptance 2 FAILS on 5 legs)
+
+- **LEGS 4-8** (`CONFIG.mine.journey.legs`): the plan's table (E, eastM, depthM, sealByBand, bonus), each rule
+  written as the EXISTING knobs it overrides, copied as written onto the cfg clone in `configForLevel`:
+  `threatBands` (leg 4 mould at 42-84 m; leg 7 worms x2 below 42 m; leg 8 +1 worm +1 cloud per chunk below 84 m),
+  `richChance` 0.5 (leg 5), `safeDepth` 36 (leg 6), `islandCols` 24 + `finale: true` (leg 8). Legs 1/3 keep
+  'calm'/'dry'. Seeds (legprobe --pick, PASS + WPASS): **4 = 1300770, 5 = 4660017, 6 = 3097001, 7 = 2895462,
+  8 = 1437175** (4: 2 of 24 pass; 5: 0 of 30, then 1 of 45; 6: 1 of 34; 7: 1 of 30; 8: 1 of 30).
+  - **THE PATH-RATIO GATE IS WHAT MAKES LONG LEGS RARE**: lattice ratios on legs 5-8 run 1.12-1.40 (a long
+    route is straighter relative to its length); ~10% of candidates reach 1.3. Leg 5's pick is AT the gate
+    (1.300).
+  - **THE SEAM-SLIT WINDOW GATE (<= 42 rows) IS LEGS 1-3 ONLY now**: a leg-4+ window holds 10-16 seams and the
+    longest of more samples is longer by sample size (ratio-passing leg 5-6 candidates failed it at 44-59);
+    WPASS's derived gate (seam hairline <= the longest interior line, whole world) decides there.
+- **CONFIG READS:** `mineBeat`, `mineLineBeats`, `mineZoom`, `mineClampZoom` read `state.config`. Leg 6:
+  `mineHeatLines` [36, 78, 120] (tolerance 1: [50, 92, 134]); a strand past 36 m beats '36 m / Digs now cost 4'
+  and past 42 m 'ANTHRACITE / Digs still cost 4'.
+- **THE PROMISED LAND:** cause 'promised' (leg row `finale`; same bonus path as 'island' — `mineLandfall(c)`
+  in main). Banked on the landfall frame; `mineLegApply` rolls the save to `{journey: J+1, leg: 1, done: [..J],
+  past: {J: {legs, runs}}, legs: {}}` (fresh leg records and island bonuses; only the journey the run was ON).
+  ROOTED (rows kept, one button `#ssMineFinale` 'Continue', auto after `finaleHoldMs` 6000) -> `startPromisedFinale`:
+  camera pull-back over the island (`FINALE_PULL_MS` 1600, eased from renderFrame) -> `#mineFinale` canvas strip,
+  8 island mounds bursting 300 ms apart (`playFinaleNote`, a major arpeggio from C5) -> 'The Promised Land. Your
+  colony spans the world.' -> `showCredits` -> title. A tap skips to the credits. Title: `#tsJourneyBadge`
+  ('Journey I', gold pill) and 'Begin Journey II' until the new journey has a run, then 'Continue · Journey II ·
+  Leg N of 8 · …'. Journey II replays Journey I's seeds (M13 adds its rules). Hooks `mine.finale()`,
+  `journeySave()`, `plantAtTaproot()` (scripted landfall: moves the nearest clean strand onto the knot).
+  - **GOTCHA: a 0-dig landfall is not recorded on its leg** (M5's "a descent that never dug is not a descent"),
+    so the scripted landfall digs once first.
+  - **The double-width island's trees are the meadow canopy art (`goalbush` at 3-4.6 cells).** `tree.png` was
+    tried first: it is a bare winter tree and read as dead wood on the Promised Land. `mine.islandTrees()`.
+- **PERFORMANCE:**
+  - `mineAgg(state)` (engine): colony x extent, deepest / shallowest / easternmost clean strand, any rot, nearest
+    clean strand to the knot — folded in incrementally from the tail of `net.nodes`; rebuilt when
+    `net._aggVer` moves (`_removeNodes`, every world tick in the mine, every dig). Read by depth, east,
+    landfall, cheapest cost, the camera, the focus fallback, chunk streaming, the rot clock, the reach floater.
+  - The pocket scan (`mineWaterScan`) tests only strands appended since the last call plus those still
+    animating in; new water (`stampReservoir` bumps `sub._waterGen`) rescans. `waterSourcesNear(state, split,
+    only)` — `only` is new, default unchanged. **CHANGED SETUP:** mine-check's pocket probe stamps water under
+    EXISTING tissue and now calls `mine.waterRescan()` (water only ever appears in a new chunk in play).
+  - `mineNodePass(state, why)` counts every whole-colony walk the mine's frame code makes; filed per frame at the
+    start of the next (`mine.passes()`: {frames, max, hist, why}). Definition: mine frame code only — tickWorld's
+    engine passes (infectNetwork, colonize) and the network renderer's draw are not counted.
+  - **A SYNCHRONOUS renderFrame ONLY RECORDS.** The raster is deferred until the canvas flushes, which in a sync
+    loop lands on every ~15th frame (400-590 ms there, ~5 ms the rest; the profile puts it in `ctx.restore`).
+    Every earlier "renderFrame N ms" in this file measured recording. legs-check closes each timed frame with a
+    1-pixel readback; `window.MYCELIUM_RF_PROFILE` files each pass's forced-raster time in `window.__rfProfile`.
+  - Forced-raster profile, leg 8 at 4,200 strands, 390x844: substrate (the live earth, its `overlay` mottle)
+    **18.0 ms**, leaves+tints 5.3, rocks 8.3, network 6.6 — ~39 ms. The earth and the rock layer are now drawn into
+    WORLD-ANCHORED OVERSIZED memos (view + 35% margin each side, blitted at the rounded device offset; rebuilt on
+    zoom / resize / leaving the buffer / new or arriving sprites / `_solidRev`): **still 35.9 -> 9.9 ms median,
+    p95 46.5 -> 13.2; panning 36.5 -> 14.8 ms median (p95 25.1)**. Memo vs live frame: mean channel diff 0.68 (the
+    device-pixel rounding). A/B knobs `MYCELIUM_NO_EARTH_MEMO`, `MYCELIUM_NO_ROCK_MEMO`. `ctx` in main is `let`
+    now (the rock memo swaps it, and swaps `camera`'s view fields, for the build).
+- **legprobe (M9):** `navigate()` — a RE-PLANNING navigator (A* over the fine mask from every clean strand to
+  landfall, kit prices, x1.5 / x3 beside / against a wall; digs from the path's own strand toward the point 100
+  units along it, rotating look-ahead and source on refusals or 3 digs without progress). The fixed-route
+  `follow` wasted the kit's longer grow (leg 3 grow 5: 57 digs, 0.72x of bare; `navigate` 42). `kitWater(page,
+  leg, seed, kit)`, `KIT` (the table's arrival kit, low end of each range; leg 7 keeps leg 6's grow/heat; leg 8
+  the full kit), `KIT_OK`, route pockets (within 3 cells of the cheapest route), `--kit`, `--seeds`, `--from`,
+  `--check` prints the runner line. `run.mjs legkit` (slow, not in --mine).
+- **ACCEPTANCE 2 (kit gates) — measured, 5 of 8 legs FAIL the 70% rule** (navigator water / (start + half the
+  route's pockets)): leg 1 **0.644**, 2 **0.88**, 3 **0.78**, 4 **0.613** (bare 3.31), 5 **0.544** (bare 4.48), 6
+  **0.776**, 7 **1.30**, 8 **0.806** (the kit's supply 191 with 7 route pockets). Why, measured:
+  - **legs 2-3: the gallery rows sit just below the kit's heat line.** Galleries run at rows 3 + 18k (57, 75, …);
+    leg 2's Heat 1 line is 56 m, leg 3's Heat 2 is 70 m, so the crossing galleries price at 4. Moving the taproot
+    up (leg 2 58 -> 54 m, leg 3 72 -> 66 m, same seeds) changed nothing (0.865, 0.797): the route crosses on the
+    galleries whatever the knot's depth.
+  - **legs 6-8: digs per chunk.** At grow 6 the navigator advances ~260 units a dig (~4.4 digs a chunk) at ~3.3
+    water a dig below the 98 m line; leg 7's 13 chunks is ~58 digs / 194 water against a 70% budget of ~104.
+    The plan's own inputs (9 lateral digs a chunk at grow 2 x 0.41) give the same. Pulling E in one chunk
+    (the plan's first lever) buys ~8%: legs 6/8 might reach 0.70 with E -1 each, leg 7 needs roughly half its
+    length. Left at the table's E — owner / M14 (G8 is M14's gate).
+- **CHECKS:** `tests/legs-check.cjs` ('legs', in `--mine`, 39; `LEGS_ONLY=rules,legs,finale,perf`, `LEGS=4,5`):
+  rules 9, legs 9 (legs 1-8 8/8: reachable on the fine mask and the lattice, taproot on the table, ratio
+  1.300-1.455), finale 15 (incl. the skip), perf 6 (state >= 4,000 strands; renderFrame still median/p95 with the
+  raster forced, pan printed; memo = live frame; mineFrame median; <= 2 passes a frame). Screens
+  `tests/.artifacts/m9-{promised-island,promised-rooted,promised-strip,promised-credits,journey2-title,perf-4000}-390.png`.
+- **CHANGED ASSERTIONS:** landfall-check 'replay': "save leg 4 -> title Leg 3, DIG plays leg 3 owing no bonus, ROOTED
+  'Leg 4 is not open yet'" -> "save leg 4 -> title 'Continue · Leg 4 of 8 · Mould Country', DIG plays leg 4 owing
+  50, a landfall promises 'Leg 5, Rich Veins'" (every leg is built; the not-open path is unreachable in Journey I).
 
 ## Two games on the title screen: Survival and Campaign
 

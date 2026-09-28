@@ -1196,6 +1196,15 @@ H. KNOWN GAPS THE BOTS MUST SETTLE
 - The caches must be invalidated on every removal path.
 - If the bots show human overhead above 2.6x, shorten legs 7-8 rather than cheapen the rungs.
 
+**AS BUILT (M9).** Acceptance 1, 3, 4, 5 pass (legs-check). Acceptance 2 is measured by `tests/bots/legprobe.cjs
+--kit` (a re-planning navigator: real growth, kit prices) and FAILS the 70% rule on legs 2, 3, 6, 7 and 8
+(0.88 / 0.78 / 0.78 / 1.30 / 0.81; legs 1, 4, 5 pass at 0.64 / 0.61 / 0.54, bare > 100% on 4-5): on legs 2-3 the
+crossing galleries (rows 57, 75) sit just below the kit's heat line (56, 70 m), and on legs 6-8 a grow-6 dig
+advances ~4.4 digs a chunk at ~3.3 water. The table's E and depths are left as written for M14 (G8).
+Deviations: the leg rules are explicit knobs on each row (`threatBands`, `richChance`, `safeDepth`,
+`islandCols`, `finale`); the per-frame pass counter covers the mine's own frame code; renderFrame is timed with
+the raster forced per frame (a synchronous renderFrame only records); the seam-slit window gate is legs 1-3 only.
+
 
 ### M10 — Compasses: sell precision, through rock
 
