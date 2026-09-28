@@ -33,9 +33,14 @@
  *            second bonus (checked at the bank, not only at run start); the island event says ':again'.
  *   replay   (M8 verify) a save past the built legs (leg 4) plays leg 3, labelled Leg 3, pays no bonus,
  *            and ROOTED says the next leg is not open yet instead of promising it.
+ *   cap      (M8 verify 2) a landing dig that also crosses the node cap ends ROOTED, not 'full'.
+ *   best     (M8 verify 2) a boot in another tab banking this run first does not turn 'New farthest on
+ *            this leg' into 'N m short' (the line's baseline is the record as the run began).
+ *   Also (verify 2): end-screen rows are read off each count's final `data-n`, not mid count-up; the
+ *   twice block asserts the event log's last word is the corrected payout.
  *
  * Screens: tests/.artifacts/m8-{rooted,leg2-banner,title,store,records,sight,hud-360,rooted-360}-390.png.
- * `LANDFALL_ONLY=land,records,free,hud,fit,tabs,twice,replay` runs a subset.
+ * `LANDFALL_ONLY=land,records,free,hud,fit,tabs,twice,cap,best,replay` runs a subset.
  */
 const path = require('path'), fs = require('fs');
 const H = require('./mine-harness.cjs');
@@ -89,6 +94,11 @@ const landNow = async (page) => {
     return { over: !!s.runOver, cause: r.cause, ore: r.ore, bonus: r.bonus, seams: r.seams, reach: r.reach, leg: r.leg, bal0, bal1: g.store.balance() };
   });
 };
+// THE END SCREEN'S ROWS AS THEY WILL READ (M8 verify): each row's figure counts up from 0, so its text
+// mid-animation is not the figure — read the label and the count's `data-n` (the final number).
+const rowsFinal = (page) => page.evaluate(() => Array.from(document.querySelectorAll('#ssMineEnd .ss-me-row')).map((r) => {
+  const c = r.querySelector('.ss-count'), l = r.querySelector('.ss-me-lbl');
+  return ((l ? l.textContent : '') + ' +' + (c ? c.dataset.n : '')).replace(/\s+/g, ' ').trim(); }));
 const waitLeg = (page) => page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.leg && window.__game.mine.leg()
   && window.__game.state.substrate._fineSolid && !window.__game.state.runOver), { timeout: 40000 });
 
@@ -161,9 +171,9 @@ const waitLeg = (page) => page.waitForFunction(() => !!(window.__game && window.
       await sleep(900);
       const es = await b.page.evaluate(() => { const e = document.getElementById('ssMineEnd'); if (!e) return null;
         const t = e.querySelector('.ss-win-title'), st = e.querySelector('.mj-strip');
-        const rows = Array.from(e.querySelectorAll('.ss-me-row')).map((r) => r.innerText.replace(/\s+/g, ' ').trim());
-        return { label: t && t.getAttribute('aria-label'), text: e.innerText.replace(/\s+/g, ' '), rows,
+        return { label: t && t.getAttribute('aria-label'), text: e.innerText.replace(/\s+/g, ' '),
                  strip: st ? { lit: st.querySelectorAll('.mj-dot.lit').length, dots: st.querySelectorAll('.mj-dot').length, cur: (st.querySelector('.mj-dot.cur') || {}).dataset } : null }; });
+      if (es) es.rows = await rowsFinal(b.page);
       ok('#ssMineEnd grows ROOTED with the landfall copy', es && es.label === 'Rooted' && /took root on Island 1\. Leg 2, The Coal Road, starts there\./.test(es.text),
          es && (es.label + ' | ' + es.text.slice(0, 140)));
       ok('...with East and Island bonus rows', es && es.rows.some((r) => /^East \d+ m \+\d+/.test(r)) && es.rows.some((r) => /^Island bonus \+20/.test(r)),
@@ -421,13 +431,90 @@ const waitLeg = (page) => page.waitForFunction(() => !!(window.__game && window.
       const L = await landNow(b.page);
       await b.page.waitForSelector('#ssMineEnd', { timeout: 25000 }).catch(() => {});
       await sleep(900);
-      const es = await b.page.evaluate(() => Array.from(document.querySelectorAll('#ssMineEnd .ss-me-row')).map((r) => r.innerText.replace(/\s+/g, ' ').trim()));
+      const es = await rowsFinal(b.page);
       const isl = await b.page.evaluate(() => window.__rows.filter((r) => r.kind === 'island').map((r) => r.detail));
+      // ...AND THE EVENT LOG SAYS WHAT WAS BANKED (M8 verify): the landfall line is written with the bonus
+      // in it before the bank drops it, so the bank adds the correcting line — the last word is the truth.
+      const logs = await b.page.evaluate(() => window.__game.state.logEntries.map((e) => e.message).filter((m) => /Phosphorus banked/.test(m)));
+      const lastLog = logs[logs.length - 1] || '';
+      ok("...and the event log's last word is what was banked, not the bonus-inclusive figure",
+         /already rooted — no second island bonus\. (\d+) Phosphorus banked/.test(lastLog) && +lastLog.match(/(\d+) Phosphorus banked/)[1] === L.ore,
+         JSON.stringify({ logs, ore: L.ore }));
       ok('the run started owing 20, and the landfall banks reach + seams only (no Island bonus row), island event L1:again',
          cfgBonus === 20 && L.cause === 'island' && L.bonus === 0 && L.bal1 - L.bal0 === L.reach + L.seams && L.ore === L.reach + L.seams
          && !es.some((r) => /Island bonus/.test(r)) && isl.length === 1 && isl[0] === 'L1:again',
          JSON.stringify({ cfgBonus, L, rows: es, isl }));
       await b.ctx.close();
+    }
+    // ======================================================================================
+    if (want('cap')) {
+      // A LANDING DIG THAT ALSO REACHES THE NODE CAP IS A LANDFALL (M8 verify): `mineGrow` ended it 'full'
+      // before the frame's landfall test ran — no ROOTED, no bonus, the leg not advanced.
+      console.log('— a landing dig at the node cap still lands');
+      const b = await E.boot('#leg,1,1', 390, 844);
+      await waitLeg(b.page);
+      const m = await LP.measure(b.page, { route: true });
+      await LP.follow(b.page, m.route, { stopWithin: 280 });
+      const L = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state, net = s.active, t = g.mine.taproot();
+        const R = (s.config.mine.journey.landfallCells || 1.5) * s.substrate.cellSize;
+        const landed = () => net.nodes.some((n) => !n.infected && Math.hypot(n.x - t.x, n.y - t.y) <= R);
+        let src = null, sd = 1e9;
+        const nearest = () => { src = null; sd = 1e9;
+          for (const n of net.nodes) { if (n.infected) continue; const d = Math.hypot(n.x - t.x, n.y - t.y); if (d < sd) { sd = d; src = n; } } };
+        // The follower stops ~180-280 units out, and one dig at the knot from there lands (the land block's
+        // measurement): that dig is made with the cap set so its own fan crosses it.
+        const pre = landed() || !!s.runOver;
+        nearest();
+        s.config.growth.maxNodes = net.nodes.length + 32;   // the dig's own fan crosses the cap (cap - 30)
+        net.water = 999;
+        const n0 = net.nodes.length;
+        const res = g.mine.growFrom(src.x, src.y, t.x, t.y);
+        const hit = landed(), atCap = net.nodes.length >= s.config.growth.maxNodes - 30;
+        for (let k = 0; k < 30 && !s.runOver; k++) await new Promise((q) => setTimeout(q, 100));
+        await new Promise((q) => setTimeout(q, 300));
+        const r = s.runResult || {};
+        return { pre, from: Math.round(sd), made: res && res.made, n0, n1: net.nodes.length, hit, atCap, cause: r.cause, bonus: r.bonus,
+                 leg: JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}').mineJourney };
+      });
+      ok('a dig that lands on the knot AND crosses the node cap ends ROOTED: cause island, bonus 20, leg 1 -> 2',
+         !L.pre && L.hit && L.atCap && L.cause === 'island' && L.bonus === 20 && L.leg && L.leg.leg === 2, JSON.stringify(L));
+      ok('no page errors (cap)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+      await b.ctx.close();
+    }
+    // ======================================================================================
+    if (want('best')) {
+      // THE RECORD LINE'S BASELINE IS THE RECORD AS THE RUN BEGAN (M8 verify): a boot in another tab banks
+      // this run's pending record and writes its east into the leg; the live tab's end screen then read
+      // that as the old record and said 'N m short' for a run that set a new farthest.
+      console.log("— two tabs: 'New farthest' survives a boot banking the run first");
+      const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 } });
+      const a = await E.boot('#leg,1,1', 390, 844, { ctx, before: async (page) => page.addInitScript(() => { if (!localStorage.getItem('mycelium.progress.v2'))
+        localStorage.setItem('mycelium.progress.v2', JSON.stringify({ runsDone: 2, mineRuns: 2, mineBest: 30, migratedMineShelfV2: true,
+          mineJourney: { journey: 1, leg: 1, legs: { 1: { runs: 2, bestDepth: 20, bestEast: 12, landed: false } } } })); }) });
+      await waitLeg(a.page);
+      const hide = (page, v) => page.evaluate((v) => { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => v });
+        document.dispatchEvent(new Event('visibilitychange')); }, v);
+      const d = await digEast(a.page, 40);
+      await sleep(400);
+      const e0 = await a.page.evaluate(() => window.__game.mine.east());
+      await hide(a.page, 'hidden');
+      const bb = await E.boot('', 390, 844, { ctx });
+      await bb.page.waitForSelector('#titleScreen', { timeout: 20000 }).catch(() => {});
+      await sleep(1200);
+      const l1 = ((await save(bb.page)).mineJourney || { legs: {} }).legs[1] || null;
+      await hide(a.page, 'visible');
+      await a.page.evaluate(() => { document.getElementById('gearbtn').click(); });
+      await sleep(300);
+      await a.page.evaluate(() => { document.getElementById('set-forcefruit').click(); });
+      await a.page.waitForSelector('#ssMineEnd', { timeout: 25000 }).catch(() => {});
+      await sleep(600);
+      const line = await a.page.evaluate(() => ((document.querySelector('#ssMineEnd .ss-mineend-best') || {}).textContent || ''));
+      ok("the boot banked this run's east into the leg first, and the live end screen still says 'New farthest on this leg'",
+         e0 > 12 && l1 && l1.bestEast === e0 && line === 'New farthest on this leg: ' + e0 + ' m east',
+         JSON.stringify({ e0, dug: d, leg1: l1, line }));
+      ok('no page errors (best)', !a.errs.length && !bb.errs.length, a.errs.concat(bb.errs).slice(0, 2).join(' | '));
+      await ctx.close();
     }
     // ======================================================================================
     if (want('replay')) {

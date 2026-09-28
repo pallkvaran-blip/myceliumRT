@@ -1210,6 +1210,11 @@
     #titleScreen .ts-banked { font-style:normal; margin-top:6px; color:rgba(159,224,189,0.95); }
     #titleScreen .ts-gap { margin-top:6px; font-size:clamp(12px,1.9vw,15px); }
     #titleScreen .mj-strip { margin-top:12px; }
+    /* THE LEG CAPTION UNDER DIG (M8 verify): 'Continue · Leg 2 of 8 · The Coal Road' is the one line
+       that tells a returning player where they are, and at the generic .ts-cap size (8-11 px at 30%
+       white) it was the smallest, faintest type on the screen. The record line's size and weight. */
+    #titleScreen #tsJourneyCap { font-size:clamp(13px,2.1vw,17px); letter-spacing:.04em;
+      color:rgba(215,230,220,0.78); text-shadow:0 1px 10px rgba(0,0,0,0.9); }
     /* The empty left-hand slot on the mine's row — see the markup. Zero-size and unclickable, so it
        holds the grid column open without being a target or affecting the row's height.
        DELIBERATELY NOT `.ts-act`: that class means "a New/Old button and its caption", and three
@@ -24341,7 +24346,7 @@ function mineGrow(state, ctx) {
   // THE NODE CAP ENDS THE RUN (M1). At `growth.maxNodes` every growth primitive quietly makes
   // nothing, so a colony at the cap was refused every dig as 'Solid rock' with the run still live.
   // Within 30 of the cap the colony has filled what it can reach: it fruits, cause 'full'.
-  if (mineAtNodeCap(state)) {
+  if (mineAtNodeCap(state) && !mineIslandReached(state)) {
     mineEndRun(state, 'full');
     return { ok: false, full: true, message: 'The colony fills every passage it can reach, and fruits.' };
   }
@@ -24412,7 +24417,10 @@ function mineGrow(state, ctx) {
     if (best) state._mineFocus = { id: best.id, dy: uy };
   }
   net.recomputeVitality();
-  if (mineAtNodeCap(state)) mineEndRun(state, 'full');
+  // ...BUT A DIG THAT LANDS ON THE ISLAND IS A LANDFALL, NOT A FULL COLONY (M8 verify): the frame's
+  // landfall test (`mineFrame`, which runs before its own cap test) ends it ROOTED, banks the bonus
+  // and moves the leg on. Filed as 'full' here, the landing was lost with nothing on screen to say so.
+  if (mineAtNodeCap(state) && !mineIslandReached(state)) mineEndRun(state, 'full');
   return { ok: true, made, water: net.water, cost, newCells,
            origin: origin ? { id: origin.id, x: origin.x, y: origin.y } : null,
            pressed: tip ? { id: tip.id, x: tip.x, y: tip.y } : null,
@@ -31940,7 +31948,7 @@ function mineEndingLine(cause, depth, o) {
   return f(depth | 0, o);
 }
 function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best, balance, cause, first, onDone, onDescend,
-                       east, bonus, leg, nextLeg, nextName, stripHTML, legRec, islandEast }) {
+                       east, bonus, leg, nextLeg, nextName, nextBuilt, stripHTML, legRec, islandEast }) {
   const rooted = cause === 'island';
   const onLeg = (leg | 0) > 0;
   bonus = Math.max(0, bonus | 0);
@@ -31997,7 +32005,7 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
     // and on a short phone (360x640: 25 px, 640x360: 79 px) it was the part pushed off the bottom.
     (onLeg ? '<div class="ss-mineend-eastrow"><p class="ss-mineend-east">down · <b>' + east + ' m</b> east</p>' + (stripHTML || '') + '</div>' : '') +
     // WHAT ENDED IT, in one line, BRANCHED ON THE CAUSE (never on `died`) — see MINE_RUN_ENDING.
-    '<p class="ss-win-sub ss-mineend-why">' + esc(mineEndingLine(cause, depth, { leg, next: nextLeg, nextName, nextBuilt: !!nextName })) + '</p>' +
+    '<p class="ss-win-sub ss-mineend-why">' + esc(mineEndingLine(cause, depth, { leg, next: nextLeg, nextName, nextBuilt: nextBuilt != null ? !!nextBuilt : !!nextName })) + '</p>' +
     records +
     '<div class="ss-me-rows">' + rows + '</div>' +
     '<p class="ss-win-earned">+<span class="ss-count" data-n="' + (ore | 0) + '">' + (ore | 0) + '</span>' + RI.phos +
@@ -36100,7 +36108,12 @@ function mineBank(r) {
     // land and both be paid. The second finds the leg already landed and banks reach and seams only.
     if (bonus > 0 && r.cause === 'island' && r.leg > 0) {
       let rec = null; try { rec = mineLegRecord(loadProgress(), r.journey | 0, r.leg | 0); } catch (_) {}
-      if (rec && rec.landed) { ore -= bonus; r.ore = ore; r.bonus = bonus = 0; }
+      if (rec && rec.landed) {
+        ore -= bonus; r.ore = ore; r.bonus = bonus = 0;
+        // ...and THE LOG SAYS SO (M8 verify): `mineEndRun` already wrote 'took root … N Phosphorus
+        // banked' with the bonus in N, so the event log read 20 more than was banked.
+        if (state && state.log) state.log(`Island ${r.leg | 0} was already rooted — no second island bonus. ${ore} Phosphorus banked.`, 'good');
+      }
     }
     // WHAT ANOTHER PAGE'S BOOT ALREADY BANKED OF THIS RUN (a second tab, or a fresh load while this
     // one sat hidden or in the back-forward cache) is not paid again: only the rest is.
@@ -36187,8 +36200,18 @@ function presentMineEnd(r) {
       const jn = mineJourneyNow();
       const nx = paid.leg + 1, nrow = mineLegRow(CONFIG, nx);
       const row = mineLegRow(CONFIG, paid.leg);
-      return { leg: paid.leg, east: paid.east, bonus: paid.bonus, legRec: paid.legRec,
+      // THE RECORD LINE'S BASELINE IS THE LEG'S RECORD AS THE RUN BEGAN (`state._mineJ.lines`, the same
+      // numbers the in-world record lines and the NEW FARTHEST beat use) — not `was` off the save at
+      // bank time (M8 verify): a boot in another tab can have written this run's own east into the
+      // save already, and then a run that DID set the record read as 'N m short'.
+      const oj = state && state._mineJ;
+      const legRec = paid.legRec && oj && oj.lines
+        ? Object.assign({}, paid.legRec, { was: Object.assign({}, paid.legRec.was, { depth: oj.lines.deep | 0, east: oj.lines.east | 0 }) })
+        : paid.legRec;
+      return { leg: paid.leg, east: paid.east, bonus: paid.bonus, legRec,
                nextLeg: nx, nextName: nrow && nrow.leg === nx ? nrow.name : '',
+               // EXPLICIT, not inferred from the name (M8 verify): a built leg with no name is still built.
+               nextBuilt: !!(nrow && nrow.leg === nx),
                islandEast: row ? row.eastM | 0 : 0, stripHTML: mineJourneyStripHTML(jn, 'mj-end') };
     })(),
     // [Store] (secondary, `#ssMineDone`) opens the shelf; [Descend] (primary) goes straight into the

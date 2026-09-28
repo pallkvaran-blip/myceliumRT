@@ -143,10 +143,14 @@ const args = process.argv.slice(2);
 const fast = args.includes('--fast');
 const mineOnly = args.includes('--mine');
 const pats = args.filter((a) => !a.startsWith('--'));
+// A PATTERN THAT IS A CHECK'S EXACT NAME PICKS THAT CHECK ONLY (M8 verify): as a bare substring,
+// `run.mjs journey` also started `journeybot`, an hour of bot play. Anything else still matches by
+// substring (`run.mjs tuts` picks `tutscript`).
+const matches = (p, name) => CHECKS.some(([n]) => n === p) ? name === p : name.includes(p);
 const picked = CHECKS.filter(([name, , , slow]) =>
   (!fast || !slow)
   && (!mineOnly || MINE_SET.includes(name))
-  && (!pats.length || pats.some((p) => name.includes(p))));
+  && (!pats.length || pats.some((p) => matches(p, name))));
 
 if (!picked.length) {
   console.error('No checks matched. Names: ' + CHECKS.map((c) => c[0]).join(', '));
