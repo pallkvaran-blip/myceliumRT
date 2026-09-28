@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; 3c re-measured with the island compass bearing — still FAIL. Next: M9.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; --mine 1143/1145 (onboard's first-visit timing pair fails on this host on pre-M8 builds too); 3c re-measured with the island compass bearing — still FAIL. Next: M9.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5629,6 +5629,16 @@ Numbers here are measured, not planned.
 - **landfall-check 33 -> 44** (`LANDFALL_ONLY=...,hud,fit,tabs,twice,replay`): hud 3, fit 1, tabs 4, twice 1,
   replay 2. Negative control: 8 of the 11 fail on f0e328a (hud 3, tabs 2, twice 1, replay 1, fit with three
   materials 1).
+- **`--mine` after the verify round: 1143 passed, 2 failed across 19 checks** (boot 22, store 124, mine 193,
+  ending 87, ship 58, phone 51, onboard **61/63**, econ 79, counter 60, journey 96, landfall 44, zip 24,
+  level 27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18). Both reds are onboard's first-visit
+  timing pair, and they are THIS HOST, not this round: standalone ×3 the current build reads curtain
+  589 / 525 / 511 ms (pass) and drag-accepted 2842 / 2524 / 2637 ms (fail, bound 2.5 s); f0e328a (pre-verify)
+  reads 609 / 627 / 696 ms and 2766-3006 ms (both fail); efb8d02 (pre-M8) drag-accepted 2850-3026 ms.
+  Measured why: the dig lands on the SAME frame as the release (release -> `mineDigs` 1 frame), but every
+  frame after the reveal is a 60-70 ms long task at dsf 2 on this container (median 61-68 ms on all three
+  builds), and each of the harness's six CDP touch moves waits for one — the drag alone takes 1.4 s of wall
+  clock. The 1134/1134 run passed these on a faster host. Tolerance left as is.
 
 ## Two games on the title screen: Survival and Campaign
 
