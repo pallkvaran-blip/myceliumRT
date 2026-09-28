@@ -795,7 +795,111 @@ async function openLeg(E, leg, seed, vw = 390, vh = 844, file) {
   return b;
 }
 
-module.exports = { measure, world, follow, navigate, playLeg, openLeg, kitWater, KIT, BARE, PASS, WPASS, PILLAR_OK, KIT_OK };
+// THE LATE-LEG PERF STATE (M9, shared by legs-check's perf block and the perf probes): the navigator toward
+// the knot, stopping short of it (a landfall would end the run), then digs from strands spread over the
+// colony, away from the knot, to `want` strands. `threats` (M9 verify 2) PUTS BACK the worms and clouds
+// the navigator removed (every creature seeded so far, plus the ones streamed in on the way), because a
+// real leg 8 carries dozens and a perf gate measured on an empty map is optimistic. `rot` also infects
+// `rot` strands in one far patch (the busy late-game state: the rot clock running, the off-screen rot
+// chevron) with the deadline pushed out so the run survives the measurement.
+async function perfState(page, o = {}) {
+  const want = o.want || 4200;
+  const kept = await page.evaluate(() => { const s = window.__game.state;
+    window.__perfKeep = { worms: s.nematodes.slice(), clouds: s.clouds.slice() };
+    return { worms: s.nematodes.length, clouds: s.clouds.length }; });
+  const nav = await navigate(page, { maxDigs: 400, stopWithin: 900 });
+  const fill = await page.evaluate(async (o) => {
+    const g = window.__game, s = g.state, net = s.active, t = g.mine.taproot();
+    let digs = 0, k = 0;
+    while (net.nodes.length < o.want && k < 900 && !s.runOver) {
+      k++;
+      const live = net.nodes.filter((n) => !n.infected && Math.hypot(n.x - t.x, n.y - t.y) > 700);
+      const src = live[(k * 7919) % live.length];
+      const a = (k * 2.39996) % (Math.PI * 2);
+      net.water = 9999;
+      const r = g.mine.growFrom(src.x, src.y, src.x + Math.cos(a) * 200, src.y + Math.sin(a) * 200);
+      if (r && r.ok) digs++;
+      if (k % 10 === 0) await new Promise((q) => setTimeout(q, 0));
+    }
+    let worms = 0, clouds = 0, rot = 0;
+    if (o.threats) {
+      const K = window.__perfKeep || { worms: [], clouds: [] };
+      for (const w of K.worms) if (!s.nematodes.includes(w)) s.nematodes.push(w);
+      for (const c of K.clouds) if (!s.clouds.includes(c)) s.clouds.push(c);
+      worms = s.nematodes.length; clouds = s.clouds.length;
+    }
+    if (o.rot) {
+      s.config.mine.infectionMs = 1e9; s.config.mine.firstInfectionMs = 1e9;
+      // the patch: the strands nearest one far-west strand
+      let far = null; for (const n of net.nodes) if (!n.infected && (!far || n.x < far.x)) far = n;
+      const byD = net.nodes.filter((n) => !n.infected).sort((a, b) => Math.hypot(a.x - far.x, a.y - far.y) - Math.hypot(b.x - far.x, b.y - far.y));
+      for (const n of byD.slice(0, o.rot)) { n.infected = true; n._infAge = 0; rot++; }
+      if (g.mine.aggInvalidate) g.mine.aggInvalidate();
+    }
+    net.water = 9999;
+    return { digs, tries: k, nodes: net.nodes.length, over: s.runOver, worms, clouds, rot };
+  }, { want, threats: !!o.threats, rot: o.rot | 0 });
+  return { nav, fill, kept };
+}
+
+// THE ARRAY-LEVEL CENSUS (M9 verify 2): every whole-colony walk, not just the ones the mine's own frame code
+// declares through `mineNodePass`. `net.nodes` is wrapped in a Proxy (re-wrapped through an accessor, since
+// `_removeNodes` assigns a fresh array) whose `get` trap counts every INDEXED READ — which is what for-of,
+// every array method and a plain `for (let i…)` loop all do underneath — so nothing that visits strands
+// through the array can hide from it. A frame's EQUIVALENT PASSES are its reads divided by the colony's
+// length; one read in 509 is sampled for its caller (`why`, by function name, scaled back up). Frames are
+// the game's own rAF callbacks; a "tick frame" is one in which `state.turn` moved. Reads through another
+// structure (`byId`, a bucket grid, `children`) are not strand-array walks and are not counted.
+async function censusInstall(page) {
+  return page.evaluate(() => {
+    const g = window.__game, s = g.state, net = s.active;
+    const C = window.__census = { on: false, frames: [], cur: null };
+    const SAMPLE = 509;
+    const wrap = (arr) => {
+      if (!arr || arr.__isCensus) return arr;
+      return new Proxy(arr, { get(t, k, r) {
+        if (k === '__isCensus') return true;
+        if (C.on && C.cur && typeof k === 'string' && k.charCodeAt(0) <= 57 && k.charCodeAt(0) >= 48) {
+          const f = C.cur; f.reads++;
+          if (f.reads % SAMPLE === 0) {
+            const st = (new Error().stack || '').split('\n');
+            let w = '?';
+            for (let i = 2; i < st.length; i++) { const m = /at (?:new )?([\w$.<>]+)/.exec(st[i]); if (m && !/^(Array\.|Array$|Proxy|get$|Object\.get)/.test(m[1])) { w = m[1]; break; } }
+            f.why[w] = (f.why[w] | 0) + SAMPLE;
+          }
+        }
+        return Reflect.get(t, k, r);
+      } });
+    };
+    let cur = wrap(net.nodes);
+    Object.defineProperty(net, 'nodes', { configurable: true, get() { return cur; }, set(v) { cur = wrap(v); } });
+    const raf0 = window.requestAnimationFrame.bind(window);
+    window.requestAnimationFrame = (cb) => raf0((t) => {
+      if (!C.on) return cb(t);
+      const st = window.__game.state, turn0 = st.turn;
+      C.cur = { reads: 0, why: {} };
+      try { return cb(t); }
+      finally { const f = C.cur; C.cur = null; const len = Math.max(1, cur.length);
+        C.frames.push({ tick: st.turn !== turn0, eq: +(f.reads / len).toFixed(2), why: f.why, len }); }
+    });
+    return true;
+  });
+}
+async function censusRead(page, ms) {
+  await page.evaluate(() => { window.__census.frames = []; window.__census.on = true; });
+  await new Promise((r) => setTimeout(r, ms));
+  return page.evaluate(() => {
+    const C = window.__census; C.on = false;
+    const sum = (arr) => { const why = {}; let max = 0; const eqs = arr.map((f) => f.eq).sort((a, b) => a - b);
+      for (const f of arr) { max = Math.max(max, f.eq); for (const k in f.why) why[k] = (why[k] | 0) + f.why[k]; }
+      const len = arr.length ? arr[arr.length - 1].len : 0;
+      const w = {}; for (const k in why) w[k] = +(why[k] / Math.max(1, len) / Math.max(1, arr.length)).toFixed(2);   // equivalent passes per frame, by caller
+      return { frames: arr.length, max, median: eqs.length ? eqs[eqs.length >> 1] : 0, p95: eqs.length ? eqs[Math.min(eqs.length - 1, Math.floor(eqs.length * 0.95))] : 0, whyPerFrame: w }; };
+    return { all: sum(C.frames), tick: sum(C.frames.filter((f) => f.tick)), noTick: sum(C.frames.filter((f) => !f.tick)) };
+  });
+}
+
+module.exports = { measure, world, follow, navigate, playLeg, openLeg, kitWater, perfState, censusInstall, censusRead, KIT, BARE, PASS, WPASS, PILLAR_OK, KIT_OK };
 
 if (require.main === module) (async () => {
   const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };

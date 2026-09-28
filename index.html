@@ -17569,6 +17569,9 @@ class Network {
     // its deepest / easternmost / nearest-the-knot strand away, so it rebuilds.
     this._aggVer = (this._aggVer | 0) + 1;
     if (removed.size === 0) return 0;
+    // ...and the renderer's incremental reveal scan (mine colonies, M9 verify 2) re-scans from the start:
+    // compacting the array shifts strands across its "everything before here is scheduled" mark.
+    this._remVer = (this._remVer | 0) + 1;
     for (const n of this.nodes) {
       if (removed.has(n.id)) continue;
       if (n.parentId != null && removed.has(n.parentId)) n.parentId = null;
@@ -19022,6 +19025,38 @@ function infectNetwork(net, state) {
   //    clean strand in the disc is seeded now, and each seeds its own firstTouchRings walk. The
   //    seeds are all marked BEFORE any walk runs, so a walk that meets another seed stops there
   //    instead of spending its depth re-claiming ground that seed covers itself.
+  //
+  //    ONE WALK OF THE COLONY FOR ALL THE CLOUDS, NOT ONE PER CLOUD (M9 verify 2). A late mine leg carries
+  //    dozens of clouds (72 on leg 8's perf state) and each walked all 4,000 strands — 73 whole-colony
+  //    passes on every world tick. With more than one live cloud the grown-in strands are bucketed once
+  //    (buckets of the widest breach) and each cloud reads only the buckets its breach overlaps, in the
+  //    colony's own ORDER (sorted by array index), so the seeds, their walk order and the rng draws are
+  //    exactly what the per-cloud walk produced. The conditions are still read live, per cloud, so a
+  //    strand an earlier cloud infected is skipped by a later one as before.
+  const liveClouds = (state.clouds || []).filter((c) => !c.dying);
+  let grid = null, gcs = 0;
+  if (liveClouds.length > 1) {
+    let maxB = 0;
+    for (const c of liveClouds) maxB = Math.max(maxB, c.r * cs, (t.firstTouchRadius || 0) * cs);
+    gcs = Math.max(cs, maxB);
+    grid = new Map();
+    const nodes = net.nodes;
+    for (let i = 0; i < nodes.length; i++) {
+      const n = nodes[i];
+      if (!net.grownIn(n)) continue;
+      const k = Math.floor(n.x / gcs) + ',' + Math.floor(n.y / gcs);
+      let b = grid.get(k); if (!b) grid.set(k, (b = [])); b.push(i);
+    }
+  }
+  const nearCloud = (cloud, breach) => {
+    if (!grid) return net.nodes;
+    const x0 = Math.floor((cloud.cx - breach) / gcs), x1 = Math.floor((cloud.cx + breach) / gcs);
+    const y0 = Math.floor((cloud.cy - breach) / gcs), y1 = Math.floor((cloud.cy + breach) / gcs);
+    const idx = [];
+    for (let gx = x0; gx <= x1; gx++) for (let gy = y0; gy <= y1; gy++) { const b = grid.get(gx + ',' + gy); if (b) for (const i of b) idx.push(i); }
+    idx.sort((a, b2) => a - b2);
+    return idx.map((i) => net.nodes[i]);
+  };
   for (const cloud of (state.clouds || [])) {
     if (cloud.dying) continue;                 // already spent — fading away
     const reach = cloud.r * cs;
@@ -19029,7 +19064,7 @@ function infectNetwork(net, state) {
     const reach2 = reach * reach, breach2 = breach * breach;
     const seeds = [];
     let touched = false;
-    for (const n of net.nodes) {
+    for (const n of nearCloud(cloud, breach)) {
       if (!net.grownIn(n)) continue;               // hasn't grown in yet — nothing there to touch
       const d = (n.x - cloud.cx) ** 2 + (n.y - cloud.cy) ** 2;
       if (d <= reach2) touched = true;         // in contact with the colony — this is what spends it
@@ -22250,11 +22285,14 @@ function mineAggInvalidate(state) {
 function mineAgg(state) {
   const net = state && state.active, sub = state && state.substrate;
   if (!net || !sub) return null;
+  // A MINE COLONY (asked of the mine's colony on its first frame): the renderer scans it incrementally
+  // (`NetworkRenderer.scheduleReveal` / `_scheduleInfection`, M9 verify 2), off the versions kept here.
+  net._incr = true;
   const nodes = net.nodes, ver = net._aggVer | 0;
   let A = net._mineAgg;
   if (!A || A.ver !== ver || A.len > nodes.length || A.sub !== sub) {
     A = net._mineAgg = { ver, sub, len: 0, minX: Infinity, maxX: -Infinity, deep: null, shallow: null,
-                         eastX: -Infinity, anyInf: false, knotD2: Infinity, knot: null };
+                         eastX: -Infinity, anyInf: false, inf: [], knotD2: Infinity, knot: null };
     if (nodes.length) mineNodePass(state, 'agg');
   }
   if (A.len === nodes.length) return A;
@@ -22264,7 +22302,7 @@ function mineAgg(state) {
     const n = nodes[i];
     if (n.x < A.minX) A.minX = n.x;
     if (n.x > A.maxX) A.maxX = n.x;
-    if (n.infected) { A.anyInf = true; continue; }
+    if (n.infected) { A.anyInf = true; A.inf.push(n); continue; }
     if (!A.deep || n.y > A.deep.y) A.deep = n;
     if (!A.shallow || n.y < A.shallow.y) A.shallow = n;
     if (n.x > A.eastX) A.eastX = n.x;
@@ -25040,7 +25078,7 @@ function mineEndRun(state, cause) {
   // THE WHOLE COLONY TURNS, ALL AT ONCE. The deadline expiring is not "the rot finally reached
   // everything" — it is the colony giving up — so it reads as one event rather than as the spread
   // suddenly sprinting. Marked before `alive` goes false so the last frame drawn is green.
-  if (why === 'infected') for (const n of net.nodes) { n.infected = true; n._infAge = 0; }
+  if (why === 'infected') { for (const n of net.nodes) { n.infected = true; n._infAge = 0; } mineAggInvalidate(state); }   // the renderer schedules the green off the summary's version
   net.fruited = true; net.alive = false;
   state.runOver = true;
   // FULL PAYOUT EITHER WAY, and it is load-bearing: Amputate is bought, so an early player who
@@ -26023,16 +26061,29 @@ const MINE_TILE_WORLD = 640;
 // AND A BUFFER IS NEVER BUILT ON THE FRAME IT FIRST GOES STALE (`memoShouldBuild`): that frame draws live,
 // exactly as before the memo, and the build happens on the next frame that still wants it — so the reveal
 // frame (the one the curtain waits for) costs what it always did.
+//
+// ...AND ONLY ONCE THE KEY HAS HELD STILL (M9 verify 2). The key carries the zoom, so while the zoom moves
+// every frame — a pinch, the ease back to the resting zoom after a dig that followed a look, the finale's
+// pull-back — every frame misses, and "build on the second stale frame" alternated a live frame with a
+// 1.69x build plus a copy, for both layers: measured on leg 8 at 4,200 strands, raster forced, a zoom
+// tween cost 47.5 ms median with the memos against 34.4 without. A buffer is built on the
+// `MEMO_SETTLE`-th CONSECUTIVE miss under the SAME settle key; a changing zoom never gets there and draws
+// live (the pre-memo cost), and a pan (same key, view leaving the buffer) still builds, three frames in.
 const MEMO_MARGIN = 0.15;
-function memoShouldBuild(m) {
-  if (m.stale) return true;
-  m.stale = true;
+const MEMO_SETTLE = 3;
+function memoShouldBuild(m, settleKey) {
+  if (m.force) { m.force = false; m.pendN = 0; return true; }     // `__game.mine.memoReset()`: build on the next frame
+  if (m.pendKey !== settleKey) { m.pendKey = settleKey; m.pendN = 0; }
+  m.pendN = (m.pendN | 0) + 1;
+  if (m.pendN >= MEMO_SETTLE) { m.pendN = 0; return true; }
   return false;
 }
+// A frame that blitted resets the miss run, so misses only count while the buffer is actually stale.
+function memoHit(m) { m.hits++; m.pendN = 0; }
 // The camera to BUILD the buffer with: the same zoom and centre, a view MEMO_MARGIN bigger each side.
 // Records the buffer's world origin on `m`.
 function memoBuildCamera(m, cam, T) {
-  m.stale = false;
+  m.pendN = 0;
   const mgx = Math.round(cam.viewW * MEMO_MARGIN), mgy = Math.round(cam.viewH * MEMO_MARGIN);
   const pw = cam.viewW + 2 * mgx, ph = cam.viewH + 2 * mgy;
   const W = Math.ceil(pw * T.a), H = Math.ceil(ph * T.d);
@@ -26171,7 +26222,7 @@ class SubstrateRenderer {
     const m = this._earthMemo || (this._earthMemo = { cv: document.createElement('canvas'), key: null, builds: 0, hits: 0 });
     const key = z + ',' + camera.viewW + ',' + camera.viewH + ',' + W + 'x' + H + ',' + T.a + ',' + T.d + ',' + (this._tile ? 1 : 0) + ',' + (this._earthVer | 0);
     const at = memoBlitAt(m, key, camera, T);
-    if (!at && !memoShouldBuild(m)) { this._drawEarthLive(ctx, camera); m.live = (m.live | 0) + 1; }
+    if (!at && !memoShouldBuild(m, key)) { this._drawEarthLive(ctx, camera); m.live = (m.live | 0) + 1; }
     else {
       if (!at) {
         const pc = memoBuildCamera(m, camera, T);
@@ -26180,7 +26231,7 @@ class SubstrateRenderer {
         g.setTransform(T.a, 0, 0, T.d, 0, 0);
         this._drawEarthLive(g, pc);
         m.key = key; m.builds++;
-      } else { m.hits++; m.stale = false; }
+      } else memoHit(m);
       memoBlit(ctx, m, camera, T);
     }
     // ---- THE MOULD FIELD, which is what the dynamic layer was for ---------------------------
@@ -27265,7 +27316,7 @@ function clamp255(v) { return v < 0 ? 0 : v > 255 ? 255 : v | 0; }
 // across re-bakes so the matter doesn't shimmer each turn.
 function h2(a, b) { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); }
 
-  return { SubstrateRenderer, memoBuildCamera, memoBlitAt, memoBlit, memoShouldBuild };
+  return { SubstrateRenderer, memoBuildCamera, memoBlitAt, memoBlit, memoShouldBuild, memoHit };
 })();
 
 // ===================== src/render/sfx.js =====================
@@ -27580,12 +27631,18 @@ class NetworkRenderer {
     const net = this.network;
     const sc = this._sc();
     // Subtree sizes for organic tapering (thick trunk -> thin tips).
+    // TWO WALKS OF THE COLONY, NOT FOUR (M9 verify 2): this runs on every world tick and after every grow
+    // lands, and at 4,000 strands it copied the array, walked it to seed the sizes, walked it back, walked
+    // it to build the paths and walked it AGAIN for the centroid. The seed is folded into the backward
+    // walk (a strand not yet reached by a child starts at 1 — the same sum, since a parent before its
+    // child in the array gets the child's share on the child's turn either way) and the centroid into
+    // the path walk (same order, so the same floating-point sum).
     const size = new Map();
-    const order = [...net.nodes];
-    for (const n of order) size.set(n.id, 1);
+    const order = net.nodes;
     // process leaves->root by repeatedly summing (n small so cheap)
     for (let i = order.length - 1; i >= 0; i--) {
       const n = order[i];
+      if (!size.has(n.id)) size.set(n.id, 1);
       if (n.parentId != null) {
         const ps = size.get(n.parentId) || 1;
         size.set(n.parentId, ps + (size.get(n.id) || 1));
@@ -27637,7 +27694,9 @@ class NetworkRenderer {
       return !!(c && (c.hardened > 0 || c.mouldProof > 0));
     };
 
+    let sumX = 0, sumY = 0;
     for (const n of net.nodes) {
+      sumX += n.x; sumY += n.y;
       if (n.children.length === 0) this.tips.push(n);
       n._protected = isWarded(n);
       if (n.parentId != null) {
@@ -27682,8 +27741,7 @@ class NetworkRenderer {
     // keep the tip furthest from the centre — that traces the perimeter.
     this.frontierTips = [];
     if (net.nodes.length > 1 && this.tips.length) {
-      let cx = 0, cy = 0;
-      for (const n of net.nodes) { cx += n.x; cy += n.y; }
+      let cx = sumX, cy = sumY;
       cx /= net.nodes.length; cy /= net.nodes.length;
       const SECTORS = 64;
       const best = new Array(SECTORS).fill(null);
@@ -27842,6 +27900,17 @@ class NetworkRenderer {
   // set (and every gameplay rule keyed off it) is untouched.
   _scheduleInfection(now) {
     const net = this.network, byId = net.byId, r = this.config.render;
+    // ON A MINE COLONY, ONLY WHEN SOMETHING CAN HAVE ROTTED (M9 verify 2). This is a walk of every strand
+    // and it ran on every frame — at 4,000 strands one of the three whole-colony passes a settled mine
+    // frame made. In the mine a strand's `infected` changes only inside a world tick, a dig or a removal,
+    // and every one of those bumps `net._aggVer` (the colony summary's version, `mineAggInvalidate`), so
+    // an unchanged version and length means there is nothing new to schedule. Other colonies (the
+    // campaign's, whose cards cure and infect between ticks) keep the walk on every frame.
+    if (net._incr) {
+      const v = net._aggVer | 0, len = net.nodes.length;
+      if (this._infVer === v && this._infLen === len) return;
+      this._infVer = v; this._infLen = len;
+    }
     const creep = r.infectCreepMs != null ? r.infectCreepMs : 300;
     const ceiling = now + (r.infectMaxLagMs != null ? r.infectMaxLagMs : 2500);
     let pending = null;
@@ -28247,14 +28316,24 @@ class NetworkRenderer {
     if (!this._revealReady) {
       for (const n of nodes) { n._revSeen = true; n._liveAt = 0; }   // first frame: baseline, already grown in
       this._revealReady = true;
+      this._revIdx = nodes.length; this._revRem = net._remVer | 0;
       return;
     }
+    // ON A MINE COLONY, ONLY THE TAIL (M9 verify 2). A new strand is always APPENDED (`addNode`) and nothing
+    // ever clears `_revSeen`, so after a pass every strand before `_revIdx` has been scheduled and only
+    // the ones after it can be new. Two callers (advanceSim and draw) each walked all 4,000 strands on
+    // every frame to find none. A removal compacts the array (`_remVer`), which invalidates the mark, and
+    // then the whole array is scanned as before. Other colonies keep the full scan (tools there clear
+    // `_revSeen` by hand to replay a grow).
+    const from = net._incr && this._revRem === (net._remVer | 0) && (this._revIdx | 0) <= nodes.length ? (this._revIdx | 0) : 0;
+    this._revRem = net._remVer | 0; this._revIdx = nodes.length;
     let count = 0;
-    for (const n of nodes) if (!n._revSeen) count++;
+    for (let i = from; i < nodes.length; i++) if (!nodes[i]._revSeen) count++;
     if (count === 0) return;
     const spread = Math.min(REVEAL_SPREAD_MAX, Math.max(REVEAL_SPREAD_MIN, count * 55));
     let k = 0;
-    for (const n of nodes) {                    // array order = base→tip among the new nodes
+    for (let i = from; i < nodes.length; i++) {     // array order = base→tip among the new nodes
+      const n = nodes[i];
       if (n._revSeen) continue;
       n._appearAt = time + (k / count) * spread;
       n._liveAt = n._appearAt + REVEAL_SEG;     // physically there only once it has finished growing in
@@ -32186,7 +32265,7 @@ function mineEndingLine(cause, depth, o) {
   return f(depth | 0, o);
 }
 function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best, balance, cause, first, onDone, onDescend,
-                       east, bonus, leg, nextLeg, nextName, nextBuilt, stripHTML, legRec, islandEast, onFinale }) {
+                       east, bonus, leg, nextLeg, nextName, nextBuilt, stripHTML, legRec, islandEast, onFinale, stale, staleLine }) {
   const rooted = cause === 'island' || cause === 'promised';
   // THE PROMISED LAND (M9): ROOTED with its rows, and ONE way on — the finale (camera pull-back, the
   // journey strip fruiting, the line, the credits). There is no next leg to Descend into and nothing to
@@ -32247,7 +32326,10 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
     // and on a short phone (360x640: 25 px, 640x360: 79 px) it was the part pushed off the bottom.
     (onLeg ? '<div class="ss-mineend-eastrow"><p class="ss-mineend-east">down · <b>' + east + ' m</b> east</p>' + (stripHTML || '') + '</div>' : '') +
     // WHAT ENDED IT, in one line, BRANCHED ON THE CAUSE (never on `died`) — see MINE_RUN_ENDING.
-    '<p class="ss-win-sub ss-mineend-why">' + esc(mineEndingLine(cause, depth, { leg, next: nextLeg, nextName, nextBuilt: nextBuilt != null ? !!nextBuilt : !!nextName })) + '</p>' +
+    '<p class="ss-win-sub ss-mineend-why">' + esc(rooted && stale
+      ? 'Your colony took root on ' + (cause === 'promised' ? 'the Promised Land' : 'Island ' + ((leg | 0) || 1)) + '.'
+      : mineEndingLine(cause, depth, { leg, next: nextLeg, nextName, nextBuilt: nextBuilt != null ? !!nextBuilt : !!nextName })) + '</p>' +
+    (stale && staleLine ? '<p class="ss-mineend-best ss-mineend-stale" id="ssMineStale">' + esc(staleLine) + '</p>' : '') +
     records +
     '<div class="ss-me-rows">' + rows + '</div>' +
     '<p class="ss-win-earned">+<span class="ss-count" data-n="' + (ore | 0) + '">' + (ore | 0) + '</span>' + RI.phos +
@@ -35195,7 +35277,7 @@ const __m_main = (function () {
   const { tickWorld, queueEnemyTurn, enemyTurnMove, enemyTurnAttack, flushEnemyTurn } = __m_engine_turn;
   const { initCards, drawCard, skipRound, playCard, cardNeedsTarget, cardUsesDragAim, dragAimReach, cardBlockedReason, chooseOffer, activateAction, cardAbilityInfo, rebuildCardsFromSnapshot, EFFECTS, isArchived } = __m_engine_cards;
   const { Camera } = __m_render_camera;
-  const { SubstrateRenderer, memoBuildCamera, memoBlitAt, memoBlit, memoShouldBuild } = __m_render_substrate;
+  const { SubstrateRenderer, memoBuildCamera, memoBlitAt, memoBlit, memoShouldBuild, memoHit } = __m_render_substrate;
   const { NetworkRenderer, drawFruitBodies } = __m_render_network;
   const { Lighting } = __m_render_lighting;
   const { UI, deathText, cardSlug, SPORE_ICON } = __m_render_ui;   // deathText: one table, both death screens
@@ -36515,6 +36597,18 @@ function presentMineEnd(r) {
       const legRec = paid.legRec && oj && oj.lines
         ? Object.assign({}, paid.legRec, { was: Object.assign({}, paid.legRec.was, { depth: oj.lines.deep | 0, east: oj.lines.east | 0 }) })
         : paid.legRec;
+      // A STALE TAB'S ENDING (M9 verify 2): the result belongs to a journey the save has already left
+      // (another tab finished it). The bank recorded it on that journey's `past` and paid no bonus; the
+      // SCREEN must say so too — no finale (the Promised Land was already celebrated), no 'Leg N+1 starts
+      // there' (Descend plays the CURRENT journey's leg), and the finished journey's strip.
+      const st = paid.legRec && paid.legRec.stale ? paid.legRec.staleJourney | 0 : 0;
+      if (st) {
+        return { leg: paid.leg, east: paid.east, bonus: paid.bonus, legRec, nextLeg: 0, nextName: '', nextBuilt: true,
+                 islandEast: row ? row.eastM | 0 : 0, stale: st,
+                 staleLine: 'Journey ' + mineRoman(st) + ' was already finished in another tab — the next descent is Journey '
+                   + mineRoman(jn.journey) + ', Leg ' + jn.leg + (jn.name ? ', ' + jn.name : '') + '.',
+                 stripHTML: mineJourneyStripHTML(mineJourneyPast(st) || jn, 'mj-end') };
+      }
       return { leg: paid.leg, east: paid.east, bonus: paid.bonus, legRec,
                nextLeg: nx, nextName: nrow && nrow.leg === nx ? nrow.name : '',
                // EXPLICIT, not inferred from the name (M8 verify): a built leg with no name is still built.
@@ -36531,7 +36625,7 @@ function presentMineEnd(r) {
     onDone: () => { runEndThen(() => { setGame('mine'); showPicker(); }); },
     onDescend: () => { runEndThen(() => { setGame('mine'); endRunSpores(); runSporeMult = 1; hideCanvas(); raiseHandoff(); beginMineRun(undefined, { journey: true }); }); },
     // THE PROMISED LAND (M9): ROOTED's one button is the finale.
-    onFinale: r.cause === 'promised' ? () => startPromisedFinale(paid) : null,
+    onFinale: r.cause === 'promised' && !(paid.legRec && paid.legRec.stale) ? () => startPromisedFinale(paid) : null,
   });
 }
 
@@ -36599,8 +36693,12 @@ function mineFinaleStrip(F) {
   const N = MINE_JOURNEY_LEGS, lit = new Array(N).fill(0), parts = [];
   const xs = (i) => 24 + (cssW - 48) * (i / (N - 1));
   const base = cssH - 34;
+  // THE LOOP STOPS WHEN THE CREDITS OPEN (M9 verify 2): the overlay stays in the DOM under the opaque
+  // credits (z 2000), and a loop tied only to `F.over` kept clearing, stroking and filling gradients on
+  // every frame nobody could see until the credits closed. `F.drawN` counts frames for the check.
   const draw = () => {
-    if (F.over || !root.isConnected) return;
+    if (F.over || F.credits || !root.isConnected) return;
+    F.drawN = (F.drawN | 0) + 1;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, cssW, cssH);
     // the thread the colony grew along
@@ -36657,7 +36755,7 @@ function mineFinaleInfo() {
   const F = _mineFinale;
   return F ? { phase: F.phase, bursts: F.bursts, burstAt: F.burstAt.slice(), text: F.text, credits: F.credits, skipped: F.skipped, over: F.over,
                z0: F.z0, z1: F.z1, zoomNow: F.zoomNow, wallet: F.wallet, bankedBefore: F.bankedBefore,
-               journeyDone: F.journeyDone, t0: F.t0, overlay: !!(F.el && F.el.isConnected),
+               journeyDone: F.journeyDone, t0: F.t0, overlay: !!(F.el && F.el.isConnected), drawN: F.drawN | 0,
                creditsOpen: !!document.getElementById('crOverlay') } : null;
 }
 // SETTINGS > EXIT TO TITLE (M1). It used to be 'Save & exit', which dropped to the title without
@@ -36926,7 +37024,7 @@ function mineLegApply(p, r, countRun) {
       pj.legs[L] = rec0;
     }
     p.mineJourney = { journey: mj.journey, leg: mj.leg, legs: mj.legs, done: mj.done, past: mj.past };
-    return Object.assign({}, rec0, { was: was0, firstLand: false, finished: 0, stale: true });
+    return Object.assign({}, rec0, { was: was0, firstLand: false, finished: 0, stale: true, staleJourney: J });
   }
   const rec = Object.assign({ runs: 0, bestDepth: 0, bestEast: 0, landed: false }, mj.legs[L] || {});
   const was = { depth: rec.bestDepth | 0, east: rec.bestEast | 0, landed: !!rec.landed };
@@ -39412,13 +39510,14 @@ function begin(newState) {
       // M9: the mine's whole-colony walks per frame ({frames, max, last, hist}, `why` by caller).
       passes: () => (state ? Object.assign({ why: Object.assign({}, state._minePassWhy || {}) }, JSON.parse(JSON.stringify(state._minePassStats || { frames: 0, max: 0, hist: {} }))) : null),
       passesReset: () => { if (state) { state._minePassStats = null; state._minePassWhy = {}; } return true; },
+      aggInvalidate: () => { if (state) mineAggInvalidate(state); return true; },
       agg: () => { const A = state && mineAgg(state); return A ? { len: A.len, minX: A.minX, maxX: A.maxX, deep: A.deep && A.deep.id, shallow: A.shallow && A.shallow.id, eastX: A.eastX, anyInf: A.anyInf, knotD2: A.knotD2 } : null; },
       waterRescan: () => { if (state) state._mineWaterScan = null; return true; },
       frameMs: () => (state && state._mineFrameMs ? state._mineFrameMs.slice() : []),
       zoomRest: () => mineZoom(),
       islandTrees: () => _mineIslandTrees,
       // M9: drop both layer memos (the next frame rebuilds them at the current camera) and read their counters.
-      memoReset: () => { for (const m of [_rockMemo, substrateRenderer && substrateRenderer._earthMemo]) if (m) { m.key = null; m.stale = true; } return true; },
+      memoReset: () => { for (const m of [_rockMemo, substrateRenderer && substrateRenderer._earthMemo]) if (m) { m.key = null; m.force = true; } return true; },
       memoStats: () => { const f = (m) => (m ? { builds: m.builds, hits: m.hits, live: m.live | 0 } : null); return { earth: f(substrateRenderer && substrateRenderer._earthMemo), rock: f(_rockMemo) }; },
       journeySave: () => { try { return JSON.parse(JSON.stringify(loadProgress().mineJourney || null)); } catch (_) { return null; } },
       // M9: the scripted landfall — a clean strand placed inside landfall range of the knot, parented to
@@ -39430,6 +39529,9 @@ function begin(newState) {
         for (const n of net.nodes) { if (n.infected) continue; const d = (n.x - t.x) ** 2 + (n.y - t.y) ** 2; if (d < nd) { nd = d; near = n; } }
         const n = near || net.nodes[0];
         n.x = t.x; n.y = t.y + 4;
+        // `mineAgg` folds strands in once and assumes they never MOVE (M9 verify 2): a teleported strand
+        // stayed at its old place in the summary until the next world tick rebuilt it.
+        mineAggInvalidate(state);
         return true;
       },
     },
@@ -44337,7 +44439,7 @@ function drawLevelRocks() {
     const base = z + ',' + camera.viewW + ',' + camera.viewH + ',' + W + 'x' + H + ',' + T.a + ',' + T.d + ',' + sprites.length + ',' + (sub._solidRev | 0) + ',' + (filtered ? JSON.stringify(rf) : '');
     let key = m.pw != null ? base + ',' + inBuf(m.wx0, m.wy0, m.pw, m.ph) : null;
     const at = key ? memoBlitAt(m, key, camera, T) : null;
-    if (!at && !memoShouldBuild(m)) { _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered); m.live = (m.live | 0) + 1; }
+    if (!at && !memoShouldBuild(m, base)) { _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered); m.live = (m.live | 0) + 1; }
     else if (!at) {
       const pc = memoBuildCamera(m, camera, T);
       key = base + ',' + inBuf(m.wx0, m.wy0, m.pw, m.ph);
@@ -44351,7 +44453,7 @@ function drawLevelRocks() {
       finally { ctx = main; camera.x = cx0; camera.y = cy0; camera.viewW = vw0; camera.viewH = vh0; }
       m.key = key; m.builds++;
       memoBlit(ctx, m, camera, T);
-    } else { m.hits++; m.stale = false; memoBlit(ctx, m, camera, T); }
+    } else { memoHit(m); memoBlit(ctx, m, camera, T); }
   } else _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered);
   _drawLevelRockMarkers(sprites, sub, z, cs);
 }
@@ -45392,12 +45494,13 @@ function drawMineThreatMarks(time) {
     mineChevron(c.x, c.y, c.ang, 'rgba(226,112,90,A)', pulse);
   }
   // ROT OFF SCREEN, WHILE ITS CLOCK RUNS: a mould-green chevron at the nearest rotten strand. On a
-  // 20 s clock the player cannot tap rot they cannot find (verify round). One O(nodes) pass, only
-  // while `mineInfect` is set.
+  // 20 s clock the player cannot tap rot they cannot find (verify round). It walks the ROT only — the
+  // summary's list of infected strands (`mineAgg(state).inf`, M9 verify 2), not the whole colony, which
+  // it used to walk on every frame of the busiest late-game state there is.
   if (state.mineInfect) {
     let near = null, nd = Infinity, seen = false;
-    mineNodePass(state, 'rotChevron');
-    for (const n of state.active.nodes) {
+    const A = mineAgg(state);
+    for (const n of (A ? A.inf : [])) {
       if (!n.infected) continue;
       const p = camera.worldToScreen(n.x, n.y);
       if (onScr(p)) { seen = true; break; }
