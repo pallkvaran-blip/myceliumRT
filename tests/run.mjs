@@ -59,6 +59,9 @@ const CHECKS = [
   // M8: landfall on the taproot (ROOTED, the island bonus, the next leg), the title's Continue and the
   // journey strip, per-leg record lines and their NEW FARTHEST beat, the leg banner, telemetry.
   ['landfall',  'landfall-check.cjs', 150, false],
+  // M9: legs 4-8's rules on the config clone, legs 1-8 reachable with the taproot in place and the path
+  // ratio in band, the Promised Land's finale end to end, and a leg-8 frame at 4,000 strands.
+  ['legs',      'legs-check.cjs',     600, false],
   // M2: THE RELEASE GATE, on a throwaway --no-shrink zip of the working tree (dev flag patched off):
   // the prune keeps the mine's bands, and title -> descent -> end -> store -> Descend plays clean.
   ['zip',       'itchzip-check.cjs --fresh', 60, false],
@@ -105,6 +108,10 @@ const CHECKS = [
   // M8 acceptance 3: the journey bot (tests/bots/journey.cjs) on fresh saves — landfall 1 by run 5, then
   // legs 2 and 3 within 7 runs each. ~1 h a save; run by name, not in --mine.
   ['journeybot', 'bots/journey.cjs', 3600, true],
+  // M9 acceptance 2: legprobe's kit gates on every leg — the navigator's water to the taproot with the
+  // table's arrival kit (<= 70% of supply) and bare (> 100%, legs 3-8), legs 7-8 >= 40% of east below
+  // 84 m. ~25 min; run by name, not in --mine.
+  ['legkit',    'bots/legprobe.cjs --legs 1,2,3,4,5,6,7,8 --kit --check', 2400, true],
 ];
 
 // THE MINE SUBSET. Owner, 20 Aug: "stop checking survival mode and campaign — those are not a part
@@ -134,10 +141,11 @@ const CHECKS = [
 //   counter        threats you can read and answer (M6); the career acceptance is tests/bots/career.cjs.
 //   journey        fixed leg worlds with a taproot in the east (M7); seeds are picked by tests/bots/legprobe.cjs.
 //   landfall       landfall, the next leg, visible progress (M8); the bot acceptance is tests/bots/journey.cjs.
+//   legs           legs 4-8, their rules, the Promised Land, long-run performance (M9); the kit gates are `legkit`.
 //
 // Everything else in CHECKS is the card game and is no longer run. Nothing has been DELETED — the
 // code is untouched and the checks still work if `node tests/run.mjs campaign` is ever wanted.
-const MINE_SET = ['mine', 'ending', 'ship', 'zip', 'phone', 'onboard', 'econ', 'counter', 'journey', 'landfall', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
+const MINE_SET = ['mine', 'ending', 'ship', 'zip', 'phone', 'onboard', 'econ', 'counter', 'journey', 'landfall', 'legs', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
 
 const args = process.argv.slice(2);
 const fast = args.includes('--fast');

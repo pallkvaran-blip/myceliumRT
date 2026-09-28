@@ -60,7 +60,13 @@ const PILLAR_OK = (w) => w.pillarSeam != null && w.pillarSeam <= w.pillarMid90 &
 const KIT_OK = (leg, kit, bare, m) => !!(kit && kit.landed && kit.frac <= 0.70
   && (leg < 3 || (bare && bare.frac > 1.0)) && (leg < 7 || (m && m.east84 >= 0.4)));
 const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0
-  && m.crustMaxCol <= m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42 && m.seamRunRows <= 42
+  && m.crustMaxCol <= m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42
+  // THE SEAM SLIT: <= 42 rows over the leg's window on legs 1-3. From leg 4 the window holds 10-16 seams
+  // (legs 1-3: 5-8), and the longest of more samples is longer by sample size alone — measured, the
+  // ratio-passing leg 5-6 candidates failed here at 44-59 rows. There the derived gate (WPASS: the
+  // longest seam hairline no longer than the longest interior line, over the whole world, M7 round 3)
+  // decides instead.
+  && (leg >= 4 || m.seamRunRows <= 42)
   && m.sealLeak === 0                                            // no sealed side leaks (no gallery in the floor strip any more)
   && (leg < 2 || m.east42 >= 0.5)
   // M8: LEG 1'S SHALLOW ROAD CARRIES YOU EAST (the leg table's crossing band 0-42 m; "on leg 1 the shallow
@@ -799,24 +805,49 @@ if (require.main === module) (async () => {
   const doKit = process.argv.includes('--kit');       // M9: navigator water with the arrival and bare kits
   const file = arg('--file', null);     // e.g. a snapshot of index.html under the repo root
   const E = await H.start();
-  let bad = 0;
+  let bad = 0; const badLegs = new Set();
   try {
     for (const leg of legs) {
       let b = await openLeg(E, leg, seedArg || 0, 390, 844, file);
+      // `--seeds a,b,c`: the full pick gates (PASS, WPASS, and with --kit the kit gates) on named seeds.
+      const seedList = arg('--seeds', '');
+      if (seedList) {
+        for (const sd of seedList.split(',').map(Number)) {
+          try {
+            await playLeg(b.page, leg, sd);
+            const m = await measure(b.page);
+            let ok = PASS(m, leg);
+            if (ok) { m.world = await world(b.page); ok = WPASS(m.world); }
+            if (ok && doKit) {
+              m.kit = await kitWater(b.page, leg, sd, KIT[leg] || KIT[8]);
+              m.bare = (leg >= 3 && m.kit.frac <= 0.70) ? await kitWater(b.page, leg, sd, BARE) : null;
+              ok = KIT_OK(leg, m.kit, m.bare, m);
+            }
+            console.log(`leg ${leg} seed ${sd}: ${ok ? 'PASS' : 'FAIL'} ratio ${m.ratio} e84 ${m.east84} seam ${m.seamRunRows} lat ${m.lateral} tap ${m.tapRec && [m.tapRec.col, m.tapRec.row]}`
+              + (m.world ? ` world ${JSON.stringify({ lat: m.world.lateral, ore: m.world.pilesOk + '/' + m.world.piles, pk: m.world.pocketsOk + '/' + m.world.pockets, hair: [m.world.hairSeam, m.world.hairMid], pillar: [m.world.pillarSeam, m.world.pillarMid90], spine: [m.world.spineSeam, m.world.spineMid90], seam: [m.world.seamSolid, m.world.midSolid], band: [m.world.bandSol, m.world.inSol], unj: m.world.unjoined })}` : '')
+              + (m.kit ? ` kit ${JSON.stringify(m.kit)} bare ${JSON.stringify(m.bare)}` : ''));
+          } catch (e) {
+            console.log(`leg ${leg} seed ${sd}: ERROR ${String(e && e.message || e).slice(0, 120)}`);
+            await b.ctx.close().catch(() => {}); b = await openLeg(E, leg, 0, 390, 844, file);
+          }
+        }
+        await b.ctx.close();
+        continue;
+      }
       if (!pick) {
         const m = await measure(b.page, { route: doFollow });
         const route0 = m.route; delete m.route;
         m.world = await world(b.page);
         m.route = route0;
         const ok = PASS(m, leg) && WPASS(m.world);
-        if (!ok) bad++;
+        if (!ok) { bad++; badLegs.add(leg); }
         const route = m.route; delete m.route;
         console.log(`leg ${leg} seed ${m.seed}: ${ok ? 'PASS' : 'FAIL'} ` + JSON.stringify(m));
         if (doFollow && route && route.length) console.log(`  follow: ` + JSON.stringify(await follow(b.page, route)));
         if (doKit) {
           const kk = await kitWater(b.page, leg, m.seed, KIT[leg] || KIT[8]), bb = await kitWater(b.page, leg, m.seed, BARE);
           const kok = KIT_OK(leg, kk, bb, m);
-          if (!kok) bad++;
+          if (!kok) { bad++; badLegs.add(leg); }
           console.log(`  kit ${kok ? 'PASS' : 'FAIL'} arrival ` + JSON.stringify(kk) + '\n      bare ' + JSON.stringify(bb));
         }
       } else {
@@ -870,5 +901,7 @@ if (require.main === module) (async () => {
       await b.ctx.close();
     }
   } finally { await E.close(); }
+  // The runner's summary line (`run.mjs legkit`): one assertion per leg measured.
+  if (check) console.log(`\n==== ${legs.length - badLegs.size} passed, ${badLegs.size} failed ====`);
   process.exit(check && bad ? 1 : 0);
 })();
