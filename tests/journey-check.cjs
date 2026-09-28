@@ -506,6 +506,10 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
       await sleep(2500);
       const r = await b.page.evaluate(() => {
         const g = window.__game, c = document.getElementById('game'), x = c.getContext('2d'), T = 1000;
+        // M9: THE ROCK LAYER IS MEMOISED, and the memo's key does not carry the mip knob — with it on, both
+        // sides of this A/B are the same cached layer (a vacuous picture match, and 0.9 against 1.1 ms). This
+        // block measures the MIP, so the memo is off for it.
+        window.MYCELIUM_NO_ROCK_MEMO = true;
         const grab = (off) => { window.MYCELIUM_NO_ROCK_MIP = off; g.renderFrame(T, 0); g.renderFrame(T, 0); return x.getImageData(0, 0, c.width, c.height).data; };
         const time = (off) => { window.MYCELIUM_NO_ROCK_MIP = off; const a = [];
           for (let i = 0; i < 9; i++) { const t = performance.now(); g.renderFrame(T, 0); a.push(performance.now() - t); }
@@ -518,7 +522,7 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
           sum += d; n++; if (d > 48) big++; if (e > 48) ctl++;
         }
         const off = time(1), on = time(0);
-        window.MYCELIUM_NO_ROCK_MIP = 0;
+        window.MYCELIUM_NO_ROCK_MIP = 0; window.MYCELIUM_NO_ROCK_MEMO = false;
         return { mean: +(sum / n / 3).toFixed(2), bigPct: +(big / n * 100).toFixed(3), ctlPct: +(ctl / n * 100).toFixed(3), off: +off.toFixed(1), on: +on.toFixed(1) };
       });
       ok('drawn from mips, the frame is the same picture: mean channel difference < 1.5, under 1% of pixels off by > 16 a channel (control 0)',

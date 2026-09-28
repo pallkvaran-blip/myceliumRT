@@ -534,7 +534,9 @@ const waitLeg = (page) => page.waitForFunction(() => !!(window.__game && window.
       await waitLeg(b.page);
       await sleep(600);
       const L0 = await b.page.evaluate(() => ({ leg: window.__game.mine.leg().leg, bonus: window.__game.state.config.mine.islandBonus }));
-      await b.page.evaluate(() => window.__game.mine.plantAtTaproot());
+      // One real dig first: a descent that never dug is not recorded on its leg (M5).
+      await b.page.evaluate(async () => { const g = window.__game; g.state.active.water = 999; g.mine.grow(0, 1);
+        await new Promise((r) => setTimeout(r, 200)); g.mine.plantAtTaproot(); });
       await b.page.waitForFunction(() => window.__game.state.runOver, { timeout: 8000 }).catch(() => {});
       const L = await b.page.evaluate(() => Object.assign({}, window.__game.state.runResult || {}));
       await b.page.waitForSelector('#ssMineEnd', { timeout: 25000 }).catch(() => {});
