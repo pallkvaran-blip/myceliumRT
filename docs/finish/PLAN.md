@@ -1204,6 +1204,11 @@ advances ~4.4 digs a chunk at ~3.3 water. The table's E and depths are left as w
 Deviations: the leg rules are explicit knobs on each row (`threatBands`, `richChance`, `safeDepth`,
 `islandCols`, `finale`); the per-frame pass counter covers the mine's own frame code; renderFrame is timed with
 the raster forced per frame (a synchronous renderFrame only records); the seam-slit window gate is legs 1-3 only.
+**VERIFY ROUND (M9).** Fixed: a stale Journey I tab landing after the Promised Land finished Journey II's leg 8 and
+paid the 150 bonus twice (results of a journey the save has left now update only `past`); ROOTED's strip on the
+Promised Land showed Journey II's empty strip (now Journey I, 8 of 8 lit); the store's heat words and tile quoted the
+literal's 42 m on a leg-6 save (now the next leg's lines). legs-check 46/46 (+7, 4 of them fail on the pre-fix build).
+Acceptance 2 re-measured identical (3 of 8 legs pass the 70% rule) — still owner / M14.
 
 
 ### M10 — Compasses: sell precision, through rock
