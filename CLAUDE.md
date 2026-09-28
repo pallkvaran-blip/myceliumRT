@@ -5793,9 +5793,13 @@ Numbers here are measured, not planned.
   leg, seed, kit)`, `KIT` (the table's arrival kit, low end of each range; leg 7 keeps leg 6's grow/heat; leg 8
   the full kit), `KIT_OK`, route pockets (within 3 cells of the cheapest route), `--kit`, `--seeds`, `--from`,
   `--check` prints the runner line. `run.mjs legkit` (slow, not in --mine).
-- **ACCEPTANCE 2 (kit gates) — measured, 5 of 8 legs FAIL the 70% rule** (navigator water / (start + half the
-  route's pockets)): leg 1 **0.644**, 2 **0.88**, 3 **0.78**, 4 **0.613** (bare 3.31), 5 **0.544** (bare 4.48), 6
-  **0.776**, 7 **1.30**, 8 **0.806** (the kit's supply 191 with 7 route pockets). Why, measured:
+- **ACCEPTANCE 2 (kit gates) — `legprobe --legs 1-8 --kit --check`: 3 passed, 5 failed.** Navigator water /
+  (start water + 5 x route pockets), arrival kit | bare: leg 1 **0.644** (56 of 87, 24 digs) | 1.01; leg 2
+  **0.883** (98/111, 33) | 2.19; leg 3 **0.781** (100/128, 42) | 4.16; leg 4 **0.613** (92/150, 42) | 3.31; leg 5
+  **0.544** (80/147, 40) | 4.48; leg 6 **0.776** (118/152, 45) | 7.40; leg 7 **1.302** (194/149, 58) | 10.38; leg 8
+  **0.806** (154/191, 66) | 8.42. Bare > 100% on legs 3-8: PASS. Legs 7-8 east below 84 m (bare route): 0.912 /
+  0.704: PASS. The 70% rule FAILS on legs 2, 3, 6, 7, 8. Deterministic (the pick runs read the same numbers).
+  Why, measured:
   - **legs 2-3: the gallery rows sit just below the kit's heat line.** Galleries run at rows 3 + 18k (57, 75, …);
     leg 2's Heat 1 line is 56 m, leg 3's Heat 2 is 70 m, so the crossing galleries price at 4. Moving the taproot
     up (leg 2 58 -> 54 m, leg 3 72 -> 66 m, same seeds) changed nothing (0.865, 0.797): the route crosses on the
