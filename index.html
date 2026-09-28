@@ -26011,6 +26011,39 @@ const __m_render_substrate = (function () {
 const MINE_TILE_PX = 384;
 const MINE_TILE_WORLD = 640;
 
+// ===== A LAYER MEMO ANCHORED TO THE WORLD (M9 performance) ======================================
+// For a layer that is a function of the camera alone (the mine's earth, its rock): drawn once into a
+// canvas that covers the view plus `MEMO_MARGIN` of it on every side, then blitted each frame at
+// wherever the buffer's WORLD origin lands on screen, rounded to a device pixel. A camera easing after
+// a dig, or a short pan, moves within the margin and costs one copy; a zoom change, a resize or leaving
+// the buffer rebuilds it. `m` = {cv, key, wx0, wy0, pw, ph}: pw/ph are the buffer's size in CSS px.
+const MEMO_MARGIN = 0.35;
+// The camera to BUILD the buffer with: the same zoom and centre, a view MEMO_MARGIN bigger each side.
+// Records the buffer's world origin on `m`.
+function memoBuildCamera(m, cam, T) {
+  const mg = Math.round(Math.max(cam.viewW, cam.viewH) * MEMO_MARGIN);
+  const pw = cam.viewW + 2 * mg, ph = cam.viewH + 2 * mg;
+  const W = Math.ceil(pw * T.a), H = Math.ceil(ph * T.d);
+  if (m.cv.width !== W || m.cv.height !== H) { m.cv.width = W; m.cv.height = H; }
+  const pc = Object.assign(Object.create(Object.getPrototypeOf(cam)), cam, { viewW: pw, viewH: ph });
+  m.pw = pw; m.ph = ph;
+  m.wx0 = cam.x - pw / (2 * cam.zoom); m.wy0 = cam.y - ph / (2 * cam.zoom);
+  return pc;
+}
+// Where the buffer lands now (CSS px), or null when it must be rebuilt (key changed, or the view is
+// no longer inside it).
+function memoBlitAt(m, key, cam, T) {
+  if (!m || m.key !== key || m.pw == null) return null;
+  const sx = (m.wx0 - cam.x) * cam.zoom + cam.viewW / 2, sy = (m.wy0 - cam.y) * cam.zoom + cam.viewH / 2;
+  if (sx > 0.01 || sy > 0.01 || sx + m.pw < cam.viewW - 0.01 || sy + m.ph < cam.viewH - 0.01) return null;
+  return { sx, sy };
+}
+function memoBlit(ctx, m, cam, T) {
+  const sx = (m.wx0 - cam.x) * cam.zoom + cam.viewW / 2, sy = (m.wy0 - cam.y) * cam.zoom + cam.viewH / 2;
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(m.cv, Math.round(sx * T.a + T.e), Math.round(sy * T.d + T.f));
+  ctx.restore();
+}
 class SubstrateRenderer {
   constructor(substrate, config, seed = 1) {
     this.substrate = substrate;
@@ -26106,7 +26139,39 @@ class SubstrateRenderer {
   //
   // Drawn in SCREEN coordinates, because it goes straight to the frame rather than into a world-space
   // buffer that gets blitted through the camera.
+  // THE EARTH IS MEMOISED ON THE CAMERA (M9 performance). Everything `_drawEarthLive` paints — sky,
+  // the depth ramp, the `overlay` mottle, the void, the crust — is a function of the camera alone, and
+  // the overlay composite is the single most expensive fill in a mine frame: measured at 390x844 with
+  // the raster forced per pass (`MYCELIUM_RF_PROFILE`), ~18 ms of a ~39 ms leg-8 frame. So it is drawn
+  // into ONE reused device-sized canvas and blitted; a still camera pays a copy, a moving one pays the
+  // old cost plus that copy (a last-key memo, not a cache — see `_rangeBuf` for why that is the right
+  // shape for anything keyed on the camera). The mould field is drawn over it every frame as before.
+  // `window.MYCELIUM_NO_EARTH_MEMO` is the A/B knob.
   _drawLive(ctx, camera, time) {
+    const z = camera.zoom;
+    if (!(z > 0)) return;
+    if (typeof window !== 'undefined' && window.MYCELIUM_NO_EARTH_MEMO) { this._drawEarthLive(ctx, camera); this._drawLiveTrich(ctx, camera); return; }
+    // OVERSIZED AND ANCHORED TO THE WORLD, so a camera that eases a few pixels after a dig re-uses it:
+    // the buffer covers the view plus `MEMO_MARGIN` of it on every side, and is blitted at wherever its
+    // world origin now lands (rounded to a device pixel). Rebuilt when the zoom or the canvas changes,
+    // when the view leaves the buffer, or when the tile arrives.
+    const T = ctx.getTransform(), W = ctx.canvas.width, H = ctx.canvas.height;
+    const m = this._earthMemo || (this._earthMemo = { cv: document.createElement('canvas'), key: null, builds: 0, hits: 0 });
+    const key = z + ',' + camera.viewW + ',' + camera.viewH + ',' + W + 'x' + H + ',' + T.a + ',' + T.d + ',' + (this._tile ? 1 : 0) + ',' + (this._earthVer | 0);
+    const at = memoBlitAt(m, key, camera, T);
+    if (!at) {
+      const pc = memoBuildCamera(m, camera, T);
+      const g = m.cv.getContext('2d');
+      g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, m.cv.width, m.cv.height);
+      g.setTransform(T.a, 0, 0, T.d, 0, 0);
+      this._drawEarthLive(g, pc);
+      m.key = key; m.builds++;
+    } else m.hits++;
+    memoBlit(ctx, m, camera, T);
+    // ---- THE MOULD FIELD, which is what the dynamic layer was for ---------------------------
+    this._drawLiveTrich(ctx, camera);
+  }
+  _drawEarthLive(ctx, camera) {
     const sub = this.substrate, r = this.config.render;
     const z = camera.zoom;
     if (!(z > 0)) return;
@@ -26207,8 +26272,6 @@ class SubstrateRenderer {
       ctx.globalAlpha = 1;
     }
     ctx.restore();
-    // ---- THE MOULD FIELD, which is what the dynamic layer was for ---------------------------
-    this._drawLiveTrich(ctx, camera);
   }
 
   // The soil/molten colour at a world y, as a CSS string. Lifted from `_bakeEarth` so the two
@@ -27187,7 +27250,7 @@ function clamp255(v) { return v < 0 ? 0 : v > 255 ? 255 : v | 0; }
 // across re-bakes so the matter doesn't shimmer each turn.
 function h2(a, b) { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); }
 
-  return { SubstrateRenderer };
+  return { SubstrateRenderer, memoBuildCamera, memoBlitAt, memoBlit };
 })();
 
 // ===================== src/render/sfx.js =====================
@@ -35105,7 +35168,7 @@ const __m_main = (function () {
   const { tickWorld, queueEnemyTurn, enemyTurnMove, enemyTurnAttack, flushEnemyTurn } = __m_engine_turn;
   const { initCards, drawCard, skipRound, playCard, cardNeedsTarget, cardUsesDragAim, dragAimReach, cardBlockedReason, chooseOffer, activateAction, cardAbilityInfo, rebuildCardsFromSnapshot, EFFECTS, isArchived } = __m_engine_cards;
   const { Camera } = __m_render_camera;
-  const { SubstrateRenderer } = __m_render_substrate;
+  const { SubstrateRenderer, memoBuildCamera, memoBlitAt, memoBlit } = __m_render_substrate;
   const { NetworkRenderer, drawFruitBodies } = __m_render_network;
   const { Lighting } = __m_render_lighting;
   const { UI, deathText, cardSlug, SPORE_ICON } = __m_render_ui;   // deathText: one table, both death screens
@@ -35135,7 +35198,9 @@ const __m_main = (function () {
 
 
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+// `let`, not `const` (M9): the mine's rock layer is memoised by drawing it into an offscreen canvas,
+// and the draw helpers it calls (`_blitFormation`, `_rockMip`'s caller) paint to this binding.
+let ctx = canvas.getContext('2d');
 const camera = new Camera();
 const lighting = new Lighting(CONFIG);
 
@@ -42224,8 +42289,22 @@ function _perfSample(ms) {
 }
 
 let _renderCount = 0;
+// A FRAME'S COST BY PASS (M9 perf probe, off unless `window.MYCELIUM_RF_PROFILE`): a synchronous
+// `renderFrame` only RECORDS canvas ops — the raster is deferred until the canvas flushes, which in a
+// loop of synchronous frames lands on every ~15th and cost 400-590 ms there (all of it attributed to a
+// `ctx.restore`). So the probe forces the raster at every mark with a 1-pixel readback and files the
+// time since the previous mark under the pass that just drew: `window.__rfProfile[name]` (ms, summed).
+let _rfT = 0;
+function _rfMark(name) {
+  if (typeof window === 'undefined' || !window.MYCELIUM_RF_PROFILE) return;
+  try { ctx.getImageData(0, 0, 1, 1); } catch (_) {}
+  const t = performance.now();
+  if (name) { const P = (window.__rfProfile = window.__rfProfile || {}); P[name] = (P[name] || 0) + (t - _rfT); }
+  _rfT = t;
+}
 function renderFrame(time, dtFrames = 1) {
   _renderCount++;
+  _rfMark(null);
   lastTime = time;
   updateCamFocus(time);         // advance the tutorial's smooth camera "zoom-in" tween
   if (_mineFinale && !_mineFinale.over) mineFinaleCamera(performance.now());   // M9: the Promised Land's pull-back
@@ -42252,6 +42331,7 @@ function renderFrame(time, dtFrames = 1) {
     _lastMouldBakeAt = time; stampMouldInterp(); substrateRenderer.markDirty();
   }
   substrateRenderer.draw(ctx, camera, time);
+  _rfMark('substrate');
   drawMoon();                   // luminous moon high in the twilight sky
   // THE MINE'S HILL STANDS IN THE MIDDLE (owner), so it is a whole hill on the surface rather than
   // the half-hill every other map hugs against the left frame. Goal-side draws are no-ops here
@@ -42260,21 +42340,26 @@ function renderFrame(time, dtFrames = 1) {
   else drawHomeBackdrop();      // half a green "home" hill hugging the LEFT frame over the colony start
   drawGoalBackdrop();           // summery green hill band behind the goal (far backdrop)
   drawTerrainAssets();          // optional image-based textures over the earth (gated)
+  _rfMark('hills');
   drawSubstrateLeaves();        // food piles rendered as heaped leaves (gated) — UNDER rocks
   if (state.substrate.mine) drawMineSeamTints();   // M4: each seam washed in its material's colour
+  _rfMark('leaves+tints');
   solidifyRock();               // one-shot: make every visible rock sprite (boulder/formation/column) block growth
   drawRockPiles();              // lone boulders (gated) — over food/earth
   drawRockFormations();         // large AI rock-formation sprites (gated) — over food/earth, embedded in soil
   drawRockColumns();            // path-blocking vertical rock columns (gated) — barriers from the surface down
   if (state.substrate.mine) drawMineTaproot(time, 'roots');   // the taproot's filaments hang BEHIND the rock (M7)
   drawLevelRocks();             // hand-authored rock sprites (level editor) — no-op on generated maps
+  _rfMark('rocks');
   drawLakes();                  // lake basins (matted) — over rocks so a boulder can't spill into the water
   drawReservoirs();             // underground water pockets (matted) — small water sources along the route
+  _rfMark('water');
   drawMountains();              // mountain barriers rendered as a sprite over the wall (gated)
   drawCities();                 // city skylines over the concrete barriers (gated)
   drawSurfaceProps();           // optional above-ground sprites: trees/grass/houses (gated)
   if (state.substrate.mine) { drawMineProps(); drawMineTaproot(time, 'knot'); }   // trees on the hills; the leg's taproot (M7)
   else drawHomeProps();         // one small tree on the left home hill (over its backdrop)
+  _rfMark('surface');
   drawGoalProps();              // summery bush clusters on the goal soil (over the hill backdrop)
 
   for (const net of state.networks) {
@@ -42310,6 +42395,7 @@ function renderFrame(time, dtFrames = 1) {
   substrateRenderer.drawAtmosphere(ctx, camera, time);
   substrateRenderer.drawGoalMotes(ctx, camera, time);   // no-op unless the level declares them
 
+  _rfMark('network+light');
   drawChest(time);
   if (state.rockface && !state.rockface.done) checkRockfaceTouch();   // reveal Magic Mushroom on contact
   drawRockface(time);           // the glowing troll rockface (level 1, pre-unlock)
@@ -42322,6 +42408,7 @@ function renderFrame(time, dtFrames = 1) {
   if (state.substrate.mine) drawMineJourney(time);   // M8: record lines, the east chevron
   if (state.substrate.mine) drawMineOnboard(time);   // M4: ghost finger, dead-end glow, tip rings, price-line label
   if (state.substrate.mine) drawMineThreatMarks(time);   // M6: attach rings + chevrons, above the glow
+  _rfMark('threats+marks');
   drawFloaters(time, dtFrames);  // floating "+N⚡" energy labels over piles (on top of the map)
   if (winCele) drawWinCelebration(time);   // win: mushrooms fruit + spores drift off on the wind
 
@@ -42334,6 +42421,7 @@ function renderFrame(time, dtFrames = 1) {
   // The scene is now fully drawn this frame — fade it in (once) if a reveal is due.
   // Doing it here (not on asset load) guarantees we never fade in a blank canvas,
   // e.g. on a warm-cache refresh where assets resolve before the first frame draws.
+  _rfMark('floaters+ui');
   if (_revealPending && !mineRevealHeld()) { _revealPending = false; revealMap(); }
 }
 
@@ -44154,6 +44242,49 @@ function drawLevelRocks() {
   // and is what `clearChannels` already exists for: a map whose edge rock is PLACED and meant to
   // collide turns the channels off, and then that rock is simply rock. Clipping deletes boulders
   // the author put there on purpose; digging no channel keeps them, solid.
+  // THE MINE'S ROCK LAYER IS MEMOISED ON THE CAMERA (M9 performance), like the earth under it: a
+  // leg-8 view holds ~150 sprites and the pass cost ~8 ms of raster a frame with nothing moving. Keyed on
+  // the camera, the canvas transform, the filter, and WHICH sprites are drawn (the visible ones whose art
+  // is ready, and the stamp revision a swapped box bumps), so a streamed chunk, an arriving image or a
+  // moved camera rebuilds it. Drawn into one reused canvas by swapping the module's `ctx`; the editor's
+  // markers and sight rings below are drawn live. `window.MYCELIUM_NO_ROCK_MEMO` is the A/B knob.
+  if (sub.mine && typeof window !== 'undefined' && !window.MYCELIUM_NO_ROCK_MEMO && !(typeof rockEdit !== 'undefined' && rockEdit.on)) {
+    const T = ctx.getTransform(), W = ctx.canvas.width, H = ctx.canvas.height;
+    const m = _rockMemo || (_rockMemo = { cv: document.createElement('canvas'), key: null, builds: 0, hits: 0 });
+    // WHICH SPRITES THE BUFFER HOLDS: those inside its own (oversized) rect whose art is ready, hashed.
+    const inBuf = (wx0, wy0, pw, ph) => {
+      let ready = 0, vis = 0;
+      const x1 = wx0 + pw / z, y1 = wy0 + ph / z;
+      for (let i = 0; i < sprites.length; i++) {
+        const sp = sprites[i], b = Math.hypot(sp.w, sp.h) / 2;
+        if (sp.x < wx0 - b || sp.x > x1 + b || sp.y < wy0 - b || sp.y > y1 + b) continue;
+        vis = (vis * 31 + i) | 0;
+        if (asset(sp.key)) ready++;
+      }
+      return vis + ':' + ready;
+    };
+    const base = z + ',' + camera.viewW + ',' + camera.viewH + ',' + W + 'x' + H + ',' + T.a + ',' + T.d + ',' + sprites.length + ',' + (sub._solidRev | 0) + ',' + (filtered ? JSON.stringify(rf) : '');
+    let key = m.pw != null ? base + ',' + inBuf(m.wx0, m.wy0, m.pw, m.ph) : null;
+    const at = key ? memoBlitAt(m, key, camera, T) : null;
+    if (!at) {
+      const pc = memoBuildCamera(m, camera, T);
+      key = base + ',' + inBuf(m.wx0, m.wy0, m.pw, m.ph);
+      const g = m.cv.getContext('2d');
+      g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, m.cv.width, m.cv.height);
+      g.setTransform(T.a, 0, 0, T.d, 0, 0);
+      // The pass reads the module's `ctx` and `camera`: swap both for the build.
+      const main = ctx, cx0 = camera.x, cy0 = camera.y, vw0 = camera.viewW, vh0 = camera.viewH;
+      ctx = g; camera.viewW = pc.viewW; camera.viewH = pc.viewH;
+      try { _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered); }
+      finally { ctx = main; camera.x = cx0; camera.y = cy0; camera.viewW = vw0; camera.viewH = vh0; }
+      m.key = key; m.builds++;
+    } else m.hits++;
+    memoBlit(ctx, m, camera, T);
+  } else _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered);
+  _drawLevelRockMarkers(sprites, sub, z, cs);
+}
+let _rockMemo = null;
+function _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered) {
   ctx.save();
   const _surfY = camera.worldToScreen(0, sub.surfaceY).y;
   const _coreY = sub.coreY != null ? camera.worldToScreen(0, sub.coreY).y : camera.viewH;
@@ -44191,7 +44322,8 @@ function drawLevelRocks() {
     }
   }
   ctx.restore();   // clip + filter
-
+}
+function _drawLevelRockMarkers(sprites, sub, z, cs) {
   // A SELECTED threat's sight range, before its markers are drawn so the rings sit under them.
   // Placing a threat is a decision about what it can reach, and until now that was invisible
   // at authoring time — the range only appeared in play, by tapping the creature. Same

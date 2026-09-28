@@ -263,15 +263,38 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
       await b.page.evaluate(() => { const g = window.__game; g.state.active.water = 9999; g.mine.passesReset(); });
       await sleep(3000);          // live frames, the camera following the colony
       const live = await b.page.evaluate(() => ({ passes: window.__game.mine.passes(), mf: window.__game.mine.frameMs(), nodes: window.__game.state.active.nodes.length }));
-      const rf = await b.page.evaluate(() => {
-        const g = window.__game, out = []; let t = performance.now();
-        for (let i = 0; i < 64; i++) { t += 16.7; const a = performance.now(); g.renderFrame(t, 1); out.push(performance.now() - a); }
+      // A SYNCHRONOUS renderFrame ONLY RECORDS: the raster is deferred until the canvas flushes, which in
+      // a loop of synchronous frames lands on every ~15th (400-590 ms there, the rest ~5 ms). Each frame
+      // is therefore closed with a 1-pixel readback, which forces its raster inside the timing.
+      const rfRun = (pan) => b.page.evaluate((pan) => {
+        const g = window.__game, cam = g.camera, c = document.getElementById('game').getContext('2d'), out = [];
+        let t = performance.now();
+        for (let i = 0; i < 64; i++) {
+          t += 16.7;
+          if (pan) { cam.x += (i % 40 < 20 ? 3 : -3); cam.clamp(); }
+          const a = performance.now(); g.renderFrame(t, 1); c.getImageData(0, 0, 1, 1); out.push(performance.now() - a);
+        }
         return out.slice(4);
+      }, pan);
+      await b.page.evaluate(() => { const g = window.__game; g.mine.lookAt(g.camera.x, g.camera.y); });
+      const rf = await rfRun(false), rfPan = await rfRun(true);
+      // The memo draws the same picture: one frame with the earth and rock memos on, one with them off.
+      const same = await b.page.evaluate(() => {
+        const g = window.__game, cv = document.getElementById('game'), c = cv.getContext('2d'), t = performance.now();
+        const grab = () => { g.renderFrame(t, 1); return c.getImageData(0, 0, cv.width, cv.height).data; };
+        const on = grab();
+        window.MYCELIUM_NO_EARTH_MEMO = true; window.MYCELIUM_NO_ROCK_MEMO = true;
+        const off = grab();
+        window.MYCELIUM_NO_EARTH_MEMO = false; window.MYCELIUM_NO_ROCK_MEMO = false;
+        let sum = 0, big = 0; for (let i = 0; i < on.length; i += 4) { const d = Math.abs(on[i] - off[i]) + Math.abs(on[i + 1] - off[i + 1]) + Math.abs(on[i + 2] - off[i + 2]); sum += d; if (d > 48) big++; }
+        return { mean: +(sum / (on.length / 4) / 3).toFixed(3), big, px: on.length / 4 };
       });
       await shot(b.page, 'm9-perf-4000-390.png');
       const mfs = live.mf.map((x) => x[0]), mfNoTick = live.mf.filter((x) => !x[1]).map((x) => x[0]);
       ok(`the state holds >= 4,000 strands (${live.nodes})`, live.nodes >= 4000, JSON.stringify({ digs: nav.digs, landed: nav.landed }));
-      ok('renderFrame median <= 20 ms and p95 <= 33 ms', med(rf) <= 20 && pct(rf, 0.95) <= 33, `median ${med(rf).toFixed(2)} ms, p95 ${pct(rf, 0.95).toFixed(2)} ms over ${rf.length} frames`);
+      ok('renderFrame median <= 20 ms and p95 <= 33 ms (camera at rest, raster forced per frame)', med(rf) <= 20 && pct(rf, 0.95) <= 33,
+         `median ${med(rf).toFixed(2)} ms, p95 ${pct(rf, 0.95).toFixed(2)} ms over ${rf.length} frames; panning (printed, not gated): median ${med(rfPan).toFixed(2)}, p95 ${pct(rfPan, 0.95).toFixed(2)}`);
+      ok('the earth and rock memos draw the same frame as drawing live (mean channel diff < 1, < 0.5% of pixels off by > 16)', same.mean < 1 && same.big < same.px * 0.005, JSON.stringify(same));
       ok('mineFrame <= 2 ms (median over live frames; p95 printed)', mfs.length >= 20 && med(mfs) <= 2,
          `median ${med(mfs).toFixed(3)} ms, p95 ${pct(mfs, 0.95).toFixed(3)}, max ${Math.max(...mfs).toFixed(3)} over ${mfs.length} frames (no-tick median ${med(mfNoTick).toFixed(3)})`);
       ok('at most 2 whole-colony passes in any frame (mine.passes)', live.passes && live.passes.frames >= 20 && live.passes.max <= 2,
