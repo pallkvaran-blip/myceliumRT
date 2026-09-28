@@ -1946,6 +1946,9 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     // charged against a tank that already had it.
     cell.water = true;
     cell.reservoir = { probe: true };
+    // M9: the pocket scan tests only strands grown since its last check (water only ever appears in a
+    // new chunk, away from the colony) — water stamped under EXISTING tissue has to ask for a rescan.
+    if (g.mine.waterRescan) g.mine.waterRescan();
     // `mineWaterPickups` runs on a world tick, so the payment needs a tick to happen in. Polled
     // rather than slept a fixed time — a fixed sleep is a bet about the machine, and this one is
     // cheap to get right.

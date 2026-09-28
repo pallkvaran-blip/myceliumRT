@@ -1210,6 +1210,10 @@
     #titleScreen .ts-banked { font-style:normal; margin-top:6px; color:rgba(159,224,189,0.95); }
     #titleScreen .ts-gap { margin-top:6px; font-size:clamp(12px,1.9vw,15px); }
     #titleScreen .mj-strip { margin-top:12px; }
+    #titleScreen .ts-badges { margin-top:12px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+    #titleScreen .ts-badge { font:700 clamp(11px,1.8vw,13px)/1 system-ui,sans-serif; letter-spacing:.14em; text-transform:uppercase;
+      color:#10160f; background:linear-gradient(#f3d98a,#c9a14a); border-radius:999px; padding:6px 12px;
+      box-shadow:0 0 16px rgba(243,217,138,0.35); }
     /* THE LEG CAPTION UNDER DIG (M8 verify): 'Continue · Leg 2 of 8 · The Coal Road' is the one line
        that tells a returning player where they are, and at the generic .ts-cap size (8-11 px at 30%
        white) it was the smallest, faintest type on the screen. The record line's size and weight. */
@@ -1948,6 +1952,21 @@
        take off — a stale class would hide the NEXT run's HUD. */
     body:has(> #ssMineEnd) #ui, body:has(> #ssMineEnd) #fruitnow, body:has(> #ssMineEnd) #gearbtn,
     body:has(> #ssMineEnd) #settingsmenu { visibility:hidden !important; }
+    /* THE PROMISED LAND (M9): the finale owns the screen — no HUD while the camera pulls back. */
+    body.mine-finale #ui, body.mine-finale #fruitnow, body.mine-finale #gearbtn, body.mine-finale #settingsmenu,
+    body.mine-finale #mineBeat { visibility:hidden !important; }
+    #mineFinale { position:fixed; inset:0; z-index:60; display:flex; flex-direction:column; align-items:center;
+      justify-content:flex-end; padding:0 16px calc(env(safe-area-inset-bottom, 0px) + 12vh); box-sizing:border-box;
+      background:linear-gradient(to top, rgba(4,8,6,0.92) 0%, rgba(4,8,6,0.72) 38%, rgba(4,8,6,0) 70%);
+      opacity:0; transition:opacity .6s ease; cursor:pointer; }
+    #mineFinale.in { opacity:1; }
+    #mineFinale .mf-strip { display:block; max-width:100%; }
+    #mineFinale .mf-line { margin:18px 0 0; max-width:min(560px, 100%); text-align:center;
+      font-family:"Iowan Old Style",Palatino,Georgia,serif; font-size:clamp(20px,5.2vw,30px); line-height:1.3;
+      color:#dff6e6; text-shadow:0 2px 16px rgba(0,0,0,0.9); opacity:0; transform:translateY(8px);
+      transition:opacity .9s ease, transform .9s ease; }
+    #mineFinale .mf-line span { display:block; font-style:italic; font-size:.72em; color:rgba(159,224,189,0.95); }
+    #mineFinale.said .mf-line { opacity:1; transform:none; }
     /* "+100 × 2 = 200" — the working, shown only while the rating boon is being spent. The
        operator is smaller and dimmer than the two numbers because it is punctuation between them,
        not part of the reward. */
@@ -3946,7 +3965,7 @@ const CONFIG = {
         // config clone (main.js `configForLevel`): `threatBands` (a whole table, per 42 m band),
         // `reservoirsPerBand`, `richChance`, `safeDepth` (heat's first line). `islandCols` widens the
         // island (leg 8's double-width Promised Land). Seeds: legprobe --pick (PASS + WPASS + the kit gates).
-        { leg: 4, name: 'Mould Country', seed: 1, E: 9, eastM: 216, depthM: 92,
+        { leg: 4, name: 'Mould Country', seed: 1300770, E: 9, eastM: 216, depthM: 92,
           sealByBand: [0.70, 0.12, 0.12], rule: 'mould', bonus: 50, ruleLine: 'Mould from 42 m',
           threatBands: [{ worms: 0, clouds: 0 }, { worms: 1, clouds: 1 }, { worms: 1, clouds: 1 }, { worms: 2, clouds: 1 }] },
         { leg: 5, name: 'Rich Veins', seed: 1, E: 11, eastM: 264, depthM: 104,
@@ -3960,7 +3979,7 @@ const CONFIG = {
           threatBands: [{ worms: 0, clouds: 0 }, { worms: 2, clouds: 0 }, { worms: 2, clouds: 1 }, { worms: 4, clouds: 1 }] },
         { leg: 8, name: 'The Promised Land', seed: 1, E: 15, eastM: 360, depthM: 140,
           sealByBand: [0.75, 0.65, 0.12], rule: 'promised', bonus: 150, ruleLine: 'More worms and mould below 84 m',
-          islandCols: 24,
+          islandCols: 24, finale: true,     // landfall here is cause 'promised': the finale, and Journey II
           threatBands: [{ worms: 0, clouds: 0 }, { worms: 1, clouds: 0 }, { worms: 2, clouds: 2 }, { worms: 3, clouds: 2 }] },
       ],
     },
@@ -17546,6 +17565,9 @@ class Network {
   // Remove a set of node ids, orphaning any surviving children (they become
   // free fragments that keep living/growing — we never cascade-delete).
   _removeNodes(removed) {
+    // THE MINE'S COLONY SUMMARY (M9, `mineAgg`) folds in new strands incrementally; a removal can take
+    // its deepest / easternmost / nearest-the-knot strand away, so it rebuilds.
+    this._aggVer = (this._aggVer | 0) + 1;
     if (removed.size === 0) return 0;
     for (const n of this.nodes) {
       if (removed.has(n.id)) continue;
@@ -20248,6 +20270,7 @@ function stampLake(sub, o) {
 // (substrate.js reservoirHalfWidth) so the visible pool covers exactly the water
 // cells the sim reads. Touching one grants Water income (cards.js).
 function stampReservoir(sub, o) {
+  sub._waterGen = (sub._waterGen | 0) + 1;   // the mine's incremental pocket scan rescans on new water (M9)
   const cs = sub.cellSize;
   const rad = Math.max(1, Math.round((+o.r || cs * 2) / cs));
   const cx = sub.colAtX(+o.x || 0), cy = sub.rowAtY(+o.y || 0);
@@ -21379,13 +21402,14 @@ function distSqToCellRect(sub, col, row, x, y) {
 // `split` (the mine, M4 verifier minor): return `{ live, pending }` instead — sources touched by a
 // strand that has GROWN IN, and sources touched only by strands still animating in. Default: one Set
 // of every touched source, exactly as before (the campaign's taps read that).
-function waterSourcesNear(state, split) {
+// `only` (M9, the mine's incremental scan): test just these strands instead of the whole colony.
+function waterSourcesNear(state, split, only) {
   const sub = state.substrate;
   const md2 = waterContactDist2(state);
   const reach = Math.ceil(Math.sqrt(md2) / sub.cellSize) + 1;
   const found = new Set();
   const net = state.active, live = split ? new Set() : null;
-  for (const n of state.active.nodes) {
+  for (const n of (only || state.active.nodes)) {
     if (n.infected) continue;
     const grown = !split || net.grownIn(n);
     const col = sub.colAtX(n.x), row = sub.rowAtY(n.y);
@@ -22200,15 +22224,63 @@ function mineBandAt(config, metres) {
   const i = Math.floor(Math.max(0, metres) / M.bandRows);
   return Math.max(0, Math.min(M.bands.length - 1, i));
 }
+// THE COLONY'S SUMMARY, KEPT INCREMENTALLY (M9 performance). Five things are asked of the whole colony
+// on every frame — its x extent (which chunks to stream), its deepest and shallowest clean strands (the
+// depth readout and payout, the camera's fallback, the affordability rule), how far east it is, whether
+// any of it is rotten (the rot clock) and whether a clean strand is at the taproot (landfall) — and
+// each used to be its own walk of every node: ~7 full passes a frame, 28,000 node visits at 4,000
+// strands. Strands never MOVE, so the summary only grows: nodes appended since the last read (they come
+// off `nextNodeId` in order, so they are the tail of `net.nodes`) are folded in, and anything that can
+// shrink or change an existing strand throws it away and rebuilds it once:
+//   · `Network._removeNodes` (every removal path — rot falling away, a worm, the enzyme, starvation)
+//     bumps `net._aggVer`;
+//   · a world tick (`tickWorld` in the mine: the contact pass and the pile claim infect OLD strands);
+//   · a dig (`mineGrow`: growing into mould can infect the strands it grew from).
+// A rebuild is the one O(nodes) pass, counted by `mineNodePass` (the M9 counter hook).
+function mineNodePass(state, why) {
+  if (!state) return;
+  state._minePassN = (state._minePassN | 0) + 1;
+  const h = (state._minePassWhy = state._minePassWhy || {});
+  h[why] = (h[why] | 0) + 1;
+}
+function mineAggInvalidate(state) {
+  const net = state && state.active;
+  if (net) net._aggVer = (net._aggVer | 0) + 1;
+}
+function mineAgg(state) {
+  const net = state && state.active, sub = state && state.substrate;
+  if (!net || !sub) return null;
+  const nodes = net.nodes, ver = net._aggVer | 0;
+  let A = net._mineAgg;
+  if (!A || A.ver !== ver || A.len > nodes.length || A.sub !== sub) {
+    A = net._mineAgg = { ver, sub, len: 0, minX: Infinity, maxX: -Infinity, deep: null, shallow: null,
+                         eastX: -Infinity, anyInf: false, knotD2: Infinity, knot: null };
+    if (nodes.length) mineNodePass(state, 'agg');
+  }
+  if (A.len === nodes.length) return A;
+  const t = mineTaprootXY(sub);
+  if (t && !A.knot) A.knot = t;
+  for (let i = A.len; i < nodes.length; i++) {
+    const n = nodes[i];
+    if (n.x < A.minX) A.minX = n.x;
+    if (n.x > A.maxX) A.maxX = n.x;
+    if (n.infected) { A.anyInf = true; continue; }
+    if (!A.deep || n.y > A.deep.y) A.deep = n;
+    if (!A.shallow || n.y < A.shallow.y) A.shallow = n;
+    if (n.x > A.eastX) A.eastX = n.x;
+    if (t) { const d2 = (n.x - t.x) * (n.x - t.x) + (n.y - t.y) * (n.y - t.y); if (d2 < A.knotD2) A.knotD2 = d2; }
+  }
+  A.len = nodes.length;
+  return A;
+}
 // The deepest LIVING strand, in metres. The camera follows it, the HUD prints it and the run's
 // payout is measured by it. Infected tissue is excluded for the same reason it cannot harvest:
 // rot is not progress.
 function mineDepthReached(state) {
   const net = state && state.active, sub = state && state.substrate;
   if (!net || !sub) return 0;
-  let best = sub.surfaceY;
-  for (const n of net.nodes) { if (!n.infected && n.y > best) best = n.y; }
-  return mineDepthM(sub, best);
+  const A = mineAgg(state);
+  return mineDepthM(sub, A && A.deep && A.deep.y > sub.surfaceY ? A.deep.y : sub.surfaceY);
 }
 // THE FARTHEST EAST (M8), in whole metres (1 m = 1 cell) of the living colony east of the HILL's
 // root column: max over clean strands of (x - homeX) / cs. Journey legs only — the free layout's east
@@ -22218,8 +22290,8 @@ function mineEastReached(state) {
   if (!net || !sub || !sub.mineJourney) return 0;
   const cs = sub.cellSize;
   const homeX = ((sub.mineHomeCol != null ? sub.mineHomeCol : (sub.cols >> 1)) + 0.5) * cs;
-  let best = homeX;
-  for (const n of net.nodes) { if (!n.infected && n.x > best) best = n.x; }
+  const A = mineAgg(state);
+  const best = Math.max(homeX, A ? A.eastX : homeX);
   return Math.max(0, Math.floor((best - homeX) / cs));
 }
 // THE TAPROOT'S CENTRE, in world units (the same point `mineTaprootGeom` draws the knot at).
@@ -22238,6 +22310,9 @@ function mineIslandReached(state) {
   if (!net || !t) return false;
   const J = mineCfg(state.config).journey || {};
   const r = (+J.landfallCells || 1.5) * sub.cellSize, r2 = r * r;
+  // Off the colony summary (M9): its nearest clean strand to the knot, kept as strands arrive.
+  const A = mineAgg(state);
+  if (A && A.knot && A.knot.x === t.x && A.knot.y === t.y) return A.knotD2 <= r2;
   for (const n of net.nodes) {
     if (n.infected) continue;
     const dx = n.x - t.x, dy = n.y - t.y;
@@ -24050,7 +24125,8 @@ function mineEnsureChunks(state, view, opts) {
   const net = state.active;
   let lo = Infinity, hi = -Infinity;
   if (net && net.nodes.length) {
-    for (const n of net.nodes) { if (n.x < lo) lo = n.x; if (n.x > hi) hi = n.x; }
+    const A = mineAgg(state);      // the colony's x extent, kept incrementally (M9)
+    lo = A.minX; hi = A.maxX;
     const pad = (M.preloadCols | 0) * cs;
     add(lo - pad, hi + pad);
   }
@@ -24179,6 +24255,28 @@ function minePileCentre(sub, pile) {
 // layer is off — and would be the wrong shape anyway: in a game where water is the fuel, a
 // pocket you find is a refill, not an annuity.
 // RETURNS ONE ENTRY PER POCKET TAPPED THIS CALL (M4): {x, y, n, src} — x/y the pocket's centre.
+// THE POCKET SCAN TESTS ONLY THE STRANDS GROWN SINCE THE LAST CHECK (M9 performance). It walked every
+// strand's 5x5 cell neighbourhood on every frame — 100,000 cell reads at 4,000 strands — to find a
+// pocket that only NEW growth can ever reach: strands do not move, and water only appears when a chunk
+// is generated (at least the stream pad from any strand). So: the strands appended since the last call
+// (the tail of `net.nodes`, ids in order), plus those still animating in (a pocket pays when the strand
+// touching it has GROWN IN, so they are checked again until they have). New water anywhere
+// (`stampReservoir` bumps `sub._waterGen`) rescans everything once.
+function mineWaterScan(state) {
+  const net = state.active, sub = state.substrate;
+  let W = state._mineWaterScan;
+  if (!W || W.net !== net || W.gen !== (sub._waterGen | 0)) {
+    W = state._mineWaterScan = { net, gen: sub._waterGen | 0, lastId: -Infinity, wait: [] };
+    if (net.nodes.length) mineNodePass(state, 'water');
+  }
+  const nodes = net.nodes, fresh = [];
+  for (let i = nodes.length - 1; i >= 0 && nodes[i].id > W.lastId; i--) fresh.push(nodes[i]);
+  if (nodes.length) W.lastId = Math.max(W.lastId, nodes[nodes.length - 1].id);
+  const cands = W.wait.length ? W.wait.filter((n) => net.byId.get(n.id) === n).concat(fresh) : fresh;
+  const near = cands.length ? waterSourcesNear(state, true, cands) : { live: new Set(), pending: new Set() };
+  W.wait = cands.filter((n) => !n.infected && !net.grownIn(n));
+  return near;
+}
 function mineWaterPickups(state) {
   const net = state.active;
   const out = [];
@@ -24189,7 +24287,7 @@ function mineWaterPickups(state) {
   // the drawn colony reached the pocket. A pocket touched only by tissue still animating in is
   // PENDING: `mineFuelCheck` and `mineStuckCheck` hold while one is, so the wait can never cost a
   // player the run their last dig just saved.
-  const near = waterSourcesNear(state, true);
+  const near = mineWaterScan(state);
   let pending = 0;
   for (const src of near.pending) if (!tapped.has(src)) pending++;
   state._minePocketPending = pending;
@@ -24230,6 +24328,7 @@ function mineRayOpen(sub, x, y, ang, len, occ) {
 }
 // The coarse cells the colony's CLEAN tissue stands in.
 function mineOccupied(state) {
+  mineNodePass(state, 'occupied');
   const sub = state.substrate, occ = new Set();
   for (const n of state.active.nodes) if (!n.infected) occ.add(sub.index(sub.colAtX(n.x), sub.rowAtY(n.y)));
   return occ;
@@ -24407,6 +24506,8 @@ function mineGrow(state, ctx) {
   }
   const origin = net._lastGrowOrigin;
   net.water -= cost;
+  // A dig can infect strands it grew FROM (growing into mould), so the colony summary rebuilds (M9).
+  mineAggInvalidate(state);
   state.mineWalledRun = 0;      // a dig that landed ends a run of walled presses (the nudge's count)
   // HOW MUCH NEW GROUND THIS DIG TOOK (M4, the dead-end nudge): distinct coarse cells its new
   // strands stand in that no older strand does. O(nodes) once per dig, not per frame.
@@ -24627,8 +24728,10 @@ function mineInfectionCheck(state, nowMs) {
   if (!state || state.runOver || !state.active || !state.active.alive) return false;
   const sub = state.substrate;
   if (!sub || !sub.mine) return false;
-  let any = false;
-  for (const n of state.active.nodes) if (n.infected) { any = true; break; }
+  // "Is anything rotten?" off the colony summary (M9) — it was a walk of every strand on every frame
+  // of a clean colony, i.e. the common case paid the whole price.
+  const A = mineAgg(state);
+  const any = !!(A && A.anyInf);
   if (!any) { state.mineInfect = null; return false; }
   const M = mineCfg(state.config);
   // M6: THE SAVE'S FIRST INFECTION GETS `firstInfectionMs` (30 s). `firstRot` is read off the save by
@@ -24751,9 +24854,8 @@ function mineDigCost(state, srcY) {
 function mineCheapestCost(state) {
   const net = state && state.active, sub = state && state.substrate;
   if (!net || !sub || !net.nodes.length) return mineGrowCost(state ? state.config : CONFIG);
-  let top = Infinity;
-  for (const n of net.nodes) if (!n.infected && n.y < top) top = n.y;
-  if (!isFinite(top)) top = sub.surfaceY;
+  const A = mineAgg(state);          // the shallowest clean strand, kept incrementally (M9)
+  const top = A && A.shallow ? A.shallow.y : sub.surfaceY;
   return mineGrowCost(state.config, mineDepthM(sub, top));
 }
 // THE STRAND THE PLAYER IS WORKING: the one the last dig ended on (`state._mineFocus`, stamped by
@@ -24774,8 +24876,8 @@ function mineFocusNode(state) {
     const t = net.byId.get(c.id);
     if (t && !t.infected) return t;
   }
-  let tip = null;
-  for (const m of net.nodes) if (!m.infected && (!tip || m.y > tip.y)) tip = m;
+  const A = mineAgg(state);          // the deepest clean tip, kept incrementally (M9)
+  const tip = A ? A.deep : null;
   state._mineFocusFallback = tip ? { len: net.nodes.length, id: tip.id } : null;
   return tip;
 }
@@ -24865,7 +24967,7 @@ function mineStuckState(state) {
 //             this is an edge — it reads as the plain fruiting line)
 //   island    LANDFALL (M8): a clean strand reached the leg's taproot. ROOTED: the leg's island bonus
 //             on the first landfall of that leg, and the next Descend starts the next leg.
-const MINE_END_CAUSES = ['dry', 'fruit', 'infected', 'abandon', 'quit', 'full', 'devoured', 'island'];
+const MINE_END_CAUSES = ['dry', 'fruit', 'infected', 'abandon', 'quit', 'full', 'devoured', 'island', 'promised'];
 // The run's DEPTH is the running maximum of clean depth (`state.mineMaxDepth`, kept by the frame
 // loop), not where the deepest living strand is at the moment it ends: rot is not progress, but it
 // does not unmake the metres already reached either. An infected ending used to report 99 m after
@@ -24931,7 +25033,8 @@ function mineEndRun(state, cause) {
   // THE ISLAND BONUS (M8), on a landfall only, and only the FIRST landfall of that leg: main decides
   // "first" off the save when the run starts and puts it on the config clone (`mine.islandBonus`,
   // 0 on a leg already landed) — the engine cannot read the save.
-  const bonus = why === 'island' ? Math.max(0, (mineCfg(state.config).islandBonus | 0)) : 0;
+  // 'promised' (M9) is leg 8's landfall — the same landfall, and the same bonus, plus the finale.
+  const bonus = (why === 'island' || why === 'promised') ? Math.max(0, (mineCfg(state.config).islandBonus | 0)) : 0;
   const ore = reach + seams + bonus;
   const J = state.substrate && state.substrate.mineJourney;
   // THE WHOLE COLONY TURNS, ALL AT ONCE. The deadline expiring is not "the rot finally reached
@@ -24965,12 +25068,13 @@ function mineEndRun(state, cause) {
     full: `The colony fills every passage it can reach at ${depth} m, and fruits — ${ore} Phosphorus banked.`,
     devoured: `The colony fruits and spores at ${depth} m — ${ore} Phosphorus banked.`,
     island: `The colony took root on Island ${J ? J.leg | 0 : 1} — ${ore} Phosphorus banked.`,
+    promised: `The colony took root on the Promised Land — ${ore} Phosphorus banked.`,
   };
   if (state.log) state.log(LOG[why], 'good');
   return state.runResult;
 }
 
-  return { MINE_ROCKS, mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
+  return { mineAgg, mineAggInvalidate, mineNodePass, MINE_ROCKS, mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
            mineDepthReached, mineEastReached, mineIslandReached, mineTaprootXY, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
            mineDigCost, mineCheapestCost, mineNextHeatLine, mineHeatLines,
@@ -25077,6 +25181,9 @@ function tickWorld(state, phase = 'both') {
 
     // 1c) The rot races further along the filaments.
     infectNetwork(net, state);
+    // THE MINE'S COLONY SUMMARY (M9, `mineAgg`) rebuilds once per world tick: the contact pass and the
+    // pile claim above can infect strands that are already folded into it.
+    if (substrate && substrate.mine) net._aggVer = (net._aggVer | 0) + 1;
 
     // 2) Starvation if the colony is out of Energy (prunes strands).
     if (net.energy <= 0) {
@@ -27296,6 +27403,23 @@ function playReachTick() {
   SFX_COUNTS.reach = (SFX_COUNTS.reach | 0) + 1;
   return true;
 }
+// THE PROMISED LAND'S RISING CHORD (M9): one note per island as the journey strip fruits, 300 ms
+// apart — a major arpeggio climbing from C5 (0, 4, 7, 12, 16, 19, 24, 28 semitones), each note a sine
+// with a fifth over it, held long enough to overlap the next so the eight read as one chord.
+const FINALE_STEPS = [0, 4, 7, 12, 16, 19, 24, 28];
+function playFinaleNote(i) {
+  if (muted || !AC) return false;
+  const a = ctx();
+  if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
+  const t = a.currentTime + 0.005;
+  const k = Math.max(0, Math.min(FINALE_STEPS.length - 1, i | 0));
+  const f = 523.25 * Math.pow(2, FINALE_STEPS[k] / 12);
+  _tone(a, t, f, f, 1.6, 0.05);
+  _tone(a, t + 0.01, f * 1.5, f * 1.5, 1.1, 0.02);
+  SFX_COUNTS.finale = (SFX_COUNTS.finale | 0) + 1;
+  SFX_LAST.finale = { i: k, hz: Math.round(f) };
+  return true;
+}
 let _noiseBuf = null;
 function playPocketGlug() {
   if (muted || !AC) return false;
@@ -27323,7 +27447,7 @@ function playPocketGlug() {
   return true;
 }
 
-  return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect, setClickGain, playSeamPing, playPocketGlug, playReachTick };
+  return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect, setClickGain, playSeamPing, playPocketGlug, playReachTick, playFinaleNote };
 })();
 
 // ===================== src/render/network.js =====================
@@ -31963,6 +32087,8 @@ const MINE_RUN_ENDING = {
     + (o && o.nextBuilt === false
       ? 'Leg ' + ((o.next | 0) || 2) + ' is not open yet — the next descent replays Leg ' + ((o.leg | 0) || 1) + '.'
       : 'Leg ' + ((o && o.next) | 0 || 2) + (o && o.nextName ? ', ' + o.nextName + ',' : '') + ' starts there.'),
+  // THE PROMISED LAND (M9): leg 8's landfall — the journey ends here, and the finale follows.
+  promised: () => 'Your colony took root on the Promised Land.',
   other: (m) => 'The colony fruits and spores at ' + m + ' m. Everything dug is banked.',
 };
 function mineEndingLine(cause, depth, o) {
@@ -31970,8 +32096,12 @@ function mineEndingLine(cause, depth, o) {
   return f(depth | 0, o);
 }
 function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best, balance, cause, first, onDone, onDescend,
-                       east, bonus, leg, nextLeg, nextName, nextBuilt, stripHTML, legRec, islandEast }) {
-  const rooted = cause === 'island';
+                       east, bonus, leg, nextLeg, nextName, nextBuilt, stripHTML, legRec, islandEast, onFinale }) {
+  const rooted = cause === 'island' || cause === 'promised';
+  // THE PROMISED LAND (M9): ROOTED with its rows, and ONE way on — the finale (camera pull-back, the
+  // journey strip fruiting, the line, the credits). There is no next leg to Descend into and nothing to
+  // buy first: the store is still there after the credits.
+  const promised = cause === 'promised' && typeof onFinale === 'function';
   const onLeg = (leg | 0) > 0;
   bonus = Math.max(0, bonus | 0);
   east = Math.max(0, east | 0);
@@ -32033,10 +32163,12 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
     '<p class="ss-win-earned">+<span class="ss-count" data-n="' + (ore | 0) + '">' + (ore | 0) + '</span>' + RI.phos +
       matList.map((k) =>
         ' <span class="ss-win-mat">+' + (mats[k] | 0) + matMark(k) + ' ' + esc(matName(k)) + '</span>').join('') + '</p>' +
-    '<div class="ss-me-goal" id="ssMineGoal"></div>' +
+    (promised ? '' : '<div class="ss-me-goal" id="ssMineGoal"></div>') +
     '<div class="ss-me-acts">' +
-      '<button class="ss-win-btn ss-me-descend" id="ssMineDescend" type="button">Descend</button>' +
-      '<button class="ss-me-store" id="ssMineDone" type="button">Store</button>' +
+      (promised
+        ? '<button class="ss-win-btn ss-me-descend" id="ssMineFinale" type="button">Continue</button>'
+        : '<button class="ss-win-btn ss-me-descend" id="ssMineDescend" type="button">Descend</button>' +
+          '<button class="ss-me-store" id="ssMineDone" type="button">Store</button>') +
     '</div>';
   if (rooted) root.classList.add('ss-rooted');
   document.body.appendChild(root);
@@ -32087,8 +32219,17 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
   }
   const BUY_REARM_MS = 450;
   let lastBuyAt = 0;
-  renderGoal();
-  function hide() { clearTimeout(timer); title.destroy(); root.remove(); }
+  if (!promised) renderGoal();
+  let autoT = 0;
+  function hide() { clearTimeout(timer); clearTimeout(autoT); title.destroy(); root.remove(); }
+  if (promised) {
+    // ...and it goes on by itself after `finaleHoldMs` if nobody taps: the finale is a sequence.
+    let gone = false;
+    const go = () => { if (gone) return; gone = true; hide(); onFinale(); };
+    root.querySelector('#ssMineFinale').addEventListener('click', go);
+    autoT = setTimeout(go, Math.max(1500, (CONFIG.mine && CONFIG.mine.finaleHoldMs) || 6000));
+    return { hide, root };
+  }
   root.querySelector('#ssMineDone').addEventListener('click', () => { hide(); onDone && onDone(); });
   root.querySelector('#ssMineDescend').addEventListener('click', () => { hide(); (onDescend || onDone) && (onDescend || onDone)(); });
   return { hide, root };
@@ -32523,6 +32664,9 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
             ? '<div class="ts-record">deepest descent <b>' + bestM + ' m</b></div>'
             : '<div class="ts-record ts-record-none">water is your fuel</div>') +
         '</div>' +
+        // EACH FINISHED JOURNEY'S BADGE (M9), over the strip.
+        (journey && journey.badges && journey.badges.length
+          ? '<div class="ts-badges" id="tsJourneyBadge">' + journey.badges.map((b) => '<span class="ts-badge">' + esc1(b) + '</span>').join('') + '</div>' : '') +
         // THE JOURNEY STRIP and the near goal (M8).
         (journey && journey.stripHTML ? journey.stripHTML : '') +
         (journey && journey.gap ? '<div class="ts-record ts-gap" id="tsGap">' + esc1(journey.gap) + '</div>' : '') +
@@ -34939,7 +35083,7 @@ const __m_main = (function () {
   const { CONFIG, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, isRealtime, setMode, setGame, isCampaignGame, isMineGame, timeify, roundsToTime, devUI } = __m_config;
   const { createState, createPuzzleState, createLevelState, seedLevelThreats } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
-  const { mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
+  const { mineAgg, mineAggInvalidate, mineNodePass, mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
           mineEastReached, mineIslandReached, mineTaprootXY,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost, mineNextHeatLine,
@@ -34973,7 +35117,7 @@ const __m_main = (function () {
   const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, mineRunsBanked, mineShelfOpen, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, levelAssetKeys, hasAsset, asset, assetFailed, pattern, assetMeta, assetUrl, preloadImages, assetState } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
-  const { initSfx, playSeamPing, playPocketGlug, playReachTick } = __m_render_sfx;
+  const { initSfx, playSeamPing, playPocketGlug, playReachTick, playFinaleNote } = __m_render_sfx;
   const { showLoading } = __m_render_loading;
   const { showHighScores, checkHighScore, recordHighScore } = __m_render_highscores;
   const { loadPlayerName, savePlayerName } = __m_highscores;
@@ -36150,6 +36294,8 @@ function afterDeath(hsPromise, next) {
 // braces: `mineEndRun` writes `depth`/`ore`, but a colony stripped to nothing ends inside
 // `tickWorld` with `cause: 'devoured'` and a `runResult` carrying neither. Read from `r` alone that
 // arrived here reading "0 m" and banked nothing.
+// A LANDFALL, either kind (M9): an island ('island') or the last one ('promised').
+function mineLandfall(cause) { return cause === 'island' || cause === 'promised'; }
 function mineBank(r) {
   r = r || {};
   const depth = Math.max(0, (r.depth != null ? r.depth
@@ -36175,7 +36321,7 @@ function mineBank(r) {
     // THE ISLAND BONUS IS PAID ONCE PER LEG, checked again at the bank (M8 verify): the run decided it
     // off the save when it STARTED, so two descents of one leg in flight at once (two tabs) could both
     // land and both be paid. The second finds the leg already landed and banks reach and seams only.
-    if (bonus > 0 && r.cause === 'island' && r.leg > 0) {
+    if (bonus > 0 && mineLandfall(r.cause) && r.leg > 0) {
       let rec = null; try { rec = mineLegRecord(loadProgress(), r.journey | 0, r.leg | 0); } catch (_) {}
       if (rec && rec.landed) {
         ore -= bonus; r.ore = ore; r.bonus = bonus = 0;
@@ -36227,14 +36373,14 @@ function mineBank(r) {
     // landfall marks it landed and moves the save on). `r.depth` may be missing on a result built
     // elsewhere, so the record takes the figures just resolved.
     r._legRec = r.leg > 0 && digs > 0
-      ? mineRecordLeg({ leg: r.leg, cause: r.cause, digs, depth, east, countRun: !bootCounted }) : null;
+      ? mineRecordLeg({ leg: r.leg, journey: r.journey | 0, cause: r.cause, digs, depth, east, countRun: !bootCounted }) : null;
     // `detail` is 'L<leg>:<cause>:e<east m>' (M8; L0 is the free layout), so the funnel can tell a
     // leg-2 soft lock from a leg-1 choice and read how far east the run got.
     logEvent('run_end', { level: depth, cause: r.cause || 'dry', turns: state && state.turn, n: ore,
                           ms, detail: 'L' + (r.leg | 0) + ':' + (r.cause || 'dry') + ':e' + east });
     // ONE 'island' EVENT PER LANDFALL, `n` = the runs this leg took (this one included).
-    if (r.cause === 'island' && r.leg > 0) logEvent('island', { level: r.leg | 0, n: (r._legRec && r._legRec.runs) | 0,
-      detail: 'L' + (r.leg | 0) + (r._legRec && r._legRec.firstLand ? ':first' : ':again'), ms });
+    if (mineLandfall(r.cause) && r.leg > 0) logEvent('island', { level: r.leg | 0, n: (r._legRec && r._legRec.runs) | 0,
+      detail: 'L' + (r.leg | 0) + (r._legRec && r._legRec.firstLand ? ':first' : ':again') + (r.cause === 'promised' ? ':promised' : ''), ms });
   }
   const seamCount = r.seamCount || (state && state.mineSeams) || {};
   return { depth, ore, seams, reach, reachRaw, mats, seamCount, best: r._mineBest || mineBestNow(),
@@ -36288,7 +36434,133 @@ function presentMineEnd(r) {
     // then Descend is two clicks from this screen to a live run (M5).
     onDone: () => { runEndThen(() => { setGame('mine'); showPicker(); }); },
     onDescend: () => { runEndThen(() => { setGame('mine'); endRunSpores(); runSporeMult = 1; hideCanvas(); raiseHandoff(); beginMineRun(undefined, { journey: true }); }); },
+    // THE PROMISED LAND (M9): ROOTED's one button is the finale.
+    onFinale: r.cause === 'promised' ? () => startPromisedFinale(paid) : null,
   });
+}
+
+// ===================== THE PROMISED LAND (M9) =====================
+// Leg 8's landfall ends Journey I. Everything is BANKED before any of this animates (`mineFrame` banks a
+// landfall the frame it happens, and the journey moves on in the same save) — so a tab closed at any
+// point below loses nothing. The sequence, each step timed on the wall clock (setTimeout, not rAF: a
+// throttled page still reaches the credits):
+//   1. ROOTED (the end screen, rows and all) -> Continue, or on its own after `finaleHoldMs`;
+//   2. THE CAMERA PULLS BACK over the double-width island (`FINALE_PULL_MS`, eased; the run is over so
+//      nothing else moves it);
+//   3. A CANVAS JOURNEY STRIP: eight island mounds on a mint thread, each bursting into spores 300 ms
+//      apart over a rising chord (`playFinaleNote`);
+//   4. 'The Promised Land. Your colony spans the world.';
+//   5. the credits (`showCredits`), and closing them goes to the title — which now wears the finished
+//      journey's badge and offers 'Begin Journey II'.
+// A tap anywhere on the overlay skips straight to the credits. `mine.finale()` reports every step.
+const FINALE_PULL_MS = 1600, FINALE_BURST_MS = 300, FINALE_TEXT_AFTER = 700, FINALE_CREDITS_AFTER = 2600;
+let _mineFinale = null;
+function startPromisedFinale(paid) {
+  if (_mineFinale && !_mineFinale.over) return;
+  const sub = state && state.substrate, J = sub && sub.mineJourney;
+  const cs = sub ? sub.cellSize : 36;
+  const Mz = (state && state.config && state.config.mine) || CONFIG.mine;
+  const lo = Math.max(camera.minZoomForBounds(), mineZoom() * (((Mz.zoomRange) || [0.4])[0]));
+  const F = _mineFinale = {
+    t0: performance.now(), phase: 'pull', over: false, bursts: 0, text: false, credits: false, skipped: false,
+    z0: camera.zoom, x0: camera.x, y0: camera.y, z1: lo,
+    x1: J ? ((J.islandC0 + J.islandC1 + 1) / 2) * cs : camera.x,
+    y1: sub ? sub.surfaceY + cs * 4 : camera.y,
+    wallet: sporesBalance(), bankedBefore: !!(state && state.runResult && state.runResult._minePaid),
+    journeyDone: (paid && paid.legRec && paid.legRec.finished) | 0, timers: [], el: null,
+  };
+  document.body.classList.add('mine-finale');
+  F.timers.push(setTimeout(() => mineFinaleStrip(F), FINALE_PULL_MS));
+}
+// Eases the camera toward the pull-back framing; called from renderFrame every frame while it runs.
+function mineFinaleCamera(now) {
+  const F = _mineFinale;
+  if (!F || F.over) return;
+  const t = Math.max(0, Math.min(1, (now - F.t0) / FINALE_PULL_MS));
+  const e = t * t * (3 - 2 * t);
+  camera.zoom = F.z0 + (F.z1 - F.z0) * e;
+  camera.x = F.x0 + (F.x1 - F.x0) * e;
+  camera.y = F.y0 + (F.y1 - F.y0) * e;
+  camera.clamp();
+  F.zoomNow = camera.zoom;
+}
+function mineFinaleStrip(F) {
+  if (F.over) return;
+  F.phase = 'strip';
+  const root = document.createElement('div');
+  root.id = 'mineFinale'; root.className = 'mine-finale-ov';
+  root.innerHTML = '<canvas class="mf-strip" width="560" height="140" aria-hidden="true"></canvas>'
+    + '<p class="mf-line">The Promised Land. <span>Your colony spans the world.</span></p>';
+  document.body.appendChild(root);
+  F.el = root;
+  void root.offsetWidth; root.classList.add('in');
+  root.addEventListener('click', () => mineFinaleCredits(F, true));
+  const cv = root.querySelector('canvas'), g = cv.getContext('2d');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const cssW = Math.min(560, (window.innerWidth || 390) - 32), cssH = 140;
+  cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
+  cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+  const N = MINE_JOURNEY_LEGS, lit = new Array(N).fill(0), parts = [];
+  const xs = (i) => 24 + (cssW - 48) * (i / (N - 1));
+  const base = cssH - 34;
+  const draw = () => {
+    if (F.over || !root.isConnected) return;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, cssW, cssH);
+    // the thread the colony grew along
+    g.strokeStyle = 'rgba(127,230,163,0.55)'; g.lineWidth = 2; g.beginPath();
+    for (let i = 0; i < N; i++) { const x = xs(i), y = base + 6 + Math.sin(i * 1.3) * 5; if (i) g.lineTo(x, y); else g.moveTo(x, y); }
+    g.stroke();
+    const now = performance.now();
+    for (let i = 0; i < N; i++) {
+      const x = xs(i), w = i === N - 1 ? 46 : 26, h = i === N - 1 ? 26 : 16, a = lit[i] ? Math.min(1, (now - lit[i]) / 250) : 0;
+      g.fillStyle = a ? `rgba(${Math.round(70 + 60 * a)},${Math.round(120 + 90 * a)},${Math.round(70 + 40 * a)},1)` : 'rgba(58,74,52,0.9)';
+      g.beginPath(); g.ellipse(x, base, w / 2, h, 0, Math.PI, 0); g.fill();
+      if (a) { g.fillStyle = `rgba(190,255,214,${0.35 * a})`; g.beginPath(); g.arc(x, base - h * 0.6, h * 1.4, 0, Math.PI * 2); g.fill(); }
+    }
+    for (let k = parts.length - 1; k >= 0; k--) {
+      const q = parts[k], age = (now - q.t) / 1000;
+      if (age > 2.2) { parts.splice(k, 1); continue; }
+      const x = q.x + q.vx * age * 30 + Math.sin(age * 3 + q.ph) * 4, y = q.y - q.vy * age * 40;
+      g.fillStyle = `rgba(214,255,228,${Math.max(0, 0.9 - age / 2.4)})`;
+      g.beginPath(); g.arc(x, y, q.r, 0, Math.PI * 2); g.fill();
+    }
+    requestAnimationFrame(draw);
+  };
+  requestAnimationFrame(draw);
+  for (let i = 0; i < N; i++) F.timers.push(setTimeout(() => {
+    if (F.over) return;
+    lit[i] = performance.now(); F.bursts = i + 1;
+    for (let k = 0; k < (i === N - 1 ? 40 : 14); k++)
+      parts.push({ x: xs(i) + (Math.random() - 0.5) * (i === N - 1 ? 40 : 20), y: base - 8, vx: Math.random() - 0.3, vy: 0.6 + Math.random(), r: 1 + Math.random() * 1.8, ph: Math.random() * 6, t: performance.now() });
+    try { playFinaleNote(i); } catch (_) {}
+    if (i === N - 1) F.timers.push(setTimeout(() => {
+      if (F.over) return;
+      F.phase = 'text'; F.text = true; root.classList.add('said');
+      F.timers.push(setTimeout(() => mineFinaleCredits(F, false), FINALE_CREDITS_AFTER));
+    }, FINALE_TEXT_AFTER));
+  }, i * FINALE_BURST_MS));
+}
+function mineFinaleCredits(F, skipped) {
+  if (F.over || F.credits) return;
+  F.credits = true; F.skipped = !!skipped; F.phase = 'credits';
+  for (const t of F.timers) clearTimeout(t);
+  showCredits({ onClose: () => mineFinaleDone(F) });
+}
+function mineFinaleDone(F) {
+  if (F.over) return;
+  F.over = true; F.phase = 'done';
+  for (const t of F.timers) clearTimeout(t);
+  if (F.el) F.el.remove();
+  document.body.classList.remove('mine-finale');
+  runEndThen(() => { setGame('mine'); showMainMenu(); });
+}
+function mineFinaleInfo() {
+  const F = _mineFinale;
+  return F ? { phase: F.phase, bursts: F.bursts, text: F.text, credits: F.credits, skipped: F.skipped, over: F.over,
+               z0: F.z0, z1: F.z1, zoomNow: F.zoomNow, wallet: F.wallet, bankedBefore: F.bankedBefore,
+               journeyDone: F.journeyDone, t0: F.t0, overlay: !!(F.el && F.el.isConnected),
+               creditsOpen: !!document.getElementById('crOverlay') } : null;
 }
 // SETTINGS > EXIT TO TITLE (M1). It used to be 'Save & exit', which dropped to the title without
 // ending anything — and a descent has no resume, so the haul was simply gone. It ends the descent
@@ -36455,10 +36727,21 @@ function minePendingNote(b) {
 // past the last built row plays the last built row (`mineLegRow` clamps), labelled as that row, and
 // its bonus is not paid twice (`landed`).
 const MINE_JOURNEY_LEGS = 8;
+// `done` (M9): the journeys finished, in order; `past` {J: {legs, runs}} each finished journey's leg
+// records, kept when the next journey starts its own (the plan's 'fewest runs to the Promised Land').
 function mineJourneySave(p) {
   const mj = p && p.mineJourney && typeof p.mineJourney === 'object' ? p.mineJourney : {};
   const legs = mj.legs && typeof mj.legs === 'object' ? mj.legs : {};
-  return { journey: Math.max(1, mj.journey | 0 || 1), leg: Math.max(1, Math.min(MINE_JOURNEY_LEGS, mj.leg | 0 || 1)), legs };
+  const done = Array.isArray(mj.done) ? mj.done.filter((j) => (j | 0) > 0).map((j) => j | 0) : [];
+  const past = mj.past && typeof mj.past === 'object' ? mj.past : {};
+  return { journey: Math.max(1, mj.journey | 0 || 1), leg: Math.max(1, Math.min(MINE_JOURNEY_LEGS, mj.leg | 0 || 1)), legs, done, past };
+}
+// Journey numbers are written as Roman numerals on every screen ('Journey II').
+function mineRoman(n) {
+  n = Math.max(1, n | 0); let out = '';
+  for (const [v, r] of [[1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'], [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']])
+    while (n >= v) { out += r; n -= v; }
+  return out;
 }
 function mineLegRecord(p, journey, leg) {
   const mj = mineJourneySave(p);
@@ -36476,7 +36759,7 @@ function mineJourneyNow(p) {
   const runs = Object.keys(mj.legs).reduce((a, k) => a + ((mj.legs[k] && mj.legs[k].runs) | 0), 0);
   return { journey: mj.journey, leg: played, saveLeg: mj.leg, total: MINE_JOURNEY_LEGS,
            name: row ? row.name : '', lit, islands: lit.filter(Boolean).length, runs,
-           rec: mj.legs[played] || null };
+           rec: mj.legs[played] || null, done: mj.done.slice() };
 }
 // THE JOURNEY STRIP (M8): 8 dots, the islands landed lit, the leg being played ringed. One markup
 // builder for the title, the end screen and the store header, so they cannot disagree.
@@ -36515,8 +36798,8 @@ function mineLegApply(p, r, countRun) {
   if (countRun && (r.digs | 0) > 0) rec.runs = (rec.runs | 0) + 1;
   rec.bestDepth = Math.max(rec.bestDepth | 0, r.depth | 0);
   rec.bestEast = Math.max(rec.bestEast | 0, r.east | 0);
-  let firstLand = false;
-  if (r.cause === 'island') {
+  let firstLand = false, finished = 0;
+  if (mineLandfall(r.cause)) {
     firstLand = !rec.landed;
     rec.landed = true;
     mj.leg = Math.max(mj.leg, Math.min(MINE_JOURNEY_LEGS, L + 1));
@@ -36526,8 +36809,20 @@ function mineLegApply(p, r, countRun) {
     p.mineSeen.leg = Math.max(p.mineSeen.leg | 0, mj.leg);
   }
   mj.legs[L] = rec;
-  p.mineJourney = { journey: mj.journey, leg: mj.leg, legs: mj.legs };
-  return Object.assign({}, rec, { was, firstLand });
+  // THE PROMISED LAND (M9): the journey is finished. The save moves to the next journey's leg 1 with
+  // fresh leg records (and fresh island bonuses); the finished journey's records go to `past`, its
+  // number to `done`. Only the journey the run was ON — a stale tab of a finished journey landing late
+  // must not finish the next one.
+  if (r.cause === 'promised' && (!(r.journey | 0) || (r.journey | 0) === mj.journey)) {
+    finished = mj.journey;
+    const runs = Object.keys(mj.legs).reduce((a, k) => a + ((mj.legs[k] && mj.legs[k].runs) | 0), 0);
+    const done = mj.done.includes(finished) ? mj.done : mj.done.concat(finished);
+    const past = Object.assign({}, mj.past, { [finished]: { legs: mj.legs, runs } });
+    p.mineJourney = { journey: finished + 1, leg: 1, done, past, legs: {} };
+    return Object.assign({}, rec, { was, firstLand, finished, runs });
+  }
+  p.mineJourney = { journey: mj.journey, leg: mj.leg, legs: mj.legs, done: mj.done, past: mj.past };
+  return Object.assign({}, rec, { was, firstLand, finished });
 }
 function mineRecordDepth(depth) {
   try {
@@ -36635,7 +36930,7 @@ function presentRunOver() {
   else if (state.runResult && state.runResult.died && cardsCampaign()) startDeathCelebration(finish);
   // LANDFALL (M8): the island hill fruits, the filaments lit from the knot up to it, before ROOTED.
   // Already banked (mineFrame banks a landfall the frame it happens).
-  else if (state.substrate && state.substrate.mine && state.runResult && state.runResult.cause === 'island') startCelebration('island', finish);
+  else if (state.substrate && state.substrate.mine && state.runResult && mineLandfall(state.runResult.cause)) startCelebration('island', finish);
   else finish();
 }
 
@@ -37049,11 +37344,16 @@ function showMainMenu(opts) {
   const jn = (() => { try { return mineJourneyNow(); } catch (_) { return null; } })();
   const journey = jn && OFFER_MINE ? (() => {
     const p = loadProgress();
-    const begun = mineRunsBanked(p) > 0 || jn.islands > 0 || jn.saveLeg > 1;
+    // JOURNEY II AND ON (M9): 'Begin Journey II' until the new journey has a run in it, then
+    // 'Continue · Journey II · Leg N of 8 · <name>'; every finished journey is a badge ('Journey I').
+    const later = jn.journey >= 2;
+    const begun = later ? (jn.runs > 0 || jn.islands > 0 || jn.saveLeg > 1) : (mineRunsBanked(p) > 0 || jn.islands > 0 || jn.saveLeg > 1);
     const row = mineLegRow(CONFIG, jn.leg);
     const best = jn.rec ? jn.rec.bestEast | 0 : 0;
     return {
-      caption: (begun ? 'Continue · ' : '') + 'Leg ' + jn.leg + ' of ' + jn.total + (jn.name ? ' · ' + jn.name : ''),
+      caption: later && !begun ? 'Begin Journey ' + mineRoman(jn.journey)
+        : (begun ? 'Continue · ' : '') + (later ? 'Journey ' + mineRoman(jn.journey) + ' · ' : '') + 'Leg ' + jn.leg + ' of ' + jn.total + (jn.name ? ' · ' + jn.name : ''),
+      badges: (jn.done || []).map((j) => 'Journey ' + mineRoman(j)),
       stripHTML: mineJourneyStripHTML(jn, 'mj-title'),
       gap: best > 0 && row && !(jn.rec && jn.rec.landed) ? 'Island ' + jn.leg + ': your farthest is ' + Math.max(0, (row.eastM | 0) - best) + ' m short' : '',
     };
@@ -38972,6 +39272,25 @@ function begin(newState) {
       islandReached: () => !!(state && mineIslandReached(state)),
       journey: () => mineJourneyNow(),
       stripHTML: () => mineJourneyStripHTML(mineJourneyNow()),
+      // M9: the Promised Land's finale, step by step (null until it starts); the journey save verbatim.
+      finale: () => mineFinaleInfo(),
+      // M9: the mine's whole-colony walks per frame ({frames, max, last, hist}, `why` by caller).
+      passes: () => (state ? Object.assign({ why: Object.assign({}, state._minePassWhy || {}) }, JSON.parse(JSON.stringify(state._minePassStats || { frames: 0, max: 0, hist: {} }))) : null),
+      passesReset: () => { if (state) { state._minePassStats = null; state._minePassWhy = {}; } return true; },
+      agg: () => { const A = state && mineAgg(state); return A ? { len: A.len, minX: A.minX, maxX: A.maxX, deep: A.deep && A.deep.id, shallow: A.shallow && A.shallow.id, eastX: A.eastX, anyInf: A.anyInf, knotD2: A.knotD2 } : null; },
+      waterRescan: () => { if (state) state._mineWaterScan = null; return true; },
+      journeySave: () => { try { return JSON.parse(JSON.stringify(loadProgress().mineJourney || null)); } catch (_) { return null; } },
+      // M9: the scripted landfall — a clean strand placed inside landfall range of the knot, parented to
+      // the colony's nearest strand, for probes that test the ENDING rather than the navigation.
+      plantAtTaproot: () => {
+        const t = state && mineTaprootXY(state.substrate), net = state && state.active;
+        if (!t || !net) return false;
+        let near = null, nd = Infinity;
+        for (const n of net.nodes) { if (n.infected) continue; const d = (n.x - t.x) ** 2 + (n.y - t.y) ** 2; if (d < nd) { nd = d; near = n; } }
+        const n = near || net.nodes[0];
+        n.x = t.x; n.y = t.y + 4;
+        return true;
+      },
     },
     survival: {
       maps: () => survivalMaps().map((l) => l.id),
@@ -39980,6 +40299,7 @@ function updateAim(e) {
 function mineAnyRot(st) {
   const net = st && st.active;
   if (!net) return false;
+  mineNodePass(st, 'anyRot');
   for (const n of net.nodes) if (n.infected) return true;
   return false;
 }
@@ -40828,8 +41148,8 @@ function mineFollowCamera(time, dt) {
   //
   // Falls back to the deepest tip, which is what the first frame of a run wants and what a colony
   // whose focus strand a worm ate needs.
-  let tip = null;
-  for (const n of net.nodes) { if (!n.infected && (!tip || n.y > tip.y)) tip = n; }
+  const A = mineAgg(state);          // the deepest clean tip, kept incrementally (M9)
+  const tip = A ? A.deep : null;
   const f = state._mineFocus;
   const focus = (f && net.byId && net.byId.get(f.id) && !net.byId.get(f.id).infected) ? net.byId.get(f.id) : tip;
   if (!focus) return;
@@ -41444,9 +41764,8 @@ function mineReachFeedback() {
   state._mineReachShown = raw;
   if (raw <= was) return;
   uiDirty = true;
-  const net = state.active;
-  let tip = null;
-  for (const n of net.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+  const A = mineAgg(state);
+  const tip = A ? A.deep : null;
   if (tip) addEnergyFloater(tip.x, tip.y - state.substrate.cellSize * 0.5, raw - was,
     { text: `+${raw - was} P`, color: '#c9a2e8', size: 15, outline: 4, life: 70, icon: false });
   try { playReachTick(); } catch (_) {}
@@ -41530,7 +41849,9 @@ function mineFrame(time, dt) {
   // advance and the island bonus are in the save before the celebration plays — a tab closed during
   // it cannot lose the landfall.
   if (mineIslandReached(state)) {
-    const r = mineEndRun(state, 'island');
+    // Leg 8 (the row's `finale`) is THE PROMISED LAND (M9): the same landfall, cause 'promised'.
+    const jrow = mineLegRow(state.config, state.substrate.mineJourney.leg);
+    const r = mineEndRun(state, jrow && jrow.finale ? 'promised' : 'island');
     if (r) { try { mineBank(r); } catch (_) {} }
     uiDirty = true; presentRunOver();
     return;
@@ -41818,6 +42139,10 @@ function frame(time) {
   // REAL-TIME: advance the world on the wall clock (no-op while paused — a draft, a menu,
   // the run being over). Runs before the menu/pacing early-returns below so the clock stays
   // fresh across menus and never fast-forwards on resume.
+  // THE MINE'S PER-FRAME O(nodes) COUNTER (M9 acceptance 5): `mineNodePass` counts every whole-colony
+  // walk the mine's own frame code makes; this frame's count is filed when it ends.
+  // Filed at the START of the next frame, so a frame the idle pacing returns from early still counts.
+  if (state.substrate && state.substrate.mine) { if (state._minePassArmed) mineFilePasses(); state._minePassN = 0; state._minePassArmed = true; }
   advanceSim(time);
   syncBusyCursor();
   syncCrazyGameplay();   // no-op without the SDK; edge-triggered, so this is two comparisons
@@ -41848,6 +42173,12 @@ function frame(time) {
     }
   }
   requestAnimationFrame(frame);
+}
+function mineFilePasses() {
+  const P = (state._minePassStats = state._minePassStats || { frames: 0, max: 0, hist: {} });
+  const n = state._minePassN | 0;
+  P.frames++; P.last = n; if (n > P.max) P.max = n;
+  P.hist[n] = (P.hist[n] | 0) + 1;
 }
 
 // --- one-shot performance sample -------------------------------------------
@@ -41885,6 +42216,7 @@ function renderFrame(time, dtFrames = 1) {
   _renderCount++;
   lastTime = time;
   updateCamFocus(time);         // advance the tutorial's smooth camera "zoom-in" tween
+  if (_mineFinale && !_mineFinale.over) mineFinaleCamera(performance.now());   // M9: the Promised Land's pull-back
   updateDraftIntro(time);       // advance the food-pile → card-draft intro (sets ghost/icon alphas)
   spawnFinishFloaters();        // pop a "+N⚡" the instant a pile finishes digesting
   // background (outside the world bounds)
@@ -44665,6 +44997,26 @@ function drawMineProps() {
   const bush = asset('goalbush'); if (!bush) return;
   const sub = state.substrate, z = camera.zoom, cs = sub.cellSize;
   const aspect = bush.width / bush.height;
+  // THE PROMISED LAND'S TREES (M9): a double-width island (>= 20 columns, leg 8) carries three of the
+  // surface's own trees (`tree.png`, the art the procedural skyline plants) along its crest, behind its
+  // bushes, so the last island reads as a place and not as a bigger copy of the others.
+  const tree = asset('tree');
+  if (tree) withWorldClip(() => {
+    for (const { x0, x1, island } of mineHillSpans()) {
+      if (!island || (x1 - x0) < cs * 20) continue;
+      const hill = asset('goalhill'), wW = x1 - x0, hW = hill ? wW * (hill.height / hill.width) : cs * 3;
+      for (const [t, hc, flip] of [[0.2, 3.4, false], [0.52, 4.2, true], [0.83, 3.0, false]]) {
+        const x = x0 + wW * t;
+        const rise = hill ? Math.max(0, hillRiseAtX(hill, x, x0, wW, hW, false)) : 0;
+        const hWorld = cs * hc, wWorld = hWorld * (tree.width / tree.height);
+        const s = camera.worldToScreen(x, sub.surfaceY - rise * 0.85);
+        const sw = wWorld * z, sh = hWorld * z;
+        if (s.x < -sw || s.x > camera.viewW + sw) continue;
+        ctx.save(); ctx.translate(s.x, s.y + sh * 0.08); if (flip) ctx.scale(-1, 1);
+        ctx.drawImage(tree, -sw / 2, -sh, sw, sh); ctx.restore();
+      }
+    }
+  });
   withWorldClip(() => {
     for (const { x0, x1, island } of mineHillSpans()) {
       // Two clusters, off-centre either side of the shaft head — the middle is where the colony
@@ -44824,6 +45176,7 @@ function drawMineThreatMarks(time) {
   // while `mineInfect` is set.
   if (state.mineInfect) {
     let near = null, nd = Infinity, seen = false;
+    mineNodePass(state, 'rotChevron');
     for (const n of state.active.nodes) {
       if (!n.infected) continue;
       const p = camera.worldToScreen(n.x, n.y);
