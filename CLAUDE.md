@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; --mine 1143/1145 (onboard's first-visit timing pair fails on this host on pre-M8 builds too); 3c re-measured with the island compass bearing — still FAIL. VERIFY ROUND 2 landed: a landing dig at the node cap lands, 'New farthest' baseline = the record at run start, corrected log line, nextBuilt explicit, readable leg caption, `run.mjs` exact names, landfall-check reads final figures (49/49); rock sprites drawn from mips (leg frame 58 -> 2.4 ms at dsf 2; journey-check 99/99); onboard's drag harness on a finger's clock (drag bound passes); 3c still FAILS (east-reading naive 0/8; no legprobe candidate in k 36-155 is naive-landable); 3b spread 1/5/8, 1/6/8, 1/10/11 (leg-2 tail misses 7); --mine 1152/1153 (the 600 ms curtain on this host). VERIFY ROUND 3 landed: leg 1's banner 'No threats — dig down, then east'; leg 2 pulled in (E 5, 120 m east, same seed) -> 3b 9/9 careers (leg 2 in 3-6 runs, median 4); the first visit's world prebuilt behind the gate (curtain 622-730 -> 435-492 ms); onboard 67/67; 3c still FAILS (naive 0/8 east, 0/8 down-east; opening the shallow road does not close it either — owner / M14); --mine 1157/1157. M9 BUILT: legs 4-8 (seeds 1300770 / 4660017 / 3097001 / 2895462 / 1437175) with their rules as config knobs, the Promised Land (cause 'promised', finale -> credits -> 'Journey I' badge + 'Begin Journey II', save rolls to journey 2), mineAgg + incremental pocket scan + per-frame pass counter, earth/rock layer memos (leg 8 @ 4,200 strands: 10-11 ms still, forced raster); legs-check 39/39; --mine 1196/1196; acceptance 2 (kit <= 70%) FAILS on legs 2, 3, 6, 7, 8 — measured, owner / M14. VERIFY ROUND landed: a stale Journey I tab landing after the Promised Land no longer finishes Journey II or pays its bonus twice (results of a left journey go to `past`), ROOTED's strip is the finished journey, the store quotes the next leg's heat lines (leg 6: 36 m); legs-check 46/46; legkit re-run identical (3/8); --mine 1202/1203 (threat flake, re-run 116/116). Next: M10.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; --mine 1143/1145 (onboard's first-visit timing pair fails on this host on pre-M8 builds too); 3c re-measured with the island compass bearing — still FAIL. VERIFY ROUND 2 landed: a landing dig at the node cap lands, 'New farthest' baseline = the record at run start, corrected log line, nextBuilt explicit, readable leg caption, `run.mjs` exact names, landfall-check reads final figures (49/49); rock sprites drawn from mips (leg frame 58 -> 2.4 ms at dsf 2; journey-check 99/99); onboard's drag harness on a finger's clock (drag bound passes); 3c still FAILS (east-reading naive 0/8; no legprobe candidate in k 36-155 is naive-landable); 3b spread 1/5/8, 1/6/8, 1/10/11 (leg-2 tail misses 7); --mine 1152/1153 (the 600 ms curtain on this host). VERIFY ROUND 3 landed: leg 1's banner 'No threats — dig down, then east'; leg 2 pulled in (E 5, 120 m east, same seed) -> 3b 9/9 careers (leg 2 in 3-6 runs, median 4); the first visit's world prebuilt behind the gate (curtain 622-730 -> 435-492 ms); onboard 67/67; 3c still FAILS (naive 0/8 east, 0/8 down-east; opening the shallow road does not close it either — owner / M14); --mine 1157/1157. M9 BUILT: legs 4-8 (seeds 1300770 / 4660017 / 3097001 / 2895462 / 1437175) with their rules as config knobs, the Promised Land (cause 'promised', finale -> credits -> 'Journey I' badge + 'Begin Journey II', save rolls to journey 2), mineAgg + incremental pocket scan + per-frame pass counter, earth/rock layer memos (leg 8 @ 4,200 strands: 10-11 ms still, forced raster); legs-check 39/39; --mine 1196/1196; acceptance 2 (kit <= 70%) FAILS on legs 2, 3, 6, 7, 8 — measured, owner / M14. VERIFY ROUND landed: a stale Journey I tab landing after the Promised Land no longer finishes Journey II or pays its bonus twice (results of a left journey go to `past`), ROOTED's strip is the finished journey, the store quotes the next leg's heat lines (leg 6: 36 m); legs-check 46/46; legkit re-run identical (3/8); --mine 1202/1203 (threat flake, re-run 116/116). VERIFY ROUND 2 landed: stale-tab end screen (no finale), finale loop stops under the credits, the contact pass walks the colony once (was once per cloud: 90 walks a tick frame -> 18), mine renderer scans incremental (no-tick frames 3 -> 0-2 walks, counted by a Proxy census now in legs-check), memos wait for a still key (zoom tween 0 builds), perf gated on a leg 8 with its 114 worms / 69 clouds / rot, mineFrame p95 <= 2 settled; legs-check 50/50; acceptance 2a still FAILS and legshort shows shortening alone inverts the leg-length escalation — owner / M14. Next: M10.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5859,6 +5859,64 @@ Numbers here are measured, not planned.
   ship 58, phone 51, onboard 67, econ 79, counter 60, journey 99, landfall 49, legs 46, zip 24, level 27, aim 9, scale
   26, threat 115/116, harvest 28, mould 20, core 18). The red is threat's known map-roll flake ('ate 3, want 4');
   re-run alone 116/116. Green = 1203.
+
+**M9 VERIFY ROUND 2**
+- **A STALE TAB'S SCREEN (confirmed):** after the bank fix, a stale Journey I tab landing leg 8 still got the whole
+  finale over Journey II's empty strip, and a stale non-final landfall said 'Leg N+1 … starts there'. When the bank
+  returns `legRec.stale` (`staleJourney`), `presentMineEnd` passes no `onFinale`: ROOTED / SPORED with Descend +
+  Store, `#ssMineStale` 'Journey I was already finished in another tab — the next descent is Journey II, Leg 1,
+  First Light.', the finished journey's strip (8 lit, none next). legs-check `stale` +2 (screen, and no finale 6.8 s
+  later).
+- **The finale strip's rAF loop** stopped only on `F.over`, so it drew under the opaque credits; it stops on
+  `F.credits` now (`finale().drawN`: 200 -> 200 over 900 ms of credits). `plantAtTaproot` calls
+  `mineAggInvalidate` (the summary assumes strands never move). The rot chevron walks `mineAgg(state).inf` (the
+  rot list, filled in the same fold) instead of the colony.
+- **5c, READ LITERALLY, WAS NOT MET (confirmed), and the census that shows it is now in the check.** legprobe
+  `censusInstall` wraps `net.nodes` in a Proxy and counts EVERY indexed read (for-of, array methods and index loops
+  alike) as equivalent passes per rAF frame; `mine.passes()` only sees what the mine's frame code declares. Leg 8,
+  4,200 strands, 108 worms / 72 clouds: no-tick frames walked the colony 3 times (scheduleReveal x2 from advanceSim
+  and draw, `_scheduleInfection` x1, all on a settled colony) and world-tick frames **90** — the contact pass in
+  `infectNetwork` walked the colony ONCE PER CLOUD. Fixed, all exact (same results):
+  - contact pass: with > 1 live cloud the grown-in strands are bucketed once (buckets of the widest breach) and each
+    cloud reads its buckets sorted by array index — same seeds, same walk order, same rng draws;
+  - `NetworkRenderer.scheduleReveal` on a mine colony (`net._incr`, set by `mineAgg`) scans only the tail after
+    `_revIdx` (strands are only appended; nothing clears `_revSeen`); a removal (`net._remVer`, new, bumped in
+    `_removeNodes`) re-scans from 0. `_scheduleInfection` on a mine colony runs only when `net._aggVer` or the length
+    moved (every mine infection happens in a tick, a dig or a removal, all of which bump it; `mineEndRun('infected')`
+    bumps it too). OTHER colonies keep both full scans (rt-test sets `infected` by hand and waits for the frame;
+    perf-scenes clears `_revSeen` to replay a grow);
+  - `_rebuildCaches` walks twice, not four times (the size seed folded into the backward walk, the centroid into
+    the path walk; same sums).
+  After: no-tick frames max **0-2** (2 = a grow's fold-in rebuild), tick frames **18** (by caller: infectNetwork 4,
+  healthyCount 4, cleanCover 2, _rebuildCaches 2, mineAgg 1, stepNematodes / spreadTrichoderma / agePass /
+  collectOccupiedCells / _scheduleInfection 1 each). The tick frame is the shared engine's 2 Hz step: gated at <= 24
+  as a regression bound (it fails if a walk per creature comes back), not at 2 — owner to confirm that reading of 5c.
+  `tests/nodepass-probe.cjs [nodes] [rot]` prints it (a tool).
+- **THE MEMOS REBUILT EVERY OTHER FRAME WHILE THE ZOOM MOVED (confirmed).** `memoShouldBuild(m, settleKey)` builds only
+  on the `MEMO_SETTLE` (3) -th consecutive miss under the same key (the earth's key; the rock's zoom/camera `base`);
+  a hit resets the run; `memoReset` sets `m.force`. A zoom that moves every frame never builds and draws live.
+  Measured, leg 8, forced raster: zoom tween memos on 33.6 ms median (0 builds, 124 live draws) vs off 33.9; rest
+  11.1 / 15.1; pan 3 px 14.3 / 21.4; pan 12 px 14.6 / 39.6 (5 builds, 111 hits).
+- **THE PERF STATE HAS ITS CREATURES NOW.** `navigate` removes every worm and cloud, so the 4,000-strand state had 0 of
+  each. legprobe `perfState(page, {want, threats, rot})` puts back the ones seeded so far and infects a 20-strand patch
+  (deadline pushed out): the gate now runs on 114 worms, 69 clouds, 49 rotten strands and a running rot clock.
+- **mineFrame gated on median AND p95 once settled** (3 s after the fill, then 3 s of live frames): median 0.30, p95
+  0.80, max 4.0 ms (was median-only, read over the fill's reveal: p95 2.6-2.8).
+- legs-check 46 -> 50 (stale +2, finale +1, perf: zoom-tween gate, census no-tick <= 2, census tick <= 24; the
+  mineFrame and state assertions reworded as above).
+- **ACCEPTANCE 2a STILL FAILS, AND SHORTENING THE LEGS DOES NOT CLOSE IT WITHOUT BREAKING THE ESCALATION.**
+  `tests/bots/legshort.cjs` moves a leg's island in on the SAME seed (the chunks west of it are the same chunks) and
+  runs `kitWater` with the arrival kit; fractions EXCLUDE THE WORM DRAIN (`navigate` removes the creatures), so real
+  runs spend more:
+  | leg | E (east) -> kit frac |
+  |---|---|
+  | 7 | 13 (312 m) 1.302 · 11 1.007 · 9 0.980 · 7 (168 m) 0.738 |
+  | 6 | 10 (240 m) 0.776 · 8 0.721 · 6 (144 m) 0.632 · 4 0.592 |
+  | 8 | 15 (360 m) 0.806 · 13 0.914 · 11 (264 m) 0.699 · 9 0.641 |
+  Leg 7's route passes ONE pocket (supply 149 against leg 6's 152 on three fewer chunks), so even at 168 m — shorter
+  than legs 4-6 — it misses 70%; leg 6 passes only at 144 m (shorter than leg 5's 264), leg 8 at 264 m. So the plan's
+  "shorten legs 7-8" lever alone makes the late legs SHORTER than the middle ones. The table is left as written:
+  owner / M14 (options: fewer chunks plus a wetter route on leg 7 — its reservoirs — or a bigger late tank).
 
 ## Two games on the title screen: Survival and Campaign
 

@@ -1209,6 +1209,15 @@ paid the 150 bonus twice (results of a journey the save has left now update only
 Promised Land showed Journey II's empty strip (now Journey I, 8 of 8 lit); the store's heat words and tile quoted the
 literal's 42 m on a leg-6 save (now the next leg's lines). legs-check 46/46 (+7, 4 of them fail on the pre-fix build).
 Acceptance 2 re-measured identical (3 of 8 legs pass the 70% rule) — still owner / M14.
+**VERIFY ROUND 2 (M9).** Fixed: a stale tab's screen (ordinary end screen, no finale, a line naming the journey the
+next descent plays); the finale loop under the credits; the contact pass walking the colony once per cloud (90
+equivalent passes on a world-tick frame at 4,200 strands and 72 clouds, now 18) and the renderer's per-frame reveal /
+infection scans on a mine colony (no-tick frames now 0-2); the earth/rock memos rebuilding every other frame while the
+zoom moves (now built only after 3 frames under one key). Acceptance 5 is now measured on a leg 8 WITH its creatures
+and a rot patch, with a Proxy census of every read of the strand array: no-tick frames <= 2 (gated), world-tick
+frames 18 (gated <= 24 as a regression bound — the shared engine's 2 Hz step; owner to confirm that 5c means the
+frame code), mineFrame median and p95 <= 2 ms once settled. Acceptance 2a still fails; `tests/bots/legshort.cjs`
+measured that shortening alone would need leg 7 at 168 m and leg 6 at 144 m (shorter than legs 4-5) — owner / M14.
 
 
 ### M10 — Compasses: sell precision, through rock
