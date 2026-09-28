@@ -26017,12 +26017,24 @@ const MINE_TILE_WORLD = 640;
 // wherever the buffer's WORLD origin lands on screen, rounded to a device pixel. A camera easing after
 // a dig, or a short pan, moves within the margin and costs one copy; a zoom change, a resize or leaving
 // the buffer rebuilds it. `m` = {cv, key, wx0, wy0, pw, ph}: pw/ph are the buffer's size in CSS px.
-const MEMO_MARGIN = 0.35;
+// THE MARGIN IS PER AXIS AND SMALL: 15% of the view each side is 1.69x the view's pixels per buffer (at
+// dpr 2 on a 390x844 phone ~2.2 Mpx, ~9 MB) — a first version at 35% of the longer side was 4.3x, and its
+// first build pushed the first-visit curtain past 600 ms (692 ms in a --mine sweep).
+// AND A BUFFER IS NEVER BUILT ON THE FRAME IT FIRST GOES STALE (`memoShouldBuild`): that frame draws live,
+// exactly as before the memo, and the build happens on the next frame that still wants it — so the reveal
+// frame (the one the curtain waits for) costs what it always did.
+const MEMO_MARGIN = 0.15;
+function memoShouldBuild(m) {
+  if (m.stale) return true;
+  m.stale = true;
+  return false;
+}
 // The camera to BUILD the buffer with: the same zoom and centre, a view MEMO_MARGIN bigger each side.
 // Records the buffer's world origin on `m`.
 function memoBuildCamera(m, cam, T) {
-  const mg = Math.round(Math.max(cam.viewW, cam.viewH) * MEMO_MARGIN);
-  const pw = cam.viewW + 2 * mg, ph = cam.viewH + 2 * mg;
+  m.stale = false;
+  const mgx = Math.round(cam.viewW * MEMO_MARGIN), mgy = Math.round(cam.viewH * MEMO_MARGIN);
+  const pw = cam.viewW + 2 * mgx, ph = cam.viewH + 2 * mgy;
   const W = Math.ceil(pw * T.a), H = Math.ceil(ph * T.d);
   if (m.cv.width !== W || m.cv.height !== H) { m.cv.width = W; m.cv.height = H; }
   const pc = Object.assign(Object.create(Object.getPrototypeOf(cam)), cam, { viewW: pw, viewH: ph });
@@ -26159,15 +26171,18 @@ class SubstrateRenderer {
     const m = this._earthMemo || (this._earthMemo = { cv: document.createElement('canvas'), key: null, builds: 0, hits: 0 });
     const key = z + ',' + camera.viewW + ',' + camera.viewH + ',' + W + 'x' + H + ',' + T.a + ',' + T.d + ',' + (this._tile ? 1 : 0) + ',' + (this._earthVer | 0);
     const at = memoBlitAt(m, key, camera, T);
-    if (!at) {
-      const pc = memoBuildCamera(m, camera, T);
-      const g = m.cv.getContext('2d');
-      g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, m.cv.width, m.cv.height);
-      g.setTransform(T.a, 0, 0, T.d, 0, 0);
-      this._drawEarthLive(g, pc);
-      m.key = key; m.builds++;
-    } else m.hits++;
-    memoBlit(ctx, m, camera, T);
+    if (!at && !memoShouldBuild(m)) { this._drawEarthLive(ctx, camera); m.live = (m.live | 0) + 1; }
+    else {
+      if (!at) {
+        const pc = memoBuildCamera(m, camera, T);
+        const g = m.cv.getContext('2d');
+        g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, m.cv.width, m.cv.height);
+        g.setTransform(T.a, 0, 0, T.d, 0, 0);
+        this._drawEarthLive(g, pc);
+        m.key = key; m.builds++;
+      } else { m.hits++; m.stale = false; }
+      memoBlit(ctx, m, camera, T);
+    }
     // ---- THE MOULD FIELD, which is what the dynamic layer was for ---------------------------
     this._drawLiveTrich(ctx, camera);
   }
@@ -27250,7 +27265,7 @@ function clamp255(v) { return v < 0 ? 0 : v > 255 ? 255 : v | 0; }
 // across re-bakes so the matter doesn't shimmer each turn.
 function h2(a, b) { const n = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return n - Math.floor(n); }
 
-  return { SubstrateRenderer, memoBuildCamera, memoBlitAt, memoBlit };
+  return { SubstrateRenderer, memoBuildCamera, memoBlitAt, memoBlit, memoShouldBuild };
 })();
 
 // ===================== src/render/sfx.js =====================
@@ -35168,7 +35183,7 @@ const __m_main = (function () {
   const { tickWorld, queueEnemyTurn, enemyTurnMove, enemyTurnAttack, flushEnemyTurn } = __m_engine_turn;
   const { initCards, drawCard, skipRound, playCard, cardNeedsTarget, cardUsesDragAim, dragAimReach, cardBlockedReason, chooseOffer, activateAction, cardAbilityInfo, rebuildCardsFromSnapshot, EFFECTS, isArchived } = __m_engine_cards;
   const { Camera } = __m_render_camera;
-  const { SubstrateRenderer, memoBuildCamera, memoBlitAt, memoBlit } = __m_render_substrate;
+  const { SubstrateRenderer, memoBuildCamera, memoBlitAt, memoBlit, memoShouldBuild } = __m_render_substrate;
   const { NetworkRenderer, drawFruitBodies } = __m_render_network;
   const { Lighting } = __m_render_lighting;
   const { UI, deathText, cardSlug, SPORE_ICON } = __m_render_ui;   // deathText: one table, both death screens
@@ -39349,6 +39364,9 @@ function begin(newState) {
       frameMs: () => (state && state._mineFrameMs ? state._mineFrameMs.slice() : []),
       zoomRest: () => mineZoom(),
       islandTrees: () => _mineIslandTrees,
+      // M9: drop both layer memos (the next frame rebuilds them at the current camera) and read their counters.
+      memoReset: () => { for (const m of [_rockMemo, substrateRenderer && substrateRenderer._earthMemo]) if (m) { m.key = null; m.stale = true; } return true; },
+      memoStats: () => { const f = (m) => (m ? { builds: m.builds, hits: m.hits, live: m.live | 0 } : null); return { earth: f(substrateRenderer && substrateRenderer._earthMemo), rock: f(_rockMemo) }; },
       journeySave: () => { try { return JSON.parse(JSON.stringify(loadProgress().mineJourney || null)); } catch (_) { return null; } },
       // M9: the scripted landfall — a clean strand placed inside landfall range of the knot, parented to
       // the colony's nearest strand, for probes that test the ENDING rather than the navigation.
@@ -44266,7 +44284,8 @@ function drawLevelRocks() {
     const base = z + ',' + camera.viewW + ',' + camera.viewH + ',' + W + 'x' + H + ',' + T.a + ',' + T.d + ',' + sprites.length + ',' + (sub._solidRev | 0) + ',' + (filtered ? JSON.stringify(rf) : '');
     let key = m.pw != null ? base + ',' + inBuf(m.wx0, m.wy0, m.pw, m.ph) : null;
     const at = key ? memoBlitAt(m, key, camera, T) : null;
-    if (!at) {
+    if (!at && !memoShouldBuild(m)) { _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered); m.live = (m.live | 0) + 1; }
+    else if (!at) {
       const pc = memoBuildCamera(m, camera, T);
       key = base + ',' + inBuf(m.wx0, m.wy0, m.pw, m.ph);
       const g = m.cv.getContext('2d');
@@ -44278,8 +44297,8 @@ function drawLevelRocks() {
       try { _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered); }
       finally { ctx = main; camera.x = cx0; camera.y = cy0; camera.viewW = vw0; camera.viewH = vh0; }
       m.key = key; m.builds++;
-    } else m.hits++;
-    memoBlit(ctx, m, camera, T);
+      memoBlit(ctx, m, camera, T);
+    } else { m.hits++; m.stale = false; memoBlit(ctx, m, camera, T); }
   } else _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered);
   _drawLevelRockMarkers(sprites, sub, z, cs);
 }

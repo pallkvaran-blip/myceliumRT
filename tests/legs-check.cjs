@@ -282,12 +282,13 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
       const same = await b.page.evaluate(() => {
         const g = window.__game, cv = document.getElementById('game'), c = cv.getContext('2d'), t = performance.now();
         const grab = () => { g.renderFrame(t, 1); return c.getImageData(0, 0, cv.width, cv.height).data; };
+        g.mine.memoReset();          // built at THIS camera, so the comparison is the content, not a sub-pixel offset
         const on = grab();
         window.MYCELIUM_NO_EARTH_MEMO = true; window.MYCELIUM_NO_ROCK_MEMO = true;
         const off = grab();
         window.MYCELIUM_NO_EARTH_MEMO = false; window.MYCELIUM_NO_ROCK_MEMO = false;
         let sum = 0, big = 0; for (let i = 0; i < on.length; i += 4) { const d = Math.abs(on[i] - off[i]) + Math.abs(on[i + 1] - off[i + 1]) + Math.abs(on[i + 2] - off[i + 2]); sum += d; if (d > 48) big++; }
-        return { mean: +(sum / (on.length / 4) / 3).toFixed(3), big, px: on.length / 4 };
+        return { mean: +(sum / (on.length / 4) / 3).toFixed(3), big, px: on.length / 4, stats: g.mine.memoStats() };
       });
       await shot(b.page, 'm9-perf-4000-390.png');
       const mfs = live.mf.map((x) => x[0]), mfNoTick = live.mf.filter((x) => !x[1]).map((x) => x[0]);
