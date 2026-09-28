@@ -376,6 +376,8 @@
     .mj-dot.lit.cur { box-shadow: 0 0 8px rgba(127,230,163,0.7), 0 0 0 3px rgba(242,236,224,0.18); }
     /* THE LEG'S EAST on the HUD's row 1 (M8): '→ 64 m', shown on a journey leg only. */
     .minehud #hud-east .rk { margin-left: 1px; }
+    /* `.res` sets display, which outranks the UA's [hidden] rule — the free layout's east must not show. */
+    .minehud #hud-east[hidden] { display: none; }
     /* Resource marks (bolt / water drop / phosphorus spark) — inherit currentColor. */
     .ri { display: inline-block; width: 1em; height: 1em; flex: 0 0 auto; vertical-align: -0.14em; }
     .res .ri { width: 16px; height: 16px; align-self: center; }
