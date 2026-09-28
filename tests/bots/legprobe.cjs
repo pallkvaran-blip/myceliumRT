@@ -55,6 +55,10 @@ const WPASS = (w) => w.pilesOk >= 0.85 * w.piles && w.pocketsOk >= 0.85 * w.pock
 // worst interior line, and no seam a pillar run more than 2 rows taller than the tallest interior one.
 const PILLAR_OK = (w) => w.pillarSeam != null && w.pillarSeam <= w.pillarMid90 && w.pillarSeam90 <= w.pillarMidMax
   && w.pillarRunSeam <= w.pillarRunMid + 2;
+// M9: the calibration rule, per leg — the arrival kit lands on at most 70% of supply, the bare kit needs
+// more than all of it (legs 3-8), and legs 7-8 spend >= 40% of the cheapest route's east metres below 84 m.
+const KIT_OK = (leg, kit, bare, m) => !!(kit && kit.landed && kit.frac <= 0.70
+  && (leg < 3 || (bare && bare.frac > 1.0)) && (leg < 7 || (m && m.east84 >= 0.4)));
 const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0
   && m.crustMaxCol <= m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42 && m.seamRunRows <= 42
   && m.sealLeak === 0                                            // no sealed side leaks (no gallery in the floor strip any more)
@@ -62,7 +66,9 @@ const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= 1.3 && m.ratio <= 2
   // M8: LEG 1'S SHALLOW ROAD CARRIES YOU EAST (the leg table's crossing band 0-42 m; "on leg 1 the shallow
   // galleries carry you east"). M7's leg-1 seed 2114845 did not: the lattice held above 42 m stopped at
   // column 97, 29 short of the island, and the naive journey bot sat at that wall for 8 runs.
-  && (leg !== 1 || m.shallowMaxCol >= m.islandC0);
+  && (leg !== 1 || m.shallowMaxCol >= m.islandC0)
+  // M9: legs 7-8 cross deep — at least 40% of the cheapest route's east metres below 84 m.
+  && (leg < 7 || m.east84 >= 0.4);
 
 // Generate chunk 0 .. island+1, wait for the stamp, measure. Runs in the page.
 async function measure(page, opts) {
@@ -203,7 +209,9 @@ async function measure(page, opts) {
     const reach = 2 * 3 * (s.config.growth.segmentLength || 25.5);
     const straight = Math.hypot(tx - root.x, ty - root.y);
     const ratioOf = (r) => (r.goal >= 0 ? r.cost / straight : Infinity);
-    const wPrice = (x, y) => priceAt[Math.max(0, Math.floor(y / K))] / reach;
+    // `gFactor` (M9's kit gates): a longer grow covers more route per dig — the plan's measured
+    // (grow / 2)^0.8, not grow / 2 (a long dig spends more of its reach dodging).
+    const wPrice = (x, y) => priceAt[Math.max(0, Math.floor(y / K))] / (reach * (+(opts && opts.gFactor) || 1));
     const shares = (path) => {
       let east = 0, e42 = 0, e84 = 0;
       for (let k = 1; k < path.length; k++) {
@@ -341,6 +349,17 @@ async function measure(page, opts) {
     };
     // The cheapest route as world points (the follower walks it).
     if (opts && opts.route) out.route = cheap.path.map((i) => [+cxW(i % W).toFixed(1), +cyW((i / W) | 0).toFixed(1)]);
+    // THE ROUTE'S POCKETS (M9 kit gates): water pockets with a cell within 3 cells (one short detour,
+    // ~108 units) of the cheapest route. The calibration rule's supply is start water + half of them.
+    {
+      const pts = cheap.path.filter((_, k) => k % 3 === 0).map((i) => [cxW(i % W), cyW((i / W) | 0)]);
+      const lim = 3 * cs; let n = 0;
+      for (const r of (sub.reservoirs || [])) {
+        const x0 = r.c0 * cs, x1 = (r.c1 + 1) * cs, y0 = sub.surfaceY + r.r0 * cs, y1 = sub.surfaceY + (r.r1 + 1) * cs;
+        if (pts.some(([x, y]) => Math.max(0, x0 - x, x - x1) <= lim && Math.max(0, y0 - y, y - y1) <= lim)) n++;
+      }
+      out.routePockets = n;
+    }
     return out;
   }, opts || {});
 }
@@ -548,7 +567,7 @@ async function follow(page, route, opts = {}) {
     const land = (s.config.mine.journey.landfallCells || 1.5) * cs;
     const cum = [0]; for (let i = 1; i < route.length; i++) cum.push(cum[i - 1] + Math.hypot(route[i][0] - route[i - 1][0], route[i][1] - route[i - 1][1]));
     const landed = () => { for (const n of net.nodes) if (!n.infected && Math.hypot(n.x - tx, n.y - ty) <= land) return n; return null; };
-    let k = 0, digs = 0, refused = 0, stall = 0, best = 0;
+    let k = 0, digs = 0, refused = 0, stall = 0, best = 0, spent = 0;
     const maxDigs = o.maxDigs || 400, ahead = o.ahead || 70, near = o.near || 16;
     let hit = landed();
     // `stopWithin` (M8's landfall check): stop once a clean strand is within that many units of the knot
@@ -578,9 +597,10 @@ async function follow(page, route, opts = {}) {
       const r = g.mine.growFrom(src.x, src.y, route[t][0], route[t][1]);
       digs++;
       if (!r || !r.ok) refused++;
+      else spent += (r.cost | 0);
       hit = landed();
     }
-    const out = { near: +nearKnot().toFixed(1), landed: !!hit, digs, refused, routeFrac: +(best / Math.max(1, route.length - 1)).toFixed(3), nodes: net.nodes.length, over: !!s.runOver };
+    const out = { near: +nearKnot().toFixed(1), landed: !!hit, digs, refused, spent, routeFrac: +(best / Math.max(1, route.length - 1)).toFixed(3), nodes: net.nodes.length, over: !!s.runOver };
     if (hit) {
       let east = 0, e42 = 0, maxM = 0, len = 0;
       for (let n = hit; n && n.parentId != null;) {
@@ -598,6 +618,160 @@ async function follow(page, route, opts = {}) {
   }, [route, opts]);
 }
 
+// THE NAVIGATOR TO THE TAPROOT (M9 kit gates). `follow` digs ONE route planned before the first dig, so
+// a long dig that lands off it is wasted and the kit's longer grow bought 0.72x the digs instead of the
+// plan's ~0.5x. This one RE-PLANS after every dig: A* over the fine mask (8-neighbour, no corner cutting)
+// from EVERY clean strand to landfall range of the knot, each step costing its length x the dig price at
+// its depth (at the run's own prices: the kit is on the config) / one dig's reach, x1.5 beside a wall and
+// x3 against one (a dig along a wall is refused more); then it digs from the strand the path starts at
+// toward the path point `ahead` units along it, shortening the look-ahead and trying the next strand on a
+// refusal. Threats and trich out, the tank topped up, the node cap lifted (like `follow`): the answer is
+// the water the accepted digs were CHARGED, i.e. what the route costs a player who reads the map.
+async function navigate(page, o = {}) {
+  return page.evaluate(async (o) => {
+    const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, net = s.active;
+    s.nematodes.length = 0; s.clouds.length = 0;
+    for (const c of sub.cells) if (c && c.trich) c.trich = 0;
+    s.config.growth.maxNodes = 1e6;
+    const lay = g.mine.leg().layout, cw = s.config.mine.chunkCols;
+    const fsz = sub._fineSize, W = sub._fineCols, Hh = sub._fineRows, solid = sub._fineSolid, K = Math.round(cs / fsz);
+    const tx = (lay.taproot.col + 0.5) * cs, ty = sub.surfaceY + (lay.taproot.row + 0.5) * cs;
+    const land = (s.config.mine.journey.landfallCells || 1.5) * cs;
+    const cis = g.mine.chunks();
+    const fx0 = Math.min(...cis) * cw * K, fx1 = Math.min(W - 1, (Math.max(...cis) + 1) * cw * K - 1);
+    const cxW = (x) => (x + 0.5) * fsz, cyW = (y) => sub.surfaceY + (y + 0.5) * fsz;
+    const open = (x, y) => x >= fx0 && x <= fx1 && y >= 1 && y < Hh && !solid[y * W + x];
+    const priceAt = []; for (let m = 0; m <= sub.rows + 2; m++) priceAt.push(g.mine.cost(m));
+    const reachU = g.mine.steps() * 3 * (s.config.growth.segmentLength || 25.5);
+    const minP = Math.min(...priceAt);
+    // clearance, 0..3 fine cells
+    const clr = new Uint8Array(W * Hh).fill(3);
+    { let q = [];
+      for (let y = 0; y < Hh; y++) for (let x = fx0; x <= fx1; x++) if (solid[y * W + x]) { clr[y * W + x] = 0; q.push(y * W + x); }
+      for (let d = 0; d < 3 && q.length; d++) { const nq = [];
+        for (const i of q) { const y = (i / W) | 0, x = i % W;
+          for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy;
+            if (nx < fx0 || nx > fx1 || ny < 0 || ny >= Hh) continue; const j = ny * W + nx;
+            if (clr[j] > d + 1) { clr[j] = d + 1; nq.push(j); } } }
+        q = nq; } }
+    const wf = (i) => (clr[i] >= 3 ? 1 : clr[i] === 2 ? 1.5 : 3);
+    const isLand = (x, y) => Math.hypot(cxW(x) - tx, cyW(y) - ty) <= land;
+    const E8 = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]];
+    const gsc = new Float32Array(W * Hh), prev = new Int32Array(W * Hh), stamp = new Int32Array(W * Hh);
+    let epoch = 0;
+    const plan = () => {
+      epoch++;
+      const hk = [], hv = [];
+      const push = (k, v) => { hk.push(k); hv.push(v); let i = hk.length - 1;
+        while (i > 0) { const p = (i - 1) >> 1; if (hv[p] <= hv[i]) break; [hk[p], hk[i]] = [hk[i], hk[p]]; [hv[p], hv[i]] = [hv[i], hv[p]]; i = p; } };
+      const pop = () => { const k = hk[0], lk = hk.pop(), lv = hv.pop();
+        if (hk.length) { hk[0] = lk; hv[0] = lv; let i = 0;
+          for (;;) { const a = 2 * i + 1, b = a + 1; let m = i;
+            if (a < hk.length && hv[a] < hv[m]) m = a; if (b < hk.length && hv[b] < hv[m]) m = b;
+            if (m === i) break; [hk[m], hk[i]] = [hk[i], hk[m]]; [hv[m], hv[i]] = [hv[i], hv[m]]; i = m; } }
+        return k; };
+      const h = (x, y) => Math.max(0, Math.hypot(cxW(x) - tx, cyW(y) - ty) - land) * minP / reachU;
+      const srcOf = new Map();
+      for (const n of net.nodes) { if (n.infected) continue;
+        const x = Math.floor(n.x / fsz), y = Math.floor((n.y - sub.surfaceY) / fsz);
+        if (!open(x, y)) continue; const i = y * W + x;
+        if (stamp[i] === epoch) continue; stamp[i] = epoch; gsc[i] = 0; prev[i] = -1; srcOf.set(i, n); push(i, h(x, y)); }
+      const closed = new Set();
+      let goal = -1, pops = 0;
+      while (hk.length) {
+        const i = pop(); if (closed.has(i)) continue; closed.add(i); pops++;
+        const y = (i / W) | 0, x = i % W;
+        if (isLand(x, y)) { goal = i; break; }
+        for (const [dx, dy] of E8) {
+          const nx = x + dx, ny = y + dy; if (!open(nx, ny)) continue;
+          if (dx && dy && (!open(x + dx, y) || !open(x, y + dy))) continue;
+          const j = ny * W + nx; if (closed.has(j)) continue;
+          const c = Math.hypot(dx, dy) * fsz * priceAt[Math.floor(ny / K)] * wf(j) / reachU;
+          const nd = gsc[i] + c;
+          if (stamp[j] !== epoch || nd < gsc[j]) { stamp[j] = epoch; gsc[j] = nd; prev[j] = i; push(j, nd + h(nx, ny)); }
+        }
+      }
+      if (goal < 0) return null;
+      const path = []; let i = goal;
+      while (i >= 0) { path.push(i); if (srcOf.has(i)) break; i = prev[i]; }
+      path.reverse();
+      return { src: srcOf.get(path[0]), pts: path.map((k) => [cxW(k % W), cyW((k / W) | 0)]), pops, cost: gsc[goal] };
+    };
+    const landed = () => { for (const n of net.nodes) if (!n.infected && Math.hypot(n.x - tx, n.y - ty) <= land) return true; return false; };
+    let digs = 0, refused = 0, spent = 0, plans = 0, fails = 0, pops = 0;
+    const maxDigs = o.maxDigs || 300, ahead = o.ahead || 0.6 * reachU;
+    let P = null; const trace = []; let bestCost = Infinity, flat = 0, stallRot = 0, stalls = 0;
+    while (!landed() && digs < maxDigs && !s.runOver && fails < 24) {
+      if (!P || fails === 0) {
+        P = plan(); plans++; if (!P) break; pops += P.pops;
+        // NO PROGRESS IS A REFUSAL TOO: a dig can "succeed" with one filament against a wall and leave
+        // the plan exactly as it was, forever. Three accepted digs that do not cut the remaining plan
+        // cost by 2% count as a failed press, so the look-ahead and the source rotate.
+        if (P.cost < bestCost * 0.98) { bestCost = P.cost; flat = 0; } else if (++flat >= 3) { fails = 1 + (stallRot++ % 11); flat = 0; stalls++; }
+      }
+      const A = ahead * [1, 0.5, 0.25, 1.5, 0.75, 0.35][fails % 6];
+      let t = 0, acc = 0;
+      while (t < P.pts.length - 1 && acc < A) { acc += Math.hypot(P.pts[t + 1][0] - P.pts[t][0], P.pts[t + 1][1] - P.pts[t][1]); t++; }
+      // the source: the path's own strand, or on repeated refusals another strand near the path's start
+      let src = P.src;
+      if (fails >= 6) {
+        const [px, py] = P.pts[Math.min(P.pts.length - 1, 2)];
+        const near = net.nodes.filter((n) => !n.infected).map((n) => [(n.x - px) ** 2 + (n.y - py) ** 2, n]).sort((a, b) => a[0] - b[0]);
+        src = near[Math.min(near.length - 1, 1 + Math.floor(fails / 6))][1];
+      }
+      net.water = 9999;
+      const r = g.mine.growFrom(src.x, src.y, P.pts[t][0], P.pts[t][1]);
+      if (r && r.ok) { digs++; spent += (r.cost | 0); fails = 0; }
+      else { refused++; fails++; }
+      if (stalls > 60) break;
+      if (o.trace && trace.length < 400) trace.push([digs, r && r.ok ? 1 : 0, Math.round(src.x), Math.round(src.y), Math.round(P.pts[t][0]), Math.round(P.pts[t][1]), P.pts.length, r && r.made, r && r.message && r.message.slice(0, 20)]);
+      if (digs % 8 === 7) await new Promise((res) => setTimeout(res, 0));
+    }
+    let nearest = Infinity; for (const n of net.nodes) if (!n.infected) nearest = Math.min(nearest, Math.hypot(n.x - tx, n.y - ty));
+    return { landed: landed(), digs, refused, spent, plans, pops, stalls, near: +nearest.toFixed(1), nodes: net.nodes.length, trace: o.trace ? trace : undefined };
+  }, o);
+}
+
+// THE ARRIVAL KIT PER LEG (M9; the plan's leg table, the LOW end of every range, rungs bought — Water
+// +12 each, Grow +1 step each, Heat +14 m each). Leg 7 names no grow or heat: it keeps leg 6's. Leg 8 is
+// "the full kit".
+const KIT = {
+  1: { water: 1, grow: 1, heat: 0 },
+  2: { water: 3, grow: 2, heat: 1, flask: 1 },
+  3: { water: 4, grow: 3, heat: 2 },
+  4: { water: 5, grow: 3, heat: 3, enzyme: 1 },
+  5: { water: 6, grow: 4, heat: 4 },
+  6: { water: 6, grow: 4, heat: 4, enzyme: 2 },
+  7: { water: 7, grow: 4, heat: 4, flask: 2, enzyme: 2 },
+  8: { water: 8, grow: 4, heat: 4, flask: 3, enzyme: 3 },
+};
+const BARE = { water: 0, grow: 0, heat: 0 };
+// NAVIGATOR WATER WITH A KIT (M9 acceptance 2, the plan's calibration rule G8): the kit goes onto the
+// live run's config (grow steps, heat bonus), the cheapest route is re-planned at the kit's prices and
+// reach, and REAL growth (`follow`) digs it, summing what each accepted dig charged. `supply` is the
+// kit's start water plus half the route's pockets (+10 each). `frac` = spent / supply. Plays the leg
+// fresh first, since a follow grows the colony.
+async function kitWater(page, leg, seed, kit) {
+  await playLeg(page, leg, seed);
+  const sw = await page.evaluate((k) => {
+    const s = window.__game.state, base = window.__cfg.mine.startWater | 0;
+    s.config.mine.growSteps = 2 + (k.grow | 0);
+    s.config.mine.heatBonus = 14 * (k.heat | 0);
+    return base + 12 * (k.water | 0);
+  }, kit);
+  const m = await measure(page, { route: true, gFactor: Math.pow((2 + (kit.grow | 0)) / 2, 0.8) });
+  // The look-ahead scales with the dig's reach (70 units is a grow-2 dig's half): aimed 70 units ahead,
+  // a grow-5 dig still lands wherever its fan goes and the follower re-aims from the nearest strand, so
+  // the kit's longer dig bought 0.72x the digs where the plan's model says 0.48x.
+  const reachU = 3 * (2 + (kit.grow | 0)) * 25.5;
+  const f = process.env.KIT_FOLLOW ? await follow(page, m.route, { ahead: +(process.env.KIT_AHEAD || 0.6) * reachU })
+    : await navigate(page, { ahead: +process.env.KIT_ABS || 100 });
+  const supply = sw + 5 * (m.routePockets | 0);
+  return { startWater: sw, pockets: m.routePockets, supply, model: m.water, spent: f.spent, landed: f.landed,
+           frac: +(f.spent / supply).toFixed(3), modelFrac: +(m.water / supply).toFixed(3),
+           east42: m.east42, east84: m.east84, digs: f.digs, routeFrac: f.routeFrac };
+}
+
 async function playLeg(page, leg, seed) {
   await page.evaluate(([l, sd]) => window.__game.mine.playLeg(1, l, sd), [leg, seed || 0]);
   await page.waitForFunction(([l, sd]) => {
@@ -613,13 +787,14 @@ async function openLeg(E, leg, seed, vw = 390, vh = 844, file) {
   return b;
 }
 
-module.exports = { measure, world, follow, playLeg, openLeg, PASS, WPASS, PILLAR_OK };
+module.exports = { measure, world, follow, navigate, playLeg, openLeg, kitWater, KIT, BARE, PASS, WPASS, PILLAR_OK, KIT_OK };
 
 if (require.main === module) (async () => {
   const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
   const legs = arg('--legs', '1,2,3').split(',').map(Number);
   const pick = +arg('--pick', 0), seedArg = +arg('--seed', 0), check = process.argv.includes('--check');
   const doFollow = process.argv.includes('--follow');
+  const doKit = process.argv.includes('--kit');       // M9: navigator water with the arrival and bare kits
   const file = arg('--file', null);     // e.g. a snapshot of index.html under the repo root
   const E = await H.start();
   let bad = 0;
@@ -636,6 +811,12 @@ if (require.main === module) (async () => {
         const route = m.route; delete m.route;
         console.log(`leg ${leg} seed ${m.seed}: ${ok ? 'PASS' : 'FAIL'} ` + JSON.stringify(m));
         if (doFollow && route && route.length) console.log(`  follow: ` + JSON.stringify(await follow(b.page, route)));
+        if (doKit) {
+          const kk = await kitWater(b.page, leg, m.seed, KIT[leg] || KIT[8]), bb = await kitWater(b.page, leg, m.seed, BARE);
+          const kok = KIT_OK(leg, kk, bb, m);
+          if (!kok) bad++;
+          console.log(`  kit ${kok ? 'PASS' : 'FAIL'} arrival ` + JSON.stringify(kk) + '\n      bare ' + JSON.stringify(bb));
+        }
       } else {
         const good = [];
         for (let k = 0; k < pick; k++) {
@@ -649,26 +830,37 @@ if (require.main === module) (async () => {
             m = await measure(b.page);
             ok = PASS(m, leg);
             if (ok) { const w = await world(b.page); m.world = w; ok = WPASS(w); }
+            // M9: the kit gates on a candidate that passed the map gates (two real navigations).
+            if (ok && doKit) {
+              m.kit = await kitWater(b.page, leg, sd, KIT[leg] || KIT[8]);
+              m.bare = (leg >= 3 && m.kit.frac <= 0.70) ? await kitWater(b.page, leg, sd, BARE) : null;
+              ok = KIT_OK(leg, m.kit, m.bare, m);
+            }
           } catch (e) {
             console.log(`leg ${leg} cand ${k} seed ${sd}: ERROR ${String(e && e.message || e).slice(0, 120)}`);
             await b.ctx.close().catch(() => {}); b = await openLeg(E, leg, 0, 390, 844, file);
             continue;
           }
           if (ok) good.push(m);
-          console.log(`leg ${leg} cand ${k} seed ${sd}: ${ok ? 'PASS' : '    '} reach ${m.reach}/${m.reachLat} ratio ${m.ratio} (fine ${m.ratioFine}) water ${m.water} e42 ${m.east42} e84 ${m.east84} shallow ${m.shallowMaxCol} crust ${m.crustMaxCol} lat ${m.lateral} seam ${m.seamRunRows} leak ${m.sealLeak}/${m.sealN} creat ${m.shallowestRow} tapRep ${m.tapRec && m.tapRec.repairs}${m.world ? ` | world lat ${m.world.lateral} ore ${m.world.pilesOk}/${m.world.piles} pk ${m.world.pocketsOk}/${m.world.pockets} seam ${m.world.seamSolid}/${m.world.midSolid} spine ${m.world.spineSeam}/${m.world.spineMid90} hair ${m.world.hairSeam}/${m.world.hairMid} pillar ${m.world.pillarSeam}/${m.world.pillarMid90} p90 ${m.world.pillarSeam90}/${m.world.pillarMidMax} run ${m.world.pillarRunSeam}/${m.world.pillarRunMid}` : ''}`);
+          console.log(`leg ${leg} cand ${k} seed ${sd}: ${ok ? 'PASS' : '    '} reach ${m.reach}/${m.reachLat} ratio ${m.ratio} (fine ${m.ratioFine}) water ${m.water} e42 ${m.east42} e84 ${m.east84} shallow ${m.shallowMaxCol} crust ${m.crustMaxCol} lat ${m.lateral} seam ${m.seamRunRows} leak ${m.sealLeak}/${m.sealN} creat ${m.shallowestRow} tapRep ${m.tapRec && m.tapRec.repairs}${m.world ? ` | world lat ${m.world.lateral} ore ${m.world.pilesOk}/${m.world.piles} pk ${m.world.pocketsOk}/${m.world.pockets} seam ${m.world.seamSolid}/${m.world.midSolid} spine ${m.world.spineSeam}/${m.world.spineMid90} hair ${m.world.hairSeam}/${m.world.hairMid} pillar ${m.world.pillarSeam}/${m.world.pillarMid90} p90 ${m.world.pillarSeam90}/${m.world.pillarMidMax} run ${m.world.pillarRunSeam}/${m.world.pillarRunMid}` : ''}${m.kit ? ` | kit ${m.kit.frac} (${m.kit.spent}/${m.kit.supply}, ${m.kit.digs} digs, landed ${m.kit.landed}) bare ${m.bare ? m.bare.frac : '-'} e84 ${m.east84} tap ${m.tapRec && m.tapRec.col},${m.tapRec && m.tapRec.row}` : ''}`);
         }
         console.log(`leg ${leg}: ${good.length} of ${pick} candidates pass`);
         // Prefer a ratio near the middle of the band, then (legs 2+) the deepest crossing.
         good.sort((a, b2) => Math.abs(a.ratio - 1.6) - Math.abs(b2.ratio - 1.6));
         // The lattice is an upper bound on what growth passes: DIG the top few, and keep only those
         // real growth can follow to the taproot.
-        for (const m of good.slice(0, 5)) {
+        for (const m of good.slice(0, +arg('--dig', 5))) {
           try {
             await b.ctx.close().catch(() => {}); b = await openLeg(E, leg, 0, 390, 844, file);
             await playLeg(b.page, leg, m.seed);
             const r = await measure(b.page, { route: true });
             const f = await follow(b.page, r.route);
-            console.log('  ', m.seed, 'follow', JSON.stringify(f), JSON.stringify(Object.assign({}, m, { route: undefined })));
+            console.log('  ', m.seed, 'follow', JSON.stringify(f), JSON.stringify(Object.assign({}, m, { route: undefined, world: undefined })));
+            // M9: the kit gates, on every candidate real growth can follow.
+            if (f.landed) {
+              const kk = await kitWater(b.page, leg, m.seed, KIT[leg] || KIT[8]), bb = await kitWater(b.page, leg, m.seed, BARE);
+              console.log('  ', m.seed, 'kit', KIT_OK(leg, kk, bb, m) ? 'KIT_OK' : 'kit-fail', 'arrival', JSON.stringify(kk), 'bare', JSON.stringify(bb));
+            }
           } catch (e) { console.log('  ', m.seed, 'follow ERROR', String(e && e.message || e).slice(0, 120)); }
         }
       }

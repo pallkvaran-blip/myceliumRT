@@ -3942,6 +3942,26 @@ const CONFIG = {
           sealByBand: [0.55, 0.12, 0.12], rule: 'standard', bonus: 30, ruleLine: 'Worms from 42 m' },
         { leg: 3, name: 'Dry Ground', seed: 36103, E: 8, eastM: 192, depthM: 72,
           sealByBand: [0.70, 0.12, 0.12], rule: 'dry', bonus: 40, ruleLine: 'No water pockets above 42 m' },
+        // LEGS 4-8 (M9). Each row's rule is spelled out as the EXISTING knobs it overrides on the run's
+        // config clone (main.js `configForLevel`): `threatBands` (a whole table, per 42 m band),
+        // `reservoirsPerBand`, `richChance`, `safeDepth` (heat's first line). `islandCols` widens the
+        // island (leg 8's double-width Promised Land). Seeds: legprobe --pick (PASS + WPASS + the kit gates).
+        { leg: 4, name: 'Mould Country', seed: 1, E: 9, eastM: 216, depthM: 92,
+          sealByBand: [0.70, 0.12, 0.12], rule: 'mould', bonus: 50, ruleLine: 'Mould from 42 m',
+          threatBands: [{ worms: 0, clouds: 0 }, { worms: 1, clouds: 1 }, { worms: 1, clouds: 1 }, { worms: 2, clouds: 1 }] },
+        { leg: 5, name: 'Rich Veins', seed: 1, E: 11, eastM: 264, depthM: 104,
+          sealByBand: [0.75, 0.20, 0.12], rule: 'rich', bonus: 60, ruleLine: 'One deep seam in two is rich',
+          richChance: 0.5 },
+        { leg: 6, name: 'Hot Rock', seed: 1, E: 10, eastM: 240, depthM: 112,
+          sealByBand: [0.75, 0.20, 0.12], rule: 'hot', bonus: 70, ruleLine: 'Price lines 6 m shallower',
+          safeDepth: 36 },
+        { leg: 7, name: 'The Swarm', seed: 1, E: 13, eastM: 312, depthM: 126,
+          sealByBand: [0.75, 0.60, 0.12], rule: 'swarm', bonus: 85, ruleLine: 'Twice the worms below 42 m',
+          threatBands: [{ worms: 0, clouds: 0 }, { worms: 2, clouds: 0 }, { worms: 2, clouds: 1 }, { worms: 4, clouds: 1 }] },
+        { leg: 8, name: 'The Promised Land', seed: 1, E: 15, eastM: 360, depthM: 140,
+          sealByBand: [0.75, 0.65, 0.12], rule: 'promised', bonus: 150, ruleLine: 'More worms and mould below 84 m',
+          islandCols: 24,
+          threatBands: [{ worms: 0, clouds: 0 }, { worms: 1, clouds: 0 }, { worms: 2, clouds: 2 }, { worms: 3, clouds: 2 }] },
       ],
     },
   },
@@ -22253,7 +22273,7 @@ function mineJourneyLayout(config, journey, leg) {
   const cw = M.chunkCols | 0;
   const homeCol = (J.homeChunk | 0) * cw + (cw >> 1);
   const col = homeCol + Math.round(row.eastM), rowR = Math.round(row.depthM);
-  const ic = J.islandCols | 0 || 12;
+  const ic = (row.islandCols | 0) || (J.islandCols | 0) || 12;
   return {
     journey: Math.max(1, journey | 0 || 1), leg: row.leg, name: row.name, rule: row.rule || 'standard',
     homeCol, islandC0: col - (ic >> 1), islandC1: col - (ic >> 1) + ic - 1,
@@ -35308,6 +35328,12 @@ function configForLevel(level) {
         cfg.mine.islandBonus = rec && rec.landed ? 0 : Math.max(0, (row && row.bonus) | 0);
       } catch (_) { cfg.mine.islandBonus = Math.max(0, (row && row.bonus) | 0); }
       if (rule === 'calm') cfg.mine.threatBands = cfg.mine.threatBands.map(() => ({ worms: 0, clouds: 0 }));
+      // LEGS 4-8 (M9): the row names the knobs it overrides, and they are copied as written — so "on
+      // leg 7 state.config.mine.threatBands equals the table row" is true by construction.
+      if (row && Array.isArray(row.threatBands)) cfg.mine.threatBands = JSON.parse(JSON.stringify(row.threatBands));
+      if (row && Array.isArray(row.reservoirsPerBand)) cfg.mine.reservoirsPerBand = row.reservoirsPerBand.map((v) => v | 0);
+      if (row && row.richChance != null) cfg.mine.richChance = Math.max(0, Math.min(1, +row.richChance));
+      if (row && row.safeDepth != null) cfg.mine.heat = Object.assign({}, cfg.mine.heat, { safeDepth: Math.max(0, row.safeDepth | 0) });
       if (rule === 'dry') {
         const n = Array.isArray(cfg.mine.reservoirsPerBand) ? cfg.mine.reservoirsPerBand : cfg.mine.bands.map(() => cfg.mine.reservoirsPerBand | 0);
         cfg.mine.reservoirsPerBand = n.map((v, i) => (i === 0 ? 0 : v | 0));
@@ -40732,7 +40758,8 @@ function advanceSim(time) {
 // `zoom` is therefore the zoom AT THE REFERENCE SURFACE (`refHeight`, the phone this project measures
 // at), scaled to whatever surface we actually got. On the reference phone it is 0.85 exactly.
 function mineZoom() {
-  const M = CONFIG.mine || {};
+  // The RUN's config (M9): a leg or level override of the zoom must reach the camera.
+  const M = (state && state.config && state.config.mine) || CONFIG.mine || {};
   const z = M.zoom || 0.85, ref = Math.max(200, M.refHeight || 844);
   const want = z * ((camera.viewH || ref) / ref);
   return Math.max(want, camera.minZoomForBounds());
@@ -40751,7 +40778,8 @@ function mineMap() { return !!(state && state.substrate && state.substrate.mine)
 // with the rest of the mine's framing.
 function mineClampZoom() {
   if (!mineMap()) return;
-  const r = (CONFIG.mine && CONFIG.mine.zoomRange) || [0.4, 2.2];
+  const Mz = (state && state.config && state.config.mine) || CONFIG.mine;
+  const r = (Mz && Mz.zoomRange) || [0.4, 2.2];
   const rest = mineZoom();
   const lo = Math.max(camera.minZoomForBounds(), rest * r[0]), hi = Math.max(lo, rest * r[1]);
   camera.zoom = Math.max(lo, Math.min(hi, camera.zoom));
@@ -40833,14 +40861,16 @@ function mineFollowCamera(time, dt) {
 // ask, and its job is to give each new rock type a moment — a boundary you cross with nothing
 // said is a texture change nobody reads as progress.
 function mineBeat(depth) {
-  const b = mineBandAt(CONFIG, depth);
+  // The RUN's config (M9): a leg's bands and rows, not the literal's.
+  const C = (state && state.config) || CONFIG;
+  const b = mineBandAt(C, depth);
   if (b <= mineBeatBand) return;
   mineBeatBand = b;
   if (b === 0) return;                    // arriving in band 1 is arriving in the mine, not crossing into it
-  const band = CONFIG.mine.bands[b];
+  const band = C.mine.bands[b];
   // ...AND THE PRICE, WHEN A PRICE LINE SITS AT THE BAND'S TOP (M4.5): 'Digs now cost 4' at 42 m.
-  showMineBeat(`${b * CONFIG.mine.bandRows} m`, band.name, mineBeatCostLine(b * CONFIG.mine.bandRows));
-  state.log(`${band.name} — ${b * CONFIG.mine.bandRows} m down.`, 'good');
+  showMineBeat(`${b * C.mine.bandRows} m`, band.name, mineBeatCostLine(b * C.mine.bandRows));
+  state.log(`${band.name} — ${b * C.mine.bandRows} m down.`, 'good');
 }
 
 // The beat's element. ONE at a time, replaced rather than stacked: two bands cannot legitimately
@@ -41227,7 +41257,7 @@ function drawMineJourney(time) {
 // (see `mineBeat`); a line that heat tolerance has moved off a band boundary gets a small beat of
 // its own the first time a strand passes it (the price rises strictly BEYOND a line).
 function mineLineBeats(depth) {
-  const o = state._mineOnb, br = CONFIG.mine.bandRows;
+  const o = state._mineOnb, br = state.config.mine.bandRows;
   for (const L of mineHeatLines(state.config)) {
     if (o.lineBeat[L] || depth <= L) continue;
     o.lineBeat[L] = true;
