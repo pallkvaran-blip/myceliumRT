@@ -31162,7 +31162,7 @@ const __m_render_species_select = (function () {
   const { cardSlug, SPORE_ICON } = __m_render_ui;
   const { logEvent } = __m_net_scores;
   const { growMyceliumTitle } = __m_render_mycelium_title;
-  const { mineHeatLines } = __m_engine_mine;
+  const { mineHeatLines, mineLegRow } = __m_engine_mine;
 // =============================================================================
 // Start-of-run species picker + between-level campaign overlays (in-game).
 //
@@ -31689,10 +31689,22 @@ function mineNextGoal(progress, where) {
 }
 // The heat staircase in words, off the same `mineHeatLines` the price is — shifted by tolerance:
 // 'digs cost 2, then 4 / 8 / 16 past 42 / 84 / 126 m'.
+// THE NEXT DESCENT'S HEAT (M9 verify): the store sits between runs, and the next DIG plays the save's
+// journey leg — leg 6 ('Hot Rock') starts the first line at 36 m, so quoting the literal's 42 there
+// promised six metres of base price the run would not give. Off the leg row the next descent plays.
+function mineNextHeat(progress) {
+  const h = Object.assign({}, CONFIG.mine.heat || {});
+  try {
+    const mj = progress && progress.mineJourney;
+    const row = mineLegRow(CONFIG, (mj && mj.leg) | 0 || 1);
+    if (row && row.safeDepth != null) h.safeDepth = Math.max(0, row.safeDepth | 0);
+  } catch (_) {}
+  return h;
+}
 function mineHeatWords(progress) {
   const b = storeBonuses(progress);
   const base = Math.max(1, (CONFIG.mine.growWaterCost | 0) || 2);
-  const lines = mineHeatLines({ mine: Object.assign({}, CONFIG.mine, { heatBonus: Math.max(0, b.heatTolerance | 0) }) });
+  const lines = mineHeatLines({ mine: Object.assign({}, CONFIG.mine, { heat: mineNextHeat(progress), heatBonus: Math.max(0, b.heatTolerance | 0) }) });
   if (!lines.length) return 'digs cost ' + base;
   const prices = lines.map((_, i) => base * Math.pow(2, i + 1));
   return 'digs cost ' + base + ', then ' + prices.join(' / ') + ' past ' + lines.join(' / ') + ' m';
@@ -31723,7 +31735,7 @@ function upgradeTile(u, progress, onBuy, opts) {
   if (mineShelf && cp && cp.m !== 'phosphorus') eff += ' <span class="ss-upg-where">Next rung: ' + cp.n + ' ' + esc(matName(cp.m)) + ', found at ' + mineMatWhere(cp.m) + '.</span>';
   let mineNow = null;
   if (mineShelf) {
-    if (u.id === 'heatTolerance') mineNow = 'line ' + ((((CONFIG.mine.heat || {}).safeDepth) | 0) + (have | 0)) + ' m';
+    if (u.id === 'heatTolerance') mineNow = 'line ' + ((mineNextHeat(progress).safeDepth | 0) + (have | 0)) + ' m';
     else if (u.id === 'growSteps') mineNow = 'grow ' + have;
     else if (u.id === 'excreteCharges' || u.id === 'amputateCharges') mineNow = 'carry ' + have;
   }
@@ -36507,7 +36519,11 @@ function presentMineEnd(r) {
                nextLeg: nx, nextName: nrow && nrow.leg === nx ? nrow.name : '',
                // EXPLICIT, not inferred from the name (M8 verify): a built leg with no name is still built.
                nextBuilt: !!(nrow && nrow.leg === nx),
-               islandEast: row ? row.eastM | 0 : 0, stripHTML: mineJourneyStripHTML(jn, 'mj-end') };
+               // THE PROMISED LAND'S STRIP IS THE JOURNEY JUST FINISHED (M9 verify): the bank has already rolled
+               // the save to Journey II, so the live strip was eight dark dots with leg 1 ringed — the empty
+               // next journey under the word ROOTED. It shows the finished one: every island lit, none next.
+               islandEast: row ? row.eastM | 0 : 0,
+               stripHTML: mineJourneyStripHTML(paid.legRec && paid.legRec.finished ? mineJourneyPast(paid.legRec.finished) || jn : jn, 'mj-end') };
     })(),
     // [Store] (secondary, `#ssMineDone`) opens the shelf; [Descend] (primary) goes straight into the
     // next run, the same `beginMineRun` the store's Descend reaches — so Buy on the next-goal card and
@@ -36713,7 +36729,7 @@ function minePendingWrite() {
     const J = state.substrate.mineJourney;
     const east = r && r.east != null ? r.east | 0 : Math.max(state.mineMaxEast | 0, mineEastReached(state));
     map[key] = { P, mats, depth, digs: r && r.digs != null ? r.digs | 0 : (state.mineDigs | 0), at: Date.now(),
-                 leg: J ? J.leg | 0 : 0, east };
+                 leg: J ? J.leg | 0 : 0, journey: J ? J.journey | 0 : 0, east };   // journey: M9 verify
     p.minePending = map;
     saveProgress(p);
     return true;
@@ -36772,7 +36788,7 @@ function minePendingBankAtBoot() {
       if (dug && !already) { p.mineRuns = mineRunsBanked(p) + 1; countRuns++; }
       // ...AND ON ITS LEG (M8 verify): runs and bests, once per run as above. A record is never a
       // landfall (a landfall is banked on the frame it happens), so this cannot move the journey on.
-      if (dug && (pend.leg | 0) > 0) mineLegApply(p, { leg: pend.leg | 0, cause: 'pending', digs: pend.digs | 0 || 1, depth: d, east: pend.east | 0 }, !already);
+      if (dug && (pend.leg | 0) > 0) mineLegApply(p, { leg: pend.leg | 0, journey: pend.journey | 0, cause: 'pending', digs: pend.digs | 0 || 1, depth: d, east: pend.east | 0 }, !already);
       if (dug && !(p.mineBest >= d)) p.mineBest = d;
       if (key !== 'legacy') {
         p.mineTaken = p.mineTaken || {};
@@ -36827,7 +36843,11 @@ function mineRoman(n) {
 }
 function mineLegRecord(p, journey, leg) {
   const mj = mineJourneySave(p);
-  const r = mj.legs[leg | 0];
+  // A journey the save has left (M9 verify): its record is in `past` — and a leg-8 run of Journey I
+  // re-checking its bonus after the Promised Land finds it landed there, not Journey II's empty leg 8.
+  const J = journey | 0;
+  const legs = J && J !== mj.journey ? ((mj.past[J] && mj.past[J].legs) || {}) : mj.legs;
+  const r = legs[leg | 0];
   return r && typeof r === 'object' ? r : null;
 }
 // What the title, the end screen and the store header say about the journey: the leg the next descent
@@ -36843,6 +36863,16 @@ function mineJourneyNow(p) {
            name: row ? row.name : '', lit, islands: lit.filter(Boolean).length, runs,
            rec: mj.legs[played] || null, done: mj.done.slice() };
 }
+// A FINISHED JOURNEY'S STRIP DATA (M9 verify), off `past`: its islands lit, no leg next (`leg` 0).
+function mineJourneyPast(J, p) {
+  const mj = mineJourneySave(p || loadProgress());
+  const pj = mj.past[J | 0];
+  if (!pj || !pj.legs) return null;
+  const lit = [];
+  for (let l = 1; l <= MINE_JOURNEY_LEGS; l++) lit.push(!!(pj.legs[l] && pj.legs[l].landed));
+  return { journey: J | 0, leg: 0, saveLeg: 0, total: MINE_JOURNEY_LEGS, name: '', lit, islands: lit.filter(Boolean).length,
+           runs: pj.runs | 0, rec: null, done: mj.done.slice(), finished: true };
+}
 // THE JOURNEY STRIP (M8): 8 dots, the islands landed lit, the leg being played ringed. One markup
 // builder for the title, the end screen and the store header, so they cannot disagree.
 function mineJourneyStripHTML(j, cls) {
@@ -36854,7 +36884,8 @@ function mineJourneyStripHTML(j, cls) {
       + ' title="Island ' + l + (on ? ' — rooted' : cur ? ' — next' : '') + '"></span>';
   }
   return '<div class="mj-strip' + (cls ? ' ' + cls : '') + '" data-lit="' + j.islands + '" data-leg="' + j.leg
-    + '" role="img" aria-label="Journey: ' + j.islands + ' of ' + j.total + ' islands rooted, leg ' + j.leg + ' next">' + dots + '</div>';
+    + '" role="img" aria-label="Journey: ' + j.islands + ' of ' + j.total + ' islands rooted'
+    + (j.leg > 0 ? ', leg ' + j.leg + ' next' : ', journey complete') + '">' + dots + '</div>';
 }
 // Records a BANKED journey descent on its leg: runs, best depth, farthest east; a landfall marks the
 // leg landed and moves the save on to the next leg. Returns the leg's record after the write.
@@ -36875,6 +36906,28 @@ function mineRecordLeg(r) {
 function mineLegApply(p, r, countRun) {
   const mj = mineJourneySave(p);
   const L = r.leg | 0;
+  // A DESCENT OF A JOURNEY THE SAVE HAS ALREADY LEFT (M9 verify): two tabs on Journey I leg 8, one lands
+  // the Promised Land and the save rolls to Journey II — the other's result (a landfall, a pending record
+  // banked at boot, or a plain dry run) belongs to Journey I. Applied to the current journey it marked
+  // Journey II's leg 8 landed, moved Journey II to leg 8 and paid the 150 bonus a second time (the bank's
+  // re-check read Journey II's empty leg 8). So it touches only that journey's record in `past`: bests
+  // and runs, never the save's leg, never a second finish. No `journey` on the result = the current one.
+  const J = r.journey | 0;
+  if (J && J !== mj.journey) {
+    const pj = mj.past[J] && typeof mj.past[J] === 'object' ? mj.past[J] : null;
+    const old = (pj && pj.legs && pj.legs[L]) || {};
+    const rec0 = Object.assign({ runs: 0, bestDepth: 0, bestEast: 0, landed: false }, old);
+    const was0 = { depth: rec0.bestDepth | 0, east: rec0.bestEast | 0, landed: !!rec0.landed };
+    if (pj && pj.legs) {
+      if (countRun && (r.digs | 0) > 0) { rec0.runs = (rec0.runs | 0) + 1; pj.runs = (pj.runs | 0) + 1; }
+      rec0.bestDepth = Math.max(rec0.bestDepth | 0, r.depth | 0);
+      rec0.bestEast = Math.max(rec0.bestEast | 0, r.east | 0);
+      if (mineLandfall(r.cause)) rec0.landed = true;
+      pj.legs[L] = rec0;
+    }
+    p.mineJourney = { journey: mj.journey, leg: mj.leg, legs: mj.legs, done: mj.done, past: mj.past };
+    return Object.assign({}, rec0, { was: was0, firstLand: false, finished: 0, stale: true });
+  }
   const rec = Object.assign({ runs: 0, bestDepth: 0, bestEast: 0, landed: false }, mj.legs[L] || {});
   const was = { depth: rec.bestDepth | 0, east: rec.bestEast | 0, landed: !!rec.landed };
   if (countRun && (r.digs | 0) > 0) rec.runs = (rec.runs | 0) + 1;

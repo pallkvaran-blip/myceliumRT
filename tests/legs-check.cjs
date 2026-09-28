@@ -28,7 +28,11 @@
  *            and the mine's own frame code walks the whole colony at most twice in any frame
  *            (`mine.passes()`, counted by `mineNodePass`).
  *
- * `LEGS_ONLY=rules,legs,finale,perf` runs a subset. Screens: tests/.artifacts/m9-*-390.png.
+ *   stale    (M9 verify) two tabs on Journey I leg 8: the second landfall, after the first rolled the save to
+ *            Journey II, pays no second bonus and leaves Journey II untouched (its record goes to `past`).
+ *   store6   (M9 verify) the store on a leg-6 save quotes leg 6's price lines (36 m), not the literal's 42.
+ *
+ * `LEGS_ONLY=rules,legs,finale,stale,store6,perf` runs a subset. Screens: tests/.artifacts/m9-*-390.png.
  */
 const path = require('path'), fs = require('fs');
 const H = require('./mine-harness.cjs');
@@ -175,6 +179,12 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
         why: (document.querySelector('#ssMineEnd .ss-mineend-why') || {}).textContent, btns: Array.from(document.querySelectorAll('#ssMineEnd button')).map((x) => x.id),
         bonus: Array.from(document.querySelectorAll('#ssMineEnd .ss-me-row')).map((r) => r.textContent).find((x) => /Island bonus/.test(x)) || '' }));
       await shot(b.page, 'm9-promised-rooted-390.png');
+      // THE STRIP UNDER ROOTED IS THE JOURNEY JUST FINISHED (M9 verify): the bank has already rolled the save
+      // to Journey II, and the live strip was eight dark dots with leg 1 ringed.
+      const strip = await b.page.evaluate(() => { const el = document.querySelector('#ssMineEnd .mj-strip');
+        return el ? { lit: el.querySelectorAll('.mj-dot.lit').length, cur: el.querySelectorAll('.mj-dot.cur').length, aria: el.getAttribute('aria-label') } : null; });
+      ok("ROOTED's journey strip is Journey I finished: 8 of 8 lit, none ringed next", !!strip && strip.lit === 8 && strip.cur === 0 && /8 of 8 islands rooted, journey complete/.test(strip.aria),
+         JSON.stringify(strip));
       ok('ROOTED says the Promised Land, carries the island bonus row, and has one button (Continue)', end.word === 'Rooted' && end.why === 'Your colony took root on the Promised Land.'
          && JSON.stringify(end.btns) === '["ssMineFinale"]' && /150/.test(end.bonus), JSON.stringify(end));
       await b.page.click('#ssMineFinale').catch(() => {});
@@ -236,6 +246,77 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
       ok('a tap on the finale skips to the credits', !!sk && sk.credits && sk.skipped && sk.creditsOpen && sk.bursts < 8, JSON.stringify(sk && { b: sk.bursts, credits: sk.credits, skipped: sk.skipped }));
       ok('no page errors (skip)', !b2.errs.length, b2.errs.slice(0, 2).join(' | '));
       await b2.ctx.close();
+    }
+    // ======================================================================================
+    if (want('stale')) {
+      // TWO TABS ON JOURNEY I LEG 8 (M9 verify). Tab A lands the Promised Land and the save rolls to Journey
+      // II; tab B, still on Journey I, lands after it. Before the fix B's result was applied to the CURRENT
+      // journey: Journey II's leg 8 marked landed, Journey II moved to leg 8, and the 150 bonus paid again
+      // (the bank's re-check read Journey II's empty leg 8).
+      console.log('— a stale Journey I tab landing after the Promised Land');
+      const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 } });
+      const init = { before: async (page) => page.addInitScript((o) => {
+        if (!localStorage.getItem('mycelium.progress.v2')) localStorage.setItem('mycelium.progress.v2', JSON.stringify(o)); }, LEG8_SAVE), ctx };
+      const a = await E.boot('#leg,1,8', 390, 844, init);
+      await waitLeg(a.page, 8);
+      const bb = await E.boot('#leg,1,8', 390, 844, init);
+      await waitLeg(bb.page, 8);
+      const land = (page) => page.evaluate(async () => {
+        const g = window.__game, s = g.state;
+        s.active.water = 999; g.mine.grow(0, 1);
+        await new Promise((r) => setTimeout(r, 200));
+        const w0 = g.store.balance(), bonusCfg = s.config.mine.islandBonus;
+        g.mine.plantAtTaproot();
+        for (let k = 0; k < 80 && !s.runOver; k++) await new Promise((r) => setTimeout(r, 25));
+        await new Promise((r) => setTimeout(r, 300));
+        const r = s.runResult || {};
+        return { cause: r.cause, ore: r.ore, bonus: r.bonus, reach: r.reach, seams: r.seams, w0, w1: g.store.balance(), bonusCfg };
+      });
+      const A = await land(a.page);
+      const sA = await save(a.page);
+      const B = await land(bb.page);
+      const sB = await save(bb.page);
+      const mj = sB.mineJourney || {};
+      ok("tab A's landfall finishes Journey I (save {journey 2, leg 1}), paying the 150 bonus", A.cause === 'promised' && A.bonus === 150
+         && sA.mineJourney.journey === 2 && sA.mineJourney.leg === 1, JSON.stringify({ A, j: sA.mineJourney && { journey: sA.mineJourney.journey, leg: sA.mineJourney.leg } }));
+      ok("tab B (still Journey I) lands later: no second bonus — its wallet rises by reach + seams only", B.cause === 'promised' && B.bonusCfg === 150 && B.bonus === 0
+         && B.w1 - B.w0 === (B.reach | 0) + (B.seams | 0), JSON.stringify(B));
+      ok("...and Journey II is untouched: leg 1, no leg records, Journey I once in `done`, its leg 8 landed in `past` (runs 2)",
+         mj.journey === 2 && mj.leg === 1 && Object.keys(mj.legs || {}).length === 0 && JSON.stringify(mj.done) === '[1]'
+         && mj.past && mj.past[1] && mj.past[1].legs[8] && mj.past[1].legs[8].landed && mj.past[1].legs[8].runs === 2,
+         JSON.stringify({ journey: mj.journey, leg: mj.leg, legs: mj.legs, done: mj.done, past8: mj.past && mj.past[1] && mj.past[1].legs[8] }));
+      ok('no page errors (stale)', !a.errs.length && !bb.errs.length, a.errs.concat(bb.errs).slice(0, 2).join(' | '));
+      await ctx.close();
+    }
+    // ======================================================================================
+    if (want('store6')) {
+      // THE STORE QUOTES THE NEXT DESCENT'S HEAT (M9 verify): between runs a save on leg 6 digs from 36 m at
+      // the base price, and the store's note and Heat tolerance tile said 42 m (the CONFIG literal).
+      console.log('— the store on a leg-6 save quotes leg 6\'s price lines');
+      const legs = {}; for (let l = 1; l <= 5; l++) legs[l] = { runs: 3, landed: true };
+      const b = await E.boot('#leg,1,6', 390, 844, seeded(Object.assign({}, LEG8_SAVE, { mineJourney: { journey: 1, leg: 6, legs } })));
+      await waitLeg(b.page, 6);
+      const r = await b.page.evaluate(async () => {
+        const g = window.__game;
+        g.store.revealAll();
+        const w6 = g.store.heatWords();
+        const p = JSON.parse(localStorage.getItem('mycelium.progress.v2'));
+        const run = g.mine.heatLines();
+        p.mineJourney.leg = 5; localStorage.setItem('mycelium.progress.v2', JSON.stringify(p));
+        const w5 = g.store.heatWords();
+        p.mineJourney.leg = 6; localStorage.setItem('mycelium.progress.v2', JSON.stringify(p));
+        g.showPicker();
+        await new Promise((q) => setTimeout(q, 900));
+        const tile = Array.from(document.querySelectorAll('.ss-upg-now')).map((e) => e.textContent).find((t) => /^line /.test(t)) || null;
+        const note = (document.querySelector('#ssMineNote, .ss-mine-note') || {}).textContent || '';
+        return { w6, w5, run, tile, note };
+      });
+      await shot(b.page, 'm9-store-leg6-390.png');
+      ok("on a leg-6 save the store's note, heat words and tile say 36 m (the run's lines), on leg 5 42 m",
+         /past 36 \/ 78 \/ 120 m$/.test(r.w6) && JSON.stringify(r.run) === '[36,78,120]' && /past 42 \/ 84 \/ 126 m$/.test(r.w5) && r.tile === 'line 36 m' && /past 36 \/ 78 \/ 120 m/.test(r.note),
+         JSON.stringify(r));
+      ok('no page errors (store6)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+      await b.ctx.close();
     }
     // ======================================================================================
     if (want('perf')) {
