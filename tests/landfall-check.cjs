@@ -31,8 +31,8 @@
  *            leg record whenever a boot had counted the run.
  *   twice    (M8 verify) a landfall on a leg another descent has landed since this one started pays no
  *            second bonus (checked at the bank, not only at run start); the island event says ':again'.
- *   replay   (M8 verify) a save past the built legs (leg 4) plays leg 3, labelled Leg 3, pays no bonus,
- *            and ROOTED says the next leg is not open yet instead of promising it.
+ *   replay   (M8 verify; M9: every leg is built) a save on leg 4 plays leg 4, labelled Leg 4, owing its 50
+ *            bonus, and ROOTED promises Leg 5, Rich Veins (it used to replay leg 3: 'not open yet').
  *   cap      (M8 verify 2) a landing dig that also crosses the node cap ends ROOTED, not 'full'.
  *   best     (M8 verify 2) a boot in another tab banking this run first does not turn 'New farthest on
  *            this leg' into 'N m short' (the line's baseline is the record as the run began).
@@ -518,7 +518,12 @@ const waitLeg = (page) => page.waitForFunction(() => !!(window.__game && window.
     }
     // ======================================================================================
     if (want('replay')) {
-      console.log('— a save past the built legs replays the last one');
+      // M9: EVERY LEG IS BUILT NOW, so "a save past the built legs replays the last one" has no case left
+      // in Journey I (old assertion: save leg 4 -> title 'Leg 3 of 8 · Dry Ground', DIG plays leg 3 owing
+      // no bonus, ROOTED 'Leg 4 is not open yet'). What it guarded is re-asserted on the leg it used to
+      // refuse: save leg 4 -> title 'Leg 4 of 8 · Mould Country', DIG plays leg 4 owing its 50 bonus, and a
+      // landfall there (scripted: `plantAtTaproot`) promises 'Leg 5, Rich Veins' and moves the save on.
+      console.log('— a save on leg 4 plays leg 4 (every leg is built)');
       const b = await E.boot('', 390, 844, { before: async (page) => page.addInitScript(() => { if (!localStorage.getItem('mycelium.progress.v2'))
         localStorage.setItem('mycelium.progress.v2', JSON.stringify({ runsDone: 6, mineRuns: 6, mineBest: 90, migratedMineShelfV2: true,
           mineJourney: { journey: 1, leg: 4, legs: { 1: { runs: 1, landed: true }, 2: { runs: 3, landed: true }, 3: { runs: 2, bestEast: 150, landed: true } } } })); }) });
@@ -529,14 +534,16 @@ const waitLeg = (page) => page.waitForFunction(() => !!(window.__game && window.
       await waitLeg(b.page);
       await sleep(600);
       const L0 = await b.page.evaluate(() => ({ leg: window.__game.mine.leg().leg, bonus: window.__game.state.config.mine.islandBonus }));
-      const L = await landNow(b.page);
+      await b.page.evaluate(() => window.__game.mine.plantAtTaproot());
+      await b.page.waitForFunction(() => window.__game.state.runOver, { timeout: 8000 }).catch(() => {});
+      const L = await b.page.evaluate(() => Object.assign({}, window.__game.state.runResult || {}));
       await b.page.waitForSelector('#ssMineEnd', { timeout: 25000 }).catch(() => {});
       await sleep(900);
       const why = await b.page.evaluate(() => ((document.querySelector('#ssMineEnd .ss-mineend-why') || {}).textContent || ''));
       const sv = await save(b.page);
-      ok("save leg 4: the title reads Leg 3, DIG plays leg 3 owing no bonus, and ROOTED says leg 4 is not open yet",
-         t.cap === 'Continue · Leg 3 of 8 · Dry Ground' && t.lit === 3 && L0.leg === 3 && L0.bonus === 0 && L.cause === 'island' && L.bonus === 0
-         && /Island 3\. Leg 4 is not open yet — the next descent replays Leg 3\./.test(why) && sv.mineJourney.leg === 4,
+      ok("save leg 4: the title reads Leg 4, DIG plays leg 4 owing its 50 bonus, and ROOTED promises Leg 5, Rich Veins",
+         t.cap === 'Continue · Leg 4 of 8 · Mould Country' && t.lit === 3 && L0.leg === 4 && L0.bonus === 50 && L.cause === 'island' && L.bonus === 50
+         && /Island 4\. Leg 5, Rich Veins, starts there\./.test(why) && sv.mineJourney.leg === 5,
          JSON.stringify({ t, L0, L: { cause: L.cause, bonus: L.bonus }, why, leg: sv.mineJourney.leg }));
       ok('no page errors (replay)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();

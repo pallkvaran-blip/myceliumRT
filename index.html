@@ -36466,7 +36466,7 @@ function startPromisedFinale(paid) {
     z0: camera.zoom, x0: camera.x, y0: camera.y, z1: lo,
     x1: J ? ((J.islandC0 + J.islandC1 + 1) / 2) * cs : camera.x,
     y1: sub ? sub.surfaceY + cs * 4 : camera.y,
-    wallet: sporesBalance(), bankedBefore: !!(state && state.runResult && state.runResult._minePaid),
+    burstAt: [], wallet: sporesBalance(), bankedBefore: !!(state && state.runResult && state.runResult._minePaid),
     journeyDone: (paid && paid.legRec && paid.legRec.finished) | 0, timers: [], el: null,
   };
   document.body.classList.add('mine-finale');
@@ -36516,7 +36516,9 @@ function mineFinaleStrip(F) {
       const x = xs(i), w = i === N - 1 ? 46 : 26, h = i === N - 1 ? 26 : 16, a = lit[i] ? Math.min(1, (now - lit[i]) / 250) : 0;
       g.fillStyle = a ? `rgba(${Math.round(70 + 60 * a)},${Math.round(120 + 90 * a)},${Math.round(70 + 40 * a)},1)` : 'rgba(58,74,52,0.9)';
       g.beginPath(); g.ellipse(x, base, w / 2, h, 0, Math.PI, 0); g.fill();
-      if (a) { g.fillStyle = `rgba(190,255,214,${0.35 * a})`; g.beginPath(); g.arc(x, base - h * 0.6, h * 1.4, 0, Math.PI * 2); g.fill(); }
+      if (a) { const gr = g.createRadialGradient(x, base - h * 0.4, 1, x, base - h * 0.4, h * 1.3);
+        gr.addColorStop(0, `rgba(190,255,214,${0.45 * a})`); gr.addColorStop(1, 'rgba(190,255,214,0)');
+        g.fillStyle = gr; g.beginPath(); g.arc(x, base - h * 0.4, h * 1.3, 0, Math.PI * 2); g.fill(); }
     }
     for (let k = parts.length - 1; k >= 0; k--) {
       const q = parts[k], age = (now - q.t) / 1000;
@@ -36530,7 +36532,7 @@ function mineFinaleStrip(F) {
   requestAnimationFrame(draw);
   for (let i = 0; i < N; i++) F.timers.push(setTimeout(() => {
     if (F.over) return;
-    lit[i] = performance.now(); F.bursts = i + 1;
+    lit[i] = performance.now(); F.bursts = i + 1; F.burstAt.push(Math.round(lit[i] - F.t0));
     for (let k = 0; k < (i === N - 1 ? 40 : 14); k++)
       parts.push({ x: xs(i) + (Math.random() - 0.5) * (i === N - 1 ? 40 : 20), y: base - 8, vx: Math.random() - 0.3, vy: 0.6 + Math.random(), r: 1 + Math.random() * 1.8, ph: Math.random() * 6, t: performance.now() });
     try { playFinaleNote(i); } catch (_) {}
@@ -36557,7 +36559,7 @@ function mineFinaleDone(F) {
 }
 function mineFinaleInfo() {
   const F = _mineFinale;
-  return F ? { phase: F.phase, bursts: F.bursts, text: F.text, credits: F.credits, skipped: F.skipped, over: F.over,
+  return F ? { phase: F.phase, bursts: F.bursts, burstAt: F.burstAt.slice(), text: F.text, credits: F.credits, skipped: F.skipped, over: F.over,
                z0: F.z0, z1: F.z1, zoomNow: F.zoomNow, wallet: F.wallet, bankedBefore: F.bankedBefore,
                journeyDone: F.journeyDone, t0: F.t0, overlay: !!(F.el && F.el.isConnected),
                creditsOpen: !!document.getElementById('crOverlay') } : null;
@@ -39279,6 +39281,9 @@ function begin(newState) {
       passesReset: () => { if (state) { state._minePassStats = null; state._minePassWhy = {}; } return true; },
       agg: () => { const A = state && mineAgg(state); return A ? { len: A.len, minX: A.minX, maxX: A.maxX, deep: A.deep && A.deep.id, shallow: A.shallow && A.shallow.id, eastX: A.eastX, anyInf: A.anyInf, knotD2: A.knotD2 } : null; },
       waterRescan: () => { if (state) state._mineWaterScan = null; return true; },
+      frameMs: () => (state && state._mineFrameMs ? state._mineFrameMs.slice() : []),
+      zoomRest: () => mineZoom(),
+      islandTrees: () => _mineIslandTrees,
       journeySave: () => { try { return JSON.parse(JSON.stringify(loadProgress().mineJourney || null)); } catch (_) { return null; } },
       // M9: the scripted landfall — a clean strand placed inside landfall range of the knot, parented to
       // the colony's nearest strand, for probes that test the ENDING rather than the navigation.
@@ -41047,7 +41052,14 @@ function advanceSim(time) {
   // fuel grace is measured in ms, and the depth beat has to land the moment the strand arrives.
   // Only the ore and the water pickups could wait for a tick, and running them here costs a pair
   // of early-outs on a frame where nothing finished.
-  if (state.substrate.mine) mineFrame(time, dt);
+  if (state.substrate.mine) {
+    // Timed (M9 acceptance 5: mineFrame <= 2 ms at 4,000 strands): a ring of the last 240 frames, and
+    // whether a world tick ran in the same frame (a tick invalidates the colony summary).
+    const _mf0 = performance.now();
+    mineFrame(time, dt);
+    const R = (state._mineFrameMs = state._mineFrameMs || []);
+    R.push([+(performance.now() - _mf0).toFixed(3), ticks]); if (R.length > 240) R.shift();
+  }
   if (ticks > 0) {
     // The world moved: clouds crept/ate (substrate) and the rot advanced (structure).
     substrateRenderer.markDirty();
@@ -44993,19 +45005,22 @@ function drawMineHill() {
     withWorldClip(() => ctx.drawImage(hill, left.x, by - sh, sw, sh));
   }
 }
+let _mineIslandTrees = 0;          // trees the last frame drew on a double-width island (M9 hook)
 function drawMineProps() {
   const bush = asset('goalbush'); if (!bush) return;
   const sub = state.substrate, z = camera.zoom, cs = sub.cellSize;
   const aspect = bush.width / bush.height;
-  // THE PROMISED LAND'S TREES (M9): a double-width island (>= 20 columns, leg 8) carries three of the
-  // surface's own trees (`tree.png`, the art the procedural skyline plants) along its crest, behind its
-  // bushes, so the last island reads as a place and not as a bigger copy of the others.
-  const tree = asset('tree');
+  // THE PROMISED LAND'S TREES (M9): a double-width island (>= 20 columns, leg 8) carries three tall
+  // green trees along its crest — the goal meadow's own canopy art (`goalbush`) at tree height, behind its
+  // bushes, so the last island reads as a place and not as a bigger copy of the others. (The skyline's
+  // `tree.png` was tried first and is a BARE winter tree: on the Promised Land it read as dead wood.)
+  const tree = bush;
+  _mineIslandTrees = 0;
   if (tree) withWorldClip(() => {
     for (const { x0, x1, island } of mineHillSpans()) {
       if (!island || (x1 - x0) < cs * 20) continue;
       const hill = asset('goalhill'), wW = x1 - x0, hW = hill ? wW * (hill.height / hill.width) : cs * 3;
-      for (const [t, hc, flip] of [[0.2, 3.4, false], [0.52, 4.2, true], [0.83, 3.0, false]]) {
+      for (const [t, hc, flip] of [[0.18, 3.6, false], [0.5, 4.6, true], [0.84, 3.2, false]]) {
         const x = x0 + wW * t;
         const rise = hill ? Math.max(0, hillRiseAtX(hill, x, x0, wW, hW, false)) : 0;
         const hWorld = cs * hc, wWorld = hWorld * (tree.width / tree.height);
@@ -45014,6 +45029,7 @@ function drawMineProps() {
         if (s.x < -sw || s.x > camera.viewW + sw) continue;
         ctx.save(); ctx.translate(s.x, s.y + sh * 0.08); if (flip) ctx.scale(-1, 1);
         ctx.drawImage(tree, -sw / 2, -sh, sw, sh); ctx.restore();
+        _mineIslandTrees++;
       }
     }
   });

@@ -701,7 +701,9 @@ async function navigate(page, o = {}) {
     let digs = 0, refused = 0, spent = 0, plans = 0, fails = 0, pops = 0;
     const maxDigs = o.maxDigs || 300, ahead = o.ahead || 0.6 * reachU;
     let P = null; const trace = []; let bestCost = Infinity, flat = 0, stallRot = 0, stalls = 0;
+    const nearK = () => { let b = Infinity; for (const n of net.nodes) if (!n.infected) b = Math.min(b, Math.hypot(n.x - tx, n.y - ty)); return b; };
     while (!landed() && digs < maxDigs && !s.runOver && fails < 24) {
+      if (o.stopWithin && digs % 3 === 0 && nearK() <= o.stopWithin) break;
       if (!P || fails === 0) {
         P = plan(); plans++; if (!P) break; pops += P.pops;
         // NO PROGRESS IS A REFUSAL TOO: a dig can "succeed" with one filament against a wall and leave
