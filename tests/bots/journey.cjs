@@ -3,7 +3,7 @@
 // `Q.step({goal: 'island'})` (or the naive journey policy), and then follows the REAL end screen ->
 // Store -> buy -> Descend, which starts whichever leg the save is on. Landfalls are read off the save.
 //
-//   node tests/bots/journey.cjs <save-label> [--naive] [--pace 900] [--legs 3] [--runs 19]
+//   node tests/bots/journey.cjs <save-label> [--naive [--compass]] [--pace 900] [--legs 3] [--runs 19]
 //                                          [--strat cheapest] [--need 5,7,7]
 //
 // `--need a,b,c`: landfall 1 by run a, landfall 2 within b more runs, landfall 3 within c more (the
@@ -78,12 +78,14 @@ const argv = process.argv.slice(2);
 const arg = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
 const label = argv[0] && !argv[0].startsWith('--') ? argv[0] : '4242';
 const naive = argv.includes('--naive');
+// `--compass` (M8 verify, naive only): the naive player holding the M10 island needle (a bearing).
+const compass = argv.includes('--compass');
 const paceMs = +arg('--pace', 900);
 const legsWanted = +arg('--legs', naive ? 1 : 3);
 const need = String(arg('--need', naive ? '8' : '5,7,7')).split(',').map(Number);
 const maxRuns = +arg('--runs', need.slice(0, legsWanted).reduce((a, b) => a + b, 0));
 const strat = arg('--strat', 'cheapest');
-const tag = 'journey-' + (naive ? 'naive-' : '') + label;
+const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-') : '') + label;
 
 (async () => {
   const env = await launch();
@@ -113,7 +115,7 @@ const tag = 'journey-' + (naive ? 'naive-' : '') + label;
     await page.evaluate((leg) => { const Q = window.__qa; Q.bad = new Map(); Q._glowUsed = new Set(); Q._knew = false; Q._nref = new Map();
       if (Q._deadLeg !== leg) { Q._dead = new Set(); Q._deadLeg = leg; } }, leg0);
     let res;
-    if (naive) res = await playDescent(page, { label: `${tag}-r${run}`, paceMs, maxSteps: 500, shots: false, bot: { policy: 'naive', goal: 'island' } });
+    if (naive) res = await playDescent(page, { label: `${tag}-r${run}`, paceMs, maxSteps: 500, shots: false, bot: { policy: 'naive', goal: 'island', compass } });
     else {
       // The route is planned on a snapshot of the leg's own world (every chunk to the island generated,
       // which is order-independent), then dug in THIS run with its real tank.

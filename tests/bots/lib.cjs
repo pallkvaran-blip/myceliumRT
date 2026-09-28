@@ -316,11 +316,15 @@ async function injectBot(page) {
           const d = Math.hypot(n.x - tap.x, n.y - tap.y); if (d < nd) { nd = d; near = n; }
         }
         if (!tip) return { stuck: true };
+        // `compass` (M8 verify): the M10 island needle — a BEARING through rock, never a route. The player
+        // digs from the clean tip nearest the knot, along the bearing (the most open of the 7 rays fanned
+        // about it). The question it answers: is the island compass what a naive player lacks?
+        if (opts.compass) tip = near;
         if (nd < 500) tip = near;
         src = { x: tip.x, y: tip.y, id: tip.id, key: rk(tip) }; mode = 'toward';
         // Down-east until under the island (or below one band under the knot); then at the knot.
         const under = Math.abs(tip.x - tap.x) < 20 * sub.cellSize || tip.y > capY;
-        const base = nd < 500 || under ? Math.atan2(tap.y - tip.y, tap.x - tip.x) : Math.PI / 4;
+        const base = opts.compass || nd < 500 || under ? Math.atan2(tap.y - tip.y, tap.x - tip.x) : Math.PI / 4;
         let bestA = base, bestC = -1;
         for (const k of [0, 1, -1, 2, -2, 3, -3]) {
           const a = base + k * 0.35;
