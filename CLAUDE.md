@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. Next: M8 verify, then M9.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; 3c re-measured with the island compass bearing — still FAIL. Next: M9.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5588,6 +5588,47 @@ Numbers here are measured, not planned.
   ship 58, phone 51, onboard 63, econ 79, counter 60, journey 96, landfall 33 (new), zip 24, level 27, aim 9,
   scale 26, threat 116, harvest 28, mould 20, core 18). The run before read 1132/1134 (landfall's records
   probe on the new leg-1 seed, fixed as above).
+
+**M8 VERIFY ROUND (adversarial acceptance + code review)**
+- **LEG HUD AT 360x640 RAN UNDER THE GEAR (confirmed).** Row 1 with '→ 192 m' needed 263 px of a 232 px pill
+  (scrollWidth - clientWidth 31 px at 360, 65 at 320; `#hud-east` x 234-304 against the gear at 280). In the
+  stacked layout (`.two`) `_syncMineRows` now moves `#hud-east` to the FRONT of row 2 (which wraps by design)
+  and back to row 1 when the rows sit side by side; row 2 shows whenever it holds the east readout.
+  Measured at max values (120 W, 168 m, 192 m east, 327 P, three materials): row 1 x 8-214 (390), 40-246
+  (360, gear 280), 37-237 (320, gear 243), nothing off the surface. Also `#hud-east[hidden]{display:none}`
+  (`.res` outranks the UA rule; latent, since every surface today is under the 430 px split).
+- **ROOTED's strip was the screen's last row, under the buttons**: at 360x640 with three deep materials it
+  ended at y 646 (scrollHeight 665 > 640). The strip now sits on the east line (`.ss-mineend-eastrow`,
+  dots 9 px): same case 640/640, strip at y 180. With two materials the old layout still fitted, so the
+  check lands carrying three (verified FAIL on f0e328a).
+- **A BOOT-COUNTED RUN LOST ITS LEG RECORD, INCLUDING A LANDFALL (confirmed).** `mineBank` skipped
+  `mineRecordLeg` whenever a boot elsewhere had banked the run's pending record (two tabs / reload while
+  hidden): on f0e328a the live tab landed, was paid the 20 bonus, and the save stayed `leg 1, legs {}` —
+  so the next descent replayed leg 1 owing the bonus again. Now `mineLegApply(p, r, countRun)`: the pending
+  record carries `leg` + `east`, the boot applies runs and bests (once per run, same `mineTaken` rule), and
+  the live tab's bank applies bests and the landfall with `countRun: !bootCounted`. Measured: boot -> leg 1
+  `runs 1, bestEast 91`; live landfall -> `leg 2, landed, runs 1`; wallet 18 -> 41 = run ore 41 less the
+  boot's 18.
+- **THE BONUS IS RE-CHECKED AT THE BANK**: it was decided only at run start, so two in-flight descents of a
+  leg could both be paid it. The bank drops it (ore, `r.bonus` -> 0) when the save already has the leg
+  landed; the island event reads ':again'. Measured: start owing 20, save landed mid-run, landfall pays
+  reach 18 + seams 0 = 18, no Island bonus row.
+- **PAST THE BUILT LEGS ROOTED PROMISED A LEG THAT DOES NOT EXIST**: 'Leg 4 starts there', then Descend opened
+  Leg 3 again. Now 'Leg 4 is not open yet — the next descent replays Leg 3.' (`nextBuilt`, off whether the
+  next row exists). Title 'Continue · Leg 3 of 8 · Dry Ground', 3 lit, bonus 0, save leg stays 4.
+- **Checked, no defect:** Exit to title during the island celebration (no end screen afterwards, +39 P
+  banked once, leg 2, one island event); a rot ending on leg 2 is 'L2:infected:e9' and recorded on leg 2.
+- **ACCEPTANCE 3 RE-RUN:** sensible save 909: landfalls on runs **1 / 8 / 10** (earlier 1 / 6 / 8 — same
+  worlds, bot timing; leg 2 took 7 runs, the limit) — PASS. **3c still FAILS, and the M10 island compass is
+  NOT the answer:** `journey.cjs 4242 --naive --compass` (the naive player aiming along the true bearing to
+  the knot from its nearest clean tip — what rung 1 of the compass gives) landed 0 of 8, best 84 m east,
+  stuck at 67 m east / 17-31 m deep in 6 of 8 runs; the plain naive player had reached 100 m east. The wall
+  at ~67 m east is passed by going down first (the sensible route lands at 47 m deep / 97 m east), and a
+  bearing points up and east into it. Owner / M14: a leg-1 seed or carve whose shallow road runs straighter
+  east, or accept that leg 1 is read from the map.
+- **landfall-check 33 -> 44** (`LANDFALL_ONLY=...,hud,fit,tabs,twice,replay`): hud 3, fit 1, tabs 4, twice 1,
+  replay 2. Negative control: 8 of the 11 fail on f0e328a (hud 3, tabs 2, twice 1, replay 1, fit with three
+  materials 1).
 
 ## Two games on the title screen: Survival and Campaign
 
