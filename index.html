@@ -35475,7 +35475,18 @@ function start(seed) {
   // collision, so they would be rock you can grow straight through.
   if (def && def.assetsFromAll) for (const f of def.assetsFromAll) loadLevelAssets(f);
   else if (def && (def.assetsFrom || def.id)) loadLevelAssets(def.assetsFrom || def.id);
-  begin(def ? createLevelState(cfg, seed, def) : createState(cfg, seed));
+  // A PREBUILT FIRST LEG (M8 verify 3, `minePrebuildFirstLeg`): the same world, built while the gate
+  // said "Tap to dig" instead of inside the tap. Taken only if it is provably the one this call would
+  // build — same map id, same seed, and the config clone serialising identically — and dropped either
+  // way, so it can never serve a second run.
+  let pre = null;
+  if (_minePre) {
+    if (def && _minePre.id === def.id && _minePre.seed === seed && _minePre.key === JSON.stringify(cfg)) {
+      pre = _minePre.state; pre._minePrebuilt = _minePre.ms;
+    }
+    _minePre = null;
+  }
+  begin(pre || (def ? createLevelState(cfg, seed, def) : createState(cfg, seed)));
   // THE HOME CHUNK IS GENERATED BEFORE THE FIRST FRAME, not on it. `mineEnsureChunks` is driven by
   // the frame loop from here on, but the frame the map is revealed on is the one the player looks at
   // hardest — arriving on bare soil and watching the rock appear is the whole cost of streaming, and
@@ -35575,7 +35586,17 @@ function startRun() {
 // `opts.journey` (M7) starts a JOURNEY leg instead of the free layout: `{journey, leg}` names it, and
 // `{journey: true}` alone reads the save's `p.mineJourney` (absent = journey 1, leg 1). The leg's
 // CURATED seed is used unless `seed` pins another (legprobe's candidates).
-function beginMineRun(seed, opts) {
+// THE FIRST VISIT'S WORLD, BUILT BEFORE THE TAP (M8 verify 3). A fresh save on the plain URL goes from
+// the gate tap straight into leg 1 (M4 + M8), and the tap handler spent ~290 ms (profiled) building that
+// world — `mineEnsureChunks` generating the home chunk and its two neighbours is ~230 of it — inside the
+// 600 ms the curtain has to lift in. Nothing about that world depends on the tap: the leg, its curated
+// seed and the store (empty) are all known once the gate is ready. So the gate builds it while it waits
+// (`_minePre`), and `start()` takes it only if the map id, the seed and the serialised config clone all
+// match what it was about to build. Generation is order-independent and deterministic (journey-check),
+// and the state is not begun, so nothing ticks and no event is sent before the tap.
+// TEST KNOB: `window.MYCELIUM_NO_PREBUILD = true` (an init script) skips it — the A/B.
+let _minePre = null;
+function mineRunPrep(seed, opts) {
   setGame('mine');
   mineLeg = null;
   if (opts && opts.journey) {
@@ -35601,6 +35622,26 @@ function beginMineRun(seed, opts) {
   }
   mineSeed = (seed > 0 ? (seed >>> 0) : (Date.now() & 0x7fffffff)) || 1;
   mineBeatBand = -1;
+}
+function minePrebuildFirstLeg() {
+  try {
+    // `state` set means a run has already begun (a tap that beat this task): never touch the module's
+    // run variables under a live run.
+    if (state || _minePre || location.hash.replace(/^#/, '') || !(OFFER_MINE && mineFirstVisit() && !devUI())) return false;
+    if (window.MYCELIUM_NO_PREBUILD === true || window.MYCELIUM_NEXT_MINE_SEED > 0) return false;
+    const t0 = performance.now();
+    mineRunPrep(undefined, { journey: true });
+    if (!mineLeg) return false;
+    const cfg = configForLevel(currentLevel), def = levelDefFor(currentLevel);
+    if (!def || !def.mine) return false;
+    const st = createLevelState(cfg, mineSeed, def);
+    mineEnsureChunks(st);
+    _minePre = { id: def.id, seed: mineSeed, key: JSON.stringify(cfg), state: st, ms: Math.round(performance.now() - t0) };
+    return true;
+  } catch (e) { _minePre = null; return false; }
+}
+function beginMineRun(seed, opts) {
+  mineRunPrep(seed, opts);
   stockRun();
   logEvent('run_start', { level: 1, cause: 'new' });
   startRun();
@@ -38826,6 +38867,8 @@ function begin(newState) {
       stuck: () => { const st = mineStuckState(state); return { on: st.on, leftMs: Math.round(st.leftMs), cost: st.cost }; },
       // The running maximum of clean depth this descent — what it pays and records.
       maxDepth: () => mineRunDepth(state),
+      // M8 verify 3: the ms the gate spent prebuilding this run's world, or null if it was built on the tap.
+      prebuilt: () => (state && state._minePrebuilt != null ? state._minePrebuilt : null),
       // Is a dig's reveal still in flight? The stuck countdown holds while it is.
       revealing: () => { try { return !!anyRevealing(lastTime); } catch (_) { return false; } },
       // The would-be payout written for a closed tab, and the boot-time bank of it (M1).
@@ -45238,6 +45281,9 @@ function _bootReady() {
   // other half of the same question on a phone.
   logEvent('boot', { ms: Date.now() - _sessionStart });
   _load.ready(() => { initMusic(); initSfx(); _load.destroy(); enterGame(); });
+  // A first visit's leg-1 world is built now, while the gate waits for the tap (see _minePre). On the
+  // next task, so the gate's "Tap to dig" paints first.
+  setTimeout(minePrebuildFirstLeg, 0);
 }
 // The SDK's own loading window. `init()` is not awaited before the preload starts — the assets
 // are the slow part and there is no reason to serialise a CDN handshake in front of them; the

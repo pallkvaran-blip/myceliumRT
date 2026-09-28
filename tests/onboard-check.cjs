@@ -1,6 +1,6 @@
 /* THE FIRST MINUTE TEACHES ITSELF — the finishing plan's M4, as assertions.
  *
- *     node tests/onboard-check.cjs     (ONB_ONLY=first,ghost,tips,stale,beat,feedback,pocket,pocketlag,nudge,walled,end runs blocks)
+ *     node tests/onboard-check.cjs     (ONB_ONLY=first,prebuild,ghost,tips,stale,beat,feedback,pocket,pocketlag,nudge,walled,end runs blocks)
  *
  * What it pins (docs/finish/PLAN.md, M4 acceptance 1-6; 7 is tests/bots/naive.cjs):
  *   1. A FIRST VISIT (fresh save, plain URL, touch) skips the title: the gate tap lands in run 1, the
@@ -167,6 +167,49 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
     // =========================================================================================
     // 2. THE GHOST FINGER
     // =========================================================================================
+    // =========================================================================================
+    // 1b. THE PREBUILT FIRST LEG (M8 verify 3): the gate builds leg 1's world before the tap, and the
+    // world the tap then plays is THE SAME WORLD as one built on the tap (MYCELIUM_NO_PREBUILD) — the
+    // sprites and chunk records of the boot chunks, the cells, the colony. The A/B is the control: the
+    // prebuild must actually be taken, and without it the curtain carries the build.
+    // =========================================================================================
+    if (want('prebuild')) {
+      console.log('--- the first leg built before the tap is the world a tap would build');
+      const shot = async (nopre) => {
+        const ctx = await touchCtx(E, 390, 844);
+        const page = await ctx.newPage();
+        const errs = []; page.on('pageerror', (e) => errs.push(String(e && e.message)));
+        await page.addInitScript((nopre) => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; if (nopre) window.MYCELIUM_NO_PREBUILD = true; }, nopre);
+        await page.goto(E.base + '/index-nodev.html', { waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
+        await sleep(600);
+        await page.touchscreen.tap(195, 420);
+        await page.waitForFunction(() => { const g = window.__game; return !!(g && g.state && g.state.substrate && g.state.substrate.mineJourney); }, null, { timeout: 30000 });
+        const f = await page.evaluate(() => {
+          const g = window.__game, s = g.state, sub = s.substrate, cfg = s.config, cw = cfg.mine.chunkCols, cs = sub.cellSize;
+          let h = 2166136261 >>> 0; const mix = (v) => { h = Math.imul((h ^ (v | 0)) >>> 0, 16777619) >>> 0; };
+          // The boot chunks' own content: every sprite centred in chunks 0-2, sorted (the idle lookahead
+          // may add chunk 3+ on later frames), their records, and the cells of those columns.
+          const sp = sub.levelSprites.filter((q) => Math.floor(q.x / cs / cw) <= 2)
+            .map((q) => [q.key, Math.round(q.x * 10), Math.round(q.y * 10), Math.round(q.w * 10), Math.round(q.h * 10), Math.round((q.rot || 0) * 1000)].join(':')).sort();
+          for (const t of sp) for (let i = 0; i < t.length; i++) mix(t.charCodeAt(i));
+          const rec = JSON.stringify([0, 1, 2].map((ci) => s.mineChunks[ci] || null));
+          for (let i = 0; i < rec.length; i++) mix(rec.charCodeAt(i));
+          for (let r = 0; r < sub.rows; r++) for (let c = 0; c < 3 * cw; c++) { const cl = sub.cells[r * sub.cols + c]; mix((cl.water ? 1 : 0) | (cl.hazard ? 2 : 0) | ((cl.nutrient | 0) << 2) | ((cl.foodKind || '').length << 20)); }
+          for (const n of s.active.nodes) { mix(Math.round(n.x * 100)); mix(Math.round(n.y * 100)); }
+          return { h, sprites: sp.length, nodes: s.active.nodes.length, chunks: Object.keys(s.mineChunks).length, pre: g.mine.prebuilt(), seed: g.mine.leg().seed };
+        });
+        await ctx.close();
+        return Object.assign(f, { errs });
+      };
+      const a = await shot(false), b = await shot(true);
+      ok('the gate prebuilt the first leg and the tap took it', a.pre != null && a.pre > 0, `prebuilt in ${a.pre} ms`);
+      ok('control: with MYCELIUM_NO_PREBUILD the tap builds it', b.pre == null, String(b.pre));
+      ok('...and the two worlds are identical (boot chunks\' sprites, records, cells, colony)', a.h === b.h && a.sprites === b.sprites && a.nodes === b.nodes && a.seed === b.seed,
+         `hash ${a.h} vs ${b.h}, sprites ${a.sprites} vs ${b.sprites}, nodes ${a.nodes} vs ${b.nodes}, seed ${a.seed}`);
+      ok('no page errors (prebuild block)', !a.errs.length && !b.errs.length, a.errs.concat(b.errs).slice(0, 2).join(' | ') || 'clean');
+    }
+
     if (want('ghost')) {
       console.log('--- the ghost finger (#mine,4242, fresh save)');
       const b = await E.bootMine(4242, 390, 844);

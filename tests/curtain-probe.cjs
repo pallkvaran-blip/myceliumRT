@@ -9,6 +9,8 @@
  */
 const H = require('./mine-harness.cjs');
 const runs = +(process.argv[2] || 3) || 3, PROF = process.argv.includes('--profile');
+// `NOPRE=1`: the A/B — the first leg built on the tap, as before M8 verify 3 (window.MYCELIUM_NO_PREBUILD).
+const NOPRE = process.env.NOPRE === '1';
 (async () => {
   const E = await H.start();
   const out = [];
@@ -16,8 +18,9 @@ const runs = +(process.argv[2] || 3) || 3, PROF = process.argv.includes('--profi
     for (let i = 0; i < runs; i++) {
       const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
       const page = await ctx.newPage();
-      await page.addInitScript(() => {
+      await page.addInitScript((NOPRE) => {
         window.MYCELIUM_SUPABASE = { url: '', anonKey: '' };
+        if (NOPRE) window.MYCELIUM_NO_PREBUILD = true;
         const T = window.__t = {};
         document.addEventListener('pointerdown', () => { if (!T.tap) T.tap = performance.now(); }, true);
         T.cls = [];
@@ -33,7 +36,7 @@ const runs = +(process.argv[2] || 3) || 3, PROF = process.argv.includes('--profi
           if (!T.run && g && g.state && g.state.substrate && g.state.substrate.mine) T.run = now;
           if (T.run && !T.reveal && !document.body.classList.contains('handoff')) T.reveal = now;
         }, 8);
-      });
+      }, NOPRE);
       await page.goto(E.base + '/index-nodev.html', { waitUntil: 'domcontentloaded' });
       await page.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
       await H.sleep(300);
