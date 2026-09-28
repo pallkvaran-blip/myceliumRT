@@ -5584,6 +5584,10 @@ Numbers here are measured, not planned.
   refused-twice skip, a dead-end region memory in-run, then across runs. Owner / M14: leg 1's shallow road
   is winding and the naive player cannot read it; levers are a wider shallow crossing on leg 1 (seed or
   sealByBand), the M10 island compass, or accepting that leg 1 needs map reading.
+- **`--mine` after M8: 1134 passed, 0 failed across 19 checks** (boot 22, store 124, mine 193, ending 87,
+  ship 58, phone 51, onboard 63, econ 79, counter 60, journey 96, landfall 33 (new), zip 24, level 27, aim 9,
+  scale 26, threat 116, harvest 28, mould 20, core 18). The run before read 1132/1134 (landfall's records
+  probe on the new leg-1 seed, fixed as above).
 
 ## Two games on the title screen: Survival and Campaign
 
