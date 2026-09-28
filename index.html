@@ -3936,6 +3936,8 @@ const CONFIG = {
       legs: [
         { leg: 1, name: 'First Light', seed: 1905387, E: 4, eastM: 96, depthM: 24,
           sealByBand: [0.12, 0.12, 0.12], rule: 'calm', bonus: 20, ruleLine: 'No threats — dig down, then east' },
+        // Leg 2 pulled in one chunk (M8 verify 3: E 6 -> 5, 144 -> 120 m east, same seed, still PASS + WPASS):
+        // the sensible careers' leg-2 tail was 9 runs against 3b's 7; nine careers after: 3-6, median 4.
         { leg: 2, name: 'The Coal Road', seed: 1703848, E: 5, eastM: 120, depthM: 58,
           sealByBand: [0.55, 0.12, 0.12], rule: 'standard', bonus: 30, ruleLine: 'Worms from 42 m' },
         { leg: 3, name: 'Dry Ground', seed: 36103, E: 8, eastM: 192, depthM: 72,

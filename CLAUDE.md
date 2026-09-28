@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; --mine 1143/1145 (onboard's first-visit timing pair fails on this host on pre-M8 builds too); 3c re-measured with the island compass bearing — still FAIL. VERIFY ROUND 2 landed: a landing dig at the node cap lands, 'New farthest' baseline = the record at run start, corrected log line, nextBuilt explicit, readable leg caption, `run.mjs` exact names, landfall-check reads final figures (49/49); rock sprites drawn from mips (leg frame 58 -> 2.4 ms at dsf 2; journey-check 99/99); onboard's drag harness on a finger's clock (drag bound passes); 3c still FAILS (east-reading naive 0/8; no legprobe candidate in k 36-155 is naive-landable); 3b spread 1/5/8, 1/6/8, 1/10/11 (leg-2 tail misses 7); --mine 1152/1153 (the 600 ms curtain on this host). Next: M9.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; --mine 1143/1145 (onboard's first-visit timing pair fails on this host on pre-M8 builds too); 3c re-measured with the island compass bearing — still FAIL. VERIFY ROUND 2 landed: a landing dig at the node cap lands, 'New farthest' baseline = the record at run start, corrected log line, nextBuilt explicit, readable leg caption, `run.mjs` exact names, landfall-check reads final figures (49/49); rock sprites drawn from mips (leg frame 58 -> 2.4 ms at dsf 2; journey-check 99/99); onboard's drag harness on a finger's clock (drag bound passes); 3c still FAILS (east-reading naive 0/8; no legprobe candidate in k 36-155 is naive-landable); 3b spread 1/5/8, 1/6/8, 1/10/11 (leg-2 tail misses 7); --mine 1152/1153 (the 600 ms curtain on this host). VERIFY ROUND 3 landed: leg 1's banner 'No threats — dig down, then east'; leg 2 pulled in (E 5, 120 m east, same seed) -> 3b 9/9 careers (leg 2 in 3-6 runs, median 4); the first visit's world prebuilt behind the gate (curtain 622-730 -> 435-492 ms); onboard 67/67; 3c still FAILS (naive 0/8 east, 0/8 down-east; opening the shallow road does not close it either — owner / M14); --mine 1157/1157. Next: M9.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5697,6 +5697,40 @@ Numbers here are measured, not planned.
   27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18). The red is the curtain bound (628 ms; class
   dropped at 530 ms): the ~100 ms after the drop is the browser's first paint of the revealed page, inside
   the same task — removing every `backdrop-filter` changed nothing (probe A/B x6). Not widened.
+
+**M8 VERIFY ROUND 3**
+- **THE BANNER STEERED INTO THE CRUST (confirmed on the map dump).** 'No threats — the island lies east': rows
+  0-2 are closed past home + 30 (the M7 crust gate) and the row-3 gallery segment ends at col ~57 (21 m east),
+  where the verifier's literal player ran dry at 4 m deep. Now **'No threats — dig down, then east'** (the knot
+  is 24 m down). landfall-check reads the text off the leg row (was the literal).
+- **3b: LEG 2 PULLED IN ONE CHUNK** (E 6 -> 5, 144 -> 120 m east, SAME seed 1703848, still PASS + WPASS: cheapest
+  route 176.4 -> 154.3 water, ratio 1.401 -> 1.455, 75.8% of east metres below 42 m, real growth lands in 54
+  digs). Every leg-2 run is FUEL-limited, not route-limited (journey.cjs now prints where the route stopped:
+  dry runs end at 75-97% of it). **Nine sensible careers (3 x saves 4242/909/11): 9/9 PASS** — leg 2 in
+  3/6/3, 4/3/5, 4/6/4 runs (median 4, max 6; before: median 5, tail 9), leg 3 in 2-4, leg 1 on run 1 in all
+  nine. The plan's calibration rule says a leg under 3 runs gets pushed OUT a chunk; not done for leg 1
+  (it pulls against 3c) — owner / M14.
+- **3c STILL FAILS, and the two levers the verifier offered were measured.** journey.cjs 4242 --naive: 0/8 with
+  `--lean east` (best 93 m east at 16-18 m, a wall between it and the knot at 96/24), 0/8 `--lean downeast`
+  (best 99 m east at 60 m). Leg 1 with band-0 seals OFF (`sealByBand [0, ...]`), candidates k 36-52: 12 of 17 get
+  a full shallow road but at lattice ratio **1.00-1.18** (under the 1.3 gate), and the naive screen landed
+  none of the 3 it ran; the curated seed with seals off lands only at **284 water** on a topped-up tank (the
+  map-reader's route: 48.5). So neither relaxing the ratio gate nor opening the road closes 3c: a greedy
+  player spends 3-6x the map-reader's water. Owner / M14 (compass, tank, or accept map reading).
+- **THE FIRST VISIT'S WORLD IS BUILT BEHIND THE GATE (`_minePre`, `minePrebuildFirstLeg`).** Profiled, the tap
+  handler was ~290 ms of world build, ~230 of it `mineEnsureChunks` making the three boot chunks. The gate now
+  builds leg 1's state on the task after it turns ready (`mineRunPrep` = beginMineRun's prefix, split out, no
+  stockRun / event / begin), and `start()` takes it only on a matching map id, seed and `JSON.stringify(cfg)`,
+  dropping it either way. Guarded on `!state` (never under a live run), the plain URL and a first visit.
+  curtain-probe (5 runs each, `NOPRE=1` the A/B): **622-730 -> 435-492 ms**; onboard first visit 389 ms.
+  onboard-check `prebuild` (+4): taken (176 ms), NO_PREBUILD control, the two worlds hash identical (boot
+  chunks' 2001 sprites, records, cells, colony). Hook `mine.prebuilt()`; knob `window.MYCELIUM_NO_PREBUILD`.
+- **onboard's drag assertion is named for what it measures**: the gesture is SENT >= 200 ms after the hint on
+  the PAGE's clock (the lag is read there; the old Node-side sleep started late), and the detail prints send
+  vs arrival (sent +403-514 ms after the hint, press arrives ~190 ms later on a busy first frame).
+- **`--mine` after verify round 3: 1157 passed, 0 failed across 19 checks** (boot 22, store 124, mine 193, ending
+  87, ship 58, phone 51, onboard 67, econ 79, counter 60, journey 99, landfall 49, zip 24, level 27, aim 9,
+  scale 26, threat 116, harvest 28, mould 20, core 18).
 
 ## Two games on the title screen: Survival and Campaign
 

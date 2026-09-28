@@ -40,7 +40,7 @@ traces, and never fail.
   each run it takes legprobe's cheapest-water growth-lattice route to the taproot and digs along it with the
   real tank, flask/enzyme as career.cjs; after 25 stalled steps it falls back to `Q.step({goal: 'island'})`
   (lib.cjs's flood bot with the taproot as goal). `--naive`: the naive JOURNEY player — `--lean east` (the
-  default since M8 verify 2) takes the leg's words ("the island lies east"): the clean tip farthest east,
+  default since M8 verify 2) takes the east chevron ("Island N is east"; the banner said "the island lies east" until M8 verify 3, "dig down, then east" since): the clean tip farthest east,
   along the most open of 7 rays about due east; `--lean downeast` is the first version (farthest down +
   east, rays about the diagonal); `--compass` aims along the true bearing to the knot. Each run's line
   carries a kit tally (flasks, cuts and their messages, the most rot seen). FAILS (`====`) unless
