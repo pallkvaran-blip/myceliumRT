@@ -404,7 +404,8 @@ const openStore = async (page) => {
         const fs = sub._fineSolid, F = sub._fineSize, W = sub._fineCols, Hh = sub._fineRows;
         let live = 0, hits = [];
         for (const n of s.active.nodes) {
-          if (n.infected) continue;
+          // (M11) a strand an oxalic vial laid INSIDE rock is the one legal exception.
+          if (n.infected || n.acidIn) continue;
           const fc = Math.floor(n.x / F), fr = Math.floor((n.y - sub.surfaceY) / F);
           if (fr < 0 || fc < 0 || fc >= W || fr >= Hh) continue;
           live++;

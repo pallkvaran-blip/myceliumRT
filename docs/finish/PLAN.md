@@ -1261,6 +1261,8 @@ of supply, legs 7 and 8 do not land (the rot clock, doses spent; the navigator d
 **Risk.** - The look-ahead changes when chunks generate, not what they contain. That rests on the order-independence invariant, so assert it.
 - HUD real estate: needles live at the screen edges only.
 
+**As built (M10).** Acceptance 1-5 and 7 pass (compass-check); 6b passes (seamhunt: median 6 vs 15 digs, x0.40; re-run in the verify round x0.46). 6a FAILS: the route bot, which already knows the leg, completes leg 3 at median 10 runs with both island rungs bought against 8 without — the compass is a cost to a player who can read the leg (owner / M14). Deviations: the idle look-ahead counts its 2 chunks past the colony's PADDED extent (the frame already makes the padded chunks), and makes each chunk in slices (<= ~11 ms a slot) rather than one per slot (an unsliced idle chunk was a 47-55 ms task). Verify round: an edge mark with no clear spot on its whole ray is skipped (the worm chevron read `.x` off a null and threw out of renderFrame), and the needles are placed around the chevrons (28 of 304 needle/chevron pairs overlapped).
+
 
 ### M11 — The oxalic vial: the bought way through rock
 
@@ -1288,6 +1290,8 @@ of supply, legs 7 and 8 do not land (the rot clock, doses spent; the navigator d
 
 **Risk.** - The shared collision path must be gated strictly on sub.mine && armed.
 - Keep the budget small, or the vial becomes the general rock-eater the premise forbids.
+
+**As built (M11).** `Network._tunnelPath` is the one rule, used by the pre-check (`mineGrow`), the aim arrow's outline and `growDirected(opts.rockBudget)`: from the PRESSED strand along the aim, rock must begin within one dig's reach, the in-rock length must be <= `CONFIG.mine.vialRockBudget` (108), and the ground from the exit to the next whole segment must be open (else 'thick'; leaving the world inside rock is 'edge'). Tunnel nodes are laid straight at whole segment lengths (`n.acid`; `n.acidIn` where the node stands in drawn rock), then the dig carries on from the open end with its remaining steps. Decisions: an armed vial whose aim meets no rock within reach digs as usual and stays armed (it is for a wall); a refusal keeps it armed for another aim; the dig charges its ordinary price. Tolerance: `nearestNode` and the pile claim's sources skip `acidIn` (a mine-only flag, so nothing changes elsewhere); worm sight already stops at rock (a worm 42 u from an encased strand never targets it; the control beside the open end attaches); a cloud at the tunnel mouth ticks cleanly; ship-check's "no living nodes inside _fineSolid" excludes `acidIn`.
 
 
 ### M12 — Juice: every payout and threshold is felt
