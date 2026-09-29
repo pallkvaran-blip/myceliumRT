@@ -3532,6 +3532,14 @@ const CONFIG = {
     richChance: 0.25,
     richPer: 6,
     richScale: 1.3,
+    // ---- the compasses (M10) ------------------------------------------------
+    // Rung 3 of a material compass points at the RICHEST unclaimed seam within this many metres of the
+    // focus strand; `compassIdleChunks` is how far (in chunks) past the colony's extent the idle
+    // look-ahead generates while a material compass is owned, one chunk per idle slot, at least
+    // `compassIdleGapMs` apart.
+    compassRichM: 90,
+    compassIdleChunks: 2,
+    compassIdleGapMs: 300,
     // ---- the carve, per chunk ----------------------------------------------
     // GALLERIES AT FIXED ROWS ARE WHAT MAKES A CHUNKED WORLD CONNECTED WITHOUT ANY CROSS-CHUNK STATE.
     // Every chunk carves a lateral corridor spanning its full width at the same rows as every other
@@ -14718,7 +14726,26 @@ const STORE_UPGRADES = [
     mineOnly: true,
     effect: 'Push the first price line <b>14 m deeper</b>.',
     costs: [15, { m: 'anthracite', n: 14 }, { m: 'anthracite', n: 24 }, { m: 'garnet', n: 20 }] },
+  // THE COMPASSES (finishing plan M10): KNOWLEDGE, not power. A needle at the screen's edge points on
+  // the STRAIGHT bearing from the focus strand to its target, through rock — a bearing, never a route,
+  // so the maze still has to be solved. The island compass points at the leg's taproot (the leg def
+  // always knows it); rung 1 is the bearing, rung 2 adds the distance in metres.
+  { id: 'compassIsland', name: 'Island compass', icon: 'compass', accent: 'mint', step: 1, unit: 'rungs', unit1: 'rung',
+    mineOnly: true,
+    effect: 'A needle at the screen edge points <b>through rock</b> at the island\'s root. Rung 2 adds the distance.',
+    costs: [12, 40] },
+  // ...and one per DEEP MATERIAL, generated from CONFIG.mine.materials so a fifth material is one CONFIG
+  // entry. Phosphorus (band 0) has none: it is the shallow band's and the whole band is two digs wide.
+  // Prices are the plan's table, which is exactly 20·band, 60 + 40·(band − 1), then 12 of the material:
+  // 20 / 60 / 12 Anthracite, 40 / 100 / 12 Garnet, 60 / 140 / 12 Hematite.
+  ...((CONFIG.mine && CONFIG.mine.materials) || []).filter((m) => (m.band | 0) >= 1).map((m) => ({
+    id: 'compass_' + m.id, name: m.name + ' compass', icon: 'compass', accent: 'phos', step: 1, unit: 'rungs', unit1: 'rung',
+    mineOnly: true, compassMat: m.id,
+    effect: 'A needle points <b>through rock</b> at the nearest ' + m.name + ' seam found so far. Rung 2 adds the distance; rung 3 picks the richest within 90 m.',
+    costs: [20 * (m.band | 0), 60 + 40 * ((m.band | 0) - 1), { m: m.id, n: 12 }] })),
 ];
+// The compass track ids, in material order (island first).
+const MINE_COMPASS_IDS = STORE_UPGRADES.filter((u) => u.id === 'compassIsland' || u.compassMat).map((u) => u.id);
 // THE MINE'S SHELF: an ALLOW-LIST, not an exclusion list. Every track above was written for the
 // card game, so the honest question is "which of these mean anything in a mine?" rather than
 // "which don't" — and the answer is short. Energy buys nothing (nothing in the mine spends it),
@@ -14726,7 +14753,7 @@ const STORE_UPGRADES = [
 // not have, the two carry tracks are cards, and Retries retries a level. What is left is fuel and
 // the three tracks written for the mine itself.
 // Ore yield and Water pockets left the shelf in M5 (the dominant buy, and the weakest).
-const MINE_UPGRADE_IDS = ['water', 'growSteps', 'heatTolerance', 'excreteCharges', 'amputateCharges'];
+const MINE_UPGRADE_IDS = ['water', 'growSteps', 'heatTolerance', 'excreteCharges', 'amputateCharges'].concat(MINE_COMPASS_IDS);
 // The mine's price for a shared track. `water` is a Spores ladder upstairs (25, 50, 100 …) and
 // the mine's whole currency runs an order of magnitude smaller, so a shared track needs its own
 // ladder or its first rung is unreachable.
@@ -14760,6 +14787,15 @@ function mineRunsBanked(p) {
   return (p.mineBest | 0) > 0 ? 2 : 0;
 }
 const mineShelfOpen = (p) => mineRunsBanked(p) >= 2;
+// A JOURNEY SAVE: one that has played a journey leg (a leg record with a run, a landfall, or a later
+// leg / journey). The plain '#mine,<seed>' free layout records no leg and has no island to point at.
+function mineJourneySave(p) {
+  const mj = p && p.mineJourney;
+  if (!mj) return false;
+  if ((mj.leg | 0) > 1 || (mj.journey | 0) > 1) return true;
+  for (const k in (mj.legs || {})) { const r = mj.legs[k]; if (r && ((r.runs | 0) > 0 || r.landed)) return true; }
+  return false;
+}
 function mineTrackRevealed(id, progress) {
   const p = progress || loadProgress();
   const seen = (p && p.mineSeen) || {};
@@ -14772,7 +14808,14 @@ function mineTrackRevealed(id, progress) {
     case 'heatTolerance': return !!seen.line42;
     case 'excreteCharges': return !!seen.worm || leg >= 2;
     case 'amputateCharges': return !!seen.cloud || leg >= 4;
-    default: return true;
+    // M10: the island compass from STORE VISIT 2 on a journey save (a save that has played a leg);
+    // a material compass once the save has dug its first seam of that material (`mat_<id>`).
+    case 'compassIsland': return (p.mineStoreVisits | 0) >= 2 && mineJourneySave(p);
+    default: {
+      const u = upgradeById(id);
+      if (u && u.compassMat) return !!seen['mat_' + u.compassMat];
+      return true;
+    }
   }
 }
 // Does this track appear in the store for `game`? One predicate, asked by the shelf, by the buy
@@ -15075,7 +15118,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, sporesBalance, addSpores, takeSpores, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_SHELF_V1_COSTS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, upgradeSpendN, mineRunsBanked, mineShelfOpen, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, sporesBalance, addSpores, takeSpores, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_COMPASS_IDS, mineJourneySave, MINE_SHELF_V1_COSTS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, upgradeSpendN, mineRunsBanked, mineShelfOpen, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies };
 })();
 
 // ===================== src/highscores.js =====================
@@ -24209,7 +24252,21 @@ function mineEnsureChunks(state, view, opts) {
   if (view && view.x1 > view.x0) add(view.x0 - sp, view.x1 + sp);
   const max = opts && opts.max > 0 ? opts.max : Infinity;
   let list = [...want], lookahead = false;
-  if (opts && opts.ahead && !list.some((ci) => ci >= 0 && ci < total && !done[ci])) {
+  // THE IDLE LOOK-AHEAD (M10): `around` (chunks) — called from a requestIdleCallback slot, it makes the
+  // NEAREST ungenerated chunk within that many chunks of the colony's extent and nothing else (the
+  // chunks the colony or the view need now are the frame's job). What a material compass can point at is
+  // what exists, so this is what widens the compass's world ahead of the colony; it changes WHEN a chunk
+  // is made, never what is in it (chunks are order-independent, asserted by compass-check).
+  if (opts && opts.around > 0) {
+    lookahead = 'idle';
+    if (!(lo <= hi)) return 0;
+    const c0 = mineChunkOfCol(cfg, sub.colAtX(lo)), c1 = mineChunkOfCol(cfg, sub.colAtX(hi)), k = opts.around | 0;
+    const mid = (c0 + c1) / 2;
+    list = [];
+    for (let ci = c0 - k; ci <= c1 + k; ci++) list.push(ci);
+    list.sort((p, q) => Math.abs(p - mid) - Math.abs(q - mid) || p - q);
+  }
+  if (opts && opts.ahead && !(opts.around > 0) && !list.some((ci) => ci >= 0 && ci < total && !done[ci])) {
     lookahead = true;
     const more = new Set(), a = opts.ahead * cs, pad = (M.preloadCols | 0) * cs;
     if (lo <= hi) add(lo - pad - a, hi + pad + a, more);
@@ -24984,6 +25041,62 @@ function mineFocusNode(state) {
   state._mineFocusFallback = tip ? { len: net.nodes.length, id: tip.id } : null;
   return tip;
 }
+// THE COMPASS MODEL (M10). One entry per needle the save has bought, each on the STRAIGHT bearing from
+// the focus strand (the strand the player is working, `mineFocusNode`) to its target — through rock,
+// never a route. `bearing` is degrees of atan2(ty - fy, tx - fx) in world axes (y down, 0 = east);
+// `dist` is metres (1 cell = 1 m) and only present from rung 2.
+//  - island: the leg's taproot, which the leg def always knows (so it needs no generated chunk).
+//  - material: an UNCLAIMED seam of that material (not rewarded, no cell colonised) among the chunks
+//    that EXIST — rung 1-2 the nearest; rung 3 the richest (its pay: `richPer` if rich, else the
+//    material's `per`) within `compassRichM` (90 m), nearest among equals, else the nearest.
+// Cheap enough per frame: the piles are the chunks' own list (a few per chunk) and each pile's centre
+// is cached; the colonised test reads ~9 cells.
+function mineCompassModel(state) {
+  const out = [];
+  const sub = state && state.substrate, cfg = state && state.config;
+  if (!sub || !sub.mine || !cfg || !cfg.mine) return out;
+  const C = cfg.mine.compass;
+  if (!C) return out;
+  const f = mineFocusNode(state);
+  if (!f) return out;
+  const cs = sub.cellSize;
+  const put = (kind, id, mat, rung, tx, ty, extra) => {
+    const dx = tx - f.x, dy = ty - f.y, dm = Math.hypot(dx, dy) / cs;
+    out.push(Object.assign({ kind, id, mat, rung, fx: f.x, fy: f.y, focusId: f.id, tx, ty,
+      bearing: Math.atan2(dy, dx) * 180 / Math.PI, dist: rung >= 2 ? Math.round(dm) : null, distExact: dm }, extra || {}));
+  };
+  if ((C.island | 0) > 0 && sub.mineJourney) {
+    const t = mineTaprootXY(sub);
+    if (t) put('island', 'compassIsland', null, C.island | 0, t.x, t.y);
+  }
+  const mats = C.mats || {};
+  const M = mineCfg(cfg);
+  const richM = +M.compassRichM || 90;
+  for (const m of mineMaterials(cfg)) {
+    const rung = mats[m.id] | 0;
+    if (rung <= 0) continue;
+    let near = null, nd = Infinity, rich = null, rv = -1, rd = Infinity;
+    for (const pile of (sub.foodPiles || [])) {
+      if (pile.mineMat !== m.id || pile.rewarded) continue;
+      let claimed = false;
+      for (const idx of pile.cells) { const c = sub.cells[idx]; if (c && c.colonized > 0) { claimed = true; break; } }
+      if (claimed) continue;
+      const c = minePileCentre(sub, pile);
+      const d = Math.hypot(c.x - f.x, c.y - f.y) / cs;
+      if (d < nd) { nd = d; near = { pile, c }; }
+      if (rung >= 3 && d <= richM) {
+        const v = pile.rich ? ((M.richPer | 0) || 6) : (m.per | 0);
+        if (v > rv || (v === rv && d < rd)) { rv = v; rd = d; rich = { pile, c, v }; }
+      }
+    }
+    const pick = rich || near;
+    if (!pick) continue;
+    put('mat', 'compass_' + m.id, m.id, rung, pick.c.x, pick.c.y,
+        { value: pick.pile.rich ? ((M.richPer | 0) || 6) : (m.per | 0), rich: !!pick.pile.rich, richest: !!rich,
+          pileIndex: sub.foodPiles.indexOf(pick.pile) });
+  }
+  return out;
+}
 // WHAT A DIG COSTS WHERE THE PLAYER IS WORKING — the number the HUD chip shows.
 function mineCostHere(state) {
   const n = mineFocusNode(state);
@@ -25183,7 +25296,7 @@ function mineEndRun(state, cause) {
            mineDigCost, mineCheapestCost, mineNextHeatLine, mineHeatLines,
            mineMaterials, mineMaterialFor, mineMaterialById, mineMatTag,
            mineGrowSegments, mineGrowReach, mineGrow, mineCanGrow, mineFuelCheck, mineEndRun,
-           mineFocusNode, mineCostHere, mineStuckCheck, mineStuckState, mineRunDepth, mineAtNodeCap,
+           mineFocusNode, mineCompassModel, mineCostHere, mineStuckCheck, mineStuckState, mineRunDepth, mineAtNodeCap,
            mineReachRaw, mineReachPay, mineBankable, mineRichHash,
            MINE_END_CAUSES,
            mineInfectionCheck, mineInfectionLeft,
@@ -31314,7 +31427,7 @@ function growMyceliumTitle(container, opts = {}) {
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
   const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, matBalance, loadProgress, saveProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, highestCleared, startLevelFor, startLevelForGame, loadDeck, deckBucketFor, deckBuckets, deckSize,
-    STORE_UPGRADES, MINE_UPGRADE_IDS, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, upgradeSpendN, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+    STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_COMPASS_IDS, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, upgradeSpendN, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
   // `isCampaignGame` rather than a `game` argument threaded down from main: this screen is shared
@@ -31368,6 +31481,8 @@ const RI = {
   // `RI` is the PICKER's icon set and `RES_ICON` the HUD's; they are separate lists that happen to
   // share three names, so a tile asking for an icon only the HUD has renders with a blank space
   // where its glyph should be — which is what the mine's two weapon tiles did.
+  // THE COMPASS (M10): a ring with a needle, in the tile's accent.
+  compass: '<svg class="ss-ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 5.5l2.2 6.5-2.2 6.5-2.2-6.5z" fill="currentColor" stroke="none"/></svg>',
   worm: '<svg class="ss-ri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M3.5 16.5c3-4 4.5 3 8-1.5s3.5-9.5 9-8"/></svg>',
   spore: '<svg class="ss-ri" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="12" r="3.4"/><circle cx="5" cy="7" r="1.7"/><circle cx="19" cy="8" r="1.5"/><circle cx="6.5" cy="17.5" r="1.5"/><circle cx="18" cy="17" r="1.8"/></svg>',
   // --- the three carry tracks --------------------------------------------------
@@ -31804,7 +31919,13 @@ const MINE_GOAL_TEXT = {
   heatTolerance: 'push the first price line 14 m deeper',
   excreteCharges: 'carry a flask that kills drinking worms',
   amputateCharges: 'carry a dose that cuts out rot',
+  compassIsland: 'a needle that points through rock at the island\'s root',
 };
+// A compass's goal line, generated with the tracks (M10).
+for (const id of MINE_COMPASS_IDS) if (!MINE_GOAL_TEXT[id]) {
+  const u = upgradeById(id);
+  MINE_GOAL_TEXT[id] = 'a needle that points through rock at ' + (u && u.compassMat ? matName(u.compassMat) : 'the next') + ' seams';
+}
 // THE NEXT GOAL (the end screen's card, and the store's highlighted tile). Priority, from the plan:
 // a new tile > grow > water > heat > flask > enzyme (compasses and the vial arrive in later
 // milestones). The first AFFORDABLE rung in that order (so run 1, which reveals heat at 42 m but banks
@@ -31817,15 +31938,27 @@ const MINE_GOAL_TEXT = {
 // the priority read literally, run 1 (which banks 19-42 P on the route bots, not the model's 12) was
 // offered Grow strength, or Heat tolerance marked NEW, and one tap spent the haul on it. So an unbought
 // Water tank heads the order, affordable or not; everything after Water I follows the plan's priority.
-const MINE_GOAL_ORDER = ['growSteps', 'water', 'heatTolerance', 'excreteCharges', 'amputateCharges'];
+const MINE_GOAL_ORDER = ['growSteps', 'water', 'heatTolerance', 'excreteCharges', 'amputateCharges', 'compassIsland'];
+// ...then (M10) the compass for a material the NEXT power rung needs — a garnet compass is news to a
+// player whose next Grow rung costs Garnet, and noise to one who has nothing to spend garnet on yet.
+function mineGoalOrder(p) {
+  const need = new Set();
+  for (const id of ['water', 'growSteps', 'heatTolerance', 'excreteCharges', 'amputateCharges']) {
+    const c = costParts(upgradeNextCost(id, p));
+    if (c && c.m !== 'phosphorus') need.add(c.m);
+  }
+  return MINE_GOAL_ORDER.concat(MINE_COMPASS_IDS.filter((id) => { const u = upgradeById(id); return u && u.compassMat && need.has(u.compassMat); }));
+}
 function mineNextGoal(progress, where) {
   const p = progress || loadProgress();
+  const MINE_GOAL_ORDER = mineGoalOrder(p);
+  const ALL = ['growSteps', 'water', 'heatTolerance', 'excreteCharges', 'amputateCharges'].concat(MINE_COMPASS_IDS);
   const cands = [];
   const forCard = where !== 'store';
   // New = revealed and not yet past its NEW visit, so the card and the store's highlight agree on a
   // freshly revealed tile (the card asks only "never shown": see `mineTileNew`).
   const pin = upgradeLevel('water', p) === 0 && upgradeInGame(upgradeById('water'), 'mine', p) ? ['water'] : [];
-  const order = pin.concat(MINE_GOAL_ORDER.filter((id) => mineTileNew(id, p, forCard)), MINE_GOAL_ORDER);
+  const order = pin.concat(ALL.filter((id) => mineTileNew(id, p, forCard)), MINE_GOAL_ORDER);
   const seen = new Set();
   for (const id of order) {
     if (seen.has(id)) continue; seen.add(id);
@@ -31900,6 +32033,7 @@ function upgradeTile(u, progress, onBuy, opts) {
     if (u.id === 'heatTolerance') mineNow = 'line ' + ((mineNextHeat(progress).safeDepth | 0) + (have | 0)) + ' m';
     else if (u.id === 'growSteps') mineNow = 'grow ' + have;
     else if (u.id === 'excreteCharges' || u.id === 'amputateCharges') mineNow = 'carry ' + have;
+    else if (MINE_COMPASS_IDS.indexOf(u.id) >= 0) mineNow = ['none yet', 'bearing', '+ metres', 'richest'][Math.min(3, lvl)];
   }
   let pips = '';
   for (let i = 0; i < max; i++) pips += '<span class="ss-upg-pip' + (i < lvl ? ' on' : '') + '"></span>';
@@ -35342,8 +35476,8 @@ const __m_main = (function () {
           mineEastReached, mineIslandReached, mineTaprootXY,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost, mineNextHeatLine,
-          mineHeatLines, mineRayOpen, mineOccupied, mineBestDownRay, mineOpenTips, mineOpenTipsScored, mineOpenTipsPick, minePileCentre, mineResCentre, mineFocusNode,
-          mineMaterials, mineMaterialFor, mineMaterialById,
+          mineHeatLines, mineRayOpen, mineOccupied, mineBestDownRay, mineOpenTips, mineOpenTipsScored, mineOpenTipsPick, minePileCentre, mineResCentre, mineFocusNode, mineCompassModel,
+          mineMaterials, mineMaterialFor, mineMaterialById, mineMatTag,
           mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun,
           mineCostHere, mineStuckCheck, mineStuckState, mineRunDepth, mineAtNodeCap,
@@ -35369,7 +35503,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro, showVictory, VICT_FADE_MS } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, mineRunsBanked, mineShelfOpen, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
+  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_COMPASS_IDS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, mineRunsBanked, mineShelfOpen, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, levelAssetKeys, hasAsset, asset, assetFailed, pattern, assetMeta, assetUrl, preloadImages, assetState, assetReadyGen } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx, playSeamPing, playPocketGlug, playReachTick, playFinaleNote } = __m_render_sfx;
@@ -35708,6 +35842,10 @@ function configForLevel(level) {
     // it; `createLevelState` copies it onto `state.mineItems` at run start.
     cfg.mine.items = { excrete: Math.max(0, b.excreteCharges | 0),
                        amputate: Math.max(0, b.amputateCharges | 0) };
+    // THE COMPASSES (M10): the rung of each, folded into the clone like the kit — a purchase between
+    // runs changes the next run, never one in flight. { island: 0-2, mats: { <id>: 0-3 } }.
+    cfg.mine.compass = { island: Math.max(0, b.compassIsland | 0), mats: {} };
+    for (const m of (cfg.mine.materials || [])) if ((m.band | 0) >= 1) cfg.mine.compass.mats[m.id] = Math.max(0, b['compass_' + m.id] | 0);
     // ...and how deep the base price reaches. Held as a BONUS rather than folded into
     // `heat.safeDepth`, so the config keeps saying what the unupgraded limit is — otherwise the
     // number the tile quotes and the number the curve uses drift apart with nothing to catch it.
@@ -39491,6 +39629,13 @@ function begin(newState) {
       // M6: the edge chevrons the LAST frame drew for off-screen attached worms ({x, y} screen, wx/wy world).
       chevrons: () => (state._mineChevrons || []).map((c) => Object.assign({}, c)),
       rotChevron: () => (state._mineRotChevron ? Object.assign({}, state._mineRotChevron) : null),
+      // M10: the compass model (one entry per bought needle — see `mineCompassModel`), what the last
+      // frame DREW for each (`needles`: screen point, angle, alpha, label, rect) and the HUD rects it
+      // kept clear of, and the idle look-ahead's log.
+      compass: () => mineCompassModel(state).map((e) => Object.assign({}, e)),
+      needles: () => (state._mineNeedles || []).map((c) => Object.assign({}, c)),
+      hudRects: () => mineHudRects(performance.now(), true).map((r) => Object.assign({}, r)),
+      idleLog: () => (state._mineIdleLog || []).slice(),
       // How many ambient sight rings the LAST frame drew, and the switch behind them.
       sight: () => ({ on: !!(state.config.mine && state.config.mine.showSight),
                       drawn: state._mineSightDrawn | 0 }),
@@ -41365,6 +41510,7 @@ function advanceSim(time) {
     // columns) or a view's width from any growth, so one frame uncollided cannot be grown into.
     if (state._mineStampNext) {
       state._mineStampNext = false;
+      state._mineIdleStamp = 0;      // this stamp collides an idle chunk too (everything past the watermark)
       const t0 = performance.now();
       solidifyMineRock();
       const log = state._mineGenLog; if (log && log.length) { const e = log[log.length - 1]; e.stampMs = +(performance.now() - t0).toFixed(2); e.stampFrame = state._mineFrameNo | 0; }
@@ -41377,7 +41523,14 @@ function advanceSim(time) {
       const early = (state._mineFrameNo | 0) < 3;
       const made = mineEnsureChunks(state, { x0: camera.x - half, x1: camera.x + half },
                                     { max: 1, ahead: busy || early ? 0 : (state.config.mine.chunkCols | 0), seamPad: 5 });
-      if (made) state._mineStampNext = true; else solidifyMineRock();
+      if (made) state._mineStampNext = true;
+      // AN IDLE CHUNK IS STAMPED IN THE NEXT IDLE SLOT, NOT ON A FRAME (M10) — the stamp costs about as
+      // much as the chunk, and the point of the idle slot was to keep both off the frames. It is never in
+      // view (the view's chunks are the frame's), and a safety net stamps it on a frame if no idle slot
+      // has come in 1.5 s.
+      else if (state._mineIdleStamp && performance.now() - state._mineIdleStamp < 1500) {}
+      else { state._mineIdleStamp = 0; solidifyMineRock(); }
+      mineIdleSchedule(!(busy || early));
     }
     mineUnboxArrived();
   }
@@ -41727,6 +41880,51 @@ function mineOnWalled(time) {
 }
 // The screen y below which a glowing tip is not hidden by the HUD stack: the rows, the rot banner and
 // the hint line (whose slot the 'Dead end' line is about to fill, so it is counted even while empty).
+// THE COMPASS'S IDLE LOOK-AHEAD (M10). While the save owns a MATERIAL compass, chunks within
+// `compassIdleChunks` (2) of the colony's extent are made in requestIdleCallback slots — one chunk a
+// slot, `compassIdleGapMs` apart (setTimeout 300 ms where there is no rIC) — so the needle can point at a
+// seam before the colony is next door to it. The stamp that collides the chunk takes the NEXT idle slot.
+// `ok` is the frame loop's own "not busy" (no finger down, no grow arriving, not over, no menu, not the
+// first frames), re-read inside the slot. Test knob `window.MYCELIUM_NO_IDLE_LOOKAHEAD`.
+// `state._mineIdleLog` records every slot's work {kind: 'gen'|'stamp', ci, t0, ms} for compass-check.
+let _mineIdleHandle = null, _mineIdleLast = 0;
+function mineIdleWanted() {
+  const C = state && state.config && state.config.mine && state.config.mine.compass;
+  if (!C || !C.mats) return false;
+  for (const k in C.mats) if ((C.mats[k] | 0) > 0) return true;
+  return false;
+}
+function mineIdleSchedule(ok) {
+  state._mineIdleOk = !!ok;
+  if (_mineIdleHandle || !ok || !mineIdleWanted()) return;
+  if (typeof window !== 'undefined' && window.MYCELIUM_NO_IDLE_LOOKAHEAD === true) return;
+  const gap = Math.max(0, +(state.config.mine.compassIdleGapMs) || 300);
+  if (!state._mineIdleStamp && performance.now() - _mineIdleLast < gap) return;
+  const st = state;
+  const run = (deadline) => {
+    _mineIdleHandle = null;
+    if (st !== state || !st.substrate || !st.substrate.mine || !st._mineIdleOk || st.runOver) return;
+    const log = (st._mineIdleLog || (st._mineIdleLog = []));
+    const t0 = performance.now();
+    if (st._mineIdleStamp) {
+      st._mineIdleStamp = 0;
+      solidifyMineRock();
+      log.push({ kind: 'stamp', t0: +t0.toFixed(1), ms: +(performance.now() - t0).toFixed(2), frame: st._mineFrameNo | 0 });
+    } else {
+      const made = mineEnsureChunks(st, null, { max: 1, around: Math.max(1, st.config.mine.compassIdleChunks | 0) });
+      if (made) {
+        const g = st._mineGenLog, e = g && g[g.length - 1];
+        st._mineIdleStamp = performance.now();
+        log.push({ kind: 'gen', ci: e && e.cis ? e.cis[0] : null, t0: +t0.toFixed(1), ms: +(performance.now() - t0).toFixed(2), frame: st._mineFrameNo | 0 });
+      }
+    }
+    _mineIdleLast = performance.now();
+    if (log.length > 256) log.shift();
+  };
+  _mineIdleHandle = (typeof requestIdleCallback === 'function')
+    ? { ric: requestIdleCallback(run, { timeout: 1000 }) }
+    : { to: setTimeout(run, 300) };
+}
 function mineHudBandPx() {
   let bottom = 0;
   const hud = document.querySelector('#ui > .hud.minehud');
@@ -42710,6 +42908,7 @@ function renderFrame(time, dtFrames = 1) {
   if (state.substrate.mine) drawMineJourney(time);   // M8: record lines, the east chevron
   if (state.substrate.mine) drawMineOnboard(time);   // M4: ghost finger, dead-end glow, tip rings, price-line label
   if (state.substrate.mine) drawMineThreatMarks(time);   // M6: attach rings + chevrons, above the glow
+  if (state.substrate.mine) drawMineCompass(time);       // M10: the compass needles, at the screen edge
   _rfMark('threats+marks');
   drawFloaters(time, dtFrames);  // floating "+N⚡" energy labels over piles (on top of the map)
   if (winCele) drawWinCelebration(time);   // win: mushrooms fruit + spores drift off on the wind
@@ -45667,14 +45866,136 @@ function mineChevron(ex, ey, ang, fill, pulse) {
   ctx.restore();
 }
 function mineChevronAt(time, hp) {
-  const cx = camera.viewW / 2, cy = camera.viewH / 2, dx = hp.x - cx, dy = hp.y - cy;
+  const cx = camera.viewW / 2, cy = camera.viewH / 2;
   // Kept clear of the HUD stack at the top — rows, rot banner and hint, measured (`mineHudBandPx`,
   // cached 300 ms: it reads the DOM) and never above 100 px — of the item kit at the bottom (78 px)
   // and 24 px from the sides. A fixed 100 put the chevron on the rot banner at 390 px.
-  if (!state._mineChevBand || time - state._mineChevBand.at > 300) state._mineChevBand = { at: time, px: mineHudBandPx() };
+  // M10: THE SAME EDGE PLACEMENT THE COMPASS NEEDLES USE (`mineEdgePlace`), from the screen's centre —
+  // which also keeps it off every other HUD rect (the kit, FRUIT NOW, the gear) rather than only the
+  // top band.
+  return mineEdgePlace(time, { x: cx, y: cy }, Math.atan2(hp.y - cy, hp.x - cx), 17, 0);
+}
+// THE HUD'S RECTS in canvas coordinates (M10): every visible piece of the mine HUD that a mark at the
+// screen edge must never sit on — the rows, the rot banner, the hint, the gear, the kit, FRUIT NOW, the
+// settings menu and a showing toast. Cached 300 ms (it reads the DOM); `force` re-reads.
+function mineHudRects(time, force) {
+  const c = state._mineHudRects;
+  if (!force && c && time - c.at < 300 && time >= c.at) return c.rects;
+  const rects = [];
+  const g = (document.getElementById('game') || document.body).getBoundingClientRect();
+  const sels = ['#ui .minerows', '#hud-infect', '#minehint', '#gearbtn', '#minekit', '#fruitnow', '#settingsmenu', '#ui .toast.in', '#logdrop'];
+  for (const sel of sels) {
+    for (const n of document.querySelectorAll(sel)) {
+      if (n.hidden || n.classList.contains('hidden')) continue;
+      const cs = getComputedStyle(n);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      const r = n.getBoundingClientRect();
+      if (!(r.width > 0 && r.height > 0)) continue;
+      rects.push({ sel, x0: r.left - g.left, y0: r.top - g.top, x1: r.right - g.left, y1: r.bottom - g.top });
+    }
+  }
+  state._mineHudRects = { at: time, rects };
+  return rects;
+}
+const _rectHit = (a, b, pad) => a.x0 < b.x1 + pad && a.x1 > b.x0 - pad && a.y0 < b.y1 + pad && a.y1 > b.y0 - pad;
+// WHERE AN EDGE MARK GOES: cast from `origin` (clamped into the inner rect) along `ang` to the inner
+// rect's boundary — 24 px from the sides, below the top HUD band (never above 100 px), 80 px above the
+// bottom — then, if the mark's own rect (a disc of `r` plus a label `labelW` wide on its inward side)
+// would touch any HUD rect, walk it back toward the origin until it does not. `taken` spaces marks
+// already placed this frame. Returns {x, y, ang, rect} or null when nothing on the ray is clear.
+function mineEdgePlace(time, origin, ang, r, labelW, taken) {
+  const W = camera.viewW, H = camera.viewH;
+  if (!state._mineChevBand || time - state._mineChevBand.at > 300 || time < state._mineChevBand.at) state._mineChevBand = { at: time, px: mineHudBandPx() };
   const m = 24, mt = Math.max(100, (state._mineChevBand.px | 0) + 18), mb = 80;
-  const k = Math.min(Math.abs((cx - m) / (dx || 1e-6)), Math.abs(((dy < 0 ? cy - mt : cy - mb)) / (dy || 1e-6)));
-  return { x: cx + dx * k, y: cy + dy * k, ang: Math.atan2(dy, dx) };
+  const x0 = m, x1 = W - m, y0 = Math.min(mt, H / 2), y1 = Math.max(H - mb, H / 2);
+  const ox = Math.max(x0, Math.min(x1, origin.x)), oy = Math.max(y0, Math.min(y1, origin.y));
+  const dx = Math.cos(ang), dy = Math.sin(ang);
+  let k = Infinity;
+  if (dx > 1e-9) k = Math.min(k, (x1 - ox) / dx); else if (dx < -1e-9) k = Math.min(k, (x0 - ox) / dx);
+  if (dy > 1e-9) k = Math.min(k, (y1 - oy) / dy); else if (dy < -1e-9) k = Math.min(k, (y0 - oy) / dy);
+  if (!isFinite(k)) k = 0;
+  const hud = mineHudRects(time);
+  const rectAt = (x, y) => {
+    // The label sits on the side facing the screen's middle, so it never runs off the edge.
+    const lx = labelW ? (x < W / 2 ? x + r + 4 : x - r - 4 - labelW) : x;
+    return { x0: Math.min(x - r, lx), x1: Math.max(x + r, lx + labelW), y0: y - r, y1: y + r };
+  };
+  for (let t = k; t >= 0; t -= 6) {
+    const x = ox + dx * t, y = oy + dy * t, rc = rectAt(x, y);
+    if (hud.some((h) => _rectHit(rc, h, 3))) continue;
+    if (taken && taken.some((q) => Math.hypot(q.x - x, q.y - y) < 2 * r + 4 || (q.rect && _rectHit(rc, q.rect, 2)))) continue;
+    return { x, y, ang, rect: rc };
+  }
+  return null;
+}
+// THE COMPASS NEEDLES (M10). One mark per bought needle at the screen's edge, on the STRAIGHT bearing
+// from the focus strand's screen point — through rock: a bearing, never a route, so finding the
+// corridor is still the player's. The island's in the colony's mint, a material's in its own tint (a
+// 3-letter tag from rung 1, metres from rung 2). A needle FADES as its target comes on screen (alpha
+// from how far the target lies outside the inner rect: gone at 0, full at 80 px out), so it never
+// points at something the player can already see. At most 4. `state._mineNeedles` is what was drawn.
+// Test knob `window.MYCELIUM_NO_COMPASS` skips the draw (compass-check's pixel control).
+function mineNeedle(ex, ey, ang, rgb, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(ex, ey);
+  ctx.fillStyle = 'rgba(12,8,6,0.66)';
+  ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = `rgba(${rgb},0.9)`; ctx.lineWidth = 1.6;
+  ctx.beginPath(); ctx.arc(0, 0, 14.5, 0, Math.PI * 2); ctx.stroke();
+  ctx.rotate(ang);
+  // A compass needle: the pointing half in the colour, the tail dark.
+  ctx.fillStyle = `rgb(${rgb})`;
+  ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(0, -4.2); ctx.lineTo(0, 4.2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(200,190,170,0.55)';
+  ctx.beginPath(); ctx.moveTo(-10, 0); ctx.lineTo(0, -4.2); ctx.lineTo(0, 4.2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = 'rgba(12,8,6,0.95)';
+  ctx.beginPath(); ctx.arc(0, 0, 1.8, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+const _hexRgb = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h || '')); if (!m) return '127,230,163';
+  const v = parseInt(m[1], 16); return `${(v >> 16) & 255},${(v >> 8) & 255},${v & 255}`; };
+function drawMineCompass(time) {
+  state._mineNeedles = [];
+  if (typeof window !== 'undefined' && window.MYCELIUM_NO_COMPASS === true) return;
+  const model = mineCompassModel(state);
+  if (!model.length) return;
+  const W = camera.viewW, H = camera.viewH;
+  const out = state._mineNeedles, taken = [];
+  const f = camera.worldToScreen(model[0].fx, model[0].fy);
+  ctx.save();
+  ctx.font = '600 12px system-ui, -apple-system, Segoe UI, sans-serif';
+  ctx.textBaseline = 'middle';
+  for (const e of model.slice(0, 4)) {
+    const mat = e.mat ? mineMaterialById(state.config, e.mat) : null;
+    const rgb = mat ? _hexRgb(mat.tint) : '127,230,163';
+    const t = camera.worldToScreen(e.tx, e.ty);
+    // Fade by how far the target is OUTSIDE the view (0 inside, 1 from 80 px out).
+    const ox = Math.max(0 - t.x, t.x - W, 0), oy = Math.max(0 - t.y, t.y - H, 0);
+    const alpha = Math.max(0, Math.min(1, Math.hypot(ox, oy) / 80));
+    const ang = e.bearing * Math.PI / 180;   // world and screen share axes (a uniform zoom)
+    const label = (mat ? mineMatTag(mat) : '') + (e.dist != null ? (mat ? ' ' : '') + e.dist + ' m' : '');
+    const lw = label ? Math.ceil(ctx.measureText(label).width) + 10 : 0;
+    const rec = { id: e.id, kind: e.kind, mat: e.mat, rung: e.rung, bearing: e.bearing, dist: e.dist, label, alpha: +alpha.toFixed(3),
+                  fx: Math.round(f.x), fy: Math.round(f.y), tsx: Math.round(t.x), tsy: Math.round(t.y) };
+    if (alpha < 0.02) { rec.faded = true; out.push(rec); continue; }
+    const p = mineEdgePlace(time, f, ang, 17, lw, taken);
+    if (!p) { rec.hidden = 'hud'; out.push(rec); continue; }
+    taken.push(p);
+    mineNeedle(p.x, p.y, ang, rgb, alpha);
+    if (label) {
+      const lx = p.x < W / 2 ? p.x + 21 : p.x - 21 - lw;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = 'rgba(12,8,6,0.66)';
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(lx, p.y - 10, lw, 20, 6) : ctx.rect(lx, p.y - 10, lw, 20); ctx.fill();
+      ctx.fillStyle = `rgb(${rgb})`;
+      ctx.fillText(label, lx + 5, p.y + 0.5);
+      ctx.globalAlpha = 1;
+    }
+    Object.assign(rec, { x: Math.round(p.x), y: Math.round(p.y), rect: { x0: Math.floor(p.rect.x0), y0: Math.floor(p.rect.y0), x1: Math.ceil(p.rect.x1), y1: Math.ceil(p.rect.y1) } });
+    out.push(rec);
+  }
+  ctx.restore();
 }
 function drawMineThreatMarks(time) {
   const sub = state.substrate, worms = state.nematodes || [];
