@@ -46005,12 +46005,26 @@ function mineEdgePlace(time, origin, ang, r, labelW, taken) {
     const lx = labelW ? (x < W / 2 ? x + r + 4 : x - r - 4 - labelW) : x;
     return { x0: Math.min(x - r, lx), x1: Math.max(x + r, lx + labelW), y0: y - r, y1: y + r };
   };
-  for (let t = k; t >= 0; t -= 6) {
-    const x = ox + dx * t, y = oy + dy * t, rc = rectAt(x, y);
-    if (hud.some((h) => _rectHit(rc, h, 3))) continue;
-    if (taken && taken.some((q) => Math.hypot(q.x - x, q.y - y) < 2 * r + 4 || (q.rect && _rectHit(rc, q.rect, 2)))) continue;
-    return { x, y, ang, rect: rc };
+  // Candidates, in order: on the ray from the edge back in by up to 60 px; then SLID ALONG THE EDGE
+  // (the tangent) by up to 3 marks either way, so two needles on near bearings stack at the edge rather
+  // than one being pushed into the middle of the screen (it still points along its bearing — `slid`);
+  // then the rest of the ray back to the origin.
+  const free = (x, y) => {
+    if (x < x0 - 0.5 || x > x1 + 0.5 || y < y0 - 0.5 || y > y1 + 0.5) return null;
+    const rc = rectAt(x, y);
+    if (hud.some((h) => _rectHit(rc, h, 3))) return null;
+    if (taken && taken.some((q) => Math.hypot(q.x - x, q.y - y) < 2 * r + 4 || (q.rect && _rectHit(rc, q.rect, 2)))) return null;
+    return rc;
+  };
+  const onX = Math.abs(ox + dx * k - x0) < 1 || Math.abs(ox + dx * k - x1) < 1;   // the edge hit is a side
+  for (let t = k; t >= Math.max(0, k - 60); t -= 6) { const x = ox + dx * t, y = oy + dy * t, rc = free(x, y); if (rc) return { x, y, ang, rect: rc }; }
+  const ex = ox + dx * k, ey = oy + dy * k;
+  for (const st of [1, -1, 2, -2, 3, -3]) {
+    const d = st * (2 * r + 6);
+    const x = onX ? ex : ex + d, y = onX ? ey + d : ey, rc = free(x, y);
+    if (rc) return { x, y, ang, rect: rc, slid: true };
   }
+  for (let t = Math.max(0, k - 66); t >= 0; t -= 6) { const x = ox + dx * t, y = oy + dy * t, rc = free(x, y); if (rc) return { x, y, ang, rect: rc }; }
   return null;
 }
 // THE COMPASS NEEDLES (M10). One mark per bought needle at the screen's edge, on the STRAIGHT bearing
@@ -46043,6 +46057,9 @@ const _hexRgb = (h) => { const m = /^#?([0-9a-f]{6})$/i.exec(String(h || '')); i
 function drawMineCompass(time) {
   state._mineNeedles = [];
   if (typeof window !== 'undefined' && window.MYCELIUM_NO_COMPASS === true) return;
+  // Not once the descent is over: the end screen (and ROOTED's celebration) sits over the map, and a
+  // needle pointing at a seam the player can no longer dig for is noise on the one screen they read.
+  if (state.runOver) return;
   const model = mineCompassModel(state);
   if (!model.length) return;
   const W = camera.viewW, H = camera.viewH;
@@ -46077,7 +46094,7 @@ function drawMineCompass(time) {
       ctx.fillText(label, lx + 5, p.y + 0.5);
       ctx.globalAlpha = 1;
     }
-    Object.assign(rec, { x: Math.round(p.x), y: Math.round(p.y), rect: { x0: Math.floor(p.rect.x0), y0: Math.floor(p.rect.y0), x1: Math.ceil(p.rect.x1), y1: Math.ceil(p.rect.y1) } });
+    Object.assign(rec, { x: Math.round(p.x), y: Math.round(p.y), slid: !!p.slid, rect: { x0: Math.floor(p.rect.x0), y0: Math.floor(p.rect.y0), x1: Math.ceil(p.rect.x1), y1: Math.ceil(p.rect.y1) } });
     out.push(rec);
   }
   ctx.restore();

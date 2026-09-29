@@ -209,7 +209,7 @@ const TRUTH = () => {
         const drawn = N.filter((n) => n.x != null).map((n) => {
           let a = Math.atan2(n.y - n.fy, n.x - n.fx) * 180 / Math.PI - n.bearing; a = Math.abs(((a + 540) % 360) - 180);
           const lab = /(\d+) m$/.exec(n.label || '');
-          return { id: n.id, da: a, len: Math.hypot(n.y - n.fy, n.x - n.fx), lab: lab ? +lab[1] : null, dist: n.dist };
+          return { id: n.id, da: a, len: Math.hypot(n.y - n.fy, n.x - n.fx), lab: lab ? +lab[1] : null, dist: n.dist, slid: n.slid };
         });
         // Stamp a rock sprite across the straight line from the focus to the island target.
         const e0 = M.find((e) => e.kind === 'island');
@@ -233,8 +233,8 @@ const TRUTH = () => {
       ok('...and every distance within 1 m', r.rows.every((x) => x.dd != null && x.dd <= 1),
          r.rows.map((x) => `${x.id} ${x.dist} m (off ${x.dd != null ? x.dd.toFixed(2) : '?'})`).join('; '));
       ok('the drawn needles sit on those bearings from the focus strand\'s screen point, and print the metres',
-         r.drawn.length >= 2 && r.drawn.every((x) => x.len < 40 || x.da < 2) && r.drawn.every((x) => x.lab === x.dist),
-         r.drawn.map((x) => `${x.id} off ${x.da.toFixed(2)} deg at ${Math.round(x.len)} px, label ${x.lab}`).join('; '));
+         r.drawn.filter((x) => !x.slid).length >= 2 && r.drawn.every((x) => x.slid || x.len < 40 || x.da < 2) && r.drawn.every((x) => x.lab === x.dist),
+         r.drawn.map((x) => `${x.id} ${x.slid ? 'slid along the edge (spacing)' : 'off ' + x.da.toFixed(2) + ' deg at ' + Math.round(x.len) + ' px'}, label ${x.lab}`).join('; '));
       ok('a rock sprite stamped between the focus and the island leaves the bearing, the distance and the target unchanged',
          !r.before && r.after && r.b0 === r.b1 && r.d0 === r.d1 && r.t0.join() === r.t1.join(),
          `midpoint solid ${r.before} -> ${r.after}; bearing ${r.b0.toFixed(3)} -> ${r.b1.toFixed(3)}, ${r.d0} -> ${r.d1} m`);
@@ -396,7 +396,7 @@ const TRUTH = () => {
         new Function('return (' + QUIET + ')')()();
         const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize;
         s.active.water = 100000;
-        await window.__navDig({ targetM: 30, maxIters: 200 });
+        await window.__navDig({ targetM: 50, maxIters: 300 });
         for (let i = 0; i < 100 && g.mine.revealing(); i++) await new Promise((res) => setTimeout(res, 50));
         // THE WHOLE HUD: three materials, worms attached, the rot banner, the kit, FRUIT NOW (held).
         s.mineMats = { anthracite: 6, garnet: 3, hematite: 12 };
@@ -408,7 +408,9 @@ const TRUTH = () => {
         for (let i = 0; i < 120 && (s.mineAttached | 0) < 2; i++) await new Promise((res) => setTimeout(res, 100));
         g.mine.spawnCloud(live[0].x, live[0].y);
         for (let i = 0; i < 100 && !s.mineInfect; i++) await new Promise((res) => setTimeout(res, 50));
-        s.active.water = g.mine.costHere() - 1;
+        // Stuck HERE (FRUIT NOW up) but able to pay the cheapest ground, so the run stays live: past the
+        // 42 m line a dig costs 4 where the colony is working and 2 near the surface.
+        s.active.water = Math.max(2, g.mine.costHere() - 1);
         for (let i = 0; i < 100; i++) { const fn = document.getElementById('fruitnow'); if (fn && !fn.hidden) break; await new Promise((res) => setTimeout(res, 50)); }
         s.config.mine.compass = { island: 2, mats: { anthracite: 2, garnet: 2, hematite: 2 } };
         await new Promise((res) => setTimeout(res, 400));
@@ -442,15 +444,26 @@ const TRUTH = () => {
         J.taproot.col = tap0.col; J.taproot.row = tap0.row;
         g.mine.lookAt(f.fx, f.fy + 200);
         g.renderFrame(performance.now());
-        return { hudSel, drawn, hidden, bad: bad.slice(0, 6), nbad: bad.length, chev, chevBad: chevBad.slice(0, 4), attached: s.mineAttached | 0,
+        const stillLive = !s.runOver;
+        return { stillLive, hudSel, drawn, hidden, bad: bad.slice(0, 6), nbad: bad.length, chev, chevBad: chevBad.slice(0, 4), attached: s.mineAttached | 0,
                  rot: !!s.mineInfect, over: !!s.runOver };
       }, QUIET.toString());
       await b.page.screenshot({ path: path.join(ART, 'm10-hud-390.png') }).catch(() => {});
+      // Once the descent is over (the end screen over the map) no needle is drawn.
+      r.afterEnd = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state;
+        s.active.water = 0;
+        for (let i = 0; i < 120 && !s.runOver; i++) await new Promise((res) => setTimeout(res, 50));
+        g.renderFrame(performance.now());
+        return { over: !!s.runOver, needles: g.mine.needles().length };
+      });
       ok('the loaded HUD is up (rows, rot banner, gear, kit, FRUIT NOW) and the run is live',
          !r.over && r.rot && ['#ui .minerows', '#hud-infect', '#gearbtn', '#minekit', '#fruitnow'].every((q) => r.hudSel.includes(q)), `[${r.hudSel.join(', ')}], ${r.attached} worms attached`);
       ok('...four needles swept round 36 bearings from 4 focus positions: none of the drawn needle rects touches a HUD rect',
          r.drawn >= 300 && r.nbad === 0, `${r.drawn} drawn, ${r.hidden} held back (no clear spot on the ray), ${r.nbad} on the HUD ${r.bad.join(' | ')}`);
       ok('...and the worm chevrons (same placement) never sit on one either', r.chev >= 20 && r.chevBad.length === 0, `${r.chev} chevrons ${r.chevBad.join(' | ')}`);
+      ok('...the run was still live (stuck here, not dry) when the sweep ended', r.stillLive);
+      ok('once the descent is over no needle is drawn under the end screen', r.afterEnd.over && r.afterEnd.needles === 0, JSON.stringify(r.afterEnd));
       ok('no page errors (hud)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();
     }
