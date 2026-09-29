@@ -4235,7 +4235,7 @@ reached, and a colony 120 m down has none, so it would refuse and the run would 
 The spec is `docs/finish/PLAN.md` (15 milestones); the evidence is `docs/finish/phase1-findings.json`.
 Numbers here are measured, not planned.
 
-**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; --mine 1143/1145 (onboard's first-visit timing pair fails on this host on pre-M8 builds too); 3c re-measured with the island compass bearing — still FAIL. VERIFY ROUND 2 landed: a landing dig at the node cap lands, 'New farthest' baseline = the record at run start, corrected log line, nextBuilt explicit, readable leg caption, `run.mjs` exact names, landfall-check reads final figures (49/49); rock sprites drawn from mips (leg frame 58 -> 2.4 ms at dsf 2; journey-check 99/99); onboard's drag harness on a finger's clock (drag bound passes); 3c still FAILS (east-reading naive 0/8; no legprobe candidate in k 36-155 is naive-landable); 3b spread 1/5/8, 1/6/8, 1/10/11 (leg-2 tail misses 7); --mine 1152/1153 (the 600 ms curtain on this host). VERIFY ROUND 3 landed: leg 1's banner 'No threats — dig down, then east'; leg 2 pulled in (E 5, 120 m east, same seed) -> 3b 9/9 careers (leg 2 in 3-6 runs, median 4); the first visit's world prebuilt behind the gate (curtain 622-730 -> 435-492 ms); onboard 67/67; 3c still FAILS (naive 0/8 east, 0/8 down-east; opening the shallow road does not close it either — owner / M14); --mine 1157/1157. M9 BUILT: legs 4-8 (seeds 1300770 / 4660017 / 3097001 / 2895462 / 1437175) with their rules as config knobs, the Promised Land (cause 'promised', finale -> credits -> 'Journey I' badge + 'Begin Journey II', save rolls to journey 2), mineAgg + incremental pocket scan + per-frame pass counter, earth/rock layer memos (leg 8 @ 4,200 strands: 10-11 ms still, forced raster); legs-check 39/39; --mine 1196/1196; acceptance 2 (kit <= 70%) FAILS on legs 2, 3, 6, 7, 8 — measured, owner / M14. VERIFY ROUND landed: a stale Journey I tab landing after the Promised Land no longer finishes Journey II or pays its bonus twice (results of a left journey go to `past`), ROOTED's strip is the finished journey, the store quotes the next leg's heat lines (leg 6: 36 m); legs-check 46/46; legkit re-run identical (3/8); --mine 1202/1203 (threat flake, re-run 116/116). VERIFY ROUND 2 landed: stale-tab end screen (no finale), finale loop stops under the credits, the contact pass walks the colony once (was once per cloud: 90 walks a tick frame -> 18), mine renderer scans incremental (no-tick frames 3 -> 0-2 walks, counted by a Proxy census now in legs-check), memos wait for a still key (zoom tween 0 builds), perf gated on a leg 8 with its 114 worms / 69 clouds / rot, mineFrame p95 <= 2 settled; legs-check 52/52; --mine 1209/1209; acceptance 2a still FAILS and legshort shows shortening alone inverts the leg-length escalation — owner / M14. VERIFY ROUND 3 landed: dig frames 4.01 -> 1.02 whole-colony walks (Network._infGen, mineAgg cells/tips, one-walk _rebuildCaches; census now digs), tick frames 16 (gated <= 18), rock memo no longer walks every sprite a frame (zoom on/off 0.97-1.03), leaf-layer memo, perf gated at dsf 1 and 2 (dsf 2 rest 15-16 ms), the finale frames the colony at the knot; 2a with creatures: legs 3/6 ~100% of supply, 7-8 no landfall (owner / M14); legs-check 61/61; --mine 1218/1218. Next: M10.`
+**PROGRESS:** `M1 DONE (verifier fixes landed). M2 DONE (verifier fixes landed). M3 DONE (verifier minors tidied). M4 DONE (verifier round 2 landed). M5 DONE (verifier rounds 1-2 landed; acceptance 2 and 3 still FAIL — measured, owner / M14). M6 DONE (verify rounds 1-3 landed: breach while digging 2-13, armed enzyme never eats a dig, the enzyme cuts only the rot; --mine 1005/1005). M7 DONE (verifier rounds 1-4 landed; round 4: seams stop drawing free-standing pillars — journey.sealCols 6, one-sided runs not `must`, gallery-row chain only where the joined run could reach 30; PILLAR_OK gate with a live negative control; seeds 2114845 / 1703848 / 36103; journey-check 96/96; --mine 1101/1101; round 3: the seam column was a CONTRAST — journey carve back to the free carve, pass (e) joins only the crossing, chain only where it seals; gates derived from interior lines; <= 1 chunk a frame + idle lookahead, stamp on the next frame; seeds 858097 / 3274783 / 36103; journey-check 90/90; --mine 1095/1095). M8 DONE except acceptance 3c (the naive journey player does not land leg 1 in 8 runs — measured, owner / M14): landfall ROOTED + island bonus + next leg, DIG = the journey, east pays, title/end/store strip, leg banner / chevron / in-sight / record lines, telemetry L<leg>:<cause>:e<east>, leg 1 re-picked 1905387; landfall-check 33/33. VERIFY ROUND landed: leg HUD east to row 2 when stacked, ROOTED strip on the east line, boot-counted landfalls recorded, bonus re-checked at the bank, 'not open yet' past the built legs; landfall-check 44/44; --mine 1143/1145 (onboard's first-visit timing pair fails on this host on pre-M8 builds too); 3c re-measured with the island compass bearing — still FAIL. VERIFY ROUND 2 landed: a landing dig at the node cap lands, 'New farthest' baseline = the record at run start, corrected log line, nextBuilt explicit, readable leg caption, `run.mjs` exact names, landfall-check reads final figures (49/49); rock sprites drawn from mips (leg frame 58 -> 2.4 ms at dsf 2; journey-check 99/99); onboard's drag harness on a finger's clock (drag bound passes); 3c still FAILS (east-reading naive 0/8; no legprobe candidate in k 36-155 is naive-landable); 3b spread 1/5/8, 1/6/8, 1/10/11 (leg-2 tail misses 7); --mine 1152/1153 (the 600 ms curtain on this host). VERIFY ROUND 3 landed: leg 1's banner 'No threats — dig down, then east'; leg 2 pulled in (E 5, 120 m east, same seed) -> 3b 9/9 careers (leg 2 in 3-6 runs, median 4); the first visit's world prebuilt behind the gate (curtain 622-730 -> 435-492 ms); onboard 67/67; 3c still FAILS (naive 0/8 east, 0/8 down-east; opening the shallow road does not close it either — owner / M14); --mine 1157/1157. M9 BUILT: legs 4-8 (seeds 1300770 / 4660017 / 3097001 / 2895462 / 1437175) with their rules as config knobs, the Promised Land (cause 'promised', finale -> credits -> 'Journey I' badge + 'Begin Journey II', save rolls to journey 2), mineAgg + incremental pocket scan + per-frame pass counter, earth/rock layer memos (leg 8 @ 4,200 strands: 10-11 ms still, forced raster); legs-check 39/39; --mine 1196/1196; acceptance 2 (kit <= 70%) FAILS on legs 2, 3, 6, 7, 8 — measured, owner / M14. VERIFY ROUND landed: a stale Journey I tab landing after the Promised Land no longer finishes Journey II or pays its bonus twice (results of a left journey go to `past`), ROOTED's strip is the finished journey, the store quotes the next leg's heat lines (leg 6: 36 m); legs-check 46/46; legkit re-run identical (3/8); --mine 1202/1203 (threat flake, re-run 116/116). VERIFY ROUND 2 landed: stale-tab end screen (no finale), finale loop stops under the credits, the contact pass walks the colony once (was once per cloud: 90 walks a tick frame -> 18), mine renderer scans incremental (no-tick frames 3 -> 0-2 walks, counted by a Proxy census now in legs-check), memos wait for a still key (zoom tween 0 builds), perf gated on a leg 8 with its 114 worms / 69 clouds / rot, mineFrame p95 <= 2 settled; legs-check 52/52; --mine 1209/1209; acceptance 2a still FAILS and legshort shows shortening alone inverts the leg-length escalation — owner / M14. VERIFY ROUND 3 landed: dig frames 4.01 -> 1.02 whole-colony walks (Network._infGen, mineAgg cells/tips, one-walk _rebuildCaches; census now digs), tick frames 16 (gated <= 18), rock memo no longer walks every sprite a frame (zoom on/off 0.97-1.03), leaf-layer memo, perf gated at dsf 1 and 2 (dsf 2 rest 15-16 ms), the finale frames the colony at the knot; 2a with creatures: legs 3/6 ~100% of supply, 7-8 no landfall (owner / M14); legs-check 61/61; --mine 1218/1218. M10 BUILT: island compass [12, 40 P] + one per deep material (generated), revealed at store visit 2 on a journey save / the first seam; edge needles through rock (bearing, metres, rung 3 richest within 90 m), never on a HUD rect, hidden once over; idle look-ahead makes chunks in <= ~11 ms slices; compass-check 44/44; seamhunt x0.40 PASS; acceptance 6a FAILS (route bot leg 3 at median 10 runs with the island compass vs 8 without — owner / M14). Next: M10 verify, then M11.`
 
 ### M1 — Every run ends, and no exit loses a haul (DONE)
 
@@ -5983,6 +5983,82 @@ Numbers here are measured, not planned.
   ship 58, phone 51, onboard 67, econ 79, counter 60, journey 99, landfall 49, legs 61, zip 24, level 27, aim 9, scale
   26, threat 116, harvest 28, mould 20, core 18). The run before read 1217/1218: the leaf-claim probe found no unpaid
   seam in the view it happened to hold (`{"none":true}`); it now takes the camera to the nearest one.
+
+### M10 — Compasses: sell precision, through rock (BUILT)
+
+- **TRACKS** (`STORE_UPGRADES`, mineOnly): `compassIsland` [12, 40 P]; `compass_<mat>` GENERATED from
+  `CONFIG.mine.materials` for every band >= 1 (`compassMat`), priced 20·band, 60 + 40·(band − 1), 12 of the
+  material — exactly the plan's 20/60/12 A, 40/100/12 G, 60/140/12 H. `MINE_COMPASS_IDS` (exported) is appended
+  to `MINE_UPGRADE_IDS`. Icon `RI.compass`; tile "now" reads none yet / bearing / + metres / richest.
+- **REVEAL** (`mineTrackRevealed`, inside the M5 `mineShelfOpen` gate): island compass at `p.mineStoreVisits >= 2`
+  on a JOURNEY SAVE (`mineJourneySave`: a leg record with a run or landfall, or leg/journey > 1 — the free layout
+  has no island); a material compass at `p.mineSeen['mat_<id>']` (its first seam). `store.revealAll()` does NOT
+  reveal compasses (existing shelf assertions unchanged).
+- **NEXT GOAL**: `mineGoalOrder(p)` = the M5 order + `compassIsland` + the compass of a material some next power
+  rung costs; new tiles still first. With Water I bought the new island compass is the card's pick.
+- **CONFIG FOLD**: `configForLevel` -> `cfg.mine.compass = {island: 0-2, mats: {<id>: 0-3}}`. New knobs
+  `CONFIG.mine.compassRichM` 90, `compassIdleChunks` 2, `compassIdleGapMs` 300.
+- **MODEL** `mineCompassModel(state)` (engine; hook `mine.compass()`): per bought needle, from `mineFocusNode`:
+  `bearing` = deg atan2(ty − fy, tx − fx), `dist` whole metres from rung 2 (1 cell = 1 m). Island -> the leg's
+  taproot (`mineTaprootXY`, needs no chunk). Material -> an UNCLAIMED seam (not rewarded, no cell colonised) in
+  the GENERATED chunks: nearest (rungs 1-2); rung 3 the highest value (`richPer` 6 if rich, else `per`) within
+  90 m, nearest among equals, else the nearest. Through rock by construction: nothing reads the mask.
+- **DRAWING** `drawMineCompass` (after `drawMineThreatMarks`; knob `MYCELIUM_NO_COMPASS`; hooks `mine.needles()`,
+  `mine.hudRects()`): an edge needle per entry (<= 4) cast from the focus strand's screen point along the bearing
+  (`mineEdgePlace`), mint for the island, the material's tint + 3-letter tag, metres from rung 2; alpha 0 when the
+  target is on screen, full 80 px outside; nothing once `runOver`. **HUD RECTS** (`mineHudRects`, cached 300 ms,
+  canvas coords): rows, rot banner, hint, gear, kit, FRUIT NOW, settings menu, a showing toast, log. Placement
+  order: on the ray from the edge back 60 px; then SLID along the edge by up to 3 marks (`slid`, still pointing
+  along its bearing — two near bearings stack instead of one being pushed mid-screen); then the rest of the ray;
+  else held back. **The worm chevrons now use `mineEdgePlace` too** (from the screen centre): same margins as
+  before plus the HUD-rect avoidance.
+- **IDLE LOOK-AHEAD** (`mineIdleSchedule`, frame loop; knob `MYCELIUM_NO_IDLE_LOOKAHEAD`; hook `mine.idleLog()`):
+  only while a MATERIAL compass is owned; `requestIdleCallback` (timeout 1000; setTimeout 300 without rIC).
+  - **DEVIATION: two chunks past the PADDED extent** (colony ± `preloadCols`), not the bare extent — the frame
+    already makes the padded chunks and its M7 lookahead one more, so the bare reading had no work to do
+    ('#mine,4242': idle makes 7 and 13; the frame made 8-12).
+  - **DEVIATION: a chunk is made in SLICES, not one per slot.** Unsliced, an idle chunk was a 47-55 ms task (one
+    55 ms long task on '#mine,4242'). `mineGenerateChunk` is now a generator body (`mineGenerateChunkSteps`) with
+    `yield` between passes, every 8 rows of the rock loop and per stitched seam; the sync wrapper runs it to the
+    end (same code, same rng order — records identical, asserted). The slot steps it within its budget
+    (timeRemaining − 2, clamped 6-20 ms) via `mineGenStep`; `state._mineGenPending` holds it; any other caller
+    that needs a chunk FINISHES it first (two chunks never interleave), the frame's own lookahead waits. The stamp
+    is `solidifyMineRock(budgetMs)` in later slots (watermark carries progress; reconcile only when all in); the
+    frame skips its stamp while a chunk is pending or an idle stamp is < 1.5 s old. Measured: slots max 11.1 ms
+    (leg 2, chunk 4 in 8 slices) and 9.6 ms (free, chunks 7/13 in 5/2 slices), 0 long tasks overlapping.
+  - The rock memo key no longer carries the sprite count (`inBuf`'s hash of the buffer's own sprites decides), so
+    an off-screen chunk — sliced or not — does not throw the buffer away.
+- **CHECKS**: `tests/compass-check.cjs` ('compass', in `--mine`, 44; `COMPASS_ONLY=shelf,none,bearing,rich,order,idle,hud`).
+  Measured there: nothing bought -> `compass()` [] and 0 edge pixels differ from a compass-off frame (noise floor
+  0; control one island rung: 967 px); bearings off by 0.000 deg against targets recomputed from the substrate,
+  distances within 0.46 m, drawn needles on the bearing within 0.08 deg, labels = metres; a 260-unit rock sprite
+  stamped on the line (midpoint solid false -> true) leaves bearing/distance/target identical; rung 3 picks the
+  (forced) rich seam 83-85 m away over the nearest, skips a claimed one, ignores a rich one past 90 m, falls back
+  to the nearest; 21/21 chunk records, 14600 sprites (hash) and seams identical with idle on vs all look-aheads
+  off + reverse order; 390x844 HUD sweep (36 bearings x 4 focus positions, whole HUD up): ~500 needles drawn,
+  0 on a HUD rect, 108 worm chevrons, 0 on one.
+- **BOTS** (not in `--mine`): `tests/bots/seamhunt.cjs` ('seamhunt') — acceptance 6b; `journey.cjs --island-compass`
+  — acceptance 6a (the default journey bot now buys NO compass, so the baseline is unchanged by the new shelf).
+  - seamhunt (5 free seeds, hunt from 88 m after the first garnet, flood-path hunters, on-screen vision
+    +-325 x +-700 units, a needle that has not got closer in 12 digs is treated as walled): compass median 6 digs vs
+    blind 15 (x0.40, PASS); per seed 5/39, 26/15, 6/31, 10/11, 4/11 — 909's nearest seam was walled off, and the
+    needle cost 12 digs finding that out. The first two hunter designs (greedy line-follower; a hunt from the
+    surface) measured the dive, not the compass: from the surface the blind dive met garnet in 17-18 digs.
+  - **ACCEPTANCE 6a FAILS.** `journey.cjs <save> --legs 3 [--island-compass]` (the route bot, which knows the leg:
+    legprobe's cheapest route): leg 3 completed at run **8 / 8 / 9** without a compass (4242 / 909 / 11) against
+    **10 / 10 / 11** with both island rungs bought first (median 8 vs 10). It spends 12 + 40 P (saving for rung 2
+    on run 2) on information it does not use, and the Water/Grow rungs arrive a run or two later. `--scout` (new:
+    reads the ground through lib's flood but not the leg — without a compass it aims east at 20 m toward the hill
+    span, then under it; with one, at the needle's point; straight for the knot once on screen): save 4242 only,
+    blind landfalls at runs 6 / none / none in 24 (stuck on leg 2 at ~120 m east, 142 m deep: it passes under the
+    knot), compass 10 / 13 / none in 24 — the compass gets further but neither completes leg 3, and on leg 1 the
+    needle's straight line led a greedy frontier player into the same dead ends (runs 5-9 at 28-67 m east).
+    909 / 11 scouts not run (a blind scout career is ~45 min). Owner / M14: the island compass is priced as a
+    cost to a player who can already read the leg; what it buys a map-blind player is not measurable with these
+    bots (the naive player cannot land leg 1 at all — M8 3c).
+- **CHANGED** (old -> new): the default `journey.cjs` buys no compass (its shelf would otherwise include them);
+  `solidifyMineRock` returns whether it finished (callers ignore it); the rock memo's base key drops
+  `sprites.length`. No existing assertion changed.
 
 ## Two games on the title screen: Survival and Campaign
 
