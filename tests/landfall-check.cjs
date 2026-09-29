@@ -199,6 +199,17 @@ const waitLeg = (page) => page.waitForFunction(() => !!(window.__game && window.
       ok('...and the east chevron (the leg\'s first run), and the HUD\'s east readout', l2.hints && l2.hints.drawn.chevron && l2.hints.chevronUntil > l2.hints.now && l2.eastShown,
          JSON.stringify(l2.hints));
       await shot(b.page, 'm8-leg2-banner-390.png');
+      // (M10 verify round 3) WITH AN ISLAND COMPASS the chevron stands down: the needle says the same thing,
+      // and the chevron is outside the edge-mark placement (two mint arrows had stacked on the right edge).
+      const withNeedle = await b.page.evaluate(async () => { const g = window.__game, C = g.state.config.mine;
+        const was = C.compass; C.compass = { island: 1, mats: {} };
+        for (let k = 0; k < 6; k++) await new Promise((q) => requestAnimationFrame(q));
+        const r = { chev: g.mine.legHints().drawn.chevron, needles: g.mine.needles().map((n) => n.id), live: g.mine.legHints().chevronUntil > performance.now() };
+        C.compass = was;
+        for (let k = 0; k < 4; k++) await new Promise((q) => requestAnimationFrame(q));
+        r.back = g.mine.legHints().drawn.chevron; return r; });
+      ok('...and with an island compass bought the chevron is not drawn while its needle is (and comes back without one)',
+         withNeedle.live && withNeedle.chev === false && withNeedle.needles.includes('compassIsland') && withNeedle.back === true, JSON.stringify(withNeedle));
       await sleep(5200);
       const gone = await b.page.evaluate(() => window.__game.mine.legHints().drawn.chevron);
       ok('...which is gone after 5 s', gone === false, String(gone));

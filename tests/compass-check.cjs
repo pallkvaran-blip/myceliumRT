@@ -1,6 +1,6 @@
 /* THE COMPASSES — the finishing plan's M10, as assertions.
  *
- *     node tests/compass-check.cjs      (COMPASS_ONLY=shelf,none,bearing,rich,order,idle,sched,fade,hud runs blocks)
+ *     node tests/compass-check.cjs      (COMPASS_ONLY=shelf,none,bearing,rich,order,idle,active,sched,fade,hud runs blocks)
  *
  *   shelf    the tracks and prices (island [12, 40 P], one per deep material generated from
  *            CONFIG.mine.materials), the reveal gates (store visit 2 on a journey save; a material's first
@@ -20,6 +20,10 @@
  *            seams for all 21 chunks.
  *   idle     acceptance 5: the idle look-ahead makes chunks, each in an idle slot of its own and stamped in
  *            the next; no long task over 50 ms overlaps any of those slots (PerformanceObserver 'longtask').
+ *   active   (M10 verify round 3) acceptance 5 in ACTIVE play: real drags plus a held pointer starve the idle
+ *            slots, the frame takes over the idle-started chunks and their stamps in budgeted slices, and no
+ *            long task over 50 ms overlaps an idle slot or a frame slice of idle work; negative control with
+ *            MYCELIUM_FRAME_SLICE_MS = Infinity (round 2's finish-in-one-go).
  *   sched    (M10 verify) a half-made idle chunk and the frame: the frame's owed stamp finishes it first (its
  *            record = the synchronous build's), a chunk held ~1.5 s is finished on a frame, and finishing it
  *            counts as the frame's one chunk (the wanted chunk waits a frame; never two on one frame).
@@ -384,17 +388,117 @@ const TRUTH = () => {
           const hits = [];
           for (const e of log) for (const L of lts) if (L.d > 50 && L.t < e.t0 + e.ms + 1 && L.t + L.d > e.t0 - 1) hits.push({ kind: e.kind, ci: e.ci, ms: e.ms, lt: Math.round(L.d) });
           const frameStamps = g.mine.genLog().filter((e) => e.ahead === 'idle' && e.stampFrame).length;
-          return { n0, n1: g.mine.chunks().length, log, hits, lts: lts.map((L) => Math.round(L.d)), frameStamps, observer: typeof PerformanceObserver !== 'undefined' };
+          // (verify round 3) and anything the FRAME LOOP did to an idle-started chunk in the window: every
+          // such slice is a posted task, so none may be long and none may sit under a long task.
+          const fw = g.mine.frameWork().filter((e) => e.t0 >= (log[0] ? log[0].t0 : 0));
+          for (const e of fw) for (const L of lts) if (L.d > 50 && Math.min(L.t + L.d, e.t0 + e.ms) - Math.max(L.t, e.t0) > 0.5) hits.push({ kind: 'frame-' + e.kind, ci: e.ci, ms: e.ms, lt: Math.round(L.d) });
+          const syncFin = g.mine.genLog().filter((e) => e.idleStarted && e.ahead === 'sync').length;
+          return { n0, n1: g.mine.chunks().length, log, hits, fwN: fw.length, fwMax: Math.max(0, ...fw.map((e) => e.ms)), syncFin, lts: lts.map((L) => Math.round(L.d)), frameStamps, observer: typeof PerformanceObserver !== 'undefined' };
         }, QUIET.toString());
         const gens = r.log.filter((e) => e.kind === 'gen'), stamps = r.log.filter((e) => e.kind === 'stamp'), slices = r.log.filter((e) => e.kind === 'slice');
         ok(`${label}: the idle look-ahead makes chunks past the colony's, in idle slots, and stamps each in later slots`,
            gens.length >= 1 && stamps.length >= 1 && r.n1 > r.n0 && r.frameStamps === 0,
            `chunks ${r.n0} -> ${r.n1}; ${gens.map((e) => 'chunk ' + e.ci + ' in ' + e.slices + ' slices').join(', ')} (${slices.length + gens.length} gen slots); ${stamps.length} stamp slots; frame-stamped ${r.frameStamps}`);
-        ok(`${label}: ...no long task over 50 ms overlaps an idle slot, and no slot ran past 50 ms`,
-           r.observer && r.hits.length === 0 && r.log.every((e) => e.ms <= 50),
-           `${r.hits.length} overlapping; slots max ${Math.max(...r.log.map((e) => e.ms)).toFixed(1)} ms over ${r.log.length} (${r.log.map((e) => e.kind[0] + e.ms).join(' ')}); long tasks in the window [${r.lts.join(', ')}] ms`);
+        ok(`${label}: ...no long task over 50 ms overlaps an idle slot or a slice the frame posted, no slot ran past 50 ms, and no idle chunk was finished in one go`,
+           r.observer && r.hits.length === 0 && r.log.every((e) => e.ms <= 50) && r.fwMax <= 25 && r.syncFin === 0,
+           `${r.hits.length} overlapping; slots max ${Math.max(...r.log.map((e) => e.ms)).toFixed(1)} ms over ${r.log.length} (${r.log.map((e) => e.kind[0] + e.ms).join(' ')}); frame-posted slices ${r.fwN} (max ${r.fwMax.toFixed(1)} ms), unbudgeted finishes ${r.syncFin}; long tasks in the window [${r.lts.join(', ')}] ms`);
         ok(`no page errors (idle, ${label})`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
         await b.ctx.close();
+      }
+    }
+
+    // ======================================================================================
+    if (want('active')) {
+      // M10 VERIFY ROUND 3: acceptance 5 IN ACTIVE PLAY. The idle block above runs on a quiet page, where
+      // the idle slots are always live. In play they are starved (`busy`: a finger down, a grow arriving),
+      // and the frame takes over the idle-started chunk — round 2 finished it in one go (51-54 ms long
+      // tasks, measured by the verifiers). Here: real mouse drags every ~1.3 s plus, once an idle chunk is
+      // half made, a pointer HELD for 2.5 s so the frame must take it over. No long task over 50 ms may
+      // overlap an idle slot or any frame slice of idle work (`frameWork`), and every frame slice stays
+      // small. Negative control: MYCELIUM_FRAME_SLICE_MS = Infinity (round 2's finish-in-one-go).
+      console.log('--- acceptance 5 in active play: drags + a held pointer, frame-side idle work stays sliced');
+      const session = async (hash, knob) => {
+        const b = await E.boot(hash, 390, 844, { before: (page) => page.addInitScript((knob) => {
+          window.__lt = [];
+          try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lt.push({ t: e.startTime, d: e.duration }); }).observe({ type: 'longtask', buffered: true }); } catch (_) {}
+          if (knob) window.MYCELIUM_FRAME_SLICE_MS = Infinity;
+        }, knob) });
+        await H.waitMine(b.page);
+        await b.page.evaluate((QUIET) => { new Function('return (' + QUIET + ')')()();
+          const s = window.__game.state; s.config.mine.compass = { island: 2, mats: { anthracite: 3, garnet: 3, hematite: 3 } };
+          window.__T0 = performance.now(); window.__lt0 = window.__lt.length; }, QUIET.toString());
+        const T0 = Date.now(); let drags = 0, held = 0;
+        const target = () => b.page.evaluate(() => {
+          const g = window.__game, s = g.state; s.active.water = 100000;
+          let best = null, bs = -1e9;
+          for (const q of s.active.nodes) { if (q.infected) continue; const sc = g.mine.toScreen(q.x, q.y);
+            if (sc.x < 30 || sc.x > 360 || sc.y < 200 || sc.y > 700) continue; const v = q.x + 0.6 * q.y; if (v > bs) { bs = v; best = sc; } }
+          if (!best) { let d = null; for (const q of s.active.nodes) if (!q.infected && (!d || q.x + q.y > d.x + d.y)) d = q; best = g.mine.toScreen(d.x, d.y); }
+          return { p: best };
+        });
+        let rnd = 12345; const rand = () => ((rnd = Math.imul(rnd, 1103515245) + 12345 >>> 0) / 4294967296);
+        while (Date.now() - T0 < 26000) {
+          const t = await target();
+          const a = rand() * Math.PI * 0.55, L = 110, p = t.p;
+          await b.page.mouse.move(p.x, p.y); await b.page.mouse.down();
+          for (let k = 1; k <= 8; k++) { await b.page.mouse.move(p.x + Math.cos(a) * L * k / 8, p.y + Math.sin(a) * L * k / 8); await sleep(75); }
+          await b.page.mouse.up(); drags++;
+          // THE HELD FINGER: the moment the idle look-ahead has a chunk half made (polled every 20 ms through
+          // the gap between drags), the mouse goes down on empty ground and stays down 2.5 s (twice a
+          // session): `busy`, so no idle slot can finish it and the frame loop must take it over.
+          const tg = Date.now();
+          while (Date.now() - tg < 600) {
+            if (held < 2 && await b.page.evaluate(() => !!window.__game.mine.pending())) {
+              held++;
+              await b.page.mouse.move(24, 780); await b.page.mouse.down();
+              await sleep(2500);
+              await b.page.mouse.up();
+              break;
+            }
+            await sleep(20);
+          }
+        }
+        await sleep(1500);
+        const r = await b.page.evaluate(() => {
+          const g = window.__game;
+          const fw = g.mine.frameWork().filter((e) => e.t0 >= window.__T0), il = g.mine.idleLog().filter((e) => e.t0 >= window.__T0);
+          const lts = window.__lt.slice(window.__lt0);
+          // Every slice the frame loop posts, and every idle slot, is a task of its OWN, so a long task that
+          // overlaps one IS that slice (strict: any overlap over half a millisecond counts). The frames around
+          // them (a drag's dig and reveal run 50-150 ms on this host whatever the idle work does) are printed.
+          const hits = [], overl = [];
+          for (const L of lts) {
+            if (!(L.d > 50)) continue;
+            const who = [];
+            for (const e of fw.concat(il)) if (Math.min(L.t + L.d, e.t0 + e.ms) - Math.max(L.t, e.t0) > 0.5) who.push((e.why || 'slot') + ':' + e.kind + ':' + e.ms);
+            if (who.length) hits.push({ lt: Math.round(L.d), who: who.slice(0, 3) });
+          }
+          const gl = g.mine.genLog();
+          const idleMade = gl.filter((e) => e.idleStarted && e.ahead !== 'idle');
+          return { digs: g.state.mineDigs, fw, idleSlots: il.length, hits, lt50: lts.filter((L) => L.d > 50).map((L) => Math.round(L.d)),
+                   idleMade: idleMade.map((e) => e.ahead + ':' + e.cis[0] + '/' + e.slices + 'sl/' + e.ms + 'ms' + (e.stampDone ? '/stamp-' + e.stampDone.by : '')),
+                   stampedAll: idleMade.every((e) => !!e.stampDone), over: !!g.state.runOver };
+        });
+        await b.ctx.close();
+        return { ...r, drags, held, errs: b.errs };
+      };
+      for (const [label, hash] of [['leg 3', '#leg,1,3'], ['free layout', '#mine,909']]) {
+        const r = await session(hash, false);
+        const gens = r.fw.filter((e) => e.kind === 'gen'), stamps = r.fw.filter((e) => e.kind === 'stamp');
+        const maxFw = Math.max(0, ...r.fw.map((e) => e.ms));
+        ok(`${label}: in active play (${r.drags} drags, ${r.held} held pointers, ${r.digs} digs) the frame took over idle-started chunks and their stamps`,
+           gens.length >= 2 && stamps.length >= 1 && r.idleMade.length >= 1 && r.stampedAll && !r.over,
+           `frame gen slices ${gens.length} (${[...new Set(gens.map((e) => e.why))]}), stamp slices ${stamps.length}; idle slots ${r.idleSlots}; finished on frames [${r.idleMade.join(', ')}]`);
+        ok(`${label}: ...no long task over 50 ms overlaps an idle slot or a slice the frame posted, and no posted slice ran past 25 ms`,
+           r.hits.length === 0 && maxFw <= 25,
+           `${r.hits.length} overlapping ${JSON.stringify(r.hits.slice(0, 3))}; posted slices max ${maxFw.toFixed(1)} ms over ${r.fw.length}; long tasks > 50 ms in the session [${r.lt50.join(', ')}]`);
+        ok(`no page errors (active, ${label})`, !r.errs.length, r.errs.slice(0, 2).join(' | '));
+      }
+      {
+        const r = await session('#leg,1,3', true);
+        const maxFw = Math.max(0, ...r.fw.map((e) => e.ms));
+        ok('negative control: with the slice unbudgeted and inside the frame (round 2\'s finish-in-one-go), the assertion above FAILS (a slice > 25 ms or an overlapping long task)',
+           r.fw.length >= 1 && !(r.hits.length === 0 && maxFw <= 25), `frame slices max ${maxFw.toFixed(1)} ms over ${r.fw.length}; ${r.hits.length} overlapping long tasks ${JSON.stringify(r.hits.slice(0, 2))}; [${r.idleMade.join(', ')}]`);
       }
     }
 
@@ -422,12 +526,18 @@ const TRUTH = () => {
           g.mine.idleSlice(0.5, 2);
           const p0 = g.mine.pending();
           s._mineStampNext = true;       // the stamp a frame owes after it made a chunk
-          await raf(); await raf();
-          return { p0, p1: g.mine.pending(), stampOwed: !!s._mineStampNext, rec: p0 && s.mineChunks[p0.ci] ? JSON.stringify(s.mineChunks[p0.ci]) : null };
+          const f0 = g.mine.frameWork().length;
+          // Round 3: the guard no longer finishes the chunk inside the frame; it keeps the stamp owed and
+          // posts budgeted slices until the chunk is done, and only then does the owed stamp run.
+          let k = 0; for (; k < 120 && (g.mine.pending() || s._mineStampNext); k++) await raf();
+          const fw = g.mine.frameWork().slice(f0);
+          return { p0, p1: g.mine.pending(), stampOwed: !!s._mineStampNext, frames: k, guard: fw.filter((e) => e.why === 'guard').length,
+                   maxMs: Math.max(0, ...fw.map((e) => e.ms)), rec: p0 && s.mineChunks[p0.ci] ? JSON.stringify(s.mineChunks[p0.ci]) : null };
         });
         const want0 = r.p0 ? await refRec(r.p0.ci) : null;
-        ok('the frame\'s owed stamp finishes a half-made idle chunk before stamping (never over it)',
-           !!r.p0 && !r.p1 && !r.stampOwed && !!r.rec, JSON.stringify({ p0: r.p0, p1: r.p1, owed: r.stampOwed, made: !!r.rec }));
+        ok('the frame\'s owed stamp waits for a half-made idle chunk (never stamps over it), slicing it in posted tasks of <= 25 ms',
+           !!r.p0 && !r.p1 && !r.stampOwed && !!r.rec && r.guard >= 1 && r.maxMs <= 25,
+           JSON.stringify({ p0: r.p0, p1: r.p1, owed: r.stampOwed, made: !!r.rec, frames: r.frames, guardSlices: r.guard, maxMs: r.maxMs }));
         ok('...and that chunk\'s record (spots included) is the synchronous build\'s', !!r.rec && r.rec === want0,
            r.rec === want0 ? 'identical' : 'differs: ' + String(r.rec).slice(0, 160) + ' vs ' + String(want0).slice(0, 160));
         ok('no page errors (sched stamp)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
@@ -446,12 +556,19 @@ const TRUTH = () => {
           let at = null;
           while (performance.now() - t0 < 5000) { await raf(); if (!g.mine.pending()) { at = performance.now() - t0; break; } }
           for (let k = 0; k < 3; k++) await raf();   // the stamp lands on the frame after the one that finished it
+          for (let k = 0; k < 60 && s._mineIdleStamp; k++) await raf();   // then its budgeted stamp
           const e = g.mine.genLog().find((q) => q.ahead === 'cap' && p0 && q.cis[0] === p0.ci);
-          return { p0, at: at && Math.round(at), cap: !!e, stamped: !!(e && e.stampFrame), rec: p0 && s.mineChunks[p0.ci] ? JSON.stringify(s.mineChunks[p0.ci]) : null };
+          const fw = g.mine.frameWork();
+          return { p0, at: at && Math.round(at), cap: !!e, slices: e && e.slices, stamped: !!(e && e.stampDone), stampBy: e && e.stampDone && e.stampDone.by,
+                   gen: fw.filter((q) => q.kind === 'gen' && q.why === 'starved').length, stamp: fw.filter((q) => q.kind === 'stamp').length,
+                   maxMs: Math.max(0, ...fw.map((q) => q.ms)), rec: p0 && s.mineChunks[p0.ci] ? JSON.stringify(s.mineChunks[p0.ci]) : null };
         });
         const want0 = r.p0 ? await refRec(r.p0.ci) : null;
-        ok('a half-made chunk the idle slots never come back to is finished on a frame after ~1.5 s, then stamped',
-           !!r.p0 && r.cap && r.at >= 1400 && r.at <= 3000 && r.stamped, JSON.stringify({ p0: r.p0, at: r.at, cap: r.cap, stamped: r.stamped }));
+        // Round 2 -> 3: 'finished on a frame after ~1.5 s (at 1400-3000 ms), then stamped' -> starved once
+        // no slice for MINE_STARVE_MS (500), then sliced (chunk AND stamp) in posted tasks of <= 25 ms.
+        ok('a half-made chunk the idle slots never come back to is taken over once starved (~0.5 s) and sliced, chunk and stamp, in posted tasks of <= 25 ms',
+           !!r.p0 && r.cap && r.at >= 400 && r.at <= 3000 && r.stamped && r.gen >= 2 && r.stamp >= 1 && r.maxMs <= 25,
+           JSON.stringify({ p0: r.p0, at: r.at, cap: r.cap, slices: r.slices, genSlices: r.gen, stampSlices: r.stamp, stampedBy: r.stampBy, maxMs: r.maxMs }));
         ok('...and it is the synchronous build\'s chunk', !!r.rec && r.rec === want0, r.rec === want0 ? 'identical' : 'differs');
         await b.ctx.close();
       }
@@ -471,7 +588,7 @@ const TRUTH = () => {
           let far = -1; for (let ci = Math.ceil(sub.cols / cw) - 2; ci > 0; ci--) if (!have.has(ci) && Math.abs(ci - p0.ci) > 2) { far = ci; break; }
           const n0 = g.mine.genLog().length;
           g.mine.lookAt((far + 0.5) * cw * cs, sub.surfaceY + 30 * cs);
-          for (let k = 0; k < 12 && !(s.mineChunks[far] && !g.mine.pending()); k++) await raf();
+          for (let k = 0; k < 120 && !(s.mineChunks[far] && !g.mine.pending()); k++) await raf();
           for (let k = 0; k < 3; k++) await raf();
           const log = g.mine.genLog().slice(n0);
           const perFrame = {}; for (const e of log) perFrame[e.frame] = (perFrame[e.frame] | 0) + (e.cis ? e.cis.length : e.made);
@@ -479,7 +596,7 @@ const TRUTH = () => {
           return { p0, far, madeFar: !!s.mineChunks[far], log: log.map((e) => ({ f: e.frame, cis: e.cis, a: e.ahead })), max: Math.max(0, ...Object.values(perFrame)),
                    order: fp && ff ? ff.frame - fp.frame : null };
         });
-        ok('a frame that wants a chunk while another is half made finishes the half-made one first, and never makes two chunks on one frame',
+        ok('a frame that wants a chunk while another is half made finishes the half-made one first (posted slices), and never makes two chunks on one frame',
            r.p0 && r.madeFar && r.max === 1 && r.order >= 1, JSON.stringify(r));
         await b.ctx.close();
       }
