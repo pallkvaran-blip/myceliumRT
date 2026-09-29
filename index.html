@@ -14741,7 +14741,7 @@ const STORE_UPGRADES = [
   ...((CONFIG.mine && CONFIG.mine.materials) || []).filter((m) => (m.band | 0) >= 1).map((m) => ({
     id: 'compass_' + m.id, name: m.name + ' compass', icon: 'compass', accent: 'phos', step: 1, unit: 'rungs', unit1: 'rung',
     mineOnly: true, compassMat: m.id,
-    effect: 'A needle points <b>through rock</b> at the nearest ' + m.name + ' seam found so far. Rung 2 adds the distance; rung 3 picks the richest within 90 m.',
+    effect: 'A needle points <b>through rock</b> at the nearest ' + m.name + ' seam. Rung 2 adds the distance; rung 3 picks the richest within 90 m.',
     costs: [20 * (m.band | 0), 60 + 40 * ((m.band | 0) - 1), { m: m.id, n: 12 }] })),
 ];
 // The compass track ids, in material order (island first).

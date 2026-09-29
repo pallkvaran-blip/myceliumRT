@@ -95,6 +95,9 @@ const TRUTH = () => {
         const free = shelf();
         put({ mineJourney: { journey: 1, leg: 1, legs: { 1: { runs: 2 } } }, mineSeen: { mat_garnet: true } });
         const gar = shelf();
+        // The end screen's next-goal card: a newly revealed compass is its first pick once Water I is in.
+        S.credit(20); S.buy('water');
+        const goal = S.nextGoal();
         // A hidden track cannot be bought either (the shelf and the buy path share one predicate).
         S.credit(500);
         const hidden = S.buy('compass_hematite');
@@ -104,7 +107,7 @@ const TRUTH = () => {
         await new Promise((res) => setTimeout(res, 1500));
         const cfgC = JSON.parse(JSON.stringify(g.state.config.mine.compass));
         const model = g.mine.compass();
-        return { ids, costs, v1, v2, free, gar, hidden: hidden && hidden.ok, b1: b1.ok, b2: b2.ok, bg: bg.ok, cfgC, model };
+        return { goal: goal && goal.id, goalNew: goal && goal.isNew, ids, costs, v1, v2, free, gar, hidden: hidden && hidden.ok, b1: b1.ok, b2: b2.ok, bg: bg.ok, cfgC, model };
       });
       const want4 = ['compassIsland', 'compass_anthracite', 'compass_garnet', 'compass_hematite'];
       ok('the mine sells an island compass and one compass per deep material', want4.every((id) => r.ids.includes(id)),
@@ -118,6 +121,7 @@ const TRUTH = () => {
       ok('a material compass appears with that material\'s first seam, and no other', r.gar.includes('compass_garnet')
          && !r.gar.includes('compass_anthracite') && !r.gar.includes('compass_hematite') && !r.v2.includes('compass_garnet'), `[${r.gar}]`);
       ok('...and a hidden compass cannot be bought', r.hidden === false);
+      ok('the next-goal card picks the newly revealed island compass once Water I is bought', r.goal === 'compassIsland' && r.goalNew, `${r.goal} (new ${r.goalNew})`);
       ok('a purchase reaches the next descent as cfg.mine.compass', r.b1 && r.b2 && r.bg && r.cfgC.island === 2 && r.cfgC.mats.garnet === 1
          && r.cfgC.mats.anthracite === 0, JSON.stringify(r.cfgC));
       const isl = r.model.find((e) => e.kind === 'island'), gm = r.model.find((e) => e.mat === 'garnet');
