@@ -529,7 +529,7 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
         // 18-21 before M9 verify 3 (healthyCount x4, mineAgg/_scheduleInfection on every tick); 16 after.
         ok('a world-tick frame walks the colony a bounded number of times, not once per creature (census <= 18, settled and digging; printed by caller)',
            settled.tick.frames >= 2 && digging.tick.frames >= 2 && settled.tick.max <= 18 && digging.tick.max <= 18,
-           `settled max ${settled.tick.max}, digging max ${digging.tick.max}; digging by caller ${JSON.stringify(digging.tick.whyPerFrame)}`);
+           `settled max ${settled.tick.max}, digging max ${digging.tick.max}; digging by caller ${JSON.stringify(digging.tick.whyPerFrame)}; heaviest digging tick frame ${JSON.stringify(digging.tick.worst)}`);
       }
       ok(`no page errors (perf)${D}`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();
