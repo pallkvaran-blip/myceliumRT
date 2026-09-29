@@ -707,6 +707,43 @@ const openStore = async (page) => {
       const wal = await boot(Object.assign({ minerals: 4 }, base));
       ok('Upgrades is hidden on a save with nothing to spend and nothing bought', bare === false, String(bare));
       ok('...shown for a bought rung with an empty wallet, a deep material held, or Phosphorus held', bought && mat && wal, JSON.stringify({ bought, mat, wal }));
+
+      // M10 VERIFY: title -> Upgrades -> buy -> Descend reaches the map. The store opened over the
+      // title and Descend began a run with #titleScreen still in the DOM, which the frame loop
+      // stands down for: world built, never drawn (frame 0, sim paused), DIG built it a second time.
+      const sv = Object.assign({ minerals: 60, mineRuns: 2, mineJourney: { journey: 1, leg: 1, legs: { 1: { runs: 2, bestDepth: 30, bestEast: 20, landed: false } } } }, base);
+      const b = await E.boot('', 390, 844, { before: async (page) => page.addInitScript((v) => {
+        try { if (!localStorage.getItem('mycelium.progress.v2')) localStorage.setItem('mycelium.progress.v2', JSON.stringify(v)); } catch (_) {}
+      }, sv) });
+      const maps = [];
+      b.page.on('console', (m) => { if (/\[mycelium\].*map:/.test(m.text())) maps.push(m.text()); });
+      await b.page.waitForSelector('#tsStore', { timeout: 30000 }).catch(() => {});
+      await sleep(900);
+      await b.page.click('#tsStore').catch(() => {});
+      await b.page.waitForSelector('#speciesSelect.ss-mine #ssDescend', { timeout: 20000 }).catch(() => {});
+      await sleep(700);
+      const w0 = await b.page.evaluate(() => { try { return JSON.parse(localStorage.getItem('mycelium.progress.v2')).minerals | 0; } catch (_) { return -1; } });
+      await b.page.click('#ssUpg .ss-upg-btn:not([disabled])').catch(() => {});
+      await sleep(600);
+      const w1 = await b.page.evaluate(() => { try { return JSON.parse(localStorage.getItem('mycelium.progress.v2')).minerals | 0; } catch (_) { return -1; } });
+      await b.page.click('#ssDescend').catch(() => {});
+      let r = null;
+      const t0 = Date.now();
+      while (Date.now() - t0 < 20000) {
+        r = await b.page.evaluate(() => {
+          const g = window.__game, s = g && g.state;
+          return { title: !!document.getElementById('titleScreen'), store: !!document.getElementById('speciesSelect'),
+            frames: g && g.mine ? g.mine.frameN() : 0, paused: g ? g.simPaused() : null,
+            mask: !!(s && s.substrate && s.substrate._rockSolidified), mine: !!(s && s.substrate && s.substrate.mine) };
+        }).catch(() => null);
+        if (r && !r.title && r.frames > 10 && r.mask && r.paused === false) break;
+        await sleep(250);
+      }
+      ok("title's Upgrades -> Buy -> Descend reaches the map (title gone, frames run, mask stamped, sim live)",
+        w1 < w0 && r && !r.title && !r.store && r.mine && r.frames > 10 && r.mask && r.paused === false,
+        JSON.stringify({ wallet: [w0, w1], r, ms: Date.now() - t0 }));
+      ok('...building the world once', maps.length === 1, maps.length + ' map lines');
+      await b.ctx.close();
     }
   } finally { await E.close(); }
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);

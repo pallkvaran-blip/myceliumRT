@@ -36351,7 +36351,18 @@ function dropHandoff() {
   try { clearTimeout(_curtainT); _curtainT = 0; document.body.classList.remove('handoff'); } catch (_) {}
 }
 
+// THE TITLE SCREEN'S HANDLE (M10 verify). Every New/Old on the title CONSUMES it (fade, then
+// `root.remove()`, then the callback), but its Upgrades link opens the mine's store OVER it — and the
+// store's Descend then started a run with `#titleScreen` still in the DOM. The frame loop stands down
+// while that element exists, so the world was built and never drawn: frame 0, sim paused, the title on
+// screen, and the next DIG built the world a second time. Any run start drops a title still standing.
+let _titleUI = null;
+function dropTitleScreen() {
+  if (_titleUI) { try { _titleUI.hide(); } catch (_) {} _titleUI = null; }
+  const t = document.getElementById('titleScreen'); if (t) t.remove();
+}
 function startRun() {
+  dropTitleScreen();
   raiseHandoff(); armHandoffSafety();   // nothing of the game shows until the card (or the map fade) is ready
   // THE MINE USES ITS OWN SEED FOR THE WORLD TOO, not just for the map. One number means one
   // shaft: the same rock, the same ore, the same water pockets and the same creatures every time
@@ -38073,7 +38084,7 @@ function showMainMenu(opts) {
       gap: best > 0 && row && !(jn.rec && jn.rec.landed) ? 'Island ' + jn.leg + ': your farthest is ' + Math.max(0, (row.eastM | 0) - best) + ' m short' : '',
     };
   })() : null;
-  showTitleScreen({          // title → Survival New (wipe unlocks) / Continue (keep unlocks) → picker
+  _titleUI = showTitleScreen({          // title → Survival New (wipe unlocks) / Continue (keep unlocks) → picker
     journey,
     // New Game collects the player's high-score name (pre-filled with their last one).
     playerName: loadPlayerName(),
