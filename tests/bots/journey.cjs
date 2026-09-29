@@ -101,7 +101,12 @@ const legsWanted = +arg('--legs', naive ? 1 : 3);
 const need = String(arg('--need', naive ? '8' : '5,7,7')).split(',').map(Number);
 const maxRuns = +arg('--runs', need.slice(0, legsWanted).reduce((a, b) => a + b, 0));
 const strat = arg('--strat', 'cheapest');
-const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean === 'east' ? '' : lean + '-')) : '') + label;
+// `--island-compass` (M10 acceptance 6a): buy both island-compass rungs as soon as the store shows them
+// (ahead of anything else), and read the needle (`__game.mine.compass()`) as the naive `--compass`
+// player's bearing. Without it the bot buys NO compass at all (the M10 shelf would otherwise put them in
+// the cheapest buyer's reach and change the no-compass baseline).
+const islandCompass = argv.includes('--island-compass');
+const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean === 'east' ? '' : lean + '-')) : '') + (islandCompass ? 'icompass-' : '') + label;
 
 (async () => {
   const env = await launch();
@@ -146,8 +151,14 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     await page.click('#ssMineDone').catch(() => {});
     await page.waitForSelector('#ssDescend', { timeout: 20000 }).catch(() => {});
     await sleep(600);
-    const bought = await page.evaluate((strat) => {
-      const S = window.__game.store, ids = S.ids('mine'), got = [];
+    const bought = await page.evaluate(({ strat, islandCompass }) => {
+      const S = window.__game.store, ids = S.ids('mine').filter((id) => !/compass/i.test(id)), got = [];
+      if (islandCompass) for (let k = 0; k < 2; k++) {
+        if (!S.inGame('compassIsland', 'mine') || S.nextCost('compassIsland') == null) break;
+        const r = S.buy('compassIsland'); if (!r.ok) break; got.push('compassIsland@' + r.level);
+      }
+      // ...and SAVE UP for it while it is on the shelf and not yet bought out.
+      if (islandCompass && S.inGame('compassIsland', 'mine') && S.nextCost('compassIsland') != null) return got.concat(['(saving for compassIsland)']);
       for (let k = 0; k < 40; k++) {
         const bal = S.mats(); let pick = null, pc = Infinity;
         for (const id of ids) {
@@ -162,7 +173,7 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
         const r = S.buy(pick); if (!r.ok) break; got.push(pick + '@' + r.level);
       }
       return got;
-    }, strat);
+    }, { strat, islandCompass });
     const row = { run, leg: leg0, cause: rr.cause, depth: rr.depth, east: rr.east, ore: rr.ore, bonus: rr.bonus, digs: res.digs,
                   seconds: res.seconds, start: res.start.water, islands: jn.islands, nextLeg: jn.leg, bought };
     log.push(row);

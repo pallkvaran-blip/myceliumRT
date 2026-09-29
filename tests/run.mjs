@@ -62,6 +62,10 @@ const CHECKS = [
   // M9: legs 4-8's rules on the config clone, legs 1-8 reachable with the taproot in place and the path
   // ratio in band, the Promised Land's finale end to end, and a leg-8 frame at 4,000 strands.
   ['legs',      'legs-check.cjs',     600, false],
+  // M10: the compasses — tracks and reveal, nothing-bought draws nothing, bearings/distances through rock,
+  // rung 3's richest seam, chunk order-independence with the idle look-ahead, no long task from it, and
+  // no needle on a HUD rect at 390 px.
+  ['compass',   'compass-check.cjs',  300, false],
   // M2: THE RELEASE GATE, on a throwaway --no-shrink zip of the working tree (dev flag patched off):
   // the prune keeps the mine's bands, and title -> descent -> end -> store -> Descend plays clean.
   ['zip',       'itchzip-check.cjs --fresh', 60, false],
@@ -112,6 +116,9 @@ const CHECKS = [
   // table's arrival kit (<= 70% of supply) and bare (> 100%, legs 3-8), legs 7-8 >= 40% of east below
   // 84 m. ~25 min; run by name, not in --mine.
   ['legkit',    'bots/legprobe.cjs --legs 1,2,3,4,5,6,7,8 --kit --check', 2400, true],
+  // M10 acceptance 6b: the garnet compass (rung 2) against a blind hunter, first garnet seam in digs, on
+  // five free-layout seeds. ~10 min; run by name, not in --mine.
+  ['seamhunt',  'bots/seamhunt.cjs', 1200, true],
 ];
 
 // THE MINE SUBSET. Owner, 20 Aug: "stop checking survival mode and campaign — those are not a part
@@ -142,10 +149,11 @@ const CHECKS = [
 //   journey        fixed leg worlds with a taproot in the east (M7); seeds are picked by tests/bots/legprobe.cjs.
 //   landfall       landfall, the next leg, visible progress (M8); the bot acceptance is tests/bots/journey.cjs.
 //   legs           legs 4-8, their rules, the Promised Land, long-run performance (M9); the kit gates are `legkit`.
+//   compass        the compasses (M10); the bot acceptance is `seamhunt` and `journeybot --island-compass`.
 //
 // Everything else in CHECKS is the card game and is no longer run. Nothing has been DELETED — the
 // code is untouched and the checks still work if `node tests/run.mjs campaign` is ever wanted.
-const MINE_SET = ['mine', 'ending', 'ship', 'zip', 'phone', 'onboard', 'econ', 'counter', 'journey', 'landfall', 'legs', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
+const MINE_SET = ['mine', 'ending', 'ship', 'zip', 'phone', 'onboard', 'econ', 'counter', 'journey', 'landfall', 'legs', 'compass', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
 
 const args = process.argv.slice(2);
 const fast = args.includes('--fast');

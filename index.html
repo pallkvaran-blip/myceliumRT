@@ -24260,7 +24260,12 @@ function mineEnsureChunks(state, view, opts) {
   if (opts && opts.around > 0) {
     lookahead = 'idle';
     if (!(lo <= hi)) return 0;
-    const c0 = mineChunkOfCol(cfg, sub.colAtX(lo)), c1 = mineChunkOfCol(cfg, sub.colAtX(hi)), k = opts.around | 0;
+    // PAST THE PADDED EXTENT (deviation from the plan's "within 2 chunks of the colony's extent"): the
+    // chunks within `preloadCols` of the colony are the frame's (they are wanted now), and the frame's own
+    // M7 lookahead already makes one more chunk past them — so counted from the bare extent this would be
+    // work the frame has done. Counted from the padded extent it reaches two chunks further ahead.
+    const pad = (M.preloadCols | 0) * cs;
+    const c0 = mineChunkOfCol(cfg, sub.colAtX(Math.max(0, lo - pad))), c1 = mineChunkOfCol(cfg, sub.colAtX(Math.min(sub.worldWidth - 1, hi + pad))), k = opts.around | 0;
     const mid = (c0 + c1) / 2;
     list = [];
     for (let ci = c0 - k; ci <= c1 + k; ci++) list.push(ci);
