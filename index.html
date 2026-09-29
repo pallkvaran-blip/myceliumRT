@@ -24357,7 +24357,7 @@ function* mineGenerateChunkSteps(state, ci) {
 // budget at a time (`state._mineGenPending`); nothing else may start a chunk while one is half made, so
 // any other call FINISHES it first (synchronously) — two chunks' passes never interleave, which is what
 // keeps a chunk order-independent. Returns the placed record when the chunk is done, else null.
-function mineGenStep(state, budgetMs) {
+function mineGenStep(state, budgetMs, how) {
   const P = state._mineGenPending;
   if (!P) return null;
   const t0 = performance.now();
@@ -24371,10 +24371,15 @@ function mineGenStep(state, budgetMs) {
   const sub = state.substrate, { c0, c1 } = mineChunkRange(state.config, P.ci);
   sub._mineDirtyC0 = Math.min(sub._mineDirtyC0 != null ? sub._mineDirtyC0 : c0, c0);
   sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : c1, c1);
-  const log = (state._mineGenLog || (state._mineGenLog = []));
-  log.push({ made: 1, ms: +P.ms.toFixed(2), ahead: 'idle', slices: P.slices, frame: state._mineFrameNo | 0, cis: [P.ci], s0: P.s0,
-             s1: sub.levelSprites ? sub.levelSprites.length : 0 });
-  if (log.length > 256) log.shift();
+  // `how`: 'quiet' when the caller counts and logs it (mineEnsureChunks finishing it for the frame),
+  // 'cap' when the frame finished a chunk the idle slots had held too long, 'guard' when the frame's owed
+  // stamp finished it first; otherwise an idle slot.
+  if (how !== 'quiet') {
+    const log = (state._mineGenLog || (state._mineGenLog = []));
+    log.push({ made: 1, ms: +P.ms.toFixed(2), ahead: how === 'cap' || how === 'guard' ? how : 'idle', slices: P.slices, frame: state._mineFrameNo | 0, cis: [P.ci], s0: P.s0,
+               s1: sub.levelSprites ? sub.levelSprites.length : 0 });
+    if (log.length > 256) log.shift();
+  }
   return done[P.ci];
 }
 function mineEnsureChunks(state, view, opts) {
@@ -24441,16 +24446,22 @@ function mineEnsureChunks(state, view, opts) {
   for (const ci of list) {
     if (made >= max) break;
     if (ci < 0 || ci >= total || done[ci]) continue;
-    // A chunk half made in idle slots: the frame's own lookahead waits for it; a chunk that is wanted NOW
-    // finishes it first (it may be this very chunk).
+    // A chunk half made in idle slots is FINISHED first (two chunks' passes never interleave), and the
+    // finish COUNTS against `max` (M10 verify): finishing it and then making the wanted chunk put up to two
+    // chunks' work on one frame. So the frame finishes the pending chunk and the wanted one (if it was not
+    // that very chunk) waits for the next frame — it is at least the colony pad from any growth, so one
+    // frame is safe. The frame's own lookahead finishes it too rather than waiting on idle slots that
+    // active play can starve (`busy`).
     if (state._mineGenPending) {
-      if (lookahead === true) break;
-      mineGenStep(state, Infinity);
+      const pc = state._mineGenPending.ci;
+      mineGenStep(state, Infinity, 'quiet');
+      made++; madeCis.push(pc);
+      if (made >= max) break;
       if (done[ci]) continue;
     }
     if (sliced) {
       state._mineGenPending = { ci, it: mineGenerateChunkSteps(state, ci), steps: 0, slices: 0, ms: 0,
-                                s0: sub.levelSprites ? sub.levelSprites.length : 0 };
+                                s0: sub.levelSprites ? sub.levelSprites.length : 0, at: performance.now() };
       return mineGenStep(state, opts.budgetMs) ? 1 : 0;
     }
     done[ci] = mineGenerateChunk(state, ci) || true;
@@ -25491,7 +25502,7 @@ function mineEndRun(state, cause) {
 }
 
   return { mineAgg, mineAggInvalidate, mineNodePass, MINE_ROCKS, mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
-           mineDepthReached, mineEastReached, mineIslandReached, mineTaprootXY, mineEnsureChunks, mineChunkCount, mineHomeChunk, mineChunkOfCol,
+           mineDepthReached, mineEastReached, mineIslandReached, mineTaprootXY, mineEnsureChunks, mineGenStep, mineChunkCount, mineHomeChunk, mineChunkOfCol,
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
            mineDigCost, mineCheapestCost, mineNextHeatLine, mineHeatLines,
            mineMaterials, mineMaterialFor, mineMaterialById, mineMatTag,
@@ -30075,6 +30086,7 @@ class UI {
     el.className = `toast ${kind}`;   // clears .hidden and .in (base = faded out)
     el.innerHTML = `<span class="tk-wrap">${WARN_SVG}</span><span class="tmsg"></span>`;
     el.querySelector('.tmsg').textContent = message;
+    this._toastGen = (this._toastGen | 0) + 1;   // the mine's edge marks re-read the HUD rects (M10 verify)
     this._placeToast(el);
     void el.offsetWidth;             // reflow so the fade-in restarts even if one is up
     el.classList.add('in');
@@ -35686,7 +35698,7 @@ const __m_main = (function () {
   const { CONFIG, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, isRealtime, setMode, setGame, isCampaignGame, isMineGame, timeify, roundsToTime, devUI } = __m_config;
   const { createState, createPuzzleState, createLevelState, seedLevelThreats } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
-  const { mineAgg, mineAggInvalidate, mineNodePass, mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks,
+  const { mineAgg, mineAggInvalidate, mineNodePass, mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks, mineGenStep,
           mineEastReached, mineIslandReached, mineTaprootXY,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost, mineNextHeatLine,
@@ -39862,6 +39874,12 @@ function begin(newState) {
       needles: () => (state._mineNeedles || []).map((c) => Object.assign({}, c)),
       hudRects: () => mineHudRects(performance.now(), true).map((r) => Object.assign({}, r)),
       idleLog: () => (state._mineIdleLog || []).slice(),
+      // M10 verify: one idle-style slice on demand (starts or continues a chunk within `around` chunks of the
+      // colony), the half-made chunk if any, and where a world point lands on screen (the needle fade).
+      idleSlice: (budgetMs, around) => mineEnsureChunks(state, null, { max: 1, around: around || 2, budgetMs: budgetMs || 1 }),
+      pending: () => (state._mineGenPending ? { ci: state._mineGenPending.ci, slices: state._mineGenPending.slices, steps: state._mineGenPending.steps } : null),
+      toScreen: (x, y) => camera.worldToScreen(x, y),
+      toWorld: (sx, sy) => camera.screenToWorld(sx, sy),
       // How many ambient sight rings the LAST frame drew, and the switch behind them.
       sight: () => ({ on: !!(state.config.mine && state.config.mine.showSight),
                       drawn: state._mineSightDrawn | 0 }),
@@ -40007,6 +40025,7 @@ function begin(newState) {
         runsBefore: o.runsBefore, drawn: Object.assign({}, o.drawn), now: performance.now() } : null; },
       beats: () => _mineBeatLog.slice(),
       frameN: () => (state ? state._mineFrameN | 0 : 0),
+      showBeat: (d, n, c, small, kind) => showMineBeat(d, n, c, small, kind),   // M10 verify: a beat over the needle sweep
       cele: () => winCele ? { side: winCele.side, n: winCele.mushrooms.length, lit: drawCeleRoots.lit, roots: winCele.roots ? winCele.roots.length : 0,
         x0: Math.min(...winCele.mushrooms.map((m) => m.x)), x1: Math.max(...winCele.mushrooms.map((m) => m.x)) } : null,
       east: () => (state ? state.mineMaxEast | 0 : 0),
@@ -41755,6 +41774,11 @@ function advanceSim(time) {
       state._mineStampNext = false;
       state._mineIdleStamp = 0;      // this stamp collides an idle chunk too (everything past the watermark)
       const t0 = performance.now();
+      // NEVER OVER A HALF-MADE CHUNK (M10 verify): the stamp takes every sprite past the watermark and
+      // reconciles `cell.rock` over the dirty range, so stamping mid-generation would hand the chunk's
+      // later passes (`spotFor` reads cell.rock) rock a synchronous build never shows them. The idle slot
+      // does not start a chunk while this stamp is owed, so this is a guard, not a path.
+      if (state._mineGenPending) mineGenStep(state, Infinity, 'guard');
       solidifyMineRock();
       const log = state._mineGenLog; if (log && log.length) { const e = log[log.length - 1]; e.stampMs = +(performance.now() - t0).toFixed(2); e.stampFrame = state._mineFrameNo | 0; }
     }
@@ -41764,7 +41788,14 @@ function advanceSim(time) {
       // visit's curtain waits for — the leg's slower chunks had pushed it past 600 ms. From frame 3 on,
       // exactly as before.
       const early = (state._mineFrameNo | 0) < 3;
-      const made = mineEnsureChunks(state, { x0: camera.x - half, x1: camera.x + half },
+      // A CHUNK THE IDLE SLOTS HAVE HELD TOO LONG IS FINISHED ON A FRAME (M10 verify): `busy` (a grow
+      // arriving, a finger down) starves the idle slots for long stretches of active play, while the
+      // chunk's piles and pockets are already drawn and targeted by the compass and its rock is not yet
+      // collided, and the frame's lookahead waits behind it. Same 1.5 s as the stamp's safety net.
+      const P = state._mineGenPending;
+      let made = 0;
+      if (P && performance.now() - (P.at || 0) > 1500) { if (mineGenStep(state, Infinity, 'cap')) made = 1; }
+      if (!made) made = mineEnsureChunks(state, { x0: camera.x - half, x1: camera.x + half },
                                     { max: 1, ahead: busy || early ? 0 : (state.config.mine.chunkCols | 0), seamPad: 5 });
       if (made) state._mineStampNext = true;
       // AN IDLE CHUNK IS STAMPED IN THE NEXT IDLE SLOT, NOT ON A FRAME (M10) — the stamp costs about as
@@ -42147,6 +42178,10 @@ function mineIdleSchedule(ok) {
   const run = (deadline) => {
     _mineIdleHandle = null;
     if (st !== state || !st.substrate || !st.substrate.mine || !st._mineIdleOk || st.runOver) return;
+    // NOT WHILE THE FRAME OWES A STAMP (M10 verify): a chunk begun now would be half made when the next
+    // frame stamps everything past the watermark (see the frame's stamp). The next frame stamps and the
+    // gap is not charged, so the look-ahead resumes on the following slot.
+    if (st._mineStampNext) { _mineIdleLast = 0; return; }
     const log = (st._mineIdleLog || (st._mineIdleLog = []));
     const t0 = performance.now();
     // THE SLOT'S BUDGET: what the browser says is left of the idle period, clamped to 6-20 ms. A chunk
@@ -46145,10 +46180,22 @@ function mineChevronAt(time, hp, taken) {
 // settings menu and a showing toast. Cached 300 ms (it reads the DOM); `force` re-reads.
 function mineHudRects(time, force) {
   const c = state._mineHudRects;
-  if (!force && c && time - c.at < 300 && time >= c.at) return c.rects;
+  // A new toast or depth beat invalidates the cache (M10 verify): each is a fresh rect for up to 300 ms.
+  const gen = ((ui && ui._toastGen) | 0) + ':' + (_mineBeatEl ? _mineBeatLog.length : 0);
+  if (!force && c && c.gen === gen && time - c.at < 300 && time >= c.at) return c.rects;
   const rects = [];
   const g = (document.getElementById('game') || document.body).getBoundingClientRect();
-  const sels = ['#ui .minerows', '#hud-infect', '#minehint', '#gearbtn', '#minekit', '#fruitnow', '#settingsmenu', '#ui .toast.in', '#logdrop'];
+  const sels = ['#ui .minerows', '#hud-infect', '#minehint', '#gearbtn', '#minekit', '#fruitnow', '#settingsmenu', '#ui .toast.in', '#logdrop', '#settleNote'];
+  // THE DEPTH / LEG BEAT (M10 verify) is a full-width fixed block, so its lines' TEXT extents are the
+  // rects (the block's own box would wall off both side edges across the whole band).
+  const beat = _mineBeatEl && _mineBeatEl.classList.contains('in') ? _mineBeatEl : null;
+  if (beat) for (const line of beat.children) {
+    try {
+      const rg = document.createRange(); rg.selectNodeContents(line);
+      const r = rg.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) rects.push({ sel: '#mineBeat', x0: r.left - g.left, y0: r.top - g.top, x1: r.right - g.left, y1: r.bottom - g.top });
+    } catch (_) {}
+  }
   for (const sel of sels) {
     for (const n of document.querySelectorAll(sel)) {
       if (n.hidden || n.classList.contains('hidden')) continue;
@@ -46159,7 +46206,7 @@ function mineHudRects(time, force) {
       rects.push({ sel, x0: r.left - g.left, y0: r.top - g.top, x1: r.right - g.left, y1: r.bottom - g.top });
     }
   }
-  state._mineHudRects = { at: time, rects };
+  state._mineHudRects = { at: time, rects, gen };
   return rects;
 }
 const _rectHit = (a, b, pad) => a.x0 < b.x1 + pad && a.x1 > b.x0 - pad && a.y0 < b.y1 + pad && a.y1 > b.y0 - pad;
@@ -46168,11 +46215,15 @@ const _rectHit = (a, b, pad) => a.x0 < b.x1 + pad && a.x1 > b.x0 - pad && a.y0 <
 // bottom — then, if the mark's own rect (a disc of `r` plus a label `labelW` wide on its inward side)
 // would touch any HUD rect, walk it back toward the origin until it does not. `taken` spaces marks
 // already placed this frame. Returns {x, y, ang, rect} or null when nothing on the ray is clear.
-function mineEdgePlace(time, origin, ang, r, labelW, taken) {
+function mineEdgeInner(time) {
   const W = camera.viewW, H = camera.viewH;
   if (!state._mineChevBand || time - state._mineChevBand.at > 300 || time < state._mineChevBand.at) state._mineChevBand = { at: time, px: mineHudBandPx() };
   const m = 24, mt = Math.max(100, (state._mineChevBand.px | 0) + 18), mb = 80;
-  const x0 = m, x1 = W - m, y0 = Math.min(mt, H / 2), y1 = Math.max(H - mb, H / 2);
+  return { x0: m, x1: W - m, y0: Math.min(mt, H / 2), y1: Math.max(H - mb, H / 2) };
+}
+function mineEdgePlace(time, origin, ang, r, labelW, taken) {
+  const W = camera.viewW, H = camera.viewH;
+  const { x0, x1, y0, y1 } = mineEdgeInner(time);
   const ox = Math.max(x0, Math.min(x1, origin.x)), oy = Math.max(y0, Math.min(y1, origin.y));
   const dx = Math.cos(ang), dy = Math.sin(ang);
   let k = Infinity;
@@ -46252,8 +46303,11 @@ function drawMineCompass(time) {
     const mat = e.mat ? mineMaterialById(state.config, e.mat) : null;
     const rgb = mat ? _hexRgb(mat.tint) : '127,230,163';
     const t = camera.worldToScreen(e.tx, e.ty);
-    // Fade by how far the target is OUTSIDE the view (0 inside, 1 from 80 px out).
-    const ox = Math.max(0 - t.x, t.x - W, 0), oy = Math.max(0 - t.y, t.y - H, 0);
+    // Fade by how far the target is OUTSIDE the INNER RECT the marks are placed on (0 inside, 1 from 80 px
+    // out) — M10 verify: against the whole viewport a target on screen but UNDER the top HUD band or the
+    // kit lost its needle although the player cannot see it. Same margins as `mineEdgePlace`.
+    const IR = mineEdgeInner(time);
+    const ox = Math.max(IR.x0 - t.x, t.x - IR.x1, 0), oy = Math.max(IR.y0 - t.y, t.y - IR.y1, 0);
     const alpha = Math.max(0, Math.min(1, Math.hypot(ox, oy) / 80));
     const ang = e.bearing * Math.PI / 180;   // world and screen share axes (a uniform zoom)
     const label = (mat ? mineMatTag(mat) : '') + (e.dist != null ? (mat ? ' ' : '') + e.dist + ' m' : '');

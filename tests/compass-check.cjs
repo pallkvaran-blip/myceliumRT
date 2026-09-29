@@ -1,6 +1,6 @@
 /* THE COMPASSES — the finishing plan's M10, as assertions.
  *
- *     node tests/compass-check.cjs      (COMPASS_ONLY=shelf,none,bearing,rich,order,idle,hud runs blocks)
+ *     node tests/compass-check.cjs      (COMPASS_ONLY=shelf,none,bearing,rich,order,idle,sched,fade,hud runs blocks)
  *
  *   shelf    the tracks and prices (island [12, 40 P], one per deep material generated from
  *            CONFIG.mine.materials), the reveal gates (store visit 2 on a journey save; a material's first
@@ -20,9 +20,16 @@
  *            seams for all 21 chunks.
  *   idle     acceptance 5: the idle look-ahead makes chunks, each in an idle slot of its own and stamped in
  *            the next; no long task over 50 ms overlaps any of those slots (PerformanceObserver 'longtask').
+ *   sched    (M10 verify) a half-made idle chunk and the frame: the frame's owed stamp finishes it first (its
+ *            record = the synchronous build's), a chunk held ~1.5 s is finished on a frame, and finishing it
+ *            counts as the frame's one chunk (the wanted chunk waits a frame; never two on one frame).
+ *   fade     (M10 verify) a target on screen but under the top HUD band / in the kit band keeps its needle;
+ *            a toast shown inside the 300 ms HUD-rect cache is a rect on the next frame.
  *   hud      acceptance 7: at 390x844 with the whole HUD up (rows stacked, rot banner, hint, gear, kit,
  *            FRUIT NOW) and four needles swept round 36 bearings from three focus positions, no drawn needle
- *            rect intersects a HUD rect; the worm chevrons (which share the placement) do not either.
+ *            rect intersects a HUD rect; the worm chevrons (which share the placement) do not either. And (M10
+ *            verify) none touches a PAINTED element read independently of the placement's selector list, with a
+ *            depth beat up for part of the sweep.
  */
 const path = require('path');
 const H = require('./mine-harness.cjs');
@@ -392,6 +399,131 @@ const TRUTH = () => {
     }
 
     // ======================================================================================
+    if (want('sched')) {
+      // M10 VERIFY: the chunk scheduling rules around a half-made (idle) chunk. No compass is bought, so no
+      // idle slot runs: the only thing that can move the pending chunk is the frame, which is what is tested.
+      console.log('--- M10 verify: a half-made idle chunk and the frame');
+      const REC = (page, ci) => page.evaluate((ci) => { const r = window.__game.state.mineChunks[ci]; return r ? JSON.stringify(r) : null; }, ci);
+      const ref = await E.boot('#leg,1,2', 390, 844, { before: (page) => page.addInitScript(() => { window.MYCELIUM_NO_LOOKAHEAD = true; window.MYCELIUM_NO_IDLE_LOOKAHEAD = true; }) });
+      await H.waitMine(ref.page);
+      const refRec = async (ci) => {
+        await ref.page.evaluate((ci) => { const g = window.__game, sub = g.state.substrate, cw = g.state.config.mine.chunkCols, cs = sub.cellSize;
+          for (let k = 0; k <= ci; k++) g.mine.ensureChunks((k + 0.3) * cw * cs, (k + 0.7) * cw * cs); }, ci);
+        return REC(ref.page, ci);
+      };
+      // (1) THE FRAME'S STAMP NEVER LANDS ON A HALF-MADE CHUNK.
+      {
+        const b = await E.boot('#leg,1,2', 390, 844, { before: (page) => page.addInitScript(() => { window.MYCELIUM_NO_LOOKAHEAD = true; }) });
+        await H.waitMine(b.page);
+        const r = await b.page.evaluate(async () => {
+          const g = window.__game, s = g.state;
+          const raf = () => new Promise((q) => requestAnimationFrame(q));
+          for (let k = 0; k < 10; k++) await raf();
+          g.mine.idleSlice(0.5, 2);
+          const p0 = g.mine.pending();
+          s._mineStampNext = true;       // the stamp a frame owes after it made a chunk
+          await raf(); await raf();
+          return { p0, p1: g.mine.pending(), stampOwed: !!s._mineStampNext, rec: p0 && s.mineChunks[p0.ci] ? JSON.stringify(s.mineChunks[p0.ci]) : null };
+        });
+        const want0 = r.p0 ? await refRec(r.p0.ci) : null;
+        ok('the frame\'s owed stamp finishes a half-made idle chunk before stamping (never over it)',
+           !!r.p0 && !r.p1 && !r.stampOwed && !!r.rec, JSON.stringify({ p0: r.p0, p1: r.p1, owed: r.stampOwed, made: !!r.rec }));
+        ok('...and that chunk\'s record (spots included) is the synchronous build\'s', !!r.rec && r.rec === want0,
+           r.rec === want0 ? 'identical' : 'differs: ' + String(r.rec).slice(0, 160) + ' vs ' + String(want0).slice(0, 160));
+        ok('no page errors (sched stamp)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+        await b.ctx.close();
+      }
+      // (2) A HALF-MADE CHUNK HELD ~1.5 s IS FINISHED ON A FRAME, even with every lookahead off (busy).
+      {
+        const b = await E.boot('#leg,1,2', 390, 844, { before: (page) => page.addInitScript(() => { window.MYCELIUM_NO_LOOKAHEAD = true; }) });
+        await H.waitMine(b.page);
+        const r = await b.page.evaluate(async () => {
+          const g = window.__game, s = g.state;
+          const raf = () => new Promise((q) => requestAnimationFrame(q));
+          for (let k = 0; k < 10; k++) await raf();
+          g.mine.idleSlice(0.5, 2);
+          const p0 = g.mine.pending(), t0 = performance.now();
+          let at = null;
+          while (performance.now() - t0 < 5000) { await raf(); if (!g.mine.pending()) { at = performance.now() - t0; break; } }
+          for (let k = 0; k < 3; k++) await raf();   // the stamp lands on the frame after the one that finished it
+          const e = g.mine.genLog().find((q) => q.ahead === 'cap' && p0 && q.cis[0] === p0.ci);
+          return { p0, at: at && Math.round(at), cap: !!e, stamped: !!(e && e.stampFrame), rec: p0 && s.mineChunks[p0.ci] ? JSON.stringify(s.mineChunks[p0.ci]) : null };
+        });
+        const want0 = r.p0 ? await refRec(r.p0.ci) : null;
+        ok('a half-made chunk the idle slots never come back to is finished on a frame after ~1.5 s, then stamped',
+           !!r.p0 && r.cap && r.at >= 1400 && r.at <= 3000 && r.stamped, JSON.stringify({ p0: r.p0, at: r.at, cap: r.cap, stamped: r.stamped }));
+        ok('...and it is the synchronous build\'s chunk', !!r.rec && r.rec === want0, r.rec === want0 ? 'identical' : 'differs');
+        await b.ctx.close();
+      }
+      // (3) FINISHING THE PENDING CHUNK COUNTS AGAINST THE FRAME'S ONE CHUNK: a frame that wants another
+      // chunk while one is half made finishes the half-made one, and makes the wanted one on a later frame.
+      {
+        const b = await E.boot('#leg,1,2', 390, 844, { before: (page) => page.addInitScript(() => { window.MYCELIUM_NO_LOOKAHEAD = true; }) });
+        await H.waitMine(b.page);
+        const r = await b.page.evaluate(async () => {
+          const g = window.__game, s = g.state, sub = s.substrate, cw = s.config.mine.chunkCols, cs = sub.cellSize;
+          const raf = () => new Promise((q) => requestAnimationFrame(q));
+          for (let k = 0; k < 10; k++) await raf();
+          g.mine.idleSlice(0.5, 2);
+          const p0 = g.mine.pending();
+          // Look at a far chunk that does not exist yet (not the pending one): the frame now WANTS it.
+          const have = new Set(g.mine.chunks());
+          let far = -1; for (let ci = Math.ceil(sub.cols / cw) - 2; ci > 0; ci--) if (!have.has(ci) && Math.abs(ci - p0.ci) > 2) { far = ci; break; }
+          const n0 = g.mine.genLog().length;
+          g.mine.lookAt((far + 0.5) * cw * cs, sub.surfaceY + 30 * cs);
+          for (let k = 0; k < 12 && !(s.mineChunks[far] && !g.mine.pending()); k++) await raf();
+          for (let k = 0; k < 3; k++) await raf();
+          const log = g.mine.genLog().slice(n0);
+          const perFrame = {}; for (const e of log) perFrame[e.frame] = (perFrame[e.frame] | 0) + (e.cis ? e.cis.length : e.made);
+          const fp = log.find((e) => e.cis && e.cis.includes(p0.ci)), ff = log.find((e) => e.cis && e.cis.includes(far));
+          return { p0, far, madeFar: !!s.mineChunks[far], log: log.map((e) => ({ f: e.frame, cis: e.cis, a: e.ahead })), max: Math.max(0, ...Object.values(perFrame)),
+                   order: fp && ff ? ff.frame - fp.frame : null };
+        });
+        ok('a frame that wants a chunk while another is half made finishes the half-made one first, and never makes two chunks on one frame',
+           r.p0 && r.madeFar && r.max === 1 && r.order >= 1, JSON.stringify(r));
+        await b.ctx.close();
+      }
+      await ref.ctx.close();
+    }
+
+    // ======================================================================================
+    if (want('fade')) {
+      console.log('--- M10 verify: a target under the HUD band keeps its needle; a new toast is a HUD rect at once');
+      const b = await bootLeg(E, 2, 390, 844);
+      const r = await b.page.evaluate(async (QUIET) => {
+        new Function('return (' + QUIET + ')')()();
+        const g = window.__game, s = g.state, sub = s.substrate, cs = sub.cellSize, J = sub.mineJourney;
+        s.config.mine.compass = { island: 2, mats: {} };
+        const raf = () => new Promise((q) => requestAnimationFrame(q));
+        for (let k = 0; k < 10; k++) await raf();
+        const f = g.mine.compass()[0];
+        g.mine.lookAt(f.fx, f.fy);
+        const place = (sx, sy) => { const w = g.mine.toWorld(sx, sy);
+          J.taproot.col = Math.round(w.x / cs - 0.5); J.taproot.row = Math.round((w.y - sub.surfaceY) / cs - 0.5); };
+        const read = () => { g.renderFrame(performance.now()); const n = g.mine.needles().find((q) => q.kind === 'island'); return n && { alpha: n.alpha, faded: !!n.faded, x: n.x, hidden: n.hidden || null, tsy: n.tsy }; };
+        const tap0 = { col: J.taproot.col, row: J.taproot.row };
+        place(innerWidth / 2, 30); const under = read();      // on screen, under the top rows
+        place(innerWidth / 2, innerHeight - 30); const kit = read();   // on screen, in the bottom kit band
+        place(innerWidth / 2, innerHeight / 2); const mid = read();    // plainly visible: the control
+        J.taproot.col = tap0.col; J.taproot.row = tap0.row;
+        // TOAST: the HUD rects are cached 300 ms; a toast shown inside that window must be one at once.
+        const t = performance.now();
+        g.renderFrame(t);
+        g.ui().toast('A toast shown between two frames, long enough to span a needle');
+        g.renderFrame(t + 20);
+        const rects = (s._mineHudRects && s._mineHudRects.rects || []).map((q) => q.sel);
+        return { under, kit, mid, toastSeen: rects.includes('#ui .toast.in'), rects };
+      }, QUIET.toString());
+      ok('a target on screen but under the top HUD band still gets its needle (fade is against the inner rect)',
+         r.under && !r.under.faded && r.under.alpha >= 0.5, JSON.stringify(r.under));
+      ok('...and so does one in the bottom kit band', r.kit && !r.kit.faded && r.kit.alpha >= 0.5, JSON.stringify(r.kit));
+      ok('...while one in the middle of the screen has none (the control)', r.mid && r.mid.faded && r.mid.alpha === 0, JSON.stringify(r.mid));
+      ok('a toast shown inside the 300 ms rect cache is a HUD rect on the next frame', r.toastSeen, `[${r.rects.join(', ')}]`);
+      ok('no page errors (fade)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+      await b.ctx.close();
+    }
+
+    // ======================================================================================
     if (want('hud')) {
       console.log('--- acceptance 7: at 390 px no needle sits on the HUD');
       const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
@@ -421,20 +553,60 @@ const TRUTH = () => {
         const J = sub.mineJourney, tap0 = { col: J.taproot.col, row: J.taproot.row };
         const hudSel = g.mine.hudRects().map((q) => q.sel);
         const hit = (a, c) => a.x0 < c.x1 && a.x1 > c.x0 && a.y0 < c.y1 && a.y1 > c.y0;
+        // AN INDEPENDENT READING OF THE HUD (M10 verify): every PAINTED thing on screen that is not the map
+        // — any element under #ui or among body's other children (the fixed overlays: the depth beat, the
+        // settle note, ...) with a background, a border, an icon, or text of its own (the text's own
+        // extent) — so an element missing from the placement's selector list fails here instead of being
+        // checked against itself. Opacity 0 (a faded toast, a beat not up) is not painted.
+        const GR = document.getElementById('game').getBoundingClientRect();
+        const clear = (c) => !c || c === 'transparent' || /rgba\([^)]*,\s*0\)$/.test(c);
+        const indep = () => {
+          const out = [];
+          const cand = new Set([...document.querySelectorAll('#ui *')]);
+          for (const top of document.body.children) {
+            if (top.id === 'ui' || top.id === 'game' || /^(SCRIPT|STYLE|LINK|META|CANVAS)$/.test(top.tagName)) continue;
+            cand.add(top); for (const n of top.querySelectorAll('*')) cand.add(n);
+          }
+          const push = (r, n) => { if (r.width > 0.5 && r.height > 0.5 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight)
+            out.push({ sel: (n.id ? '#' + n.id : n.tagName.toLowerCase()) + (n.className && typeof n.className === 'string' ? '.' + n.className.trim().split(/\s+/).join('.') : ''),
+                       x0: r.left - GR.left, y0: r.top - GR.top, x1: r.right - GR.left, y1: r.bottom - GR.top }); };
+          for (const n of cand) {
+            if (n.tagName === 'CANVAS') continue;
+            if (n.checkVisibility && !n.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })) continue;
+            const cs = getComputedStyle(n);
+            const painted = !clear(cs.backgroundColor) || cs.backgroundImage !== 'none'
+              || (parseFloat(cs.borderTopWidth) > 0 && !clear(cs.borderTopColor)) || (parseFloat(cs.borderLeftWidth) > 0 && !clear(cs.borderLeftColor))
+              || /^(svg|img|button)$/i.test(n.tagName);
+            if (painted) push(n.getBoundingClientRect(), n);
+            for (const t of n.childNodes) if (t.nodeType === 3 && t.textContent.trim()) { const rg = document.createRange(); rg.selectNodeContents(t); push(rg.getBoundingClientRect(), n); }
+          }
+          return out;
+        };
+        let indepN = 0, indepBad = [], beatFrames = 0, indepSels = new Set();
         let drawn = 0, hidden = 0, bad = [], chev = 0, chevBad = [], pairs = 0, onChev = 0;
         const f = g.mine.compass()[0];
         const cam0 = { x: g.state && window.__game.camera ? 0 : 0 };
         // The last offset puts the colony off screen: the needles then cast from the clamped focus point,
         // and the attached worms' chevrons come up (the same placement).
         const offs = [[0, 0], [-120, 260], [150, -60], [760, -520]];
-        for (const [ox, oy] of offs) {
+        for (const [oi, [ox, oy]] of offs.entries()) {
           g.mine.lookAt(f.fx + ox, f.fy + oy + 120);
+          // A DEPTH BEAT UP over two of the four sweeps (a full-width fixed overlay at 32% down, 2.2 s).
+          if (oi === 1 || oi === 2) g.mine.showBeat('88 m', 'GARNET', 'Digs now cost 8', false, '');
           for (let a = 0; a < 360; a += 10) {
             const rad = a * Math.PI / 180, R = 70;
             J.taproot.col = Math.max(1, Math.min(sub.cols - 2, Math.round(f.fx / cs + Math.cos(rad) * R - 0.5)));
             J.taproot.row = Math.max(1, Math.min(sub.rows - 2, Math.round((f.fy - sub.surfaceY) / cs + Math.sin(rad) * R - 0.5)));
             const rects = g.mine.hudRects();
             g.renderFrame(performance.now());
+            const IR = indep();
+            if (document.querySelector('#mineBeat.in')) beatFrames++;
+            for (const q of IR) indepSels.add(q.sel.split('.')[0]);
+            for (const n of g.mine.needles()) {
+              if (n.hidden || n.x == null) continue;
+              indepN++;
+              for (const q of IR) if (hit(n.rect, q)) indepBad.push(`${n.id} @${a} deg on ${q.sel}`);
+            }
             for (const n of g.mine.needles()) {
               if (n.hidden) { hidden++; continue; }
               if (n.x == null) continue;
@@ -480,7 +652,7 @@ const TRUTH = () => {
         g.mine.lookAt(f.fx, f.fy + 200);
         g.renderFrame(performance.now());
         const stillLive = !s.runOver;
-        return { stillLive, pairs, onChev, coverOut, hudSel, drawn, hidden, bad: bad.slice(0, 6), nbad: bad.length, chev, chevBad: chevBad.slice(0, 4), attached: s.mineAttached | 0,
+        return { indepN, indepBad: indepBad.slice(0, 6), nIndepBad: indepBad.length, beatFrames, indepSels: [...indepSels].slice(0, 30), stillLive, pairs, onChev, coverOut, hudSel, drawn, hidden, bad: bad.slice(0, 6), nbad: bad.length, chev, chevBad: chevBad.slice(0, 4), attached: s.mineAttached | 0,
                  rot: !!s.mineInfect, over: !!s.runOver };
       }, QUIET.toString());
       await b.page.screenshot({ path: path.join(ART, 'm10-hud-390.png') }).catch(() => {});
@@ -496,6 +668,8 @@ const TRUTH = () => {
          !r.over && r.rot && ['#ui .minerows', '#hud-infect', '#gearbtn', '#minekit', '#fruitnow'].every((q) => r.hudSel.includes(q)), `[${r.hudSel.join(', ')}], ${r.attached} worms attached`);
       ok('...four needles swept round 36 bearings from 4 focus positions: none of the drawn needle rects touches a HUD rect',
          r.drawn >= 300 && r.nbad === 0, `${r.drawn} drawn, ${r.hidden} held back (no clear spot on the ray), ${r.nbad} on the HUD ${r.bad.join(' | ')}`);
+      ok('...and none touches any PAINTED element read independently of the placement (every visible element under #ui and the fixed overlays), with a depth beat up for part of the sweep',
+         r.indepN >= 300 && r.nIndepBad === 0 && r.beatFrames >= 10, `${r.indepN} needles, ${r.nIndepBad} on painted elements ${r.indepBad.join(' | ')}; beat up on ${r.beatFrames} frames; read [${r.indepSels.join(', ')}]`);
       ok('...and the worm chevrons (same placement) never sit on one either', r.chev >= 20 && r.chevBad.length === 0, `${r.chev} chevrons ${r.chevBad.join(' | ')}`);
       ok('...and no needle sits on a worm chevron (the needles place around the chevrons)', r.pairs >= 50 && r.onChev === 0, `${r.onChev} of ${r.pairs} needle/chevron pairs overlap`);
       ok('with every edge spot under a HUD rect the frame still draws, and places no chevron or needle',

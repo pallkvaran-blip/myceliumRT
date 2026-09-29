@@ -2,7 +2,11 @@
  * find the first garnet seam in 0.6x the digs of a hunter without it? A bot run (prints PASS/FAIL and the
  * runner's `====` fence; slow, not in --mine).
  *
- *   NODE_PATH=/opt/node22/lib/node_modules node tests/bots/seamhunt.cjs [--seeds 4242,909,11,5,2024] [--cap 250]
+ *   NODE_PATH=/opt/node22/lib/node_modules node tests/bots/seamhunt.cjs [--seeds 4242,909,...] [--reps 3] [--cap 200]
+ *
+ * POOLED (M10 verify): ten seeds x three reps by default (~40-60 min), gated on the pooled median ratio,
+ * with a bootstrap-over-seeds spread and per-rep ratios printed. A single 5-seed pass read x0.40, x0.46,
+ * x0.77 and x0.74 on the same build — the dive to 88 m is real time, so each rep starts a different colony.
  *
  * Both hunters play the FREE layout ('#mine,<seed>': every chunk carries all four bands, so garnet sits at
  * 84-126 m under the hill), one run per seed each, the tank topped up before every dig (the water spent is
@@ -32,8 +36,9 @@ const H = require('../mine-harness.cjs');
 const { injectBot } = require('./lib.cjs');
 const argv = process.argv.slice(2);
 const arg = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
-const SEEDS = String(arg('--seeds', '4242,909,11,5,2024')).split(',').map((x) => +x);
+const SEEDS = String(arg('--seeds', '4242,909,11,5,2024,7,33,101,555,8080')).split(',').map((x) => +x);
 const CAP = +arg('--cap', 200);
+const REPS = +arg('--reps', 3);
 
 async function hunt(page, useCompass, cap) {
   await injectBot(page);
@@ -123,24 +128,42 @@ async function hunt(page, useCompass, cap) {
 (async () => {
   const E = await H.start();
   let np = 0, nf = 0; const rows = [];
+  // A hunt that never reached garnet counts at the cap (so it can only flatter the side that missed).
+  const d = (x) => (x.reached ? x.digs : CAP);
+  const med = (a) => { const b = a.slice().sort((p, q) => p - q); return b.length % 2 ? b[b.length >> 1] : (b[b.length / 2 - 1] + b[b.length / 2]) / 2; };
+  const q = (a, f) => { const b = a.slice().sort((p, q2) => p - q2); return b[Math.min(b.length - 1, Math.max(0, Math.round(f * (b.length - 1))))]; };
   try {
-    for (const seed of SEEDS) {
-      const row = { seed };
-      for (const use of [false, true]) {
-        const b = await E.bootMine(seed);  // the harness injects the navigator
-        row[use ? 'compass' : 'blind'] = await hunt(b.page, use, CAP);
-        await b.ctx.close();
+    for (let rep = 0; rep < REPS; rep++) {
+      for (const seed of SEEDS) {
+        const row = { seed, rep };
+        for (const use of (rep % 2 ? [true, false] : [false, true])) {   // alternate which hunter boots first
+          const b = await E.bootMine(seed);  // the harness injects the navigator
+          row[use ? 'compass' : 'blind'] = await hunt(b.page, use, CAP);
+          await b.ctx.close();
+        }
+        rows.push(row);
+        const f = (x) => `${x.reached ? 'reached' : 'NOT reached'} in ${x.digs} digs (${x.refused} refused, ${x.spent} water, from ${x.startDepth} to ${x.depth} m, ${x.found0} found first; ${JSON.stringify(x.modes)}${x.walled ? ', ' + x.walled + ' walled' : ''})`;
+        console.log(`rep ${rep} seed ${seed}: blind ${f(row.blind)} | compass ${f(row.compass)}`);
       }
-      rows.push(row);
-      const f = (x) => `${x.reached ? 'reached' : 'NOT reached'} in ${x.digs} digs (${x.refused} refused, ${x.spent} water, from ${x.startDepth} to ${x.depth} m, ${x.found0} found first; ${JSON.stringify(x.modes)}${x.walled ? ', ' + x.walled + ' walled' : ''})`;
-      console.log(`seed ${seed}: blind ${f(row.blind)} | compass ${f(row.compass)}`);
     }
-    // A hunt that never reached garnet counts at the cap (so it can only flatter the side that missed).
-    const d = (x) => (x.reached ? x.digs : CAP);
-    const med = (a) => { const b = a.slice().sort((p, q) => p - q); return b.length % 2 ? b[b.length >> 1] : (b[b.length / 2 - 1] + b[b.length / 2]) / 2; };
-    const mb = med(rows.map((r) => d(r.blind))), mc = med(rows.map((r) => d(r.compass)));
-    const okR = mc <= 0.6 * mb && rows.every((r) => r.compass.reached);
-    console.log(`  ${okR ? 'PASS' : 'FAIL'}  the garnet compass (rung 2) reaches the first garnet seam in <= 0.6x the digs  — median ${mc} vs ${mb} digs (x${(mc / mb).toFixed(2)}); per seed ${rows.map((r) => d(r.compass) + '/' + d(r.blind)).join(', ')}`);
+    // POOLED over every seed x rep (M10 verify: one 5-seed sample decided nothing — the same seed's digs
+    // swing ~2x run to run, because the real-time navigator's dive to 88 m leaves a different colony).
+    const C = rows.map((r) => d(r.compass)), B = rows.map((r) => d(r.blind));
+    const mc = med(C), mb = med(B), ratio = mc / mb;
+    // Spread: the ratio of medians re-drawn by SEED (bootstrap over seeds, each seed keeping all its reps).
+    let bs = 0x9E3779B9 >>> 0; const rnd = () => ((bs = (Math.imul(bs ^ (bs >>> 15), 0x2C1B3C6D) + 0x6D2B79F5) >>> 0) / 4294967296);
+    const boot = [];
+    for (let k = 0; k < 2000; k++) {
+      const pick = []; for (let j = 0; j < SEEDS.length; j++) { const sd = SEEDS[(rnd() * SEEDS.length) | 0]; for (const r of rows) if (r.seed === sd) pick.push(r); }
+      boot.push(med(pick.map((r) => d(r.compass))) / med(pick.map((r) => d(r.blind))));
+    }
+    const perSeed = SEEDS.map((sd) => { const rs = rows.filter((r) => r.seed === sd); return sd + ':' + med(rs.map((r) => d(r.compass))) + '/' + med(rs.map((r) => d(r.blind))); });
+    const perRep = []; for (let rep = 0; rep < REPS; rep++) { const rs = rows.filter((r) => r.rep === rep); perRep.push((med(rs.map((r) => d(r.compass))) / med(rs.map((r) => d(r.blind)))).toFixed(2)); }
+    const reachedC = C.filter((x, i) => rows[i].compass.reached).length, reachedB = rows.filter((r) => r.blind.reached).length;
+    const okR = ratio <= 0.6 && reachedC === rows.length;
+    console.log(`  pooled ${rows.length} hunts a side: compass median ${mc} (p25 ${q(C, 0.25)}, p75 ${q(C, 0.75)}), blind median ${mb} (p25 ${q(B, 0.25)}, p75 ${q(B, 0.75)}); reached ${reachedC} / ${reachedB} of ${rows.length}`);
+    console.log(`  ratio of medians x${ratio.toFixed(2)}; bootstrap over seeds p5-p95 x${q(boot, 0.05).toFixed(2)}-x${q(boot, 0.95).toFixed(2)}; per rep ${perRep.join(', ')}; per seed (compass/blind medians) ${perSeed.join(', ')}`);
+    console.log(`  ${okR ? 'PASS' : 'FAIL'}  the garnet compass (rung 2) reaches the next garnet seam in <= 0.6x the digs (pooled median, and every compass hunt reaches one)  — x${ratio.toFixed(2)} (${mc} vs ${mb})`);
     okR ? np++ : nf++;
   } catch (e) { nf++; console.log('  FAIL  harness error: ' + (e && e.stack || e)); }
   console.log(`\n==== ${np} passed, ${nf} failed ====`);
