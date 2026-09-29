@@ -421,7 +421,7 @@ const TRUTH = () => {
         const J = sub.mineJourney, tap0 = { col: J.taproot.col, row: J.taproot.row };
         const hudSel = g.mine.hudRects().map((q) => q.sel);
         const hit = (a, c) => a.x0 < c.x1 && a.x1 > c.x0 && a.y0 < c.y1 && a.y1 > c.y0;
-        let drawn = 0, hidden = 0, bad = [], chev = 0, chevBad = [];
+        let drawn = 0, hidden = 0, bad = [], chev = 0, chevBad = [], pairs = 0, onChev = 0;
         const f = g.mine.compass()[0];
         const cam0 = { x: g.state && window.__game.camera ? 0 : 0 };
         // The last offset puts the colony off screen: the needles then cast from the clamped focus point,
@@ -443,13 +443,44 @@ const TRUTH = () => {
               for (const q of rects) if (hit(n.rect, q)) bad.push(`${n.id} @${a} deg on ${q.sel}`);
             }
             for (const c of g.mine.chevrons()) { chev++; for (const q of rects) if (Math.abs(c.x - (q.x0 + q.x1) / 2) < (q.x1 - q.x0) / 2 + 17 && Math.abs(c.y - (q.y0 + q.y1) / 2) < (q.y1 - q.y0) / 2 + 17) chevBad.push(q.sel); }
+            // M10 verify: a needle never lands on a chevron (they used to be placed blind to each other).
+            for (const c of g.mine.chevrons()) for (const n of g.mine.needles()) {
+              if (!n.rect) continue; pairs++;
+              if (hit(n.rect, { x0: c.x - 17, x1: c.x + 17, y0: c.y - 17, y1: c.y + 17 })) onChev++;
+            }
           }
         }
+        // ...and from five far camera positions with the real taproot (the probe that found the overlap:
+        // tests/edgeplace-probe.cjs read 28 of 304 pairs overlapping before the fix).
+        J.taproot.col = tap0.col; J.taproot.row = tap0.row;
+        for (const [ox, oy] of [[700, -500], [-700, 400], [0, 900], [900, 0], [-900, -300]]) {
+          g.mine.lookAt(f.fx + ox, f.fy + oy);
+          for (let k = 0; k < 4; k++) {
+            g.renderFrame(performance.now());
+            for (const c of g.mine.chevrons()) for (const n of g.mine.needles()) {
+              if (!n.rect) continue; pairs++;
+              if (hit(n.rect, { x0: c.x - 17, x1: c.x + 17, y0: c.y - 17, y1: c.y + 17 })) onChev++;
+            }
+          }
+        }
+        // NO CLEAR SPOT ANYWHERE (M10 verify): a HUD rect over the whole screen, worms off screen. The
+        // placement returns null for every mark; the frame must survive and draw none of them (it used
+        // to read `.x` off the null and throw out of renderFrame).
+        g.mine.lookAt(f.fx + 760, f.fy - 520);
+        const cover = document.createElement('div'); cover.className = 'toast in';
+        Object.assign(cover.style, { position: 'fixed', left: '0', top: '0', width: '100vw', height: '100vh', transform: 'none', maxWidth: 'none', margin: '0', pointerEvents: 'none' });
+        document.getElementById('ui').appendChild(cover);
+        g.mine.hudRects();
+        let coverErr = null;
+        try { g.renderFrame(performance.now() + 1000); } catch (e) { coverErr = String(e && e.message || e); }
+        const coverOut = { err: coverErr, chev: g.mine.chevrons().length, hiddenChev: s._mineChevHidden | 0,
+                           needles: g.mine.needles().filter((n) => n.x != null).length };
+        cover.remove(); g.mine.hudRects();
         J.taproot.col = tap0.col; J.taproot.row = tap0.row;
         g.mine.lookAt(f.fx, f.fy + 200);
         g.renderFrame(performance.now());
         const stillLive = !s.runOver;
-        return { stillLive, hudSel, drawn, hidden, bad: bad.slice(0, 6), nbad: bad.length, chev, chevBad: chevBad.slice(0, 4), attached: s.mineAttached | 0,
+        return { stillLive, pairs, onChev, coverOut, hudSel, drawn, hidden, bad: bad.slice(0, 6), nbad: bad.length, chev, chevBad: chevBad.slice(0, 4), attached: s.mineAttached | 0,
                  rot: !!s.mineInfect, over: !!s.runOver };
       }, QUIET.toString());
       await b.page.screenshot({ path: path.join(ART, 'm10-hud-390.png') }).catch(() => {});
@@ -466,6 +497,9 @@ const TRUTH = () => {
       ok('...four needles swept round 36 bearings from 4 focus positions: none of the drawn needle rects touches a HUD rect',
          r.drawn >= 300 && r.nbad === 0, `${r.drawn} drawn, ${r.hidden} held back (no clear spot on the ray), ${r.nbad} on the HUD ${r.bad.join(' | ')}`);
       ok('...and the worm chevrons (same placement) never sit on one either', r.chev >= 20 && r.chevBad.length === 0, `${r.chev} chevrons ${r.chevBad.join(' | ')}`);
+      ok('...and no needle sits on a worm chevron (the needles place around the chevrons)', r.pairs >= 50 && r.onChev === 0, `${r.onChev} of ${r.pairs} needle/chevron pairs overlap`);
+      ok('with every edge spot under a HUD rect the frame still draws, and places no chevron or needle',
+         !r.coverOut.err && r.coverOut.chev === 0 && r.coverOut.needles === 0 && r.coverOut.hiddenChev >= 2, JSON.stringify(r.coverOut));
       ok('...the run was still live (stuck here, not dry) when the sweep ended', r.stillLive);
       ok('once the descent is over no needle is drawn under the end screen', r.afterEnd.over && r.afterEnd.needles === 0, JSON.stringify(r.afterEnd));
       ok('no page errors (hud)', !b.errs.length, b.errs.slice(0, 2).join(' | '));

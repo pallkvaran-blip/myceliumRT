@@ -45950,7 +45950,7 @@ function mineChevron(ex, ey, ang, fill, pulse) {
   ctx.stroke(); ctx.fill();
   ctx.restore();
 }
-function mineChevronAt(time, hp) {
+function mineChevronAt(time, hp, taken) {
   const cx = camera.viewW / 2, cy = camera.viewH / 2;
   // Kept clear of the HUD stack at the top — rows, rot banner and hint, measured (`mineHudBandPx`,
   // cached 300 ms: it reads the DOM) and never above 100 px — of the item kit at the bottom (78 px)
@@ -45958,7 +45958,11 @@ function mineChevronAt(time, hp) {
   // M10: THE SAME EDGE PLACEMENT THE COMPASS NEEDLES USE (`mineEdgePlace`), from the screen's centre —
   // which also keeps it off every other HUD rect (the kit, FRUIT NOW, the gear) rather than only the
   // top band.
-  return mineEdgePlace(time, { x: cx, y: cy }, Math.atan2(hp.y - cy, hp.x - cx), 17, 0);
+  // `taken` (M10 verify): the marks already placed this frame — the other chevrons — so two worms off
+  // the same edge stack rather than overlap, and the list is handed on to the compass needles.
+  // NULL WHEN NOTHING ON THE RAY IS CLEAR (the whole ray under a HUD rect, e.g. a short viewport with
+  // the hint up): the caller skips the mark. It used to read `.x` off the null and kill the frame.
+  return mineEdgePlace(time, { x: cx, y: cy }, Math.atan2(hp.y - cy, hp.x - cx), 17, 0, taken);
 }
 // THE HUD'S RECTS in canvas coordinates (M10): every visible piece of the mine HUD that a mark at the
 // screen edge must never sit on — the rows, the rot banner, the hint, the gear, the kit, FRUIT NOW, the
@@ -46063,7 +46067,7 @@ function drawMineCompass(time) {
   const model = mineCompassModel(state);
   if (!model.length) return;
   const W = camera.viewW, H = camera.viewH;
-  const out = state._mineNeedles, taken = [];
+  const out = state._mineNeedles, taken = (state._mineEdgeTaken || []).slice();
   const f = camera.worldToScreen(model[0].fx, model[0].fy);
   ctx.save();
   ctx.font = '600 12px system-ui, -apple-system, Segoe UI, sans-serif';
@@ -46102,8 +46106,13 @@ function drawMineCompass(time) {
 function drawMineThreatMarks(time) {
   const sub = state.substrate, worms = state.nematodes || [];
   const z = camera.zoom, cs = sub.cellSize;
-  const chev = [];
+  const chev = [], placed = [];
+  let chevHidden = 0;
   state._mineRotChevron = null;
+  // The edge marks this pass places (chevrons, with their rects): the compass needles, drawn next,
+  // start their own `taken` from it so a needle never lands on a chevron (M10 verify: 28 of 304
+  // needle/chevron pairs overlapped in a sweep with four worms off screen).
+  state._mineEdgeTaken = placed;
   if (!state.active) { state._mineChevrons = chev; return; }
   const pulse = 0.5 + 0.5 * Math.sin(time * 0.001 * Math.PI * 2);   // 1 Hz
   const byId = state.active.byId;
@@ -46123,7 +46132,9 @@ function drawMineThreatMarks(time) {
       ctx.strokeStyle = `rgba(236,104,80,${0.8 + 0.2 * (1 - pulse)})`; ctx.lineWidth = lw; ctx.stroke();
       continue;
     }
-    const c = mineChevronAt(time, hp);
+    const c = mineChevronAt(time, hp, placed);
+    if (!c) { chevHidden++; continue; }
+    placed.push(c);
     chev.push({ x: Math.round(c.x), y: Math.round(c.y), wx: w.x, wy: w.y });
     mineChevron(c.x, c.y, c.ang, 'rgba(226,112,90,A)', pulse);
   }
@@ -46142,13 +46153,17 @@ function drawMineThreatMarks(time) {
       if (d < nd) { nd = d; near = n; }
     }
     if (!seen && near) {
-      const c = mineChevronAt(time, camera.worldToScreen(near.x, near.y));
-      state._mineRotChevron = { x: Math.round(c.x), y: Math.round(c.y), wx: near.x, wy: near.y };
-      mineChevron(c.x, c.y, c.ang, 'rgba(150,200,70,A)', pulse);
+      const c = mineChevronAt(time, camera.worldToScreen(near.x, near.y), placed);
+      if (c) {
+        placed.push(c);
+        state._mineRotChevron = { x: Math.round(c.x), y: Math.round(c.y), wx: near.x, wy: near.y };
+        mineChevron(c.x, c.y, c.ang, 'rgba(150,200,70,A)', pulse);
+      } else chevHidden++;
     }
   }
   ctx.restore();
   state._mineChevrons = chev;
+  state._mineChevHidden = chevHidden;
 }
 
 // Nematodes: small pale wriggling worms. They writhe in place, tint reddish
