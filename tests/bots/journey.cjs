@@ -4,6 +4,7 @@
 // Store -> buy -> Descend, which starts whichever leg the save is on. Landfalls are read off the save.
 //
 //   node tests/bots/journey.cjs <save-label> [--naive [--compass] [--lean east|downeast]] [--pace 900] [--legs 3] [--runs 19]
+//                                          [--scout] [--island-compass]   (M10: see scoutRun / islandCompass)
 //                                          [--strat cheapest] [--need 5,7,7]
 //
 // `--need a,b,c`: landfall 1 by run a, landfall 2 within b more runs, landfall 3 within c more (the
@@ -85,6 +86,79 @@ async function followRun(page, route, paceMs) {
   return { digs, seconds: Math.round((Date.now() - t0) / 1000), start, mode, kit, reached };
 }
 
+// THE SCOUT (M10 acceptance 6a): a player who READS THE GROUND (lib.cjs's flood over the generated fine
+// mask — the rock is on screen) but does NOT know where the island's root is. Without a compass it knows
+// what the game tells it — the island is east and its root lies under the green hill (`taproot().x0..x1`,
+// the hill span) — and aims east at 20 m toward the hill, then under it, 10 m below its deepest strand
+// already under the span; with the
+// island compass (both rungs) it aims at the point the needle's bearing and metres name. Either way it
+// digs toward the flood's frontier cell nearest that point (less 0.35 x path length), and goes straight
+// for the knot once it is ON SCREEN (+-325 x +-700 units of the strand being worked) and reachable.
+// Kit use as followRun. `--scout` swaps it in for the route follower.
+async function scoutRun(page, paceMs) {
+  const t0 = Date.now(); let digs = 0, steps = 0;
+  const kit = { flask: 0, cut: 0, cutMsgs: [], rotSeen: 0 };
+  const start = await page.evaluate(() => window.__qa.snapshot());
+  const modes = {};
+  while (steps++ < 600) {
+    const r = await page.evaluate(() => {
+      const W = window, g = W.__game, s = g.state, net = s.active, sub = s.substrate, Q = W.__qa, cs = sub.cellSize;
+      if (s.runOver) return { over: true };
+      const acts = [];
+      const it = g.mine.items();
+      if (g.mine.attached() >= 1 && it.excrete > 0) acts.push(g.mine.useExcrete().message);
+      const inf = g.mine.infect();
+      const rot = net.nodes.reduce((a, n) => a + (n.infected ? 1 : 0), 0);
+      if (inf.on && it.amputate > 0) {
+        const bad = net.nodes.filter((n) => n.infected); let best = null, bn = -1; const R = s.config.mine.cutRadius || 220;
+        for (const c of bad) { let k = 0; for (const o of bad) if ((o.x - c.x) ** 2 + (o.y - c.y) ** 2 < R * R * 0.8) k++; if (k > bn) { bn = k; best = c; } }
+        if (best) acts.push(g.mine.useAmputate(best.x, best.y).message);
+      }
+      const F = Q.flood(), tap = g.mine.taproot(), live = Q.live();
+      if (!live.length) return { stuck: true, acts, rot };
+      const fN = (s._mineFocus && net.byId.get(s._mineFocus.id)) || live.reduce((a, n) => (n.y > a.y ? n : a));
+      const land = (s.config.mine.journey.landfallCells || 1.5) * cs;
+      const onScr = Math.abs(tap.x - fN.x) < 325 && Math.abs(tap.y - fN.y) < 700;
+      const nr = onScr ? Q.nearReach(F, tap.x, tap.y, land * 0.9) : null;
+      let ti = -1, mode;
+      if (nr) { ti = nr.i; mode = 'knot'; }
+      else {
+        let T = null;
+        const e = g.mine.compass().find((q) => q.kind === 'island');
+        if (e && e.dist != null) { const b = e.bearing * Math.PI / 180; T = { x: e.fx + Math.cos(b) * e.dist * cs, y: e.fy + Math.sin(b) * e.dist * cs }; mode = 'needle'; }
+        else {
+          // East along the shallow ground toward the hill, then DOWN under it: the aim deepens only with
+          // the deepest strand already under the hill's span.
+          let deepU = -Infinity; for (const n of live) if (n.x >= tap.x0 && n.x <= tap.x1) deepU = Math.max(deepU, n.y);
+          T = { x: (tap.x0 + tap.x1) / 2, y: deepU > -Infinity ? deepU + 10 * cs : sub.surfaceY + 20 * cs }; mode = deepU > -Infinity ? 'under' : 'hill';
+        }
+        let bsc = -Infinity; const gap = Math.ceil(60 / F.fs);
+        for (let i = 0; i < F.dist.length; i++) {
+          const d = F.dist[i]; if (d < gap) continue;
+          const x = (i % F.fc + 0.5) * F.fs, y = F.sy + (((i / F.fc) | 0) + 0.5) * F.fs;
+          const sc = -Math.hypot(x - T.x, y - T.y) - 0.35 * d * F.fs;
+          if (sc > bsc) { bsc = sc; ti = i; }
+        }
+      }
+      if (ti < 0) return { stuck: true, acts, rot, mode };
+      const res = Q.digAlong(F, ti);
+      return { ok: res && res.ok, msg: res && res.message, acts, rot, mode };
+    });
+    if (r.acts) for (const m of r.acts) { if (/Mucus/.test(m)) kit.flask++; else { kit.cut++; if (kit.cutMsgs.length < 4) kit.cutMsgs.push(String(m).slice(0, 60)); } }
+    if (r.rot) kit.rotSeen = Math.max(kit.rotSeen, r.rot);
+    if (r.mode) modes[r.mode] = (modes[r.mode] | 0) + 1;
+    if (r.over || r.stuck) break;
+    if (r.ok) digs++;
+    await sleep(paceMs);
+  }
+  for (let k = 0; k < 20; k++) { if (await page.evaluate(() => !!window.__game.state.runOver)) break; await sleep(300); }
+  if (!(await page.evaluate(() => !!window.__game.state.runOver))) {
+    await page.evaluate(() => { const b = document.getElementById('set-forcefruit'); if (b) b.click(); });
+    await sleep(800);
+  }
+  return { digs, seconds: Math.round((Date.now() - t0) / 1000), start, mode: JSON.stringify(modes), kit };
+}
+
 const argv = process.argv.slice(2);
 const arg = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
 const label = argv[0] && !argv[0].startsWith('--') ? argv[0] : '4242';
@@ -106,7 +180,8 @@ const strat = arg('--strat', 'cheapest');
 // player's bearing. Without it the bot buys NO compass at all (the M10 shelf would otherwise put them in
 // the cheapest buyer's reach and change the no-compass baseline).
 const islandCompass = argv.includes('--island-compass');
-const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean === 'east' ? '' : lean + '-')) : '') + (islandCompass ? 'icompass-' : '') + label;
+const scout = argv.includes('--scout');
+const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean === 'east' ? '' : lean + '-')) : '') + (scout ? 'scout-' : '') + (islandCompass ? 'icompass-' : '') + label;
 
 (async () => {
   const env = await launch();
@@ -137,6 +212,7 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
       if (Q._deadLeg !== leg) { Q._dead = new Set(); Q._deadLeg = leg; } }, leg0);
     let res;
     if (naive) res = await playDescent(page, { label: `${tag}-r${run}`, paceMs, maxSteps: 500, shots: false, bot: { policy: 'naive', goal: 'island', compass, lean: lean === 'east' ? 'east' : null } });
+    else if (scout) res = await scoutRun(page, paceMs);
     else {
       // The route is planned on a snapshot of the leg's own world (every chunk to the island generated,
       // which is order-independent), then dug in THIS run with its real tank.
@@ -177,7 +253,7 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     const row = { run, leg: leg0, cause: rr.cause, depth: rr.depth, east: rr.east, ore: rr.ore, bonus: rr.bonus, digs: res.digs,
                   seconds: res.seconds, start: res.start.water, islands: jn.islands, nextLeg: jn.leg, bought };
     log.push(row);
-    console.log(`R${run} leg ${leg0} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}${res.kit ? ` | kit: flask x${res.kit.flask}, cut x${res.kit.cut}${res.kit.cutMsgs.length ? ' [' + res.kit.cutMsgs.join(' / ') + ']' : ''}, most rot ${res.kit.rotSeen}` : ''}${res.reached ? ` | route ${res.reached.frac} to ${res.reached.east} m east / ${res.reached.down} m, ended in ${res.mode}` : ''}`);
+    console.log(`R${run} leg ${leg0} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}${res.kit ? ` | kit: flask x${res.kit.flask}, cut x${res.kit.cut}${res.kit.cutMsgs.length ? ' [' + res.kit.cutMsgs.join(' / ') + ']' : ''}, most rot ${res.kit.rotSeen}` : ''}${res.reached ? ` | route ${res.reached.frac} to ${res.reached.east} m east / ${res.reached.down} m, ended in ${res.mode}` : ''}${scout ? ' | ' + res.mode : ''}`);
     fs.writeFileSync(`${OUT}/${tag}.json`, JSON.stringify(log, null, 1));
     if (landAt.length >= legsWanted) break;
     await page.click('#ssDescend').catch(() => {});
