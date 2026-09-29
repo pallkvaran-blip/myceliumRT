@@ -39,10 +39,16 @@ const arg = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] :
 const SEEDS = String(arg('--seeds', '4242,909,11,5,2024,7,33,101,555,8080')).split(',').map((x) => +x);
 const CAP = +arg('--cap', 200);
 const REPS = +arg('--reps', 3);
+// --skip-walled: a MEASUREMENT of one option the owner may pick (M14), not the game — the compass hunter
+// aims at the nearest unclaimed garnet seam CONNECTED to the colony on its flood of open ground (what a
+// needle that skipped walled-in seams would point at) instead of the game's needle. --sides compass|blind
+// runs one hunter only (the other side's numbers are then not printed as a ratio).
+const SKIPW = argv.includes('--skip-walled');
+const SIDES = String(arg('--sides', 'blind,compass')).split(',');
 
 async function hunt(page, useCompass, cap) {
   await injectBot(page);
-  return page.evaluate(async ({ useCompass, cap }) => {
+  return page.evaluate(async ({ useCompass, cap, SKIPW }) => {
     const g = window.__game, s = g.state, sub = s.substrate, net = s.active, cs = sub.cellSize, Q = window.__qa;
     s.nematodes.length = 0; s.clouds.length = 0;
     s.config.nematodes.respawnChance = 0; s.config.trichoderma.respawnChance = 0;
@@ -88,7 +94,11 @@ async function hunt(page, useCompass, cap) {
         let T = null;
         if (useCompass) {
           const e = g.mine.compass().find((q) => q.mat === 'garnet');
-          if (e) { const b = e.bearing * Math.PI / 180; T = { x: e.fx + Math.cos(b) * e.dist * cs, y: e.fy + Math.sin(b) * e.dist * cs }; }
+          if (e && !SKIPW) { const b = e.bearing * Math.PI / 180; T = { x: e.fx + Math.cos(b) * e.dist * cs, y: e.fy + Math.sin(b) * e.dist * cs }; }
+          if (e && SKIPW) {
+            const cand = Q.targets(F, 1e9).filter((t) => t.kind === 'ore' && t.mat === 'garnet' && t.reach && !pre.has(t.pile) && !Q.pileClaimed(t.pile));
+            let bd = Infinity; for (const t of cand) { const dd = Math.hypot(t.x - e.fx, t.y - e.fy); if (dd < bd) { bd = dd; T = { x: t.x, y: t.y }; } }
+          }
           // A needle that has not got closer in 12 digs points at a seam the maze walls off (some are, by
           // design): a player stops chasing it and sweeps like the blind hunter until it points elsewhere.
           if (T) {
@@ -122,7 +132,7 @@ async function hunt(page, useCompass, cap) {
       for (let k = 0; k < 2; k++) await raf();
     }
     return { reached: reached(), digs, refused, spent, depth: g.mine.maxDepth(), modes, startDepth, found0, walled: walled.size };
-  }, { useCompass, cap });
+  }, { useCompass, cap, SKIPW });
 }
 
 (async () => {
@@ -136,18 +146,23 @@ async function hunt(page, useCompass, cap) {
     for (let rep = 0; rep < REPS; rep++) {
       for (const seed of SEEDS) {
         const row = { seed, rep };
-        for (const use of (rep % 2 ? [true, false] : [false, true])) {   // alternate which hunter boots first
+        for (const use of (rep % 2 ? [true, false] : [false, true]).filter((u) => SIDES.includes(u ? 'compass' : 'blind'))) {   // alternate which hunter boots first
           const b = await E.bootMine(seed);  // the harness injects the navigator
           row[use ? 'compass' : 'blind'] = await hunt(b.page, use, CAP);
           await b.ctx.close();
         }
         rows.push(row);
-        const f = (x) => `${x.reached ? 'reached' : 'NOT reached'} in ${x.digs} digs (${x.refused} refused, ${x.spent} water, from ${x.startDepth} to ${x.depth} m, ${x.found0} found first; ${JSON.stringify(x.modes)}${x.walled ? ', ' + x.walled + ' walled' : ''})`;
+        const f = (x) => !x ? '-' : `${x.reached ? 'reached' : 'NOT reached'} in ${x.digs} digs (${x.refused} refused, ${x.spent} water, from ${x.startDepth} to ${x.depth} m, ${x.found0} found first; ${JSON.stringify(x.modes)}${x.walled ? ', ' + x.walled + ' walled' : ''})`;
         console.log(`rep ${rep} seed ${seed}: blind ${f(row.blind)} | compass ${f(row.compass)}`);
       }
     }
     // POOLED over every seed x rep (M10 verify: one 5-seed sample decided nothing — the same seed's digs
     // swing ~2x run to run, because the real-time navigator's dive to 88 m leaves a different colony).
+    if (SIDES.length < 2) {
+      const side = SIDES[0], V = rows.map((r) => d(r[side]));
+      console.log(`  ${side}${SKIPW ? ' (skip-walled)' : ''} only, ${rows.length} hunts: median ${med(V)} (p25 ${q(V, 0.25)}, p75 ${q(V, 0.75)}); reached ${rows.filter((r) => r[side].reached).length} of ${rows.length}; per seed ${SEEDS.map((sd) => sd + ':' + med(rows.filter((r) => r.seed === sd).map((r) => d(r[side])))).join(', ')}`);
+      console.log(`\n==== 0 passed, 0 failed ====`); await E.close(); process.exit(0);
+    }
     const C = rows.map((r) => d(r.compass)), B = rows.map((r) => d(r.blind));
     const mc = med(C), mb = med(B), ratio = mc / mb;
     // Spread: the ratio of medians re-drawn by SEED (bootstrap over seeds, each seed keeping all its reps).
