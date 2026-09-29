@@ -22556,7 +22556,16 @@ function mineRichHash(seed, ci, si) {
 // So any point connects to any other, and chunks can be generated in any order at any time. The
 // galleries wander ±2 rows through the middle and return to the exact gallery row at each seam, so
 // the structure does not read as a grid.
+// THE SYNCHRONOUS CHUNK (every caller but the idle look-ahead): run the steps to the end. The steps
+// are ONE generator body with `yield` between its passes (M10), so the rng draws and everything placed are
+// exactly what one synchronous pass does — a yield changes when the next line runs, never what it is.
 function mineGenerateChunk(state, ci) {
+  const it = mineGenerateChunkSteps(state, ci);
+  let r = it.next();
+  while (!r.done) r = it.next();
+  return r.value;
+}
+function* mineGenerateChunkSteps(state, ci) {
   const sub = state.substrate, cfg = state.config, M = mineCfg(cfg);
   const cs = sub.cellSize, rows = sub.rows, cols = sub.cols;
   const bands = M.bands;
@@ -22880,6 +22889,7 @@ function mineGenerateChunk(state, ci) {
   const spots = [];
   const orePer = M.orePerPile;
   const N = cfg.substrate.foodCellNutrient || 50;
+  yield;
   for (let b = 0; b < bands.length; b++) {
     const rLo = b * M.bandRows + 2, rHi = (b + 1) * M.bandRows - 2;
     for (let i = 0; i < (M.pilesPerBand | 0); i++) {
@@ -22946,6 +22956,7 @@ function mineGenerateChunk(state, ci) {
   // link be carved straight back through the plug, and plugging before the spine was recorded would
   // let the descent route be walled off. `noPlug` protects the spine and the head; nothing else is
   // sacred, which is the point.
+  yield;
   const plugSpots = [];
   const plugN = Math.max(0, (M.plugsPerChunk | 0));
   if (plugN) {
@@ -23011,6 +23022,7 @@ function mineGenerateChunk(state, ci) {
   // it adds a few short connectors that read like any other passage.
   //
   // It runs LAST, after the plugs, or a plug could wall off the route it just certified.
+  yield;
   const descCut = J && c0 <= home && home <= c1 ? new Uint8Array(W * rows) : null;
   if (c0 <= home && home <= c1) {
     const seen = new Uint8Array(W * rows);
@@ -23205,6 +23217,7 @@ function mineGenerateChunk(state, ci) {
   // stitch cannot seal (leg 3 seam 192 leaked through one). Its own rng
   // (`seed ^ 0x2EAC`), after the plugs, so nothing downstream can wall off what it opened — a plug
   // whose sprite would land on it is dropped below, and a seal boulder never covers `noPlug` ground.
+  yield;
   const repCut = J ? new Uint8Array(W * rows) : null;
   // TEST KNOB, journey-check's negative control only: `window.MYCELIUM_NO_REWARD_REPAIR = true` (an init
   // script) skips the WALK — the connectors that join the anchors — and still carves the trunk stubs,
@@ -23218,6 +23231,7 @@ function mineGenerateChunk(state, ci) {
   const trunkCell = J ? new Uint8Array(W * rows) : null;
   // The anchors and the `unjoined` count run on every journey chunk; with the test knob set only the walk
   // is skipped, so the count says what the carve plus its trunk stubs leaves unjoined.
+  yield;
   if (J) {
     const seedJ = (state.mineSeed || state.seed || 1) >>> 0;
     const erng = mineChunkRng((seedJ ^ 0x2EAC) >>> 0, ci);
@@ -23406,6 +23420,7 @@ function mineGenerateChunk(state, ci) {
   // 0.8 of a cell. Dropped plugs KEEP THEIR RNG DRAW in the sprite loop (`skip`), and their disc goes
   // back into the carve — a plug with no sprite is not a wall (see the sprite loop), so leaving its
   // cells closed would make the carve claim rock the map does not have.
+  yield;
   if (tapCut || repCut || descCut) {
     for (const p of plugSpots) {
       // The cells the sprite's box reaches: within half its width of the plug's cell centre.
@@ -23485,6 +23500,7 @@ function mineGenerateChunk(state, ci) {
   }
 
   // --- stamp the rewards into the LIVE substrate ---------------------------
+  yield;
   for (const sp of spots) {
     if (sp.kind === 'ore') {
       const pilesBefore = sub.foodPiles.length;
@@ -23520,6 +23536,7 @@ function mineGenerateChunk(state, ci) {
   // `OVERLAP` is how much ALREADY-COVERED ground a new sprite may sit on, and it wants to be high:
   // a boulder's alpha fills ~35% of its box, so filling a slab means OVERLAPPING boxes whose alphas
   // union — spacing them out leaves the soil showing between them, which is the look this had.
+  yield;
   const OVERLAP = 0.94;
   const libFor = (b) => (MINE_ROCKS[bands[b].theme] || []);
   const bandCover = new Array(bands.length).fill(0);
@@ -23578,6 +23595,7 @@ function mineGenerateChunk(state, ci) {
   // with the same loop once both chunks exist, sprites free to straddle the line. See pass (d).
   const bandSkip = (c) => !!J && ((c - c0 < SEAM_BAND && c0 > 0) || (c1 - c < SEAM_BAND && c1 < cols - 1));
   for (let r = 1; r < rows; r += 1) {
+    if ((r & 7) === 0) yield;   // M10: the idle look-ahead makes a chunk in slices
     for (let c = c0 + 1; c <= c1; c += 1) {
       if (bandSkip(c)) continue;
       const { b, lib } = libAtRow(r);
@@ -23644,6 +23662,7 @@ function mineGenerateChunk(state, ci) {
   // Placed here rather than in the pass that cuts them because `libAtRow` and the band tables live
   // in this scope, and because a plug must be able to overlap its neighbours' boxes freely — the
   // `OVERLAP` budget is about filling slabs and has no business vetoing a wall.
+  yield;
   for (const p of plugSpots) {
     const { b, lib } = libAtRow(p.r);
     if (!lib.length) continue;
@@ -23675,6 +23694,7 @@ function mineGenerateChunk(state, ci) {
   // ON the soil line (a third of each above it, clipped by drawLevelRocks like the soil line clips any
   // rock), two passes offset by half a sprite. Their whole in-ground box must miss the carve, like any
   // rock here. Its own rng, after every other rock, and journey-only.
+  yield;
   if (J) {
     const crng = mineChunkRng(((state.mineSeed || state.seed || 1) ^ 0xC857) >>> 0, ci);
     const lib0 = libFor(0);
@@ -23728,6 +23748,7 @@ function mineGenerateChunk(state, ci) {
   // before this: 33 of 41 band-0 sealed sides crossable on the fine mask. So each sealed side gets two
   // overlapping boulders spanning the seam columns and the gallery's height, inside the chunk (a sprite
   // may never reach into a neighbour). Their own rng; journey-only.
+  yield;
   if (J && J._sealed) {
     const srng = mineChunkRng(((state.mineSeed || state.seed || 1) ^ 0x5EA1) >>> 0, ci);
     // A SEAL BOULDER MAY NOT CUT ANYTHING BUT THE SEAL (M7 verifier fix). It used to check only the
@@ -23858,6 +23879,7 @@ function mineGenerateChunk(state, ci) {
   // second, drawn from a rng keyed on the SEAM (`seed ^ 0x57C4`, seam index), so the rock is
   // the same whichever order the two were generated in; recorded on `J._stitched`, not in either chunk
   // record (a record must not depend on generation order).
+  yield;
   if (J) {
     // WHAT WAS WET OR HELD FOOD WHEN THIS CHUNK WAS MADE (verifier round 3). The stitch keeps rock off
     // water and food cells, and it used to ask the LIVE cells — so a cloud eating a pile beside a seam
@@ -23874,6 +23896,7 @@ function mineGenerateChunk(state, ci) {
     (J._taken || (J._taken = {}))[ci] = taken;
     (J._stitched || (J._stitched = {}));
     for (const nb of [ci - 1, ci + 1]) {
+      yield;
       const sI = Math.max(ci, nb);
       if (!J._open[nb] || J._stitched[sI] != null) continue;
       const oA = J._open[sI - 1], oB = J._open[sI];
@@ -24159,6 +24182,7 @@ function mineGenerateChunk(state, ci) {
       sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : colB + 7, colB + 7);
     }
   }
+  yield;
   for (let i = 0; i < open.length; i++) if (open[i]) placed.open++;
   placed.cells = W * rows;
   placed.bbox = bandCover.slice();
@@ -24170,6 +24194,7 @@ function mineGenerateChunk(state, ci) {
   // build had to do): a chunk is generated during play, so `solidAtWorld` already answers, and the
   // spots can be tested against the DRAWN rock straight away — except for this chunk's own sprites,
   // which have not been stamped yet, so the chunk-local `taken` grid stands in for them.
+  yield;
   const bandsT = M.threatBands || [];
   const spotFor = (rLo, rHi) => {
     for (let tries = 0; tries < 300; tries++) {
@@ -24224,11 +24249,37 @@ function mineGenerateChunk(state, ci) {
 // widens the view on a journey leg so a visible chunk's neighbour exists: the ground beside a seam is
 // the stitch's to fill (`bandSkip`) and stays bare soil until both chunks are there. Tests and boot
 // call with none of these, which is the old behaviour: everything wanted, at once.
+// A CHUNK IN SLICES (M10). The idle look-ahead makes its chunk through `mineGenerateChunkSteps` a
+// budget at a time (`state._mineGenPending`); nothing else may start a chunk while one is half made, so
+// any other call FINISHES it first (synchronously) — two chunks' passes never interleave, which is what
+// keeps a chunk order-independent. Returns the placed record when the chunk is done, else null.
+function mineGenStep(state, budgetMs) {
+  const P = state._mineGenPending;
+  if (!P) return null;
+  const t0 = performance.now();
+  let r;
+  do { r = P.it.next(); P.steps++; } while (!r.done && performance.now() - t0 < budgetMs);
+  P.ms += performance.now() - t0; P.slices++;
+  if (!r.done) return null;
+  state._mineGenPending = null;
+  const done = (state.mineChunks = state.mineChunks || {});
+  done[P.ci] = r.value || true;
+  const sub = state.substrate, { c0, c1 } = mineChunkRange(state.config, P.ci);
+  sub._mineDirtyC0 = Math.min(sub._mineDirtyC0 != null ? sub._mineDirtyC0 : c0, c0);
+  sub._mineDirtyC1 = Math.max(sub._mineDirtyC1 != null ? sub._mineDirtyC1 : c1, c1);
+  const log = (state._mineGenLog || (state._mineGenLog = []));
+  log.push({ made: 1, ms: +P.ms.toFixed(2), ahead: 'idle', slices: P.slices, frame: state._mineFrameNo | 0, cis: [P.ci], s0: P.s0,
+             s1: sub.levelSprites ? sub.levelSprites.length : 0 });
+  if (log.length > 256) log.shift();
+  return done[P.ci];
+}
 function mineEnsureChunks(state, view, opts) {
   const sub = state.substrate, cfg = state.config;
   if (!sub || !sub.mine) return 0;
   const M = mineCfg(cfg);
   const done = (state.mineChunks = state.mineChunks || {});
+  const sliced = !!(opts && opts.around > 0 && opts.budgetMs > 0);
+  if (sliced && state._mineGenPending) return mineGenStep(state, opts.budgetMs) ? 1 : 0;
   const total = mineChunkCount(cfg);
   const want = new Set([mineHomeChunk(cfg, sub)]);
   const cs = sub.cellSize;
@@ -24286,6 +24337,18 @@ function mineEnsureChunks(state, view, opts) {
   for (const ci of list) {
     if (made >= max) break;
     if (ci < 0 || ci >= total || done[ci]) continue;
+    // A chunk half made in idle slots: the frame's own lookahead waits for it; a chunk that is wanted NOW
+    // finishes it first (it may be this very chunk).
+    if (state._mineGenPending) {
+      if (lookahead === true) break;
+      mineGenStep(state, Infinity);
+      if (done[ci]) continue;
+    }
+    if (sliced) {
+      state._mineGenPending = { ci, it: mineGenerateChunkSteps(state, ci), steps: 0, slices: 0, ms: 0,
+                                s0: sub.levelSprites ? sub.levelSprites.length : 0 };
+      return mineGenStep(state, opts.budgetMs) ? 1 : 0;
+    }
     done[ci] = mineGenerateChunk(state, ci) || true;
     made++; madeCis.push(ci);
     // NEW ROCK HAS TO BE COLLIDED, AND IT MUST NOT COST A FULL RE-STAMP. `solidifyRock` rebuilds
@@ -41533,7 +41596,7 @@ function advanceSim(time) {
       // much as the chunk, and the point of the idle slot was to keep both off the frames. It is never in
       // view (the view's chunks are the frame's), and a safety net stamps it on a frame if no idle slot
       // has come in 1.5 s.
-      else if (state._mineIdleStamp && performance.now() - state._mineIdleStamp < 1500) {}
+      else if (state._mineGenPending || (state._mineIdleStamp && performance.now() - state._mineIdleStamp < 1500)) {}
       else { state._mineIdleStamp = 0; solidifyMineRock(); }
       mineIdleSchedule(!(busy || early));
     }
@@ -41904,26 +41967,34 @@ function mineIdleSchedule(ok) {
   if (_mineIdleHandle || !ok || !mineIdleWanted()) return;
   if (typeof window !== 'undefined' && window.MYCELIUM_NO_IDLE_LOOKAHEAD === true) return;
   const gap = Math.max(0, +(state.config.mine.compassIdleGapMs) || 300);
-  if (!state._mineIdleStamp && performance.now() - _mineIdleLast < gap) return;
+  if (!state._mineIdleStamp && !state._mineGenPending && performance.now() - _mineIdleLast < gap) return;
   const st = state;
   const run = (deadline) => {
     _mineIdleHandle = null;
     if (st !== state || !st.substrate || !st.substrate.mine || !st._mineIdleOk || st.runOver) return;
     const log = (st._mineIdleLog || (st._mineIdleLog = []));
     const t0 = performance.now();
-    if (st._mineIdleStamp) {
-      st._mineIdleStamp = 0;
-      solidifyMineRock();
-      log.push({ kind: 'stamp', t0: +t0.toFixed(1), ms: +(performance.now() - t0).toFixed(2), frame: st._mineFrameNo | 0 });
+    // THE SLOT'S BUDGET: what the browser says is left of the idle period, clamped to 6-20 ms. A chunk
+    // or a stamp that does not fit carries on in the next slot (`mineGenStep` / the stamp's watermark).
+    const left = deadline && typeof deadline.timeRemaining === 'function' ? deadline.timeRemaining() : 12;
+    const budget = Math.max(6, Math.min(20, left - 2));
+    if (st._mineIdleStamp && !st._mineGenPending) {
+      const fin = solidifyMineRock(budget);
+      if (fin) st._mineIdleStamp = 0;
+      log.push({ kind: 'stamp', t0: +t0.toFixed(1), ms: +(performance.now() - t0).toFixed(2), done: !!fin, frame: st._mineFrameNo | 0 });
     } else {
-      const made = mineEnsureChunks(st, null, { max: 1, around: Math.max(1, st.config.mine.compassIdleChunks | 0) });
-      if (made) {
+      const ci = st._mineGenPending ? st._mineGenPending.ci : null;
+      const made = mineEnsureChunks(st, null, { max: 1, around: Math.max(1, st.config.mine.compassIdleChunks | 0), budgetMs: budget });
+      const pend = st._mineGenPending;
+      if (made || pend) {
         const g = st._mineGenLog, e = g && g[g.length - 1];
-        st._mineIdleStamp = performance.now();
-        log.push({ kind: 'gen', ci: e && e.cis ? e.cis[0] : null, t0: +t0.toFixed(1), ms: +(performance.now() - t0).toFixed(2), frame: st._mineFrameNo | 0 });
+        if (made) st._mineIdleStamp = performance.now();
+        log.push({ kind: made ? 'gen' : 'slice', ci: made ? (e && e.cis ? e.cis[0] : ci) : pend.ci, t0: +t0.toFixed(1),
+                   ms: +(performance.now() - t0).toFixed(2), slices: made && e ? e.slices : undefined, frame: st._mineFrameNo | 0 });
       }
     }
-    _mineIdleLast = performance.now();
+    // A chunk (or a stamp) still in progress takes the very next slot; otherwise the gap applies.
+    _mineIdleLast = st._mineGenPending || st._mineIdleStamp ? 0 : performance.now();
     if (log.length > 256) log.shift();
   };
   _mineIdleHandle = (typeof requestIdleCallback === 'function')
@@ -44652,12 +44723,16 @@ function solidifyRock() {
 // reconciles `cell.rock` and the fine mask's water over the COLUMN RANGE the new chunks touched.
 // The range, not each sprite's box, because a chunk also stamps water pockets and ore seams, whose
 // cells the masks have to be told about and which lie nowhere near a new sprite.
-function solidifyMineRock() {
+// `budgetMs` (M10, the idle look-ahead's stamp): stop after that long and leave the rest to the next call —
+// the sprite watermark already carries the progress, and the dirty range is only reconciled once every
+// sprite is in. Returns true when everything is stamped. No budget = everything now, as before.
+function solidifyMineRock(budgetMs) {
   const sub = state.substrate;
-  if (!sub || !sub.mine || !sub._rockSolidified || !sub._coarseCover || !sub._fineSolid) return;
+  if (!sub || !sub.mine || !sub._rockSolidified || !sub._coarseCover || !sub._fineSolid) return true;
+  const tB = budgetMs > 0 ? performance.now() : 0;
   const sprites = sub.levelSprites || [];
   let from = sub._solidFrom | 0;
-  if (from >= sprites.length && sub._mineDirtyC0 == null) return;
+  if (from >= sprites.length && sub._mineDirtyC0 == null) return true;
   const cs = sub.cellSize, cover = sub._coarseCover, fine = sub._fineSolid;
   const fSize = sub._fineSize, fCols = sub._fineCols, fRows = sub._fineRows;
   // A SPRITE WHOSE ART IS MISSING GOES IN AS A SOLID BOX AT ONCE, and `mineUnboxArrived` swaps its
@@ -44677,9 +44752,10 @@ function solidifyMineRock() {
     markCoverGrid(sub, img, s.x, s.y, s.w, s.h, s.rot, cover, sub.cols, sub.rows, cs);
     markCoverGrid(sub, img, s.x, s.y, s.w, s.h, s.rot, fine, fCols, fRows, fSize);
     from++;
+    if (tB && (from & 15) === 0 && performance.now() - tB > budgetMs) { sub._solidFrom = from; return from >= sprites.length && sub._mineDirtyC0 == null; }
   }
   sub._solidFrom = from;
-  if (sub._mineDirtyC0 == null) return;
+  if (sub._mineDirtyC0 == null) return true;
   const c0 = Math.max(0, sub._mineDirtyC0 | 0), c1 = Math.min(sub.cols - 1, sub._mineDirtyC1 | 0);
   sub._mineDirtyC0 = sub._mineDirtyC1 = null;
   const K = 4;
@@ -44703,6 +44779,7 @@ function solidifyMineRock() {
       if (covered) cell.hazard = false;
     }
   }
+  return true;
 }
 
 // A BOX IS TEMPORARY. When a boxed sprite's art finally arrives (a slow request, a repair that
@@ -44851,7 +44928,10 @@ function drawLevelRocks() {
       m.inBufC = { wx0, wy0, pw, ph, z, n: sprites.length, rg, v };
       return v;
     };
-    const base = z + ',' + camera.viewW + ',' + camera.viewH + ',' + W + 'x' + H + ',' + T.a + ',' + T.d + ',' + sprites.length + ',' + (sub._solidRev | 0) + ',' + (filtered ? JSON.stringify(rf) : '');
+    // NOT the sprite count (M10): a chunk made off screen — the compass's idle look-ahead makes one in
+    // several slices — would throw the buffer away once per slice for rock it does not hold. `inBuf`'s
+    // hash of the sprites inside the buffer's rect is what says the buffer changed.
+    const base = z + ',' + camera.viewW + ',' + camera.viewH + ',' + W + 'x' + H + ',' + T.a + ',' + T.d + ',' + (sub._solidRev | 0) + ',' + (filtered ? JSON.stringify(rf) : '');
     let key = m.pw != null && m.base === base ? base + ',' + inBuf(m.wx0, m.wy0, m.pw, m.ph) : null;
     const at = key ? memoBlitAt(m, key, camera, T) : null;
     if (!at && !memoShouldBuild(m, base)) { _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered); m.live = (m.live | 0) + 1; }

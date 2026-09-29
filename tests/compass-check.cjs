@@ -375,13 +375,13 @@ const TRUTH = () => {
           const frameStamps = g.mine.genLog().filter((e) => e.ahead === 'idle' && e.stampFrame).length;
           return { n0, n1: g.mine.chunks().length, log, hits, lts: lts.map((L) => Math.round(L.d)), frameStamps, observer: typeof PerformanceObserver !== 'undefined' };
         }, QUIET.toString());
-        const gens = r.log.filter((e) => e.kind === 'gen'), stamps = r.log.filter((e) => e.kind === 'stamp');
-        ok(`${label}: the idle look-ahead makes chunks past the colony's (one a slot) and stamps each in a later slot`,
+        const gens = r.log.filter((e) => e.kind === 'gen'), stamps = r.log.filter((e) => e.kind === 'stamp'), slices = r.log.filter((e) => e.kind === 'slice');
+        ok(`${label}: the idle look-ahead makes chunks past the colony's, in idle slots, and stamps each in later slots`,
            gens.length >= 1 && stamps.length >= 1 && r.n1 > r.n0 && r.frameStamps === 0,
-           `chunks ${r.n0} -> ${r.n1}; idle ${gens.map((e) => 'gen ' + e.ci + ' ' + e.ms + ' ms').join(', ')}; ${stamps.map((e) => 'stamp ' + e.ms + ' ms').join(', ')}; frame-stamped ${r.frameStamps}`);
+           `chunks ${r.n0} -> ${r.n1}; ${gens.map((e) => 'chunk ' + e.ci + ' in ' + e.slices + ' slices').join(', ')} (${slices.length + gens.length} gen slots); ${stamps.length} stamp slots; frame-stamped ${r.frameStamps}`);
         ok(`${label}: ...no long task over 50 ms overlaps an idle slot, and no slot ran past 50 ms`,
            r.observer && r.hits.length === 0 && r.log.every((e) => e.ms <= 50),
-           `${r.hits.length} overlapping; slots ${r.log.map((e) => e.ms).join(' / ')} ms; long tasks in the window [${r.lts.join(', ')}] ms`);
+           `${r.hits.length} overlapping; slots max ${Math.max(...r.log.map((e) => e.ms)).toFixed(1)} ms over ${r.log.length} (${r.log.map((e) => e.kind[0] + e.ms).join(' ')}); long tasks in the window [${r.lts.join(', ')}] ms`);
         ok(`no page errors (idle, ${label})`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
         await b.ctx.close();
       }
@@ -418,7 +418,9 @@ const TRUTH = () => {
         let drawn = 0, hidden = 0, bad = [], chev = 0, chevBad = [];
         const f = g.mine.compass()[0];
         const cam0 = { x: g.state && window.__game.camera ? 0 : 0 };
-        const offs = [[0, 0], [-120, 260], [150, -60]];
+        // The last offset puts the colony off screen: the needles then cast from the clamped focus point,
+        // and the attached worms' chevrons come up (the same placement).
+        const offs = [[0, 0], [-120, 260], [150, -60], [760, -520]];
         for (const [ox, oy] of offs) {
           g.mine.lookAt(f.fx + ox, f.fy + oy + 120);
           for (let a = 0; a < 360; a += 10) {
@@ -446,9 +448,9 @@ const TRUTH = () => {
       await b.page.screenshot({ path: path.join(ART, 'm10-hud-390.png') }).catch(() => {});
       ok('the loaded HUD is up (rows, rot banner, gear, kit, FRUIT NOW) and the run is live',
          !r.over && r.rot && ['#ui .minerows', '#hud-infect', '#gearbtn', '#minekit', '#fruitnow'].every((q) => r.hudSel.includes(q)), `[${r.hudSel.join(', ')}], ${r.attached} worms attached`);
-      ok('...four needles swept round 36 bearings from 3 focus positions: none of the drawn needle rects touches a HUD rect',
+      ok('...four needles swept round 36 bearings from 4 focus positions: none of the drawn needle rects touches a HUD rect',
          r.drawn >= 300 && r.nbad === 0, `${r.drawn} drawn, ${r.hidden} held back (no clear spot on the ray), ${r.nbad} on the HUD ${r.bad.join(' | ')}`);
-      ok('...and the worm chevrons (same placement) never sit on one either', r.chevBad.length === 0, `${r.chev} chevrons ${r.chevBad.join(' | ')}`);
+      ok('...and the worm chevrons (same placement) never sit on one either', r.chev >= 20 && r.chevBad.length === 0, `${r.chev} chevrons ${r.chevBad.join(' | ')}`);
       ok('no page errors (hud)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();
     }
