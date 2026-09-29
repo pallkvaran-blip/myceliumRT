@@ -471,7 +471,17 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
         let t = performance.now();
         const onScreen = (p) => { const q = p.cells[0], x = ((q % sub.cols) + 0.5) * sub.cellSize, y = sub.surfaceY + (((q / sub.cols) | 0) + 0.5) * sub.cellSize;
           const w = cam.worldToScreen(x, y); return w.x > 40 && w.x < cam.viewW - 40 && w.y > 120 && w.y < cam.viewH - 120; };
-        const pile = sub.foodPiles.find((p) => !p.rewarded && p.cells.some((i) => sub.cells[i].nutrient > 0) && onScreen(p));
+        const full = (p) => !p.rewarded && p.cells.some((i) => sub.cells[i].nutrient > 0);
+        // An unpaid seam on screen, or the camera taken to the nearest one (the view the block happens to have
+        // may hold none: one --mine run read {"none":true}).
+        let pile = sub.foodPiles.find((p) => full(p) && onScreen(p));
+        let moved = false;
+        if (!pile) {
+          let bd = Infinity;
+          for (const p of sub.foodPiles) { if (!full(p)) continue; const q = p.cells[0], x = ((q % sub.cols) + 0.5) * sub.cellSize, y = sub.surfaceY + (((q / sub.cols) | 0) + 0.5) * sub.cellSize;
+            const d = Math.hypot(x - cam.x, y - cam.y); if (d < bd) { bd = d; pile = p; } }
+          if (pile) { const q = pile.cells[0]; g.mine.lookAt(((q % sub.cols) + 0.5) * sub.cellSize, sub.surfaceY + (((q / sub.cols) | 0) + 0.5) * sub.cellSize); moved = true; }
+        }
         if (!pile) return { none: true };
         const frames = (n) => { for (let i = 0; i < n; i++) { t += 16.7; g.renderFrame(t, 1); } };
         const grab = () => { t += 16.7; g.renderFrame(t, 1); return c.getImageData(0, 0, cv.width, cv.height).data; };
@@ -484,7 +494,7 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
         frames(3); t += 700; frames(8);      // past LEAF_FADE_MS (460) on the frame clock
         const on = grab();
         window.MYCELIUM_NO_LEAF_MEMO = true; g.renderFrame(t, 1); const off = c.getImageData(0, 0, cv.width, cv.height).data; window.MYCELIUM_NO_LEAF_MEMO = false;   // the SAME clock as `on`
-        return { heldHit: st1.hits > st0.hits, vsLive: diff(on, off), vsBefore: diff(on, before), px: on.length / 4 };
+        return { heldHit: st1.hits > st0.hits, vsLive: diff(on, off), vsBefore: diff(on, before), px: on.length / 4, moved, onScreen: onScreen(pile) };
       });
       await shot(b.page, dsf === 1 ? 'm9-perf-4000-390.png' : `m9-perf-4000-390-dsf${dsf}.png`);
       const f2 = (a) => `median ${med(a).toFixed(2)}, p95 ${pct(a, 0.95).toFixed(2)}`;
