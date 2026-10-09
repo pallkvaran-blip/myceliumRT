@@ -227,6 +227,18 @@
     .res.hot .rk { color: #e2915a; opacity: 0.7; font-size: 10px; margin-left: 2px; }
     .res.hot[hidden] { display: none; }
     #hud-digcost[hidden] { display: none; }
+    /* M12 LEGIBILITY. The water chip turns AMBER with 'N left' at three digs or fewer; the price chip
+       PULSES once when the price changes; a kit button BREATHES while its threat is on the colony.
+       'Reduced motion' (body.rmotion) stops all three animations. */
+    #hud-waterchip.low, #hud-waterchip.low .rv { color: #f0b04a; }
+    #hud-waterchip.low { box-shadow: inset 0 0 0 1px rgba(240,176,74,0.55); border-radius: 999px; padding: 0 6px; }
+    #hud-waterchip .wl { color: #f0b04a; font-size: 10px; margin-left: 4px; font-weight: 700; }
+    #hud-waterchip .wl[hidden] { display: none; }
+    @keyframes digpulse { 0% { transform: scale(1); } 30% { transform: scale(1.28); filter: brightness(1.5); } 100% { transform: scale(1); } }
+    #hud-digcost.pulse { animation: digpulse 0.6s ease-out 1; }
+    @keyframes kitthreat { 0%, 100% { box-shadow: 0 0 0 0 rgba(240,176,74,0); } 50% { box-shadow: 0 0 0 4px rgba(240,176,74,0.55); border-color: #f0b04a; } }
+    .kitbtn.threat:not(:disabled) { animation: kitthreat 1.1s ease-in-out infinite; }
+    body.rmotion #hud-digcost.pulse, body.rmotion .kitbtn.threat { animation: none; }
     /* FRUIT NOW (M1): shown when the tank cannot pay the price here (the price chip hides). Mint,
        the colony's colour, because it is the colony fruiting — not an error. The ring is the stuck
        countdown, a conic sweep driven by --fn (1 = full, 0 = the colony fruits).
@@ -24795,7 +24807,17 @@ function mineGrowReach(config) {
 // — queues an enemy turn; the mine charges WATER, is real time, and has no turn to queue. What it
 // does share is `growDirected`, which is where the pile claim, the reveal scheduling and the rock
 // collision all live, so an upgraded mine grow behaves like a card grow in every way but its price.
+// EVERY REFUSED DIG IS COUNTED (M12): `state.mineRefusals`, whoever asked for the dig (the drag, the tap,
+// the `__game.mine` hooks), so the refusal thud is driven off one number in `mineFrame` rather than wired
+// into each caller. A refusal while the ground is still settling, or of a run already over, is not
+// counted — neither is the player pressing against anything.
 function mineGrow(state, ctx) {
+  const r = mineGrowInner(state, ctx);
+  if (r && !r.ok && !r.settling && state && !state.runOver && state.active && state.active.alive)
+    state.mineRefusals = (state.mineRefusals | 0) + 1;
+  return r;
+}
+function mineGrowInner(state, ctx) {
   const net = state && state.active, sub = state && state.substrate;
   if (!net || !net.alive || state.runOver) return { ok: false, message: 'The colony is no longer alive.' };
   const hasOrigin = ctx.srcX != null && ctx.srcY != null;
@@ -27968,27 +27990,21 @@ function _tone(a, t, f0, f1, dur, gain, type) {
   o.start(t); o.stop(t + dur + 0.02);
 }
 function playSeamPing(mat, semis) {
-  if (muted || !AC) return false;
-  const a = ctx();
-  if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
+  const a = _cue('ore', 0.32); if (!a) return false;
   const t = a.currentTime + 0.005;
   const up = Math.max(0, Math.min(12, semis | 0));
   const f = (SEAM_ROOT_HZ[mat] || SEAM_ROOT_HZ.phosphorus) * Math.pow(2, up / 12);
   _tone(a, t, f, f, 0.32, 0.07);
   _tone(a, t + 0.012, f * 1.5, f * 1.5, 0.24, 0.035);
-  SFX_COUNTS.ore++;
   SFX_LAST.ore = { mat: mat || 'phosphorus', semis: up, hz: [Math.round(f), Math.round(f * 1.5)] };
   return true;
 }
 // THE REACH TICK (M5): a soft, short blip each time depth earns another P. Quieter than a seam ping —
 // it happens every 5 m and must not compete with the things the player went looking for.
 function playReachTick() {
-  if (muted || !AC) return false;
-  const a = ctx();
-  if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
+  const a = _cue('reach', 0.07); if (!a) return false;
   const t = a.currentTime + 0.005;
   _tone(a, t, 1320, 1180, 0.07, 0.025);
-  SFX_COUNTS.reach = (SFX_COUNTS.reach | 0) + 1;
   return true;
 }
 // THE PROMISED LAND'S RISING CHORD (M9): one note per island as the journey strip fruits, 300 ms
@@ -27996,31 +28012,20 @@ function playReachTick() {
 // with a fifth over it, held long enough to overlap the next so the eight read as one chord.
 const FINALE_STEPS = [0, 4, 7, 12, 16, 19, 24, 28];
 function playFinaleNote(i) {
-  if (muted || !AC) return false;
-  const a = ctx();
-  if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
+  const a = _cue('finale', 1.6); if (!a) return false;
   const t = a.currentTime + 0.005;
   const k = Math.max(0, Math.min(FINALE_STEPS.length - 1, i | 0));
   const f = 523.25 * Math.pow(2, FINALE_STEPS[k] / 12);
   _tone(a, t, f, f, 1.6, 0.05);
   _tone(a, t + 0.01, f * 1.5, f * 1.5, 1.1, 0.02);
-  SFX_COUNTS.finale = (SFX_COUNTS.finale | 0) + 1;
   SFX_LAST.finale = { i: k, hz: Math.round(f) };
   return true;
 }
 let _noiseBuf = null;
 function playPocketGlug() {
-  if (muted || !AC) return false;
-  const a = ctx();
-  if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
+  const a = _cue('pocket', 0.25); if (!a) return false;
   const t = a.currentTime + 0.005, dur = 0.25;
-  if (!_noiseBuf || _noiseBuf.sampleRate !== a.sampleRate) {
-    const n = Math.ceil(a.sampleRate * dur);
-    _noiseBuf = a.createBuffer(1, n, a.sampleRate);
-    const d = _noiseBuf.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
-  }
-  const src = a.createBufferSource(); src.buffer = _noiseBuf;
+  const src = _noise(a);   // one shared noise buffer for every noise cue (M12)
   const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 6;
   lp.frequency.setValueAtTime(800, t);
   lp.frequency.exponentialRampToValueAtTime(200, t + dur);
@@ -28030,12 +28035,240 @@ function playPocketGlug() {
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   src.connect(lp); lp.connect(g); g.connect(master());
   src.start(t); src.stop(t + dur + 0.02);
-  SFX_COUNTS.pocket++;
   SFX_LAST.pocket = { type: 'lowpass-noise', from: 800, to: 200, ms: dur * 1000 };
   return true;
 }
 
-  return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect, setClickGain, playSeamPing, playPocketGlug, playReachTick, playFinaleNote };
+
+// =============================================================================
+// THE MINE'S JUICE (finishing plan M12): every payout, threshold, threat and record gets a synthesised
+// cue (the plan's sound table), a haptic pattern and, for three of them, a camera shake. Four rules hold
+// for every cue below, and they are why this is a shared helper rather than fifteen copies:
+//   - BEHIND `muted` (Sound effects) and before any node is made: muted, no oscillator, no buffer
+//     source, no count. That is what makes "with sound off, nothing is created" assertable.
+//   - AT MOST `SYNTH_VOICES` (6) CUES SOUNDING AT ONCE. A cue is one voice however many oscillators it
+//     uses (a chord is one event); a cue that would be the seventh is dropped, not queued — a late
+//     cue is worse than a missing one. Peaks stay near -12 dBFS (per-voice gains <= ~0.2, the master
+//     compressor behind them).
+//   - COUNTED in `window.__sfx.counts` only when actually scheduled.
+//   - `last` records what the last cue of each kind was, for the checks.
+const SYNTH_VOICES = 6;
+let _synth = 0;
+SFX_COUNTS.dropped = 0;
+function _cue(kind, durS) {
+  if (muted || !AC) return null;
+  const a = ctx();
+  if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
+  if (_synth >= SYNTH_VOICES) { SFX_COUNTS.dropped++; return null; }
+  _synth++;
+  setTimeout(() => { _synth = Math.max(0, _synth - 1); }, Math.max(30, durS * 1000 + 40));
+  SFX_COUNTS[kind] = (SFX_COUNTS[kind] | 0) + 1;
+  return a;
+}
+function _noise(a) {
+  const dur = 0.6;
+  if (!_noiseBuf || _noiseBuf.sampleRate !== a.sampleRate || _noiseBuf.duration < dur) {
+    const n = Math.ceil(a.sampleRate * dur);
+    _noiseBuf = a.createBuffer(1, n, a.sampleRate);
+    const d = _noiseBuf.getChannelData(0);
+    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const s = a.createBufferSource(); s.buffer = _noiseBuf; return s;
+}
+// Filtered noise with an attack/decay envelope: the hiss, splat, fizz.
+function _noiseHit(a, t, dur, gain, type, f0, f1, q) {
+  const src = _noise(a);
+  const f = a.createBiquadFilter(); f.type = type; f.Q.value = q || 0.8;
+  f.frequency.setValueAtTime(f0, t);
+  if (f1 && f1 !== f0) f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  const g = a.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(gain, t + Math.min(0.02, dur * 0.2));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(master());
+  src.start(t); src.stop(t + dur + 0.02);
+}
+// A PRICE LINE: a 3 kHz highpassed hiss, 400 ms — the sound of heat.
+function playLineHiss() {
+  const a = _cue('line', 0.4); if (!a) return false;
+  _noiseHit(a, a.currentTime + 0.005, 0.4, 0.09, 'highpass', 3000, 3000, 0.7);
+  SFX_LAST.line = { type: 'highpass-noise', hz: 3000, ms: 400 };
+  return true;
+}
+// THE BAND BEAT: a gong, 110 + 220 Hz, 1.2 s decay (and a slightly sharp partial for the metal).
+function playBandGong() {
+  const a = _cue('beat', 1.2); if (!a) return false;
+  const t = a.currentTime + 0.005;
+  _tone(a, t, 110, 108, 1.2, 0.16);
+  _tone(a, t, 220, 219, 1.0, 0.08);
+  _tone(a, t, 331, 330, 0.6, 0.025);
+  SFX_LAST.beat = { hz: [110, 220] };
+  return true;
+}
+// A REFUSED DIG: a 90 Hz thud, 60 ms.
+function playRefuseThud() {
+  const a = _cue('refuse', 0.06); if (!a) return false;
+  _tone(a, a.currentTime + 0.003, 90, 60, 0.06, 0.22);
+  return true;
+}
+// A WORM ATTACHES: two 1.2 kHz clicks of 25 ms.
+function playWormClick() {
+  const a = _cue('worm', 0.12); if (!a) return false;
+  const t = a.currentTime + 0.005;
+  _tone(a, t, 1200, 1100, 0.025, 0.05, 'square');
+  _tone(a, t + 0.07, 1200, 1100, 0.025, 0.05, 'square');
+  return true;
+}
+// THE FLASK: a noise splat (a wet lowpassed burst falling fast).
+function playFlaskSplat() {
+  const a = _cue('flask', 0.22); if (!a) return false;
+  _noiseHit(a, a.currentTime + 0.005, 0.22, 0.3, 'lowpass', 1800, 220, 3);
+  return true;
+}
+// THE ENZYME: a double 3 kHz snip.
+function playEnzymeSnip() {
+  const a = _cue('enzyme', 0.14); if (!a) return false;
+  const t = a.currentTime + 0.005;
+  _tone(a, t, 3000, 2600, 0.03, 0.05, 'triangle');
+  _tone(a, t + 0.09, 3100, 2700, 0.03, 0.05, 'triangle');
+  return true;
+}
+// THE VIAL: a band-passed fizz.
+function playAcidFizz() {
+  const a = _cue('vial', 0.6); if (!a) return false;
+  _noiseHit(a, a.currentTime + 0.005, 0.6, 0.12, 'bandpass', 2400, 4200, 2.5);
+  return true;
+}
+// ROT: a dissonant sting at contact (a minor second, triangle).
+function playRotSting() {
+  const a = _cue('rot', 0.45); if (!a) return false;
+  const t = a.currentTime + 0.005;
+  _tone(a, t, 466, 440, 0.45, 0.06, 'triangle');
+  _tone(a, t + 0.01, 494, 466, 0.45, 0.05, 'triangle');
+  return true;
+}
+// THE ROT CLOCK'S LAST TEN SECONDS: a 60 Hz lub-dub (the caller paces it, 1 Hz then 2 Hz).
+function playHeartbeat() {
+  const a = _cue('heartbeat', 0.3); if (!a) return false;
+  const t = a.currentTime + 0.005;
+  _tone(a, t, 62, 50, 0.11, 0.24);
+  _tone(a, t + 0.16, 58, 48, 0.1, 0.16);
+  return true;
+}
+// ...AND THE RELIEF WHEN IT IS CURED: a rising consonant chime.
+function playReliefChime() {
+  const a = _cue('relief', 0.8); if (!a) return false;
+  const t = a.currentTime + 0.005;
+  _tone(a, t, 784, 784, 0.7, 0.05);
+  _tone(a, t + 0.12, 1175, 1175, 0.65, 0.04);
+  return true;
+}
+// A RECORD BEATEN: a rising three-note arpeggio.
+function playRecordArp() {
+  const a = _cue('record', 0.6); if (!a) return false;
+  const t = a.currentTime + 0.005;
+  [659.25, 830.61, 987.77].forEach((f, i) => _tone(a, t + i * 0.09, f, f, 0.32, 0.05));
+  return true;
+}
+// ISLAND IN SIGHT: a sparkle (four quick high sines).
+function playSparkle() {
+  const a = _cue('sight', 0.5); if (!a) return false;
+  const t = a.currentTime + 0.005;
+  [2093, 2637, 2349, 3136].forEach((f, i) => _tone(a, t + i * 0.055, f, f, 0.22, 0.025));
+  return true;
+}
+// THE ENDINGS. A landfall is C-E-G-C' and then the chord; every other ending a soft suspended chord.
+function playEndChord(landfall) {
+  const a = _cue('runEnd', landfall ? 2.2 : 1.6); if (!a) return false;
+  const t = a.currentTime + 0.01;
+  if (landfall) {
+    const N = [523.25, 659.25, 783.99, 1046.5];
+    N.forEach((f, i) => _tone(a, t + i * 0.13, f, f, 0.3, 0.05));
+    N.forEach((f) => _tone(a, t + 0.56, f, f, 1.5, 0.03));
+    SFX_LAST.runEnd = { landfall: true };
+  } else {
+    [261.63, 349.23, 392.0].forEach((f, i) => _tone(a, t + i * 0.02, f, f, 1.5, 0.035));
+    SFX_LAST.runEnd = { landfall: false };
+  }
+  return true;
+}
+// THE END SCREEN'S COUNT-UP: a tick per row and a ding on the total.
+function playCountTick() {
+  const a = _cue('tick', 0.03); if (!a) return false;
+  _tone(a, a.currentTime + 0.002, 2000, 1800, 0.018, 0.02);
+  return true;
+}
+function playCountDing() {
+  const a = _cue('ding', 0.6); if (!a) return false;
+  const t = a.currentTime + 0.005;
+  _tone(a, t, 1318.5, 1318.5, 0.55, 0.045);
+  _tone(a, t, 1975.5, 1975.5, 0.35, 0.015);
+  return true;
+}
+// A PURCHASE: a rising two-note chime.
+function playBuyChime() {
+  const a = _cue('buy', 0.35); if (!a) return false;
+  const t = a.currentTime + 0.005;
+  _tone(a, t, 880, 880, 0.18, 0.05);
+  _tone(a, t + 0.09, 1318.5, 1318.5, 0.25, 0.05);
+  return true;
+}
+
+// THE TWO JUICE SETTINGS (M12): 'Vibration' and 'Reduced motion', in the game's settings key
+// (`mycelium.settings.v1`, which main's `saveSettings` read-modify-writes, so the keys coexist). They
+// live HERE rather than in main because the settings MENU is in the UI module, declared before main;
+// this module is declared before both. Read once, cached, written through.
+//   vibration      default ON for a coarse pointer (a phone), OFF otherwise.
+//   reducedMotion  default OFF. Not seeded from `prefers-reduced-motion`: headless Chromium reports
+//                  `reduce`, so seeding from it would turn the shake and the count-up off in every
+//                  check, and the player has an explicit switch for it here.
+const JUICE_KEY = 'mycelium.settings.v1';
+let _juice = null;
+function juicePrefs() {
+  if (_juice) return _juice;
+  let s = {};
+  try { s = JSON.parse(localStorage.getItem(JUICE_KEY) || '{}') || {}; } catch (_) {}
+  let coarse = false;
+  try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (_) {}
+  _juice = { vibration: typeof s.vibration === 'boolean' ? s.vibration : coarse,
+             reducedMotion: typeof s.reducedMotion === 'boolean' ? s.reducedMotion : false };
+  return _juice;
+}
+function setJuicePref(k, v) {
+  const p = juicePrefs();
+  if (!(k in p)) return p;
+  p[k] = !!v;
+  try {
+    const s = JSON.parse(localStorage.getItem(JUICE_KEY) || '{}') || {};
+    s[k] = p[k];
+    localStorage.setItem(JUICE_KEY, JSON.stringify(s));
+  } catch (_) {}
+  try { document.body.classList.toggle('rmotion', !!p.reducedMotion); } catch (_) {}
+  return p;
+}
+// HAPTICS: navigator.vibrate, feature-detected, behind the Vibration setting. Counted per kind in
+// `window.__sfx.vib` (and the last pattern), independent of the sound mute.
+const VIB = { counts: {}, last: null };
+function vibrate(kind, pattern) {
+  if (!juicePrefs().vibration) return false;
+  let nav = null;
+  try { nav = navigator; } catch (_) {}
+  if (!nav || typeof nav.vibrate !== 'function') return false;
+  try { nav.vibrate(pattern); } catch (_) { return false; }
+  VIB.counts[kind] = (VIB.counts[kind] | 0) + 1;
+  VIB.last = { kind, pattern };
+  return true;
+}
+try {
+  window.__sfx.vib = VIB;
+  window.__sfx.voices = () => _synth;
+  window.__sfx.prefs = () => Object.assign({}, juicePrefs());
+} catch (_) {}
+
+  return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect, setClickGain, playSeamPing, playPocketGlug, playReachTick, playFinaleNote,
+           playLineHiss, playBandGong, playRefuseThud, playWormClick, playFlaskSplat, playEnzymeSnip, playAcidFizz,
+           playRotSting, playHeartbeat, playReliefChime, playRecordArp, playSparkle, playEndChord, playCountTick, playCountDing, playBuyChime,
+           juicePrefs, setJuicePref, vibrate };
 })();
 
 // ===================== src/render/network.js =====================
@@ -29257,7 +29490,7 @@ const __m_render_ui = (function () {
   const { CARD_BY_NAME } = __m_cards_data;
   const { cardDeckAdditions, actionUsable, cardBlockedReason } = __m_engine_cards;
   const { toggleMusic, isMusicMuted } = __m_render_music;
-  const { toggleSfx, isSfxMuted, playCardSelect, playCardDeselect } = __m_render_sfx;
+  const { toggleSfx, isSfxMuted, playCardSelect, playCardDeselect, juicePrefs, setJuicePref } = __m_render_sfx;
   const { mineCostHere, mineStuckState, mineMatTag, mineReachRaw, mineBankable } = __m_engine_mine;
 // =============================================================================
 // UI — HUD, action buttons, event log, dev tools, "what we're testing" panel.
@@ -29449,7 +29682,10 @@ class UI {
       // WATER FIRST, because it is the fuel and the clock — it is the number the player is
       // watching. Depth carries its unit in the markup ("m"), so the readout reads as a
       // measurement rather than as a third stock.
-      ? `<span class="res w">${RES_ICON.water}<span class="rv" id="hud-water">0</span></span>`
+      ? `<span class="res w" id="hud-waterchip">${RES_ICON.water}<span class="rv" id="hud-water">0</span>`
+        // THREE DIGS OR FEWER LEFT (M12): the chip turns amber and says how many — 'N left' is tank ÷
+        // the price here, the sum the player would otherwise have to do at the worst moment.
+        + `<span class="rk wl" id="hud-waterleft" hidden></span></span>`
         // WHAT THE NEXT DIG COSTS. A price that silently climbs with depth is the invisible-damage
         // defect a third time: the tank would just empty faster the deeper you went, with nothing
         // on screen connecting the two.
@@ -29518,6 +29754,10 @@ class UI {
       +   `<button class="setitem" id="set-log" type="button" role="menuitem">Event log<span class="setchev">▾</span></button>`
       +   `<button class="setitem" id="set-mute" type="button" role="menuitemcheckbox">Music<span class="settoggle" id="set-mute-state"></span></button>`
       +   `<button class="setitem" id="set-sfx" type="button" role="menuitemcheckbox">Sound effects<span class="settoggle" id="set-sfx-state"></span></button>`
+      // THE MINE'S TWO JUICE SETTINGS (M12): haptics on a seam, a pocket, a price line, a worm, rot and a
+      // landfall; and 'Reduced motion', which stops the camera shake, the count-up and the HUD pulses.
+      +   (mineOn ? `<button class="setitem" id="set-vib" type="button" role="menuitemcheckbox">Vibration<span class="settoggle" id="set-vib-state"></span></button>`
+                  + `<button class="setitem" id="set-rmotion" type="button" role="menuitemcheckbox">Reduced motion<span class="settoggle" id="set-rmotion-state"></span></button>` : '')
       // IN THE MINE THE TWO EXITS SAY WHAT THEY BANK, and the tutorial is not offered (M1). 'Replay
       // tutorial' restarted the run behind the player's back; 'Save & exit' dropped to the title and
       // threw the haul away (a descent has no resume); 'End run' told a mine player the colony was
@@ -29857,6 +30097,11 @@ class UI {
       if (ms) { const on = !isMusicMuted(); ms.textContent = on ? 'On' : 'Off'; ms.classList.toggle('off', !on); }
       const fs = hud.querySelector('#set-sfx-state');
       if (fs) { const on = !isSfxMuted(); fs.textContent = on ? 'On' : 'Off'; fs.classList.toggle('off', !on); }
+      const jp = juicePrefs();
+      const vs = hud.querySelector('#set-vib-state');
+      if (vs) { vs.textContent = jp.vibration ? 'On' : 'Off'; vs.classList.toggle('off', !jp.vibration); }
+      const rs = hud.querySelector('#set-rmotion-state');
+      if (rs) { rs.textContent = jp.reducedMotion ? 'On' : 'Off'; rs.classList.toggle('off', !jp.reducedMotion); }
     };
     const close = () => { menu.classList.add('hidden'); gear.setAttribute('aria-expanded', 'false'); };
     const open = () => { refresh(); menu.classList.remove('hidden'); gear.setAttribute('aria-expanded', 'true'); };
@@ -29864,6 +30109,9 @@ class UI {
     hud.querySelector('#set-log').onclick = (e) => { e.stopPropagation(); close(); this.toggleLog(); };
     hud.querySelector('#set-mute').onclick = (e) => { e.stopPropagation(); toggleMusic(); refresh(); };
     hud.querySelector('#set-sfx').onclick = (e) => { e.stopPropagation(); toggleSfx(); refresh(); };
+    const sv = hud.querySelector('#set-vib'), sr = hud.querySelector('#set-rmotion');
+    if (sv) sv.onclick = (e) => { e.stopPropagation(); setJuicePref('vibration', !juicePrefs().vibration); refresh(); };
+    if (sr) sr.onclick = (e) => { e.stopPropagation(); setJuicePref('reducedMotion', !juicePrefs().reducedMotion); this._kitSig = null; refresh(); };
     const tut = hud.querySelector('#set-tutorial');
     if (tut) tut.onclick = (e) => { e.stopPropagation(); close(); if (this.handlers.onReplayTutorial) this.handlers.onReplayTutorial(); };
     hud.querySelector('#set-saveexit').onclick = (e) => { e.stopPropagation(); close(); if (this.handlers.onSaveExit) this.handlers.onSaveExit(); };
@@ -30432,6 +30680,19 @@ class UI {
       this._resText('hud-water', Math.floor(net.water || 0), s);
       this._resText('hud-phosphorus', this._mineHudP(), s);
       text('hud-depth', String(s.mineDepth | 0));
+      // THE LOW-WATER CHIP (M12): amber with 'N left' exactly when water < 4 x the price here, i.e. three
+      // digs or fewer. Written on a change.
+      {
+        const cost = Math.max(1, mineCostHere(s) | 0), w = Math.floor(net.water || 0);
+        const low = !s.runOver && w < 4 * cost, left = Math.floor(w / cost);
+        const sig = low ? left : -1;
+        if (this._waterLow !== sig) {
+          this._waterLow = sig;
+          const wc = document.getElementById('hud-waterchip'), wl = document.getElementById('hud-waterleft');
+          if (wc) wc.classList.toggle('low', low);
+          if (wl) { wl.hidden = !low; wl.textContent = low ? left + ' left' : ''; }
+        }
+      }
       const onLeg = !!(s.substrate && s.substrate.mineJourney);
       const he = document.getElementById('hud-east');
       if (he && he.hidden === onLeg) he.hidden = !onLeg;
@@ -30463,6 +30724,12 @@ class UI {
         const cost = mineCostHere(s);
         const base = (s.config.mine && s.config.mine.growWaterCost) | 0;
         if (this._digCost !== cost) {
+          // THE PRICE PULSES WHEN IT CHANGES (M12) — not on its first write. Remove / reflow / add, or a
+          // class already present does not restart the animation. Not under 'Reduced motion'.
+          if (this._digCost !== undefined && !juicePrefs().reducedMotion) {
+            dc.classList.remove('pulse'); void dc.offsetWidth; dc.classList.add('pulse');
+            this._digPulses = (this._digPulses | 0) + 1;
+          }
           this._digCost = cost;
           // Always visible; `.hot` is what says the heat is adding to it. Written on a CHANGE, since
           // this refreshes every world tick and sits in the row the player is reading.
@@ -30502,14 +30769,18 @@ class UI {
         // The vial's button exists only for a save that carries one (M11): a third disabled square on
         // every earlier run would be furniture for a thing the player cannot buy yet.
         const vialOn = (((s.config && s.config.mine && s.config.mine.items) || {}).vial | 0) > 0;
-        const sig = ex + ':' + am + ':' + vi + ':' + vialOn + ':' + (s._mineArmed || '');
+        // KIT BUTTONS PULSE WHILE THEIR THREAT IS PRESENT (M12): the flask while a worm is attached, the
+        // enzyme while anything is rotten — and only when there is one in the bag to use.
+        const wormNow = (s.mineAttached | 0) > 0 && ex > 0, rotNow = !!s.mineInfect && am > 0;
+        const rm = !!juicePrefs().reducedMotion;
+        const sig = ex + ':' + am + ':' + vi + ':' + vialOn + ':' + (s._mineArmed || '') + ':' + wormNow + ':' + rotNow + ':' + rm;
         if (this._kitSig !== sig) {
           this._kitSig = sig;
           kit.classList.toggle('hidden', ex <= 0 && am <= 0 && vi <= 0);
           const bx = document.getElementById('kit-excrete'), ba = document.getElementById('kit-amputate'), bv = document.getElementById('kit-vial');
           text('kit-excrete-n', String(ex)); text('kit-amputate-n', String(am)); text('kit-vial-n', String(vi));
-          if (bx) { bx.disabled = ex <= 0; bx.classList.toggle('armed', s._mineArmed === 'excrete'); }
-          if (ba) { ba.disabled = am <= 0; ba.classList.toggle('armed', s._mineArmed === 'amputate'); }
+          if (bx) { bx.disabled = ex <= 0; bx.classList.toggle('armed', s._mineArmed === 'excrete'); bx.classList.toggle('threat', wormNow && !rm); }
+          if (ba) { ba.disabled = am <= 0; ba.classList.toggle('armed', s._mineArmed === 'amputate'); ba.classList.toggle('threat', rotNow && !rm); }
           if (bv) { bv.hidden = !vialOn; bv.disabled = vi <= 0; bv.classList.toggle('armed', s._mineArmed === 'vial'); }
         }
       }
@@ -31720,6 +31991,7 @@ const __m_render_species_select = (function () {
   const { logEvent } = __m_net_scores;
   const { growMyceliumTitle } = __m_render_mycelium_title;
   const { mineHeatLines, mineLegRow } = __m_engine_mine;
+  const { playCountTick, playCountDing, playBuyChime, juicePrefs } = __m_render_sfx;
 // =============================================================================
 // Start-of-run species picker + between-level campaign overlays (in-game).
 //
@@ -32385,7 +32657,7 @@ function upgradeTile(u, progress, onBuy, opts) {
   const btn = node.querySelector('.ss-upg-btn');
   // The PRICE goes to the caller too — `cost` is the next step's price and is only in scope
   // here; the upgrade object carries a ladder, not the rung just climbed.
-  if (btn && afford) btn.addEventListener('click', () => { if (buyUpgrade(u.id).ok) onBuy && onBuy(u, cost); });
+  if (btn && afford) btn.addEventListener('click', () => { if (buyUpgrade(u.id).ok) { try { playBuyChime(); } catch (_) {} onBuy && onBuy(u, cost); } });
   const sell = node.querySelector('.ss-upg-sell');
   // NEGATED, so one telemetry field carries both directions of the same ladder rather than a
   // second event nobody would think to join against. `onBuy`'s caller re-renders either way.
@@ -32850,14 +33122,23 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
   // THE COUNT-UP (M5): timer-stepped rather than rAF (a throttled page still lands on the final
   // figure), 12 steps over ~600 ms, each element ending exactly on its `data-n`.
   const counts = Array.from(root.querySelectorAll('.ss-count'));
-  for (const c of counts) c.textContent = '0';
+  // ...AND HEARD (M12): a tick per row as the count passes through it, and a ding when the total lands.
+  // Under 'Reduced motion' there is no count-up at all — the figures are final from the first frame —
+  // and the total still dings once.
+  const rowN = root.querySelectorAll('.ss-me-row').length;
+  const reduced = !!juicePrefs().reducedMotion;
   let step = 0; const STEPS = 12;
+  const tickAt = new Set();
+  for (let i = 1; i <= rowN; i++) tickAt.add(Math.max(1, Math.round(i * (STEPS - 1) / Math.max(1, rowN))));
   const tick = () => {
     step++;
     for (const c of counts) { const n = +c.dataset.n || 0; c.textContent = String(step >= STEPS ? n : Math.round(n * step / STEPS)); }
-    if (step < STEPS) timer = setTimeout(tick, 50);
+    if (step >= STEPS) { try { playCountDing(); } catch (_) {} }
+    else { if (tickAt.has(step)) { try { playCountTick(); } catch (_) {} } timer = setTimeout(tick, 50); }
   };
-  let timer = setTimeout(tick, 250);
+  let timer = 0;
+  if (reduced) { root.classList.add('ss-nocount'); timer = setTimeout(() => { try { playCountDing(); } catch (_) {} }, 250); }
+  else { for (const c of counts) c.textContent = '0'; timer = setTimeout(tick, 250); }
   // THE NEXT-GOAL CARD (M5), with an inline Buy: the plan's priority (`mineNextGoal`), the price and
   // the wallet it is paid from. Unaffordable, it says how far short (and where a material is found).
   const goalBox = root.querySelector('#ssMineGoal');
@@ -32886,7 +33167,7 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
       bb.addEventListener('click', () => {
         if (bb.disabled || Date.now() - lastBuyAt < BUY_REARM_MS) return;
         const r = buyUpgrade(g.id);
-        if (r.ok) { lastBuyAt = Date.now(); logEvent('upgrade', { detail: g.id, level: r.level, n: upgradeSpendN(g.cost) }); }
+        if (r.ok) { lastBuyAt = Date.now(); try { playBuyChime(); } catch (_) {} logEvent('upgrade', { detail: g.id, level: r.level, n: upgradeSpendN(g.cost) }); }
         renderGoal();
       });
     }
@@ -35756,7 +36037,7 @@ function showCredits({ onClose } = {}) {
 const __m_main = (function () {
   const { CONFIG, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, isRealtime, setMode, setGame, isCampaignGame, isMineGame, timeify, roundsToTime, devUI } = __m_config;
   const { createState, createPuzzleState, createLevelState, seedLevelThreats } = __m_engine_state;
-  const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH } = __m_engine_level;
+  const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH, stampFood, stampReservoir } = __m_engine_level;
   const { mineAgg, mineAggInvalidate, mineNodePass, mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks, mineGenStep, mineFrameWorkNote, mineFrameSliceMs, MINE_STARVE_MS,
           mineEastReached, mineIslandReached, mineTaprootXY,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
@@ -35791,7 +36072,10 @@ const __m_main = (function () {
   const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_COMPASS_IDS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, mineRunsBanked, mineShelfOpen, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies } = __m_species;
   const { loadAssets, loadLevelAssets, levelAssetKeys, hasAsset, asset, assetFailed, pattern, assetMeta, assetUrl, preloadImages, assetState, assetReadyGen } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
-  const { initSfx, playSeamPing, playPocketGlug, playReachTick, playFinaleNote } = __m_render_sfx;
+  const { initSfx, playSeamPing, playPocketGlug, playReachTick, playFinaleNote,
+          playLineHiss, playBandGong, playRefuseThud, playWormClick, playFlaskSplat, playEnzymeSnip, playAcidFizz,
+          playRotSting, playHeartbeat, playReliefChime, playRecordArp, playSparkle, playEndChord,
+          juicePrefs, setJuicePref, vibrate } = __m_render_sfx;
   const { showLoading } = __m_render_loading;
   const { showHighScores, checkHighScore, recordHighScore } = __m_render_highscores;
   const { loadPlayerName, savePlayerName } = __m_highscores;
@@ -37093,6 +37377,19 @@ function mineBestNow() {
 // one place to go, and the screen is the sentence plus the button.
 function presentMineEnd(r) {
   const paid = mineBank(r);
+  // THE ENDING IS HEARD (M12): a landfall (or the Promised Land) is C-E-G-C' and the chord, with
+  // [60, 40, 120] of vibration; every other ending a soft suspended chord. A record beaten in this run
+  // — the save's deepest (free layout), or the leg's deepest / farthest — plays the rising arpeggio
+  // first and the chord after it.
+  try {
+    const landfall = r.cause === 'island' || r.cause === 'promised';
+    const oj = state && state._mineJ;
+    const legRecord = !!(oj && ((oj.lines.deep > 0 && (paid.depth | 0) > oj.lines.deep) || (oj.lines.east > 0 && (paid.east | 0) > oj.lines.east)));
+    const record = !(state && state._mineFirst) && (!!(paid.best && paid.best.isNew) || legRecord);
+    if (record) { try { playRecordArp(); } catch (_) {} }
+    setTimeout(() => { try { playEndChord(landfall); } catch (_) {} }, record ? 420 : 0);
+    if (landfall) vibrate('landfall', [60, 40, 120]);
+  } catch (_) {}
   // THE RUN'S HINT LINE GOES WITH THE RUN (M5): a queued tip ('Every dig costs water…') otherwise sits
   // over the SPORED wordmark for the life of the end screen — `mineFrame` stops ticking on runOver.
   try { if (state) state._mineTips = { cur: null, queue: [] }; if (ui && ui.setMineHint) ui.setMineHint(''); } catch (_) {}
@@ -40002,6 +40299,27 @@ function begin(newState) {
       // M11: arm the vial as the kit button does; the tunnel pre-check on its own (from the strand
       // nearest (sx, sy), toward (tx, ty)), and the acid segments the colony carries.
       armVial: () => { handlers.onMineItem('vial'); return state._mineArmed || null; },
+      // THE JUICE (M12): the shake's record, the refusal count, the price chip's pulses, the two
+      // settings, and a seam / pocket stamped where a check wants one (the generator's own stampers).
+      shake: () => ({ n: _mineShake.n, skipped: _mineShake.skipped, kinds: Object.assign({}, _mineShake.kinds),
+                      maxPx: +_mineShake.maxPx.toFixed(3), cur: Object.assign({}, _mineShake.cur) }),
+      resetShake: () => { _mineShake.maxPx = 0; _mineShake.n = 0; _mineShake.skipped = 0; _mineShake.kinds = {}; _mineShake.at = -1e9; return true; },
+      shakeNow: (k) => mineShake(k || 'test'),
+      frameStep: (t, dt) => mineFrame(t == null ? performance.now() : t, dt == null ? 16 : dt),
+      refusals: () => state.mineRefusals | 0,
+      digPulses: () => (ui && ui._digPulses) | 0,
+      juicePrefs: () => Object.assign({}, juicePrefs()),
+      setJuice: (k, v) => Object.assign({}, setJuicePref(k, v)),
+      stampSeam: (x, y, mat) => {
+        const sub = state.substrate, before = sub.foodPiles.length;
+        stampFood(sub, { kind: 'cache', x, y, r: 0, energy: 3 }, 30);
+        if (sub.foodPiles.length === before) return -1;
+        const pile = sub.foodPiles[sub.foodPiles.length - 1];
+        pile.mineMat = mat || 'phosphorus';
+        return sub.foodPiles.length - 1;
+      },
+      stampPocket: (x, y, r) => { stampReservoir(state.substrate, { x, y, r: r || 30 });
+        state._mineWaterScan = null; return state.substrate.reservoirs.length; },
       tunnel: (sx, sy, tx, ty) => { const n = state.active.nearestNode(sx, sy); if (!n) return null;
         const T = state.active._tunnelPath(state.substrate, n, Math.atan2(ty - n.y, tx - n.x), Math.max(0, +(state.config.mine.vialRockBudget) || 108), mineGrowReach(state.config));
         return Object.assign({ from: { id: n.id, x: n.x, y: n.y } }, T, { pts: T.pts ? T.pts.map((q) => Object.assign({}, q)) : undefined }); },
@@ -42085,6 +42403,7 @@ function mineBeat(depth) {
   const band = C.mine.bands[b];
   // ...AND THE PRICE, WHEN A PRICE LINE SITS AT THE BAND'S TOP (M4.5): 'Digs now cost 4' at 42 m.
   showMineBeat(`${b * C.mine.bandRows} m`, band.name, mineBeatCostLine(b * C.mine.bandRows));
+  try { playBandGong(); } catch (_) {}                 // M12: a gong for a new band
   state.log(`${band.name} — ${b * C.mine.bandRows} m down.`, 'good');
 }
 
@@ -42503,9 +42822,11 @@ function mineJourneyTick(time, depth, east) {
   // A RECORD IS CROSSED ONCE PER RUN: past the line the run began with, and only when there was one.
   if (!o.deep && o.lines.deep > 0 && depth > o.lines.deep) {
     o.deep = 1; showMineBeat('New deepest', depth + ' m', null, true); state.log(`New deepest on this leg: ${depth} m.`, 'good');
+    try { playRecordArp(); } catch (_) {}
   }
   if (!o.east && o.lines.east > 0 && east > o.lines.east) {
     o.east = 1; showMineBeat('New farthest', east + ' m east', null, true); state.log(`New farthest on this leg: ${east} m east.`, 'good');
+    try { playRecordArp(); } catch (_) {}
   }
   // ISLAND N IN SIGHT: the hill (its two ends and its crown) or the knot on screen.
   if (!o.sight && time - (o.sightAt || 0) > 200) {
@@ -42517,6 +42838,8 @@ function mineJourneyTick(time, depth, east) {
       o.sight = 1;
       o.chevronUntil = 0;             // the island is on screen: no arrow pointing at it from the edge
       showMineBeat('Island ' + J.leg, 'In sight', null, true);
+      try { playSparkle(); } catch (_) {}
+      mineShake('sight');
       if (!mineTipSeen('first_island')) mineTip('island', "Reach the island's root to move on",
         { ms: 5000, onShow: () => mineTipRecord('first_island') });
     }
@@ -42596,6 +42919,78 @@ function mineBeatCostLine(bandTopM) {
   if (state._mineOnb) state._mineOnb.lineBeat[bandTopM] = true;
   return `Digs now cost ${mineGrowCost(state.config, bandTopM + 1)}`;
 }
+// ===================== THE JUICE (finishing plan M12) =====================
+// THE MICRO-SHAKE: 3 px for 150 ms on a price line, a flask burst and 'island in sight'. Off under the
+// 'Reduced motion' setting (a skipped shake is counted, so a check can tell "asked and refused" from
+// "never asked"). It is applied around the DRAW (`renderFrame` adds it to the camera and takes it off
+// again), not to the follow camera: written into `camera.x/y` it would move the follow target, the
+// press-to-world mapping and the memo keys between frames, and a pan during the shake would keep it.
+const MINE_SHAKE_PX = 3, MINE_SHAKE_MS = 150;
+const _mineShake = { at: -1e9, n: 0, skipped: 0, kinds: {}, maxPx: 0, cur: { x: 0, y: 0 } };
+function mineShake(kind) {
+  _mineShake.kinds[kind] = (_mineShake.kinds[kind] | 0) + 1;
+  if (juicePrefs().reducedMotion) { _mineShake.skipped++; return false; }
+  _mineShake.at = performance.now(); _mineShake.n++;
+  return true;
+}
+// The offset for THIS frame in screen px ({x, y}, 0 outside a shake), decaying linearly. The largest
+// magnitude ever applied is kept in `maxPx` (the reduced-motion check reads it).
+function mineShakeOffset(now) {
+  const e = now - _mineShake.at;
+  if (window.MYCELIUM_NO_JUICE || !(e >= 0 && e < MINE_SHAKE_MS) || !state || !state.substrate || !state.substrate.mine) {
+    _mineShake.cur.x = 0; _mineShake.cur.y = 0; return null;
+  }
+  const a = MINE_SHAKE_PX * (1 - e / MINE_SHAKE_MS), ang = Math.random() * Math.PI * 2;
+  const x = Math.cos(ang) * a, y = Math.sin(ang) * a;
+  _mineShake.cur.x = x; _mineShake.cur.y = y;
+  _mineShake.maxPx = Math.max(_mineShake.maxPx, Math.hypot(x, y));
+  return { x, y };
+}
+// A PRICE LINE IS FELT when a strand first passes it (the price rises strictly beyond a line): the
+// hiss, 30 ms of vibration and the shake. Separate from `mineLineBeats`, which skips a line sitting on
+// a band boundary (the band's beat carries the cost) — the line is felt either way.
+function mineLineFeel(depth) {
+  const f = state._mineLineFelt || (state._mineLineFelt = {});
+  for (const L of mineHeatLines(state.config)) {
+    if (f[L] || depth <= L) continue;
+    f[L] = true;
+    try { playLineHiss(); } catch (_) {}
+    vibrate('line', 30);
+    mineShake('line');
+  }
+}
+// EVERYTHING ELSE IS A DELTA, read once a frame off numbers the engine already keeps, so every route
+// to an event (a drag, a tap, a kit button, a `__game.mine` hook, the world tick) sounds the same:
+//   worms attached rising -> two clicks + [30, 40, 30]; a kit count falling -> splat (+ shake) / snip /
+//   fizz; `mineRefusals` rising -> a thud (at most one per 120 ms); the rot clock appearing -> a sting
+//   + 80 ms, under 10 s a heartbeat (1 Hz, 2 Hz under 5 s), and gone while the run lives -> a chime.
+function mineJuiceTick(time) {
+  const j = state._mineJuice || (state._mineJuice = {
+    att: state.mineAttached | 0, items: Object.assign({}, state.mineItems || {}),
+    ref: state.mineRefusals | 0, refAt: -1e9, inf: !!state.mineInfect, beatAt: -1e9 });
+  const att = state.mineAttached | 0;
+  if (att > j.att) { try { playWormClick(); } catch (_) {} vibrate('worm', [30, 40, 30]); }
+  j.att = att;
+  const it = state.mineItems || {};
+  const fell = (k) => (it[k] | 0) < (j.items[k] | 0);
+  if (fell('excrete')) { try { playFlaskSplat(); } catch (_) {} mineShake('flask'); }
+  if (fell('amputate')) { try { playEnzymeSnip(); } catch (_) {} }
+  if (fell('vial')) { try { playAcidFizz(); } catch (_) {} }
+  j.items = Object.assign({}, it);
+  const ref = state.mineRefusals | 0;
+  if (ref > j.ref && time - j.refAt >= 120) { j.refAt = time; try { playRefuseThud(); } catch (_) {} }
+  j.ref = ref;
+  const I = state.mineInfect;
+  if (I && !j.inf) { try { playRotSting(); } catch (_) {} vibrate('rot', 80); }
+  if (!I && j.inf && !state.runOver) { try { playReliefChime(); } catch (_) {} }
+  j.inf = !!I;
+  if (I) {
+    const left = I.left != null ? I.left : I.ms;
+    if (left > 0 && left <= 10000 && time - j.beatAt >= (left <= 5000 ? 500 : 1000)) {
+      j.beatAt = time; try { playHeartbeat(); } catch (_) {}
+    }
+  }
+}
 // COLLECTION FEEDBACK (M4.6): a floater at the site in the material's own colour, and a sound.
 function mineCollectFeedback(ore, water) {
   const sub = state.substrate;
@@ -42611,11 +43006,13 @@ function mineCollectFeedback(ore, water) {
     const now = performance.now(), st = state._mineSeamStreak || (state._mineSeamStreak = { n: 0, at: -1e9 });
     st.n = now - st.at <= 4000 ? st.n + 1 : 0; st.at = now;
     try { playSeamPing(e.mat, st.n); } catch (_) {}
+    vibrate('ore', 12);
     if (state._mineOnb && state._mineOnb.ring && state._mineOnb.ring.pile === e.pile) state._mineOnb.ring = null;
   }
   for (const e of water) {
     addEnergyFloater(e.x, e.y - sub.cellSize * 0.4, e.n, { text: `+${e.n} water`, color: '#8fd3ff', size: 15, life: 90, icon: false });
     try { playPocketGlug(); } catch (_) {}
+    vibrate('pocket', 20);
     if (state._mineOnb && state._mineOnb.pocketRing && state._mineOnb.pocketRing.id === e.src) state._mineOnb.pocketRing = null;
   }
 }
@@ -42862,6 +43259,8 @@ function mineFrame(time, dt) {
   mineSeenFlush(time);
   mineBeat(depth);
   mineLineBeats(depth);
+  // THE JUICE (M12). `window.MYCELIUM_NO_JUICE` is the A/B knob juice-check's perf block times against.
+  if (!window.MYCELIUM_NO_JUICE) { mineLineFeel(depth); mineJuiceTick(time); }
   mineOnboardScan(time);
   mineThreatTips(time);
   // THE STUCK COUNTDOWN HOLDS while a reveal is in flight (a pocket the last dig is about to reach
@@ -43227,7 +43626,17 @@ function _rfMark(name) {
   if (name) { const P = (window.__rfProfile = window.__rfProfile || {}); P[name] = (P[name] || 0) + (t - _rfT); }
   _rfT = t;
 }
+// THE MINE'S MICRO-SHAKE (M12) is applied around the draw and only around it: the camera is moved by
+// this frame's offset (screen px / zoom) for the duration of the draw and put back in a `finally`, so
+// nothing between frames — the follow camera, a press, the memo keys — ever sees a shaken camera.
 function renderFrame(time, dtFrames = 1) {
+  const off = mineShakeOffset(performance.now());
+  if (!off) return renderFrameInner(time, dtFrames);
+  const z = camera.zoom || 1, dx = off.x / z, dy = off.y / z;
+  camera.x += dx; camera.y += dy;
+  try { return renderFrameInner(time, dtFrames); } finally { camera.x -= dx; camera.y -= dy; }
+}
+function renderFrameInner(time, dtFrames = 1) {
   _renderCount++;
   _rfMark(null);
   lastTime = time;
@@ -47085,6 +47494,8 @@ function _bootReady() {
   // other half of the same question on a phone.
   logEvent('boot', { ms: Date.now() - _sessionStart });
   _load.ready(() => { initMusic(); initSfx(); _load.destroy(); enterGame(); });
+  // 'Reduced motion' (M12) is a body class as well as a setting: the HUD's CSS pulses read it.
+  try { document.body.classList.toggle('rmotion', !!juicePrefs().reducedMotion); } catch (_) {}
   // A first visit's leg-1 world is built now, while the gate waits for the tap (see _minePre). On the
   // next task, so the gate's "Tap to dig" paints first.
   setTimeout(minePrebuildFirstLeg, 0);

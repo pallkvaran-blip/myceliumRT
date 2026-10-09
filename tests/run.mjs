@@ -69,6 +69,10 @@ const CHECKS = [
   // M11: the oxalic vial — a 2.5-cell wall dug through to a claimed seam with the mask untouched, a
   // 6-cell wall refused, the tile hidden before leg 3, strands inside rock tolerated, the real UI path.
   ['vial',      'vial-check.cjs',     300, false],
+  // M12: the juice — every cue counted on one scripted descent (and nothing created muted), vibration
+  // on a seam and a pocket only when on, no shake under Reduced motion, the low-water chip / price
+  // pulse / kit pulses, and the frame p95 cost of all of it at 16 worms (<= 1.0 ms).
+  ['juice',     'juice-check.cjs',    420, false],
   // M2: THE RELEASE GATE, on a throwaway --no-shrink zip of the working tree (dev flag patched off):
   // the prune keeps the mine's bands, and title -> descent -> end -> store -> Descend plays clean.
   ['zip',       'itchzip-check.cjs --fresh', 60, false],
@@ -156,7 +160,7 @@ const CHECKS = [
 //
 // Everything else in CHECKS is the card game and is no longer run. Nothing has been DELETED — the
 // code is untouched and the checks still work if `node tests/run.mjs campaign` is ever wanted.
-const MINE_SET = ['mine', 'ending', 'ship', 'zip', 'phone', 'onboard', 'econ', 'counter', 'journey', 'landfall', 'legs', 'compass', 'vial', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
+const MINE_SET = ['mine', 'ending', 'ship', 'zip', 'phone', 'onboard', 'econ', 'counter', 'journey', 'landfall', 'legs', 'compass', 'vial', 'juice', 'threat', 'mould', 'harvest', 'scale', 'core', 'level', 'aim', 'store', 'boot'];
 
 const args = process.argv.slice(2);
 const fast = args.includes('--fast');
