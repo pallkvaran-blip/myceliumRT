@@ -302,6 +302,156 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
       ok('control: limiter off and cap lifted, ten gongs peak above -12 dBFS with more than 6 sources', rc.gongs.dB > -12 && rc.gongs.voices > 6, JSON.stringify(rc.gongs));
       await c.ctx.close();
     }
+
+    // =========================================================================================
+    // V. THE VERIFY ROUND'S FIXES (41a0c97 + this round)
+    // =========================================================================================
+    if (want('verify')) {
+      console.log("--- verify: 'N left' fits, OS reduced motion, no vibration item without the API, no carried pulse, beat under the menu, the ending on its frame");
+      // (a) the low chip at 360 and 320 px, a 2-digit price (heat lines every 10 m, so 47 m costs 16)
+      for (const [vw, vh] of [[360, 640], [320, 568]]) {
+        const b = await E.bootMine(4242, vw, vh, { before: SAVE });
+        await quiet(b.page); await helpers(b.page);
+        const m = await b.page.evaluate(async () => {
+          const g = window.__game, s = g.state;
+          s.active.water = 5000;
+          await window.__navDig({ targetM: 47, maxIters: 160 });
+          s.config.mine.heat.safeDepth = 1; s.config.mine.heat.lineEvery = 10;
+          await new Promise((x) => setTimeout(x, 300));
+          const c = g.mine.costHere();
+          s.active.water = 4 * c - 1;
+          await new Promise((x) => setTimeout(x, 900));
+          await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+          const vis = (e) => { for (let n = e; n && n !== document.body; n = n.parentElement) { const cs = getComputedStyle(n); if (cs.display === 'none' || cs.visibility === 'hidden') return false; } return true; };
+          const hud = document.querySelector('#ui > .hud'), out = [];
+          for (const e of [hud, ...hud.querySelectorAll('*')]) {
+            if (!vis(e)) continue; const q = e.getBoundingClientRect(); if (q.width <= 0 || q.height <= 0) continue;
+            if (q.left < -0.5 || q.top < -0.5 || q.right > innerWidth + 0.5 || q.bottom > innerHeight + 0.5) out.push(`${e.id || e.className} ${Math.round(q.left)}..${Math.round(q.right)}`);
+          }
+          const R = (e) => { if (!e || !vis(e)) return null; const q = e.getBoundingClientRect(); return { x0: q.left, x1: q.right, y0: q.top, y1: q.bottom }; };
+          const over = (a, c) => !!(a && c) && Math.min(a.x1, c.x1) > Math.max(a.x0, c.x0) && Math.min(a.y1, c.y1) > Math.max(a.y0, c.y0);
+          const row1e = document.querySelector('.hud .hudtop .resrow'), wl = document.getElementById('hud-waterleft');
+          const gear = R(document.getElementById('gearbtn'));
+          const hit = gear ? document.elementFromPoint((gear.x0 + gear.x1) / 2, (gear.y0 + gear.y1) / 2) : null;
+          const kids = [...row1e.children].filter(vis).map(R).filter(Boolean);
+          return { cost: c, water: Math.floor(s.active.water), two: hud.classList.contains('two'),
+                   low: document.getElementById('hud-waterchip').classList.contains('low'),
+                   left: vis(wl) ? wl.textContent.trim() : null, inRow2: !!(wl && wl.closest('#hudrow2')),
+                   outside: out, row1Over: row1e.scrollWidth - row1e.clientWidth, row1Gear: kids.some((k) => over(k, gear)),
+                   gearHit: !!(hit && hit.closest && hit.closest('#gearbtn')) };
+        });
+        await b.page.screenshot({ path: path.join(ART, `m12-lowwater-${vw}.png`) });
+        ok(`${vw}x${vh}: the chip is low with a 2-digit price, and 'N left' sits in row 2`,
+           m.cost >= 10 && m.low && m.two && m.inRow2 && m.left === Math.floor(m.water / m.cost) + ' left', JSON.stringify({ cost: m.cost, water: m.water, left: m.left, inRow2: m.inRow2 }));
+        ok(`${vw}x${vh}: nothing off the screen, row 1 does not overflow, nothing in row 1 under the gear, the gear hit-tests`,
+           m.outside.length === 0 && m.row1Over <= 0 && !m.row1Gear && m.gearHit, JSON.stringify({ outside: m.outside.slice(0, 3), row1Over: m.row1Over, row1Gear: m.row1Gear, gearHit: m.gearHit }));
+        await b.ctx.close();
+      }
+      // (b) Reduced motion follows the OS setting; a stored choice wins
+      const rm = [];
+      for (const [os, stored] of [[null, null], ['reduce', null], ['reduce', false]]) {
+        const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 }, ...(os ? { reducedMotion: os } : {}) });
+        const b = await E.bootMine(4242, 390, 844, { ctx, before: async (page) => { await SAVE(page);
+          if (stored != null) await page.addInitScript((v) => { try { localStorage.setItem('mycelium.settings.v1', JSON.stringify({ reducedMotion: v })); } catch (_) {} }, stored); } });
+        rm.push(await b.page.evaluate(() => ({ rm: window.__game.mine.juicePrefs().reducedMotion, body: document.body.classList.contains('rmotion') })));
+        await b.ctx.close();
+      }
+      ok('Reduced motion: off by default, on when the OS asks for reduce, and a stored Off wins over the OS', rm[0].rm === false && rm[1].rm === true && rm[2].rm === false, JSON.stringify(rm));
+      // (c) no Vibration item where the browser cannot vibrate
+      const vb = [];
+      for (const strip of [false, true]) {
+        const b = await E.bootMine(4242, 390, 844, { before: async (page) => { await SAVE(page);
+          if (strip) await page.addInitScript(() => { try { delete Navigator.prototype.vibrate; } catch (_) {} }); } });
+        await b.page.click('#gearbtn').catch(() => {});
+        await sleep(300);
+        vb.push(await b.page.evaluate(() => ({ api: typeof navigator.vibrate === 'function', item: !!document.getElementById('set-vib'), rm: !!document.getElementById('set-rmotion'),
+                                             pref: window.__game.mine.juicePrefs().vibration })));
+        await b.ctx.close();
+      }
+      ok('no Vibration item (and vibration off) without navigator.vibrate; the item is there with it', vb[0].api && vb[0].item && !vb[1].api && !vb[1].item && vb[1].pref === false && vb[1].rm,
+         JSON.stringify(vb));
+      // (d) a new run's first frame carries no price pulse; (e) the beat goes under the open menu
+      {
+        const b = await E.bootMine(4242, 390, 844, { before: SAVE });
+        await quiet(b.page); await helpers(b.page);
+        const r = await b.page.evaluate(async () => {
+          const g = window.__game, s = g.state, out = {};
+          s.active.water = 5000;
+          const p0 = g.mine.digPulses();
+          await window.__navDig({ targetM: 47, maxIters: 160 });
+          await new Promise((x) => setTimeout(x, 700));
+          out.run1 = { pulses: g.mine.digPulses() - p0, cost: g.mine.costHere() };
+          const p1 = g.mine.digPulses();
+          g.mine.playSeed(4242);
+          for (let i = 0; i < 100 && (!window.__game.state || window.__game.state === s); i++) await new Promise((x) => setTimeout(x, 30));
+          await new Promise((x) => setTimeout(x, 1200));
+          const dc = document.getElementById('hud-digcost');
+          out.run2 = { pulses: g.mine.digPulses() - p1, cost: window.__game.mine.costHere(), cls: dc.className, text: dc.textContent };
+          return out;
+        });
+        ok("a new run's first frames carry no price pulse (the last run's price is forgotten)", r.run1.pulses >= 1 && r.run1.cost >= 4 && r.run2.pulses === 0 && !/pulse/.test(r.run2.cls),
+           JSON.stringify(r));
+        await quiet(b.page);
+        const bt = await b.page.evaluate(async () => {
+          const g = window.__game;
+          g.mine.showBeat('42 m', 'ANTHRACITE', 'Digs now cost 4', false);
+          await new Promise((x) => setTimeout(x, 120));
+          const vis = () => { const e = document.getElementById('mineBeat'); return e ? getComputedStyle(e).visibility : null; };
+          const before = vis();
+          document.getElementById('gearbtn').click();
+          await new Promise((x) => setTimeout(x, 120));
+          const open = vis(), menu = !document.getElementById('settingsmenu').classList.contains('hidden');
+          document.getElementById('gearbtn').click();
+          await new Promise((x) => setTimeout(x, 120));
+          return { before, open, menu, after: vis() };
+        });
+        ok('the beat is hidden while the settings menu is open, and back when it closes', bt.before === 'visible' && bt.menu && bt.open === 'hidden' && bt.after === 'visible', JSON.stringify(bt));
+        await b.ctx.close();
+      }
+      // (f) a landfall's chord and vibration land on the frame the run ends, seconds before the screen
+      {
+        const b = await E.bootMine(4242, 390, 844, { before: async (page) => { await SAVE(page); await VIB_SPY(page); } });
+        const r = await b.page.evaluate(async () => {
+          const g = window.__game;
+          if (window.__sfx.muted()) g.sfx().toggleSfx();
+          g.mine.setJuice('vibration', true);
+          g.mine.playLeg(1, 1);
+          const s0 = g.state;
+          for (let i = 0; i < 200 && !(window.__game.state && window.__game.state !== s0 && window.__game.mine.journey && window.__game.state.substrate.mineJourney); i++) await new Promise((x) => setTimeout(x, 30));
+          const s = window.__game.state;
+          s.nematodes.length = 0; s.clouds.length = 0;
+          for (let i = 0; i < 60 && !s.substrate._rockSolidified; i++) await new Promise((x) => setTimeout(x, 50));
+          await new Promise((x) => setTimeout(x, 400));
+          g.mine.grow(0, 1);
+          await new Promise((x) => setTimeout(x, 600));
+          const e0 = window.__sfx.counts.runEnd | 0, r0 = window.__sfx.counts.record | 0, v0 = window.__vibs.length;
+          const t = { first: null, cue: null, vib: null, over: null, screen: null };
+          const t0 = performance.now();
+          g.mine.plantAtTaproot();
+          while (performance.now() - t0 < 12000) {
+            const now = performance.now() - t0;
+            if (t.over == null && s.runOver) t.over = now;
+            if (t.cue == null && (window.__sfx.counts.runEnd | 0) > e0) t.cue = now;
+            if (t.first == null && ((window.__sfx.counts.runEnd | 0) > e0 || (window.__sfx.counts.record | 0) > r0)) t.first = now;
+            if (t.vib == null && window.__vibs.slice(v0).some((p) => Array.isArray(p) && p.join(',') === '60,40,120')) t.vib = now;
+            if (t.screen == null && document.getElementById('ssMineEnd')) t.screen = now;
+            if (t.screen != null && t.cue != null) break;
+            await new Promise((x) => setTimeout(x, 16));
+          }
+          return Object.assign(t, { cause: s.runResult && s.runResult.cause, landfall: window.__sfx.last.runEnd });
+        });
+        const f = (v) => v == null ? 'never' : Math.round(v) + ' ms';
+        // The ending's first sound (the record arpeggio when a record fell, else the chord) and the
+        // vibration within 400 ms of the run ending; the chord 640 ms after an arpeggio; all of it seconds
+        // before the end screen (the first M12 build played them AT the screen: 6.3 s after the landfall).
+        ok("a landfall's first sound and [60, 40, 120] vibration land within 400 ms of the run ending, the chord within 1100 ms, all before the end screen",
+           r.cause === 'island' && r.over != null && r.first != null && r.cue != null && r.vib != null && r.first - r.over <= 400 && r.vib - r.over <= 400
+           && r.cue - r.over <= 1100 && r.screen != null && r.screen - r.cue >= 1000 && r.landfall && r.landfall.landfall,
+           `cause ${r.cause}: over ${f(r.over)}, first sound ${f(r.first)}, chord ${f(r.cue)}, vibration ${f(r.vib)}, end screen ${f(r.screen)}`);
+        ok('no page errors (verify)', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
+        await b.ctx.close();
+      }
+    }
     // =========================================================================================
     // 2. VIBRATION
     // =========================================================================================
