@@ -6218,6 +6218,7 @@ Numbers here are measured, not planned.
   110-126 ms long tasks (3/3). compass-check 67 -> 68. One budgeted posted slice read 28.8 ms once and did not reproduce in 9
   sessions (max 9.4 ms; generator step max 3.2 ms; a stamp slice does ~100 sprites in 7 ms), so it was a host stall; frameWork
   entries now carry `maxStep` (gen) / `sprites` (stamp) and the check prints the slowest one.
+  **`--mine` after the audit: 1322 passed, 0 failed across 22 checks** (compass 68, vial 33, threat 116, mould 20, harvest 28).
 
 ## Two games on the title screen: Survival and Campaign
 
