@@ -417,12 +417,13 @@ const TRUTH = () => {
       // overlap an idle slot or any frame slice of idle work (`frameWork`), and every frame slice stays
       // small. Negative control: MYCELIUM_FRAME_SLICE_MS = Infinity (round 2's finish-in-one-go).
       console.log('--- acceptance 5 in active play: drags + a held pointer, frame-side idle work stays sliced');
-      const session = async (hash, knob) => {
-        const b = await E.boot(hash, 390, 844, { before: (page) => page.addInitScript((knob) => {
+      const session = async (hash, knob, slow) => {
+        const b = await E.boot(hash, 390, 844, { before: (page) => page.addInitScript(([knob, slow]) => {
           window.__lt = [];
           try { new PerformanceObserver((l) => { for (const e of l.getEntries()) window.__lt.push({ t: e.startTime, d: e.duration }); }).observe({ type: 'longtask', buffered: true }); } catch (_) {}
           if (knob) window.MYCELIUM_FRAME_SLICE_MS = Infinity;
-        }, knob) });
+          if (slow) window.MYCELIUM_GEN_STEP_SLOW_MS = slow;
+        }, [knob, slow || 0]) });
         await H.waitMine(b.page);
         await b.page.evaluate((QUIET) => { new Function('return (' + QUIET + ')')()();
           const s = window.__game.state; s.config.mine.compass = { island: 2, mats: { anthracite: 3, garnet: 3, hematite: 3 } };
@@ -476,7 +477,7 @@ const TRUTH = () => {
           const gl = g.mine.genLog();
           const idleMade = gl.filter((e) => e.idleStarted && e.ahead !== 'idle');
           return { digs: g.state.mineDigs, fw, idleSlots: il.length, hits, lt50: lts.filter((L) => L.d > 50).map((L) => Math.round(L.d)),
-                   idleMade: idleMade.map((e) => e.ahead + ':' + e.cis[0] + '/' + e.slices + 'sl/' + e.ms + 'ms' + (e.stampDone ? '/stamp-' + e.stampDone.by : '')),
+                   idleMade: idleMade.map((e) => e.ahead + ':' + e.cis[0] + '/' + e.slices + 'sl/' + (e.steps || '?') + 'st/' + e.ms + 'ms' + (e.stampDone ? '/stamp-' + e.stampDone.by : '')),
                    stampedAll: idleMade.every((e) => !!e.stampDone), over: !!g.state.runOver };
         });
         await b.ctx.close();
@@ -491,13 +492,24 @@ const TRUTH = () => {
            `frame gen slices ${gens.length} (${[...new Set(gens.map((e) => e.why))]}), stamp slices ${stamps.length}; idle slots ${r.idleSlots}; finished on frames [${r.idleMade.join(', ')}]`);
         ok(`${label}: ...no long task over 50 ms overlaps an idle slot or a slice the frame posted, and no posted slice ran past 25 ms`,
            r.hits.length === 0 && maxFw <= 25,
-           `${r.hits.length} overlapping ${JSON.stringify(r.hits.slice(0, 3))}; posted slices max ${maxFw.toFixed(1)} ms over ${r.fw.length}; long tasks > 50 ms in the session [${r.lt50.join(', ')}]`);
+           `${r.hits.length} overlapping ${JSON.stringify(r.hits.slice(0, 3))}; posted slices max ${maxFw.toFixed(1)} ms over ${r.fw.length} (slowest ${JSON.stringify(r.fw.slice().sort((x, y) => y.ms - x.ms)[0] || null)}); long tasks > 50 ms in the session [${r.lt50.join(', ')}]`);
         ok(`no page errors (active, ${label})`, !r.errs.length, r.errs.slice(0, 2).join(' | '));
       }
+      // THE NEGATIVE CONTROL IS AN A/B ON A SLOWER "DEVICE" (M11 audit). On this host a whole leg-3 chunk
+      // costs only ~22-35 ms, so round 2's finish-in-one-go often landed under the 25 ms gate and the
+      // control failed to fire in 4 of 8 sessions — a control that cannot reliably show the defect. Both
+      // sessions busy-wait SLOW ms after every generator step (MYCELIUM_GEN_STEP_SLOW_MS), so the chunk's
+      // work is measurably long; the budgeted build must still pass the gate and the unbudgeted one fail it.
       {
-        const r = await session('#leg,1,3', true);
+        const SLOW = 1.5;
+        const rb = await session('#leg,1,3', false, SLOW);
+        const maxB = Math.max(0, ...rb.fw.map((e) => e.ms));
+        ok(`slowed A/B (${SLOW} ms a generator step), budgeted: the frame still takes over and no posted slice runs past 25 ms or sits under a long task`,
+           rb.fw.length >= 1 && rb.hits.length === 0 && maxB <= 25 && !rb.over,
+           `frame slices max ${maxB.toFixed(1)} ms over ${rb.fw.length}; ${rb.hits.length} overlapping ${JSON.stringify(rb.hits.slice(0, 2))}; [${rb.idleMade.join(', ')}]`);
+        const r = await session('#leg,1,3', true, SLOW);
         const maxFw = Math.max(0, ...r.fw.map((e) => e.ms));
-        ok('negative control: with the slice unbudgeted and inside the frame (round 2\'s finish-in-one-go), the assertion above FAILS (a slice > 25 ms or an overlapping long task)',
+        ok('negative control, same slowdown: with the slice unbudgeted and inside the frame (round 2\'s finish-in-one-go), the assertion above FAILS (a slice > 25 ms or an overlapping long task)',
            r.fw.length >= 1 && !(r.hits.length === 0 && maxFw <= 25), `frame slices max ${maxFw.toFixed(1)} ms over ${r.fw.length}; ${r.hits.length} overlapping long tasks ${JSON.stringify(r.hits.slice(0, 2))}; [${r.idleMade.join(', ')}]`);
       }
     }

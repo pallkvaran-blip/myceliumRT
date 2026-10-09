@@ -24372,17 +24372,25 @@ function* mineGenerateChunkSteps(state, ci) {
 // finish-in-one-go).
 const MINE_STARVE_MS = 500;
 const mineFrameSliceMs = () => (typeof window !== 'undefined' && window.MYCELIUM_FRAME_SLICE_MS > 0 ? window.MYCELIUM_FRAME_SLICE_MS : 6);
-function mineFrameWorkNote(state, kind, why, ci, t0, done) {
+function mineFrameWorkNote(state, kind, why, ci, t0, done, extra) {
   const log = (state._mineFrameWork || (state._mineFrameWork = []));
-  log.push({ kind, why, ci, t0: +t0.toFixed(1), ms: +(performance.now() - t0).toFixed(2), done: !!done, frame: state._mineFrameNo | 0 });
+  log.push(Object.assign({ kind, why, ci, t0: +t0.toFixed(1), ms: +(performance.now() - t0).toFixed(2), done: !!done, frame: state._mineFrameNo | 0 }, extra || null));
   if (log.length > 512) log.shift();
 }
 function mineGenStep(state, budgetMs, how) {
   const P = state._mineGenPending;
   if (!P) return null;
   const t0 = performance.now();
-  let r;
-  do { r = P.it.next(); P.steps++; } while (!r.done && performance.now() - t0 < budgetMs);
+  let r, tS = t0;
+  P.maxStep = 0;     // (diagnostic) the slowest single generator step in this slice — a step cannot be split
+  // TEST KNOB `window.MYCELIUM_GEN_STEP_SLOW_MS` (compass-check's A/B): busy-waits that long after every
+  // generator step, standing in for a slower device, so finishing a chunk in one go is measurably long.
+  const slow = typeof window !== 'undefined' && window.MYCELIUM_GEN_STEP_SLOW_MS > 0 ? +window.MYCELIUM_GEN_STEP_SLOW_MS : 0;
+  do {
+    r = P.it.next(); P.steps++;
+    if (slow) { const tw = performance.now(); while (performance.now() - tw < slow) {} }
+    const tN = performance.now(); if (tN - tS > P.maxStep) P.maxStep = tN - tS; tS = tN;
+  } while (!r.done && performance.now() - t0 < budgetMs);
   P.last = performance.now();          // STARVATION is measured from the last slice, not the chunk's age
   P.ms += P.last - t0; P.slices++;
   if (!r.done) return null;
@@ -24399,7 +24407,7 @@ function mineGenStep(state, budgetMs, how) {
   // (MINE_FRAME_SLICE_MS), so an idle-started chunk is never finished in one go on a frame.
   const log = (state._mineGenLog || (state._mineGenLog = []));
   const tag = how === 'cap' || how === 'guard' || how === 'want' || how === 'sync' ? how : 'idle';
-  const entry = { made: 1, ms: +P.ms.toFixed(2), ahead: tag, slices: P.slices, frame: state._mineFrameNo | 0, cis: [P.ci], s0: P.s0,
+  const entry = { made: 1, ms: +P.ms.toFixed(2), ahead: tag, slices: P.slices, steps: P.steps, frame: state._mineFrameNo | 0, cis: [P.ci], s0: P.s0,
                   s1: sub.levelSprites ? sub.levelSprites.length : 0, idleStarted: true };
   log.push(entry);
   if (log.length > 256) log.shift();
@@ -42244,11 +42252,12 @@ function mineSliceRun() {
   const P = st._mineGenPending;
   if (P) {
     const fin = mineGenStep(st, budget, why === 'want' ? 'want' : why === 'guard' ? 'guard' : 'cap');
-    mineFrameWorkNote(st, 'gen', why, P.ci, tq, !!fin);
+    mineFrameWorkNote(st, 'gen', why, P.ci, tq, !!fin, { maxStep: +(P.maxStep || 0).toFixed(2) });
     if (fin) st._mineIdleStamp = 1;       // its collision is owed at once: budgeted slices, starting next frame
   } else if (st._mineIdleStamp && !st._mineStampNext) {
+    const f0 = st.substrate._solidFrom | 0;
     const fin = solidifyMineRock(budget);
-    mineFrameWorkNote(st, 'stamp', why, null, tq, fin);
+    mineFrameWorkNote(st, 'stamp', why, null, tq, fin, { sprites: (st.substrate._solidFrom | 0) - f0 });
     if (fin) mineIdleStampDone(st, 'frame');
   }
 }

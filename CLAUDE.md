@@ -6209,6 +6209,15 @@ Numbers here are measured, not planned.
   phone 51, onboard 67, econ 79, counter 60, journey 99, landfall 49, legs 61, compass 48, vial 33, zip 24, level 27,
   aim 9, scale 26, threat 114/116, harvest 28, mould 20, core 18). The two reds are threat's known map-roll flake
   ('real time: ... no open ground'); re-run alone 116/116. Green = 1299. Acceptance 6 (threat, mould, harvest green) holds.
+- **M11 AUDIT (after the restart; build unchanged).** vial-check 33/33 again (rock 81 u, 4 tunnel strands, mask hash identical,
+  6-cell wall 'Too thick' at 112.5 u, no vial 'Solid rock that way', far-end dig grows 10, tile hidden on leg 2), screenshots
+  `m11-vial-{aim,tunnel}-390.png` re-read. `--mine` read **1320/1321**: the red was compass-check's M10 round-3 NEGATIVE CONTROL,
+  not M11. Measured: a whole leg-3 chunk costs ~22-35 ms on this host, so the unbudgeted finish often landed under the 25 ms
+  gate (control silent in 4 of 8 sessions). It is now an A/B under one slowdown (test knob `MYCELIUM_GEN_STEP_SLOW_MS` 1.5 ms
+  busy-wait per generator step, 51 steps a leg-3 chunk): budgeted slices 8.7-10.0 ms, 0 overlaps; unbudgeted 94-110 ms under
+  110-126 ms long tasks (3/3). compass-check 67 -> 68. One budgeted posted slice read 28.8 ms once and did not reproduce in 9
+  sessions (max 9.4 ms; generator step max 3.2 ms; a stamp slice does ~100 sprites in 7 ms), so it was a host stall; frameWork
+  entries now carry `maxStep` (gen) / `sprites` (stamp) and the check prints the slowest one.
 
 ## Two games on the title screen: Survival and Campaign
 
