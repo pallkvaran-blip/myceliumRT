@@ -6249,6 +6249,8 @@ Numbers here are measured, not planned.
     `'noland'` + 'No open ground past that rock'; tolerate +3 rot visible / healthy control / one dose clears in-rock
     rot; ui +4 armed tap + its control, acid toast, vialKept toast; the amber assertion gained its acid-layer-off
     control (0 of 7); dead harvest bookkeeping in `tolerate` removed).
+  - **`run.mjs mine store vial`: 360 passed, 0 failed** (store 124, mine 193, vial 43); `phone onboard` (the tap and
+    nudge paths) 118 / 118 (phone 51, onboard 67). A green `--mine` is now 1332.
 
 ## Two games on the title screen: Survival and Campaign
 
