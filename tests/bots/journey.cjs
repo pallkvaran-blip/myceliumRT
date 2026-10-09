@@ -228,7 +228,10 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     await page.waitForSelector('#ssDescend', { timeout: 20000 }).catch(() => {});
     await sleep(600);
     const bought = await page.evaluate(({ strat, islandCompass }) => {
-      const S = window.__game.store, ids = S.ids('mine').filter((id) => !/compass/i.test(id)), got = [];
+      // No compass (M10, see above) and NO OXALIC VIAL (M11 tidy): no bot ever arms one, so a cheapest buyer
+      // reaching its 50 P / 12 G / 12 H rungs on leg 3 would spend a career's ore on nothing and read every
+      // leg-3 baseline slower for a reason that is not the game.
+      const S = window.__game.store, ids = S.ids('mine').filter((id) => !/compass|oxalicVial/i.test(id)), got = [];
       if (islandCompass) for (let k = 0; k < 2; k++) {
         if (!S.inGame('compassIsland', 'mine') || S.nextCost('compassIsland') == null) break;
         const r = S.buy('compassIsland'); if (!r.ok) break; got.push('compassIsland@' + r.level);

@@ -17287,7 +17287,9 @@ class Network {
   // { ok, pts, entry, exit, rock } where `pts` are the nodes at whole segment lengths up to the first
   // one standing in open ground past the rock (each { x, y, inRock }). `{ none: true }` when the aim
   // meets no rock within `reach` (an ordinary dig); `{ ok: false, reason: 'thick' }` when the rock runs
-  // past the budget, or the far side is rock again before a strand could stand there; 'edge' when the
+  // past the budget; 'noland' when it does not, but the far side is rock again before a strand could
+  // stand there (M11 tidy: this was 'thick' too, and 26-31% of 'thick' refusals on real rock were
+  // under the budget — 14-18% under 30 u — so "too thick" was said against thin rock); 'edge' when the
   // aim leaves the world (the surface, the floor, a side) inside the rock. Samples at half the fine
   // cell, so a sliver cannot be skipped. Read-only: the MASK IS NEVER TOUCHED.
   _tunnelPath(substrate, from, ang, budget, reach) {
@@ -17315,7 +17317,7 @@ class Network {
     for (let d = exit; d <= land + 1e-6; d += step) {
       const x = from.x + ux * d, y = from.y + uy * d;
       if (!inWorld(x, y)) return { ok: false, reason: 'edge', entry, rock };
-      if (!this._placeOk(substrate, x, y)) return { ok: false, reason: 'thick', entry, rock };
+      if (!this._placeOk(substrate, x, y)) return { ok: false, reason: 'noland', entry, rock, exit, blockAt: d };
     }
     const pts = [];
     for (let i = 1; i <= k; i++) {
@@ -24852,9 +24854,16 @@ function mineGrow(state, ctx) {
   if (state._mineArmed === 'vial' && mineItemCount(state, 'vial') > 0 && sub && sub.mine && tip) {
     tunnel = net._tunnelPath(sub, tip, Math.atan2(dy, dx), vialBudget, mineGrowReach(state.config));
     if (tunnel.ok === false) {
-      return { ok: false, vial: true, thick: true,
-               message: tunnel.reason === 'edge' ? 'The acid needs open ground on the far side — the vial is kept.'
-                                                 : 'Too thick for the acid — the vial and the water are kept.' };
+      // A REFUSAL NAMES THE WAY OUT (M1's rule; M11 tidy): the vial stays armed, so the toast says how to
+      // put it away. And it counts toward the dead-end nudge like a 'Solid rock' press — a player whose
+      // every acid aim is refused is as stuck as one hammering a wall.
+      state.mineWalled = (state.mineWalled | 0) + 1;
+      state.mineWalledRun = (state.mineWalledRun | 0) + 1;
+      const away = ' Tap the vial again to put it away.';
+      return { ok: false, vial: true, thick: tunnel.reason === 'thick', reason: tunnel.reason,
+               message: tunnel.reason === 'edge' ? 'The acid needs open ground on the far side — vial and water kept.' + away
+                      : tunnel.reason === 'noland' ? 'No open ground past that rock — vial and water kept.' + away
+                      : 'Too thick for the acid — over 3 cells. Vial and water kept.' + away };
     }
   }
   const acidDig = !!(tunnel && tunnel.ok);
@@ -24960,11 +24969,14 @@ function mineGrow(state, ctx) {
   // landfall test (`mineFrame`, which runs before its own cap test) ends it ROOTED, banks the bonus
   // and moves the leg on. Filed as 'full' here, the landing was lost with nothing on screen to say so.
   if (mineAtNodeCap(state) && !mineIslandReached(state)) mineEndRun(state, 'full');
-  return { ok: true, made, water: net.water, cost, newCells, acid,
+  // `vialKept` (M11 tidy): an armed vial whose aim met no rock dug as usual and is STILL armed — the UI
+  // toasts that, or the player believes the vial fired and their next dig turns into an acid dig.
+  const vialKept = !acid && state._mineArmed === 'vial' && !!(tunnel && tunnel.none);
+  return { ok: true, made, water: net.water, cost, newCells, acid, vialKept,
            origin: origin ? { id: origin.id, x: origin.x, y: origin.y } : null,
            pressed: tip ? { id: tip.id, x: tip.x, y: tip.y } : null,
            message: acid ? `The acid eats through ${acid.cells} cell${acid.cells > 1 ? 's' : ''} of rock.`
-             : state._mineArmed === 'vial' && tunnel && tunnel.none ? 'No rock that way — dug as usual; the vial is still armed.'
+             : vialKept ? 'No rock that way — dug as usual; the vial is still armed.'
              : `Dug ${made} filament${made > 1 ? 's' : ''}.` };
 }
 // Within 30 nodes of the run's own cap (`cfg.growth.maxNodes`, 9000 in the mine via
@@ -41174,6 +41186,15 @@ function mineTapCommit(a, e) {
   if (state._mineArmed && mineArmedTap(at.x, at.y)) return true;
   const lim = (state.config.mine && state.config.mine.tapDigPx) || 48;
   if (a.pressOff > lim) return false;
+  // AN ARMED VIAL NEEDS A DRAG (M11 tidy). A tap is a dig straight down, and the yellow outline of the rock
+  // the acid would cross is only drawn while a drag aims — so a tap spent a 50 P / 12 G / 12 H vial on a
+  // tunnel the player never saw (measured: one click, vial 1 -> 0, five tunnel strands down). The
+  // enzyme teaches "arm, then TAP the target", which makes that an easy accident. The tap keeps the vial
+  // armed and says how to use it; the drag is the only way to fire it.
+  if (state._mineArmed === 'vial') {
+    ui.toast('Drag from the colony toward the rock to aim the acid — the vial is still armed.');
+    return true;
+  }
   fireAim(Object.assign({}, a, { cur: { x: a.origin.x, y: a.origin.y }, dragged: true }));
   return true;
 }
@@ -41195,6 +41216,11 @@ function fireAim(a) {
       // They have dug: the standing instruction has done its job. `resetHint` puts back the
       // default, which in the mine is empty.
       ui.resetHint();
+      // THE VIAL'S RESULT IS SAID (M11 tidy). A plain dig needs no words, but an acid dig spent a 50 P item
+      // and the arming toast ('Drag from the colony through the rock…') was still up 120 ms after it,
+      // now wrong; and a vial that met no rock is still armed, which the player must be told or their
+      // next dig turns into an acid dig. The new toast replaces the arming one.
+      if (res.acid || res.vialKept) ui.toast(res.message);
       substrateRenderer.markDirty();
       rendererFor(state.active).markStructureDirty();
       // No sound call here: the network renderer's reveal scheduler plays the layered grow SFX
@@ -42216,7 +42242,7 @@ function mineOnWalled(time) {
     // The press that fired the nudge also raised a 'Solid rock' toast, placed under the HUD stack
     // BEFORE the 'Dead end' line existed — so the toast sat on the hint (verifier, p-ev7-25.png).
     // The nudge is the better answer to that press; drop the toast.
-    if (ui && ui.clearToast) ui.clearToast(/^Solid rock/);
+    if (ui && ui.clearToast) ui.clearToast(/^(Solid rock|Too thick for the acid|No open ground past|The acid needs)/);
   }
 }
 // The screen y below which a glowing tip is not hidden by the HUD stack: the rows, the rot banner and
@@ -46448,20 +46474,38 @@ function drawMineCompass(time) {
 // THE OXALIC TUNNELS (M11): every segment an acid dig laid (`net.acidSegs`, [parentId, childId]) drawn
 // AMBER OVER THE ROCK with an ETCHED HALO — a dark groove under a warm core — so a strand passing through
 // stone reads as eaten through it, not as growth that ignored the wall. The mask is untouched; this is
-// the only place the tunnel is visible as a tunnel. A segment whose ends are gone (cut, rotted) is skipped.
+// the only place the tunnel is visible as a tunnel. A segment whose ends are gone (cut) is skipped, and
+// so are two more (M11 tidy):
+//   - A ROTTEN ONE (either end infected). Mine rot does not age out, so the amber used to sit over the
+//     rot for good: with every tunnel strand infected 15 of 15 samples along it read amber and 0 green,
+//     a rotten tunnel looking exactly like a healthy one under a ROT banner. Skipped, the renderer's own
+//     rot colour shows (10 of 15 green with the layer off).
+//   - ONE NOT YET GROWN IN. The layer ignored the reveal, so the amber line stood inside the rock a
+//     second or two before the strand reaching it had grown in. Each segment is drawn as far as its
+//     child strand has revealed (`revealFactor`, the renderer's own clock; an unscheduled strand is 0).
 function drawMineAcid(time) {
   const net = state.active, segs = net && net.acidSegs;
+  state._mineAcidDrawn = 0;      // how many segments this frame drew (a hook for vial-check)
   if (!segs || !segs.length) return;
-  const z = camera.zoom, by = net.byId;
+  const z = camera.zoom, by = net.byId, rend = rendererFor(net);
+  const vis = [];
+  for (const [a, b] of segs) {
+    const p = by.get(a), q = by.get(b);
+    if (!p || !q || p.infected || q.infected) continue;
+    const f = q._revSeen ? rend.revealFactor(q, time) : 0;
+    if (f <= 0) continue;
+    vis.push(p, q, f);
+  }
+  state._mineAcidDrawn = vis.length / 3;
+  if (!vis.length) return;
   ctx.save();
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const pass = (style, w) => {
     ctx.strokeStyle = style; ctx.lineWidth = w;
     ctx.beginPath();
-    for (const [a, b] of segs) {
-      const p = by.get(a), q = by.get(b);
-      if (!p || !q) continue;
-      const s0 = camera.worldToScreen(p.x, p.y), s1 = camera.worldToScreen(q.x, q.y);
+    for (let i = 0; i < vis.length; i += 3) {
+      const p = vis[i], q = vis[i + 1], f = vis[i + 2];
+      const s0 = camera.worldToScreen(p.x, p.y), s1 = camera.worldToScreen(p.x + (q.x - p.x) * f, p.y + (q.y - p.y) * f);
       ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y);
     }
     ctx.stroke();

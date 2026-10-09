@@ -33,7 +33,9 @@ function runSeed(seed, k) {
       // THE TRACK IDS COME FROM THE PAGE (M5: `__game.store.ids()`), so a renamed, added or cut track
       // cannot leave the bot buying nothing. A track the progressive reveal still hides is skipped —
       // a player cannot see it, and `buy` refuses it.
-      const S = window.__game.store, ids = S.ids('mine');
+      // ...minus the OXALIC VIAL (M11 tidy): no bot arms one, so buying it is ore spent on nothing (and a
+      // career that reaches leg 3 would otherwise read slower than the game is).
+      const S = window.__game.store, ids = S.ids('mine').filter((id) => id !== 'oxalicVial');
       // Buy orders. 'cheapest': the cheapest affordable rung. 'power': dig power first (grow, water,
       // heat, then the kit). 'knowledge': what tells you about the ground first — the compasses when
       // they exist (M10), else heat, the kit, then power. Any other value is a '+'-joined id list.

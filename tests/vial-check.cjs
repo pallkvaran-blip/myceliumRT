@@ -100,6 +100,25 @@ const ARENA = async (W, opts) => {
   net.recomputeVitality && net.recomputeVitality();
   return { tx: T.x, ty: T.y, tid: T.id, wall0, W, sx, sy, pileIndex: sub.foodPiles.length - 1, E: { x: E.x, y: E.y } };
 };
+// In-page: sample the canvas at world points along the wall (the tunnel's line) — how many read AMBER (the
+// acid layer) and how many read GREEN (the renderer's rot colour). Draws one frame first.
+const PXS = (a) => {
+  const g = window.__game, c = g.camera;
+  const cv = document.getElementById('game'), cx = cv.getContext('2d'), dpr = cv.width / cv.getBoundingClientRect().width;
+  g.renderFrame(performance.now());
+  let amber = 0, green = 0, n = 0;
+  const px = [];
+  for (let d = 12; d <= Math.max(12, a.W - 6); d += 12) {
+    const p = c.worldToScreen(a.wall0 + d, a.ty);
+    const q = cx.getImageData(Math.round(p.x * dpr), Math.round(p.y * dpr), 1, 1).data;
+    n++; px.push(q[0] + ',' + q[1] + ',' + q[2]);
+    if (q[0] > 170 && q[1] > 110 && q[2] < 110 && q[0] > q[2] + 60) amber++;
+    // GREEN-OVER-RED: the rot's mould green (a pale, partly blue mint here, 116-205 red against 141-231 green)
+    // over soil and rock that are red-dominant, and over the amber layer (green < red by ~50).
+    if (q[1] > q[0] + 10) green++;
+  }
+  return { amber, green, of: n, drawn: g.state._mineAcidDrawn | 0, px: px.join(' ') };
+};
 const FSHASH = () => {
   const fs = window.__game.state.substrate._fineSolid; let h = 2166136261, n = 0;
   for (let i = 0; i < fs.length; i++) { h = Math.imul(h ^ fs[i], 16777619) >>> 0; n += fs[i]; }
@@ -120,8 +139,8 @@ const FSHASH = () => {
     if (want('dig')) {
       console.log('--- acceptance 1, 3, 4: a 2.5-cell wall between a strand and a seam');
       const b = await boot();
-      const r = await b.page.evaluate(async ({ A, F }) => {
-        const ARENA = new Function('return (' + A + ')')(), FSHASH = new Function('return (' + F + ')')();
+      const r = await b.page.evaluate(async ({ A, F, P }) => {
+        const ARENA = new Function('return (' + A + ')')(), FSHASH = new Function('return (' + F + ')')(), PXS = new Function('return (' + P + ')')();
         const g = window.__game, s = g.state, net = s.active, sub = s.substrate;
         const a = await ARENA(90);
         const pile = sub.foodPiles[a.pileIndex];
@@ -139,9 +158,14 @@ const FSHASH = () => {
         out.pre = g.mine.tunnel(a.tx, a.ty, a.tx + 200, a.ty);
         // 1: armed, the dig goes through.
         const armed = g.mine.armVial();
+        g.mine.lookAt(a.tx + 60, a.ty);
+        for (let i = 0; i < 6; i++) await new Promise((res) => requestAnimationFrame(res));
         const h0 = FSHASH(), fsCopy = Array.from(sub._fineSolid);
         const nA = net.nodes.length, wA = net.water, idA = net.nextNodeId;
         const dig = g.mine.growFrom(a.tx, a.ty, a.tx + 200, a.ty);
+        // THE TUNNEL WAITS FOR ITS STRANDS (M11 tidy): the very next frame, nothing has grown in yet, so
+        // nothing amber may be drawn along the wall (it used to be, floating in the rock).
+        out.px0 = PXS(a); out.segs = (net.acidSegs || []).length;
         const h1 = FSHASH();
         let diffCells = 0; for (let i = 0; i < fsCopy.length; i++) if (fsCopy[i] !== sub._fineSolid[i]) diffCells++;
         const fresh = net.nodes.filter((n) => n.id >= idA);
@@ -157,6 +181,10 @@ const FSHASH = () => {
           claimed = pile.rewarded || pile.cells.some((ix) => sub.cells[ix].colonized > 0);
         }
         out.claimed = claimed; out.rewarded = !!pile.rewarded;
+        for (let i = 0; i < 80 && g.mine.revealing(); i++) await new Promise((res) => setTimeout(res, 50));
+        g.mine.lookAt(a.tx + 60, a.ty);
+        for (let i = 0; i < 6; i++) await new Promise((res) => requestAnimationFrame(res));
+        out.px1 = PXS(a);
         // The claim came from open ground: no mat or bridge strand hangs off a strand inside the rock.
         const matsNew = net.nodes.filter((n) => n.id >= idA && n.colon);
         out.mats = matsNew.length;
@@ -169,7 +197,7 @@ const FSHASH = () => {
         out.after = { ok: after.ok, msg: after.message, made: net.nodes.length - nB, acid: after.acid, from: { x: Math.round(land.x - a.tx) },
                       origin: after.origin ? Math.round(Math.hypot(after.origin.x - land.x, after.origin.y - land.y)) : null, vial: s.mineItems.vial };
         return out;
-      }, { A: ARENA.toString(), F: FSHASH.toString() });
+      }, { A: ARENA.toString(), F: FSHASH.toString(), P: PXS.toString() });
       ok('no vial: the press into the wall is refused as solid rock, nothing grown, nothing charged',
          !r.plain.ok && /^Solid rock that way/.test(r.plain.msg) && r.plain.nodes === 0 && r.plain.water === 0, JSON.stringify(r.plain));
       ok('...and with a vial in the bag but not armed, the same', !r.unarmed.ok && /^Solid rock that way/.test(r.unarmed.msg) && r.unarmed.vial === 2, JSON.stringify(r.unarmed));
@@ -183,6 +211,10 @@ const FSHASH = () => {
          r.dig.vial === 1 && r.dig.armedAfter === null && r.dig.water === r.dig.cost, `vial 2 -> ${r.dig.vial}, armed ${r.dig.armedAfter}, water -${r.dig.water} (price ${r.dig.cost})`);
       ok('...and the fine mask is byte-identical before and after (and after the claim)', r.dig.h0 === r.dig.h1 && r.dig.diffCells === 0 && r.h2 === r.dig.h0,
          `${r.dig.h0} -> ${r.dig.h1} -> ${r.h2}, ${r.dig.diffCells} cells differ`);
+      ok('the frame right after the dig draws no tunnel: its strands have not grown in yet (M11 tidy)',
+         r.segs >= 3 && r.px0.drawn === 0 && r.px0.amber === 0, `${r.px0.drawn} of ${r.segs} segments drawn, ${r.px0.amber} of ${r.px0.of} samples amber`);
+      ok('...control: once they have, every segment is drawn and the wall reads amber', r.px1.drawn === r.segs && r.px1.amber >= r.px1.of - 2,
+         `${r.px1.drawn} of ${r.segs} segments drawn, ${r.px1.amber} of ${r.px1.of} samples amber`);
       ok('an ordinary dig from the tunnel\'s far end succeeds, from that strand, spending no vial',
          r.after.ok && r.after.made > 0 && !r.after.acid && r.after.origin === 0 && r.after.vial === 1, JSON.stringify(r.after));
       ok('no page errors (dig)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
@@ -197,10 +229,10 @@ const FSHASH = () => {
         const g = window.__game, s = g.state, net = s.active;
         const a = await ARENA(216);
         s.mineItems.vial = 2; g.mine.armVial();
-        const n0 = net.nodes.length, w0 = net.water, h0 = FSHASH();
+        const n0 = net.nodes.length, w0 = net.water, h0 = FSHASH(), wr0 = s.mineWalledRun | 0;
         const r1 = g.mine.growFrom(a.tx, a.ty, a.tx + 200, a.ty);
         const out = { thick: { ok: r1.ok, msg: r1.message, nodes: net.nodes.length - n0, water: w0 - net.water, vial: s.mineItems.vial,
-                               armed: s._mineArmed || null, same: FSHASH() === h0 }, pre: g.mine.tunnel(a.tx, a.ty, a.tx + 200, a.ty) };
+                               armed: s._mineArmed || null, same: FSHASH() === h0, walled: (s.mineWalledRun | 0) - wr0 }, pre: g.mine.tunnel(a.tx, a.ty, a.tx + 200, a.ty) };
         return out;
       }, { A: ARENA.toString(), F: FSHASH.toString() });
       ok('a 6-cell wall: refused with \'Too thick for the acid\'', !r.thick.ok && /^Too thick for the acid/.test(r.thick.msg), r.thick.msg);
@@ -208,6 +240,8 @@ const FSHASH = () => {
          r.thick.vial === 2 && r.thick.water === 0 && r.thick.nodes === 0 && r.thick.armed === 'vial' && r.thick.same, JSON.stringify(r.thick));
       ok('...the pre-check says why: the rock runs past the budget', r.pre.ok === false && r.pre.reason === 'thick' && r.pre.rock > 108,
          `rock ${r.pre.rock && r.pre.rock.toFixed(1)} u, reason ${r.pre.reason}`);
+      ok('...the refusal names the way out, and counts toward the dead-end nudge like a \'Solid rock\' press (M11 tidy)',
+         /Tap the vial again to put it away\.$/.test(r.thick.msg) && r.thick.walled === 1, `"${r.thick.msg}", walled run +${r.thick.walled}`);
       await b.ctx.close();
       // Rock again right behind a thin wall: the path does not reach open ground.
       const b2 = await boot();
@@ -218,10 +252,14 @@ const FSHASH = () => {
         s.mineItems.vial = 1; g.mine.armVial();
         const n0 = net.nodes.length;
         const r1 = g.mine.growFrom(a.tx, a.ty, a.tx + 200, a.ty);
-        return { ok: r1.ok, msg: r1.message, nodes: net.nodes.length - n0, vial: s.mineItems.vial };
+        const pre = g.mine.tunnel(a.tx, a.ty, a.tx + 200, a.ty);
+        return { ok: r1.ok, msg: r1.message, nodes: net.nodes.length - n0, vial: s.mineItems.vial,
+                 pre: { ok: pre.ok, reason: pre.reason, rock: pre.rock && +pre.rock.toFixed(1) } };
       }, { A: ARENA.toString() });
-      ok('a 1.5-cell wall with rock again 12 units behind it: refused (no open ground on the far side), vial kept',
-         !r2.ok && r2.nodes === 0 && r2.vial === 1 && /Too thick|open ground/.test(r2.msg), JSON.stringify(r2));
+      // (M11 tidy: old 'Too thick|open ground' -> 'noland' and 'No open ground past that rock' — this wall
+      // is 1.5 cells, under the budget, and was told it was too thick.)
+      ok('a 1.5-cell wall with rock again 12 units behind it: refused as NO OPEN GROUND past it (not "too thick"), vial kept',
+         !r2.ok && r2.nodes === 0 && r2.vial === 1 && r2.pre.reason === 'noland' && r2.pre.rock <= 108 && /^No open ground past that rock/.test(r2.msg), JSON.stringify(r2));
       ok('no page errors (thick)', !b.errs.length && !b2.errs.length, b.errs.concat(b2.errs).slice(0, 2).join(' | '));
       await b2.ctx.close();
     }
@@ -268,8 +306,8 @@ const FSHASH = () => {
     if (want('tolerate')) {
       console.log('--- change 4: everything else tolerates strands inside rock');
       const b = await boot();
-      const r = await b.page.evaluate(async ({ A }) => {
-        const ARENA = new Function('return (' + A + ')')();
+      const r = await b.page.evaluate(async ({ A, P }) => {
+        const ARENA = new Function('return (' + A + ')')(), PXS = new Function('return (' + P + ')')();
         const g = window.__game, s = g.state, net = s.active, sub = s.substrate;
         const a = await ARENA(90);
         s.mineItems.vial = 1; g.mine.armVial();
@@ -315,18 +353,41 @@ const FSHASH = () => {
         for (let k = 0; k < 60 && !w2.attached; k++) await new Promise((res) => setTimeout(res, 100));
         out.worm.control = !!w2.attached;
         s.nematodes.length = 0;
-        // Harvest: a pile stamped right beside an encased strand (on the rock side of the tunnel mouth)
-        // is not claimed from inside the rock — the bridge source is never an acidIn strand.
-        // (Checked on the engine: colonizeReachablePiles' sources after a fresh claim watermark.)
-        const nIds = new Set(net.nodes.map((n) => n.id));
+        // (Harvest: that a claim never bridges from a strand inside the rock is asserted in the dig block —
+        // 'no mat strand hangs off a strand inside the rock'.)
         // A cloud at the tunnel mouth: ticks without errors, and the rot (if any) can be counted.
+        g.mine.lookAt(a.tx + 60, a.ty);
+        for (let i = 0; i < 6; i++) await new Promise((res) => requestAnimationFrame(res));
+        out.pxClean = PXS(a);                       // the healthy tunnel: amber along the wall
+        s.config.trichoderma.moveSpeed = 0;
         g.mine.spawnCloud(a.wall0 - 6, a.ty);
         let err = null;
         try { for (let k = 0; k < 8; k++) g.tickWorld(s); g.renderFrame(performance.now()); } catch (e2) { err = String(e2 && e2.message || e2); }
         out.cloud = { err, rotten: net.nodes.filter((n) => n.infected).length, rottenIn: net.nodes.filter((n) => n.infected && n.acidIn).length };
-        out.mats = net.nodes.filter((n) => n.colon && !nIds.has(n.id)).length;
+        // ROT INSIDE THE TUNNEL IS VISIBLE, AND THE ENZYME CUTS IT (M11 tidy). Every tunnel strand rotten (as the
+        // race would leave it — mine rot does not age out); no cloud left to re-infect.
+        s.clouds.length = 0;
+        for (const n of net.nodes) if (n.acid) n.infected = true;
+        net._infGen = (net._infGen | 0) + 1;
+        g.tickWorld(s);
+        for (let i = 0; i < 6; i++) await new Promise((res) => requestAnimationFrame(res));   // the clock is armed by the frame (mineFrame)
+        g.mine.lookAt(a.tx + 60, a.ty);
+        for (let i = 0; i < 4; i++) await new Promise((res) => requestAnimationFrame(res));
+        out.pxRot = PXS(a);
+        out.clockOn = !!(g.mine.infect().on);
+        out.rotTunnel = net.nodes.filter((n) => n.acid && n.infected).length;
+        // One enzyme dose, tapped on a rotten strand INSIDE the rock.
+        s.mineItems.amputate = 1;
+        const tgt = net.nodes.find((n) => n.infected && n.acidIn);
+        out.tgtInRock = !!(tgt && sub.solidAtWorld(tgt.x, tgt.y));
+        const cut = tgt ? g.mine.useAmputate(tgt.x, tgt.y) : null;
+        out.cut = cut && { ok: cut.ok, msg: cut.message, rot: cut.rot, clean: cut.clean };
+        for (let k = 0; k < 2; k++) g.tickWorld(s);
+        for (let i = 0; i < 6; i++) await new Promise((res) => requestAnimationFrame(res));
+        out.after = { rotten: net.nodes.filter((n) => n.infected).length, clock: !!(g.mine.infect().on), doses: s.mineItems.amputate,
+                      alive: net.alive && net.nodes.length > 0 };
         return out;
-      }, { A: ARENA.toString() });
+      }, { A: ARENA.toString(), P: PXS.toString() });
       ok('the acid dig left strands inside the rock', r.dig && r.inRock >= 2, `${r.inRock} acidIn strands`);
       ok('the only living strands inside the fine mask are the tunnel\'s own', r.solidNotAcid === 0 && r.solidNodes >= r.inRock - 0, `${r.solidNodes} in rock, ${r.solidNotAcid} not the tunnel's`);
       ok('a press on an encased strand resolves to a strand in open ground', !r.pressedEncased.nearestIsIn, JSON.stringify(r.pressedEncased));
@@ -334,6 +395,14 @@ const FSHASH = () => {
          r.worm.attachedToEncased === 0 && r.worm.targetedEncased === 0 && !r.worm.attachedAny, JSON.stringify(r.worm));
       ok('...control: the same worm beside the tunnel\'s open landing strand attaches', r.worm.control, JSON.stringify(r.worm));
       ok('a cloud at the tunnel mouth ticks and draws without errors', !r.cloud.err, JSON.stringify(r.cloud));
+      ok('a rotten tunnel shows its rot: no amber over it, the rot colour along the wall (M11 tidy)',
+         r.rotTunnel >= 3 && r.pxRot.amber === 0 && r.pxRot.green >= r.pxRot.of - 2 && r.pxRot.drawn === 0,
+         `${r.rotTunnel} tunnel strands rotten: ${r.pxRot.amber} amber / ${r.pxRot.green} green of ${r.pxRot.of} samples, ${r.pxRot.drawn} acid segments drawn [${r.pxRot.px}] healthy [${r.pxClean.px}]`);
+      ok('...control: the same samples on the healthy tunnel read amber, not green', r.pxClean.amber >= r.pxClean.of - 2 && r.pxClean.green === 0 && r.pxClean.drawn >= 3,
+         `${r.pxClean.amber} amber / ${r.pxClean.green} green of ${r.pxClean.of}, ${r.pxClean.drawn} segments drawn`);
+      ok('one enzyme dose tapped on a rotten strand inside the rock cuts all the rot and the clock clears',
+         r.clockOn && r.tgtInRock && r.cut && r.cut.ok && r.after.rotten === 0 && !r.after.clock && r.after.doses === 0 && r.after.alive,
+         `clock before ${r.clockOn}, target in rock ${r.tgtInRock}, ${JSON.stringify(r.cut)}, after ${JSON.stringify(r.after)}`);
       ok('no page errors (tolerate)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();
     }
@@ -359,6 +428,26 @@ const FSHASH = () => {
       await sleep(250);
       const armed = await b.page.evaluate(() => ({ armed: window.__game.mine.armed(), cls: document.getElementById('kit-vial').classList.contains('armed') }));
       ok('a real click on it arms the vial (and the button shows it)', armed.armed === 'vial' && armed.cls, JSON.stringify(armed));
+      // A TAP ON THE COLONY WITH THE VIAL ARMED DOES NOT SPEND IT (M11 tidy). Open ground is carved 70 units
+      // below T, so a tap — a dig straight down — WOULD tunnel (the pre-check says so: the control), and before
+      // this one click spent the vial on a tunnel no outline had shown.
+      const tp = await b.page.evaluate(({ a }) => {
+        const g = window.__game, s = g.state, sub = s.substrate, fs = sub._fineSolid, fsz = sub._fineSize, FC = sub._fineCols;
+        for (let y = a.ty + 84; y <= a.ty + 260; y += fsz * 0.5) for (let x = a.tx - 70; x <= a.tx + 70; x += fsz * 0.5) {
+          const r = Math.floor((y - sub.surfaceY) / fsz), c = Math.floor(x / fsz); fs[r * FC + c] = 0;
+        }
+        const c = g.camera, p = c.worldToScreen(a.tx, a.ty), cv = document.getElementById('game').getBoundingClientRect();
+        const pre = g.mine.tunnel(a.tx, a.ty, a.tx, a.ty + 200);
+        return { x: p.x + cv.left, y: p.y + cv.top, pre: { ok: pre.ok, rock: pre.rock && Math.round(pre.rock), reason: pre.reason || null } };
+      }, { a: r0.a });
+      const tap0 = await b.page.evaluate(() => ({ n: window.__game.state.active.nodes.length, vial: window.__game.state.mineItems.vial }));
+      await b.page.mouse.click(tp.x, tp.y);
+      await sleep(150);
+      const tap1 = await b.page.evaluate(() => ({ n: window.__game.state.active.nodes.length, vial: window.__game.state.mineItems.vial,
+        armed: window.__game.mine.armed(), toast: (document.querySelector('.toast.in .tmsg') || {}).textContent || '' }));
+      ok('a tap on the colony with the vial armed spends nothing: it stays armed and says to drag (M11 tidy)',
+         tp.pre.ok && tap1.vial === tap0.vial && tap1.n === tap0.n && tap1.armed === 'vial' && /^Drag from the colony toward the rock/.test(tap1.toast),
+         `straight down from T: ${JSON.stringify(tp.pre)}; vial ${tap0.vial} -> ${tap1.vial}, nodes +${tap1.n - tap0.n}, armed ${tap1.armed}, "${tap1.toast}"`);
       // A real drag from T east through the wall.
       const sp = await b.page.evaluate(({ a }) => { const c = window.__game.camera, p = c.worldToScreen(a.tx, a.ty), q = c.worldToScreen(a.tx + 150, a.ty);
         const cv = document.getElementById('game').getBoundingClientRect(); return { x: p.x + cv.left, y: p.y + cv.top, x2: q.x + cv.left, y2: q.y + cv.top }; }, { a: r0.a });
@@ -370,12 +459,15 @@ const FSHASH = () => {
       const mid = await b.page.evaluate(() => ({ acid: window.__game.mine.aimAcid() }));
       await b.page.screenshot({ path: path.join(ART, 'm11-vial-aim-390.png') }).catch(() => {});
       await b.page.mouse.up();
-      await sleep(2500);
+      await sleep(150);
+      const toastUp = await b.page.evaluate(() => (document.querySelector('.toast.in .tmsg') || {}).textContent || '');
+      await sleep(2350);
       const after = await b.page.evaluate(() => { const s = window.__game.state; return { n: s.active.nodes.length, vial: s.mineItems.vial, armed: s._mineArmed || null,
         acid: s.active.nodes.filter((n) => n.acid).length, segs: (s.active.acidSegs || []).length }; });
       ok('while aiming, the arrow outlines the rock it would cross (through, ~2.5 cells)', mid.acid && mid.acid.ok && mid.acid.exit - mid.acid.entry >= 80, JSON.stringify(mid.acid));
       ok('a real drag digs through: tunnel strands laid, one vial spent, the vial put away',
          after.n > w0.n && after.acid >= 3 && after.vial === w0.vial - 1 && after.armed === null, `nodes +${after.n - w0.n}, ${after.acid} tunnel strands, vial ${w0.vial} -> ${after.vial}`);
+      ok('...and says so: the acid toast replaces the arming instruction (M11 tidy)', /^The acid eats through \d+ cells? of rock\.$/.test(toastUp), `"${toastUp}"`);
       // The tunnel is drawn amber: sample pixels along it against a frame with the pass skipped.
       const px = await b.page.evaluate(async ({ a }) => {
         const g = window.__game, s = g.state, c = g.camera;
@@ -384,13 +476,58 @@ const FSHASH = () => {
         const cv = document.getElementById('game'), cx = cv.getContext('2d');
         const pts = []; for (let d = 12; d <= 90; d += 12) pts.push(c.worldToScreen(a.wall0 + d, a.ty));
         const dpr = cv.width / cv.getBoundingClientRect().width;
+        const count = () => { let amber = 0;
+          for (const p of pts) { const d = cx.getImageData(Math.round(p.x * dpr), Math.round(p.y * dpr), 1, 1).data; if (d[0] > 170 && d[1] > 110 && d[2] < 110 && d[0] > d[2] + 60) amber++; }
+          return amber; };
         g.renderFrame(performance.now());
-        let amber = 0;
-        for (const p of pts) { const d = cx.getImageData(Math.round(p.x * dpr), Math.round(p.y * dpr), 1, 1).data; if (d[0] > 170 && d[1] > 110 && d[2] < 110 && d[0] > d[2] + 60) amber++; }
-        return { amber, of: pts.length };
+        const amber = count();
+        // CONTROL (M11 tidy): the same frame with the acid layer skipped — the amber has to be the layer's.
+        const saved = s.active.acidSegs; s.active.acidSegs = [];
+        g.renderFrame(performance.now());
+        const amberOff = count();
+        s.active.acidSegs = saved; g.renderFrame(performance.now());
+        return { amber, amberOff, of: pts.length };
       }, { a: r0.a });
-      ok('the tunnel is drawn amber over the rock', px.amber >= px.of - 2, `${px.amber} of ${px.of} samples along the wall amber`);
+      ok('the tunnel is drawn amber over the rock', px.amber >= px.of - 2 && px.amberOff === 0,
+         `${px.amber} of ${px.of} samples along the wall amber; control with the acid layer off: ${px.amberOff}`);
+      // AN ARMED VIAL THAT MEETS NO ROCK DIGS AS USUAL, AND SAYS IT IS STILL ARMED (M11 tidy): a real drag east from the
+      // tunnel's landing strand into the open chamber.
+      await b.page.mouse.click(r0.rect.x, r0.rect.y); await sleep(250);
+      const lp = await b.page.evaluate(() => {
+        const g = window.__game, net = g.state.active, c = g.camera;
+        const land = net.nodes.filter((n) => n.acid && !n.acidIn).sort((p, q) => q.x - p.x)[0];
+        g.mine.lookAt(land.x + 60, land.y);
+        return { x: land.x, y: land.y, armed: g.mine.armed(), vial: g.state.mineItems.vial };
+      });
+      await sleep(300);
+      const lsp = await b.page.evaluate(({ l }) => { const c = window.__game.camera, p = c.worldToScreen(l.x, l.y), q = c.worldToScreen(l.x + 150, l.y);
+        const cv = document.getElementById('game').getBoundingClientRect(); return { x: p.x + cv.left, y: p.y + cv.top, x2: q.x + cv.left, y2: q.y + cv.top }; }, { l: lp });
+      const n3 = await b.page.evaluate(() => window.__game.state.active.nodes.length);
+      await b.page.mouse.move(lsp.x, lsp.y); await b.page.mouse.down();
+      for (let k = 1; k <= 10; k++) { await b.page.mouse.move(lsp.x + (lsp.x2 - lsp.x) * k / 10, lsp.y + (lsp.y2 - lsp.y) * k / 10); await sleep(30); }
+      await sleep(150);
+      await b.page.mouse.up();
+      await sleep(150);
+      const none = await b.page.evaluate(() => ({ n: window.__game.state.active.nodes.length, vial: window.__game.state.mineItems.vial, armed: window.__game.mine.armed(),
+        toast: (document.querySelector('.toast.in .tmsg') || {}).textContent || '' }));
+      ok('an armed vial aimed into open ground digs as usual, keeps the vial and says so',
+         lp.armed === 'vial' && none.n > n3 && none.vial === lp.vial && none.armed === 'vial' && /^No rock that way — dug as usual; the vial is still armed\.$/.test(none.toast),
+         `armed ${lp.armed}, nodes +${none.n - n3}, vial ${lp.vial} -> ${none.vial}, armed after ${none.armed}, "${none.toast}"`);
       await b.page.screenshot({ path: path.join(ART, 'm11-vial-tunnel-390.png') }).catch(() => {});
+      // CONTROL for the armed-tap assertion above (run last: the dig it makes moves the strands the drags press): the vial
+      // put away by a real click on the kit, the same tap on T IS a dig.
+      await b.page.mouse.click(r0.rect.x, r0.rect.y); await sleep(200);
+      await b.page.evaluate(({ a }) => window.__game.mine.lookAt(a.tx, a.ty + 60), { a: r0.a });
+      await sleep(300);
+      const tq = await b.page.evaluate(({ a }) => { const p = window.__game.camera.worldToScreen(a.tx, a.ty), cv = document.getElementById('game').getBoundingClientRect();
+        return { x: p.x + cv.left, y: p.y + cv.top }; }, { a: r0.a });
+      const w1 = await b.page.evaluate(() => ({ n: window.__game.state.active.nodes.length, water: window.__game.state.active.water, armed: window.__game.mine.armed() }));
+      await b.page.mouse.click(tq.x, tq.y);
+      await sleep(150);
+      const w2 = await b.page.evaluate(() => ({ n: window.__game.state.active.nodes.length, water: window.__game.state.active.water,
+        toast: (document.querySelector('.toast.in .tmsg') || {}).textContent || '' }));
+      ok('control for the armed tap: with the vial put away, the same tap on T is taken as a dig', w1.armed === null && (w2.n > w1.n || /^Solid rock/.test(w2.toast)),
+         `armed ${w1.armed}, nodes +${w2.n - w1.n}, water -${w1.water - w2.water}, "${w2.toast}"`);
       ok('no page errors (ui)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await ctx.close();
     }
