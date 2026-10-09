@@ -18597,6 +18597,13 @@ function stepNematodes(state, phase = 'both') {
     state.mineDrained = (state.mineDrained || 0) + owed;   // diagnostics — the rate, not the tank
   }
   state.mineAttached = mineWorms ? attached : 0;
+  // EVERY NEW ATTACH IS COUNTED, monotonically (M12 verify): the worm click was a delta of the attached
+  // LEVEL read once a frame, so a worm that attached and was flasked between two frames (a slow frame,
+  // or a flask on the next tap) was never heard — measured once in a full juice-check run.
+  if (mineWorms) for (const w of state.nematodes) {
+    if (w.attached && !w._attSeen) state.mineAttachEvents = (state.mineAttachEvents | 0) + 1;
+    w._attSeen = !!w.attached;
+  }
   // THE STORE'S REVEAL (M5): the first attach is what puts Mucus flasks on the shelf. Recorded on the
   // state only — `mineFrame` persists it to `p.mineSeen` (this module cannot reach the save).
   if (mineWorms && attached) (state.mineSeenNow = state.mineSeenNow || {}).worm = true;
@@ -43147,14 +43154,14 @@ function mineLineFeel(depth) {
 }
 // EVERYTHING ELSE IS A DELTA, read once a frame off numbers the engine already keeps, so every route
 // to an event (a drag, a tap, a kit button, a `__game.mine` hook, the world tick) sounds the same:
-//   worms attached rising -> two clicks + [30, 40, 30]; a kit count falling -> splat (+ shake) / snip /
+//   a new attach (`mineAttachEvents`, counted in the tick) -> two clicks + [30, 40, 30]; a kit count falling -> splat (+ shake) / snip /
 //   fizz; `mineRefusals` rising -> a thud (at most one per 120 ms); the rot clock appearing -> a sting
 //   + 80 ms, under 10 s a heartbeat (1 Hz, 2 Hz under 5 s), and gone while the run lives -> a chime.
 function mineJuiceTick(time) {
   const j = state._mineJuice || (state._mineJuice = {
-    att: state.mineAttached | 0, items: Object.assign({}, state.mineItems || {}),
+    att: state.mineAttachEvents | 0, items: Object.assign({}, state.mineItems || {}),
     ref: state.mineRefusals | 0, refAt: -1e9, inf: !!state.mineInfect, beatAt: -1e9 });
-  const att = state.mineAttached | 0;
+  const att = state.mineAttachEvents | 0;   // new attaches since the last frame (a monotonic count)
   if (att > j.att) { try { playWormClick(); } catch (_) {} vibrate('worm', [30, 40, 30]); }
   j.att = att;
   const it = state.mineItems || {};

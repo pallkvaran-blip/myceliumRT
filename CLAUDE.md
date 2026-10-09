@@ -6254,9 +6254,10 @@ Numbers here are measured, not planned.
 
 ### M12 — Juice: every payout and threshold is felt (BUILT)
 
-- **SOUNDS** (`__m_render_sfx`): one `_cue(kind, durS)` gate for every synthesised cue — returns before any
-  node exists when muted, caps at **6 cues sounding** (`SYNTH_VOICES`; a 7th is dropped and counted in
-  `__sfx.counts.dropped`, not queued), counts `__sfx.counts[kind]` only when scheduled. The M4/M5/M9 seam
+- **SOUNDS** (`__m_render_sfx`): one `_cue(kind, durS, n)` gate for every synthesised cue — returns before any
+  node exists when muted, holds `n` of **6 voice slots, a voice being a SOURCE** (verify round: the first
+  build counted cues, see below), drops what does not fit (`__sfx.counts.dropped`, not queued), counts
+  `__sfx.counts[kind]` only when scheduled. The M4/M5/M9 seam
   ping, glug, reach tick and finale note now go through it too. New cues and their count keys: `line` (3 kHz
   highpassed hiss 400 ms), `beat` (gong 110+220 Hz, 1.2 s), `refuse` (90 Hz thud 60 ms), `worm` (two 1.2 kHz
   25 ms clicks), `flask` (lowpassed noise splat), `enzyme` (double 3 kHz snip), `vial` (band-passed fizz),
@@ -6271,16 +6272,18 @@ Numbers here are measured, not planned.
   settling refusal, not a dead run) into `state.mineRefusals`. `mineLineFeel` fires per heat line the first
   time a strand passes it (hiss + 30 ms + shake) — separate from `mineLineBeats`, which skips a line on a
   band boundary. The gong is in `mineBeat`; the record arpeggio on the leg's NEW DEEPEST / NEW FARTHEST
-  beats and again at the end (`presentMineEnd`: `paid.best.isNew` on the free layout — beating a best that
-  was > 0 — or a leg record; the chord follows 420 ms later); the sparkle + shake on 'In sight'; the buy
+  beats and again at the end (`mineEndCue`, on the frame the run ends — verify round; `paid.best.isNew` on
+  the free layout — beating a best that was > 0 — or a leg record; the chord follows 640 ms later); the sparkle + shake on 'In sight'; the buy
   chime at both store Buy sites (tile and end-screen card). Knob `window.MYCELIUM_NO_JUICE` turns the
   per-frame juice and the shake off (the perf A/B).
-- **SETTINGS** (mine menu only): 'Vibration' (`#set-vib`, default ON for `pointer: coarse`, else off) and
-  'Reduced motion' (`#set-rmotion`, default OFF). `juicePrefs()` / `setJuicePref(k, v)` / `vibrate(kind,
+- **SETTINGS** (mine menu only): 'Vibration' (`#set-vib`, default ON for `pointer: coarse`, else off; not
+  offered at all without `navigator.vibrate` — verify round) and 'Reduced motion' (`#set-rmotion`, default
+  = the OS's `prefers-reduced-motion` — verify round). `juicePrefs()` / `setJuicePref(k, v)` / `vibrate(kind,
   pattern)` live in the sfx module and read-modify-write `mycelium.settings.v1` (the key main's
   `saveSettings` also read-modify-writes). **Deviation:** not through main's `saveSettings` — the menu is
-  in the UI module, declared before main. **Not seeded from `prefers-reduced-motion`**: headless Chromium
-  reports `reduce`, which would turn the shake and count-up off in every check. Reduced motion = no shake,
+  in the UI module, declared before main. **The first build did NOT seed it from `prefers-reduced-motion`,
+  believing headless Chromium reports `reduce`; measured, a default Playwright context reports
+  `no-preference`** (only `reducedMotion: 'reduce'` matches), so it is seeded now. Reduced motion = no shake,
   no count-up (`.ss-nocount`, figures final at once, one ding), no HUD pulses (`body.rmotion`). Haptics
   per the plan: seam 12, pocket 20, line 30, worm [30,40,30], rot 80, landfall [60,40,120];
   `__sfx.vib.counts` / `.last`.
@@ -6291,8 +6294,9 @@ Numbers here are measured, not planned.
   `camera.x/y` it would move the follow target, the press-to-world mapping and the memo keys between
   frames, and it would not shake while the camera is released. Hooks `mine.shake()`, `resetShake`,
   `shakeNow`.
-- **HUD:** `#hud-waterchip` gets `.low` (amber, inset ring) and `#hud-waterleft` 'N left' (N = floor(water
-  / costHere)) exactly when water < 4 x `mineCostHere`; `#hud-digcost.pulse` restarts on every price
+- **HUD:** `#hud-waterchip` gets `.low` (amber text + glow, NO box change) and `#hud-waterleft` 'N left' (N =
+  floor(water / costHere), its own element, at the front of row 2 when the rows stack) exactly when water <
+  4 x `mineCostHere`; `#hud-digcost.pulse` restarts on every price
   change after the first write (`ui._digPulses`); `.kitbtn.threat` breathes (`kitthreat`) — the flask
   while a worm is attached and a flask is carried, the enzyme while rot exists and a dose is carried (the
   vial has no threat, so no pulse).
@@ -6317,6 +6321,50 @@ Numbers here are measured, not planned.
   phone 51, onboard 67, econ 81, counter 60, journey 99, landfall 50, legs 61, compass 68, vial 43, juice 33 (new), zip 24,
   level 27, aim 9, scale 26, threat 116, harvest 28, mould 20, core 18), green on the first full run. No existing
   assertion changed.
+
+**M12 VERIFY ROUND** (41a0c97 recovered after a container restart; finished in 3f74715 / 6847aee)
+- **THE VOICE BUDGET COUNTS SOURCES.** The first build's "6" counted CUES (a gong was 3 oscillators, the
+  landfall 8), left the grow sample out, and capped nothing in loudness. `tests/sfx-meter.cjs` (an init
+  script: an AudioWorklet peak meter on the audio thread, plus every source's [start, stop) off the audio
+  clock — NOT the game's bookkeeping) measured, before: ten band gongs **+1.6 dBFS / 18 sources**, six
+  different cues -8.0, two digs + six cues -8.1. Now `_voiceTake(a, n, durS, pri)`: a cue declares its
+  sources and holds that many slots until its last stops; grow layers (`hit`) take a slot each and get none
+  when full; a cue may steal only STRICTLY LOWER-priority groups (`CUE_PRI`: grow 0, tick/reach 1,
+  heartbeat/refuse 2, threats/thresholds 3, payouts/rewards/endings 4), lowest first, faded 25 ms, and
+  starts after the fade (`_ct`), so the cap holds on the audio clock. The relief chime had been DROPPED on
+  the scripted descent (a cut's snip + the heartbeat held the slots) — priority fixed it; now required.
+- **THE PEAK IS A LIMITER, NOT THE GAINS** (`ceiling()`, every chain ends there): DynamicsCompressor -14 dB,
+  knee 0, ratio 20, attack 0 (Chrome's 6 ms look-ahead catches transients), then a gain that undoes the
+  spec's automatic makeup ((1/gain at 0 dBFS)^0.6). Lowering gains until 6 worst-case voices summed under
+  -12 would put each cue alone ~-28 dBFS. After: ten gongs **-13.4 dBFS / 6 sources (7 dropped)**, six
+  different -16.5, two digs + six -16.4, a seam ping inside a six-layer dig admitted (2 layers stolen), the
+  whole scripted descent **-13.3 dBFS, at most 6 sources**. Knobs `MYCELIUM_NO_SFX_CEILING`,
+  `MYCELIUM_SFX_VOICES` (the negative control reads -2.2 dBFS with 20 sources).
+- **CUES RESHAPED TO FIT:** gong 3 -> 2 sources (the plan's 110 + 220); landfall 8 -> 4 (`_held`: the
+  arpeggio rings into the chord); finale notes 2 sources / 1.6 s -> 1 / 1.2 s (eight 300 ms apart had
+  dropped 3 notes); record durS 0.6 -> 0.52 and the end chord at 640 ms after it (at 420 the landfall chord
+  was dropped).
+- **SINGLE-CUE LEVELS** (sfx-probe, after): seam ping -34, reach -32, glug -19, hiss -20, gong -14, thud -14,
+  worm -26, flask -18, snip -27, fizz -28, rot -22, heartbeat -14, relief -25, record -25, sparkle -30,
+  landfall -16, chord -22, tick -34, ding -24, buy -26, finale note -24 dBFS. The seam ping — THE payout cue —
+  sits ~20 dB under the dig sample; it was -31 before the limiter too, so this is a mix question for the
+  owner, not a regression. **GOTCHA:** the probe's first meter (an AnalyserNode polled from setInterval)
+  read the same numbers as the worklet, so the quiet seam is real, not a throttled-timer artefact.
+- **41a0c97's fixes, now asserted** (juice-check `verify`, 10; against 3d3245c's index.html 2 pass / 8
+  fail): 'N left' in row 2 and nothing off a 360x640 / 320x568 HUD with a 2-digit price (3d3245c: row 1
+  overflowed 29 px at 320); Reduced motion from the OS, a stored Off winning; no Vibration item without
+  `navigator.vibrate`; a new run's first frames carry no price pulse; the beat hidden under the open
+  settings menu; a landfall's first sound and [60,40,120] within 400 ms of `runOver` (3d3245c: 6150 ms, at
+  the end screen), the chord within 1100 ms.
+- **CHANGED ASSERTIONS** (juice-check sfx): 'never more than 6 cues sounding at once' (`__sfx.voices()`) ->
+  '...never more than 6 sources sounding at once (measured off the audio clock)' + '...never peaked above
+  -12 dBFS'; relief joined the required cues. New blocks `loud` (7) and `verify` (11). juice 33 -> 52.
+- **THE WORM CLICK IS COUNTED, NOT READ OFF A LEVEL.** It was `mineAttached` rising between two frames, so
+  a worm that attached and was flasked between frames was never heard — seen once in a full juice-check
+  run (`counts.worm 0 -> 0`). `stepNematodes` (mine branch only) now counts each new attach into
+  `state.mineAttachEvents` and the frame compares that. Asserted with juice stood down across the attach and
+  the flask (`verify`); the level-based build fails it (worm 0, events 1).
+- Tools: `tests/sfx-probe.cjs` (every cue alone and five stacks: peak dBFS, dropped, sources).
 
 ## Two games on the title screen: Survival and Campaign
 

@@ -406,6 +406,28 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
           return { before, open, menu, after: vis() };
         });
         ok('the beat is hidden while the settings menu is open, and back when it closes', bt.before === 'visible' && bt.menu && bt.open === 'hidden' && bt.after === 'visible', JSON.stringify(bt));
+        // a worm that attaches and is flasked between two juice frames is still heard (the click used to
+        // be a delta of the attached LEVEL; MYCELIUM_NO_JUICE stands the per-frame juice down meanwhile)
+        const wk = await b.page.evaluate(async () => {
+          const g = window.__game, s = g.state;
+          if (window.__sfx.muted()) g.sfx().toggleSfx();
+          s.active.water = 5000;
+          await window.__navDig({ targetM: 20, maxIters: 60 });
+          await window.__wait(() => !g.mine.revealing(), 4000);
+          const w0 = window.__sfx.counts.worm | 0;
+          window.MYCELIUM_NO_JUICE = true;
+          let tip = null; for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
+          g.mine.spawnWorm(tip.x + 6, tip.y - 6);
+          const att = !!(await window.__wait(() => g.mine.attached() > 0, 8000));
+          s.mineItems.excrete = 1; g.handlers.onMineItem('excrete');
+          await new Promise((x) => setTimeout(x, 300));
+          const gone = g.mine.attached() === 0;
+          window.MYCELIUM_NO_JUICE = false;
+          await window.__wait(() => (window.__sfx.counts.worm | 0) > w0, 1500);
+          return { att, gone, worm: (window.__sfx.counts.worm | 0) - w0, events: s.mineAttachEvents | 0 };
+        });
+        ok('a worm that attached and was flasked between two juice frames still clicks (attaches are counted, not read off the level)',
+           wk.att && wk.gone && wk.worm === 1, JSON.stringify(wk));
         await b.ctx.close();
       }
       // (f) a landfall's chord and vibration land on the frame the run ends, seconds before the screen
