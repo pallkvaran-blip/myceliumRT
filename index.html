@@ -27858,8 +27858,35 @@ function master() {
   const comp = a.createDynamicsCompressor();   // tame overlapping layers so stacking never clips
   comp.threshold.value = -18; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.25;
   const g = a.createGain(); g.gain.value = 0.9;
-  g.connect(comp); comp.connect(a.destination);
+  g.connect(comp); comp.connect(ceiling());
   MASTER = g; return MASTER;
+}
+// THE CEILING (M12 verify): everything the game synthesises or samples ends here, a hard limiter that holds
+// the mix at the plan's -12 dBFS peak however many voices stack. The first M12 build relied on per-voice
+// gains alone and measured (tests/sfx-probe.cjs, an AudioWorklet peak meter): one band gong -11.9 dBFS,
+// six different cues together -8.0, ten gongs fired at once +1.6. A limiter is the honest answer; lowering
+// every gain until six worst-case voices summed under -12 would make each cue alone ~-28 dBFS, under the
+// grow sample it has to be heard over.
+//   A DynamicsCompressor at threshold CEIL_T, knee 0, ratio 20, instant attack (Chrome delays the signal
+// 6 ms ahead of its detector, so a transient is caught), then a fixed gain that UNDOES the compressor's
+// automatic makeup gain — the spec applies (1 / gain at 0 dBFS)^0.6 to everything, which on its own would
+// lift every quiet cue by ~8 dB. Net: unity below the threshold, and a 0 dBFS input lands at
+// T + |T|/20 ~ -13.3 dBFS. CEIL_T sits under -12 for that margin. Measured in the probe's table.
+const CEIL_T = -14, CEIL_R = 20;
+let CEIL = null;
+function ceiling() {
+  if (CEIL) return CEIL;
+  const a = ctx();
+  // test knob (juice-check's negative control): no limiter, the chains straight to the speakers
+  try { if (window.MYCELIUM_NO_SFX_CEILING) { CEIL = a.createGain(); CEIL.connect(a.destination); return CEIL; } } catch (_) {}
+  const lim = a.createDynamicsCompressor();
+  lim.threshold.value = CEIL_T; lim.knee.value = 0; lim.ratio.value = CEIL_R;
+  lim.attack.value = 0; lim.release.value = 0.12;
+  const post = a.createGain();
+  const fullRangeDb = CEIL_T - CEIL_T / CEIL_R;           // the curve's gain at a 0 dBFS input (negative)
+  post.gain.value = Math.pow(10, (0.6 * fullRangeDb) / 20);   // = 1 / makeup
+  lim.connect(post); post.connect(a.destination);
+  CEIL = lim; return CEIL;
 }
 
 // Decode the sample and arm gesture-unlock. Called after boot (non-blocking).
@@ -27889,6 +27916,10 @@ const RELEASE_S = 0.4;   // fade-out after the body → ring ≈ 1.7s instead of
 function hit(when, gain, rate, pan) {
   if (!BUF || voices >= MAX_VOICES) return;   // never exceed the concurrent-voice cap
   const a = ctx();
+  // THE SHARED VOICE BUDGET (M12 verify): a grow layer is a voice like any cue's oscillator, and it is
+  // the one voice that YIELDS — no room, no layer; and a cue that needs room may steal it (below).
+  const slot = _voiceTake(a, 1, when + Math.min(BUF.duration / rate, HOLD_S + RELEASE_S) + 0.03 - a.currentTime, 0);
+  if (!slot) return;
   const src = a.createBufferSource(); src.buffer = BUF; src.playbackRate.value = rate;
   const g = a.createGain();
   const dur = BUF.duration / rate;                 // sample length at this rate (s)
@@ -27906,6 +27937,7 @@ function hit(when, gain, rate, pan) {
   src.onended = () => { voices--; };
   src.start(when);
   if (dur > end) src.stop(when + end + 0.03);      // free the voice once faded (already silent → no click)
+  slot.nodes.push([src, g]);   // a cue that needs the room fades it out (`_stealGrp`)
 }
 
 // Fire a layered burst for `count` strands that begin growing over `spreadMs`.
@@ -28001,12 +28033,24 @@ function _tone(a, t, f0, f1, dur, gain, type) {
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(gain, t + 0.006);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  o.connect(g); g.connect(master());
+  o.connect(g); g.connect(master()); _reg(o, g);
   o.start(t); o.stop(t + dur + 0.02);
 }
+// A note that strikes at `peak`, settles to `hold` by `settleS`, and dies away by `durS` (the landfall's
+// arpeggio-into-chord: one oscillator each).
+function _held(a, t, f, peak, hold, settleS, durS) {
+  const o = a.createOscillator(), g = a.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(f, t);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + 0.006);
+  g.gain.exponentialRampToValueAtTime(hold, t + Math.max(0.05, settleS));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + durS);
+  o.connect(g); g.connect(master()); _reg(o, g);
+  o.start(t); o.stop(t + durS + 0.02);
+}
 function playSeamPing(mat, semis) {
-  const a = _cue('ore', 0.32); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  const a = _cue('ore', 0.32, 2); if (!a) return false;
+  const t = _ct(a, 0.005);
   const up = Math.max(0, Math.min(12, semis | 0));
   const f = (SEAM_ROOT_HZ[mat] || SEAM_ROOT_HZ.phosphorus) * Math.pow(2, up / 12);
   _tone(a, t, f, f, 0.32, 0.07);
@@ -28017,8 +28061,8 @@ function playSeamPing(mat, semis) {
 // THE REACH TICK (M5): a soft, short blip each time depth earns another P. Quieter than a seam ping —
 // it happens every 5 m and must not compete with the things the player went looking for.
 function playReachTick() {
-  const a = _cue('reach', 0.07); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  const a = _cue('reach', 0.07, 1); if (!a) return false;
+  const t = _ct(a, 0.005);
   _tone(a, t, 1320, 1180, 0.07, 0.025);
   return true;
 }
@@ -28027,19 +28071,21 @@ function playReachTick() {
 // with a fifth over it, held long enough to overlap the next so the eight read as one chord.
 const FINALE_STEPS = [0, 4, 7, 12, 16, 19, 24, 28];
 function playFinaleNote(i) {
-  const a = _cue('finale', 1.6); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  // ONE voice a note, 1.2 s (M12 verify): eight notes 300 ms apart at the first build's two voices and
+  // 1.6 s overlapped up to twelve sources, so the 6-voice budget dropped three of the chord's notes.
+  // At 1.2 s at most five sound at once.
+  const a = _cue('finale', 1.2, 1); if (!a) return false;
+  const t = _ct(a, 0.005);
   const k = Math.max(0, Math.min(FINALE_STEPS.length - 1, i | 0));
   const f = 523.25 * Math.pow(2, FINALE_STEPS[k] / 12);
-  _tone(a, t, f, f, 1.6, 0.05);
-  _tone(a, t + 0.01, f * 1.5, f * 1.5, 1.1, 0.02);
+  _tone(a, t, f, f, 1.2, 0.06);
   SFX_LAST.finale = { i: k, hz: Math.round(f) };
   return true;
 }
 let _noiseBuf = null;
 function playPocketGlug() {
-  const a = _cue('pocket', 0.25); if (!a) return false;
-  const t = a.currentTime + 0.005, dur = 0.25;
+  const a = _cue('pocket', 0.25, 1); if (!a) return false;
+  const t = _ct(a, 0.005), dur = 0.25;
   const src = _noise(a);   // one shared noise buffer for every noise cue (M12)
   const lp = a.createBiquadFilter(); lp.type = 'lowpass'; lp.Q.value = 6;
   lp.frequency.setValueAtTime(800, t);
@@ -28048,7 +28094,7 @@ function playPocketGlug() {
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(0.35, t + 0.012);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(lp); lp.connect(g); g.connect(master());
+  src.connect(lp); lp.connect(g); g.connect(master()); _reg(src, g);
   src.start(t); src.stop(t + dur + 0.02);
   SFX_LAST.pocket = { type: 'lowpass-noise', from: 800, to: 200, ms: dur * 1000 };
   return true;
@@ -28061,22 +28107,83 @@ function playPocketGlug() {
 // for every cue below, and they are why this is a shared helper rather than fifteen copies:
 //   - BEHIND `muted` (Sound effects) and before any node is made: muted, no oscillator, no buffer
 //     source, no count. That is what makes "with sound off, nothing is created" assertable.
-//   - AT MOST `SYNTH_VOICES` (6) CUES SOUNDING AT ONCE. A cue is one voice however many oscillators it
-//     uses (a chord is one event); a cue that would be the seventh is dropped, not queued — a late
-//     cue is worse than a missing one. Peaks stay near -12 dBFS (per-voice gains <= ~0.2, the master
-//     compressor behind them).
-//   - COUNTED in `window.__sfx.counts` only when actually scheduled.
-//   - `last` records what the last cue of each kind was, for the checks.
+//   - AT MOST `SYNTH_VOICES` (6) VOICES SOUNDING AT ONCE, and a voice is a SOURCE — an oscillator or a
+//     buffer source — not a cue. The first build counted cues (a gong is three oscillators, the landfall
+//     eight), so its "6" admitted 18 sources; measured with tests/sfx-meter.cjs. Every cue declares how
+//     many sources it schedules and holds that many slots until its last one stops (conservative: a
+//     four-note arpeggio holds four for its whole length). The GROW SAMPLE is in the same budget: its
+//     layers take a slot each, yield when there is none, and are the only voices a cue may STEAL (a
+//     25 ms fade) — a seam ping during a wide dig's six layers is the payout the dig was for, so it
+//     wins. A cue that still does not fit is dropped, not queued — a late cue is worse than a missing one.
+//   - THE PEAK is held at -12 dBFS by `ceiling()` (a limiter every chain ends in), not by the gains.
+//   - COUNTED in `window.__sfx.counts` only when actually scheduled; `last` records what the last cue
+//     of each kind was, for the checks.
 const SYNTH_VOICES = 6;
-let _synth = 0;
+// A cue's PRIORITY decides what it may steal: only voices of a strictly LOWER priority, the lowest first
+// (and among those, the ones that end last — the least heard yet). The grow sample is 0; the frequent
+// small ticks 1; the pacing sounds (heartbeat, refusal) 2; threats and thresholds 3; payouts, rewards
+// and endings 4. Measured without it (juice-check's scripted descent): the relief chime was dropped,
+// arriving while a cut's snip and the heartbeat held the slots — the one sound that says "you are safe".
+const CUE_PRI = { tick: 1, reach: 1, heartbeat: 2, refuse: 2, worm: 3, flask: 3, enzyme: 3, vial: 3, line: 3, beat: 3,
+                  rot: 3, sight: 3, ding: 3, ore: 4, pocket: 4, relief: 4, record: 4, runEnd: 4, finale: 4, buy: 4 };
+const LEDGER = [];   // { end (audio clock), pri, grp: { nodes: [[src, gain]], entries } }
+let _voiceHigh = 0;
+let _grp = null;     // the group the cue being built registers its nodes into
 SFX_COUNTS.dropped = 0;
-function _cue(kind, durS) {
+SFX_COUNTS.stolen = 0;
+function _voiceLive(a) {
+  const now = a.currentTime;
+  for (let i = LEDGER.length - 1; i >= 0; i--) if (LEDGER[i].end <= now) LEDGER.splice(i, 1);
+  return LEDGER.length;
+}
+// Register a source and its envelope gain with the cue being built, so a steal can fade and stop it.
+function _reg(src, gain) { if (_grp) _grp.nodes.push([src, gain]); }
+// Fade a group out over 25 ms from now and stop its sources; returns when the last one stops. Calling
+// stop() again on a scheduled source is allowed (the last call applies); one not yet started never sounds.
+function _stealGrp(a, grp) {
+  const t = a.currentTime;
+  for (const [src, g] of grp.nodes) {
+    try { g.gain.cancelScheduledValues(t); g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.025); } catch (_) {}
+    try { src.stop(t + 0.03); } catch (_) {}
+  }
+  for (const e of grp.entries) e.end = -1;
+  return t + 0.03;
+}
+// test knob (juice-check's negative control): `window.MYCELIUM_SFX_VOICES` replaces the cap.
+function _voiceCap() { try { const v = +window.MYCELIUM_SFX_VOICES; if (v > 0) return v; } catch (_) {} return SYNTH_VOICES; }
+// Reserve `n` slots for `durS` at priority `pri`, stealing lower-priority groups if it must. Returns the
+// group (its nodes are registered as the cue builds them), or null — nothing reserved, nothing stolen.
+function _voiceTake(a, n, durS, pri) {
+  const cap = _voiceCap();
+  let live = _voiceLive(a);
+  let after = a.currentTime;   // when this cue may start: after anything it stole has faded out
+  if (live + n > cap) {
+    const groups = [...new Set(LEDGER.filter((v) => v.pri < pri).map((v) => v.grp))]
+      .sort((x, y) => (x.pri - y.pri) || (y.entries[0].end - x.entries[0].end));
+    let free = 0; const take = [];
+    for (const gr of groups) { if (live - free + n <= cap) break; take.push(gr); free += gr.entries.length; }
+    if (live - free + n > cap) return null;   // stealing everything it may would still not make room
+    for (const gr of take) { after = Math.max(after, _stealGrp(a, gr)); SFX_COUNTS.stolen += gr.entries.length; }
+    live = _voiceLive(a);
+  }
+  _cueT = after + 0.005;
+  const end = after + Math.max(0.03, durS);
+  const grp = { pri, nodes: [], entries: [] };
+  for (let i = 0; i < n; i++) { const v = { end, pri, grp }; LEDGER.push(v); grp.entries.push(v); }
+  if (LEDGER.length > _voiceHigh) _voiceHigh = LEDGER.length;
+  return grp;
+}
+let _cueT = 0;
+// The start time of the cue just admitted (a cue that stole starts after what it stole has faded).
+function _ct(a, x) { return Math.max(a.currentTime + (x || 0.005), _cueT); }
+function _cue(kind, durS, n) {
+  _grp = null;
   if (muted || !AC) return null;
   const a = ctx();
   if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
-  if (_synth >= SYNTH_VOICES) { SFX_COUNTS.dropped++; return null; }
-  _synth++;
-  setTimeout(() => { _synth = Math.max(0, _synth - 1); }, Math.max(30, durS * 1000 + 40));
+  const grp = _voiceTake(a, n || 1, durS + 0.06, CUE_PRI[kind] || 3);
+  if (!grp) { SFX_COUNTS.dropped++; SFX_LAST.dropped = { kind, live: LEDGER.length }; return null; }
+  _grp = grp;
   SFX_COUNTS[kind] = (SFX_COUNTS[kind] | 0) + 1;
   return a;
 }
@@ -28100,106 +28207,108 @@ function _noiseHit(a, t, dur, gain, type, f0, f1, q) {
   g.gain.setValueAtTime(0.0001, t);
   g.gain.exponentialRampToValueAtTime(gain, t + Math.min(0.02, dur * 0.2));
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  src.connect(f); f.connect(g); g.connect(master());
+  src.connect(f); f.connect(g); g.connect(master()); _reg(src, g);
   src.start(t); src.stop(t + dur + 0.02);
 }
 // A PRICE LINE: a 3 kHz highpassed hiss, 400 ms — the sound of heat.
 function playLineHiss() {
-  const a = _cue('line', 0.4); if (!a) return false;
-  _noiseHit(a, a.currentTime + 0.005, 0.4, 0.09, 'highpass', 3000, 3000, 0.7);
+  const a = _cue('line', 0.4, 1); if (!a) return false;
+  _noiseHit(a, _ct(a, 0.005), 0.4, 0.09, 'highpass', 3000, 3000, 0.7);
   SFX_LAST.line = { type: 'highpass-noise', hz: 3000, ms: 400 };
   return true;
 }
-// THE BAND BEAT: a gong, 110 + 220 Hz, 1.2 s decay (and a slightly sharp partial for the metal).
+// THE BAND BEAT: a gong, 110 + 220 Hz (the upper a hair sharp, for the metal), 1.2 s decay.
 function playBandGong() {
-  const a = _cue('beat', 1.2); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  // Two voices, the plan's 110 + 220 Hz (the first build added a third, sharp partial; under a budget
+  // counted in sources it cost a slot every band crossing).
+  const a = _cue('beat', 1.2, 2); if (!a) return false;
+  const t = _ct(a, 0.005);
   _tone(a, t, 110, 108, 1.2, 0.16);
-  _tone(a, t, 220, 219, 1.0, 0.08);
-  _tone(a, t, 331, 330, 0.6, 0.025);
+  _tone(a, t, 221, 219, 1.0, 0.08);
   SFX_LAST.beat = { hz: [110, 220] };
   return true;
 }
 // A REFUSED DIG: a 90 Hz thud, 60 ms.
 function playRefuseThud() {
-  const a = _cue('refuse', 0.06); if (!a) return false;
-  _tone(a, a.currentTime + 0.003, 90, 60, 0.06, 0.22);
+  const a = _cue('refuse', 0.06, 1); if (!a) return false;
+  _tone(a, _ct(a, 0.003), 90, 60, 0.06, 0.22);
   return true;
 }
 // A WORM ATTACHES: two 1.2 kHz clicks of 25 ms.
 function playWormClick() {
-  const a = _cue('worm', 0.12); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  const a = _cue('worm', 0.12, 2); if (!a) return false;
+  const t = _ct(a, 0.005);
   _tone(a, t, 1200, 1100, 0.025, 0.05, 'square');
   _tone(a, t + 0.07, 1200, 1100, 0.025, 0.05, 'square');
   return true;
 }
 // THE FLASK: a noise splat (a wet lowpassed burst falling fast).
 function playFlaskSplat() {
-  const a = _cue('flask', 0.22); if (!a) return false;
-  _noiseHit(a, a.currentTime + 0.005, 0.22, 0.3, 'lowpass', 1800, 220, 3);
+  const a = _cue('flask', 0.22, 1); if (!a) return false;
+  _noiseHit(a, _ct(a, 0.005), 0.22, 0.3, 'lowpass', 1800, 220, 3);
   return true;
 }
 // THE ENZYME: a double 3 kHz snip.
 function playEnzymeSnip() {
-  const a = _cue('enzyme', 0.14); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  const a = _cue('enzyme', 0.14, 2); if (!a) return false;
+  const t = _ct(a, 0.005);
   _tone(a, t, 3000, 2600, 0.03, 0.05, 'triangle');
   _tone(a, t + 0.09, 3100, 2700, 0.03, 0.05, 'triangle');
   return true;
 }
 // THE VIAL: a band-passed fizz.
 function playAcidFizz() {
-  const a = _cue('vial', 0.6); if (!a) return false;
-  _noiseHit(a, a.currentTime + 0.005, 0.6, 0.12, 'bandpass', 2400, 4200, 2.5);
+  const a = _cue('vial', 0.6, 1); if (!a) return false;
+  _noiseHit(a, _ct(a, 0.005), 0.6, 0.12, 'bandpass', 2400, 4200, 2.5);
   return true;
 }
 // ROT: a dissonant sting at contact (a minor second, triangle).
 function playRotSting() {
-  const a = _cue('rot', 0.45); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  const a = _cue('rot', 0.45, 2); if (!a) return false;
+  const t = _ct(a, 0.005);
   _tone(a, t, 466, 440, 0.45, 0.06, 'triangle');
   _tone(a, t + 0.01, 494, 466, 0.45, 0.05, 'triangle');
   return true;
 }
 // THE ROT CLOCK'S LAST TEN SECONDS: a 60 Hz lub-dub (the caller paces it, 1 Hz then 2 Hz).
 function playHeartbeat() {
-  const a = _cue('heartbeat', 0.3); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  const a = _cue('heartbeat', 0.3, 2); if (!a) return false;
+  const t = _ct(a, 0.005);
   _tone(a, t, 62, 50, 0.11, 0.24);
   _tone(a, t + 0.16, 58, 48, 0.1, 0.16);
   return true;
 }
 // ...AND THE RELIEF WHEN IT IS CURED: a rising consonant chime.
 function playReliefChime() {
-  const a = _cue('relief', 0.8); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  const a = _cue('relief', 0.8, 2); if (!a) return false;
+  const t = _ct(a, 0.005);
   _tone(a, t, 784, 784, 0.7, 0.05);
   _tone(a, t + 0.12, 1175, 1175, 0.65, 0.04);
   return true;
 }
 // A RECORD BEATEN: a rising three-note arpeggio.
 function playRecordArp() {
-  const a = _cue('record', 0.6); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  const a = _cue('record', 0.52, 3); if (!a) return false;
+  const t = _ct(a, 0.005);
   [659.25, 830.61, 987.77].forEach((f, i) => _tone(a, t + i * 0.09, f, f, 0.32, 0.05));
   return true;
 }
 // ISLAND IN SIGHT: a sparkle (four quick high sines).
 function playSparkle() {
-  const a = _cue('sight', 0.5); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  const a = _cue('sight', 0.5, 4); if (!a) return false;
+  const t = _ct(a, 0.005);
   [2093, 2637, 2349, 3136].forEach((f, i) => _tone(a, t + i * 0.055, f, f, 0.22, 0.025));
   return true;
 }
 // THE ENDINGS. A landfall is C-E-G-C' and then the chord; every other ending a soft suspended chord.
 function playEndChord(landfall) {
-  const a = _cue('runEnd', landfall ? 2.2 : 1.6); if (!a) return false;
-  const t = a.currentTime + 0.01;
+  const a = _cue('runEnd', landfall ? 2.2 : 1.6, landfall ? 4 : 3); if (!a) return false;
+  const t = _ct(a, 0.01);
   if (landfall) {
+    // C-E-G-C' as an arpeggio whose notes RING ON into the chord — four voices, not the first build's
+    // eight (four plucks, then four more for the chord), which alone exceeded the 6-voice budget.
     const N = [523.25, 659.25, 783.99, 1046.5];
-    N.forEach((f, i) => _tone(a, t + i * 0.13, f, f, 0.3, 0.05));
-    N.forEach((f) => _tone(a, t + 0.56, f, f, 1.5, 0.03));
+    N.forEach((f, i) => _held(a, t + i * 0.13, f, 0.05, 0.03, 0.56 - i * 0.13, 2.05 - i * 0.13));
     SFX_LAST.runEnd = { landfall: true };
   } else {
     [261.63, 349.23, 392.0].forEach((f, i) => _tone(a, t + i * 0.02, f, f, 1.5, 0.035));
@@ -28209,21 +28318,21 @@ function playEndChord(landfall) {
 }
 // THE END SCREEN'S COUNT-UP: a tick per row and a ding on the total.
 function playCountTick() {
-  const a = _cue('tick', 0.03); if (!a) return false;
-  _tone(a, a.currentTime + 0.002, 2000, 1800, 0.018, 0.02);
+  const a = _cue('tick', 0.03, 1); if (!a) return false;
+  _tone(a, _ct(a, 0.002), 2000, 1800, 0.018, 0.02);
   return true;
 }
 function playCountDing() {
-  const a = _cue('ding', 0.6); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  const a = _cue('ding', 0.6, 2); if (!a) return false;
+  const t = _ct(a, 0.005);
   _tone(a, t, 1318.5, 1318.5, 0.55, 0.045);
   _tone(a, t, 1975.5, 1975.5, 0.35, 0.015);
   return true;
 }
 // A PURCHASE: a rising two-note chime.
 function playBuyChime() {
-  const a = _cue('buy', 0.35); if (!a) return false;
-  const t = a.currentTime + 0.005;
+  const a = _cue('buy', 0.35, 2); if (!a) return false;
+  const t = _ct(a, 0.005);
   _tone(a, t, 880, 880, 0.18, 0.05);
   _tone(a, t + 0.09, 1318.5, 1318.5, 0.25, 0.05);
   return true;
@@ -28284,7 +28393,11 @@ function vibrate(kind, pattern) {
 }
 try {
   window.__sfx.vib = VIB;
-  window.__sfx.voices = () => _synth;
+  window.__sfx.voices = () => (AC ? _voiceLive(AC) : 0);   // sources holding a slot now (<= 6)
+  window.__sfx.high = () => _voiceHigh;                      // the most ever held at once
+  window.__sfx.resetHigh = () => { _voiceHigh = AC ? _voiceLive(AC) : 0; };
+  window.__sfx.growReady = () => ready;
+  window.__sfx.ceiling = () => ({ threshold: CEIL_T, ratio: CEIL_R, wired: !!CEIL });
   window.__sfx.prefs = () => Object.assign({}, juicePrefs());
 } catch (_) {}
 
@@ -37328,7 +37441,9 @@ function mineEndCue(r, paid) {
     const record = !(state && state._mineFirst) && (bestNew || legRecord);
     r._cueAt = performance.now();
     if (record) { try { playRecordArp(); } catch (_) {} }
-    setTimeout(() => { try { playEndChord(landfall); } catch (_) {} }, record ? 420 : 0);
+    // 640 ms, not 420: the arpeggio holds its three voices until ~0.58 s, and the landfall chord is four —
+    // at 420 the voice budget (6 sources) dropped the landfall chord after a record (sfx-probe, M12 verify).
+    setTimeout(() => { try { playEndChord(landfall); } catch (_) {} }, record ? 640 : 0);
     if (landfall) vibrate('landfall', [60, 40, 120]);
   } catch (_) {}
 }

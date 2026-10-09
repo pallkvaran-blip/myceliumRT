@@ -1,9 +1,8 @@
 /* SFX PROBE — how loud the mine's synthesised cues really are, and what the voice cap does.
  * A TOOL: prints, never fails, not in the runner. `node tests/sfx-probe.cjs`
  *
- * Taps every connection to the AudioContext's destination into an AnalyserNode and polls its time
- * domain every 10 ms (a 2048-sample window is ~43 ms at 48 kHz, so nothing between polls is missed),
- * reporting each scenario's PEAK in dBFS. Scenarios: every cue alone; ten band gongs fired at once; six
+ * Measures with tests/sfx-meter.cjs (an AudioWorklet peak meter on the audio thread, and every source's
+ * [start, stop) on the audio clock), reporting each scenario's PEAK in dBFS. Scenarios: every cue alone; ten band gongs fired at once; six
  * DIFFERENT cues at once; a real-shaped dig across a line (grow sample + gong + hiss); and the voice
  * budget's own counters (scheduled / dropped / high-water mark).
  * Written for the M12 verify round: the plan asks for "at most 6 voices, peaking at -12 dBFS", and the
@@ -11,27 +10,7 @@
  * the dig sample out.
  */
 const H = require('./mine-harness.cjs');
-const TAP = (page) => page.addInitScript(() => {
-  window.__peak = 0;
-  const C = AudioNode.prototype.connect;
-  const taps = new WeakMap();
-  AudioNode.prototype.connect = function (dst) {
-    const r = C.apply(this, arguments);
-    try {
-      if (dst && dst instanceof AudioDestinationNode) {
-        const ctx = this.context;
-        let an = taps.get(ctx);
-        if (!an) {
-          an = ctx.createAnalyser(); an.fftSize = 2048; taps.set(ctx, an);
-          const buf = new Float32Array(2048);
-          setInterval(() => { an.getFloatTimeDomainData(buf); let m = 0; for (let i = 0; i < buf.length; i++) { const v = Math.abs(buf[i]); if (v > m) m = v; } if (m > window.__peak) window.__peak = m; }, 10);
-        }
-        C.call(this, an);
-      }
-    } catch (_) {}
-    return r;
-  };
-});
+const TAP = require('./sfx-meter.cjs');
 (async () => {
   const E = await H.start();
   try {
@@ -44,12 +23,11 @@ const TAP = (page) => page.addInitScript(() => {
       // the dig sample decodes lazily
       for (let i = 0; i < 60 && !window.__sfx.growReady?.(); i++) await sl(50);
       const db = (v) => (v > 0 ? (20 * Math.log10(v)).toFixed(1) : '-inf');
-      const res = { ctx: window.__sfx.ctxState() };
+      const res = { ctx: window.__sfx.ctxState(), meter: window.__meterError || 'worklet', grow: !!(window.__sfx.growReady && window.__sfx.growReady()) };
       const run = async (name, fn, wait = 2600) => {
-        await sl(300); window.__peak = 0; const d0 = window.__sfx.counts.dropped | 0;
-        if (window.__sfx.resetHigh) window.__sfx.resetHigh();
-        fn(); await sl(wait);
-        res[name] = { dBFS: db(window.__peak), dropped: (window.__sfx.counts.dropped | 0) - d0, high: window.__sfx.high ? window.__sfx.high() : null };
+        await sl(300); window.__peakReset(); window.__voiceReset(); const d0 = window.__sfx.counts.dropped | 0;
+          fn(); await sl(wait);
+        res[name] = { dBFS: db(window.__peak), dropped: (window.__sfx.counts.dropped | 0) - d0, voices: window.__voiceMax() };
       };
       const single = { seam: () => S.playSeamPing('phosphorus', 0), reach: () => S.playReachTick(3), glug: () => S.playPocketGlug(),
         hiss: () => S.playLineHiss(), gong: () => S.playBandGong(), thud: () => S.playRefuseThud(), worm: () => S.playWormClick(),
@@ -62,7 +40,7 @@ const TAP = (page) => page.addInitScript(() => {
       await run('six different', () => { S.playBandGong(); S.playLineHiss(); S.playRotSting(); S.playRecordArp(); S.playFlaskSplat(); S.playReliefChime(); });
       await run('dig + gong + hiss', () => { S.playGrowBurst(60, 1000); S.playBandGong(); S.playLineHiss(); });
       await run('dig x2 + six different', () => { S.playGrowBurst(60, 600); S.playGrowBurst(60, 600); S.playBandGong(); S.playLineHiss(); S.playRotSting(); S.playRecordArp(); S.playFlaskSplat(); S.playReliefChime(); });
-      await run('record then landfall (the ending)', () => { S.playRecordArp(); setTimeout(() => S.playEndChord(true), 560); }, 3000);
+      await run('record then landfall (the ending)', () => { S.playRecordArp(); setTimeout(() => S.playEndChord(true), 640); }, 3000);
       await run('finale x8', () => { for (let i = 0; i < 8; i++) setTimeout(() => S.playFinaleNote(i), i * 300); }, 4500);
       return res;
     });

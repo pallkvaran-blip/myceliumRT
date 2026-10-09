@@ -19,12 +19,26 @@
  *           ten tank levels around the boundary; the price chip pulses when the price changes (the
  *           42 m line); the flask button breathes while a worm is attached and the enzyme while rot is
  *           on the colony, and neither does without its threat. A 390x844 frame of the low chip.
+ *   loud    the plan's "at most 6 voices, peaking at -12 dBFS" (M12 verify): with tests/sfx-meter.cjs (an
+ *           AudioWorklet peak meter, and every source's [start, stop) on the audio clock) the worst stacks —
+ *           ten band gongs at once, six different cues at once, two wide digs plus six cues — peak at or under
+ *           -12 dBFS with at most 6 SOURCES sounding (a gong is two, the first build counted it as one);
+ *           a seam ping during a six-layer dig is ADMITTED by stealing grow layers; the ending (record then
+ *           landfall chord) and the Promised Land's eight notes drop nothing. Negative controls: with the
+ *           limiter off (MYCELIUM_NO_SFX_CEILING) ten gongs peak above -12; with the cap lifted
+ *           (MYCELIUM_SFX_VOICES 99) the meter sees more than 6 sources.
+ *   verify  the M12 verify round's fixes: 'N left' in row 2 and nothing off a 360 / 320 px HUD with the
+ *           chip low; Reduced motion seeded from the OS setting (and a stored choice winning); no
+ *           Vibration item without navigator.vibrate; a new run's first frame carries no price pulse; the
+ *           beat hidden under the open settings menu; the landfall's chord and vibration on the frame the
+ *           run ends, seconds before the end screen.
  *   perf    acceptance 5: 16 worms on the colony, frames timed with juice on and off INTERLEAVED frame
  *           by frame (mineFrame + renderFrame + a 1 px readback to force the raster; a shake asked
  *           every 8th frame on the 'on' side): p95(on) - p95(off) <= 1.0 ms.
  */
 const path = require('path');
 const H = require('./mine-harness.cjs');
+const METER = require('./sfx-meter.cjs');
 const { sleep } = H;
 let pass = 0, fail = 0;
 const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — ' + x : ''))) : (fail++, console.log('  FAIL  ' + n + (x ? '  — ' + x : ''))); };
@@ -122,8 +136,9 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
     // =========================================================================================
     if (want('sfx')) {
       console.log('--- acceptance 1: every cue on one scripted descent (#mine,4242)');
-      const b = await E.bootMine(4242, 390, 844, { before: async (page) => { await SAVE(page); await AUDIO_SPY(page); } });
+      const b = await E.bootMine(4242, 390, 844, { before: async (page) => { await SAVE(page); await AUDIO_SPY(page); await METER(page); } });
       await quiet(b.page); await helpers(b.page);
+      await b.page.evaluate(() => { window.__peakReset(); window.__voiceReset(); });
       const c0 = await counts(b.page);
       const r = await b.page.evaluate(async () => {
         const g = window.__game, s = g.state, out = {};
@@ -181,16 +196,20 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
       const osc = await b.page.evaluate(() => window.__oscN);
       const d = (k) => (c1[k] | 0) - (c0[k] | 0);
       console.log('    events: ' + JSON.stringify(r) + ' end ' + JSON.stringify(end));
-      console.log('    counts: ' + JSON.stringify(c1));
+      console.log('    counts: ' + JSON.stringify(c1) + ' last dropped ' + JSON.stringify(await b.page.evaluate(() => window.__sfx.last.dropped || null)));
       for (const k of ['ore', 'pocket', 'line', 'beat', 'worm', 'rot', 'flask', 'enzyme', 'runEnd', 'buy'])
         ok(`__sfx.counts.${k} >= 1`, d(k) >= 1, `${c0[k] | 0} -> ${c1[k] | 0}`);
-      ok('...and the refusal thud, the heartbeat, the record arpeggio and the count-up ticks/ding fired too',
-         d('refuse') >= 1 && d('heartbeat') >= 1 && d('record') >= 1 && d('tick') >= 1 && d('ding') >= 1,
+      ok('...and the refusal thud, the heartbeat, the relief chime, the record arpeggio and the count-up ticks/ding fired too',
+         d('refuse') >= 1 && d('heartbeat') >= 1 && d('relief') >= 1 && d('record') >= 1 && d('tick') >= 1 && d('ding') >= 1,
          `refuse ${d('refuse')}, heartbeat ${d('heartbeat')}, record ${d('record')} (${end.best.trim()}), tick ${d('tick')}, ding ${d('ding')}, relief ${d('relief')}`);
       ok('the seam and the pocket were really claimed (+P, +water)', r.seam.ok && r.seam.ore > 0 && r.pocket.ok && r.pocket.dw > 0,
          `seam ${JSON.stringify(r.seam)}, pocket ${JSON.stringify(r.pocket)}, dive ${r.depth} m`);
       ok('oscillators were created (the control for the muted run)', osc > 0, `${osc} oscillators`);
-      ok('never more than 6 cues sounding at once', await b.page.evaluate(() => window.__sfx.voices() <= 6), `dropped ${c1.dropped | 0}`);
+      const lv = await b.page.evaluate(() => ({ peak: window.__peak, voices: window.__voiceMax(), high: window.__sfx.high(), err: window.__meterError || null }));
+      const dbv = (v) => (v > 0 ? 20 * Math.log10(v) : -Infinity);
+      ok('over the whole descent, never more than 6 sources sounding at once (measured off the audio clock)', lv.voices >= 1 && lv.voices <= 6 && lv.high <= 6,
+         `meter max ${lv.voices}, the game's own high-water ${lv.high}, dropped ${c1.dropped | 0}, stolen ${c1.stolen | 0}`);
+      ok('...and the mix never peaked above -12 dBFS', lv.peak > 0 && dbv(lv.peak) <= -12, `peak ${dbv(lv.peak).toFixed(1)} dBFS${lv.err ? ' meter ' + lv.err : ''}`);
       ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
       await b.ctx.close();
     }
@@ -232,6 +251,57 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
       await b.ctx.close();
     }
 
+
+    // =========================================================================================
+    // 1c. LOUDNESS AND THE VOICE BUDGET (M12 verify)
+    // =========================================================================================
+    const STACKS = async (page) => page.evaluate(async () => {
+      const S = window.__game.sfx(), sl = (ms) => new Promise((r) => setTimeout(r, ms));
+      if (window.__sfx.muted()) S.toggleSfx();
+      for (let i = 0; i < 60 && window.__sfx.ctxState() !== 'running'; i++) await sl(50);
+      for (let i = 0; i < 80 && !window.__sfx.growReady(); i++) await sl(50);
+      const res = { ctx: window.__sfx.ctxState(), grow: window.__sfx.growReady(), meter: window.__meterError || 'worklet' };
+      const run = async (name, fn, wait) => {
+        await sl(400); window.__peakReset(); window.__voiceReset();
+        const c0 = Object.assign({}, window.__sfx.counts);
+        fn(); await sl(wait || 2600);
+        const c1 = window.__sfx.counts, d = (k) => (c1[k] | 0) - (c0[k] | 0);
+        res[name] = { dB: window.__peak > 0 ? +(20 * Math.log10(window.__peak)).toFixed(1) : -999, voices: window.__voiceMax(),
+                      dropped: d('dropped'), stolen: d('stolen'), ore: d('ore'), runEnd: d('runEnd'), finale: d('finale') };
+      };
+      await run('gongs', () => { for (let i = 0; i < 10; i++) S.playBandGong(); });
+      await run('six', () => { S.playBandGong(); S.playLineHiss(); S.playRotSting(); S.playRecordArp(); S.playFlaskSplat(); S.playReliefChime(); });
+      await run('digs', () => { S.playGrowBurst(60, 600); S.playGrowBurst(60, 600); S.playBandGong(); S.playLineHiss(); S.playRotSting(); S.playRecordArp(); S.playFlaskSplat(); S.playReliefChime(); });
+      await run('seamInDig', () => { S.playGrowBurst(60, 300); setTimeout(() => S.playSeamPing('phosphorus', 0), 60); }, 2200);
+      await run('ending', () => { S.playRecordArp(); setTimeout(() => S.playEndChord(true), 640); }, 3000);
+      await run('finale', () => { for (let i = 0; i < 8; i++) setTimeout(() => S.playFinaleNote(i), i * 300); }, 4200);
+      return res;
+    });
+    if (want('loud')) {
+      console.log('--- the voice budget and the -12 dBFS peak (sfx-meter)');
+      const b = await E.bootMine(4242, 390, 844, { before: async (page) => { await SAVE(page); await METER(page); } });
+      await quiet(b.page);
+      await b.page.keyboard.press('Shift');   // a gesture, so the context runs
+      const r = await STACKS(b.page);
+      console.log('    ' + JSON.stringify(r));
+      const fits = (x) => x && x.dB <= -12 && x.voices <= 6;
+      ok('ten band gongs at once: peak <= -12 dBFS, <= 6 sources (the rest dropped)', fits(r.gongs) && r.gongs.dropped >= 5, JSON.stringify(r.gongs));
+      ok('six different cues at once: peak <= -12 dBFS, <= 6 sources', fits(r.six), JSON.stringify(r.six));
+      ok('two wide digs plus six cues: peak <= -12 dBFS, <= 6 sources (the grow sample is in the budget)', r.grow && fits(r.digs) && r.digs.voices >= 4, JSON.stringify(r.digs));
+      ok('a seam ping during a six-layer dig is admitted by stealing grow layers, not dropped', fits(r.seamInDig) && r.seamInDig.ore === 1 && r.seamInDig.stolen >= 1 && r.seamInDig.dropped === 0, JSON.stringify(r.seamInDig));
+      ok('the ending (record arpeggio, then the landfall chord) and the eight finale notes drop nothing', fits(r.ending) && r.ending.runEnd === 1 && r.ending.dropped === 0 && fits(r.finale) && r.finale.finale === 8 && r.finale.dropped === 0,
+         `ending ${JSON.stringify(r.ending)}, finale ${JSON.stringify(r.finale)}`);
+      ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
+      await b.ctx.close();
+      // NEGATIVE CONTROLS: the meter sees a violation when the guard is off
+      const c = await E.bootMine(4242, 390, 844, { before: async (page) => { await SAVE(page); await METER(page);
+        await page.addInitScript(() => { window.MYCELIUM_NO_SFX_CEILING = true; window.MYCELIUM_SFX_VOICES = 99; }); } });
+      await quiet(c.page);
+      await c.page.keyboard.press('Shift');
+      const rc = await STACKS(c.page);
+      ok('control: limiter off and cap lifted, ten gongs peak above -12 dBFS with more than 6 sources', rc.gongs.dB > -12 && rc.gongs.voices > 6, JSON.stringify(rc.gongs));
+      await c.ctx.close();
+    }
     // =========================================================================================
     // 2. VIBRATION
     // =========================================================================================
