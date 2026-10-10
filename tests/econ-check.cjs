@@ -242,8 +242,8 @@ const openStore = async (page) => {
       await b.page.click('.ss-upg[data-track="water"] .ss-upg-btn');
       await sleep(300);
       const lv = await b.page.evaluate(() => ({ lv: window.__game.store.level('water'), P: window.__game.store.balance(), start: window.__game.store.start().water }));
-      // M14: the mine's Water step 12 -> 15 (was '+12 water (60 -> 72)').
-      ok('...and 5 P buys Water I: +15 water (60 -> 75)', lv.lv === 1 && w0 - lv.P === 5 && lv.start === 75, JSON.stringify(Object.assign({ was: w0 }, lv)));
+      // M14: the mine's Water step 12 -> 20 (was '+12 water (60 -> 72)').
+      ok('...and 5 P buys Water I: +20 water (60 -> 80)', lv.lv === 1 && w0 - lv.P === 5 && lv.start === 80, JSON.stringify(Object.assign({ was: w0 }, lv)));
       ok('...and a revealed-by-the-world track stays hidden to the buy hook too', await b.page.evaluate(() => {
         const S = window.__game.store; return S.inGame('heatTolerance', 'mine') === false && S.buy('heatTolerance').ok === false; }), 'refused');
       // RUN 2: what run 1 met (the line) now appears, NEW.
@@ -542,7 +542,7 @@ const openStore = async (page) => {
         return !!(s && s.substrate && s.substrate.mine && !s.runOver && s.substrate._rockSolidified && !document.getElementById('ssMineEnd') && !document.getElementById('speciesSelect')); },
         null, { timeout: 40000 }).then(() => true).catch(() => false);
       const run2 = await b.page.evaluate(() => ({ lvl: window.__game.store.level('water'), start: window.__game.store.start().water, water: window.__game.state.active.water }));
-      ok('Buy then Descend reaches a live run in 2 clicks, with the rung bought', live && clicks === 2 && run2.lvl === 1 && run2.start === 75 && run2.water >= 73, JSON.stringify(run2));   // M14: 72 -> 75 (Water step 15)
+      ok('Buy then Descend reaches a live run in 2 clicks, with the rung bought', live && clicks === 2 && run2.lvl === 1 && run2.start === 80 && run2.water >= 78, JSON.stringify(run2));   // M14: 72 -> 80 (Water step 20)
       // The records line on a shallower second run.
       await sleep(1500);
       await b.page.evaluate(() => window.__game.mine.end());

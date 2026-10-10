@@ -2325,7 +2325,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     // M5: was '...and the pocket and ore tracks their own numbers' (pocket = base + step, ore +1).
     // Those tracks are cut: refused, and the run's pocket and per-seam numbers are CONFIG's own.
     ok('...and the cut pocket and ore tracks are refused and change nothing',
-       applied.cutRefused && applied.pocket === applied.basePocket && !(applied.oreBonus > 0) && applied.waterStep === 15,   // M14: the mine's Water step 12 -> 15
+       applied.cutRefused && applied.pocket === applied.basePocket && !(applied.oreBonus > 0) && applied.waterStep === 20,   // M14: the mine's Water step 12 -> 20
        `refused ${applied.cutRefused}, pocket ${applied.pocket} = ${applied.basePocket}, ore bonus ${applied.oreBonus}, water step ${applied.waterStep}`);
     await b.ctx.close();
   }

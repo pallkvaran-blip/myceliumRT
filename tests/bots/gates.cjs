@@ -73,12 +73,15 @@ for (const f of files) {
   const l37 = log.filter((r) => r.leg >= 3 && r.leg <= 7);
   const dv = l37.filter((r) => r.mode === 'dive').length;
   ok(`${tag} G9 dives 15-35% of runs on legs 3-7`, l37.length > 0 && dv >= 0.15 * l37.length && dv <= 0.35 * l37.length, `${dv} of ${l37.length}`);
-  // G11
-  const l48 = log.filter((r) => r.leg >= 4);
+  // G11 — "WITH COUNTERS BOUGHT": a run counts once the save carried the counter into it (the store levels after
+  // the previous visit): flask track >= 2 for the drain, enzyme track >= 1 for the infected endings.
+  const lvBefore = (i) => (i > 0 ? log[i - 1].store.lv : {});
+  const l48 = log.filter((r, i) => r.leg >= 4 && (lvBefore(i).amputateCharges | 0) >= 1);
   const inf = l48.filter((r) => r.cause === 'infected').length;
-  const drains = log.map((r) => +r.drained || 0);
-  ok(`${tag} G11 infected endings <= 20% on legs 4-8, median worm drain <= 3 a run`, l48.length > 0 && inf <= 0.2 * l48.length && med(drains) <= 3,
-     `${inf} of ${l48.length} infected; drain median ${med(drains)}, max ${Math.max(...drains)}`);
+  const drains = log.filter((r, i) => (lvBefore(i).excreteCharges | 0) >= 2).map((r) => +r.drained || 0);
+  const allDr = log.map((r) => +r.drained || 0);
+  ok(`${tag} G11 with counters bought: infected endings <= 20% on legs 4-8, median worm drain <= 3 a run`, l48.length > 0 && inf <= 0.2 * l48.length && drains.length > 0 && med(drains) <= 3,
+     `${inf} of ${l48.length} infected; drain median ${med(drains)} over ${drains.length} runs with 2+ flasks (all runs: median ${med(allDr)}, max ${Math.max(...allDr)})`);
 }
 console.log(`\n==== ${np} passed, ${nf} failed ====`);
 process.exit(nf ? 1 : 0);

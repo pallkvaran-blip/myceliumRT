@@ -86,6 +86,29 @@ async function followRun(page, route, paceMs) {
   return { digs, seconds: Math.round((Date.now() - t0) / 1000), start, mode, kit, reached };
 }
 
+// THE SKILLED PLAYER (M14, `--policy nav`, the default): legprobe's NAVIGATOR on the run's own tank — it knows the
+// leg (every chunk to the island is generated first) and RE-PLANS an A* over the fine mask from every clean strand
+// at the run's prices after every dig, aiming 0.6 of a dig's reach along it, rotating its look-ahead and source on
+// refusals. The fixed-route follower (`--policy route`, the M8 bot) dug a route planned once at run start and stalled
+// at ~80% of leg 7 for 12 runs on the full kit where the navigator lands it inside the 70% rule. The worms and the
+// mould stay; a flask goes whenever a worm is attached, a dose on any rot.
+async function navRun(page, paceMs) {
+  const t0 = Date.now();
+  const start = await page.evaluate(() => window.__qa.snapshot());
+  await page.evaluate(() => { const g = window.__game, s = g.state, L = g.mine.leg(), cw = s.config.mine.chunkCols, cs = s.substrate.cellSize;
+    g.mine.ensureChunks(0, ((Math.floor(L.layout.taproot.col / cw) + 2) * cw - 1) * cs); });
+  await page.waitForFunction(() => { const sub = window.__game.state.substrate;
+    return !!sub._fineSolid && (sub._solidFrom | 0) === sub.levelSprites.length && sub._mineDirtyC0 == null; }, { timeout: 30000, polling: 100 }).catch(() => {});
+  const f = await LP.navigate(page, { realTank: true, threats: true, paceMs, maxDigs: 400 });
+  for (let k = 0; k < 20; k++) { if (await page.evaluate(() => !!window.__game.state.runOver)) break; await sleep(300); }
+  if (!(await page.evaluate(() => !!window.__game.state.runOver))) {
+    await page.evaluate(() => { const b = document.getElementById('set-forcefruit'); if (b) b.click(); });
+    await sleep(800);
+  }
+  return { digs: f.digs, seconds: Math.round((Date.now() - t0) / 1000), start, mode: 'nav', kit: { flask: f.flasks, cut: f.cuts, cutMsgs: [], rotSeen: f.breachFrames },
+           reached: null };
+}
+
 // THE SCOUT (M10 acceptance 6a): a player who READS THE GROUND (lib.cjs's flood over the generated fine
 // mask — the rock is on screen) but does NOT know where the island's root is. Without a compass it knows
 // what the game tells it — the island is east and its root lies under the green hill (`taproot().x0..x1`,
@@ -184,6 +207,8 @@ function islandCompassFlag() { return argv.includes('--island-compass'); }
 // the cheapest buyer's reach and change the no-compass baseline).
 const islandCompass = argv.includes('--island-compass');
 const scout = argv.includes('--scout');
+// `--policy nav|route` (M14): the sensible player's digging — the re-planning navigator (default) or the M8 fixed route.
+const policy = arg('--policy', 'nav');
 // M14 DIVES (plan F G9, the model's rule): after 2 failed attempts on a leg, once per leg, a run whose next
 // POWER rung (grow, heat, water — in that order, the first revealed and not maxed) waits on a deep material
 // this leg's route has not been paying (0 of it earned on the last run here) is spent DIVING for it: lib.cjs's
@@ -285,8 +310,8 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     else {
       // The route is planned on a snapshot of the leg's own world (every chunk to the island generated,
       // which is order-independent), then dug in THIS run with its real tank.
-      const m = await LP.measure(page, { route: true, avoid });
-      res = await followRun(page, m.route, paceMs);
+      if (policy === 'nav') res = await navRun(page, paceMs);
+      else { const m = await LP.measure(page, { route: true, avoid }); res = await followRun(page, m.route, paceMs); }
     }
     // The ROOTED celebration plays ~5 s before the end screen.
     await page.waitForSelector('#ssMineDone', { timeout: 20000 }).catch(() => {});

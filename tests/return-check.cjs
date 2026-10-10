@@ -379,14 +379,14 @@ const endRun = async (page) => {
                    ids: M.journeyRules, c0: L.layout.islandC0, col: L.layout.taproot.col, chunk: Math.floor(L.layout.taproot.col / M.chunkCols), seed: L.seed }; });
       }
       ok('III Thirsty: start water 60 - 12 = 48', rules[3].sw === 48 && rules[1].sw === 60, JSON.stringify([rules[1].sw, rules[3].sw]));
-      ok('IV Hungry: worms x2 (leg 2: 0/2/2/4 against 0/1/1/2) at 0.3/s', JSON.stringify(rules[4].tb.map((x) => x[0])) === JSON.stringify(rules[1].tb.map((x) => x[0] * 2)) && rules[4].wps === 0.3 && rules[1].wps === 0.2,
+      ok('IV Hungry: worms x2 (leg 2: 0/2/2/4 against 0/1/1/2) at 0.3/s', JSON.stringify(rules[4].tb.map((x) => x[0])) === JSON.stringify(rules[1].tb.map((x) => x[0] * 2)) && rules[4].wps === 0.3 && rules[1].wps === 0.15,   // M14: the mine's worm drain 0.2 -> 0.15/s (Hungry stays 0.3)
          JSON.stringify({ J1: rules[1].tb, J4: rules[4].tb, wps: rules[4].wps }));
       ok('V Rotten: mould in every band from 42 m (leg 2\'s band 1 goes 0 -> 1 against Journey I), a 15 s rot clock',
          rules[1].tb[1][1] === 0 && rules[5].tb[1][1] >= 1 && rules[5].tb.slice(1).every((x) => x[1] >= 1) && rules[5].inf === 15000,
          JSON.stringify({ J1: rules[1].tb, J5: rules[5].tb, inf: rules[5].inf }));
       ok('...and leg 1 stays calm under V (no creature in any band)', rules['5c'].tb.every((x) => x[0] === 0 && x[1] === 0), JSON.stringify(rules['5c'].tb));
       // THIRSTY IN THE STORE (M13 verify): a Journey III save with Water II — the note and the Water tile quote
-      // what the next descent actually starts with (60 + 30 - 12 = 78 since M14's +15 step; was 60 + 24 - 12 = 72), not 90.
+      // what the next descent actually starts with (60 + 40 - 12 = 88 since M14's +20 step; was 60 + 24 - 12 = 72), not 100.
       await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('mycelium.progress.v2'));
         s.mineJourney = { journey: 3, leg: 2, done: [1, 2], past: s.mineJourney.past || {}, legs: { 1: { runs: 1, landed: true } } }; s.mineUpgrades = { water: 2 };
         localStorage.setItem('mycelium.progress.v2', JSON.stringify(s)); window.__game.mine.playJourney(); });
@@ -398,7 +398,7 @@ const endRun = async (page) => {
         const tile = t && t.closest('.ss-upg'); const now = tile && tile.querySelector('.ss-upg-now');
         return { note: n && n.textContent, now: now && now.textContent }; });
       ok("Journey III's Thirsty in the store: the note and the Water tile quote the descent's own start water",
-         sw3 === 78 && new RegExp('(^|· )' + sw3 + ' water').test(st3.note || '') && String(st3.now || '').indexOf(String(sw3)) >= 0, JSON.stringify({ run: sw3, st3 }));
+         sw3 === 88 && new RegExp('(^|· )' + sw3 + ' water').test(st3.note || '') && String(st3.now || '').indexOf(String(sw3)) >= 0, JSON.stringify({ run: sw3, st3 }));
       ok('VI Stingy: a pocket gives +7', rules[6].rw === 7, JSON.stringify(rules[6].rw));
       // M14: leg 8's E 15 -> 13, so the Far island is chunk 1 + 13 + 2 = 16 (was 18).
       ok('VII Far: leg 8\'s island two chunks east (chunk 16, at most 19), on the J4 table\'s seed', rules[7].chunk === 16 && rules[7].ids.length === 6,

@@ -671,7 +671,7 @@ async function navigate(page, o = {}) {
         if (((s.mineItems || {}).amputate | 0) > 0) { const r = g.mine.useAmputate(rot.x, rot.y); if (r && r.ok) cuts++; }
       }
     };
-    s.config.growth.maxNodes = 1e6;
+    if (!o.realTank) s.config.growth.maxNodes = 1e6;
     const lay = g.mine.leg().layout, cw = s.config.mine.chunkCols;
     const fsz = sub._fineSize, W = sub._fineCols, Hh = sub._fineRows, solid = sub._fineSolid, K = Math.round(cs / fsz);
     const tx = (lay.taproot.col + 0.5) * cs, ty = sub.surfaceY + (lay.taproot.row + 0.5) * cs;
@@ -762,7 +762,8 @@ async function navigate(page, o = {}) {
       }
       await kit();
       if (s.runOver) break;
-      net.water = 9999;
+      // `o.realTank` (M14, the journey bot's skilled player): dig on the run's own tank, so it ends dry.
+      if (!o.realTank) net.water = 9999;
       const r = g.mine.growFrom(src.x, src.y, P.pts[t][0], P.pts[t][1]);
       if (r && r.ok) { digs++; spent += (r.cost | 0); fails = 0; if (o.threats) await new Promise((res) => setTimeout(res, o.paceMs || 900)); }
       else { refused++; fails++; }
