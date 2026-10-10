@@ -229,8 +229,11 @@
     #hud-digcost[hidden] { display: none; }
     /* M12 LEGIBILITY. The water chip turns AMBER with 'N left' at three digs or fewer; the price chip
        PULSES once when the price changes; a kit button BREATHES while its threat is on the colony.
-       'Reduced motion' (body.rmotion, seeded from the OS setting) stops all three animations, and so
-       does the OS setting itself (the @media guard), whatever the game's toggle says.
+       'Reduced motion' (body.rmotion, seeded from the OS setting) stops the two animations — and it is the
+       ONLY authority (M12 minors): they used to sit inside an @media (prefers-reduced-motion:
+       no-preference) guard too, so with the OS on reduce a player who switched the game's toggle Off got
+       the shake and the count-up back but never the pulses, while the menu said motion was on. The OS
+       setting still decides by default, through the class.
        THE LOW STATE COSTS ROW 1 NO WIDTH (M12 verify). Row 1 is sized for a 296 px box and ran to
        exactly its width at 360 px with a 2-digit price and a 3-digit depth; the first low chip added
        12 px of padding and a 'N left' span INSIDE the chip, overflowed it by 6 px (40 at 320) and put
@@ -245,10 +248,8 @@
     #hud-waterleft[hidden] { display: none; }
     @keyframes digpulse { 0% { transform: scale(1); } 30% { transform: scale(1.28); filter: brightness(1.5); } 100% { transform: scale(1); } }
     @keyframes kitthreat { 0%, 100% { box-shadow: 0 0 0 0 rgba(240,176,74,0); } 50% { box-shadow: 0 0 0 4px rgba(240,176,74,0.55); border-color: #f0b04a; } }
-    @media (prefers-reduced-motion: no-preference) {
-      #hud-digcost.pulse { animation: digpulse 0.6s ease-out 1; }
-      .kitbtn.threat:not(:disabled) { animation: kitthreat 1.1s ease-in-out infinite; }
-    }
+    #hud-digcost.pulse { animation: digpulse 0.6s ease-out 1; }
+    .kitbtn.threat:not(:disabled) { animation: kitthreat 1.1s ease-in-out infinite; }
     body.rmotion #hud-digcost.pulse, body.rmotion .kitbtn.threat { animation: none; }
     /* THE BEAT GOES UNDER AN OPEN SETTINGS MENU (M12 verify): the menu grew two rows (Vibration,
        Reduced motion) and now reaches the band the leg banner prints in, so at a descent's start —
@@ -28154,6 +28155,9 @@ let _voiceHigh = 0;
 let _grp = null;     // the group the cue being built registers its nodes into
 SFX_COUNTS.dropped = 0;
 SFX_COUNTS.stolen = 0;
+SFX_COUNTS.late = 0;    // a threat onset the cap refused, heard on a retry (M12 minors)
+SFX_COUNTS.lost = 0;    // ...or not heard within its 500 ms
+function noteCueLost() { SFX_COUNTS.lost++; }
 function _voiceLive(a) {
   const now = a.currentTime;
   for (let i = LEDGER.length - 1; i >= 0; i--) if (LEDGER[i].end <= now) LEDGER.splice(i, 1);
@@ -28199,13 +28203,17 @@ function _voiceTake(a, n, durS, pri) {
 let _cueT = 0;
 // The start time of the cue just admitted (a cue that stole starts after what it stole has faded).
 function _ct(a, x) { return Math.max(a.currentTime + (x || 0.005), _cueT); }
-function _cue(kind, durS, n) {
+// `retry` (M12 minors): a threat onset re-asked by the frame loop after the cap refused it. Only its FIRST
+// refusal counts in `dropped` — a 500 ms retry asks every frame, and counting each one read 23 drops for
+// one click that was heard. Whether a retried cue was heard late or lost is `late` / `lost`.
+function _cue(kind, durS, n, retry) {
   _grp = null;
   if (muted || !AC) return null;
   const a = ctx();
   if (a.state === 'suspended') { try { a.resume(); } catch (_) {} }
   const grp = _voiceTake(a, n || 1, durS + 0.06, CUE_PRI[kind] || 3);
-  if (!grp) { SFX_COUNTS.dropped++; SFX_LAST.dropped = { kind, live: LEDGER.length }; return null; }
+  if (!grp) { if (!retry) SFX_COUNTS.dropped++; SFX_LAST.dropped = { kind, live: LEDGER.length }; return null; }
+  if (retry) SFX_COUNTS.late = (SFX_COUNTS.late | 0) + 1;
   _grp = grp;
   SFX_COUNTS[kind] = (SFX_COUNTS[kind] | 0) + 1;
   return a;
@@ -28281,8 +28289,8 @@ function playRefuseThud() {
   return true;
 }
 // A WORM ATTACHES: two 1.2 kHz clicks of 25 ms.
-function playWormClick() {
-  const a = _cue('worm', 0.12, 2); if (!a) return false;
+function playWormClick(retry) {
+  const a = _cue('worm', 0.12, 2, retry); if (!a) return false;
   const t = _ct(a, 0.005);
   _tone(a, t, 1200, 1100, 0.025, 0.05, 'square');
   _tone(a, t + 0.07, 1200, 1100, 0.025, 0.05, 'square');
@@ -28309,8 +28317,8 @@ function playAcidFizz() {
   return true;
 }
 // ROT: a dissonant sting at contact (a minor second, triangle).
-function playRotSting() {
-  const a = _cue('rot', 0.45, 2); if (!a) return false;
+function playRotSting(retry) {
+  const a = _cue('rot', 0.45, 2, retry); if (!a) return false;
   const t = _ct(a, 0.005);
   _tone(a, t, 466, 440, 0.45, 0.06, 'triangle');
   _tone(a, t + 0.01, 494, 466, 0.45, 0.05, 'triangle');
@@ -28400,6 +28408,17 @@ const JUICE_KEY = 'mycelium.settings.v1';
 let _juice = null;
 // Whether this browser can vibrate at all (feature-detected, M12 verify).
 function vibCapable() { try { return typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function'; } catch (_) { return false; } }
+// ...and whether to OFFER it (M12 minors): the API AND a touch device. Desktop Chrome, Edge and Firefox
+// expose navigator.vibrate as a no-op, so on a mouse-and-keyboard machine the item was a toggle that
+// did nothing when switched On. A coarse pointer or any touch point counts (a tablet, a touchscreen
+// laptop — `maxTouchPoints` covers the ones whose primary pointer is fine).
+function vibOffered() {
+  if (!vibCapable()) return false;
+  let coarse = false, touch = 0;
+  try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (_) {}
+  try { touch = +navigator.maxTouchPoints || 0; } catch (_) {}
+  return coarse || touch > 0;
+}
 function juicePrefs() {
   if (_juice) return _juice;
   let s = {};
@@ -28407,7 +28426,7 @@ function juicePrefs() {
   let coarse = false, osReduce = false;
   try { coarse = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches); } catch (_) {}
   try { osReduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (_) {}
-  const canVib = vibCapable();
+  const canVib = vibOffered();
   _juice = { vibration: canVib && (typeof s.vibration === 'boolean' ? s.vibration : coarse),
              reducedMotion: typeof s.reducedMotion === 'boolean' ? s.reducedMotion : osReduce };
   return _juice;
@@ -28415,6 +28434,7 @@ function juicePrefs() {
 function setJuicePref(k, v) {
   const p = juicePrefs();
   if (!(k in p)) return p;
+  if (k === 'vibration' && v && !vibOffered()) return p;   // never On where it cannot be offered
   p[k] = !!v;
   try {
     const s = JSON.parse(localStorage.getItem(JUICE_KEY) || '{}') || {};
@@ -28450,7 +28470,7 @@ try {
   return { isSfxMuted, toggleSfx, initSfx, playGrowBurst, playCardSelect, playCardDeselect, setClickGain, playSeamPing, playPocketGlug, playReachTick, playFinaleNote,
            playLineHiss, playBandGong, playRefuseThud, playWormClick, playFlaskSplat, playEnzymeSnip, playAcidFizz,
            playRotSting, playHeartbeat, playReliefChime, playRecordArp, playSparkle, playEndChord, playCountTick, playCountDing, playBuyChime,
-           juicePrefs, setJuicePref, vibrate, vibCapable };
+           juicePrefs, setJuicePref, vibrate, vibCapable, vibOffered, noteCueLost };
 })();
 
 // ===================== src/render/network.js =====================
@@ -29672,7 +29692,7 @@ const __m_render_ui = (function () {
   const { CARD_BY_NAME } = __m_cards_data;
   const { cardDeckAdditions, actionUsable, cardBlockedReason } = __m_engine_cards;
   const { toggleMusic, isMusicMuted } = __m_render_music;
-  const { toggleSfx, isSfxMuted, playCardSelect, playCardDeselect, juicePrefs, setJuicePref, vibCapable } = __m_render_sfx;
+  const { toggleSfx, isSfxMuted, playCardSelect, playCardDeselect, juicePrefs, setJuicePref, vibOffered } = __m_render_sfx;
   const { mineCostHere, mineStuckState, mineMatTag, mineReachRaw, mineBankable } = __m_engine_mine;
 // =============================================================================
 // UI — HUD, action buttons, event log, dev tools, "what we're testing" panel.
@@ -29948,7 +29968,7 @@ class UI {
       // THE MINE'S TWO JUICE SETTINGS (M12): haptics on a seam, a pocket, a price line, a worm, rot and a
       // landfall; and 'Reduced motion', which stops the camera shake, the count-up and the HUD pulses.
       // Vibration only where the browser CAN vibrate (M12 verify: iOS Safari has no navigator.vibrate).
-      +   (mineOn ? (vibCapable() ? `<button class="setitem" id="set-vib" type="button" role="menuitemcheckbox">Vibration<span class="settoggle" id="set-vib-state"></span></button>` : '')
+      +   (mineOn ? (vibOffered() ? `<button class="setitem" id="set-vib" type="button" role="menuitemcheckbox">Vibration<span class="settoggle" id="set-vib-state"></span></button>` : '')
                   + `<button class="setitem" id="set-rmotion" type="button" role="menuitemcheckbox">Reduced motion<span class="settoggle" id="set-rmotion-state"></span></button>` : '')
       // IN THE MINE THE TWO EXITS SAY WHAT THEY BANK, and the tutorial is not offered (M1). 'Replay
       // tutorial' restarted the run behind the player's back; 'Save & exit' dropped to the title and
@@ -36277,7 +36297,7 @@ const __m_main = (function () {
   const { initSfx, playSeamPing, playPocketGlug, playReachTick, playFinaleNote,
           playLineHiss, playBandGong, playRefuseThud, playWormClick, playFlaskSplat, playEnzymeSnip, playAcidFizz,
           playRotSting, playHeartbeat, playReliefChime, playRecordArp, playSparkle, playEndChord,
-          juicePrefs, setJuicePref, vibrate } = __m_render_sfx;
+          juicePrefs, setJuicePref, vibrate, noteCueLost } = __m_render_sfx;
   const { showLoading } = __m_render_loading;
   const { showHighScores, checkHighScore, recordHighScore } = __m_render_highscores;
   const { loadPlayerName, savePlayerName } = __m_highscores;
@@ -43196,18 +43216,23 @@ function mineLineFeel(depth) {
 //   a new attach (`mineAttachEvents`, counted in the tick) -> two clicks + [30, 40, 30]; a kit count falling -> splat (+ shake) / snip /
 //   fizz; `mineRefusals` rising -> a thud (at most one per 120 ms); the rot clock appearing -> a sting
 //   + 80 ms, under 10 s a heartbeat (1 Hz, 2 Hz under 5 s), and gone while the run lives -> a chime.
-// Play a pending cue; returns the pending stamp to keep (null once it sounded or 500 ms have passed).
+// Play a pending cue; returns the pending record to keep (null once it sounded or 500 ms have passed).
+// `due` is { at, tries }: the first try is an ordinary cue, later ones are retries (counted once in
+// `dropped` however many frames it takes; `late` if heard, `lost` if the 500 ms run out — M12 minors).
 function juiceRetry(due, time, play) {
   if (due == null) return null;
-  let ok = false; try { ok = play() !== false; } catch (_) { ok = true; }
-  return ok || time - due > 500 ? null : due;
+  let ok = false; try { ok = play(due.tries > 0) !== false; } catch (_) { ok = true; }
+  due.tries++;
+  if (ok) return null;
+  if (time - due.at > 500) { try { noteCueLost(); } catch (_) {} return null; }
+  return due;
 }
 function mineJuiceTick(time) {
   const j = state._mineJuice || (state._mineJuice = {
     att: state.mineAttachEvents | 0, items: Object.assign({}, state.mineItems || {}),
     ref: state.mineRefusals | 0, refAt: -1e9, inf: !!state.mineInfect, beatAt: -1e9 });
   const att = state.mineAttachEvents | 0;   // new attaches since the last frame (a monotonic count)
-  if (att > j.att) { j.wormDue = time; vibrate('worm', [30, 40, 30]); }
+  if (att > j.att) { j.wormDue = { at: time, tries: 0 }; vibrate('worm', [30, 40, 30]); }
   j.att = att;
   // A THREAT ONSET RETRIES FOR 500 ms WHEN THE VOICE CAP DROPS IT (M12 verify 2). Payouts may steal threats
   // and not the reverse, so a worm attaching on the strand that just paid two seams (2 + 2 sources, 0.38 s)
@@ -43225,7 +43250,7 @@ function mineJuiceTick(time) {
   if (ref > j.ref && time - j.refAt >= 120) { j.refAt = time; try { playRefuseThud(); } catch (_) {} }
   j.ref = ref;
   const I = state.mineInfect;
-  if (I && !j.inf) { j.rotDue = time; vibrate('rot', 80); }
+  if (I && !j.inf) { j.rotDue = { at: time, tries: 0 }; vibrate('rot', 80); }
   j.rotDue = I ? juiceRetry(j.rotDue, time, playRotSting) : null;
   if (!I && j.inf && !state.runOver) { try { playReliefChime(); } catch (_) {} }
   j.inf = !!I;

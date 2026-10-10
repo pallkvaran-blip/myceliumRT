@@ -380,23 +380,41 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
         const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 }, ...(os ? { reducedMotion: os } : {}) });
         const b = await E.bootMine(4242, 390, 844, { ctx, before: async (page) => { await SAVE(page);
           if (stored != null) await page.addInitScript((v) => { try { localStorage.setItem('mycelium.settings.v1', JSON.stringify({ reducedMotion: v })); } catch (_) {} }, stored); } });
-        rm.push(await b.page.evaluate(() => ({ rm: window.__game.mine.juicePrefs().reducedMotion, body: document.body.classList.contains('rmotion') })));
+        rm.push(await b.page.evaluate(() => {
+          // the HUD pulses' computed animation (M12 minors): the price chip pulsing, a kit button with a threat
+          const pc = document.getElementById('hud-digcost'), kb = document.getElementById('kit-excrete');
+          pc.classList.add('pulse'); kb.disabled = false; kb.classList.add('threat');
+          const anim = { price: getComputedStyle(pc).animationName, kit: getComputedStyle(kb).animationName };
+          pc.classList.remove('pulse'); kb.classList.remove('threat');
+          return { rm: window.__game.mine.juicePrefs().reducedMotion, body: document.body.classList.contains('rmotion'), anim };
+        }));
         await b.ctx.close();
       }
       ok('Reduced motion: off by default, on when the OS asks for reduce, and a stored Off wins over the OS', rm[0].rm === false && rm[1].rm === true && rm[2].rm === false, JSON.stringify(rm));
-      // (c) no Vibration item where the browser cannot vibrate
+      const pulsing = (x) => x.anim.price === 'digpulse' && x.anim.kit === 'kitthreat';
+      ok("...and the game's setting alone decides the HUD pulses: on by default, off under an OS reduce, ON again when the player switches it Off there",
+         pulsing(rm[0]) && rm[1].anim.price === 'none' && rm[1].anim.kit === 'none' && pulsing(rm[2]), rm.map((x) => JSON.stringify(x.anim)).join(' '));
+      // (c) no Vibration item where the browser cannot vibrate — no API, or no touch at all (M12 minors:
+      // desktop browsers expose navigator.vibrate as a no-op, so a mouse-and-keyboard machine gets none,
+      // even with a stored On)
       const vb = [];
-      for (const strip of [false, true]) {
-        const b = await E.bootMine(4242, 390, 844, { before: async (page) => { await SAVE(page);
-          if (strip) await page.addInitScript(() => { try { delete Navigator.prototype.vibrate; } catch (_) {} }); } });
+      for (const [touch, strip, storedOn] of [[true, false, false], [true, true, false], [false, false, true]]) {
+        const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: touch });
+        const b = await E.bootMine(4242, 390, 844, { ctx, before: async (page) => { await SAVE(page); await VIB_SPY(page);
+          if (strip) await page.addInitScript(() => { try { delete Navigator.prototype.vibrate; } catch (_) {} });
+          if (storedOn) await page.addInitScript(() => { try { localStorage.setItem('mycelium.settings.v1', JSON.stringify({ vibration: true })); } catch (_) {} }); } });
         await b.page.click('#gearbtn').catch(() => {});
         await sleep(300);
-        vb.push(await b.page.evaluate(() => ({ api: typeof navigator.vibrate === 'function', item: !!document.getElementById('set-vib'), rm: !!document.getElementById('set-rmotion'),
-                                             pref: window.__game.mine.juicePrefs().vibration })));
+        vb.push(await b.page.evaluate(() => {
+          const g = window.__game, set = g.mine.setJuice('vibration', true).vibration;
+          return { touch: navigator.maxTouchPoints, api: typeof navigator.vibrate === 'function', item: !!document.getElementById('set-vib'),
+                   rm: !!document.getElementById('set-rmotion'), pref: g.mine.juicePrefs().vibration, set }; }));
         await b.ctx.close();
       }
-      ok('no Vibration item (and vibration off) without navigator.vibrate; the item is there with it', vb[0].api && vb[0].item && !vb[1].api && !vb[1].item && vb[1].pref === false && vb[1].rm,
-         JSON.stringify(vb));
+      ok('the Vibration item is there on a touch device with navigator.vibrate', vb[0].api && vb[0].touch > 0 && vb[0].item && vb[0].set === true, JSON.stringify(vb[0]));
+      ok('...and not without the API (vibration off)', !vb[1].api && !vb[1].item && vb[1].pref === false && vb[1].set === false && vb[1].rm, JSON.stringify(vb[1]));
+      ok('...nor on a mouse-and-keyboard desktop whose browser has the API: no item, off even with a stored On, and it cannot be switched on',
+         vb[2].api && vb[2].touch === 0 && !vb[2].item && vb[2].set === false && vb[2].rm, JSON.stringify(vb[2]));
       // (d) a new run's first frame carries no price pulse; (e) the beat goes under the open menu
       {
         const b = await E.bootMine(4242, 390, 844, { before: SAVE });
@@ -463,7 +481,7 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
           if (window.__sfx.muted()) S.toggleSfx();
           for (let i = 0; i < 60 && window.__sfx.ctxState() !== 'running'; i++) await new Promise((x) => setTimeout(x, 50));
           await new Promise((x) => setTimeout(x, 800));       // anything still sounding from the block above
-          const w0 = window.__sfx.counts.worm | 0, d0 = window.__sfx.counts.dropped | 0;
+          const w0 = window.__sfx.counts.worm | 0, d0 = window.__sfx.counts.dropped | 0, l0 = window.__sfx.counts.late | 0;
           S.playSeamPing('phosphorus', 0); S.playSeamPing('phosphorus', 2); S.playSeamPing('phosphorus', 4);
           const held = window.__sfx.voices();
           const direct = S.playWormClick();                    // the control: dropped by the cap
@@ -471,15 +489,19 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
           s.mineAttachEvents = (s.mineAttachEvents | 0) + 1;   // what stepNematodes counts on an attach
           const heard = await window.__wait(() => (window.__sfx.counts.worm | 0) > w0, 1500);
           return { held, direct, heard: !!heard, lateMs: Math.round(performance.now() - t0), worm: (window.__sfx.counts.worm | 0) - w0,
-                   dropped: (window.__sfx.counts.dropped | 0) - d0 };
+                   dropped: (window.__sfx.counts.dropped | 0) - d0, late: (window.__sfx.counts.late | 0) - l0 };
         });
         ok('an attach while three seam pings hold all six slots is still heard, after them (control: a direct click then is dropped)',
            wf.held === 6 && wf.direct === false && wf.heard && wf.worm === 1 && wf.lateMs <= 700, JSON.stringify(wf));
+        ok('...and its retries count ONE drop, not one a frame (the control click is the other), and one late cue',
+           wf.dropped === 2 && wf.late === 1, `dropped ${wf.dropped}, late ${wf.late}`);
         await b.ctx.close();
       }
       // (f) a landfall's chord and vibration land on the frame the run ends, seconds before the screen
       {
-        const b = await E.bootMine(4242, 390, 844, { before: async (page) => { await SAVE(page); await VIB_SPY(page); } });
+        // a touch device: Vibration is only offered (and only switches on) there (M12 minors)
+        const fctx = await E.browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+        const b = await E.bootMine(4242, 390, 844, { ctx: fctx, before: async (page) => { await SAVE(page); await VIB_SPY(page); } });
         const r = await b.page.evaluate(async () => {
           const g = window.__game;
           if (window.__sfx.muted()) g.sfx().toggleSfx();
@@ -526,7 +548,10 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
     // =========================================================================================
     if (want('vib')) {
       console.log('--- acceptance 2: vibration on a seam and a pocket, and never when off');
-      const b = await E.bootMine(4242, 390, 844, { before: async (page) => { await SAVE(page); await VIB_SPY(page); } });
+      // a touch device (Chromium's touch emulation also makes the primary pointer coarse): Vibration is
+      // offered and defaults ON. A mouse-and-keyboard desktop is not offered it at all (verify block c).
+      const vctx = await E.browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true });
+      const b = await E.bootMine(4242, 390, 844, { ctx: vctx, before: async (page) => { await SAVE(page); await VIB_SPY(page); } });
       await quiet(b.page); await helpers(b.page);
       const r = await b.page.evaluate(async () => {
         const g = window.__game, out = {};
@@ -534,7 +559,8 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
         g.state.active.water = 5000;
         await window.__navDig({ targetM: 24, maxIters: 80 });
         await window.__wait(() => !g.mine.revealing(), 4000);
-        out.def = g.mine.juicePrefs().vibration;          // a desktop (fine pointer) defaults OFF
+        out.def = g.mine.juicePrefs().vibration;          // a touch device (coarse pointer) defaults ON
+        out.coarse = matchMedia('(pointer: coarse)').matches;
         g.mine.setJuice('vibration', true);
         window.__vibs.length = 0;
         out.s1 = await window.__seam(); out.afterSeam = window.__vibs.slice();
@@ -549,7 +575,7 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
       ok('with Vibration on, a seam calls navigator.vibrate(12)', r.s1.ok && r.afterSeam.length === 1 && r.afterSeam[0] === 12, JSON.stringify(r.afterSeam));
       ok('...and a pocket calls navigator.vibrate(20)', r.p1.ok && r.afterPocket.length === 2 && r.afterPocket[1] === 20, JSON.stringify(r.afterPocket));
       ok('with it off, a seam and a pocket never call it (and still pay)', r.s2.ok && r.p2.ok && r.off.length === 0, `calls ${JSON.stringify(r.off)}, paid ${r.s2.ok}/${r.p2.ok}`);
-      ok('the setting is persisted in mycelium.settings.v1, and a fine pointer defaults to off', r.stored === false && r.def === false, `stored ${r.stored}, default ${r.def}`);
+      ok('the setting is persisted in mycelium.settings.v1, and a touch device (coarse pointer) defaults to on', r.stored === false && r.def === true && r.coarse, `stored ${r.stored}, default ${r.def}, coarse ${r.coarse}`);
       // The menu toggles it (and Reduced motion) — the real buttons.
       await b.page.click('#gearbtn');
       await sleep(150);
