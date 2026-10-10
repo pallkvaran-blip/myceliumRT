@@ -59,7 +59,9 @@ const PILLAR_OK = (w) => w.pillarSeam != null && w.pillarSeam <= w.pillarMid90 &
 // more than all of it (legs 3-8), and legs 7-8 spend >= 40% of the cheapest route's east metres below 84 m.
 const KIT_OK = (leg, kit, bare, m) => !!(kit && kit.landed && kit.frac <= 0.70
   && (leg < 3 || (bare && bare.frac > 1.0)) && (leg < 7 || (m && m.east84 >= 0.4)));
-const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0
+// M14: leg 1 is the tutorial leg — its path-ratio floor is 1.0 (a straighter shallow road, landable by a new player).
+const RMIN = (leg) => (leg === 1 ? 1.0 : 1.3);
+const PASS = (m, leg) => m.reach && m.reachLat && m.ratio >= RMIN(leg) && m.ratio <= 2.0 && m.ratioFine >= RMIN(leg) && m.ratioFine <= 2.0
   && m.crustMaxCol <= m.homeCol + 30 && m.lateral <= 36 && m.shallowestRow >= 42
   // THE SEAM SLIT: <= 42 rows over the leg's window on legs 1-3. From leg 4 the window holds 10-16 seams
   // (legs 1-3: 5-8), and the longest of more samples is longer by sample size alone — measured, the

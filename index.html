@@ -4116,7 +4116,12 @@ const CONFIG = {
       taprootR: 2.5,
       landfallCells: 1.5,
       legs: [
-        { leg: 1, name: 'First Light', seed: 1905387, E: 4, eastM: 96, depthM: 24,
+        // M14: E 4 -> 3 (96 -> 72 m east) and the taproot 24 -> 18 m, same seed (the tutorial leg must be
+        // landable by a NEW player: tests/bots/leg1pick.cjs screened 40 candidates at E 3 / 18 m with the
+        // path-ratio floor relaxed to 1.0 — a straighter shallow road is the point of leg 1 — and 1905387 is
+        // the only one both naive policies land: down-east on 52 water, east-first on 288 cumulative; at E 4 /
+        // 24 m neither landed in 400). Its path ratio is now 1.017 (PASS needs 1.3 on legs 2-8 only).
+        { leg: 1, name: 'First Light', seed: 1905387, E: 3, eastM: 72, depthM: 18,
           sealByBand: [0.12, 0.12, 0.12], rule: 'calm', bonus: 20, ruleLine: 'No threats — dig down, then east' },
         // Leg 2 pulled in one chunk (M8 verify 3: E 6 -> 5, 144 -> 120 m east, same seed, still PASS + WPASS):
         // the sensible careers' leg-2 tail was 9 runs against 3b's 7; nine careers after: 3-6, median 4.

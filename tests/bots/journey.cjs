@@ -197,7 +197,7 @@ const avoid = +arg('--avoid', 4);
 // each attempt after, floor 1.4, and 0.08 less per island-compass rung (floor 1.3). Emulated by taxing every
 // accepted dig (oh - 1) x its price in WATER (whole units, the fraction carried) — the water a human spends on
 // the digs that go nowhere — and counting (oh - 1) WASTED digs for the human-time clock. `--oh 1` is the pure bot.
-const ohArg = arg('--oh', 'plan');
+const ohArg = arg('--oh', (argv.includes('--naive') || argv.includes('--scout')) ? '1' : 'plan');   // the naive and scout players ARE the human model
 const ohFor = (att, ic) => ohArg === 'plan' ? Math.max(1.3, Math.max(1.4, 2.0 - 0.15 * att) - 0.08 * Math.min(2, ic | 0)) : +ohArg;
 // `--from <log.json>:<run>` (M14): start from the SAVE a career had after that run (each row carries it), so a
 // late leg can be measured without replaying the journey before it.

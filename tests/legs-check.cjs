@@ -130,9 +130,9 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
         const row = await b.page.evaluate((l) => window.__game.mine.legRow(l), leg);
         const t = m.tapRec || {};
         const inCell = Math.abs((t.col | 0) - (m.homeCol + row.eastM)) <= 1 && Math.abs((t.row | 0) - row.depthM) <= 1;
-        const good = m.reach && m.reachLat && inCell && m.ratio >= 1.3 && m.ratio <= 2.0;
+        const good = m.reach && m.reachLat && inCell && m.ratio >= (leg === 1 ? 1.0 : 1.3) && m.ratio <= 2.0;   // M14: leg 1 (the tutorial leg) 1.0
         res.push({ leg, seed: m.seed, good, reach: m.reach, lat: m.reachLat, tap: [t.col, t.row], want: [m.homeCol + row.eastM, row.depthM], ratio: m.ratio, e42: m.east42, e84: m.east84, water: m.water });
-        ok(`leg ${leg} (seed ${m.seed}): the taproot is flood-reachable, within 1 cell of the table, path ratio ${m.ratio} in 1.3-2.0`, good,
+        ok(`leg ${leg} (seed ${m.seed}): the taproot is flood-reachable, within 1 cell of the table, path ratio ${m.ratio} in ${leg === 1 ? '1.0' : '1.3'}-2.0`, good,
            JSON.stringify(res[res.length - 1]));
         if (b.errs.length) ok(`no page errors (leg ${leg})`, false, b.errs.slice(0, 2).join(' | '));
         await b.ctx.close();

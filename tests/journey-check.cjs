@@ -96,12 +96,13 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
         return { home: sub.mineHomeCol, homeChunk: g.mine.homeChunk(), chunkOfI0: Math.floor(lay.islandC0 / cw), chunkOfI1: Math.floor(lay.islandC1 / cw),
                  eastM: (t.x - homeX) / cs, depthM: Math.floor((t.y - sub.surfaceY) / cs),
                  root: [Math.floor(s.active.nodes[0].x / cs)], seed: L.seed, curated: g.mine.legRow(1).seed,
-                 soil, outside, hills: g.mine.hills(), drawnIsland, id: s.levelDef && s.levelDef.id };
+                 soil, outside, hills: g.mine.hills(), drawnIsland, id: s.levelDef && s.levelDef.id, row: g.mine.legRow(1) };
       });
       ok("'#leg,1,1' puts the hill at column 36, in chunk 1", r.home === 36 && r.homeChunk === 1 && r.root[0] === 36,
          `home ${r.home}, home chunk ${r.homeChunk}, root col ${r.root[0]}`);
-      ok('...the island span is inside chunk 5', r.chunkOfI0 === 5 && r.chunkOfI1 === 5, `island chunks ${r.chunkOfI0}..${r.chunkOfI1}`);
-      ok('...and the taproot is within 1 cell of 96 m east / 24 m deep', Math.abs(r.eastM - 96) <= 1 && Math.abs(r.depthM - 24) <= 1,
+      // M14: leg 1 is E 3, 72 m east, 18 m deep (was E 4, 96 m / 24 m) — read off the row, not restated.
+      ok(`...the island span is inside chunk ${1 + r.row.E}`, r.chunkOfI0 === 1 + r.row.E && r.chunkOfI1 === 1 + r.row.E, `island chunks ${r.chunkOfI0}..${r.chunkOfI1}`);
+      ok(`...and the taproot is within 1 cell of ${r.row.eastM} m east / ${r.row.depthM} m deep`, Math.abs(r.eastM - r.row.eastM) <= 1 && Math.abs(r.depthM - r.row.depthM) <= 1,
          `${r.eastM.toFixed(2)} m east, ${r.depthM} m deep`);
       ok('...on the curated seed', r.seed === r.curated && r.id === 'leg-1-1', `seed ${r.seed} (row ${r.curated}), map ${r.id}`);
       ok("...the island's surface columns are soil, and the ground beside it is not", r.soil.every(Boolean) && !r.outside.some(Boolean),
@@ -220,8 +221,11 @@ const chunkRecs = (page, list, reverse) => page.evaluate(async ([list, reverse])
         }, leg);
         ok(`leg ${leg}: the fine-mask flood AND the growth lattice from the home head reach the taproot chamber`, m.reach && m.reachLat,
            `plain ${m.reach}, lattice ${m.reachLat} (seed ${m.seed})`);
-        ok(`leg ${leg}: the shortest path is 1.3-2.0x the straight line, on the growth lattice and on the plain fine mask`,
-           m.ratio >= 1.3 && m.ratio <= 2.0 && m.ratioFine >= 1.3 && m.ratioFine <= 2.0, `lattice ${m.ratio}x, fine ${m.ratioFine}x`);
+        // M14: LEG 1 IS THE TUTORIAL LEG and its floor is 1.0 — a straighter shallow road is what lets a NEW
+        // player land it (the naive journey bots; tests/bots/leg1pick.cjs). Legs 2-8 keep the maze's 1.3.
+        const rmin = leg === 1 ? 1.0 : 1.3;
+        ok(`leg ${leg}: the shortest path is ${rmin}-2.0x the straight line, on the growth lattice and on the plain fine mask`,
+           m.ratio >= rmin && m.ratio <= 2.0 && m.ratioFine >= rmin && m.ratioFine <= 2.0, `lattice ${m.ratio}x, fine ${m.ratioFine}x`);
         ok(`leg ${leg}: a flood held to rows 0-2 never passes column 66`, m.crustMaxCol <= m.homeCol + 30, `farthest column ${m.crustMaxCol}`);
         if (leg >= 2) {
           ok(`leg ${leg}: the cheapest-water growth route spends >= 50% of its east metres below 42 m`, m.east42 >= 0.5,

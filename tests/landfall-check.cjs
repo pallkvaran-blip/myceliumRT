@@ -465,7 +465,9 @@ const waitLeg = (page) => page.waitForFunction(() => !!(window.__game && window.
       const b = await E.boot('#leg,1,1', 390, 844);
       await waitLeg(b.page);
       const m = await LP.measure(b.page, { route: true });
-      await LP.follow(b.page, m.route, { stopWithin: 280 });
+      // M14: stop at 160 (was 280). Leg 1's knot moved to 72 m east / 18 m deep and the follower stopped 206
+      // units out, one grow-2 dig's reach (153) + the landfall radius (54) away — so the probe's one dig fell short.
+      await LP.follow(b.page, m.route, { stopWithin: 160 });
       const L = await b.page.evaluate(async () => {
         const g = window.__game, s = g.state, net = s.active, t = g.mine.taproot();
         const R = (s.config.mine.journey.landfallCells || 1.5) * s.substrate.cellSize;
