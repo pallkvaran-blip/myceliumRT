@@ -424,19 +424,22 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
       //           and the finale's pull-back).
       const rfRun = (mode) => b.page.evaluate((mode) => {
         const g = window.__game, cam = g.camera, c = document.getElementById('game').getContext('2d'), out = [];
-        const z0 = cam.zoom, st0 = g.mine.memoStats();
+        const z0 = cam.zoom, st0 = g.mine.memoStats(), bAt = [];
+        const bsum = () => { const q = g.mine.memoStats(); return ['earth', 'rock', 'leaf'].reduce((n, k) => n + (q[k] ? q[k].builds : 0), 0); };
         let t = performance.now();
         for (let i = 0; i < 64; i++) {
           t += 16.7;
           if (mode === 'pan') { cam.x += (i % 40 < 20 ? 3 : -3); cam.clamp(); }
           if (mode === 'fast') { cam.x += (i % 32 < 16 ? 12 : -12); cam.clamp(); }
           if (mode === 'zoom') { cam.zoom = z0 * (1 - 0.28 * (0.5 - 0.5 * Math.cos(i / 63 * Math.PI * 2))); }
+          const sb = mode === 'zoom' ? bsum() : 0;
           const a = performance.now(); g.renderFrame(t, 1); c.getImageData(0, 0, 1, 1); out.push(performance.now() - a);
+          if (mode === 'zoom' && bsum() > sb) bAt.push(i);   // frames 0 and 63 are at the RESTING zoom (cos 0 = cos 2pi)
         }
         cam.zoom = z0;
         const st1 = g.mine.memoStats(), d = (k, f) => (st1[k] ? (st1[k][f] - (st0[k] ? st0[k][f] : 0)) : 0);
         const sum3 = (f) => d('earth', f) + d('rock', f) + d('leaf', f);
-        return { ms: out.slice(4), builds: sum3('builds'), live: sum3('live'), hits: sum3('hits') };
+        return { ms: out.slice(4), builds: sum3('builds'), live: sum3('live'), hits: sum3('hits'), bAt };
       }, mode);
       const memoKnob = (off) => b.page.evaluate((off) => { window.MYCELIUM_NO_EARTH_MEMO = off; window.MYCELIUM_NO_ROCK_MEMO = off; window.MYCELIUM_NO_LEAF_MEMO = off; }, off);
       await b.page.evaluate(() => { const g = window.__game; g.mine.lookAt(g.camera.x, g.camera.y); });
@@ -444,9 +447,9 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
       // THE ZOOM A/B IS INTERLEAVED, THREE PAIRS (M9 verify 3): one run on then one run off measured the host
       // drifting between them as much as the memos (on/off 33.6/33.9, 36.0/33.5, 39.2/34.0 in three runs of the
       // old build). On, off, on, off, on, off, and the medians of all on frames against all off frames.
-      const zOn = [], zOff = []; let zb = 0, zl = 0;
+      const zOn = [], zOff = [], zAt = []; let zb = 0, zl = 0;
       for (let k = 0; k < 3; k++) {
-        const on = await rfRun('zoom'); zOn.push(...on.ms); zb += on.builds; zl += on.live;
+        const on = await rfRun('zoom'); zOn.push(...on.ms); zb += on.builds; zl += on.live; zAt.push(...on.bAt.map((i) => k + ':' + i));
         await memoKnob(true); const off = await rfRun('zoom'); zOff.push(...off.ms); await memoKnob(false);
       }
       const rf = rest.ms;
@@ -507,9 +510,15 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
          `rest ${f2(rf)} over ${rf.length} frames; printed, not gated: pan 3 px ${f2(pan.ms)}, pan 12 px ${f2(fast.ms)} (memo builds ${fast.builds}, live ${fast.live}, hits ${fast.hits})`);
       // A ZOOM THAT MOVES EVERY FRAME BUILDS NO BUFFER (M9 verify 2): with "build on the second stale frame" a
       // zoom tween alternated live frames with 1.69x builds, for both layers, and cost more than no memo at all.
+      // COUNTED ON THE 62 FRAMES WHOSE ZOOM MOVED (M12 verify 2): frames 0 and 63 sit at the resting zoom, and
+      // the page's own rAF loop draws there between runs — a world tick in between (a claim, a chunk) makes the
+      // z0 buffer stale, and two rAF misses plus frame 0 are three consecutive misses under ONE key, i.e. the
+      // settle rule doing its job (--mine read 'builds 1, live 558': 558 = 62 moving frames x 3 layers x 3 runs,
+      // so the build had replaced a resting-zoom hit). Old: builds over all 64 frames === 0.
+      const zbMoving = zAt.filter((s) => { const i = +s.split(':')[1]; return i >= 1 && i <= 62; }).length;
       ok(`while the zoom moves every frame the memos build nothing and draw live, and the tween costs no more than with the memos off (median within 15%, 3 interleaved pairs)${D}`,
-         zb === 0 && zl >= 450 && med(zOn) <= med(zOff) * 1.15,
-         `zoom tween memos on ${f2(zOn)} (builds ${zb}, live ${zl}), off ${f2(zOff)}, on/off ${(med(zOn) / med(zOff)).toFixed(3)}`);
+         zbMoving === 0 && zl >= 450 && med(zOn) <= med(zOff) * 1.15,
+         `zoom tween memos on ${f2(zOn)} (builds on moving frames ${zbMoving}, all ${zb}${zAt.length ? ' at run:frame ' + zAt.join(' ') : ''}, live ${zl}), off ${f2(zOff)}, on/off ${(med(zOn) / med(zOff)).toFixed(3)}`);
       ok(`the earth, leaf and rock memos draw the same frame as drawing live (mean channel diff < 1, < 0.5% of pixels off by > 16)${D}`, same.mean < 1 && same.big < same.px * 0.005, JSON.stringify(same));
       ok(`a seam emptied under a standing leaf buffer leaves the frame as drawing live does (the heap goes)${D}`,
          !claim.none && claim.heldHit && claim.vsLive < claim.px * 0.0005 && claim.vsBefore > 40, JSON.stringify(claim));
