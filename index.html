@@ -1255,6 +1255,14 @@
       background:rgba(10,22,28,0.72); border:1px solid rgba(127,208,224,0.6); border-radius:999px; padding:9px 18px; cursor:pointer; }
     #titleScreen .ts-dailybtn:hover { background:rgba(20,40,50,0.85); }
     #titleScreen .ts-dailysub { font-size:clamp(11px,1.7vw,13px); }
+    /* M13 verify: a phone gets a 44 px Daily Dig button (M3's tap-target size), and a short screen a
+       tightened bottom block (\`fitMineBottom\` adds .ts-tight before it drops any row). */
+    @media (pointer: coarse) { #titleScreen .ts-dailybtn { min-height:44px; } }
+    #titleScreen .ts-bottom.ts-tight { gap:4px; }
+    #titleScreen .ts-tight .ts-daily { margin-top:2px; }
+    #titleScreen .ts-tight .ts-banked, #titleScreen .ts-tight .ts-gap { margin-top:0; }
+    #titleScreen .ts-tight .mj-strip, #titleScreen .ts-tight .ts-badges { margin-top:2px; }
+    #titleScreen #tsJourneyCap { max-width:calc(100vw - 24px); white-space:normal; text-align:center; }
     #titleScreen .mj-strip { margin-top:12px; }
     #titleScreen .ts-badges { margin-top:12px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
     #titleScreen .ts-badge { font:700 clamp(11px,1.8vw,13px)/1 system-ui,sans-serif; letter-spacing:.14em; text-transform:uppercase;
@@ -15145,6 +15153,16 @@ function sellUpgrade(id) {
 // they were written twice — the run seeds from `effectiveSpecies` and the picker prints from its
 // detail sheet, and a species that opened with a different figure than the tile promised is not a
 // bug anyone reports, just a game that feels wrong.
+// JOURNEY III'S THIRSTY RULE (M13), as one number every reader shares: the run (`mineApplyJourneyRules`),
+// the store's Water tile and its note. They used to disagree — the store promised 84 water on a Journey
+// III save whose next descent started with 72 (M13 verify), the same class of defect as the heat words
+// that ignored Hotter.
+const MINE_THIRSTY_WATER = 12;
+const mineJourneyWaterCut = (J) => ((J | 0) >= 3 ? MINE_THIRSTY_WATER : 0);
+function mineSaveJourneyN(progress) {
+  const mj = progress && progress.mineJourney;
+  return Math.max(1, (mj && mj.journey) | 0);
+}
 function startingResources(progress) {
   const b = storeBonuses(progress);
   const cc = CONFIG.cards || {};
@@ -15156,7 +15174,7 @@ function startingResources(progress) {
   if (isMineGame()) {
     return {
       energy: (CONFIG.energy.start || 0) + b.energy,
-      water: Math.max(1, ((CONFIG.mine && CONFIG.mine.startWater) | 0)) + b.water,
+      water: Math.max(1, ((CONFIG.mine && CONFIG.mine.startWater) | 0) + b.water - mineJourneyWaterCut(mineSaveJourneyN(progress || loadProgress()))),
       phosphorus: 0,     // P is DUG in the mine, never started with — the bank is what it is spent from
     };
   }
@@ -15298,7 +15316,7 @@ function newlyRevealedByClear(level, progressBefore) {
   return prior < tier.length ? [tier[prior]] : [];
 }
 
-  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, sporesBalance, addSpores, takeSpores, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_COMPASS_IDS, mineJourneySave, MINE_SHELF_V1_COSTS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, upgradeSpendN, mineRunsBanked, mineShelfOpen, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies, mineStrainList, mineStrainsOpen, mineStrainState, mineStrainShelf, mineStrainTint, buyStrain, wearStrain };
+  return { SPECIES, LOCKED_TIERS, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, isCampaignLevel, campaignSeed, campaignPayout, MAX_ANT_NESTS, LEVEL_THREATS, threatRatePerLevel, threatBonusForLevel, escalationNote, threatsForLevel, sporesForLevel, levelFromUnlock, START_LEVEL_SHIFT, startLevelRange, defaultStartLevel, TIER_COST, unlockCost, tierSpecies, loadProgress, saveProgress, migrateProgress, resetProgress, devUnlockAll, clearsFor, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, sporesBalance, addSpores, takeSpores, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, isPurchased, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, purchaseSpecies, isRevealed, isSpeciesRevealed, revealSpecies, isPlayable, isObtainable, newlyRevealedByClear, STARTER_SPECIES_IDS, isStarter, starterSpecies, STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_COMPASS_IDS, mineJourneySave, MINE_SHELF_V1_COSTS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, upgradeSpendN, mineRunsBanked, mineShelfOpen, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, startingResources, mineJourneyWaterCut, mineSaveJourneyN, storeSpecies, storeSpeciesCost, purchaseStoreSpecies, mineStrainList, mineStrainsOpen, mineStrainState, mineStrainShelf, mineStrainTint, buyStrain, wearStrain };
 })();
 
 // ===================== src/highscores.js =====================
@@ -15516,8 +15534,11 @@ async function submitGlobalScore({ name, level, species, speciesName, mode }) {
 // table with `mode: 'mine-daily'`, `level` the depth in metres and `species` the UTC date 'YYYYMMDD'.
 // Nothing is sent until ONE probe request (a read of that mode) has succeeded this session: the owner
 // has to run the migration in docs/leaderboard-setup.md first (the mode, and a level cap above 100 —
-// depths run to 168), and until then the probe fails and the daily stays LOCAL with no error anywhere.
-// With the backend disabled (an empty MYCELIUM_SUPABASE) not even the probe is sent. No anti-cheat:
+// depths run to 168), and until then the probe fails and the daily stays LOCAL. Nothing is POSTed and
+// nothing throws — but the browser itself logs the probe's 404 to the console, once a session, on the
+// first daily end screen (M13 verify: the comment used to say "no error anywhere"; a failed resource
+// load is logged by the browser and no page code can suppress it). Accepted: one console line, until
+// the owner runs the 2c SQL. With the backend disabled (an empty MYCELIUM_SUPABASE) not even the probe is sent. No anti-cheat:
 // the anon key and the page's hooks are public, so the screen labels it casual.
 // THE PROBE READS THE `mine_daily` VIEW, not the table: the view exists only once the migration has run,
 // whereas a read of `scores` filtered on the mode answers 200 on any table that has the two-mode column —
@@ -32426,7 +32447,7 @@ function growMyceliumTitle(container, opts = {}) {
 // ===================== src/render/species_select.js =====================
 const __m_render_species_select = (function () {
   const { SPECIES, isPlayable, isStarter, sporesBalance, addSpores, matBalance, loadProgress, saveProgress, devUnlockAll, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, rateAskReady, CAMPAIGN_START_LEVEL, CAMPAIGN_LEVELS, highestCleared, startLevelFor, startLevelForGame, loadDeck, deckBucketFor, deckBuckets, deckSize,
-    STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_COMPASS_IDS, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, upgradeSpendN, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, startingResources, storeSpecies, storeSpeciesCost, purchaseStoreSpecies, mineStrainShelf, mineStrainState, mineStrainsOpen, buyStrain, wearStrain } = __m_species;
+    STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_COMPASS_IDS, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeMax, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, upgradeSpendN, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, startingResources, mineJourneyWaterCut, mineSaveJourneyN, storeSpecies, storeSpeciesCost, purchaseStoreSpecies, mineStrainShelf, mineStrainState, mineStrainsOpen, buyStrain, wearStrain } = __m_species;
   const { CARD_DATA } = __m_cards_data;
   const { allLevels } = __m_levels_data;
   // `isCampaignGame` rather than a `game` argument threaded down from main: this screen is shared
@@ -33325,7 +33346,8 @@ function showSpeciesSelect({ onPick, onDev, onLevel, mine, journeyStrip }) {
       // authority on what a grow is worth and `configForLevel` copies this same figure into
       // `cfg.mine.growSteps` for the run, so the note and the dig cannot disagree.
       const b = storeBonuses(progress);
-      const water = Math.max(1, (CONFIG.mine.startWater | 0)) + (b.water | 0);
+      // ...less Journey III's Thirsty 12 when the save is that far on (M13 verify), as `mineNextHeat` honours Hotter.
+      const water = Math.max(1, (CONFIG.mine.startWater | 0) + (b.water | 0) - mineJourneyWaterCut(mineSaveJourneyN(progress)));
       const steps = Math.max(1, b.growSteps | 0);
       const note = root.querySelector('#ssMineNote');
       // '60 water · grow 2 · digs cost 2, then 4 / 8 / 16 past 42 / 84 / 126 m' (M5), shifted by the
@@ -34142,6 +34164,11 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
             ? '<div class="ts-record" id="tsRecords">deepest descent <b>' + bestM + ' m</b></div>'
             : '<div class="ts-record ts-record-none">water is your fuel</div>') +
         '</div>' +
+        // WHAT WAS JUST BANKED (M1) — an exit's '+23 P banked', or a closed tab's leftover. RIGHT UNDER THE
+        // RECORDS LINE (M13 verify), ahead of everything M13 added: it is the one line that reports
+        // something that just happened to the player's money, and at the foot of the block it was the
+        // first thing pushed off a short screen or under Credits.
+        (note ? '<div class="ts-record ts-banked" id="tsBanked">' + String(note).replace(/[&<>"]/g, '') + '</div>' : '') +
         // THE DAILY DIG (M13), from the first landfall: today's UTC date on the button, today's best and the
         // streak under it.
         (journey && journey.daily && onDaily
@@ -34156,8 +34183,6 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
         (journey && journey.gap ? '<div class="ts-record ts-gap" id="tsGap">' + esc1(journey.gap) + '</div>' : '') +
         // THE NEAR GOAL IN THE STORE (M13): 'Grow strength: 24 Garnet, you have 9'.
         (journey && journey.goal ? '<div class="ts-record ts-gap" id="tsGoal">' + esc1(journey.goal) + '</div>' : '') +
-        // WHAT WAS JUST BANKED (M1) — an exit's '+23 P banked', or a closed tab's leftover.
-        (note ? '<div class="ts-record ts-banked" id="tsBanked">' + String(note).replace(/[&<>"]/g, '') + '</div>' : '') +
       '</div>' +
     '</div>';
   root.innerHTML =
@@ -34901,6 +34926,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
     // in front of it. Its gap is a fraction of the between-rows distance rather than of the
     // viewport, so on a phone — where the wordmark eats most of the screen — the three rows close
     // up together instead of the last one sliding off the bottom.
+    if (!OFFER_CAMPAIGN && !OFFER_SURVIVAL) fitMineBottom();
     const third = root.querySelector('.ts-third');
     if (third) {
       const gapRow = Math.max(16, gapTitle * 0.55);
@@ -34908,6 +34934,30 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
       third.style.bottom = 'auto';
       third.style.top = Math.round(Math.min(botTop + (botB.offsetHeight || 60) + gapRow, bottomLimit)) + 'px';
     }
+  }
+
+  // THE MINE'S BOTTOM BLOCK FITS ABOVE THE FOOTER (M13 verify). M13 added the Daily Dig's button and line,
+  // the near goal and (with M9's badge) a returning save's block grew to ~250 px: at 1280x720 — the
+  // stores' embed size — the goal line printed under CREDITS, at 360x640 and 320x568 the banked note did,
+  // and at 640x360 / 844x390 the strip, gap, goal and banked note were all below the fold (the screen is
+  // overflow:hidden). So when the block would cross the footer (or the screen's foot), it first TIGHTENS
+  // its gaps, then drops rows lowest-priority first: the gap line, the near goal, the daily's sub-line,
+  // the badge, the strip, the records line. The Daily Dig button and the banked note are never dropped —
+  // one is a control and the other reports the player's money. Re-run on every layout pass, from a clean
+  // slate, so rotating a phone back to portrait brings the rows back.
+  const MINE_FIT_DROP = ['#tsGap', '#tsGoal', '#tsDailySub', '#tsJourneyBadge', '.mj-strip', '#tsRecords'];
+  function fitMineBottom() {
+    const botB = root.querySelector('.ts-bottom');
+    if (!botB) return;
+    botB.classList.remove('ts-tight');
+    for (const sel of MINE_FIT_DROP) { const e = botB.querySelector(sel); if (e) e.style.display = ''; }
+    const foot = root.querySelector('.ts-footer');
+    const rootTop = root.getBoundingClientRect().top;
+    const limit = (foot ? foot.getBoundingClientRect().top : rootTop + (root.clientHeight || window.innerHeight)) - 8;
+    const over = () => botB.getBoundingClientRect().bottom > limit;
+    if (!over()) return;
+    botB.classList.add('ts-tight');
+    for (const sel of MINE_FIT_DROP) { if (!over()) break; const e = botB.querySelector(sel); if (e) e.style.display = 'none'; }
   }
 
   // True when there's saved unlock progress from an old run — which "New" (Survival) wipes
@@ -36604,7 +36654,7 @@ const __m_main = (function () {
   const { showTitleScreen } = __m_render_title_screen;
   const { startTutorial } = __m_render_tutorial;
   const { showLevelIntro, showStoryIntro, showVictory, VICT_FADE_MS } = __m_render_level_intro;
-  const { SPECIES, startingResources, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_COMPASS_IDS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, mineRunsBanked, mineShelfOpen, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies, mineStrainTint, mineStrainState, mineStrainShelf, mineStrainsOpen, buyStrain, wearStrain } = __m_species;
+  const { SPECIES, startingResources, mineJourneyWaterCut, MAX_LEVEL, CAMPAIGN_LEVELS, CAMPAIGN_START_LEVEL, campaignSeed, isCampaignLevel, threatsForLevel, escalationNote, recordLevelCleared, highestCleared, startLevelFor, startLevelForGame, newlyRevealedByClear, sporesForLevel, addSpores, takeSpores, sporesBalance, matBalance, addMats, takeMats, RATE_URL, hasRated, markRated, rateDismissed, dismissRate, runsFinished, recordRunFinished, rateAskReady, beginRunSpores, runSporeMultiplier, endRunSpores, loadProgress, saveProgress, resetProgress, loadoutFor, saveLoadout, lastDraftsFor, saveLastDrafts, lastDraftEnginesFor, saveLastDraftEngines, loadDeck, saveDeck, clearDeck, deckSize, deckBuckets, deckBucketFor, loadResume, saveResume, clearResume, resumeKey, revealSpecies, isSpeciesRevealed, isPlayable, isObtainable, CAMPAIGN_SEEDS, CAMPAIGN_OPENING, CAMPAIGN_OPENING_ASK, CAMPAIGN_ENDING_QUOTE, CAMPAIGN_ENDING_RED, CAMPAIGN_ENDING_SAY, LEVEL_QUOTES, randomLevelQuote, campaignPayout, STORE_UPGRADES, MINE_UPGRADE_IDS, MINE_COMPASS_IDS, mineShelfV1Refund, mineTrackRevealed, upgradeStep, upgradeName, upgradeEffect, upgradeById, upgradeInGame, upgradeCosts, upgradeLevel, upgradeValue, upgradeNextCost, upgradeSellValue, costParts, costBalance, mineRunsBanked, mineShelfOpen, takeMineRestockNote, buyUpgrade, sellUpgrade, storeBonuses, starterSpecies, storeSpecies, storeSpeciesCost, purchaseStoreSpecies, mineStrainTint, mineStrainState, mineStrainShelf, mineStrainsOpen, buyStrain, wearStrain } = __m_species;
   const { loadAssets, loadLevelAssets, levelAssetKeys, hasAsset, asset, assetFailed, pattern, assetMeta, assetUrl, preloadImages, assetState, assetReadyGen } = __m_render_assets;
   const { initMusic, playMenuMusic, playLevelMusic } = __m_render_music;
   const { initSfx, playSeamPing, playPocketGlug, playReachTick, playFinaleNote,
@@ -36974,6 +37024,10 @@ function configForLevel(level) {
       cfg.mine.items = { excrete: Math.max(0, K.flask | 0), amputate: Math.max(0, K.dose | 0), vial: 0 };
       cfg.mine.compass = { island: 0, mats: {} };
       for (const m of (cfg.mine.materials || [])) if ((m.band | 0) >= 1) cfg.mine.compass.mats[m.id] = 0;
+      // ...and NOTHING ELSE OFF THE SAVE (M13 verify): the first-infection grace (30 s for a save that has
+      // never met rot, else 20 s) made two players on one seed race different rot deadlines. The daily is
+      // a challenge between saves, so it always runs the standard clock.
+      cfg.mine.firstRot = false;
       let practice = false;
       try { practice = mineDailyView(loadProgress(), mineDaily.date).paidToday; } catch (_) {}
       cfg.mine.daily = { date: mineDaily.date, label: mineDaily.label, practice };
@@ -37030,7 +37084,7 @@ function mineJourneyRules(J) { return MINE_JOURNEY_RULES.filter((r) => (J | 0) >
 function mineApplyJourneyRules(cfg, J, legRule) {
   const M = cfg.mine;
   if ((J | 0) >= 2) M.heat = Object.assign({}, M.heat, { safeDepth: Math.max(0, ((M.heat && M.heat.safeDepth) | 0) - 10) });
-  if ((J | 0) >= 3) M.startWater = Math.max(1, (M.startWater | 0) - 12);
+  if (mineJourneyWaterCut(J)) M.startWater = Math.max(1, (M.startWater | 0) - mineJourneyWaterCut(J));
   if ((J | 0) >= 4) {
     M.threatBands = M.threatBands.map((b) => Object.assign({}, b, { worms: (b.worms | 0) * 2 }));
     M.worms = Object.assign({}, M.worms, { waterPerSec: 0.3 });
@@ -37422,16 +37476,34 @@ function mineDailyUnlocked(p) {
 // `p.mineDaily = {date, best, streak, lastDate, paid}` — `best` is the best depth ON `date`; `paid` the
 // date whose paid run has been banked. Read with today's view: a stale date reads as best 0, and a
 // streak whose last day is neither today nor yesterday has lapsed (shown as 0; the next run starts 1).
+// `paidDays` (M13 verify): the last few dates whose paid run was banked, so a run from an OLDER day that
+// banks late (started before 00:00 UTC, ended after the next day's paid run) is still checked against
+// its own day — `paid` alone only remembers the newest.
+function mineDailyPaidOn(md, key) {
+  return md.paid === key || (Array.isArray(md.paidDays) && md.paidDays.indexOf(key) >= 0);
+}
 function mineDailyView(p, key) {
-  p = p || loadProgress(); key = key || mineUtcKey();
+  p = p || loadProgress(); key = String(key || mineUtcKey());
   const md = p.mineDaily && typeof p.mineDaily === 'object' ? p.mineDaily : {};
   const live = md.lastDate === key || md.lastDate === mineUtcPrev(key);
   return { date: key, label: mineUtcLabel(key), best: md.date === key ? md.best | 0 : 0,
-           streak: live ? md.streak | 0 : 0, paidToday: md.paid === key, playedToday: md.lastDate === key };
+           streak: live ? md.streak | 0 : 0, paidToday: mineDailyPaidOn(md, key), playedToday: md.lastDate === key };
 }
 // A BANKED daily descent: the best, the streak and the paid flag. Returns what changed.
+// THE RECORD ONLY MOVES FORWARD (M13 verify). A run from a day OLDER than the last one recorded — a
+// daily started at 23:50 UTC that banks after the next day's run, or a hidden tab's record banked by a
+// later boot — used to reset `date`/`best` to its own day, recompute the streak (to 1) and set
+// `lastDate`/`paid` back, which wiped today's best and REOPENED today's paid run. Now it is historical:
+// its paid flag joins `paidDays` (so its own day cannot pay twice) and nothing about today moves.
 function mineDailyRecord(p, key, depth, paid) {
+  key = String(key);
   const md = Object.assign({ date: '', best: 0, streak: 0, lastDate: '', paid: '' }, p.mineDaily || {});
+  const addPaid = (k) => { const a = Array.isArray(md.paidDays) ? md.paidDays.filter((x) => x !== k) : []; a.push(k); md.paidDays = a.slice(-4); };
+  if (md.lastDate && key < String(md.lastDate)) {
+    if (paid) { addPaid(key); p.mineDaily = md; }
+    return { best: depth | 0, isBest: false, streak: md.streak | 0, past: true };
+  }
+  if (paid) addPaid(key);
   if (md.date !== key) { md.date = key; md.best = 0; }
   const isBest = (depth | 0) > (md.best | 0);
   if (isBest) md.best = depth | 0;
@@ -37975,9 +38047,18 @@ function mineBank(r) {
   // THE DAILY DIG (M13): the paid run is RE-CHECKED here, like the island bonus — two tabs could both
   // start "the first run of the day", and only the first to bank is paid. A practice run banks nothing,
   // its materials included (an empty `mats` falls back to the state's, so it is nulled below).
+  // ...AND A BOOT ELSEWHERE THAT ALREADY BANKED PART OF THIS RUN DECIDED ITS DAY (M13 verify): its
+  // `mineTaken` marker carries `daily` 'paid' | 'practice'. Read FIRST, or a paid run whose own pending
+  // record set the day's paid flag found that flag here, turned itself into practice and lost the rest
+  // of its pay (and its board row).
   if (r.daily && !r._minePaid && !r.daily.practice) {
-    let v = null; try { v = mineDailyView(loadProgress(), r.daily.date); } catch (_) {}
-    if (v && v.paidToday) { r.daily.practice = true; r.ore = 0; r.seams = 0; r.mats = {}; }
+    let practice = false;
+    try {
+      const p0 = loadProgress();
+      const mk = p0.mineTaken ? p0.mineTaken[mineRunKey(state)] : null;
+      practice = mk && mk.daily ? mk.daily !== 'paid' : mineDailyView(p0, r.daily.date).paidToday;
+    } catch (_) {}
+    if (practice) { r.daily.practice = true; r.ore = 0; r.seams = 0; r.mats = {}; }
   }
   if (r.daily && r.daily.practice) ore = 0;
   const seams = Math.max(0, (r.daily && r.daily.practice) ? 0 : (r.seams != null ? r.seams : (state && state.mineOre)) | 0);
@@ -38411,9 +38492,15 @@ function minePendingWrite() {
     // THE LEG AND ITS EAST (M8 verify), so a boot that banks this record can put the descent on its leg.
     const J = state.substrate.mineJourney;
     const east = r && r.east != null ? r.east | 0 : Math.max(state.mineMaxEast | 0, mineEastReached(state));
-    map[key] = { P, mats, depth, digs: r && r.digs != null ? r.digs | 0 : (state.mineDigs | 0), at: Date.now(),
+    const digs = r && r.digs != null ? r.digs | 0 : (state.mineDigs | 0);
+    // THE FOSSIL TOO (M13 verify): a leg attempt that ends because the tab was closed is a failed attempt
+    // like any other, and the boot that banks it puts this colony on the leg (<= ~1.8 KB, as `mineBank`).
+    let fossil = null;
+    if (J && (J.leg | 0) > 0 && digs > 0 && !(r && mineLandfall(r.cause))) { try { fossil = mineFossilEncode(state); } catch (_) { fossil = null; } }
+    map[key] = { P, mats, depth, digs, at: Date.now(),
                  leg: J ? J.leg | 0 : 0, journey: J ? J.journey | 0 : 0, east,   // journey: M9 verify
-                 daily: D && D.date ? { date: D.date, practice: !!D.practice } : null };   // M13: the boot records the day
+                 daily: D && D.date ? { date: D.date, practice: !!D.practice } : null,   // M13: the boot records the day
+                 fossil: typeof fossil === 'string' ? fossil : null };
     p.minePending = map;
     saveProgress(p);
     return true;
@@ -38454,10 +38541,22 @@ function minePendingBankAtBoot() {
     let P = 0, countRuns = 0; const mats = {};
     for (const key of keys) {
       const pend = map[key] || {};
-      const dP = Math.max(0, pend.P | 0);
+      let dP = Math.max(0, pend.P | 0);
+      // A DAILY DIG IS PAID ONCE A DAY ON THIS PATH TOO (M13 verify). Two tabs that both started the day's
+      // first run each wrote a paid record; the boot used to pay every one of them (N tabs, N payouts).
+      // The day is decided ONCE PER RUN: a marker from an earlier boot of this same run wins, else the
+      // day's paid flag as it stands now (which an earlier record in this very loop may have just set).
+      let dailyMark = null;
+      if (pend.daily && pend.daily.date) {
+        const mk0 = key !== 'legacy' && p.mineTaken ? p.mineTaken[key] : null;
+        dailyMark = pend.daily.practice ? 'practice'
+          : (mk0 && mk0.daily) ? mk0.daily
+          : (mineDailyView(p, String(pend.daily.date)).paidToday ? 'practice' : 'paid');
+        if (dailyMark !== 'paid') dP = 0;
+      }
       P += dP;
       const dm = {};
-      for (const k of Object.keys(pend.mats || {})) {
+      if (!(dailyMark && dailyMark !== 'paid')) for (const k of Object.keys(pend.mats || {})) {
         const n = Math.max(0, pend.mats[k] | 0);
         if (k === 'phosphorus' || !n) continue;
         p.mats[k] = Math.max(0, (p.mats[k] | 0) + n);
@@ -38472,14 +38571,16 @@ function minePendingBankAtBoot() {
       if (dug && !already) { p.mineRuns = mineRunsBanked(p) + 1; countRuns++; }
       // ...AND ON ITS LEG (M8 verify): runs and bests, once per run as above. A record is never a
       // landfall (a landfall is banked on the frame it happens), so this cannot move the journey on.
-      if (dug && (pend.leg | 0) > 0) mineLegApply(p, { leg: pend.leg | 0, journey: pend.journey | 0, cause: 'pending', digs: pend.digs | 0 || 1, depth: d, east: pend.east | 0 }, !already);
+      if (dug && (pend.leg | 0) > 0) mineLegApply(p, { leg: pend.leg | 0, journey: pend.journey | 0, cause: 'pending', digs: pend.digs | 0 || 1, depth: d, east: pend.east | 0,
+                                                     fossil: typeof pend.fossil === 'string' ? pend.fossil : undefined }, !already);
       if (dug && !(p.mineBest >= d)) p.mineBest = d;
       // A DAILY DIG left in a hidden tab (M13): its day's record, once per run; a paid one spends the day's
       // paid run (it was paid just above).
-      if (dug && !already && pend.daily && pend.daily.date) mineDailyRecord(p, String(pend.daily.date), d, !pend.daily.practice && dP > 0);
+      if (dug && !already && dailyMark) mineDailyRecord(p, String(pend.daily.date), d, dailyMark === 'paid');
       if (key !== 'legacy') {
         p.mineTaken = p.mineTaken || {};
         const t = p.mineTaken[key] || { P: 0, mats: {} };
+        if (dailyMark) t.daily = dailyMark;
         t.P = (t.P | 0) + dP;
         t.mats = t.mats || {};
         for (const k of Object.keys(dm)) t.mats[k] = (t.mats[k] | 0) + dm[k];
@@ -39311,9 +39412,20 @@ function mineTitleRecords(p) {
   return 'deepest descent <b>' + bestM + ' m</b>' + (fewest ? ' \u00b7 Journey ' + mineRoman(fj) + ' in <b>' + fewest + '</b> runs' : '');
 }
 // THE NEAR GOAL IN THE STORE (M13), the end screen's next-goal card in one line.
+// PRICED IN THE MINE'S ECONOMY WHATEVER `CONFIG.game` SAYS (M13 verify): the title is built before any
+// `setGame`, so on a cold boot the game is still its default ('survival') and every helper under
+// `mineNextGoal` that asks `CONFIG.game` — `upgradeCosts`, `upgradeField`, `walletField` — read the card
+// game's ladder and the Spores wallet: 'Water tank — 25 P, 25 P short' over a 7 P wallet whose store sold
+// it for 5. `inMineEconomy` swaps the field for the call only (no `setGame`: that would also force real
+// time and the cards off, which is not the title's business).
+function inMineEconomy(fn) {
+  const g = CONFIG.game;
+  CONFIG.game = 'mine';
+  try { return fn(); } finally { CONFIG.game = g; }
+}
 function mineTitleGoal(p) {
   try {
-    const g = mineNextGoal(p || loadProgress());
+    const g = inMineEconomy(() => mineNextGoal(p || loadProgress()));
     if (!g || g.done || !g.cost) return '';
     const price = g.cost.n + ' ' + (g.cost.m === 'phosphorus' ? 'P' : matName(g.cost.m));
     return 'Next: ' + g.name + ' \u2014 ' + price + (g.afford ? ', ready to buy' : g.cost.m === 'phosphorus' ? ', ' + g.short + ' P short' : ', you have ' + g.have);
@@ -44018,10 +44130,14 @@ function mineReachFeedback() {
   uiDirty = true;
   const dly = mineDailyOf(state);
   if (dly && dly.practice) return;      // a practice run pays nothing, so no '+1 P' (M13)
+  // A PAID DAILY PAYS HALF THE REACH (`mineReachPay`), so the floater shows what the HUD count and the
+  // bank add — floor(raw/2) moving — not the raw metre count (M13 verify: it popped '+1 P' twice for
+  // each 1 P banked). The tick still plays every 5 m: it marks the depth, not the money.
+  const gain = dly ? Math.floor(raw / 2) - Math.floor(was / 2) : raw - was;
   const A = mineAgg(state);
   const tip = A ? A.deep : null;
-  if (tip) addEnergyFloater(tip.x, tip.y - state.substrate.cellSize * 0.5, raw - was,
-    { text: `+${raw - was} P`, color: '#c9a2e8', size: 15, outline: 4, life: 70, icon: false });
+  if (tip && gain > 0) addEnergyFloater(tip.x, tip.y - state.substrate.cellSize * 0.5, gain,
+    { text: `+${gain} P`, color: '#c9a2e8', size: 15, outline: 4, life: 70, icon: false });
   try { const nb = mineBands(state.config).length; playReachTick(nb > 1 ? mineBandAt(state.config, mineRunDepth(state)) / (nb - 1) : 0); } catch (_) {}
 }
 // THE STORE'S PROGRESSIVE REVEAL, persisted (M5). `p.mineSeen` { line42, worm, cloud, mat_<id>, leg }:
