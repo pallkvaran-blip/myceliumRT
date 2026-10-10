@@ -16,7 +16,7 @@ on what the bots measured and compare its runs-per-leg with the bot careers (pla
               (design 2.0 / 0.15 / 1.4 — a HUMAN; a bot replaying a known route measures nearer 1)
   legs        the leg table rows (name, E, crossing m, taproot m, worm mult, mould mult, safeDepth, bonus)
   store       {track: [[cur, amount], ...]} overrides
-  start_water, water_step, pocket, p_seam, reach_m_per_p, east_m_per_p, min_pay
+  start_water, water_step, heat_step, pocket, p_seam, reach_m_per_p, east_m_per_p, min_pay
 """
 import math, random, sys, json, statistics
 
@@ -76,13 +76,15 @@ def apply_inputs(inp):
     for k, name in [('band_digs', 'BAND_DIGS'), ('lat_digs', 'LAT_DIGS'), ('start_water', 'START_WATER'),
                     ('water_step', 'WATER_STEP'), ('pocket', 'POCKET'), ('p_seam', 'P_SEAM'),
                     ('reach_m_per_p', 'REACH_M_PER_P'), ('east_m_per_p', 'EAST_M_PER_P'), ('min_pay', 'MIN_PAY'),
-                    ('oh_first', 'OH_FIRST'), ('oh_step', 'OH_STEP'), ('oh_floor', 'OH_FLOOR')]:
+                    ('oh_first', 'OH_FIRST'), ('oh_step', 'OH_STEP'), ('oh_floor', 'OH_FLOOR'),
+                    ('heat_step', 'HEAT_STEP'), ('pocket_detour', 'POCKET_DETOUR')]:
         if k in inp: g[name] = inp[k]
     if 'legs' in inp: g['LEGS'] = [tuple(r) for r in inp['legs']]
     if 'store' in inp:
         for k, v in inp['store'].items(): STORE[k] = [tuple(x) for x in v]
 
 OH_FIRST, OH_STEP, OH_FLOOR = 2.0, 0.15, 1.4
+POCKET_DETOUR = 2
 
 def price(depth, heat_lvl, safe=42):
     first = safe + HEAT_STEP * heat_lvl
@@ -127,7 +129,7 @@ def simulate(seed=1, jitter=0.10, verbose=False):
         water = float(start)
         digs = 0.0; depth_m = 0.0; east_m = 0.0; reached = False; mats = {'A': 0, 'G': 0, 'H': 0}; pseams = 1.0
         # a band-0 pocket near the hill
-        water += POCKET - 2 * 2 * gf; digs += 2 * gf
+        water += POCKET - POCKET_DETOUR * 2 * gf; digs += POCKET_DETOUR * gf
         items_f = s['lv']['flask']; items_e = s['lv']['enzyme']
         if mode == 'leg':
             tgt_c = C

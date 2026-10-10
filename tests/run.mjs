@@ -129,6 +129,11 @@ const CHECKS = [
   // M10 acceptance 6b: the garnet compass (rung 2) against a blind hunter, first garnet seam in digs, on
   // five free-layout seeds. ~10 min; run by name, not in --mine.
   ['seamhunt',  'bots/seamhunt.cjs', 1200, true],
+  // M14 acceptance (numbers-model gates, section F): the naive new player on leg 1 (journey.cjs --naive, both
+  // leans, 5 fresh saves) and full careers (cheapest / power / knowledge buyers) summarised by gates.cjs.
+  // Hours; run by name, not in --mine.
+  ['m14naive',  'bots/m14.cjs naive', 3600, true],
+  ['m14careers', 'bots/m14.cjs careers', 21600, true],
 ];
 
 // THE MINE SUBSET. Owner, 20 Aug: "stop checking survival mode and campaign — those are not a part

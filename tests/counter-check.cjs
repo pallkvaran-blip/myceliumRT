@@ -89,12 +89,13 @@ const COLONY = async ({ n, maxM, QUIET }) => {
       const attachedTick = g.mine.attached();
       const d1 = g.mine.drained(), w1 = s.active.water;
       await new Promise((res) => setTimeout(res, 10000));
-      return { attachedBefore, beforeDrain, beforeTank, toast, attachedTick, worms: s.nematodes.length,
+      return { rate: s.config.mine.worms.waterPerSec, attachedBefore, beforeDrain, beforeTank, toast, attachedTick, worms: s.nematodes.length,
                afterDrain: +(g.mine.drained() - d1).toFixed(2), afterTank: w1 - s.active.water,
                flasks: g.mine.items().excrete, chip: document.getElementById('hud-worms').hidden };
     });
-    ok('three worms parked attached drink for 10 s (the before window)', r.attachedBefore === 3 && r.beforeDrain >= 5.5,
-       `${r.attachedBefore} attached, ${r.beforeDrain} drained (${r.beforeTank} from the tank), colony ${c.nodes}`);
+    // M14: the rate 0.2 -> 0.15 a worm a second, so the floor is read off the config (was a literal 5.5 = 92% of 3 x 0.2 x 10).
+    ok('three worms parked attached drink for 10 s (the before window)', r.attachedBefore === 3 && r.beforeDrain >= 3 * r.rate * 10 * 0.92,
+       `${r.attachedBefore} attached, ${r.beforeDrain} drained at ${r.rate}/s each (${r.beforeTank} from the tank), colony ${c.nodes}`);
     ok('one flask: the attached count reads 0 within one tick', r.attachedTick === 0 && r.worms === 0,
        `attached ${r.attachedTick}, ${r.worms} worms left`);
     ok('...the drain over the next 10 s is 0 (probe_counter read 1.9)', r.afterDrain === 0 && r.afterTank === 0,
@@ -119,7 +120,9 @@ const COLONY = async ({ n, maxM, QUIET }) => {
         }
         return null;
       };
-      const p150 = spot(150), p200 = spot(200);
+      // M14: the mine's range 160 -> 300 (`CONFIG.mine.excreteRange`), so the two spots sit either side of whatever it is.
+      const R = s.config.actions.excrete.range;
+      const p150 = spot(R - 50), p200 = spot(R + 40);
       s.mineItems = Object.assign({}, s.mineItems, { excrete: 2 });
       // Worms that cannot see anything: sight 0, so they hold still for the measurement.
       s.config.nematodes.sightRadius = 0;
@@ -129,13 +132,13 @@ const COLONY = async ({ n, maxM, QUIET }) => {
       g.mine.spawnWorm(p150.x, p150.y);
       const hit = g.mine.useExcrete();
       const left = s.nematodes.map((w) => Math.round(far(w.x, w.y)));
-      return { p150: p150 && Math.round(p150.d), p200: p200 && Math.round(p200.d), miss: miss.ok, afterMiss,
+      return { R, p150: p150 && Math.round(p150.d), p200: p200 && Math.round(p200.d), miss: miss.ok, afterMiss,
                hit: hit.ok, killed: hit.killed, left, flasks: g.mine.items().excrete };
     });
-    ok('a burst with nothing within 160 units costs nothing', rg.miss === false && rg.afterMiss === 2,
-       `worm at ${rg.p200} u, ok=${rg.miss}, ${rg.afterMiss} flasks`);
-    ok('...one within 160 dies and the one at 200 is untouched', rg.hit === true && rg.killed === 1 && rg.left.length === 1
-       && rg.left[0] >= 190, `killed ${rg.killed} (at ${rg.p150} u), left ${JSON.stringify(rg.left)}, ${rg.flasks} flasks`);
+    ok('a burst with nothing within the range (300 since M14; was 160) costs nothing', rg.R === 300 && rg.miss === false && rg.afterMiss === 2,
+       `range ${rg.R}, worm at ${rg.p200} u, ok=${rg.miss}, ${rg.afterMiss} flasks`);
+    ok('...one 50 inside it dies and the one 40 outside is untouched', rg.hit === true && rg.killed === 1 && rg.left.length === 1
+       && rg.left[0] >= rg.R + 30, `killed ${rg.killed} (at ${rg.p150} u), left ${JSON.stringify(rg.left)}, ${rg.flasks} flasks`);
     ok('no page errors', b.errs.length === 0, b.errs.slice(0, 3).join(' | '));
     await b.ctx.close();
   }
@@ -252,7 +255,8 @@ const COLONY = async ({ n, maxM, QUIET }) => {
     };
     const res = [];
     for (const seed of [4242, 909, 11, 5, 2024]) { const r = await probe(seed); res.push(r); console.log(`        seed ${seed}: ${JSON.stringify(r)}`); }
-    ok('the mine\'s clone creeps at 0.5 cells a tick', res.every((r) => r.speed === 0.5), res.map((r) => r.speed).join(', '));
+    // M14: 0.5 -> 0.4 cells a tick (`CONFIG.mine.trych.moveSpeed`).
+    ok('the mine\'s clone creeps at 0.4 cells a tick', res.every((r) => r.speed === 0.4), res.map((r) => r.speed).join(', '));
     // `secs` counts the sensing tick itself (it creeps on that tick): (contact - sense + 1) ticks.
     ok('on 5 seeds, contact takes 6 s or more from first sense at 280-300 units',
        res.every((r) => r.secs != null && r.secs >= 6 && r.firstTick && r.spawnD >= 280 && r.spawnD <= 300),

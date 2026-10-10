@@ -124,8 +124,10 @@ const TRUTH = () => {
       ok('the mine sells an island compass and one compass per deep material', want4.every((id) => r.ids.includes(id)),
          r.ids.filter((i) => /compass/.test(i)).join(', '));
       const cj = JSON.stringify(r.costs);
-      ok('...at the plan\'s prices', cj === JSON.stringify({ compassIsland: [12, 40], compass_anthracite: [20, 60, { m: 'anthracite', n: 12 }],
-         compass_garnet: [40, 100, { m: 'garnet', n: 12 }], compass_hematite: [60, 140, { m: 'hematite', n: 12 }] }), cj);
+      // M14 (store v5): the plan's [12, 40] / [20, 60, 12 A] / [40, 100, 12 G] / [60, 140, 12 H] ->
+      // [12, 90] / [30, 50 A, 30 A] / [90, 220, 24 G] / [130, 240, 12 H] (MINE_COMPASS_COSTS).
+      ok('...at the M14 prices', cj === JSON.stringify({ compassIsland: [12, 90], compass_anthracite: [30, { m: 'anthracite', n: 50 }, { m: 'anthracite', n: 30 }],
+         compass_garnet: [90, 220, { m: 'garnet', n: 24 }], compass_hematite: [130, 240, { m: 'hematite', n: 12 }] }), cj);
       ok('the island compass is hidden on store visit 1 and on the shelf from visit 2 on a journey save',
          !r.v1.includes('compassIsland') && r.v2.includes('compassIsland'), `visit 1 [${r.v1}] / visit 2 [${r.v2}]`);
       ok('...but not on a save that has never played a leg', !r.free.includes('compassIsland'), `[${r.free}]`);
@@ -150,7 +152,7 @@ const TRUTH = () => {
       await sleep(300);
       await b.page.screenshot({ path: path.join(ART, 'm10-store-390.png') }).catch(() => {});
       ok('the store shows the island compass as bought out and the garnet one at rung 1, with the compass icon',
-         t.isl && /metres/.test(t.isl.now) && t.gar && /bearing/.test(t.gar.now) && t.isl.icon && t.gar.icon && /100/.test(t.gar.btn || ''),
+         t.isl && /metres/.test(t.isl.now) && t.gar && /bearing/.test(t.gar.now) && t.isl.icon && t.gar.icon && /220/.test(t.gar.btn || ''),   // M14: the garnet compass's rung 2 100 -> 220 P
          JSON.stringify(t));
       ok('no page errors (shelf)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();
@@ -228,7 +230,13 @@ const TRUTH = () => {
         });
         // Stamp a rock sprite across the straight line from the focus to the island target.
         const e0 = M.find((e) => e.kind === 'island');
-        const mx = (e0.fx + e0.tx) / 2, my = (e0.fy + e0.ty) / 2;
+        // The OPEN point on the line nearest its middle (M14: on the re-tuned leg the exact midpoint is already rock,
+        // which made the before/after reading vacuous — the assertion needs open ground that turns solid).
+        let mx = (e0.fx + e0.tx) / 2, my = (e0.fy + e0.ty) / 2;
+        for (const f of [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7, 0.25, 0.75]) {
+          const x = e0.fx + (e0.tx - e0.fx) * f, y = e0.fy + (e0.ty - e0.fy) * f;
+          if (!sub.solidAtWorld(x, y)) { mx = x; my = y; break; }
+        }
         const tpl = sub.levelSprites.find((q) => q.w > 60) || sub.levelSprites[0];
         const before = sub.solidAtWorld(mx, my);
         sub.levelSprites.push(Object.assign({}, tpl, { x: mx, y: my, w: 260, h: 260, rot: 0 }));

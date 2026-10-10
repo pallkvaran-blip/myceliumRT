@@ -294,7 +294,8 @@ const FSHASH = () => {
         out.stateItems = Object.assign({}, g.state.mineItems);
         return out;
       });
-      ok('the Oxalic vial is priced [50 P, 12 Garnet, 12 Hematite]', JSON.stringify(r.costs) === JSON.stringify([50, { m: 'garnet', n: 12 }, { m: 'hematite', n: 12 }]), JSON.stringify(r.costs));
+      // M14: [50 P, 12 G, 12 H] -> [120 P, 24 G, 12 H] (store v5: the late P sink, G6's garnet surplus).
+      ok('the Oxalic vial is priced [120 P, 24 Garnet, 12 Hematite]', JSON.stringify(r.costs) === JSON.stringify([120, { m: 'garnet', n: 24 }, { m: 'hematite', n: 12 }]), JSON.stringify(r.costs));
       ok('...hidden on leg 2, on the shelf from the start of leg 3 (and on a later journey)',
          !r.leg2.includes('oxalicVial') && r.leg3.includes('oxalicVial') && r.j2.includes('oxalicVial'), `leg 2 [${r.leg2}] / leg 3 [${r.leg3}] / journey 2 [${r.j2}]`);
       ok('...a hidden vial cannot be bought; revealed, one can', r.lvl0 === 0 && r.lvl1 === 1, `hidden buy ${JSON.stringify(r.hiddenBuy)}, level ${r.lvl0} -> ${r.lvl1}`);

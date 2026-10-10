@@ -6,7 +6,7 @@
  *   reveal   a fresh save's first store shows exactly Water tank and Grow strength (Water highlighted);
  *            a scripted 45 m dive reveals Heat tolerance with NEW (for one visit); a worm attach
  *            reveals Mucus flasks.
- *   heat     tolerance maxed (M14: 18 m a rung, was 14): lines [114, 156], price 8 at 160 m, 4 at 130 m, 2 at 100 m; bare is
+ *   heat     tolerance maxed (M14: 20 m a rung, was 14): lines [122, 164], price 8 at 166 m, 4 at 140 m, 2 at 110 m; bare is
  *            [42, 84, 126]; the store note says so in words.
  *   migrate  a v1 ledger (water 4, oreYield 3, pocketWater 2, heatTolerance 2, excreteCharges 1) loads
  *            with p.mineUpgrades {} and minerals up by exactly 345, material rungs refunded in their
@@ -242,8 +242,8 @@ const openStore = async (page) => {
       await b.page.click('.ss-upg[data-track="water"] .ss-upg-btn');
       await sleep(300);
       const lv = await b.page.evaluate(() => ({ lv: window.__game.store.level('water'), P: window.__game.store.balance(), start: window.__game.store.start().water }));
-      // M14: the mine's Water step 12 -> 20 (was '+12 water (60 -> 72)').
-      ok('...and 5 P buys Water I: +20 water (60 -> 80)', lv.lv === 1 && w0 - lv.P === 5 && lv.start === 80, JSON.stringify(Object.assign({ was: w0 }, lv)));
+      // M14: the mine's Water step 12 -> 15 (was '+12 water (60 -> 72)').
+      ok('...and 5 P buys Water I: +15 water (60 -> 75)', lv.lv === 1 && w0 - lv.P === 5 && lv.start === 75, JSON.stringify(Object.assign({ was: w0 }, lv)));
       ok('...and a revealed-by-the-world track stays hidden to the buy hook too', await b.page.evaluate(() => {
         const S = window.__game.store; return S.inGame('heatTolerance', 'mine') === false && S.buy('heatTolerance').ok === false; }), 'refused');
       // RUN 2: what run 1 met (the line) now appears, NEW.
@@ -299,14 +299,14 @@ const openStore = async (page) => {
       // TELEMETRY: an `upgrade` row's `n` is the PHOSPHORUS spent (M5 verifier fix) — a rung priced in
       // a deep material sends 0, or '30 Anthracite' is netted as 30 P by the analytics page (and the
       // store tile used to send the cost object itself).
-      await b.page.evaluate(() => { const S = window.__game.store; for (let i = 0; i < 4; i++) S.buy('water'); S.creditMat('anthracite', 30); });
+      await b.page.evaluate(() => { const S = window.__game.store; for (let i = 0; i < 5; i++) S.buy('water'); S.creditMat('garnet', 45); });   // M14: rung 6 is 150 P, the first material rung is VII (45 G; was VI, 30 A)
       await openStore(b.page);
       const nextW = await b.page.evaluate(() => window.__game.store.nextCost('water'));
       await b.page.click('.ss-upg[data-track="water"] .ss-upg-btn'); await sleep(300);
       const upg = await b.page.evaluate(() => window.__upg);
       const byId = (id) => upg.filter((u) => u.detail === id).map((u) => u.n);
       ok("telemetry: a P rung logs the P spent (Water I 5 via the tile, Mucus flasks I 10 via the card); a material rung logs 0",
-         JSON.stringify(nextW) === JSON.stringify({ m: 'anthracite', n: 30 }) && byId('water').join(',') === '5,0' && byId('excreteCharges').join(',') === '10',
+         JSON.stringify(nextW) === JSON.stringify({ m: 'garnet', n: 45 }) && byId('water').join(',') === '5,0' && byId('excreteCharges').join(',') === '10',
          JSON.stringify({ nextW, upg }));
       ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
       await b.ctx.close();
@@ -328,17 +328,17 @@ const openStore = async (page) => {
         }
         g.mine.playSeed(4242);
         for (let i = 0; i < 120 && !(g.state.substrate && g.state.substrate._fineSolid); i++) await new Promise((r) => setTimeout(r, 100));
-        return { bare, n, lines: g.mine.heatLines(), c160: g.mine.cost(160), c130: g.mine.cost(130), c100: g.mine.cost(100),
-                 c114: g.mine.cost(114), c156: g.mine.cost(156), c168: g.mine.cost(168), words: st.heatWords(), max: st.nextCost('heatTolerance') };
+        return { bare, n, lines: g.mine.heatLines(), c166: g.mine.cost(166), c140: g.mine.cost(140), c110: g.mine.cost(110),
+                 c122: g.mine.cost(122), c164: g.mine.cost(164), c168: g.mine.cost(168), words: st.heatWords(), max: st.nextCost('heatTolerance') };
       });
       ok('bare: lines at 42 / 84 / 126 m, and the note says 2, then 4 / 8 / 16', h.bare.lines.join(',') === '42,84,126'
          && h.bare.words === 'digs cost 2, then 4 / 8 / 16 past 42 / 84 / 126 m', `${h.bare.lines} | ${h.bare.words}`);
       ok('the track is 4 rungs and maxes out', h.n === 4 && h.max === null, `${h.n} bought, next ${JSON.stringify(h.max)}`);
-      // M14 (heat 14 -> 18 m a rung): [98, 140] -> [114, 156]; 8 / 4 / 2 at 150 / 120 / 90 -> 160 / 130 / 100 m.
-      ok('maxed: mineHeatLines returns [114, 156]', h.lines.join(',') === '114,156', JSON.stringify(h.lines));
-      ok('maxed: a dig costs 8 at 160 m, 4 at 130 m, 2 at 100 m', h.c160 === 8 && h.c130 === 4 && h.c100 === 2, `${h.c160} / ${h.c130} / ${h.c100}`);
-      ok('...standing on a line is the cheap side, and the floor never reaches x16', h.c114 === 2 && h.c156 === 4 && h.c168 === 8, `${h.c114} / ${h.c156} / ${h.c168}`);
-      ok('...and the store note says 2, then 4 / 8 past 114 / 156 m', h.words === 'digs cost 2, then 4 / 8 past 114 / 156 m', h.words);
+      // M14 (heat 14 -> 20 m a rung): [98, 140] -> [122, 164]; 8 / 4 / 2 at 150 / 120 / 90 -> 166 / 140 / 110 m.
+      ok('maxed: mineHeatLines returns [122, 164]', h.lines.join(',') === '122,164', JSON.stringify(h.lines));
+      ok('maxed: a dig costs 8 at 166 m, 4 at 140 m, 2 at 110 m', h.c166 === 8 && h.c140 === 4 && h.c110 === 2, `${h.c166} / ${h.c140} / ${h.c110}`);
+      ok('...standing on a line is the cheap side, and the floor never reaches x16', h.c122 === 2 && h.c164 === 4 && h.c168 === 8, `${h.c122} / ${h.c164} / ${h.c168}`);
+      ok('...and the store note says 2, then 4 / 8 past 122 / 164 m', h.words === 'digs cost 2, then 4 / 8 past 122 / 164 m', h.words);
       await b.ctx.close();
     }
 
@@ -542,7 +542,7 @@ const openStore = async (page) => {
         return !!(s && s.substrate && s.substrate.mine && !s.runOver && s.substrate._rockSolidified && !document.getElementById('ssMineEnd') && !document.getElementById('speciesSelect')); },
         null, { timeout: 40000 }).then(() => true).catch(() => false);
       const run2 = await b.page.evaluate(() => ({ lvl: window.__game.store.level('water'), start: window.__game.store.start().water, water: window.__game.state.active.water }));
-      ok('Buy then Descend reaches a live run in 2 clicks, with the rung bought', live && clicks === 2 && run2.lvl === 1 && run2.start === 80 && run2.water >= 78, JSON.stringify(run2));   // M14: 72 -> 80 (Water step 20)
+      ok('Buy then Descend reaches a live run in 2 clicks, with the rung bought', live && clicks === 2 && run2.lvl === 1 && run2.start === 75 && run2.water >= 73, JSON.stringify(run2));   // M14: 72 -> 75 (Water step 15)
       // The records line on a shallower second run.
       await sleep(1500);
       await b.page.evaluate(() => window.__game.mine.end());

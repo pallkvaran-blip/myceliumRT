@@ -1315,8 +1315,8 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     });
     const upped = await dive(b.page);
     // M5: was `upped.safe > bare.safe + 100` (6 rungs x 25 m = 150). Now 4 rungs x 14 m = exactly 56.
-    // M14: 14 -> 18 m a rung (each rung opens the next gallery row at the cheap price): 56 -> 72.
-    ok('the tolerance track raises the limit', upped.safe === bare.safe + 72 && bought === 4,
+    // M14: 14 -> 20 m a rung (each rung opens the next gallery row at the cheap price): 56 -> 80.
+    ok('the tolerance track raises the limit', upped.safe === bare.safe + 80 && bought === 4,
        `${bare.safe} m -> ${upped.safe} m over ${bought} purchases`);
     // THE NUMBER THAT MATTERS. Same seed, same tank, same dig loop — the only difference is the
     // track, so the metres are what it bought.
@@ -2325,7 +2325,7 @@ for (const f of fs.readdirSync(path.join(ROOT, 'docs', 'mine')).filter((f) => f.
     // M5: was '...and the pocket and ore tracks their own numbers' (pocket = base + step, ore +1).
     // Those tracks are cut: refused, and the run's pocket and per-seam numbers are CONFIG's own.
     ok('...and the cut pocket and ore tracks are refused and change nothing',
-       applied.cutRefused && applied.pocket === applied.basePocket && !(applied.oreBonus > 0) && applied.waterStep === 20,   // M14: the mine's Water step 12 -> 20
+       applied.cutRefused && applied.pocket === applied.basePocket && !(applied.oreBonus > 0) && applied.waterStep === 15,   // M14: the mine's Water step 12 -> 15
        `refused ${applied.cutRefused}, pocket ${applied.pocket} = ${applied.basePocket}, ore bonus ${applied.oreBonus}, water step ${applied.waterStep}`);
     await b.ctx.close();
   }

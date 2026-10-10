@@ -82,10 +82,11 @@ const seeded = (obj) => ({ before: async (page) => page.addInitScript((o) => {
                    islandCols: L.layout.islandC1 - L.layout.islandC0 + 1 }; });
       }
       const eq = (a, b2) => JSON.stringify(a) === JSON.stringify(b2);
-      ok('leg 7: state.config.mine.threatBands equals the table row (worms x2 below 42 m)', eq(r[7].tb, r[7].row.threatBands) && r[7].tb[1].worms === 2 && r[7].tb[3].worms === 4,
+      // M14: band 3's worms 4 -> 3 (rule line 'Twice the worms from 42 to 126 m'); leg 8's band-2 mould 2 -> 1.
+      ok('leg 7: state.config.mine.threatBands equals the table row (worms x2 from 42 to 126 m, x1.5 below)', eq(r[7].tb, r[7].row.threatBands) && r[7].tb[1].worms === 2 && r[7].tb[2].worms === 2 && r[7].tb[3].worms === 3,
          JSON.stringify(r[7].tb));
-      ok('leg 4: mould from 42 m (band 1 carries a cloud); leg 8: +1 worm and +1 cloud per chunk below 84 m',
-         eq(r[4].tb, r[4].row.threatBands) && r[4].tb[1].clouds === 1 && eq(r[8].tb, r[8].row.threatBands) && r[8].tb[2].worms === 2 && r[8].tb[2].clouds === 2 && r[8].tb[3].worms === 3,
+      ok('leg 4: mould from 42 m (band 1 carries a cloud); leg 8: +1 worm a chunk below 84 m, +1 cloud below 126 m',
+         eq(r[4].tb, r[4].row.threatBands) && r[4].tb[1].clouds === 1 && eq(r[8].tb, r[8].row.threatBands) && r[8].tb[2].worms === 2 && r[8].tb[2].clouds === 1 && r[8].tb[3].worms === 3 && r[8].tb[3].clouds === 2,
          JSON.stringify({ 4: r[4].tb, 8: r[8].tb }));
       ok('leg 5: one deep seam in two is rich (richChance 0.5); leg 8\'s island is double width (24 columns)', r[5].rich === 0.5 && r[8].islandCols === 24 && r[7].islandCols === 12,
          JSON.stringify({ rich: r[5].rich, i8: r[8].islandCols, i7: r[7].islandCols }));

@@ -4141,15 +4141,19 @@ const CONFIG = {
         { leg: 5, name: 'Rich Veins', seed: 4660017, E: 11, eastM: 264, depthM: 104,
           sealByBand: [0.75, 0.20, 0.12], rule: 'rich', bonus: 60, ruleLine: 'One deep seam in two is rich',
           richChance: 0.5 },
-        { leg: 6, name: 'Hot Rock', seed: 3097001, E: 10, eastM: 240, depthM: 112,
+        // M14: E 10 -> 11 (same seed, PASS: ratio 1.387, arrival kit 0.506 -> 0.582 of supply, bare 6.98): the leg landed
+        // on the bot's 2nd attempt, under G3's 3-run floor. (Leg 4 at E 10 fails the 1.3 ratio gate, 1.291, so it stays at 9.)
+        { leg: 6, name: 'Hot Rock', seed: 3097001, E: 11, eastM: 264, depthM: 112,
           sealByBand: [0.75, 0.20, 0.12], rule: 'hot', bonus: 70, ruleLine: 'Price lines 6 m shallower',
           safeDepth: 36 },
         // M14: E 13 -> 11 (312 -> 264 m east) and the taproot 126 -> 116 m (same seed, PASS + WPASS): with heat at
         // 20 m a rung and Water +15 the arrival kit spends 0.700 of supply (1.302 at the M9 numbers; E 12 read 0.757
         // and E 13 0.732 — the pockets the cheapest route passes move the number as much as the length does).
         { leg: 7, name: 'The Swarm', seed: 2895462, E: 11, eastM: 264, depthM: 116,
-          sealByBand: [0.75, 0.60, 0.12], rule: 'swarm', bonus: 85, ruleLine: 'Twice the worms below 42 m',
-          threatBands: [{ worms: 0, clouds: 0 }, { worms: 2, clouds: 0 }, { worms: 2, clouds: 1 }, { worms: 4, clouds: 1 }] },
+          sealByBand: [0.75, 0.60, 0.12], rule: 'swarm', bonus: 85, ruleLine: 'Twice the worms from 42 to 126 m',
+          // M14: band 3's worms 4 -> 3 (x1.5, not x2): the navigator's leg-7 runs reach ~142 m on their side
+          // branches, and the swarm drained 15-41 water a run in career c7 with 3 flasks in the bag.
+          threatBands: [{ worms: 0, clouds: 0 }, { worms: 2, clouds: 0 }, { worms: 2, clouds: 1 }, { worms: 3, clouds: 1 }] },
         // M14: the taproot 140 -> 128 m, E 15 kept (same seed, PASS + WPASS): arrival kit 0.806 -> 0.693 of supply with
         // heat at 20 m a rung. Band 2's mould 2 -> 1 cloud a chunk (band 3 keeps 2): with 2 the bot's leg-8 runs ended
         // 'infected' 13 times in 14 (career c6, 3 doses each run); the rule line names the deeper band.
@@ -14807,7 +14811,8 @@ const OPENER = (first, steps) => [first, ...LADDER(first * 2, steps - 1)];
 const MINE_COMPASS_COSTS = {
   1: [30, { m: 'anthracite', n: 50 }, { m: 'anthracite', n: 30 }],
   2: [90, 220, { m: 'garnet', n: 24 }],
-  3: [130, 300, { m: 'hematite', n: 12 }],
+  3: [130, 240, { m: 'hematite', n: 12 }],   // M14 career c8: 300 P and Water VIII's 16 H left leg 8's 195-274 P wallets
+                                              // buying nothing for three visits running (8 of 29 dead, 28%)
 };
 const STORE_UPGRADES = [
   // The three resource tracks first, in the game's own energy / water / phosphorus order — the
@@ -14947,7 +14952,7 @@ const MINE_UPGRADE_IDS = ['water', 'growSteps', 'heatTolerance', 'excreteCharges
 // The mine's price for a shared track. `water` is a Spores ladder upstairs (25, 50, 100 …) and
 // the mine's whole currency runs an order of magnitude smaller, so a shared track needs its own
 // ladder or its first rung is unreachable.
-const MINE_COSTS = { water: [5, 12, 25, 50, 100, 150, { m: 'garnet', n: 45 }, { m: 'hematite', n: 16 }] };
+const MINE_COSTS = { water: [5, 12, 25, 50, 100, 150, { m: 'garnet', n: 45 }, { m: 'hematite', n: 12 }] };
 // ...and its STEP (M5): the mine's tank rises +12 a rung (60 -> 156), the campaign's keeps +5. Read
 // through `upgradeStep`, which is what `upgradeValue` (and so `storeBonuses`) uses.
 // M14: +12 -> +15 (60 -> 180). The late legs' crossings could not be paid inside the plan's 70% rule out of a

@@ -54,6 +54,25 @@ traces, and never fail.
 - `navdive.cjs`: a path-following dive that reaches the floor from states where a deepest-tip-only
   probe stalls. It is the reason the "colony boxes itself in" conclusion was wrong: those four
   mine-check failures were a probe digging only from the deepest tip, not a sealed pocket.
+- **M14 (the tuning pass).** `journey.cjs` defaults to the plan's HUMAN OVERHEAD (`--oh plan`: 2.0 on a
+  leg's first attempt, -0.15 an attempt, floor 1.4, -0.08 per island-compass rung, floor 1.3), emulated by
+  charging each accepted dig (oh - 1) x its price extra in whole water and counting (oh - 1) wasted digs of
+  human time; `--oh 1` is the pure bot. `--policy nav` (default) re-plans with legprobe's `navigate` every
+  run (`realTank`, threats kept, pace 900); `--policy route` is the M8 fixed-route follower (it stalled at
+  ~80% of leg 7). `--strat cheapest|power|knowledge`, `--no-buy-all` (skip compasses and the vial),
+  `--from log.json:run` resumes a save, and a DIVE (free-layout descent on the save, capped one band under
+  the material) runs after two failed attempts on a leg when a power rung waits on a material the last run
+  did not pay. Every run line carries mats, drain, store levels, oh and wasted digs.
+- `gates.cjs`: reads career logs and prints the numbers-model gates (G1-G7, G9, G11) with PASS/FAIL.
+- `m14.cjs`: the M14 acceptance runner — `naive` (5 fresh saves x both leans, leg 1 within 5 runs on >= 3),
+  `careers [labels]` (a label's prefix picks the buyer: p power, k knowledge, else cheapest), `gates <logs>`.
+  In `run.mjs` as 'm14naive' and 'm14careers' (hours; not in --mine).
+- `leg1pick.cjs`: screens leg-1 candidates with row overrides and a relaxed ratio, plus the naive screen.
+- `storesim.cjs`: replays a career's measured income against a price table (fast what-if on the shelf).
+- `econ-model.py`: the plan's career model with replaceable inputs (`--inputs econ-model-m14.json`,
+  `--sweep`, `--compare <career logs>`).
+- legprobe `navigate` holds a flask for TWO attached worms or one drinking 6 s (`o.flaskAtFirst` = the M9
+  policy); leg-7 drain with the arrival kit 46.5 -> 23.3 water a run.
 
 Run with `NODE_PATH=/opt/node22/lib/node_modules node tests/bots/<script>.cjs`. Screenshots and
 traces go to `$BOT_OUT` (default: the OS temp dir, under `mine-bots/`).

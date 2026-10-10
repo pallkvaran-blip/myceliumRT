@@ -1,0 +1,266 @@
+{
+ "_note": "M14 measured inputs (tests/bots/legprobe.cjs --kit, navigator digs at the arrival kit converted to grow 2 by the model's own (2/steps)^0.8) and the M14 numbers as shipped (start 60, Water +15, heat 20 m a rung, the M14 leg table and store v5). The overhead stays the plan's (2.0 / -0.15 / 1.4): journey.cjs --oh plan emulates exactly that on the bot, so model and bot share it.",
+ "band_digs": [
+  13,
+  11,
+  10,
+  8
+ ],
+ "lat_digs": [
+  8.8,
+  7.3,
+  8.0,
+  8.0
+ ],
+ "start_water": 60,
+ "water_step": 15,
+ "heat_step": 20,
+ "legs": [
+  [
+   "First Light",
+   3,
+   18,
+   18,
+   0,
+   0,
+   42,
+   20
+  ],
+  [
+   "The Coal Road",
+   4,
+   57,
+   58,
+   1,
+   0,
+   42,
+   30
+  ],
+  [
+   "Dry Ground",
+   8,
+   66,
+   72,
+   1.5,
+   0,
+   42,
+   40
+  ],
+  [
+   "Mould Country",
+   9,
+   66,
+   92,
+   1,
+   1.5,
+   42,
+   50
+  ],
+  [
+   "Rich Veins",
+   11,
+   75,
+   104,
+   1,
+   1,
+   42,
+   60
+  ],
+  [
+   "Hot Rock",
+   11,
+   78,
+   112,
+   1,
+   1,
+   36,
+   70
+  ],
+  [
+   "The Swarm",
+   11,
+   93,
+   116,
+   1.5,
+   1,
+   42,
+   85
+  ],
+  [
+   "The Promised Land",
+   15,
+   96,
+   128,
+   1.5,
+   1.5,
+   42,
+   150
+  ]
+ ],
+ "store": {
+  "water": [
+   [
+    "P",
+    5
+   ],
+   [
+    "P",
+    12
+   ],
+   [
+    "P",
+    25
+   ],
+   [
+    "P",
+    50
+   ],
+   [
+    "P",
+    100
+   ],
+   [
+    "P",
+    150
+   ],
+   [
+    "G",
+    45
+   ],
+   [
+    "H",
+    12
+   ]
+  ],
+  "grow": [
+   [
+    "P",
+    12
+   ],
+   [
+    "P",
+    70
+   ],
+   [
+    "A",
+    40
+   ],
+   [
+    "G",
+    40
+   ]
+  ],
+  "heat": [
+   [
+    "P",
+    15
+   ],
+   [
+    "A",
+    18
+   ],
+   [
+    "A",
+    48
+   ],
+   [
+    "G",
+    36
+   ]
+  ],
+  "flask": [
+   [
+    "P",
+    10
+   ],
+   [
+    "P",
+    40
+   ],
+   [
+    "A",
+    30
+   ]
+  ],
+  "enzyme": [
+   [
+    "P",
+    15
+   ],
+   [
+    "P",
+    50
+   ],
+   [
+    "G",
+    24
+   ]
+  ],
+  "vial": [
+   [
+    "P",
+    120
+   ],
+   [
+    "G",
+    24
+   ],
+   [
+    "H",
+    12
+   ]
+  ],
+  "cIsland": [
+   [
+    "P",
+    12
+   ],
+   [
+    "P",
+    90
+   ]
+  ],
+  "cA": [
+   [
+    "P",
+    30
+   ],
+   [
+    "A",
+    50
+   ],
+   [
+    "A",
+    30
+   ]
+  ],
+  "cG": [
+   [
+    "P",
+    90
+   ],
+   [
+    "P",
+    220
+   ],
+   [
+    "G",
+    24
+   ]
+  ],
+  "cH": [
+   [
+    "P",
+    130
+   ],
+   [
+    "P",
+    240
+   ],
+   [
+    "H",
+    12
+   ]
+  ]
+ }
+}

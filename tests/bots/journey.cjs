@@ -106,7 +106,7 @@ async function navRun(page, paceMs) {
     await sleep(800);
   }
   return { digs: f.digs, seconds: Math.round((Date.now() - t0) / 1000), start, mode: 'nav', kit: { flask: f.flasks, cut: f.cuts, cutMsgs: [], rotSeen: f.breachFrames },
-           reached: null };
+           reached: null, nav: { near: f.near, stalls: f.stalls, refused: f.refused, attaches: f.attaches } };
 }
 
 // THE SCOUT (M10 acceptance 6a): a player who READS THE GROUND (lib.cjs's flood over the generated fine
@@ -373,11 +373,11 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     if (run === 1) store.costs = await page.evaluate(() => { const S = window.__game.store, o = {}; for (const id of S.ids('mine')) o[id] = S.costs(id, 'mine'); return o; });
     const row = { run, leg: leg0, cause: rr.cause, depth: rr.depth, east: rr.east, ore: rr.ore, bonus: rr.bonus, digs: res.digs,
                   seconds: res.seconds, gameMs: rr.ms, start: res.start.water, islands: jn.islands, nextLeg: jn.leg, bought, mode,
-                  drained: rr.drained, mats: rr.mats, seams: rr.seams, reach: rr.reach, kit: res.kit || null, store,
+                  drained: rr.drained, mats: rr.mats, seams: rr.seams, reach: rr.reach, kit: res.kit || null, nav: res.nav || null, store,
                   oh, wasted: await page.evaluate(() => +((window.__ohTax || {}).wasted || 0).toFixed(1)),
                   save: await page.evaluate(() => localStorage.getItem('mycelium.progress.v2')) };
     log.push(row);
-    console.log(`R${run} oh${oh.toFixed(2)} leg ${leg0}${mode !== 'leg' ? ' [' + res.mode + ']' : ''} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''}${Object.keys(rr.mats).length ? ' ' + JSON.stringify(rr.mats) : ''} drain ${rr.drained} | wallet ${store.P} P ${JSON.stringify(store.mats)} store ${store.b}/${store.n} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}${res.kit ? ` | kit: flask x${res.kit.flask}, cut x${res.kit.cut}${res.kit.cutMsgs.length ? ' [' + res.kit.cutMsgs.join(' / ') + ']' : ''}, most rot ${res.kit.rotSeen}` : ''}${res.reached ? ` | route ${res.reached.frac} to ${res.reached.east} m east / ${res.reached.down} m, ended in ${res.mode}` : ''}${scout ? ' | ' + res.mode : ''}`);
+    console.log(`R${run} oh${oh.toFixed(2)} leg ${leg0}${mode !== 'leg' ? ' [' + res.mode + ']' : ''} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''}${Object.keys(rr.mats).length ? ' ' + JSON.stringify(rr.mats) : ''} drain ${rr.drained} | wallet ${store.P} P ${JSON.stringify(store.mats)} store ${store.b}/${store.n} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}${res.kit ? ` | kit: flask x${res.kit.flask}, cut x${res.kit.cut}${res.kit.cutMsgs.length ? ' [' + res.kit.cutMsgs.join(' / ') + ']' : ''}, most rot ${res.kit.rotSeen}` : ''}${res.reached ? ` | route ${res.reached.frac} to ${res.reached.east} m east / ${res.reached.down} m, ended in ${res.mode}` : ''}${scout ? ' | ' + res.mode : ''}${res.nav ? ' | nav ' + JSON.stringify(res.nav) : ''}`);
     fs.writeFileSync(`${OUT}/${tag}.json`, JSON.stringify(log, null, 1));
     if (landAt.length >= legsWanted) break;
     await page.click('#ssDescend').catch(() => {});
