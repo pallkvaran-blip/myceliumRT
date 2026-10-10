@@ -39,12 +39,14 @@ fs.mkdirSync(ART, { recursive: true });
     console.log(tiles.join('\n'));
     await b.ctx.close();
     const c = await E.bootMine(4242);
-    await c.page.evaluate(() => window.__game.mine.playLeg(7));
+    // A save that has banked runs (the banner stands down on a save's very first descent).
+    await c.page.evaluate(() => { const p = JSON.parse(localStorage.getItem('mycelium.progress.v2') || '{}');
+      p.mineRuns = 20; p.mineBest = 120; p.runsFinished = 20; localStorage.setItem('mycelium.progress.v2', JSON.stringify(p)); window.__game.mine.playLeg(1, 7); });
     await c.page.waitForFunction(() => { const g = window.__game, s = g && g.state; return s && s.substrate && s.substrate.mine && (s._mineFrameN | 0) > 3; }, { timeout: 30000 }).catch(() => {});
     await H.sleep(500);
     await c.page.screenshot({ path: path.join(ART, 'm14-leg7-banner-390.png'), timeout: 15000, animations: 'disabled' }).catch(() => {});
     console.log('leg 7 banner:', await c.page.evaluate(() => { const e = document.querySelector('#mineBeat'); return e ? e.textContent.replace(/\s+/g, ' ').trim() : null; }));
-    await c.page.evaluate(() => window.__game.mine.playLeg(1));
+    await c.page.evaluate(() => window.__game.mine.playLeg(1, 1));
     await c.page.waitForFunction(() => { const g = window.__game, s = g && g.state; return s && s.substrate && s.substrate.mine && (s._mineFrameN | 0) > 3; }, { timeout: 30000 }).catch(() => {});
     await H.sleep(1500);
     await c.page.screenshot({ path: path.join(ART, 'm14-leg1-390.png'), timeout: 15000, animations: 'disabled' }).catch(() => {});
