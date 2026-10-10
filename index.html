@@ -76,6 +76,9 @@
       text-transform: uppercase; color: #fff; background: none; border: 0; padding: 5px; cursor: pointer; opacity: .68;
       -webkit-tap-highlight-color: transparent; }
     #titleScreen .ts-foot-btn:hover { opacity: 1; text-decoration: underline; }
+    /* M13 verify 2: on a phone the title's text links (Store, Credits, High Scores) are 44 px tap targets
+       like the Daily Dig button — they were 22 px tall. Height only: the type and the look are unchanged. */
+    @media (pointer: coarse) { #titleScreen .ts-foot-btn { min-height:44px; display:inline-flex; align-items:center; } }
     /* Credits popup — reuses the B&W .hs-card shell; left-aligned credit rows with linked names. */
     .cr-card { text-align: left; }
     .cr-title { text-align: center; margin: 0 0 4px; }
@@ -1959,14 +1962,27 @@
     .ss-me-daily-copied:empty { display:none; }
     /* A SHORT SCREEN ON A DAILY (M13 verify): the panel tightens and the next-goal card steps aside — the
        store is one tap away, and on a daily the buttons are what matter (Practice, Store). */
-    @media (max-height:600px) {
+    /* M13 verify 2: the tightening starts at 700 px (360x640 with the coarse 44 px Copy result ran 22 px over);
+       the goal card still steps aside only under 600. */
+    @media (max-height:700px) {
       .ss-mineend .ss-me-daily { padding:3px 10px; margin:1px auto 2px; font-size:12px; }
       .ss-mineend .ss-me-daily p { margin:0; }
       .ss-mineend .ss-me-daily-acts { margin-top:2px; }
+    }
+    @media (max-height:600px) {
       .ss-mineend.ss-me-isdaily .ss-me-goal { display:none; }
     }
-    @media (pointer: coarse) { .ss-strain-btn { min-height:44px; padding:4px 14px; } }
-
+    @media (pointer: coarse) { .ss-strain-btn { min-height:44px; padding:4px 14px; } .ss-me-daily-acts .ss-me-store { min-height:44px; } }
+    /* THE GLOBAL BOARD ON A SHORT SCREEN (M13 verify 2): the label and five stacked rows on a line of their own
+       pushed Practice and Store below the fold (640x360 scrollHeight 467, 360x640 734, 1280x720 820). Under
+       760 px of height the board keeps its seat on the acts row, like the local label, with the leader only. */
+    .ss-me-daily-board li .ss-me-rk { opacity:.6; margin-right:3px; }
+    @media (max-height:760px) {
+      .ss-me-daily-board[data-board="global"] { flex-basis:auto; }
+      .ss-me-daily-board[data-board="global"] ol { display:inline; margin:0 0 0 6px; }
+      .ss-me-daily-board[data-board="global"] li { display:inline; }
+      .ss-me-daily-board[data-board="global"] li:nth-child(n+2) { display:none; }
+    }
     .ss-win {
       --ss-mint:#7fe6a3; --ss-mint-hi:#c8fff0; --ss-ink:#d7e6dc; --ss-ink-dim:#8aa193; --ss-ink-faint:#57685f;
       --ss-gold:#e6b45c; --ss-water:#7fd0e0; --ss-white-rim:rgba(226,238,232,0.9);
@@ -33610,8 +33626,12 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
     ? '<div class="ss-me-daily" id="ssDaily" data-practice="' + (daily.practice ? 1 : 0) + '">'
       + '<p class="ss-me-daily-t">Daily dig · ' + esc(daily.label || '') + ' <span class="ss-me-daily-tag" id="ssDailyTag">'
         + (daily.practice ? 'practice — scored, not paid' : 'paid run') + '</span></p>'
-      + '<p class="ss-me-daily-s" id="ssDailyStats">Today\u2019s best <b>' + (daily.best | 0) + ' m</b>'
-        + (daily.isBest ? ' <span class="ss-new">new</span>' : '') + ' · streak <b>' + (daily.streak | 0) + '</b></p>'
+      // A RUN FROM AN OLDER DAY that banked late (M13 verify 2) names its own day and depth: 'Today's best'
+      // was that run's own depth beside the newer day's streak.
+      + '<p class="ss-me-daily-s" id="ssDailyStats">' + (daily.past
+          ? esc(daily.label || '') + ': <b>' + (daily.best | 0) + ' m</b>'
+          : 'Today\u2019s best <b>' + (daily.best | 0) + ' m</b>' + (daily.isBest ? ' <span class="ss-new">new</span>' : ''))
+        + ' · streak <b>' + (daily.streak | 0) + '</b></p>'
       // THE BOARD LABEL AND COPY RESULT SHARE ONE ROW (M13 verify): stacked, the panel was ~110 px and pushed
       // Practice and Store below the fold at 640x360 (scrollHeight 450 against 360).
       + '<div class="ss-me-daily-acts"><div class="ss-me-daily-board" id="ssDailyBoard" data-board="local">Board · local</div>'
@@ -33741,7 +33761,7 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
         if (!box || !Array.isArray(rows)) return;
         box.dataset.board = 'global';
         box.innerHTML = 'Board · global (casual)' + (rows.length
-          ? '<ol>' + rows.slice(0, 5).map((e) => '<li>' + esc(e.name) + ' <b>' + (e.depth | 0) + ' m</b></li>').join('') + '</ol>' : '');
+          ? '<ol>' + rows.slice(0, 5).map((e, i) => '<li><span class="ss-me-rk">' + (i + 1) + '</span>' + esc(e.name) + ' <b>' + (e.depth | 0) + ' m</b></li>').join('') + '</ol>' : '');
       }).catch(() => {});
     }
   }
@@ -34957,11 +34977,14 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
   // stores' embed size — the goal line printed under CREDITS, at 360x640 and 320x568 the banked note did,
   // and at 640x360 / 844x390 the strip, gap, goal and banked note were all below the fold (the screen is
   // overflow:hidden). So when the block would cross the footer (or the screen's foot), it first TIGHTENS
-  // its gaps, then drops rows lowest-priority first: the gap line, the near goal, the daily's sub-line,
-  // the badge, the strip, the records line. The Daily Dig button and the banked note are never dropped —
+  // its gaps, then drops rows lowest-priority first: the gap line, the near goal, the badge, the strip,
+  // the daily's sub-line, the records line (M13 verify 2: the sub-line says 'practice now', which is a
+  // decision; the badge and strip are decoration, so they go first). On a coarse-pointer landscape phone
+  // (640x360, 844x390) the 44 px button means the records line goes too — accepted: the button, its line
+  // and the banked note are what that screen needs. The Daily Dig button and the banked note are never dropped —
   // one is a control and the other reports the player's money. Re-run on every layout pass, from a clean
   // slate, so rotating a phone back to portrait brings the rows back.
-  const MINE_FIT_DROP = ['#tsGap', '#tsGoal', '#tsDailySub', '#tsJourneyBadge', '.mj-strip', '#tsRecords'];
+  const MINE_FIT_DROP = ['#tsGap', '#tsGoal', '#tsJourneyBadge', '.mj-strip', '#tsDailySub', '#tsRecords'];
   function fitMineBottom() {
     const botB = root.querySelector('.ts-bottom');
     if (!botB) return;
@@ -37511,12 +37534,35 @@ function mineDailyView(p, key) {
 // later boot — used to reset `date`/`best` to its own day, recompute the streak (to 1) and set
 // `lastDate`/`paid` back, which wiped today's best and REOPENED today's paid run. Now it is historical:
 // its paid flag joins `paidDays` (so its own day cannot pay twice) and nothing about today moves.
+function mineUtcNext(key) {
+  const k = String(key), t = Date.UTC(+k.slice(0, 4), +k.slice(4, 6) - 1, +k.slice(6, 8)) + 86400000;
+  return mineUtcKey(t);
+}
+// THE DAY'S RECORD. `hist` {YYYYMMDD: streak on that day} keeps the last few played days (M13 verify 2), so a
+// run from an OLDER day that banks late (two tabs across midnight) can still bridge the streak: the save
+// played the 24th, a tab plays the 26th (streak 1 — the 25th is missing), then the 25th's run banks. The
+// 25th takes hist[24] + 1 and every later recorded day is re-chained from it, so the 26th reads 3, not 1.
+// A save from before `hist` has no history to bridge from, and its first late day simply starts at 1.
 function mineDailyRecord(p, key, depth, paid) {
   key = String(key);
   const md = Object.assign({ date: '', best: 0, streak: 0, lastDate: '', paid: '' }, p.mineDaily || {});
   const addPaid = (k) => { const a = Array.isArray(md.paidDays) ? md.paidDays.filter((x) => x !== k) : []; a.push(k); md.paidDays = a.slice(-4); };
+  const hist = Object.assign({}, md.hist && typeof md.hist === 'object' ? md.hist : {});
+  const trim = () => { const ks = Object.keys(hist).sort(); for (const k of ks.slice(0, Math.max(0, ks.length - 6))) delete hist[k]; md.hist = hist; };
   if (md.lastDate && key < String(md.lastDate)) {
-    if (paid) { addPaid(key); p.mineDaily = md; }
+    if (paid) addPaid(key);
+    // A day not yet on record joins the chain and re-chains every recorded day after it.
+    if (hist[key] == null) {
+      const pv = hist[mineUtcPrev(key)];
+      hist[key] = pv != null ? (pv | 0) + 1 : 1;
+      for (let d = mineUtcNext(key); d <= String(md.lastDate); d = mineUtcNext(d)) {
+        if (hist[d] == null) break;
+        hist[d] = (hist[mineUtcPrev(d)] | 0) + 1;
+      }
+      if (hist[String(md.lastDate)] != null) md.streak = hist[String(md.lastDate)] | 0;
+    }
+    trim();
+    p.mineDaily = md;
     return { best: depth | 0, isBest: false, streak: md.streak | 0, past: true };
   }
   if (paid) addPaid(key);
@@ -37526,6 +37572,8 @@ function mineDailyRecord(p, key, depth, paid) {
   if (md.lastDate !== key) md.streak = md.lastDate === mineUtcPrev(key) ? (md.streak | 0) + 1 : 1;
   md.lastDate = key;
   if (paid) md.paid = key;
+  hist[key] = md.streak | 0;
+  trim();
   p.mineDaily = md;
   return { best: md.best, isBest, streak: md.streak };
 }
@@ -38113,7 +38161,10 @@ function mineBank(r) {
       const p = loadProgress();
       tk = mineTakenFor(p, key);
       if (p.mineTaken && key in p.mineTaken) {
-        bootCounted = true;
+        // COUNTED ONLY IF THAT BOOT COUNTED IT (M13 verify 2): a marker can exist for a run the boot did not
+        // count (it had not dug yet). An older marker without the flag reads as counted, as before.
+        const mk = p.mineTaken[key];
+        bootCounted = !!(mk && (mk.counted == null ? true : mk.counted));
         delete p.mineTaken[key];
         if (!Object.keys(p.mineTaken).length) delete p.mineTaken;
         saveProgress(p);
@@ -38558,45 +38609,62 @@ function minePendingBankAtBoot() {
     for (const key of keys) {
       const pend = map[key] || {};
       let dP = Math.max(0, pend.P | 0);
+      // Counted as a descent if it dug (a record from before `digs` existed: if it paid anything).
+      const dug = pend.digs != null ? (pend.digs | 0) > 0 : dP > 0;
+      // THE MARKER AN EARLIER BOOT OF THIS SAME RUN LEFT, if any (a run whose tab went hidden twice can be
+      // banked by two boots). `counted` says whether THAT boot counted the run (M13 verify 2): key presence
+      // used to mean "counted", so an empty record's marker made the run's real descent uncounted
+      // everywhere. A marker from before the flag existed reads as counted, as it did then.
+      const mk0 = key !== 'legacy' && p.mineTaken ? p.mineTaken[key] : null;
+      const already = !!(mk0 && (mk0.counted == null ? true : mk0.counted));
       // A DAILY DIG IS PAID ONCE A DAY ON THIS PATH TOO (M13 verify). Two tabs that both started the day's
       // first run each wrote a paid record; the boot used to pay every one of them (N tabs, N payouts).
       // The day is decided ONCE PER RUN: a marker from an earlier boot of this same run wins, else the
       // day's paid flag as it stands now (which an earlier record in this very loop may have just set).
+      // ...AND ONLY FOR A RECORD THAT DUG (M13 verify 2). A tab hidden before its first dig writes an empty
+      // record; deciding 'paid' for it left a marker that paid the run later WITHOUT the day being claimed
+      // (the claim is gated on `dug`), so another tab's daily was paid too — two paid runs, two board rows.
+      // An undug daily record decides nothing and pays nothing; the live tab's `mineBank` decides at its bank.
       let dailyMark = null;
       if (pend.daily && pend.daily.date) {
-        const mk0 = key !== 'legacy' && p.mineTaken ? p.mineTaken[key] : null;
-        dailyMark = pend.daily.practice ? 'practice'
-          : (mk0 && mk0.daily) ? mk0.daily
-          : (mineDailyView(p, String(pend.daily.date)).paidToday ? 'practice' : 'paid');
-        if (dailyMark !== 'paid') dP = 0;
+        if (!dug) dP = 0;
+        else {
+          dailyMark = pend.daily.practice ? 'practice'
+            : (mk0 && mk0.daily) ? mk0.daily
+            : (mineDailyView(p, String(pend.daily.date)).paidToday ? 'practice' : 'paid');
+          if (dailyMark !== 'paid') dP = 0;
+        }
       }
+      const payMats = !(pend.daily && pend.daily.date && dailyMark !== 'paid');
       P += dP;
       const dm = {};
-      if (!(dailyMark && dailyMark !== 'paid')) for (const k of Object.keys(pend.mats || {})) {
+      if (payMats) for (const k of Object.keys(pend.mats || {})) {
         const n = Math.max(0, pend.mats[k] | 0);
         if (k === 'phosphorus' || !n) continue;
         p.mats[k] = Math.max(0, (p.mats[k] | 0) + n);
         mats[k] = (mats[k] | 0) + n; dm[k] = n;
       }
       const d = Math.max(0, pend.depth | 0);
-      // Counted as a descent if it dug (a record from before `digs` existed: if it paid anything),
-      // and ONCE PER RUN: a run whose tab went hidden twice can be banked by two boots, and the
-      // second finds the first one's `mineTaken` marker — read BEFORE this record updates it below.
-      const dug = pend.digs != null ? (pend.digs | 0) > 0 : dP > 0;
-      const already = key !== 'legacy' && !!(p.mineTaken && key in p.mineTaken);
+      // ONCE PER RUN, off the marker read above (before this record updates it below).
       if (dug && !already) { p.mineRuns = mineRunsBanked(p) + 1; countRuns++; }
       // ...AND ON ITS LEG (M8 verify): runs and bests, once per run as above. A record is never a
       // landfall (a landfall is banked on the frame it happens), so this cannot move the journey on.
       if (dug && (pend.leg | 0) > 0) mineLegApply(p, { leg: pend.leg | 0, journey: pend.journey | 0, cause: 'pending', digs: pend.digs | 0 || 1, depth: d, east: pend.east | 0,
                                                      fossil: typeof pend.fossil === 'string' ? pend.fossil : undefined }, !already);
       if (dug && !(p.mineBest >= d)) p.mineBest = d;
-      // A DAILY DIG left in a hidden tab (M13): its day's record, once per run; a paid one spends the day's
-      // paid run (it was paid just above).
-      if (dug && !already && dailyMark) mineDailyRecord(p, String(pend.daily.date), d, dailyMark === 'paid');
-      if (key !== 'legacy') {
+      // A DAILY DIG left in a hidden tab (M13): its day's record. A run decided 'paid' ALWAYS claims the day
+      // here (M13 verify 2) — a repeat for the same run only moves the day's best up (the streak and the
+      // paid flag are already set), so it is safe on a second boot and it never leaves a paid marker behind
+      // an unclaimed day.
+      if (dug && dailyMark) mineDailyRecord(p, String(pend.daily.date), d, dailyMark === 'paid');
+      // THE MARKER: only when there is something to remember — something paid, a counted run, a decided day,
+      // or an earlier marker to update. An empty, undug record leaves no trace.
+      const touched = dP > 0 || Object.keys(dm).length > 0 || dug || !!dailyMark || !!mk0;
+      if (key !== 'legacy' && touched) {
         p.mineTaken = p.mineTaken || {};
         const t = p.mineTaken[key] || { P: 0, mats: {} };
         if (dailyMark) t.daily = dailyMark;
+        t.counted = already || dug;
         t.P = (t.P | 0) + dP;
         t.mats = t.mats || {};
         for (const k of Object.keys(dm)) t.mats[k] = (t.mats[k] | 0) + dm[k];
@@ -44176,7 +44244,11 @@ function mineSeenFlush(time) {
   }
   const have = state._mineSeenSaved || (state._mineSeenSaved = Object.assign({}, (loadProgress().mineSeen) || {}));
   let fresh = null;
-  for (const k of Object.keys(now)) if (now[k] && !have[k]) { (fresh = fresh || {})[k] = now[k]; have[k] = now[k]; }
+  // A DAILY DIG DOES NOT SPEND THE JOURNEY'S FIRST-ROT GRACE (M13 verify 2): the daily pins the 20 s clock
+  // (`firstRot` false) whatever the save, so persisting `rot` from it would deny the save its 30 s first
+  // breach (M6) on the journey without ever having granted it.
+  const daily = !!(state.config.mine && state.config.mine.daily);
+  for (const k of Object.keys(now)) if (now[k] && !have[k] && !(daily && k === 'rot')) { (fresh = fresh || {})[k] = now[k]; have[k] = now[k]; }
   if (!fresh) return;
   try {
     const p = loadProgress();

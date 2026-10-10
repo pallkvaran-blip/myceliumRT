@@ -223,6 +223,15 @@ const endRun = async (page) => {
         for (let k = 0; k < 40 && !pile.rewarded; k++) await new Promise((q) => setTimeout(q, 100));
         return { ok: !!pile.rewarded, ore: s.mineOre | 0 };
       });
+      // A DAILY DOES NOT SPEND THE JOURNEY'S FIRST-ROT GRACE (M13 verify 2): meeting rot on a daily persists no
+      // `mineSeen.rot` (the daily ran the 20 s clock; the save keeps its 30 s first breach for the journey).
+      // Control: the same flag on the same page's frame loop does persist `cloud`.
+      const rot = await p.evaluate(async () => { const s = window.__game.state; s.mineSeenNow = s.mineSeenNow || {};
+        s.mineSeenNow.rot = true; s.mineSeenNow.cloud = true;
+        await new Promise((q) => setTimeout(q, 700)); const sv = JSON.parse(localStorage.getItem('mycelium.progress.v2'));
+        return { rot: !!(sv.mineSeen && sv.mineSeen.rot), cloud: !!(sv.mineSeen && sv.mineSeen.cloud), firstRot: s.config.mine.firstRot }; });
+      ok("a daily that meets rot leaves the save's first-rot grace for the journey (mineSeen.rot unset; control: cloud is saved)",
+         !rot.rot && rot.cloud && rot.firstRot === false, JSON.stringify(rot));
       const r1 = await endRun(p);
       const sv1 = await save(p);
       const exp1 = (r1.seams | 0) + Math.floor(Math.floor((r1.depth | 0) / 5) / 2);
@@ -548,7 +557,9 @@ const endRun = async (page) => {
     //  (a) two tabs both start the 25th's paid run; A banks it; B goes hidden (its pending record says P > 0)
     //      and is closed; the next boot banks B's record as PRACTICE — 0 P (it paid 2 on the M13 build).
     //  (b) a paid run partly banked by another page's boot keeps the rest of its pay and stays paid.
-    //  (c) a run from an older UTC day that banks after the next day's paid run leaves today's record alone.
+    //  (c) a paid run from an older UTC day that banks after the next day's paid run is paid, leaves today's
+    //      record in place and bridges the streak (fresh profile, two tabs across midnight).
+    //  (d) a daily hidden before its first dig, banked empty by a boot, then the day paid elsewhere: one paid run.
     if (want('tabs')) {
       console.log('--- the Daily Dig across tabs');
       const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -598,22 +609,82 @@ const endRun = async (page) => {
          && (sA.minerals | 0) - pend2.min === (rA2.ore | 0) && (rA2.ore | 0) > (pend2.recs[0] | 0) && (pend2.recs[0] | 0) > 0,
          JSON.stringify({ day2, bootBanked: (sB.minerals | 0) - pend2.min, ore: rA2.ore, total: (sA.minerals | 0) - pend2.min, practice: rA2.daily && rA2.daily.practice }));
       await A2.page.close();
-      // (c) the record only moves forward: a 25th run ending after the 26th's paid run leaves the 26th alone.
-      await ctx.addInitScript(() => { window.__dayOff = 0; });
-      const A3 = await open();
-      await A3.page.evaluate(() => { window.__dayOff = 0; });
-      const before = await save(A3.page);
+      // (c) TWO TABS ACROSS MIDNIGHT, on a FRESH profile (M13 verify 2): a run started on the 25th (paid —
+      //     the 25th was never paid on this profile) is still open when another tab plays the 26th's paid run;
+      //     the 25th's run then banks. It is PAID (it was that day's first), both days are in paidDays, the
+      //     26th keeps lastDate / paid, the streak bridges 25 -> 26 (2, not 1), and the panel names its own day.
+      //     The old (c) reused the profile from (a), so its 25th run started as practice and never reached the
+      //     paid older-day path at all.
+      const ctxC = await E.browser.newContext({ viewport: { width: 390, height: 844 } });
+      const openC = async () => { const b = await E.boot('', 390, 844, { ctx: ctxC, before: prep({ clock: D25, save: LANDED }) });
+        await b.page.waitForSelector('#tsDaily', { timeout: 20000 }).catch(() => {}); await sleep(2200); return b; };
+      const A3 = await openC();
       await startDaily(A3.page);
       const d3 = await A3.page.evaluate(() => window.__game.state.config.mine.daily);
       await digDown(A3.page, 20);
+      await ctxC.addInitScript(() => { window.__dayOff = 86400000; });
+      const B3 = await openC();
+      await startDaily(B3.page);
+      const d3b = await B3.page.evaluate(() => window.__game.state.config.mine.daily);
+      await digDown(B3.page, 20);
+      const rB3 = await endRun(B3.page);
+      const mid = await save(B3.page);
+      await A3.page.evaluate(() => { window.__dayOff = 0; });
       const rA3 = await endRun(A3.page);
       const after = await save(A3.page);
-      const m0 = before.mineDaily, m1 = after.mineDaily;
-      ok('(c) a run from an older day leaves the newer day\'s best, streak, lastDate and paid flag alone',
-         d3 && d3.date === '20260925' && m0.lastDate === '20260926' && m1.date === m0.date && m1.best === m0.best && m1.streak === m0.streak
-         && m1.lastDate === '20260926' && m1.paid === '20260926' && rA3.daily,
-         JSON.stringify({ d3, before: m0, after: m1 }));
-      ok('no page errors (tabs)', ![A, B, C, A2, B2, A3].some((x) => x.errs.length), [A, B, C, A2, B2, A3].map((x) => x.errs).flat().slice(0, 2).join(' | '));
+      const m1 = after.mineDaily || {};
+      const panel = await A3.page.evaluate(() => (document.getElementById('ssDailyStats') || {}).textContent || '');
+      ok('(c) a paid 25th run banking after the 26th\'s paid run is paid, both days are paid, the 26th keeps lastDate/paid, the streak bridges to 2',
+         d3 && d3.date === '20260925' && !d3.practice && d3b && d3b.date === '20260926' && !d3b.practice && rB3.daily && !rB3.daily.practice
+         && rA3.daily && !rA3.daily.practice && (rA3.ore | 0) > 0 && (after.minerals | 0) - (mid.minerals | 0) === (rA3.ore | 0)
+         && Array.isArray(m1.paidDays) && m1.paidDays.includes('20260925') && m1.paidDays.includes('20260926')
+         && m1.lastDate === '20260926' && m1.paid === '20260926' && m1.date === '20260926' && (m1.streak | 0) === 2,
+         JSON.stringify({ d3, d3b, A: { ore: rA3.ore, practice: rA3.daily && rA3.daily.practice }, minerals: [mid.minerals, after.minerals], mid: mid.mineDaily, after: m1 }));
+      ok("...and its end-screen panel names its own day ('25 Sep: N m'), not 'Today's best'",
+         /25 Sep/.test(panel) && !/Today/.test(panel), JSON.stringify(panel));
+      await ctxC.close();
+      // (d) HIDDEN BEFORE THE FIRST DIG (M13 verify 2): tab A starts the paid daily and its pending record is
+      //     written at 0 digs; a boot elsewhere banks that empty record; tab C then plays the day's paid run; A digs
+      //     and ends. Exactly ONE paid run and ONE board submission for the day, and both descents counted
+      //     (mineRuns 4 -> 6). On the first verify build the boot left a 'paid' marker without claiming the day,
+      //     so C and A were both paid (2 POSTs) and A's descent went uncounted.
+      const ctxD = await E.browser.newContext({ viewport: { width: 390, height: 844 } });
+      const postsD = [];
+      await ctxD.route('https://board.test/**', (rt) => {
+        const u = rt.request().url(), m = rt.request().method();
+        if (m === 'POST' && u.includes('/rest/v1/scores')) { postsD.push(rt.request().postData() || ''); return rt.fulfill({ status: 201, body: '' }); }
+        if (m === 'POST') return rt.fulfill({ status: 201, body: '' });
+        if (u.includes('/rest/v1/mine_daily')) return rt.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+        return rt.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+      });
+      const openD = async () => { const b = await E.boot('', 390, 844, { ctx: ctxD, supabase: { url: 'https://board.test', anonKey: 'k' }, before: prep({ clock: D25, save: LANDED }) });
+        await b.page.waitForSelector('#tsDaily', { timeout: 20000 }).catch(() => {}); await sleep(2200); return b; };
+      const A4 = await openD();
+      await startDaily(A4.page);
+      const pend4 = await A4.page.evaluate(() => { window.__game.mine.pendingWrite(); const sv = JSON.parse(localStorage.getItem('mycelium.progress.v2'));
+        return Object.values(sv.minePending || {}).map((r) => ({ P: r.P, digs: r.digs, daily: r.daily })); });
+      const C4 = await openD();
+      const sBoot = await save(C4.page);
+      await startDaily(C4.page);
+      const dC = await C4.page.evaluate(() => window.__game.state.config.mine.daily);
+      await digDown(C4.page, 24);
+      const rC4 = await endRun(C4.page);
+      const sC = await save(C4.page);
+      await digDown(A4.page, 24);
+      const rA4 = await endRun(A4.page);
+      await sleep(1500);
+      const sA4 = await save(A4.page);
+      const tagA = await A4.page.evaluate(() => (document.getElementById('ssDailyTag') || {}).textContent || '');
+      const paidRuns = [rC4, rA4].filter((r) => r.daily && !r.daily.practice).length;
+      ok('(d) a daily hidden before its first dig: the boot leaves no marker and claims no day, C is paid, A banks as practice',
+         pend4.length === 1 && (pend4[0].digs | 0) === 0 && !pend4[0].daily.practice && !(sBoot.mineTaken && Object.keys(sBoot.mineTaken).length)
+         && !(sBoot.mineDaily && sBoot.mineDaily.paid) && dC && !dC.practice && rC4.daily && !rC4.daily.practice
+         && rA4.daily && rA4.daily.practice && (sA4.minerals | 0) === (sC.minerals | 0) && paidRuns === 1 && /practice/.test(tagA),
+         JSON.stringify({ pend4, taken: sBoot.mineTaken, dailyAtBoot: sBoot.mineDaily, C: { ore: rC4.ore, practice: dC && dC.practice }, A: { ore: rA4.ore, practice: rA4.daily && rA4.daily.practice }, minerals: [sBoot.minerals, sC.minerals, sA4.minerals], tagA }));
+      ok('...exactly one board submission for the day, and both descents counted (mineRuns 4 -> 6)',
+         postsD.length === 1 && (sA4.mineRuns | 0) === 6, JSON.stringify({ posts: postsD.length, mineRuns: [LANDED.mineRuns, sC.mineRuns, sA4.mineRuns] }));
+      await ctxD.close();
+      ok('no page errors (tabs)', ![A, B, C, A2, B2, A3, B3, A4, C4].some((x) => x.errs.length), [A, B, C, A2, B2, A3, B3, A4, C4].map((x) => x.errs).flat().slice(0, 2).join(' | '));
       await ctx.close();
     }
   } catch (e) { fail++; console.log('  FAIL  harness error: ' + (e && e.stack || e)); }
