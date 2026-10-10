@@ -799,10 +799,12 @@ async function kitWater(page, leg, seed, kit, o = {}) {
   const sw = await page.evaluate(([k, thr]) => {
     const s = window.__game.state, base = window.__cfg.mine.startWater | 0;
     s.config.mine.growSteps = 2 + (k.grow | 0);
-    s.config.mine.heatBonus = 14 * (k.heat | 0);
+    // The track's own step (M14: no longer assumed 14), and its own water step.
+    const hs = window.__game.store.mineStep ? window.__game.store.mineStep('heatTolerance') : 14;
+    s.config.mine.heatBonus = hs * (k.heat | 0);
     // WITH THE CREATURES (M9 verify 3), the kit's flasks and doses go in the bag.
     if (thr) s.mineItems = { excrete: k.flask | 0, amputate: k.enzyme | 0 };
-    return base + 12 * (k.water | 0);
+    return base + (window.__game.store.mineStep ? window.__game.store.mineStep("water") : 12) * (k.water | 0);
   }, [kit, !!o.threats]);
   const m = await measure(page, { route: true, gFactor: Math.pow((2 + (kit.grow | 0)) / 2, 0.8) });
   // The look-ahead scales with the dig's reach (70 units is a grow-2 dig's half): aimed 70 units ahead,

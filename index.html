@@ -4069,7 +4069,7 @@ const CONFIG = {
     // chunk records are pinned byte-identical to the pre-M7 snapshot.
     // THE DAILY DIG (M13): one shared seed per UTC day on the FREE layout, with this FIXED kit whatever
     // the store says (`configForLevel`), so a score is comparable between players: 108 water, grow 4,
-    // heat tolerance 2 (the first line at 42 + 2 x 14 = 70 m), one flask, one dose, no vial, no compass.
+    // heat tolerance 2 (the first line at 42 + 2 x 18 = 78 m since M14; 70 at 14 m a rung), one flask, one dose, no vial, no compass.
     dailyKit: { water: 108, grow: 4, tolerance: 2, flask: 1, dose: 1 },
     // STRAINS (M13): the strand's colour, the Phosphorus sink after the Promised Land. Four for sale and
     // one per finished journey (`journey`, unlocked by finishing it, never sold). `tint` replaces the
@@ -4120,7 +4120,9 @@ const CONFIG = {
           sealByBand: [0.12, 0.12, 0.12], rule: 'calm', bonus: 20, ruleLine: 'No threats — dig down, then east' },
         // Leg 2 pulled in one chunk (M8 verify 3: E 6 -> 5, 144 -> 120 m east, same seed, still PASS + WPASS):
         // the sensible careers' leg-2 tail was 9 runs against 3b's 7; nine careers after: 3-6, median 4.
-        { leg: 2, name: 'The Coal Road', seed: 1703848, E: 5, eastM: 120, depthM: 58,
+        // M14: E 5 -> 4 (120 -> 96 m east, same seed, still PASS + WPASS): the arrival kit spent 0.847 of supply
+        // with heat at 18 m a rung (0.883 at 14), against the plan's 70% rule; at E 4 0.617.
+        { leg: 2, name: 'The Coal Road', seed: 1703848, E: 4, eastM: 96, depthM: 58,
           sealByBand: [0.55, 0.12, 0.12], rule: 'standard', bonus: 30, ruleLine: 'Worms from 42 m' },
         { leg: 3, name: 'Dry Ground', seed: 36103, E: 8, eastM: 192, depthM: 72,
           sealByBand: [0.70, 0.12, 0.12], rule: 'dry', bonus: 40, ruleLine: 'No water pockets above 42 m' },
@@ -4137,10 +4139,14 @@ const CONFIG = {
         { leg: 6, name: 'Hot Rock', seed: 3097001, E: 10, eastM: 240, depthM: 112,
           sealByBand: [0.75, 0.20, 0.12], rule: 'hot', bonus: 70, ruleLine: 'Price lines 6 m shallower',
           safeDepth: 36 },
-        { leg: 7, name: 'The Swarm', seed: 2895462, E: 13, eastM: 312, depthM: 126,
+        // M14: E 13 -> 10 (312 -> 240 m east) and the taproot 126 -> 116 m (same seed, PASS + WPASS): with the
+        // M14 heat and water steps the arrival kit spent 0.888 -> 0.697 of supply (1.302 at the M9 numbers).
+        { leg: 7, name: 'The Swarm', seed: 2895462, E: 10, eastM: 240, depthM: 116,
           sealByBand: [0.75, 0.60, 0.12], rule: 'swarm', bonus: 85, ruleLine: 'Twice the worms below 42 m',
           threatBands: [{ worms: 0, clouds: 0 }, { worms: 2, clouds: 0 }, { worms: 2, clouds: 1 }, { worms: 4, clouds: 1 }] },
-        { leg: 8, name: 'The Promised Land', seed: 1437175, E: 15, eastM: 360, depthM: 140,
+        // M14: E 15 -> 13 (360 -> 312 m east) and the taproot 140 -> 128 m (same seed, PASS + WPASS): arrival kit
+        // 0.818 -> 0.670 of supply.
+        { leg: 8, name: 'The Promised Land', seed: 1437175, E: 13, eastM: 312, depthM: 128,
           sealByBand: [0.75, 0.65, 0.12], rule: 'promised', bonus: 150, ruleLine: 'More worms and mould below 84 m',
           islandCols: 24, finale: true,     // landfall here is cause 'promised': the finale, and Journey II
           threatBands: [{ worms: 0, clouds: 0 }, { worms: 1, clouds: 0 }, { worms: 2, clouds: 2 }, { worms: 3, clouds: 2 }] },
@@ -14883,11 +14889,15 @@ const STORE_UPGRADES = [
     effect: 'Arm it, then dig: the acid eats through <b>up to 3 cells</b> of rock to open ground. Carry <b>one more</b> vial per descent.',
     costs: [50, { m: 'garnet', n: 12 }, { m: 'hematite', n: 12 }] },
   // DEPTH GATING, sold as tolerance: it moves where the price starts climbing rather than removing
-  // the climb. 14 m a rung over 4 rungs (v1 was 25 m over 6, which deleted heat from the shaft), so
-  // at the top the lines sit at 98 / 140 m and the x4 and x8 prices always exist.
-  { id: 'heatTolerance', name: 'Heat tolerance', icon: 'climb', accent: 'gold', step: 14, unit: 'metres', unit1: 'metre',
+  // the climb. 18 m a rung over 4 rungs (v1 was 25 m over 6, which deleted heat from the shaft), so
+  // at the top the lines sit at 114 / 156 m and the x4 and x8 prices always exist.
+  // M14: 14 -> 18. The journey's galleries run at rows 3 + 18k (57, 75, 93, 111 m), so at 14 a rung
+  // each line sat just ABOVE a gallery (56 / 70 / 84 / 98) and a crossing on it paid the doubled price;
+  // at 18 (60 / 78 / 96 / 114) each rung opens the next gallery down at the cheap price. Measured with the
+  // arrival kits (legprobe --kit): legs 3 / 6 / 7 route water 0.781 -> 0.688, 0.776 -> 0.632, 1.302 -> 0.888.
+  { id: 'heatTolerance', name: 'Heat tolerance', icon: 'climb', accent: 'gold', step: 18, unit: 'metres', unit1: 'metre',
     mineOnly: true,
-    effect: 'Push the first price line <b>14 m deeper</b>.',
+    effect: 'Push the first price line <b>18 m deeper</b>.',
     costs: [15, { m: 'anthracite', n: 14 }, { m: 'anthracite', n: 24 }, { m: 'garnet', n: 20 }] },
   // THE COMPASSES (finishing plan M10): KNOWLEDGE, not power. A needle at the screen's edge points on
   // the STRAIGHT bearing from the focus strand to its target, through rock — a bearing, never a route,
@@ -14923,10 +14933,12 @@ const MINE_UPGRADE_IDS = ['water', 'growSteps', 'heatTolerance', 'excreteCharges
 const MINE_COSTS = { water: [5, 12, 25, 45, 80, { m: 'anthracite', n: 30 }, { m: 'garnet', n: 24 }, { m: 'hematite', n: 16 }] };
 // ...and its STEP (M5): the mine's tank rises +12 a rung (60 -> 156), the campaign's keeps +5. Read
 // through `upgradeStep`, which is what `upgradeValue` (and so `storeBonuses`) uses.
-const MINE_STEPS = { water: 12 };
+// M14: +12 -> +15 (60 -> 180). The late legs' crossings could not be paid inside the plan's 70% rule out
+// of a 156 tank, and their runs were too short for G7 (leg 7-8 runs 150-240 s at a human's 1.7 s a dig).
+const MINE_STEPS = { water: 15 };
 // The mine's own name and copy for a shared track.
 const MINE_NAMES = { water: 'Water tank' };
-const MINE_EFFECTS = { water: 'Start every descent with <b>12 more</b> water.' };
+const MINE_EFFECTS = { water: 'Start every descent with <b>15 more</b> water.' };
 const upgradeStep = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_STEPS[u.id] != null ? MINE_STEPS[u.id] : (u ? u.step : 0));
 const upgradeName = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_NAMES[u.id]) || (u ? u.name : '');
 const upgradeEffect = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_EFFECTS[u.id]) || (u ? u.effect : '');
@@ -32974,9 +32986,9 @@ function mineTileNew(id, p, forCard) {
 }
 // One line of what the next rung DOES, for the next-goal card.
 const MINE_GOAL_TEXT = {
-  water: 'start with 12 more water',
+  water: 'start with 15 more water',
   growSteps: 'every dig reaches one step further',
-  heatTolerance: 'push the first price line 14 m deeper',
+  heatTolerance: 'push the first price line 18 m deeper',
   excreteCharges: 'carry a flask that kills drinking worms',
   amputateCharges: 'carry a dose that cuts out rot',
   compassIsland: 'a needle that points through rock at the island\'s root',
@@ -41102,6 +41114,7 @@ function begin(newState) {
     },
     store: {
       upgrades: STORE_UPGRADES,
+      mineStep: (id) => upgradeStep(upgradeById(id), "mine"),    // a track's per-rung step in the mine (M14: legprobe's kit reads it)
       // WHICH TRACKS THIS GAME'S SHELF SHOWS, and it is not all of them: the mine's four are its
       // own shop (see `upgradeInGame`), so a check that reads `upgrades` whole is reading the
       // TABLE rather than any one store. `shelf()` is what a player is looking at.
@@ -43585,7 +43598,7 @@ function mineOnDig(time) {
   // cells light the two tips with the most open, undug ground ahead for 4 s.
   const fresh = state._mineLastNewCells | 0;
   o.deadRun = fresh < 2 ? o.deadRun + 1 : 0;
-  if (o.deadRun >= 2) { o.deadRun = 0; mineNudge(time); }
+  if (o.deadRun >= 2) { o.deadRun = 0; mineNudge(time, 'dead'); }
 }
 // ...AND THREE 'Solid rock' REFUSALS IN A ROW (verifier fix): a player hammering a walled strand
 // is the stuck player the nudge exists for, and it used to count successful digs only, so they
@@ -43595,7 +43608,7 @@ const MINE_NUDGE_WALLED = 3;
 function mineOnWalled(time) {
   if ((state.mineWalledRun | 0) < MINE_NUDGE_WALLED) return;
   state.mineWalledRun = 0;
-  if (mineNudge(time)) {
+  if (mineNudge(time, 'walled')) {
     // The press that fired the nudge also raised a 'Solid rock' toast, placed under the HUD stack
     // BEFORE the 'Dead end' line existed — so the toast sat on the hint (verifier, p-ev7-25.png).
     // The nudge is the better answer to that press; drop the toast.
@@ -43717,9 +43730,14 @@ function mineHudBandPx() {
   if (hint && (hint.hidden || !hint.getBoundingClientRect().height)) bottom += 44;
   return bottom;
 }
-function mineNudge(time) {
+// WHICH RUNS NUDGE (M14). The DEAD-DIG nudge (two digs that each opened under 2 new cells) is the
+// teaching one and stays on runs 1-5. The WALLED nudge (3 'Solid rock' refusals in a row) fires on
+// EVERY run: a walled player with water in the tank is never ended by the stuck rule (it ends only on
+// water < price), so without it a run 6+ player hammering a wall had nothing on screen pointing out.
+const MINE_NUDGE_DEAD_RUNS = 5;
+function mineNudge(time, why) {
   const o = state._mineOnb;
-  if ((state._mineRunNo | 0) > 5 || (o.glow && time < o.glow.until)) return false;
+  if ((why !== 'walled' && (state._mineRunNo | 0) > MINE_NUDGE_DEAD_RUNS) || (o.glow && time < o.glow.until)) return false;
   // A GLOWING TIP MUST BE SEEN: on screen and below the HUD stack (verifier: a tip at y 195 lit
   // behind the hint and the toast). Off-screen/under-HUD tips are the fallback only when nothing
   // visible qualifies, so the nudge line still fires.

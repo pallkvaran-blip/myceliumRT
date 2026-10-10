@@ -677,6 +677,29 @@ const pollHint = (page, re, ms) => page.evaluate(async ({ src, ms }) => {
       const r6 = await deadEnds(b.page);
       ok('run 6: the same two dead-end digs light nothing (control)', r6.runNo === 6 && r6.glow.nudges === 0 && r6.pair,
          `run ${r6.runNo}, cells ${JSON.stringify(r6.cells)}, nudges ${r6.glow.nudges}`);
+      // M14: the WALLED nudge fires on every run (a walled player with water is never ended by the stuck
+      // rule). Run 6, three 'Solid rock' refusals in a row on the same strand light the open tips.
+      const w6 = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state, wait = (ms) => new Promise((q) => setTimeout(q, ms));
+        const reach = s.config.growth.segmentLength * 3 * (s.config.mine.growSteps || 2);
+        const press = (p) => g.mine.growFrom(p.x, p.y, p.x + Math.cos(p.a) * reach, p.y + Math.sin(p.a) * reach);
+        let pick = null;
+        for (let i = 0; i < 40 && !pick; i++) {
+          let t = null; for (const n of s.active.nodes) if (!n.infected && (!t || n.y > t.y)) t = n;
+          const ray = g.mine.bestDownRay(t.x, t.y), p = { x: t.x, y: t.y, a: ray ? ray.ang : Math.PI / 2 };
+          const res = press(p);
+          if (!res.ok && /Solid rock/.test(res.message || '')) pick = p;
+          await wait(300);
+        }
+        if (!pick) return null;
+        await wait(4500);
+        const n0 = g.mine.glow().nudges, msgs = [];
+        for (let k = 0; k < 3; k++) { msgs.push(press(pick).message); await wait(120); }
+        return { n0, n: g.mine.glow().nudges - n0, msgs, runNo: g.mine.onb().runNo };
+      });
+      ok("run 6: three 'Solid rock' refusals in a row still light the open tips (M14: the walled nudge fires on every run)",
+         !!w6 && w6.runNo === 6 && w6.msgs.every((m) => /Solid rock/.test(m || '')) && w6.n === 1,
+         w6 ? `run ${w6.runNo}, +${w6.n} nudge(s), ${JSON.stringify(w6.msgs.map((m) => (m || '').slice(0, 24)))}` : 'no walled strand found');
       await b.ctx.close();
     }
 

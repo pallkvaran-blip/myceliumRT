@@ -17,7 +17,7 @@
  *            /rest/v1/scores per PAID daily run (the practice run after it sends none), mode 'mine-daily',
  *            and the board reads 'global'. A stub whose probe 404s (no migration): 0 POSTs, 'local'.
  *   journey  'Begin Journey II' plays a leg-1 seed different from Journey I's (the J2 table's), with the
- *            first heat line at 32 m, and at 32 + 14 = 46 m with one tolerance rung; the stacking rules land
+ *            first heat line at 32 m, and at 32 + 18 = 50 m with one tolerance rung (M14: 14 -> 18 a rung); the stacking rules land
  *            on the run's config (III start water -12, IV worms x2 at 0.3/s, V mould from 42 m and a 15 s
  *            clock, VI pockets +7, VII the island two chunks east); the leg banner names the rules.
  *   strains  the store has no Strains section before the Promised Land and has one after (with the Gold
@@ -190,8 +190,9 @@ const endRun = async (page) => {
       ok('the next date has another seed and other chunks', C.d.key === '20260926' && C.d.seed !== A.d.seed && C.hash !== A.hash, JSON.stringify({ C: [C.d.key, C.d.seed, C.hash] }));
       ok('it plays the free layout (no leg)', A.leg === null && C.leg === null, JSON.stringify([A.leg, C.leg]));
       const kitOf = (r) => JSON.stringify(r.kit);
-      ok('the kit is 108 water, grow 4, tolerance 2 (first line 70 m), 1 flask, 1 dose, no vial, no compass',
-         A.kit.water === 108 && A.kit.net === 108 && A.kit.grow === 4 && A.kit.heat === 28 && A.kit.first === 70 && A.kit.items.excrete === 1 && A.kit.items.amputate === 1
+      // M14: heat tolerance 14 -> 18 m a rung, so the daily's two rungs put the first line at 78 m (was 70).
+      ok('the kit is 108 water, grow 4, tolerance 2 (first line 78 m), 1 flask, 1 dose, no vial, no compass',
+         A.kit.water === 108 && A.kit.net === 108 && A.kit.grow === 4 && A.kit.heat === 36 && A.kit.first === 78 && A.kit.items.excrete === 1 && A.kit.items.amputate === 1
          && A.kit.items.vial === 0 && A.kit.compass.island === 0 && Object.values(A.kit.compass.mats).every((v) => v === 0), kitOf(A));
       ok('...and identical with every store rung bought', kitOf(A) === kitOf(B), kitOf(B));
       ok('no page errors (seed)', !A.errs.length && !B.errs.length && !C.errs.length, [A.errs, B.errs, C.errs].flat().join(' | '));
@@ -364,7 +365,7 @@ const endRun = async (page) => {
       await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('mycelium.progress.v2')); s.mineUpgrades = { heatTolerance: 1 }; localStorage.setItem('mycelium.progress.v2', JSON.stringify(s)); window.__game.mine.playJourney(); });
       await waitRun(p, 's.config.mine.heatBonus === 14');
       const first1 = await p.evaluate(() => window.__game.mine.heatLines()[0]);
-      ok('...and at 32 + 14 = 46 m with one tolerance rung', first1 === 46, JSON.stringify(first1));
+      ok('...and at 32 + 18 = 50 m with one tolerance rung (M14: 18 m a rung)', first1 === 50, JSON.stringify(first1));
       // The stacking rules, journey by journey, on the run's config.
       const rules = {};
       // V is measured on LEG 2 (M13 verify): leg 4's own row already has mould in bands 1-3, so on leg 4 the
@@ -385,7 +386,7 @@ const endRun = async (page) => {
          JSON.stringify({ J1: rules[1].tb, J5: rules[5].tb, inf: rules[5].inf }));
       ok('...and leg 1 stays calm under V (no creature in any band)', rules['5c'].tb.every((x) => x[0] === 0 && x[1] === 0), JSON.stringify(rules['5c'].tb));
       // THIRSTY IN THE STORE (M13 verify): a Journey III save with Water II — the note and the Water tile quote
-      // what the next descent actually starts with (60 + 24 - 12 = 72), not 84.
+      // what the next descent actually starts with (60 + 30 - 12 = 78 since M14's +15 step; was 60 + 24 - 12 = 72), not 90.
       await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('mycelium.progress.v2'));
         s.mineJourney = { journey: 3, leg: 2, done: [1, 2], past: s.mineJourney.past || {}, legs: { 1: { runs: 1, landed: true } } }; s.mineUpgrades = { water: 2 };
         localStorage.setItem('mycelium.progress.v2', JSON.stringify(s)); window.__game.mine.playJourney(); });
@@ -397,9 +398,10 @@ const endRun = async (page) => {
         const tile = t && t.closest('.ss-upg'); const now = tile && tile.querySelector('.ss-upg-now');
         return { note: n && n.textContent, now: now && now.textContent }; });
       ok("Journey III's Thirsty in the store: the note and the Water tile quote the descent's own start water",
-         sw3 === 72 && new RegExp('(^|· )' + sw3 + ' water').test(st3.note || '') && String(st3.now || '').indexOf(String(sw3)) >= 0, JSON.stringify({ run: sw3, st3 }));
+         sw3 === 78 && new RegExp('(^|· )' + sw3 + ' water').test(st3.note || '') && String(st3.now || '').indexOf(String(sw3)) >= 0, JSON.stringify({ run: sw3, st3 }));
       ok('VI Stingy: a pocket gives +7', rules[6].rw === 7, JSON.stringify(rules[6].rw));
-      ok('VII Far: leg 8\'s island two chunks east (chunk 18, at most 19), on the J4 table\'s seed', rules[7].chunk === 18 && rules[7].ids.length === 6,
+      // M14: leg 8's E 15 -> 13, so the Far island is chunk 1 + 13 + 2 = 16 (was 18).
+      ok('VII Far: leg 8\'s island two chunks east (chunk 16, at most 19), on the J4 table\'s seed', rules[7].chunk === 16 && rules[7].ids.length === 6,
          JSON.stringify({ col: rules[7].col, chunk: rules[7].chunk, ids: rules[7].ids, seed: rules[7].seed }));
       ok('no page errors (journey)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
       await b.ctx.close();
