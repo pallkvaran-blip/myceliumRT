@@ -3975,7 +3975,7 @@ const CONFIG = {
     // fights its own background while green sits near its complement.
     sightRgb: '120,155,45',
     worms: {
-      waterPerSec: 0.2,          // 1 water every 5 s, per ATTACHED worm
+      waterPerSec: 0.15,         // 1 water every ~7 s, per ATTACHED worm (M14: 0.2 -> 0.15; career c4 drained a median 3.4 a run against G11's 3)
       breedPerSec: 0.05,         // 5% chance a feeding worm splits, per second
       // BREEDING STOPS AT `maxAttached` WORMS ON THE COLONY (M6), not at a world population: the
       // world cap of 16 silently stopped all breeding once 4 chunks existed (4 chunks seed ~16),
@@ -14872,7 +14872,7 @@ const STORE_UPGRADES = [
   { id: 'growSteps', name: 'Grow strength', icon: 'climb', accent: 'mint', step: 1, base: 2, unit: 'steps', unit1: 'step',
     mineOnly: true,
     effect: 'Every dig reaches <b>one step further</b>, for the same water.',
-    costs: [12, 50, { m: 'anthracite', n: 30 }, { m: 'garnet', n: 36 }] },
+    costs: [12, 50, { m: 'anthracite', n: 30 }, { m: 'garnet', n: 30 }] },
   // THE TWO WEAPONS, sold as HOW MANY YOU CARRY rather than as charges that deplete across runs.
   // A capacity track restocks at the start of every descent (`stockRun`), which is the same shape as
   // Retries and needs no new persistence. NOTHING IS GIVEN: Amputate is bought (owner), which is only
@@ -14903,7 +14903,7 @@ const STORE_UPGRADES = [
   { id: 'heatTolerance', name: 'Heat tolerance', icon: 'climb', accent: 'gold', step: 18, unit: 'metres', unit1: 'metre',
     mineOnly: true,
     effect: 'Push the first price line <b>18 m deeper</b>.',
-    costs: [15, { m: 'anthracite', n: 18 }, { m: 'anthracite', n: 36 }, { m: 'garnet', n: 26 }] },
+    costs: [15, { m: 'anthracite', n: 18 }, { m: 'anthracite', n: 36 }, { m: 'garnet', n: 24 }] },
   // THE COMPASSES (finishing plan M10): KNOWLEDGE, not power. A needle at the screen's edge points on
   // the STRAIGHT bearing from the focus strand to its target, through rock — a bearing, never a route,
   // so the maze still has to be solved. The island compass points at the leg's taproot (the leg def
@@ -14920,7 +14920,7 @@ const STORE_UPGRADES = [
     id: 'compass_' + m.id, name: m.name + ' compass', icon: 'compass', accent: 'phos', step: 1, unit: 'rungs', unit1: 'rung',
     mineOnly: true, compassMat: m.id,
     effect: 'A needle points <b>through rock</b> at the nearest ' + m.name + ' seam. Rung 2 adds the distance; rung 3 picks the richest within 90 m.',
-    costs: [30 * (m.band | 0), m.band === 1 ? { m: m.id, n: 40 } : 90 + 60 * ((m.band | 0) - 1), { m: m.id, n: m.band === 1 ? 24 : m.band === 3 ? 12 : 18 }] })),
+    costs: [30 * (m.band | 0), m.band === 1 ? { m: m.id, n: 40 } : 90 + 60 * ((m.band | 0) - 1), { m: m.id, n: m.band === 1 ? 24 : 12 }] })),
 ];
 // The compass track ids, in material order (island first).
 const MINE_COMPASS_IDS = STORE_UPGRADES.filter((u) => u.id === 'compassIsland' || u.compassMat).map((u) => u.id);
@@ -14935,15 +14935,16 @@ const MINE_UPGRADE_IDS = ['water', 'growSteps', 'heatTolerance', 'excreteCharges
 // The mine's price for a shared track. `water` is a Spores ladder upstairs (25, 50, 100 …) and
 // the mine's whole currency runs an order of magnitude smaller, so a shared track needs its own
 // ladder or its first rung is unreachable.
-const MINE_COSTS = { water: [5, 12, 25, { m: 'anthracite', n: 40 }, 60, { m: 'anthracite', n: 60 }, { m: 'garnet', n: 40 }, { m: 'hematite', n: 16 }] };
+const MINE_COSTS = { water: [5, 12, 25, 50, 80, 120, { m: 'garnet', n: 30 }, { m: 'hematite', n: 16 }] };
 // ...and its STEP (M5): the mine's tank rises +12 a rung (60 -> 156), the campaign's keeps +5. Read
 // through `upgradeStep`, which is what `upgradeValue` (and so `storeBonuses`) uses.
-// M14: +12 -> +15 (60 -> 180). The late legs' crossings could not be paid inside the plan's 70% rule out
-// of a 156 tank, and their runs were too short for G7 (leg 7-8 runs 150-240 s at a human's 1.7 s a dig).
-const MINE_STEPS = { water: 15 };
+// M14: +12 -> +20 (60 -> 220). The late legs' crossings could not be paid inside the plan's 70% rule out
+// of a 156 tank (+15 made legs 7-8 pass it), and their runs were still too short for G7 (leg 7-8 runs
+// 150-240 s at a human's 1.7 s a dig): measured 88 s median on a 135 tank in career c4.
+const MINE_STEPS = { water: 20 };
 // The mine's own name and copy for a shared track.
 const MINE_NAMES = { water: 'Water tank' };
-const MINE_EFFECTS = { water: 'Start every descent with <b>15 more</b> water.' };
+const MINE_EFFECTS = { water: 'Start every descent with <b>20 more</b> water.' };
 const upgradeStep = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_STEPS[u.id] != null ? MINE_STEPS[u.id] : (u ? u.step : 0));
 const upgradeName = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_NAMES[u.id]) || (u ? u.name : '');
 const upgradeEffect = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_EFFECTS[u.id]) || (u ? u.effect : '');
@@ -32991,7 +32992,7 @@ function mineTileNew(id, p, forCard) {
 }
 // One line of what the next rung DOES, for the next-goal card.
 const MINE_GOAL_TEXT = {
-  water: 'start with 15 more water',
+  water: 'start with 20 more water',
   growSteps: 'every dig reaches one step further',
   heatTolerance: 'push the first price line 18 m deeper',
   excreteCharges: 'carry a flask that kills drinking worms',
