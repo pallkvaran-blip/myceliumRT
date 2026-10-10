@@ -1950,9 +1950,22 @@
     .ss-me-daily-t { font-weight:700; letter-spacing:.04em; }
     .ss-me-daily-tag { font-weight:600; font-size:11px; letter-spacing:.06em; color:#9fd8e0; margin-left:6px; }
     .ss-me-daily[data-practice="1"] .ss-me-daily-tag { color:#e6b45c; }
-    .ss-me-daily-board { font-size:11.5px; color:rgba(230,239,233,0.6); margin:3px 0; }
+    .ss-me-daily-board { font-size:11.5px; color:rgba(230,239,233,0.6); margin:0; }
     .ss-me-daily-board ol { margin:2px 0 0; padding:0; list-style:none; }
-    .ss-me-daily-copied { margin-left:8px; font-size:12px; color:#9fe0bd; }
+    .ss-me-daily-board[data-board="global"] { flex-basis:100%; }
+    .ss-me-daily-acts { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:4px 12px; margin-top:4px; }
+    .ss-me-daily-acts .ss-me-store { padding:5px 14px; font-size:12px; }
+    .ss-me-daily-copied { font-size:12px; color:#9fe0bd; }
+    .ss-me-daily-copied:empty { display:none; }
+    /* A SHORT SCREEN ON A DAILY (M13 verify): the panel tightens and the next-goal card steps aside — the
+       store is one tap away, and on a daily the buttons are what matter (Practice, Store). */
+    @media (max-height:600px) {
+      .ss-mineend .ss-me-daily { padding:3px 10px; margin:1px auto 2px; font-size:12px; }
+      .ss-mineend .ss-me-daily p { margin:0; }
+      .ss-mineend .ss-me-daily-acts { margin-top:2px; }
+      .ss-mineend.ss-me-isdaily .ss-me-goal { display:none; }
+    }
+    @media (pointer: coarse) { .ss-strain-btn { min-height:44px; padding:4px 14px; } }
 
     .ss-win {
       --ss-mint:#7fe6a3; --ss-mint-hi:#c8fff0; --ss-ink:#d7e6dc; --ss-ink-dim:#8aa193; --ss-ink-faint:#57685f;
@@ -33599,9 +33612,11 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
         + (daily.practice ? 'practice — scored, not paid' : 'paid run') + '</span></p>'
       + '<p class="ss-me-daily-s" id="ssDailyStats">Today\u2019s best <b>' + (daily.best | 0) + ' m</b>'
         + (daily.isBest ? ' <span class="ss-new">new</span>' : '') + ' · streak <b>' + (daily.streak | 0) + '</b></p>'
-      + '<div class="ss-me-daily-board" id="ssDailyBoard" data-board="local">Board · local</div>'
-      + '<p class="ss-me-daily-acts"><button class="ss-me-store" id="ssDailyCopy" type="button">Copy result</button>'
-        + '<span class="ss-me-daily-copied" id="ssDailyCopied" aria-live="polite"></span></p>'
+      // THE BOARD LABEL AND COPY RESULT SHARE ONE ROW (M13 verify): stacked, the panel was ~110 px and pushed
+      // Practice and Store below the fold at 640x360 (scrollHeight 450 against 360).
+      + '<div class="ss-me-daily-acts"><div class="ss-me-daily-board" id="ssDailyBoard" data-board="local">Board · local</div>'
+        + '<button class="ss-me-store" id="ssDailyCopy" type="button">Copy result</button>'
+        + '<span class="ss-me-daily-copied" id="ssDailyCopied" aria-live="polite"></span></div>'
       + '</div>'
     : '';
   const records = daily ? dailyBox
@@ -33636,6 +33651,7 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
           '<button class="ss-me-store" id="ssMineDone" type="button">Store</button>') +
     '</div>';
   if (rooted) root.classList.add('ss-rooted');
+  if (daily) root.classList.add('ss-me-isdaily');
   document.body.appendChild(root);
   const title = growMyceliumTitle(root.querySelector('.ss-win-title'), { word: rooted ? 'ROOTED' : 'SPORED', stepRate: 3.2, fitWidth: true });
   // THE COUNT-UP (M5): timer-stepped rather than rAF (a throttled page still lands on the final
