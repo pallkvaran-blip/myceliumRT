@@ -4052,12 +4052,19 @@ const CONFIG = {
       // capped at chunk `farMaxChunk`; `far` is a leg's own seed for that variant when the table seed
       // failed the gates with its island moved (the same seed otherwise).
       farChunks: 2, farMaxChunk: 19,
+      // `farGate: 'reach'` marks a Far slot no candidate passed the full gates for within the search (long
+      // legs under heavy seals: ~1 in 300 passes WPASS's reward gate) — its seed is verified only for "the
+      // taproot is reachable and real growth lands on it" (journeyseeds --reach). III and IV's leg 8 is
+      // Journey I's own (1437175), which passes the full gates under their rules; 390 candidates found none.
       tables: {
-        2: [{ seed: 10102080, far: 62005192 }, { seed: 8957980 }, { seed: 8442254 }, { seed: 9811650, far: 56268854 }, { seed: 8562821, far: 56276773 },
-            { seed: 11922068, far: 54609028 }, { seed: 14338754 }, { seed: 67025360 }],
-        3: [{ seed: 18612960 }, { seed: 15583738 }, { seed: 15591657, far: 67390040 }, { seed: 16437408 }, { seed: 20215571 }, { seed: 15615414 }, { seed: 17822642 }],
-        4: [{ seed: 25343447 }, { seed: 24199347 }, { seed: 24416724 }, { seed: 26519223, far: 47129600 }, { seed: 23908917, far: 47137519 },
-            { seed: 26744519 }, { seed: 23505839 }],
+        2: [{ seed: 10102080, far: 62005192 }, { seed: 8957980 }, { seed: 8442254 }, { seed: 9811650, far: 56268854 },
+            { seed: 8562821, far: 56276773 }, { seed: 11922068, far: 54609028 }, { seed: 14338754, farGate: 'reach' },
+            { seed: 67025360, farGate: 'reach' }],
+        3: [{ seed: 18612960, farGate: 'reach' }, { seed: 15583738 }, { seed: 15591657, far: 67390040 }, { seed: 16437408 },
+            { seed: 20215571 }, { seed: 15615414 }, { seed: 17822642, farGate: 'reach' }, { seed: 1437175, far: 62297914, farGate: 'reach' }],
+        4: [{ seed: 25343447 }, { seed: 24199347 }, { seed: 24416724 }, { seed: 26519223, far: 47129600 },
+            { seed: 23908917, far: 47137519 }, { seed: 26744519 }, { seed: 23505839, far: 67994428 },
+            { seed: 1437175, far: 46742360, farGate: 'reach' }],
       },
       islandCols: 12,
       sealCols: 6,           // columns a walled gallery stops short of the seam (free layout: 3)

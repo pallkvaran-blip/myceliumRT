@@ -13,13 +13,15 @@
  * two chunks further east, so table T is first played Far by journey VII (T = IV), VIII (II) or IX (III). It first checks the table's own seed under that journey (`--seeds`-style: same gates, same
  * follow); only if it fails does it walk candidates for a `far` seed of its own.
  *   --seed-of L=S,...  the table seeds to check (from a previous run's output)
+ *   --reach            the FALLBACK gate only: the taproot reachable (fine mask + lattice) and real growth
+ *                      lands on it — for a slot where no candidate met PASS + WPASS in the search.
  */
 const H = require('../mine-harness.cjs');
 const LP = require('./legprobe.cjs');
 
 (async () => {
   const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
-  const J = +arg('--journey', 2), far = process.argv.includes('--far');
+  const J = +arg('--journey', 2), far = process.argv.includes('--far'), reachOnly = process.argv.includes('--reach');
   const legs = arg('--legs', '1,2,3,4,5,6,7,8').split(',').map(Number);
   const max = +arg('--max', 80), from = +arg('--from', 0);
   const seedOf = {}; for (const kv of String(arg('--seed-of', '')).split(',').filter(Boolean)) { const [l, s] = kv.split('='); seedOf[+l] = +s; }
@@ -37,8 +39,10 @@ const LP = require('./legprobe.cjs');
         await LP.playLeg(b.page, leg, sd);
         const m = await LP.measure(b.page, { route: true });
         const route = m.route; delete m.route;
-        let ok = LP.PASS(m, leg), w = null, f = null;
-        if (ok) { w = await LP.world(b.page); ok = LP.WPASS(w); }
+        // `--reach` (the fallback for a slot no candidate passed the full gates in): only "the taproot is
+        // reachable on the fine mask and the lattice, and real growth follows the route to it".
+        let ok = reachOnly ? !!(m.reach && m.reachLat) : LP.PASS(m, leg), w = null, f = null;
+        if (ok && !reachOnly) { w = await LP.world(b.page); ok = LP.WPASS(w); }
         if (ok) { f = await LP.follow(b.page, route); ok = !!f.landed; }
         return { ok, m, w, f };
       };
@@ -46,7 +50,7 @@ const LP = require('./legprobe.cjs');
         + (r.w ? ` | world ore ${r.w.pilesOk}/${r.w.piles} pk ${r.w.pocketsOk}/${r.w.pockets} pillar ${r.w.pillarSeam}/${r.w.pillarMid90}` : '')
         + (r.f ? ` | follow landed ${r.f.landed} digs ${r.f.digs} e42 ${r.f.east42}` : ''));
       let found = null;
-      if (far && seedOf[leg]) {
+      if (seedOf[leg]) {
         try { const r = await tryOne(seedOf[leg]); report('table', seedOf[leg], r); if (r.ok) found = { seed: seedOf[leg], same: true, r }; }
         catch (e) { console.log(`J${JM} leg ${leg} table seed ERROR ${String(e && e.message || e).slice(0, 100)}`); await b.ctx.close().catch(() => {}); b = await LP.openLeg(E, leg, 0); }
       }
