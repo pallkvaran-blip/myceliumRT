@@ -6429,6 +6429,72 @@ Numbers here are measured, not planned.
   Every new behaviour assertion FAILS on 8073d91's index.html (loud 4, verify 4: pulses none/none, desktop
   item shown, no-API set true, dropped 23).
 
+### M13 — Come back tomorrow: fossil, Daily Dig, New Journey, strains (BUILT)
+
+- **FOSSIL** (main: `mineFossilEncode` / `mineFossilDecode` / `drawMineFossil`; hooks `mine.fossil()`,
+  `fossilOn(on)`, `fossilEncode()`): `mineBank` encodes the colony of a FAILED leg descent (digs > 0, not a
+  landfall) into `p.mineJourney.legs[L].fossil` = `'f1:' + 6 base-64 chars a strand` (x, y as 9-unit fine
+  cells, y offset 64 under the soil line; dx, dy to an ancestor +-31 cells). Over 300 strands it keeps every
+  k-th and joins it to the ancestor k steps up (stopping early if the delta would not fit), so it still draws
+  as the branching shape. Measured: 154 strands -> 921 bytes, save +1021 bytes. `mineLegApply` writes it on a
+  failure and deletes it on a landfall (the stale-journey path writes none). `mineJourneyInit` decodes it into
+  `state._mineFossil`; drawn just before the network pass, 20% alpha, `rgb(196,200,198)`, width max(1.6, 4 x
+  zoom). Knob `window.MYCELIUM_NO_FOSSIL`. Pixel A/B on/off 6030 px, on/on 0.
+  - **DEVIATION: a 9-unit fine cell, not a 36-unit cell** — at 36 u (1.4 segments) a colony quantises into a
+    handful of blocks.
+- **DAILY DIG** (main: `mineUtcKey` / `mineUtcLabel` / `mineUtcPrev` / `mineDailySeed` (FNV-1a of 'YYYYMMDD') /
+  `mineDailyUnlocked` / `mineDailyView` / `mineDailyRecord` / `mineDailyResultText`; module var `mineDaily`):
+  `beginMineRun(undefined, {daily: true})` plays the FREE layout on today's UTC seed. `configForLevel`
+  overrides the kit from `CONFIG.mine.dailyKit` {108 water, grow 4, tolerance 2 (28 m, first line 70 m),
+  1 flask, 1 dose; no vial, no compass} whatever the store holds, and sets `cfg.mine.daily = {date, label,
+  practice}` (practice = the save's `mineDaily.paid` is today).
+  - **The engine prices it** (`mineDailyOf`): `mineReachPay` -> practice ? 0 : floor(raw / 2) (NO 5 P floor);
+    `mineBankable` 0 on practice; `mineEndRun` zeroes seams and mats on practice and carries `runResult.daily`.
+    The HUD P (`_mineHudP`) shows `mineBankable` on a daily; no '+1 P' floater on practice.
+  - **`mineBank` re-checks the paid run** (two tabs could both start "the first run of the day"), banks no
+    materials on practice (an empty `mats` falls back to the state's — nulled), and for a daily that dug writes
+    `p.mineDaily = {date, best, streak, lastDate, paid}` (best of `date`, only on a deeper run; streak +1 if
+    `lastDate` was yesterday, unchanged today, else 1), logs `'daily'` {level: depth, n: payout, detail
+    'YYYYMMDD:paid|practice:s<streak>'}, and on a paid run calls `submitMineDaily`. A hidden tab's pending record
+    carries `daily` and the boot bank records the day.
+  - **Screens:** title `#tsDaily` 'Daily dig · 25 Sep' + `#tsDailySub` (after any landfall); end screen panel
+    `#ssDaily` (tag 'paid run' / 'practice — scored, not paid', best + streak, `#ssDailyBoard` 'Board · local' or
+    'Board · global (casual)' + top 5, `#ssDailyCopy`); its primary button reads 'Practice' (`#ssMineDescend`,
+    another daily); Store as usual. Copy result = `navigator.clipboard.writeText('Deep Mine daily 25 Sep: 47 m ·
+    streak 3')`, the day's best, on the button's own click (the API wants the gesture).
+  - **THE BOARD PROBES A VIEW, NOT THE TABLE** (`probeMineDaily`, net_scores): a read of `scores` filtered on the
+    mode answers 200 on any table that already has the two-mode column, and the daily would then post depths
+    the old level cap (100) refuses. The migration (docs/leaderboard-setup.md 2c) widens the insert policy for
+    `mode = 'mine-daily'` (level <= 200, `species` = the date) and creates the `mine_daily` view the probe reads.
+    Blank MYCELIUM_SUPABASE: no request at all. `normMode` accepts 'mine-daily'.
+  - **GOTCHA (tests):** mock the clock with `Date.now` only (`new Date()` with no argument ignores it — the game
+    always builds dates as `new Date(Date.now())`); mine-harness gained `opts.supabase` for a stub backend.
+- **NEW JOURNEY** (engine `mineLegRow(config, leg, journey)` / `mineJourneyRowFor` / `mineJourneyTable` /
+  `mineJourneyFar`; main `MINE_JOURNEY_RULES` / `mineApplyJourneyRules`): rules from the RUN's journey
+  (`mineLeg.journey`), applied after the leg's own rule. **CUMULATIVE** (II Hotter safeDepth -10; III Thirsty
+  start water -12; IV Hungry worms x2 at 0.3/s; V Rotten clouds >= 1 in bands 1-3 (not on a calm leg) and
+  infection/first-infection 15 s; VI Stingy `reservoirWater` 7; VII Far island +2 chunks capped at chunk 19), so
+  VIII+ = all six = VII's set. `configForLevel` rewrites the clone's leg rows for the journey (seed table, Far E
+  and eastM; rows stamped `_j` so asking again cannot shift twice). Tables `CONFIG.mine.journey.tables` {2, 3,
+  4}: one `{seed, far?}` per leg; V+ cycle (V -> II, VI -> III, VII -> IV, VIII -> II...). The leg banner adds
+  'Journey II: Hotter'. The store's heat words / tile honour Hotter (`mineNextHeat`).
+  - **DEVIATIONS:** cumulative reading of "stacking"; Rotten skips leg 1 ('calm', its banner says no threats);
+    "pockets +7" read as a pocket gives 7 (it was 10).
+- **STRAINS** (species: `mineStrainList` / `mineStrainsOpen` / `mineStrainState` / `mineStrainShelf` /
+  `mineStrainTint` / `buyStrain` / `wearStrain`; `CONFIG.mine.strains`): `p.mineStrains = {owned, cur}`; a journey
+  strain (Gold for I ... Prism for VIII) is owned by finishing that journey. The store's `#ssStrainSec` exists only
+  once `p.mineJourney.done` is non-empty (absent from the markup before). Buying wears it. `configForLevel` sets
+  `cfg.mine.tint`; `NetworkRenderer._fil()` replaces `render.filament` at all four strand reads.
+  - **DEVIATION: not an upgrade track** — a track would enter the next-goal card and the shelf's NEW badges; a
+    'Cream' tile takes a strain off.
+- **RETURNING TITLE:** caption 'Continue · Leg N...', `#tsDaily`, `#tsStore` (renamed 'Upgrades' -> 'Store'),
+  `#tsRecords` ('deepest descent N m · Journey I in K runs', `mineTitleRecords`), `#tsGap`, `#tsGoal` ('Next:
+  Water tank — 25 P, 25 P short', `mineTitleGoal`, once a run is banked).
+- **CHECKS:** `tests/return-check.cjs` ('return', in `--mine`; `RETURN_ONLY=fossil,seed,payout,board,journey,strains,title`).
+  Tools (not in the runner): `tests/bots/journeyseeds.cjs` (picks a table: first candidate passing PASS + WPASS +
+  real growth to the taproot, `--far` the E+2 check), `tests/bots/journeykit.cjs` (full kit, same map, Journey I
+  rules vs J's).
+
 ## Two games on the title screen: Survival and Campaign
 
 **SURVIVAL IS OFFERED AGAIN — `OFFER_SURVIVAL = true` (owner: *"let's add survival back, but put
