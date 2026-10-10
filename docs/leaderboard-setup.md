@@ -73,6 +73,41 @@ screen then shows both modes together and says "Both modes combined" instead of 
 ladders are separate. `submitGlobalScore` does the same — one POST with `mode`, and on failure a
 second without it, so no score is lost while the column is missing.
 
+## 2c. Migration for the Daily Dig board (optional — the Deep Mine, M13)
+
+The Deep Mine's **Daily Dig** keeps a local board on every device whatever you do here. Run this once
+and it gains a **global, casual** board as well: rows go in the same `scores` table with
+`mode = 'mine-daily'`, `level` = the depth in metres (up to 168, so above the old cap of 100) and
+`species` = the UTC date `YYYYMMDD`. The game reads through the `mine_daily` view, and **probes that
+view first** — until this has run the probe 404s and the game stays local, silently.
+
+```sql
+-- 1. Let a daily row through the insert policy (depths run past 100; the date must look like one).
+drop policy if exists "public insert" on public.scores;
+create policy "public insert" on public.scores
+  for insert to anon
+  with check (
+    char_length(name) between 1 and 14
+    and char_length(coalesce(species_name, '')) <= 40
+    and (
+      (coalesce(mode, 'turn') <> 'mine-daily' and level >= 0 and level <= 100)
+      or (mode = 'mine-daily' and level >= 0 and level <= 200 and species ~ '^[0-9]{8}$')
+    )
+  );
+
+-- 2. The read side: one view, which is also what the game's probe looks for.
+create or replace view public.mine_daily as
+  select name, level, species as day, created_at from public.scores where mode = 'mine-daily';
+grant select on public.mine_daily to anon;
+
+-- 3. Today's board, fast.
+create index if not exists scores_daily_idx on public.scores (mode, species, level desc, created_at);
+```
+
+**It has no anti-cheat** — the anon key and the page's debug hooks are public, so anyone determined
+can post any depth up to the cap. The game labels it "casual" for that reason. Exactly one row is sent
+per PAID daily run (the first of the UTC day); practice runs are never sent.
+
 ## 3. Get your credentials
 In the dashboard: **Project Settings → API**. Copy:
 - **Project URL** — e.g. `https://abcdefgh.supabase.co`

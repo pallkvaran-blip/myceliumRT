@@ -1927,7 +1927,7 @@
     .ss-upg.ss-upg-hl { border-color:var(--u-acc); box-shadow:0 0 0 1px var(--u-acc), 0 0 22px -6px var(--u-acc), 0 14px 30px -22px rgba(0,0,0,0.95); }
     .ss-upg-where { display:block; margin-top:3px; color:var(--ss-ink-faint); font-size:11.5px; }
     /* M13: the strains shelf */
-    .ss-strains { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:8px; }
+    .ss-strains { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:8px; }
     .ss-strain { display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:10px; border:1px solid rgba(255,255,255,0.12); background:rgba(8,12,11,0.6); }
     .ss-strain.on { border-color:rgba(127,230,163,0.7); }
     .ss-strain-sw { width:18px; height:18px; border-radius:50%; flex:0 0 auto; box-shadow:0 0 8px -1px currentColor; }
@@ -4045,6 +4045,18 @@ const CONFIG = {
     ],
     journey: {
       homeChunk: 1,
+      // NEW JOURNEYS (M13): Journeys II, III and IV have curated seed tables of their own (one entry per
+      // leg, picked by tests/bots/journeyseeds.cjs under that journey's rules against Journey I's gates:
+      // PASS + WPASS, and real growth following the cheapest route to the taproot). V and on CYCLE them
+      // (V -> II, VI -> III, VII -> IV, ...). From VII (Far) each island sits `farChunks` further east,
+      // capped at chunk `farMaxChunk`; `far` is a leg's own seed for that variant when the table seed
+      // failed the gates with its island moved (the same seed otherwise).
+      farChunks: 2, farMaxChunk: 19,
+      tables: {
+        2: [{ seed: 10102080 }, { seed: 8957980 }, { seed: 8442254 }, { seed: 9811650 }, { seed: 8562821 }, { seed: 11922068 }],
+        3: [],
+        4: [],
+      },
       islandCols: 12,
       sealCols: 6,           // columns a walled gallery stops short of the seam (free layout: 3)
       taprootR: 2.5,
@@ -15498,13 +15510,16 @@ async function submitGlobalScore({ name, level, species, speciesName, mode }) {
 // depths run to 168), and until then the probe fails and the daily stays LOCAL with no error anywhere.
 // With the backend disabled (an empty MYCELIUM_SUPABASE) not even the probe is sent. No anti-cheat:
 // the anon key and the page's hooks are public, so the screen labels it casual.
+// THE PROBE READS THE `mine_daily` VIEW, not the table: the view exists only once the migration has run,
+// whereas a read of `scores` filtered on the mode answers 200 on any table that has the two-mode column —
+// and the daily would then post depths the old level cap (100) refuses.
+const DAILY_VIEW = () => cfg().url.replace(/\/+$/, '') + '/rest/v1/mine_daily';
 let _dailyProbe = null;
 function probeMineDaily() {
   if (!scoresEnabled()) return Promise.resolve(false);
   if (!_dailyProbe) _dailyProbe = (async () => {
     try {
-      const q = new URLSearchParams(); q.set('select', 'level'); q.set('mode', 'eq.mine-daily'); q.set('limit', '1');
-      const r = await fetchT(REST() + '?' + q.toString(), { headers: headers() });
+      const r = await fetchT(DAILY_VIEW() + '?select=level&limit=1', { headers: headers() });
       return !!(r && r.ok);
     } catch (_) { return false; }
   })();
@@ -15514,9 +15529,9 @@ async function fetchMineDaily(date) {
   if (!(await probeMineDaily())) return null;
   try {
     const q = new URLSearchParams();
-    q.set('select', 'name,level,created_at'); q.set('mode', 'eq.mine-daily'); q.set('species', 'eq.' + String(date));
+    q.set('select', 'name,level,created_at'); q.set('day', 'eq.' + String(date));
     q.set('order', 'level.desc,created_at.asc'); q.set('limit', '10');
-    const r = await fetchT(REST() + '?' + q.toString(), { headers: headers() });
+    const r = await fetchT(DAILY_VIEW() + '?' + q.toString(), { headers: headers() });
     if (!r || !r.ok) return null;
     const rows = await r.json();
     return Array.isArray(rows) ? rows.map((e) => ({ name: e.name, depth: e.level | 0 })) : null;
@@ -32970,6 +32985,8 @@ function mineNextHeat(progress) {
     const mj = progress && progress.mineJourney;
     const row = mineLegRow(CONFIG, (mj && mj.leg) | 0 || 1);
     if (row && row.safeDepth != null) h.safeDepth = Math.max(0, row.safeDepth | 0);
+    // ...and Journey II's Hotter rule (M13): every later journey's lines sit 10 m shallower.
+    if (mj && (mj.journey | 0) >= 2) h.safeDepth = Math.max(0, (h.safeDepth | 0) - 10);
   } catch (_) {}
   return h;
 }
@@ -33582,7 +33599,7 @@ function showMineEnd({ depth, ore, mats, seams, reach, reachRaw, seamCount, best
     '<div class="ss-me-acts">' +
       (promised
         ? '<button class="ss-win-btn ss-me-descend" id="ssMineFinale" type="button">Continue</button>'
-        : '<button class="ss-win-btn ss-me-descend" id="ssMineDescend" type="button">' + (daily ? 'Dig again' : 'Descend') + '</button>' +
+        : '<button class="ss-win-btn ss-me-descend" id="ssMineDescend" type="button">' + (daily ? 'Practice' : 'Descend') + '</button>' +
           '<button class="ss-me-store" id="ssMineDone" type="button">Store</button>') +
     '</div>';
   if (rooted) root.classList.add('ss-rooted');
@@ -48177,7 +48194,7 @@ window.__modeTuning = MODE_TUNING;
 // anything. `continueRun` is the title's "Old" (the same function the button calls, not a second
 // copy of it) — the route a check takes into either game's resume path without driving the
 // screen, and the way in at all whenever OFFER_SURVIVAL is withholding the row.
-window.__menu = { continueRun, playSurvival, showPicker: () => showPicker(), showTitle: () => showMainMenu(), firstVisit: () => mineFirstVisit() };
+window.__menu = { continueRun, playSurvival, showPicker: () => showPicker(), showTitle: () => showMainMenu(), firstVisit: () => mineFirstVisit(), playDaily: () => { beginMineRun(undefined, { daily: true }); return true; } };
 // Route to the boot destination (menu / picker / a hash shortcut). Deferred behind the
 // loading screen's "Click" so the game always opens on a fully-decoded frame.
 function enterGame() {

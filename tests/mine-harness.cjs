@@ -41,7 +41,8 @@ async function start() {
     if (opts.returning) await page.addInitScript(() => {
       try { if (!localStorage.getItem('mycelium.progress.v2')) localStorage.setItem('mycelium.progress.v2', JSON.stringify({ runsDone: 1 })); } catch (_) {}
     });
-    await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+    // `opts.supabase` (M13): a stub backend instead of the blank one (the Daily Dig's board check routes it).
+    await page.addInitScript((sb) => { window.MYCELIUM_SUPABASE = sb || { url: '', anonKey: '' }; }, opts.supabase || null);
     await page.goto(base + (opts.file || '/index.html') + hash, { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 }).catch(() => {});
     await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
