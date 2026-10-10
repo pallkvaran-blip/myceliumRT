@@ -4152,15 +4152,18 @@ const CONFIG = {
         { leg: 7, name: 'The Swarm', seed: 2895462, E: 11, eastM: 264, depthM: 116,
           sealByBand: [0.75, 0.60, 0.12], rule: 'swarm', bonus: 85, ruleLine: 'Twice the worms from 42 to 126 m',
           // M14: band 3's worms 4 -> 3 (x1.5, not x2): the navigator's leg-7 runs reach ~142 m on their side
-          // branches, and the swarm drained 15-41 water a run in career c7 with 3 flasks in the bag.
-          threatBands: [{ worms: 0, clouds: 0 }, { worms: 2, clouds: 0 }, { worms: 2, clouds: 1 }, { worms: 3, clouds: 1 }] },
+          // branches, and the swarm drained 15-41 water a run in career c7 with 3 flasks in the bag. And NO mould in
+          // band 2 (the default table's 1 a chunk): the crossing runs through band 2 for 11 chunks, so a cloud a chunk
+          // is ~10 breaches against 3 doses — career p8 ended 10 leg-7 runs in a row 'infected' (14 runs on the leg).
+          threatBands: [{ worms: 0, clouds: 0 }, { worms: 2, clouds: 0 }, { worms: 2, clouds: 0 }, { worms: 3, clouds: 1 }] },
         // M14: the taproot 140 -> 128 m, E 15 kept (same seed, PASS + WPASS): arrival kit 0.806 -> 0.693 of supply with
         // heat at 20 m a rung. Band 2's mould 2 -> 1 cloud a chunk (band 3 keeps 2): with 2 the bot's leg-8 runs ended
-        // 'infected' 13 times in 14 (career c6, 3 doses each run); the rule line names the deeper band.
+        // 'infected' 13 times in 14 (career c6, 3 doses each run); the rule line names the deeper band. Then 1 -> 0 (career
+        // p8: 3 of 6 leg-8 runs still 'infected' — a 15-chunk crossing in band 2 meets a cloud a chunk); band 3 keeps 2.
         { leg: 8, name: 'The Promised Land', seed: 1437175, E: 15, eastM: 360, depthM: 128,
           sealByBand: [0.75, 0.65, 0.12], rule: 'promised', bonus: 150, ruleLine: 'More worms below 84 m, more mould below 126 m',
           islandCols: 24, finale: true,     // landfall here is cause 'promised': the finale, and Journey II
-          threatBands: [{ worms: 0, clouds: 0 }, { worms: 1, clouds: 0 }, { worms: 2, clouds: 1 }, { worms: 3, clouds: 2 }] },
+          threatBands: [{ worms: 0, clouds: 0 }, { worms: 1, clouds: 0 }, { worms: 2, clouds: 0 }, { worms: 3, clouds: 2 }] },
       ],
     },
   },
