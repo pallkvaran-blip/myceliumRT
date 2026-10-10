@@ -175,13 +175,22 @@ const legsWanted = +arg('--legs', naive ? 1 : 3);
 const need = String(arg('--need', naive ? '8' : '5,7,7')).split(',').map(Number);
 const maxRuns = +arg('--runs', need.slice(0, legsWanted).reduce((a, b) => a + b, 0));
 const strat = arg('--strat', 'cheapest');
+// M14: buy every track (compasses and vial too) unless `--no-buy-all` (the pre-M14 shelf, M10 6a's baseline).
+const buyAll = !argv.includes('--no-buy-all') && !islandCompassFlag();
+function islandCompassFlag() { return argv.includes('--island-compass'); }
 // `--island-compass` (M10 acceptance 6a): buy both island-compass rungs as soon as the store shows them
 // (ahead of anything else), and read the needle (`__game.mine.compass()`) as the naive `--compass`
 // player's bearing. Without it the bot buys NO compass at all (the M10 shelf would otherwise put them in
 // the cheapest buyer's reach and change the no-compass baseline).
 const islandCompass = argv.includes('--island-compass');
 const scout = argv.includes('--scout');
-const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean === 'east' ? '' : lean + '-')) : '') + (scout ? 'scout-' : '') + (islandCompass ? 'icompass-' : '') + label;
+// M14 DIVES (plan F G9, the model's rule): after 2 failed attempts on a leg, once per leg, a run whose next
+// POWER rung (grow, heat, water — in that order, the first revealed and not maxed) waits on a deep material
+// this leg's route has not been paying (0 of it earned on the last run here) is spent DIVING for it: lib.cjs's
+// free bot (`Q.step`, ore and pockets in sight, deepest frontier), capped one band below the material's own.
+// `--no-dives` turns it off.
+const dives = !argv.includes('--no-dives') && !naive && !scout;
+const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean === 'east' ? '' : lean + '-')) : '') + (scout ? 'scout-' : '') + (islandCompass ? 'icompass-' : '') + (strat !== 'cheapest' ? strat + '-' : '') + (dives ? '' : 'nodive-') + label;
 
 (async () => {
   const env = await launch();
@@ -210,8 +219,32 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     // every run, so the per-strand refusal count does not.
     await page.evaluate((leg) => { const Q = window.__qa; Q.bad = new Map(); Q._glowUsed = new Set(); Q._knew = false; Q._nref = new Map();
       if (Q._deadLeg !== leg) { Q._dead = new Set(); Q._deadLeg = leg; } }, leg0);
-    let res;
-    if (naive) res = await playDescent(page, { label: `${tag}-r${run}`, paceMs, maxSteps: 500, shots: false, bot: { policy: 'naive', goal: 'island', compass, lean: lean === 'east' ? 'east' : null } });
+    let res, mode = 'leg';
+    if (dives) {
+      const att = log.filter((r) => r.leg === leg0 && !/island|promised/.test(r.cause)).length;
+      const dived = log.some((r) => r.leg === leg0 && r.mode === 'dive');
+      const last = log.filter((r) => r.leg === leg0).slice(-1)[0];
+      if (att >= 2 && !dived) {
+        const want = await page.evaluate(() => {
+          const S = window.__game.store, bands = window.__game.state.config.mine.materials;
+          for (const id of ['growSteps', 'heatTolerance', 'water']) {
+            if (!S.inGame(id, 'mine')) continue;
+            const c = S.nextCost(id); if (c == null) continue;
+            if (typeof c === 'number') return null;
+            if ((S.mats()[c.m] | 0) >= c.n) return null;
+            const mat = bands.find((m) => m.id === c.m);
+            return { m: c.m, band: mat ? mat.band : null };
+          }
+          return null;
+        });
+        if (want && want.band != null && !(last && last.mats && (last.mats[want.m] | 0) > 0)) mode = 'dive', res = null, log.diveFor = want;
+      }
+    }
+    if (mode === 'dive') {
+      const cap = (log.diveFor.band + 1) * 42 - 4;
+      res = await playDescent(page, { label: `${tag}-r${run}-dive`, paceMs, maxSteps: 500, shots: false, bot: { useItems: true, maxDepthM: cap } });
+      res.kit = null; res.mode = 'dive:' + log.diveFor.m;
+    } else if (naive) res = await playDescent(page, { label: `${tag}-r${run}`, paceMs, maxSteps: 500, shots: false, bot: { policy: 'naive', goal: 'island', compass, lean: lean === 'east' ? 'east' : null } });
     else if (scout) res = await scoutRun(page, paceMs);
     else {
       // The route is planned on a snapshot of the leg's own world (every chunk to the island generated,
@@ -221,42 +254,66 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     }
     // The ROOTED celebration plays ~5 s before the end screen.
     await page.waitForSelector('#ssMineDone', { timeout: 20000 }).catch(() => {});
-    const rr = await page.evaluate(() => { const r = window.__game.state.runResult || {}; return { cause: r.cause, ore: r.ore | 0, east: r.east | 0, depth: r.depth | 0, bonus: r.bonus | 0 }; });
+    const rr = await page.evaluate(() => { const g = window.__game, r = g.state.runResult || {}; return { cause: r.cause, ore: r.ore | 0, east: r.east | 0, depth: r.depth | 0, bonus: r.bonus | 0, mats: Object.assign({}, r.mats || {}), drained: g.mine.drained(), seams: r.seams | 0, reach: r.reach | 0, ms: r.ms | 0 }; });
     const jn = await page.evaluate(() => window.__game.mine.journey());
-    if (rr.cause === 'island') landAt.push({ leg: leg0, run });
+    if (rr.cause === 'island' || rr.cause === 'promised') landAt.push({ leg: leg0, run });
+    // The Promised Land shows its finale (no Store button): the journey is over, so is the career.
+    if (rr.cause === 'promised') { log.push({ run, leg: leg0, cause: rr.cause, depth: rr.depth, east: rr.east, ore: rr.ore, bonus: rr.bonus, digs: res.digs, seconds: res.seconds, gameMs: rr.ms, start: res.start.water, drained: rr.drained, mats: rr.mats, mode, bought: [], store: await page.evaluate(() => { const S = window.__game.store; let n = 0, b = 0; for (const id of S.ids('mine')) { n += S.costs(id, 'mine').length; b += S.level(id); } return { n, b, P: S.balance(), mats: S.mats() }; }) });
+      console.log(`R${run} leg ${leg0} PROMISED ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, +${rr.ore} P (bonus ${rr.bonus})`);
+      fs.writeFileSync(`${OUT}/${tag}.json`, JSON.stringify(log, null, 1)); break; }
     await page.click('#ssMineDone').catch(() => {});
     await page.waitForSelector('#ssDescend', { timeout: 20000 }).catch(() => {});
     await sleep(600);
-    const bought = await page.evaluate(({ strat, islandCompass }) => {
+    const bought = await page.evaluate(({ strat, islandCompass, buyAll }) => {
       // No compass (M10, see above) and NO OXALIC VIAL (M11 tidy): no bot ever arms one, so a cheapest buyer
       // reaching its 50 P / 12 G / 12 H rungs on leg 3 would spend a career's ore on nothing and read every
       // leg-3 baseline slower for a reason that is not the game.
-      const S = window.__game.store, ids = S.ids('mine').filter((id) => !/compass|oxalicVial/i.test(id)), got = [];
+      // M14 (`--buy-all`, the default for the three M14 buyers): EVERY track is bought, compasses and vial
+      // included — a player buys the whole shelf over a journey (G5), and a buyer that skips 14 of 36 rungs
+      // can never measure it. The bot still never USES a compass or the vial, so they are spent ore.
+      const S = window.__game.store, allIds = S.ids('mine'), got = [];
+      const ids = buyAll ? allIds : allIds.filter((id) => !/compass|oxalicVial/i.test(id));
       if (islandCompass) for (let k = 0; k < 2; k++) {
         if (!S.inGame('compassIsland', 'mine') || S.nextCost('compassIsland') == null) break;
         const r = S.buy('compassIsland'); if (!r.ok) break; got.push('compassIsland@' + r.level);
       }
       // ...and SAVE UP for it while it is on the shelf and not yet bought out.
       if (islandCompass && S.inGame('compassIsland', 'mine') && S.nextCost('compassIsland') != null) return got.concat(['(saving for compassIsland)']);
+      // THE THREE M14 BUYERS (plan F): 'cheapest' — the cheapest affordable rung (a deep material at ~5 P);
+      // 'power' — the plan model's greedy priority (Water I, grow, heat, water, flask, enzyme, island
+      // compass, the A / G compasses, the vial, the H compass): the first track in that order with an
+      // affordable rung; 'knowledge' — the compasses first (island, then by band), then heat, the kit,
+      // water, grow, the vial.
+      const comp = allIds.filter((id) => /compass/i.test(id));
+      const ORDERS = {
+        power: ['growSteps', 'heatTolerance', 'water', 'excreteCharges', 'amputateCharges'].concat(comp, ['oxalicVial']),
+        knowledge: comp.concat(['heatTolerance', 'excreteCharges', 'amputateCharges', 'water', 'growSteps', 'oxalicVial']),
+      };
+      // Water I first, for every buyer: it is 5 P, priced at the minimum payout so a first run always buys it.
+      if (S.inGame('water', 'mine') && S.level('water') === 0) { const r = S.buy('water'); if (r.ok) got.push('water@' + r.level); }
+      const order = strat === 'cheapest' ? ids : (ORDERS[strat] || strat.split('+')).filter((id) => ids.indexOf(id) >= 0);
       for (let k = 0; k < 40; k++) {
         const bal = S.mats(); let pick = null, pc = Infinity;
-        for (const id of ids) {
+        for (const id of order) {
           if (!S.inGame(id, 'mine')) continue;
           const c = S.nextCost(id); if (c == null) continue;
           const m = typeof c === 'number' ? 'phosphorus' : c.m, n = typeof c === 'number' ? c : c.n;
           if ((bal[m] | 0) < n) continue;
           const eff = m === 'phosphorus' ? n : n * 5;
-          if (eff < pc) { pc = eff; pick = id; }
+          if (strat === 'cheapest' ? eff < pc : pick == null) { pc = eff; pick = id; }
         }
         if (!pick) break;
         const r = S.buy(pick); if (!r.ok) break; got.push(pick + '@' + r.level);
       }
       return got;
-    }, { strat, islandCompass });
+    }, { strat, islandCompass, buyAll });
+    const store = await page.evaluate(() => { const S = window.__game.store; let n = 0, b = 0; const lv = {};
+      for (const id of S.ids('mine')) { n += S.costs(id, 'mine').length; b += S.level(id); lv[id] = S.level(id); } return { n, b, P: S.balance(), mats: S.mats(), lv }; });
     const row = { run, leg: leg0, cause: rr.cause, depth: rr.depth, east: rr.east, ore: rr.ore, bonus: rr.bonus, digs: res.digs,
-                  seconds: res.seconds, start: res.start.water, islands: jn.islands, nextLeg: jn.leg, bought };
+                  seconds: res.seconds, gameMs: rr.ms, start: res.start.water, islands: jn.islands, nextLeg: jn.leg, bought, mode,
+                  drained: rr.drained, mats: rr.mats, seams: rr.seams, reach: rr.reach, kit: res.kit || null, store };
     log.push(row);
-    console.log(`R${run} leg ${leg0} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}${res.kit ? ` | kit: flask x${res.kit.flask}, cut x${res.kit.cut}${res.kit.cutMsgs.length ? ' [' + res.kit.cutMsgs.join(' / ') + ']' : ''}, most rot ${res.kit.rotSeen}` : ''}${res.reached ? ` | route ${res.reached.frac} to ${res.reached.east} m east / ${res.reached.down} m, ended in ${res.mode}` : ''}${scout ? ' | ' + res.mode : ''}`);
+    console.log(`R${run} leg ${leg0}${mode !== 'leg' ? ' [' + res.mode + ']' : ''} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''}${Object.keys(rr.mats).length ? ' ' + JSON.stringify(rr.mats) : ''} drain ${rr.drained} | wallet ${store.P} P ${JSON.stringify(store.mats)} store ${store.b}/${store.n} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}${res.kit ? ` | kit: flask x${res.kit.flask}, cut x${res.kit.cut}${res.kit.cutMsgs.length ? ' [' + res.kit.cutMsgs.join(' / ') + ']' : ''}, most rot ${res.kit.rotSeen}` : ''}${res.reached ? ` | route ${res.reached.frac} to ${res.reached.east} m east / ${res.reached.down} m, ended in ${res.mode}` : ''}${scout ? ' | ' + res.mode : ''}`);
     fs.writeFileSync(`${OUT}/${tag}.json`, JSON.stringify(log, null, 1));
     if (landAt.length >= legsWanted) break;
     await page.click('#ssDescend').catch(() => {});
