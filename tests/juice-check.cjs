@@ -155,6 +155,10 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
         let tip = null; for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
         g.mine.spawnWorm(tip.x + 6, tip.y - 6);
         out.attached = !!(await window.__wait(() => g.mine.attached() > 0, 8000));
+        // diagnostics for the worm count: did the attach reach the frame, and was the click dropped by the cap?
+        await window.__wait(() => (window.__sfx.counts.worm | 0) > 0, 1000);
+        out.wormDiag = { events: s.mineAttachEvents | 0, juiceAtt: s._mineJuice ? s._mineJuice.att : null, worm: window.__sfx.counts.worm | 0,
+          dropped: window.__sfx.counts.dropped | 0, lastDropped: window.__sfx.last.dropped || null, voices: window.__sfx.voices ? window.__sfx.voices() : null };
         // a flask from the kit (the real handler)
         s.mineItems.excrete = 2; s.mineItems.amputate = 2;
         await new Promise((x) => setTimeout(x, 100));
@@ -198,7 +202,7 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
       console.log('    events: ' + JSON.stringify(r) + ' end ' + JSON.stringify(end));
       console.log('    counts: ' + JSON.stringify(c1) + ' last dropped ' + JSON.stringify(await b.page.evaluate(() => window.__sfx.last.dropped || null)));
       for (const k of ['ore', 'pocket', 'line', 'beat', 'worm', 'rot', 'flask', 'enzyme', 'runEnd', 'buy'])
-        ok(`__sfx.counts.${k} >= 1`, d(k) >= 1, `${c0[k] | 0} -> ${c1[k] | 0}`);
+        ok(`__sfx.counts.${k} >= 1`, d(k) >= 1, `${c0[k] | 0} -> ${c1[k] | 0}` + (k === 'worm' ? ` (attached ${r.attached}, ${JSON.stringify(r.wormDiag)})` : ''));
       ok('...and the refusal thud, the heartbeat, the relief chime, the record arpeggio and the count-up ticks/ding fired too',
          d('refuse') >= 1 && d('heartbeat') >= 1 && d('relief') >= 1 && d('record') >= 1 && d('tick') >= 1 && d('ding') >= 1,
          `refuse ${d('refuse')}, heartbeat ${d('heartbeat')}, record ${d('record')} (${end.best.trim()}), tick ${d('tick')}, ding ${d('ding')}, relief ${d('relief')}`);
@@ -428,6 +432,26 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
         });
         ok('a worm that attached and was flasked between two juice frames still clicks (attaches are counted, not read off the level)',
            wk.att && wk.gone && wk.worm === 1, JSON.stringify(wk));
+        // AN ATTACH WHILE PAYOUTS HOLD EVERY SLOT (M12 verify 2): three seam pings (2 sources each, priority 4)
+        // fill the cap and a threat may not steal a payout. The control is a direct click in that state,
+        // which the cap drops; the attach the frame reads must still be heard, a little late.
+        const wf = await b.page.evaluate(async () => {
+          const g = window.__game, s = g.state, S = g.sfx();
+          if (window.__sfx.muted()) S.toggleSfx();
+          for (let i = 0; i < 60 && window.__sfx.ctxState() !== 'running'; i++) await new Promise((x) => setTimeout(x, 50));
+          await new Promise((x) => setTimeout(x, 800));       // anything still sounding from the block above
+          const w0 = window.__sfx.counts.worm | 0, d0 = window.__sfx.counts.dropped | 0;
+          S.playSeamPing('phosphorus', 0); S.playSeamPing('phosphorus', 2); S.playSeamPing('phosphorus', 4);
+          const held = window.__sfx.voices();
+          const direct = S.playWormClick();                    // the control: dropped by the cap
+          const t0 = performance.now();
+          s.mineAttachEvents = (s.mineAttachEvents | 0) + 1;   // what stepNematodes counts on an attach
+          const heard = await window.__wait(() => (window.__sfx.counts.worm | 0) > w0, 1500);
+          return { held, direct, heard: !!heard, lateMs: Math.round(performance.now() - t0), worm: (window.__sfx.counts.worm | 0) - w0,
+                   dropped: (window.__sfx.counts.dropped | 0) - d0 };
+        });
+        ok('an attach while three seam pings hold all six slots is still heard, after them (control: a direct click then is dropped)',
+           wf.held === 6 && wf.direct === false && wf.heard && wf.worm === 1 && wf.lateMs <= 700, JSON.stringify(wf));
         await b.ctx.close();
       }
       // (f) a landfall's chord and vibration land on the frame the run ends, seconds before the screen

@@ -43157,13 +43157,25 @@ function mineLineFeel(depth) {
 //   a new attach (`mineAttachEvents`, counted in the tick) -> two clicks + [30, 40, 30]; a kit count falling -> splat (+ shake) / snip /
 //   fizz; `mineRefusals` rising -> a thud (at most one per 120 ms); the rot clock appearing -> a sting
 //   + 80 ms, under 10 s a heartbeat (1 Hz, 2 Hz under 5 s), and gone while the run lives -> a chime.
+// Play a pending cue; returns the pending stamp to keep (null once it sounded or 500 ms have passed).
+function juiceRetry(due, time, play) {
+  if (due == null) return null;
+  let ok = false; try { ok = play() !== false; } catch (_) { ok = true; }
+  return ok || time - due > 500 ? null : due;
+}
 function mineJuiceTick(time) {
   const j = state._mineJuice || (state._mineJuice = {
     att: state.mineAttachEvents | 0, items: Object.assign({}, state.mineItems || {}),
     ref: state.mineRefusals | 0, refAt: -1e9, inf: !!state.mineInfect, beatAt: -1e9 });
   const att = state.mineAttachEvents | 0;   // new attaches since the last frame (a monotonic count)
-  if (att > j.att) { try { playWormClick(); } catch (_) {} vibrate('worm', [30, 40, 30]); }
+  if (att > j.att) { j.wormDue = time; vibrate('worm', [30, 40, 30]); }
   j.att = att;
+  // A THREAT ONSET RETRIES FOR 500 ms WHEN THE VOICE CAP DROPS IT (M12 verify 2). Payouts may steal threats
+  // and not the reverse, so a worm attaching on the strand that just paid two seams (2 + 2 sources, 0.38 s)
+  // plus a glug found 5 of 6 slots held and the click was lost outright — reproduced 2 of 3 under CPU load,
+  // and it is the ordinary moment for a worm to arrive. Late by a seam ping is better than never heard.
+  // (The vibration fired once, at the event; a muted retry creates nothing.)
+  j.wormDue = juiceRetry(j.wormDue, time, playWormClick);
   const it = state.mineItems || {};
   const fell = (k) => (it[k] | 0) < (j.items[k] | 0);
   if (fell('excrete')) { try { playFlaskSplat(); } catch (_) {} mineShake('flask'); }
@@ -43174,7 +43186,8 @@ function mineJuiceTick(time) {
   if (ref > j.ref && time - j.refAt >= 120) { j.refAt = time; try { playRefuseThud(); } catch (_) {} }
   j.ref = ref;
   const I = state.mineInfect;
-  if (I && !j.inf) { try { playRotSting(); } catch (_) {} vibrate('rot', 80); }
+  if (I && !j.inf) { j.rotDue = time; vibrate('rot', 80); }
+  j.rotDue = I ? juiceRetry(j.rotDue, time, playRotSting) : null;
   if (!I && j.inf && !state.runOver) { try { playReliefChime(); } catch (_) {} }
   j.inf = !!I;
   if (I) {
