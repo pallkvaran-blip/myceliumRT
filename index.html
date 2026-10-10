@@ -36610,7 +36610,7 @@ const __m_main = (function () {
   const { initSfx, playSeamPing, playPocketGlug, playReachTick, playFinaleNote,
           playLineHiss, playBandGong, playRefuseThud, playWormClick, playFlaskSplat, playEnzymeSnip, playAcidFizz,
           playRotSting, playHeartbeat, playReliefChime, playRecordArp, playSparkle, playEndChord,
-          juicePrefs, setJuicePref, vibrate, noteCueLost } = __m_render_sfx;
+          juicePrefs, setJuicePref, vibrate, noteCueLost, isSfxMuted } = __m_render_sfx;
   const { showLoading } = __m_render_loading;
   const { showHighScores, checkHighScore, recordHighScore } = __m_render_highscores;
   const { loadPlayerName, savePlayerName } = __m_highscores;
@@ -43801,6 +43801,9 @@ function mineLineFeel(depth) {
 // `dropped` however many frames it takes; `late` if heard, `lost` if the 500 ms run out — M12 minors).
 function juiceRetry(due, time, play) {
   if (due == null) return null;
+  // MUTED, THERE IS NOTHING TO HEAR LATE (M13: juice-check's mute block read 'lost' moved — a muted cue
+  // returns null from `_cue`, so the retry ran out its 500 ms and counted a lost cue that was never asked for).
+  try { if (isSfxMuted()) return null; } catch (_) {}
   let ok = false; try { ok = play(due.tries > 0) !== false; } catch (_) { ok = true; }
   due.tries++;
   if (ok) return null;

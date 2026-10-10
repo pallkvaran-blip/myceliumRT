@@ -6480,6 +6480,23 @@ Numbers here are measured, not planned.
   'Journey II: Hotter'. The store's heat words / tile honour Hotter (`mineNextHeat`).
   - **DEVIATIONS:** cumulative reading of "stacking"; Rotten skips leg 1 ('calm', its banner says no threats);
     "pockets +7" read as a pocket gives 7 (it was 10).
+  - **THE TABLES** (`tests/bots/journeyseeds.cjs`, the first candidate passing PASS + WPASS + real growth landing,
+    under that journey's rules; candidate lists offset per journey so the seeds are fresh). Legs 1-7 of II, III, IV
+    fell in 1-90 candidates each (leg 7 the slowest: 445 s). **LEG 8 IS ~1 IN 300**: of 390 J2 candidates 14 met the
+    ratio gate and 9 PASS, and every one failed WPASS's reward gate (ore >= 85%: they read 114-147 of 168 — leg 8's
+    .75/.65 seals wall rewards in); J2 found one at candidate 1,077 (67025360); III and IV found none in 390 / 239
+    and use Journey I's 1437175, verified under their rules (PASS + WPASS + follow, 160 digs).
+  - **FAR (VII+) VARIANTS:** each table's seeds re-checked with the island two chunks east (`--far`: table IV under
+    VII, II under VIII, III under IX). Held: II legs 2-3, III legs 2/4-6, IV legs 1-3/6. Replaced by a seed that
+    passes the full gates at E+2: II legs 1 (62005192), 4, 5, 6; III leg 3; IV legs 4, 5, 7. **Reach-verified only**
+    (`farGate: 'reach'`, `--reach`: the taproot reachable and real growth landing on it): II legs 7-8, III legs 1/7/8,
+    IV leg 8 — no candidate met PASS + WPASS in 60-260 (leg 1's shallow-road gate cannot reach an island 2 chunks
+    further; legs 7-8 the reward gate again). The gates the slow searches stopped on are a M14 question.
+  - **DO THE RULES BITE A FULL KIT?** (`tests/bots/journeykit.cjs`: KIT[8], the same map under Journey I's rules and
+    II's.) Hotter moves the first line 98 -> 88 m with tolerance 4, so legs whose route stays above 88 m do not feel
+    it: frac legs 1-8 J1 / J2 = .224/.224, .311/.311, .298/.331, .720/.720, .550/.550, .509/.687, .771/.840, .784/.889.
+    It bites legs 3, 6, 7, 8 (leg 6 +0.18: Hot Rock's own 36 m line becomes 26 + 56 = 82 m). Legs 7-8 under II exceed
+    the 0.70 calibration bar with a full kit — M14.
 - **STRAINS** (species: `mineStrainList` / `mineStrainsOpen` / `mineStrainState` / `mineStrainShelf` /
   `mineStrainTint` / `buyStrain` / `wearStrain`; `CONFIG.mine.strains`): `p.mineStrains = {owned, cur}`; a journey
   strain (Gold for I ... Prism for VIII) is owned by finishing that journey. The store's `#ssStrainSec` exists only
