@@ -189,9 +189,9 @@ const scout = argv.includes('--scout');
 // this leg's route has not been paying (0 of it earned on the last run here) is spent DIVING for it: lib.cjs's
 // free bot (`Q.step`, ore and pockets in sight, deepest frontier), capped one band below the material's own.
 // `--no-dives` turns it off.
-// `--avoid F` (M14, default 4): the route costs F times as much inside a live cloud's sight (worms half that),
+// `--avoid F` (M14, default 1 = off): the route costs F times as much inside a live cloud's sight (worms half that),
 // so the sensible player routes round the green washes as the plan says a player does. 1 = the cheapest route.
-const avoid = +arg('--avoid', 4);
+const avoid = +arg('--avoid', 1);   // M14: 4 made leg 4 a wall (13 runs dry at ~89 m / 190 m east); off, it landed on attempt 4
 // `--oh plan|<number>` (M14, default 'plan'): THE HUMAN OVERHEAD. The bot replays a known cheapest route; the
 // plan's numbers model assumes a human spends 2.0x the navigator's digs on a leg's first attempt, 0.15 less
 // each attempt after, floor 1.4, and 0.08 less per island-compass rung (floor 1.3). Emulated by taxing every
@@ -239,7 +239,9 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     // every run, so the per-strand refusal count does not.
     await page.evaluate((leg) => { const Q = window.__qa; Q.bad = new Map(); Q._glowUsed = new Set(); Q._knew = false; Q._nref = new Map();
       if (Q._deadLeg !== leg) { Q._dead = new Set(); Q._deadLeg = leg; } }, leg0);
-    const attNow = log.filter((r) => r.leg === leg0 && !/island|promised/.test(r.cause)).length;
+    // Attempts on this leg so far, off the SAVE (so a --from start counts the career's earlier runs too).
+    const attNow = await page.evaluate((leg) => { const j = window.__game.mine.journeySave && window.__game.mine.journeySave();
+      const r = j && j.legs && j.legs[leg]; return r ? (r.runs | 0) : 0; }, leg0);
     const icNow = await page.evaluate(() => window.__game.store.level('compassIsland') | 0);
     const oh = ohFor(attNow, icNow);
     await page.evaluate((oh) => {
