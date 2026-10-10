@@ -4069,7 +4069,7 @@ const CONFIG = {
     // chunk records are pinned byte-identical to the pre-M7 snapshot.
     // THE DAILY DIG (M13): one shared seed per UTC day on the FREE layout, with this FIXED kit whatever
     // the store says (`configForLevel`), so a score is comparable between players: 108 water, grow 4,
-    // heat tolerance 2 (the first line at 42 + 2 x 18 = 78 m since M14; 70 at 14 m a rung), one flask, one dose, no vial, no compass.
+    // heat tolerance 2 (the first line at 42 + 2 x 20 = 82 m since M14; 70 at 14 m a rung), one flask, one dose, no vial, no compass.
     dailyKit: { water: 108, grow: 4, tolerance: 2, flask: 1, dose: 1 },
     // STRAINS (M13): the strand's colour, the Phosphorus sink after the Promised Land. Four for sale and
     // one per finished journey (`journey`, unlocked by finishing it, never sold). `tint` replaces the
@@ -4144,17 +4144,19 @@ const CONFIG = {
         { leg: 6, name: 'Hot Rock', seed: 3097001, E: 10, eastM: 240, depthM: 112,
           sealByBand: [0.75, 0.20, 0.12], rule: 'hot', bonus: 70, ruleLine: 'Price lines 6 m shallower',
           safeDepth: 36 },
-        // M14: E 13 -> 10 (312 -> 240 m east) and the taproot 126 -> 116 m (same seed, PASS + WPASS): with the
-        // M14 heat and water steps the arrival kit spent 0.888 -> 0.697 of supply (1.302 at the M9 numbers).
-        { leg: 7, name: 'The Swarm', seed: 2895462, E: 10, eastM: 240, depthM: 116,
+        // M14: E 13 -> 11 (312 -> 264 m east) and the taproot 126 -> 116 m (same seed, PASS + WPASS): with heat at
+        // 20 m a rung and Water +15 the arrival kit spends 0.700 of supply (1.302 at the M9 numbers; E 12 read 0.757
+        // and E 13 0.732 — the pockets the cheapest route passes move the number as much as the length does).
+        { leg: 7, name: 'The Swarm', seed: 2895462, E: 11, eastM: 264, depthM: 116,
           sealByBand: [0.75, 0.60, 0.12], rule: 'swarm', bonus: 85, ruleLine: 'Twice the worms below 42 m',
           threatBands: [{ worms: 0, clouds: 0 }, { worms: 2, clouds: 0 }, { worms: 2, clouds: 1 }, { worms: 4, clouds: 1 }] },
-        // M14: E 15 -> 13 (360 -> 312 m east) and the taproot 140 -> 128 m (same seed, PASS + WPASS): arrival kit
-        // 0.818 -> 0.670 of supply.
-        { leg: 8, name: 'The Promised Land', seed: 1437175, E: 13, eastM: 312, depthM: 128,
-          sealByBand: [0.75, 0.65, 0.12], rule: 'promised', bonus: 150, ruleLine: 'More worms and mould below 84 m',
+        // M14: the taproot 140 -> 128 m, E 15 kept (same seed, PASS + WPASS): arrival kit 0.806 -> 0.693 of supply with
+        // heat at 20 m a rung. Band 2's mould 2 -> 1 cloud a chunk (band 3 keeps 2): with 2 the bot's leg-8 runs ended
+        // 'infected' 13 times in 14 (career c6, 3 doses each run); the rule line names the deeper band.
+        { leg: 8, name: 'The Promised Land', seed: 1437175, E: 15, eastM: 360, depthM: 128,
+          sealByBand: [0.75, 0.65, 0.12], rule: 'promised', bonus: 150, ruleLine: 'More worms below 84 m, more mould below 126 m',
           islandCols: 24, finale: true,     // landfall here is cause 'promised': the finale, and Journey II
-          threatBands: [{ worms: 0, clouds: 0 }, { worms: 1, clouds: 0 }, { worms: 2, clouds: 2 }, { worms: 3, clouds: 2 }] },
+          threatBands: [{ worms: 0, clouds: 0 }, { worms: 1, clouds: 0 }, { worms: 2, clouds: 1 }, { worms: 3, clouds: 2 }] },
       ],
     },
   },
@@ -14799,6 +14801,14 @@ const LADDER = (first, steps) => Array.from({ length: steps }, (_, i) => first *
 // The change is entirely at the bottom, which is where it was asked for — the first purchase on
 // any track is now a single level's clear rather than two.
 const OPENER = (first, steps) => [first, ...LADDER(first * 2, steps - 1)];
+// THE MATERIAL COMPASSES' PRICES BY BAND (M14). Rung 1 Phosphorus; rung 2 Phosphorus, or anthracite for the
+// anthracite compass (its own band's material is the currency the player has a surplus of by then); rung 3 the
+// band's material. A band past the table falls back to the M10 formula.
+const MINE_COMPASS_COSTS = {
+  1: [30, { m: 'anthracite', n: 50 }, { m: 'anthracite', n: 30 }],
+  2: [90, 220, { m: 'garnet', n: 24 }],
+  3: [130, 300, { m: 'hematite', n: 12 }],
+};
 const STORE_UPGRADES = [
   // The three resource tracks first, in the game's own energy / water / phosphorus order — the
   // order the HUD uses, so the store reads in the order of the numbers it raises. Ten steps
@@ -14872,7 +14882,7 @@ const STORE_UPGRADES = [
   { id: 'growSteps', name: 'Grow strength', icon: 'climb', accent: 'mint', step: 1, base: 2, unit: 'steps', unit1: 'step',
     mineOnly: true,
     effect: 'Every dig reaches <b>one step further</b>, for the same water.',
-    costs: [12, 50, { m: 'anthracite', n: 30 }, { m: 'garnet', n: 30 }] },
+    costs: [12, 70, { m: 'anthracite', n: 40 }, { m: 'garnet', n: 40 }] },
   // THE TWO WEAPONS, sold as HOW MANY YOU CARRY rather than as charges that deplete across runs.
   // A capacity track restocks at the start of every descent (`stockRun`), which is the same shape as
   // Retries and needs no new persistence. NOTHING IS GIVEN: Amputate is bought (owner), which is only
@@ -14880,11 +14890,11 @@ const STORE_UPGRADES = [
   { id: 'excreteCharges', name: 'Mucus flasks', icon: 'worm', accent: 'water', step: 1, unit: 'flasks', unit1: 'flask',
     mineOnly: true,
     effect: 'Kills every worm on or near the colony. Carry <b>one more</b> flask per descent.',
-    costs: [10, 40, { m: 'anthracite', n: 21 }] },
+    costs: [10, 40, { m: 'anthracite', n: 30 }] },
   { id: 'amputateCharges', name: 'Cutting enzyme', icon: 'spore', accent: 'mint', step: 1, unit: 'doses', unit1: 'dose',
     mineOnly: true,
     effect: 'Tap the rot: one dose cuts out one whole patch of rot, and only the rot. Carry <b>one more</b> dose per descent.',
-    costs: [15, 50, { m: 'garnet', n: 18 }] },
+    costs: [15, 50, { m: 'garnet', n: 24 }] },
   // THE OXALIC VIAL (finishing plan M11): THE BOUGHT WAY THROUGH ROCK, and the only one. Rock is a wall
   // for everyone who has not bought one: a vial lets ONE dig pass through at most 108 units (3 cells) of
   // rock, and only where the far side is open ground, so it turns a stranded seam or one stubborn wall
@@ -14892,18 +14902,20 @@ const STORE_UPGRADES = [
   { id: 'oxalicVial', name: 'Oxalic vial', icon: 'vial', accent: 'gold', step: 1, unit: 'vials', unit1: 'vial',
     mineOnly: true,
     effect: 'Arm it, then dig: the acid eats through <b>up to 3 cells</b> of rock to open ground. Carry <b>one more</b> vial per descent.',
-    costs: [80, { m: 'garnet', n: 16 }, { m: 'hematite', n: 12 }] },
+    costs: [120, { m: 'garnet', n: 24 }, { m: 'hematite', n: 12 }] },
   // DEPTH GATING, sold as tolerance: it moves where the price starts climbing rather than removing
-  // the climb. 18 m a rung over 4 rungs (v1 was 25 m over 6, which deleted heat from the shaft), so
-  // at the top the lines sit at 114 / 156 m and the x4 and x8 prices always exist.
-  // M14: 14 -> 18. The journey's galleries run at rows 3 + 18k (57, 75, 93, 111 m), so at 14 a rung
+  // the climb. 20 m a rung over 4 rungs (v1 was 25 m over 6, which deleted heat from the shaft), so
+  // at the top the lines sit at 122 / 164 m and the x4 and x8 prices always exist.
+  // M14: 14 -> 20. The journey's galleries run at rows 3 + 18k (57, 75, 93, 111 m), so at 14 a rung
   // each line sat just ABOVE a gallery (56 / 70 / 84 / 98) and a crossing on it paid the doubled price;
-  // at 18 (60 / 78 / 96 / 114) each rung opens the next gallery down at the cheap price. Measured with the
-  // arrival kits (legprobe --kit): legs 3 / 6 / 7 route water 0.781 -> 0.688, 0.776 -> 0.632, 1.302 -> 0.888.
-  { id: 'heatTolerance', name: 'Heat tolerance', icon: 'climb', accent: 'gold', step: 18, unit: 'metres', unit1: 'metre',
+  // at 20 (62 / 82 / 102 / 122) each rung opens the next gallery down at the cheap price, and the full track
+  // puts legs 7-8's crossings at 2 a dig — which is what gives a late run its length (G7: 150-240 s at a
+  // human's pace; at 18 the late runs measured 77-133 s). At the top the lines sit at 122 / 164 m: x4 and
+  // x8 still exist. Legs 3 / 6 / 7 route water with the arrival kits: 0.781 -> 0.629, 0.776 -> 0.506, 1.302 -> 0.700.
+  { id: 'heatTolerance', name: 'Heat tolerance', icon: 'climb', accent: 'gold', step: 20, unit: 'metres', unit1: 'metre',
     mineOnly: true,
-    effect: 'Push the first price line <b>18 m deeper</b>.',
-    costs: [15, { m: 'anthracite', n: 18 }, { m: 'anthracite', n: 36 }, { m: 'garnet', n: 24 }] },
+    effect: 'Push the first price line <b>20 m deeper</b>.',
+    costs: [15, { m: 'anthracite', n: 18 }, { m: 'anthracite', n: 48 }, { m: 'garnet', n: 36 }] },
   // THE COMPASSES (finishing plan M10): KNOWLEDGE, not power. A needle at the screen's edge points on
   // the STRAIGHT bearing from the focus strand to its target, through rock — a bearing, never a route,
   // so the maze still has to be solved. The island compass points at the leg's taproot (the leg def
@@ -14911,7 +14923,7 @@ const STORE_UPGRADES = [
   { id: 'compassIsland', name: 'Island compass', icon: 'compass', accent: 'mint', step: 1, unit: 'rungs', unit1: 'rung',
     mineOnly: true,
     effect: 'A needle at the screen edge points <b>through rock</b> at the island\'s root. Rung 2 adds the distance.',
-    costs: [12, 60] },
+    costs: [12, 90] },
   // ...and one per DEEP MATERIAL, generated from CONFIG.mine.materials so a fifth material is one CONFIG
   // entry. Phosphorus (band 0) has none: it is the shallow band's and the whole band is two digs wide.
   // Prices are the plan's table, which is exactly 20·band, 60 + 40·(band − 1), then 12 of the material:
@@ -14920,7 +14932,7 @@ const STORE_UPGRADES = [
     id: 'compass_' + m.id, name: m.name + ' compass', icon: 'compass', accent: 'phos', step: 1, unit: 'rungs', unit1: 'rung',
     mineOnly: true, compassMat: m.id,
     effect: 'A needle points <b>through rock</b> at the nearest ' + m.name + ' seam. Rung 2 adds the distance; rung 3 picks the richest within 90 m.',
-    costs: [30 * (m.band | 0), m.band === 1 ? { m: m.id, n: 40 } : 90 + 60 * ((m.band | 0) - 1), { m: m.id, n: m.band === 1 ? 24 : 12 }] })),
+    costs: MINE_COMPASS_COSTS[m.band] || [20 * (m.band | 0), 60 + 40 * ((m.band | 0) - 1), { m: m.id, n: 12 }] })),
 ];
 // The compass track ids, in material order (island first).
 const MINE_COMPASS_IDS = STORE_UPGRADES.filter((u) => u.id === 'compassIsland' || u.compassMat).map((u) => u.id);
@@ -14935,16 +14947,16 @@ const MINE_UPGRADE_IDS = ['water', 'growSteps', 'heatTolerance', 'excreteCharges
 // The mine's price for a shared track. `water` is a Spores ladder upstairs (25, 50, 100 …) and
 // the mine's whole currency runs an order of magnitude smaller, so a shared track needs its own
 // ladder or its first rung is unreachable.
-const MINE_COSTS = { water: [5, 12, 25, 50, 80, 120, { m: 'garnet', n: 30 }, { m: 'hematite', n: 16 }] };
+const MINE_COSTS = { water: [5, 12, 25, 50, 100, 150, { m: 'garnet', n: 45 }, { m: 'hematite', n: 16 }] };
 // ...and its STEP (M5): the mine's tank rises +12 a rung (60 -> 156), the campaign's keeps +5. Read
 // through `upgradeStep`, which is what `upgradeValue` (and so `storeBonuses`) uses.
-// M14: +12 -> +20 (60 -> 220). The late legs' crossings could not be paid inside the plan's 70% rule out
-// of a 156 tank (+15 made legs 7-8 pass it), and their runs were still too short for G7 (leg 7-8 runs
-// 150-240 s at a human's 1.7 s a dig): measured 88 s median on a 135 tank in career c4.
-const MINE_STEPS = { water: 20 };
+// M14: +12 -> +15 (60 -> 180). The late legs' crossings could not be paid inside the plan's 70% rule out of a
+// 156 tank. (+20 was tried for G7's longer late runs and made legs 4-6 land on the first or second attempt:
+// the arrival kit spent 0.47-0.56 of supply. The late runs got their length from heat at 20 m a rung instead.)
+const MINE_STEPS = { water: 15 };
 // The mine's own name and copy for a shared track.
 const MINE_NAMES = { water: 'Water tank' };
-const MINE_EFFECTS = { water: 'Start every descent with <b>20 more</b> water.' };
+const MINE_EFFECTS = { water: 'Start every descent with <b>15 more</b> water.' };
 const upgradeStep = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_STEPS[u.id] != null ? MINE_STEPS[u.id] : (u ? u.step : 0));
 const upgradeName = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_NAMES[u.id]) || (u ? u.name : '');
 const upgradeEffect = (u, game) => ((game || CONFIG.game) === 'mine' && u && MINE_EFFECTS[u.id]) || (u ? u.effect : '');
@@ -32992,9 +33004,9 @@ function mineTileNew(id, p, forCard) {
 }
 // One line of what the next rung DOES, for the next-goal card.
 const MINE_GOAL_TEXT = {
-  water: 'start with 20 more water',
+  water: 'start with 15 more water',
   growSteps: 'every dig reaches one step further',
-  heatTolerance: 'push the first price line 18 m deeper',
+  heatTolerance: 'push the first price line 20 m deeper',
   excreteCharges: 'carry a flask that kills drinking worms',
   amputateCharges: 'carry a dose that cuts out rot',
   compassIsland: 'a needle that points through rock at the island\'s root',
