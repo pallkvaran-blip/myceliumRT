@@ -37680,8 +37680,13 @@ function mineBank(r) {
     // THE LEG (M8): a journey descent is recorded on its leg (runs, best depth, farthest east; a
     // landfall marks it landed and moves the save on). `r.depth` may be missing on a result built
     // elsewhere, so the record takes the figures just resolved.
+    // THE FOSSIL (M13) of a failed attempt: the colony as it ended, quantised (`mineFossilEncode`).
+    let fossil = null;
+    if (r.leg > 0 && digs > 0 && !mineLandfall(r.cause) && state && state.substrate && state.substrate.mine) {
+      try { fossil = mineFossilEncode(state); } catch (_) { fossil = null; }
+    }
     r._legRec = r.leg > 0 && digs > 0
-      ? mineRecordLeg({ leg: r.leg, journey: r.journey | 0, cause: r.cause, digs, depth, east, countRun: !bootCounted }) : null;
+      ? mineRecordLeg({ leg: r.leg, journey: r.journey | 0, cause: r.cause, digs, depth, east, countRun: !bootCounted, fossil }) : null;
     // `detail` is 'L<leg>:<cause>:e<east m>' (M8; L0 is the free layout), so the funnel can tell a
     // leg-2 soft lock from a leg-1 choice and read how far east the run got.
     logEvent('run_end', { level: depth, cause: r.cause || 'dry', turns: state && state.turn, n: ore,
@@ -38168,6 +38173,55 @@ function mineJourneyStripHTML(j, cls) {
     + '" role="img" aria-label="Journey: ' + j.islands + ' of ' + j.total + ' islands rooted'
     + (j.leg > 0 ? ', leg ' + j.leg + ' next' : ', journey complete') + '">' + dots + '</div>';
 }
+// ===================== THE FOSSIL (finishing plan M13) =====================
+// THE LAST FAILED ATTEMPT'S COLONY, saved on its leg and drawn dim under the next attempt — failure read
+// as map knowledge ("I got to there; the wall is there"). At most `FOSSIL_MAX` (300) strands, each
+// QUANTISED to `FOSSIL_Q` (9 world units = one fine cell) with the delta to an ANCESTOR up its own chain
+// ("cell x/y plus parent delta"): with more than 300 strands every k-th is kept and joined to the
+// ancestor k steps up (stopping early if the delta would leave ±31 cells), so the kept points still draw
+// as the colony's branching shape rather than as a scatter. Six base-64 characters a strand (x 2, y 2,
+// dx 1, dy 1) — 1.8 KB at the cap, against the plan's 3 KB a leg. Cleared by that leg's landfall.
+const FOSSIL_Q = 9, FOSSIL_MAX = 300, FOSSIL_YOFF = 64;
+const FOSSIL_ABC = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+function mineFossilEncode(st) {
+  const net = st && st.active, sub = st && st.substrate;
+  if (!net || !sub || !net.nodes || net.nodes.length < 2) return null;
+  const nodes = net.nodes, N = nodes.length;
+  const k = Math.max(1, Math.ceil(N / FOSSIL_MAX));
+  const q = (v) => Math.round(v / FOSSIL_Q);
+  let out = '';
+  for (let i = 0, kept = 0; i < N && kept < FOSSIL_MAX; i += k) {
+    const n = nodes[i];
+    const x = q(n.x), y = q(n.y - sub.surfaceY) + FOSSIL_YOFF;
+    if (x < 0 || x > 4095 || y < 0 || y > 4095) continue;
+    // The ancestor up to k steps up, as long as the delta still fits a character.
+    let a = null;
+    for (let m = n, s2 = 0; s2 < k && m && m.parentId != null; s2++) {
+      const p = net.byId.get(m.parentId);
+      if (!p) break;
+      const dx = q(p.x) - x, dy = q(p.y - sub.surfaceY) + FOSSIL_YOFF - y;
+      if (dx < -32 || dx > 31 || dy < -32 || dy > 31) break;
+      a = { dx, dy }; m = p;
+    }
+    if (!a) continue;                    // the root, or a strand whose parent is a jump away
+    out += FOSSIL_ABC[x >> 6] + FOSSIL_ABC[x & 63] + FOSSIL_ABC[y >> 6] + FOSSIL_ABC[y & 63]
+      + FOSSIL_ABC[a.dx + 32] + FOSSIL_ABC[a.dy + 32];
+    kept++;
+  }
+  return out.length >= 6 ? 'f1:' + out : null;
+}
+function mineFossilDecode(str, sub) {
+  if (typeof str !== 'string' || str.slice(0, 3) !== 'f1:' || !sub) return [];
+  const body = str.slice(3), pts = [], ix = (c) => FOSSIL_ABC.indexOf(c);
+  for (let i = 0; i + 6 <= body.length; i += 6) {
+    const x = (ix(body[i]) << 6) | ix(body[i + 1]), y = (ix(body[i + 2]) << 6) | ix(body[i + 3]);
+    const dx = ix(body[i + 4]) - 32, dy = ix(body[i + 5]) - 32;
+    if (x < 0 || y < 0) continue;
+    const wx = x * FOSSIL_Q, wy = sub.surfaceY + (y - FOSSIL_YOFF) * FOSSIL_Q;
+    pts.push({ x: wx, y: wy, px: wx + dx * FOSSIL_Q, py: wy + dy * FOSSIL_Q });
+  }
+  return pts;
+}
 // Records a BANKED journey descent on its leg: runs, best depth, farthest east; a landfall marks the
 // leg landed and moves the save on to the next leg. Returns the leg's record after the write.
 function mineRecordLeg(r) {
@@ -38215,7 +38269,10 @@ function mineLegApply(p, r, countRun) {
   rec.bestDepth = Math.max(rec.bestDepth | 0, r.depth | 0);
   rec.bestEast = Math.max(rec.bestEast | 0, r.east | 0);
   let firstLand = false, finished = 0;
+  // THE FOSSIL (M13): a failed attempt leaves its colony on the leg; a landfall clears it.
+  if (!mineLandfall(r.cause) && typeof r.fossil === 'string') rec.fossil = r.fossil;
   if (mineLandfall(r.cause)) {
+    delete rec.fossil;
     firstLand = !rec.landed;
     rec.landed = true;
     mj.leg = Math.max(mj.leg, Math.min(MINE_JOURNEY_LEGS, L + 1));
@@ -40704,6 +40761,12 @@ function begin(newState) {
       // A journey leg (M7): the curated seed, or `seed` pinned (legprobe's candidates).
       // The save's journey leg (`p.mineJourney`), the route M8's DIG will take.
       playJourney: () => { beginMineRun(undefined, { journey: true }); return true; },
+      // THE FOSSIL (M13): this run's decoded points (the leg's last failed attempt), how many segments the
+      // last frame drew, and the saved string's length; `fossilOn(false)` stands the drawing down (the
+      // pixel A/B). `fossilEncode()` encodes the CURRENT colony the way the bank will.
+      fossil: () => { const F = state && state._mineFossil; return F ? { points: F.pts.length, drawn: F.drawn | 0, bytes: F.bytes | 0, off: !!F.off, pts: F.pts.slice(0, 400) } : null; },
+      fossilOn: (on) => { if (state && state._mineFossil) state._mineFossil.off = !on; return !!(state && state._mineFossil); },
+      fossilEncode: () => (state ? mineFossilEncode(state) : null),
       playLeg: (j, l, seed) => { beginMineRun(seed > 0 ? seed >>> 0 : undefined, { journey: j || 1, leg: l || 1 }); return true; },
       // The leg this descent is on and its layout as the substrate carries it (null on the free layout).
       leg: () => (mineLeg ? Object.assign({}, mineLeg, { seed: mineSeed,
@@ -43130,6 +43193,8 @@ function mineJourneyInit(time) {
   o.lines.deep = rec ? rec.bestDepth | 0 : 0;
   o.lines.east = rec ? rec.bestEast | 0 : 0;
   o.runsBefore = rec ? rec.runs | 0 : 0;
+  // THE FOSSIL (M13): the last failed attempt on this leg, decoded once for the run.
+  state._mineFossil = { pts: rec && rec.fossil ? mineFossilDecode(rec.fossil, sub) : [], bytes: rec && rec.fossil ? rec.fossil.length : 0, drawn: 0 };
   if (!state._mineFirst) {
     const row = mineLegRow(state.config, J.leg);
     showMineBeat('Leg ' + J.leg, J.name || '', row && row.ruleLine, false, 'leg');
@@ -44038,6 +44103,7 @@ function renderFrameInner(time, dtFrames = 1) {
   _rfMark('surface');
   drawGoalProps();              // summery bush clusters on the goal soil (over the hill backdrop)
 
+  if (state.substrate.mine) drawMineFossil();   // M13: the last failed attempt, dim, UNDER the colony
   for (const net of state.networks) {
     rendererFor(net).draw(ctx, camera, time);
     if (net.fruited && net.fruitPoints.length) drawFruitBodies(ctx, camera, net.fruitPoints, time, false);
@@ -47235,6 +47301,28 @@ function drawMineCompass(time) {
 //   - ONE NOT YET GROWN IN. The layer ignored the reveal, so the amber line stood inside the rock a
 //     second or two before the strand reaching it had grown in. Each segment is drawn as far as its
 //     child strand has revealed (`revealFactor`, the renderer's own clock; an unscheduled strand is 0).
+// THE FOSSIL, drawn (M13): each kept strand to its ancestor, at 20% alpha in a DESATURATED grey (the
+// living colony is mint-cream; its ghost has no colour), under the colony and over the rock. Off for a
+// probe with `window.MYCELIUM_NO_FOSSIL` or `__game.mine.fossilOn(false)`.
+function drawMineFossil() {
+  const F = state._mineFossil;
+  if (!F) return;
+  F.drawn = 0;
+  if (!F.pts.length || F.off || (typeof window !== 'undefined' && window.MYCELIUM_NO_FOSSIL)) return;
+  const z = camera.zoom, W = camera.viewW, H = camera.viewH;
+  ctx.save();
+  ctx.globalAlpha = 0.2;
+  ctx.strokeStyle = 'rgb(196,200,198)';
+  ctx.lineWidth = Math.max(1.6, 4 * z); ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (const p of F.pts) {
+    const a = camera.worldToScreen(p.x, p.y), b = camera.worldToScreen(p.px, p.py);
+    if ((a.x < -40 && b.x < -40) || (a.x > W + 40 && b.x > W + 40) || (a.y < -40 && b.y < -40) || (a.y > H + 40 && b.y > H + 40)) continue;
+    ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); F.drawn++;
+  }
+  ctx.stroke();
+  ctx.restore();
+}
 function drawMineAcid(time) {
   const net = state.active, segs = net && net.acidSegs;
   state._mineAcidDrawn = 0;      // how many segments this frame drew (a hook for vial-check)
