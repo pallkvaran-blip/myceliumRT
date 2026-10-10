@@ -661,10 +661,17 @@ async function navigate(page, o = {}) {
       for (const c of sub.cells) if (c && c.trich) c.trich = 0;
     }
     const drained0 = +(s.mineDrained || 0);
-    let flasks = 0, cuts = 0, breaches = 0;
+    let flasks = 0, cuts = 0, breaches = 0, attSince = 0;
+    const attach0 = s.mineAttachEvents | 0;
     const kit = async () => {
       if (!o.threats) return;
-      if ((s.mineAttached | 0) > 0 && ((s.mineItems || {}).excrete | 0) > 0) { const r = g.mine.useExcrete(); if (r && r.ok) flasks++; }
+      // M14: a flask waits for TWO attached worms, or one that has been drinking for 6 s — thrown at the first
+      // attach, the bag (1-3) was empty by mid-run on the swarm legs and every later worm drank freely.
+      // `o.flaskAtFirst` restores the old policy (M9's measurements).
+      const att = s.mineAttached | 0;
+      if (att > 0 && !attSince) attSince = performance.now(); else if (!att) attSince = 0;
+      const due = o.flaskAtFirst ? att > 0 : (att >= 2 || (att > 0 && performance.now() - attSince >= 6000));
+      if (due && ((s.mineItems || {}).excrete | 0) > 0) { const r = g.mine.useExcrete(); if (r && r.ok) { flasks++; attSince = 0; } }
       const rot = net.nodes.find((n) => n.infected);
       if (rot) {
         breaches++;
@@ -773,7 +780,7 @@ async function navigate(page, o = {}) {
     }
     let nearest = Infinity; for (const n of net.nodes) if (!n.infected) nearest = Math.min(nearest, Math.hypot(n.x - tx, n.y - ty));
     return { landed: landed(), digs, refused, spent, plans, pops, stalls, near: +nearest.toFixed(1), nodes: net.nodes.length, trace: o.trace ? trace : undefined,
-             drained: +((s.mineDrained || 0) - drained0).toFixed(2), flasks, cuts, breachFrames: breaches, over: !!s.runOver, cause: s.runResult && s.runResult.cause,
+             drained: +((s.mineDrained || 0) - drained0).toFixed(2), attaches: (s.mineAttachEvents | 0) - attach0, flasks, cuts, breachFrames: breaches, over: !!s.runOver, cause: s.runResult && s.runResult.cause,
              worms: s.nematodes.length, clouds: s.clouds.length };
   }, o);
 }
@@ -820,7 +827,7 @@ async function kitWater(page, leg, seed, kit, o = {}) {
   const out = { startWater: sw, pockets: m.routePockets, supply, model: m.water, spent: f.spent, landed: f.landed,
            frac: +(f.spent / supply).toFixed(3), modelFrac: +(m.water / supply).toFixed(3),
            east42: m.east42, east84: m.east84, digs: f.digs, routeFrac: f.routeFrac };
-  if (o.threats) Object.assign(out, { drained: f.drained, fracWithDrain: +((f.spent + f.drained) / supply).toFixed(3), flasks: f.flasks, cuts: f.cuts,
+  if (o.threats) Object.assign(out, { drained: f.drained, fracWithDrain: +((f.spent + f.drained) / supply).toFixed(3), attaches: f.attaches, flasks: f.flasks, cuts: f.cuts,
     breachFrames: f.breachFrames, over: f.over, cause: f.cause, worms: f.worms, clouds: f.clouds });
   return out;
 }

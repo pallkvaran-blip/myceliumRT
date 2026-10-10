@@ -56,6 +56,7 @@ for (const f of files) {
   if (costs) {
     const issues = [];
     for (const r of log) {
+      if (!r.store || !r.store.lv) continue;   // the Promised Land's row carries no shelf (no visit follows)
       for (const m of ['anthracite', 'garnet', 'hematite']) {
         let demand = 0;
         for (const id in costs) costs[id].forEach((c, k) => { if (k >= (r.store.lv[id] | 0) && MAT_OF(c) === m) demand += c.n; });
@@ -75,7 +76,7 @@ for (const f of files) {
   ok(`${tag} G9 dives 15-35% of runs on legs 3-7`, l37.length > 0 && dv >= 0.15 * l37.length && dv <= 0.35 * l37.length, `${dv} of ${l37.length}`);
   // G11 — "WITH COUNTERS BOUGHT": a run counts once the save carried the counter into it (the store levels after
   // the previous visit): flask track >= 2 for the drain, enzyme track >= 1 for the infected endings.
-  const lvBefore = (i) => (i > 0 ? log[i - 1].store.lv : {});
+  const lvBefore = (i) => (i > 0 && log[i - 1].store && log[i - 1].store.lv) || {};
   const l48 = log.filter((r, i) => r.leg >= 4 && (lvBefore(i).amputateCharges | 0) >= 1);
   const inf = l48.filter((r) => r.cause === 'infected').length;
   const drains = log.filter((r, i) => (lvBefore(i).excreteCharges | 0) >= 2).map((r) => +r.drained || 0);
