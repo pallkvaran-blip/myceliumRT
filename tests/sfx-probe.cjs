@@ -20,14 +20,15 @@ const TAP = require('./sfx-meter.cjs');
       const S = window.__game.sfx(), sl = (ms) => new Promise((r) => setTimeout(r, ms));
       if (window.__sfx.muted()) S.toggleSfx();
       for (let i = 0; i < 40 && window.__sfx.ctxState() !== 'running'; i++) await sl(50);
+      const meters = await window.__meterReady();   // the meter listens before the first scenario plays
       // the dig sample decodes lazily
       for (let i = 0; i < 60 && !window.__sfx.growReady?.(); i++) await sl(50);
       const db = (v) => (v > 0 ? (20 * Math.log10(v)).toFixed(1) : '-inf');
-      const res = { ctx: window.__sfx.ctxState(), meter: window.__meterError || 'worklet', grow: !!(window.__sfx.growReady && window.__sfx.growReady()) };
+      const res = { ctx: window.__sfx.ctxState(), meter: window.__meterError || ('worklet x' + meters), grow: !!(window.__sfx.growReady && window.__sfx.growReady()) };
       const run = async (name, fn, wait = 2600) => {
         await sl(300); window.__peakReset(); window.__voiceReset(); const d0 = window.__sfx.counts.dropped | 0;
           fn(); await sl(wait);
-        res[name] = { dBFS: db(window.__peak), dropped: (window.__sfx.counts.dropped | 0) - d0, voices: window.__voiceMax() };
+        res[name] = { dBFS: db(window.__peak), phone: db(window.__peakPhone), dropped: (window.__sfx.counts.dropped | 0) - d0, voices: window.__voiceMax() };
       };
       const single = { seam: () => S.playSeamPing('phosphorus', 0), reach: () => S.playReachTick(3), glug: () => S.playPocketGlug(),
         hiss: () => S.playLineHiss(), gong: () => S.playBandGong(), thud: () => S.playRefuseThud(), worm: () => S.playWormClick(),

@@ -8,6 +8,18 @@
  *   most short cues. The worklet sees every render quantum. `window.__peak` (linear), reset by writing 0
  *   (the worklet is told through its port).
  *
+ *   WARM BEFORE MEASURING (M12 minors): the tap bus and its worklet are installed when a context is
+ *   CONSTRUCTED, not on its first connect to the speakers, and `window.__meterReady()` resolves once every
+ *   context's meter is attached. The first version built the bus lazily on the first connect and attached
+ *   the worklet when `addModule` resolved, so the first cue a page played went out through a bus with
+ *   nothing listening: the first seam ping read -34.4 dBFS and the same ping a moment later -20.8. Await
+ *   `__meterReady()` before the first scenario.
+ *
+ *   PHONE: the same signal through a 300 Hz 4th-order highpass (two Butterworth biquads) into a second
+ *   meter, `window.__peakPhone` — a stand-in for a phone speaker's low roll-off. A 62 Hz sine loses ~55 dB
+ *   there, a 1 kHz one nothing. It is a proxy, not a speaker measurement; what it can say is whether a cue
+ *   carries ANY energy where a phone speaker plays.
+ *
  *   VOICES: AudioScheduledSourceNode.start/stop are wrapped, so every oscillator and buffer source the
  *   page schedules is an interval [start, stop) on the audio clock — a buffer source with no stop ends
  *   at its buffer's length / playbackRate. `window.__voiceMax()` is the most that overlap at any instant
@@ -15,35 +27,50 @@
  */
 module.exports = (page) => page.addInitScript(() => {
   const W = window;
-  W.__peak = 0;
-  let resetAt = 0;
+  W.__peak = 0; W.__peakPhone = 0;
   const meters = [];
-  Object.defineProperty(W, '__peakReset', { value: () => { W.__peak = 0; resetAt++; for (const m of meters) try { m.port.postMessage('reset'); } catch (_) {} } });
+  Object.defineProperty(W, '__peakReset', { value: () => { W.__peak = 0; W.__peakPhone = 0; for (const m of meters) try { m.port.postMessage('reset'); } catch (_) {} } });
   const SRC = 'class PeakMeter extends AudioWorkletProcessor{constructor(){super();this.m=0;this.port.onmessage=()=>{this.m=0;};}' +
     'process(inp){const ch=inp[0];if(ch)for(let c=0;c<ch.length;c++){const d=ch[c];for(let i=0;i<d.length;i++){const v=d[i]<0?-d[i]:d[i];if(v>this.m){this.m=v;this.port.postMessage(v);}}}return true;}}' +
     "registerProcessor('peak-meter',PeakMeter);";
   const url = URL.createObjectURL(new Blob([SRC], { type: 'application/javascript' }));
   const C = AudioNode.prototype.connect;
   const buses = new WeakMap();
+  const pending = [];
+  // The bus for a context, built once: everything the page connects to the speakers also feeds it.
+  const busFor = (ctx) => {
+    let bus = buses.get(ctx);
+    if (bus) return bus;
+    bus = ctx.createGain(); buses.set(ctx, bus);
+    pending.push(ctx.audioWorklet.addModule(url).then(() => {
+      const z = ctx.createGain(); z.gain.value = 0;
+      const m = new AudioWorkletNode(ctx, 'peak-meter');
+      meters.push(m);
+      m.port.onmessage = (e) => { if (e.data > W.__peak) W.__peak = e.data; };
+      C.call(bus, m); C.call(m, z);
+      // the phone proxy: 300 Hz, 24 dB/octave below
+      const h1 = ctx.createBiquadFilter(), h2 = ctx.createBiquadFilter();
+      for (const h of [h1, h2]) { h.type = 'highpass'; h.frequency.value = 300; h.Q.value = Math.SQRT1_2; }
+      const mp = new AudioWorkletNode(ctx, 'peak-meter');
+      meters.push(mp);
+      mp.port.onmessage = (e) => { if (e.data > W.__peakPhone) W.__peakPhone = e.data; };
+      C.call(bus, h1); C.call(h1, h2); C.call(h2, mp); C.call(mp, z);
+      C.call(z, ctx.destination);
+    }).catch((e) => { W.__meterError = String(e); }));
+    return bus;
+  };
+  // ...installed as the context is made, so the first cue is metered whole
+  for (const name of ['AudioContext', 'webkitAudioContext']) {
+    const K = W[name];
+    if (typeof K !== 'function') continue;
+    const Wrapped = function (...args) { const c = new K(...args); try { busFor(c); } catch (_) {} return c; };
+    Wrapped.prototype = K.prototype;
+    try { W[name] = Wrapped; } catch (_) {}
+  }
+  W.__meterReady = () => Promise.all(pending.slice()).then(() => meters.length);
   AudioNode.prototype.connect = function (dst) {
     const r = C.apply(this, arguments);
-    try {
-      if (dst && dst instanceof AudioDestinationNode) {
-        const ctx = this.context;
-        let bus = buses.get(ctx);
-        if (!bus) {
-          bus = ctx.createGain(); buses.set(ctx, bus);
-          ctx.audioWorklet.addModule(url).then(() => {
-            const m = new AudioWorkletNode(ctx, 'peak-meter');
-            meters.push(m);
-            m.port.onmessage = (e) => { if (e.data > W.__peak) W.__peak = e.data; };
-            const z = ctx.createGain(); z.gain.value = 0;
-            C.call(bus, m); C.call(m, z); C.call(z, ctx.destination);
-          }).catch((e) => { W.__meterError = String(e); });
-        }
-        C.call(this, bus);
-      }
-    } catch (_) {}
+    try { if (dst && dst instanceof AudioDestinationNode) C.call(this, busFor(this.context)); } catch (_) {}
     return r;
   };
   // voices

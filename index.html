@@ -27899,6 +27899,15 @@ function ceiling() {
 // Decode the sample and arm gesture-unlock. Called after boot (non-blocking).
 function initSfx() {
   const a = ctx();
+  // BUILD THE OUTPUT CHAIN NOW, NOT ON THE FIRST CUE (M12 minors). A DynamicsCompressorNode starts with
+  // its detector at zero, i.e. FULL gain reduction, and releases from there over its release time — so
+  // when `master()` / `ceiling()` were built lazily by the first sound of a session, that sound went out
+  // through two compressors clamping down: measured (tests/sfx-meter.cjs, `reduction` polled) at -14 /
+  // -21 dB on the first frames, and the first refusal thud of a page read -39.6 dBFS against -13.9 for
+  // the same thud a second later (the first seam ping -34.4 against -20.8; the first reach tick -61.7
+  // against -31.9). Built here, they settle in the first moments the context runs, long before the first
+  // payout. Nothing sounds through them until a cue does.
+  try { master(); } catch (_) {}
   fetch('assets/sfx/grow.wav').then((r) => r.arrayBuffer()).then((b) => a.decodeAudioData(b))
     .then((buf) => { BUF = buf; ready = true; }).catch(() => {});
   // The card click. Its own buffer rather than a manifest entry, exactly like the grow sample —
@@ -28034,7 +28043,7 @@ try { window.__sfx = { counts: SFX_COUNTS, last: SFX_LAST, ctxState: () => (AC ?
 const SEAM_ROOT_HZ = { phosphorus: 660, anthracite: 440, garnet: 587, hematite: 740 };
 function _tone(a, t, f0, f1, dur, gain, type) {
   const o = a.createOscillator(), g = a.createGain();
-  o.type = type || 'sine';
+  if (type && typeof type === 'object') o.setPeriodicWave(type); else o.type = type || 'sine';
   o.frequency.setValueAtTime(f0, t);
   if (f1 && f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
   g.gain.setValueAtTime(0.0001, t);
@@ -28060,17 +28069,24 @@ function playSeamPing(mat, semis) {
   const t = _ct(a, 0.005);
   const up = Math.max(0, Math.min(12, semis | 0));
   const f = (SEAM_ROOT_HZ[mat] || SEAM_ROOT_HZ.phosphorus) * Math.pow(2, up / 12);
-  _tone(a, t, f, f, 0.32, 0.07);
-  _tone(a, t + 0.012, f * 1.5, f * 1.5, 0.24, 0.035);
+  // 0.07 / 0.035 -> 0.1 / 0.05 (M12 minors): the payout must not be quieter than a refused dig.
+  _tone(a, t, f, f, 0.32, 0.1);
+  _tone(a, t + 0.012, f * 1.5, f * 1.5, 0.24, 0.05);
   SFX_LAST.ore = { mat: mat || 'phosphorus', semis: up, hz: [Math.round(f), Math.round(f * 1.5)] };
   return true;
 }
 // THE REACH TICK (M5): a soft, short blip each time depth earns another P. Quieter than a seam ping —
-// it happens every 5 m and must not compete with the things the player went looking for.
-function playReachTick() {
+// it happens every 5 m and must not compete with the things the player went looking for. PITCHED BY
+// BAND (the plan's table; M12 minors — the first build played a fixed 1320 -> 1180 Hz sweep): 880 Hz in
+// the first band rising to 1320 Hz in the last (`frac` = band / (bands - 1)), a short downward glide so
+// it reads as a blip. Gain 0.025 -> 0.045: it sat ~18 dB under the refused-dig thud.
+function playReachTick(frac) {
   const a = _cue('reach', 0.07, 1); if (!a) return false;
   const t = _ct(a, 0.005);
-  _tone(a, t, 1320, 1180, 0.07, 0.025);
+  const k = Math.max(0, Math.min(1, +frac || 0));
+  const f = 880 * Math.pow(1320 / 880, k);
+  _tone(a, t, f, f * 0.9, 0.07, 0.045);
+  SFX_LAST.reach = { frac: k, hz: Math.round(f) };
   return true;
 }
 // THE PROMISED LAND'S RISING CHORD (M9): one note per island as the journey strip fruits, 300 ms
@@ -28224,21 +28240,44 @@ function playLineHiss() {
   SFX_LAST.line = { type: 'highpass-noise', hz: 3000, ms: 400 };
   return true;
 }
+// LOW CUES CARRY THEIR OWN UPPER PARTIALS (M12 minors). The thud (90 Hz), the heartbeat (~60 Hz) and the
+// gong (110 Hz) were pure sines, and a phone's built-in speaker reproduces next to nothing below ~300 Hz:
+// through tests/sfx-meter.cjs's phone proxy (a 300 Hz 4th-order highpass) the heartbeat — the rot clock's
+// last-ten-seconds warning — read ~40 dB under its full-range level. Each keeps the plan's fundamental and
+// gains harmonics up into the 250-1000 Hz band as a PeriodicWave on the SAME oscillator: no extra source,
+// so the 6-voice budget is untouched. A PeriodicWave is normalised to a peak of 1, so the peak level is
+// still the gain written beside it. Built once per context.
+const _waves = {};
+const WAVE_PARTIALS = {
+  thud:  [0, 1, 0.55, 0.5, 0.45, 0.4, 0.34, 0.28, 0.22],               // 1x-8x: 90 -> 720 Hz, a "thunk"
+  heart: [0, 1, 0.6, 0.5, 0.45, 0.4, 0.35, 0.3, 0.24, 0.18, 0.14],     // 1x-10x: ~60 -> 600 Hz, a thump
+  gong:  [0, 1, 0, 0.35, 0.3, 0, 0.24, 0, 0, 0.16],                    // 110, 330, 440, 660, 990 Hz: metal
+};
+function _wave(a, key) {
+  const w = _waves[key];
+  if (w && w.ctx === a) return w.wave;
+  const amps = WAVE_PARTIALS[key];
+  const real = new Float32Array(amps.length), imag = new Float32Array(amps);
+  const wave = a.createPeriodicWave(real, imag);
+  _waves[key] = { ctx: a, wave };
+  return wave;
+}
 // THE BAND BEAT: a gong, 110 + 220 Hz (the upper a hair sharp, for the metal), 1.2 s decay.
 function playBandGong() {
   // Two voices, the plan's 110 + 220 Hz (the first build added a third, sharp partial; under a budget
   // counted in sources it cost a slot every band crossing).
   const a = _cue('beat', 1.2, 2); if (!a) return false;
   const t = _ct(a, 0.005);
-  _tone(a, t, 110, 108, 1.2, 0.16);
+  _tone(a, t, 110, 108, 1.2, 0.16, _wave(a, 'gong'));
   _tone(a, t, 221, 219, 1.0, 0.08);
   SFX_LAST.beat = { hz: [110, 220] };
   return true;
 }
-// A REFUSED DIG: a 90 Hz thud, 60 ms.
+// A REFUSED DIG: a 90 Hz thud, 60 ms. Gain 0.22 -> 0.12 (M12 minors): it was the loudest cue in the mix,
+// 7 dB over the seam ping it should sit under — negative feedback louder than the reward.
 function playRefuseThud() {
   const a = _cue('refuse', 0.06, 1); if (!a) return false;
-  _tone(a, _ct(a, 0.003), 90, 60, 0.06, 0.22);
+  _tone(a, _ct(a, 0.003), 90, 60, 0.06, 0.12, _wave(a, 'thud'));
   return true;
 }
 // A WORM ATTACHES: two 1.2 kHz clicks of 25 ms.
@@ -28281,8 +28320,8 @@ function playRotSting() {
 function playHeartbeat() {
   const a = _cue('heartbeat', 0.3, 2); if (!a) return false;
   const t = _ct(a, 0.005);
-  _tone(a, t, 62, 50, 0.11, 0.24);
-  _tone(a, t + 0.16, 58, 48, 0.1, 0.16);
+  _tone(a, t, 62, 50, 0.11, 0.24, _wave(a, 'heart'));
+  _tone(a, t + 0.16, 58, 48, 0.1, 0.16, _wave(a, 'heart'));
   return true;
 }
 // ...AND THE RELIEF WHEN IT IS CURED: a rising consonant chime.
@@ -28326,7 +28365,7 @@ function playEndChord(landfall) {
 // THE END SCREEN'S COUNT-UP: a tick per row and a ding on the total.
 function playCountTick() {
   const a = _cue('tick', 0.03, 1); if (!a) return false;
-  _tone(a, _ct(a, 0.002), 2000, 1800, 0.018, 0.02);
+  _tone(a, _ct(a, 0.002), 2000, 1800, 0.018, 0.04);   // 0.02 -> 0.04 (M12 minors): ~20 dB under the thud
   return true;
 }
 function playCountDing() {
@@ -43373,7 +43412,7 @@ function mineReachFeedback() {
   const tip = A ? A.deep : null;
   if (tip) addEnergyFloater(tip.x, tip.y - state.substrate.cellSize * 0.5, raw - was,
     { text: `+${raw - was} P`, color: '#c9a2e8', size: 15, outline: 4, life: 70, icon: false });
-  try { playReachTick(); } catch (_) {}
+  try { const nb = mineBands(state.config).length; playReachTick(nb > 1 ? mineBandAt(state.config, mineRunDepth(state)) / (nb - 1) : 0); } catch (_) {}
 }
 // THE STORE'S PROGRESSIVE REVEAL, persisted (M5). `p.mineSeen` { line42, worm, cloud, mat_<id>, leg }:
 // a strand first past the bare 42 m line, a worm attached (flagged by stepNematodes), mould met (a

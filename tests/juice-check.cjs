@@ -209,6 +209,9 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
       ok('the seam and the pocket were really claimed (+P, +water)', r.seam.ok && r.seam.ore > 0 && r.pocket.ok && r.pocket.dw > 0,
          `seam ${JSON.stringify(r.seam)}, pocket ${JSON.stringify(r.pocket)}, dive ${r.depth} m`);
       ok('oscillators were created (the control for the muted run)', osc > 0, `${osc} oscillators`);
+      const rt = await b.page.evaluate(() => ({ max: window.__game.mine.maxDepth(), last: window.__sfx.last.reach || null }));
+      ok('the reach ticks were pitched by band in play (the tick at 45 m and past is band 1, 1007 Hz)', rt.max >= 45 && rt.last && rt.last.hz === 1007,
+         `max depth ${rt.max} m, last tick ${JSON.stringify(rt.last)}`);
       const lv = await b.page.evaluate(() => ({ peak: window.__peak, voices: window.__voiceMax(), high: window.__sfx.high(), err: window.__meterError || null }));
       const dbv = (v) => (v > 0 ? 20 * Math.log10(v) : -Infinity);
       ok('over the whole descent, never more than 6 sources sounding at once (measured off the audio clock)', lv.voices >= 1 && lv.voices <= 6 && lv.high <= 6,
@@ -264,15 +267,27 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
       if (window.__sfx.muted()) S.toggleSfx();
       for (let i = 0; i < 60 && window.__sfx.ctxState() !== 'running'; i++) await sl(50);
       for (let i = 0; i < 80 && !window.__sfx.growReady(); i++) await sl(50);
-      const res = { ctx: window.__sfx.ctxState(), grow: window.__sfx.growReady(), meter: window.__meterError || 'worklet' };
+      const meters = await window.__meterReady();   // the meter is listening before the first scenario
+      const res = { ctx: window.__sfx.ctxState(), grow: window.__sfx.growReady(), meter: window.__meterError || ('worklet x' + meters) };
       const run = async (name, fn, wait) => {
         await sl(400); window.__peakReset(); window.__voiceReset();
         const c0 = Object.assign({}, window.__sfx.counts);
         fn(); await sl(wait || 2600);
         const c1 = window.__sfx.counts, d = (k) => (c1[k] | 0) - (c0[k] | 0);
-        res[name] = { dB: window.__peak > 0 ? +(20 * Math.log10(window.__peak)).toFixed(1) : -999, voices: window.__voiceMax(),
+        const dbf = (v) => (v > 0 ? +(20 * Math.log10(v)).toFixed(1) : -999);
+        res[name] = { dB: dbf(window.__peak), phone: dbf(window.__peakPhone), voices: window.__voiceMax(),
                       dropped: d('dropped'), stolen: d('stolen'), ore: d('ore'), runEnd: d('runEnd'), finale: d('finale') };
       };
+      // THE PAGE'S FIRST CUE, then the same cue again (M12 minors): the output chain's compressors used to
+      // be built by the first sound and start fully clamped, so that sound played ~25 dB quiet.
+      await run('first', () => S.playRefuseThud(), 900);
+      await run('again', () => S.playRefuseThud(), 900);
+      // single cues: the payout against the refusal, and the low cues' phone-band content
+      await run('seam', () => S.playSeamPing('phosphorus', 0), 1000);
+      await run('thud', () => S.playRefuseThud(), 900);
+      await run('heart', () => S.playHeartbeat(), 900);
+      await run('gong', () => S.playBandGong(), 2000);
+      res.reachHz = [0, 1 / 3, 1].map((f) => { S.playReachTick(f); return (window.__sfx.last.reach || {}).hz; });
       await run('gongs', () => { for (let i = 0; i < 10; i++) S.playBandGong(); });
       await run('six', () => { S.playBandGong(); S.playLineHiss(); S.playRotSting(); S.playRecordArp(); S.playFlaskSplat(); S.playReliefChime(); });
       await run('digs', () => { S.playGrowBurst(60, 600); S.playGrowBurst(60, 600); S.playBandGong(); S.playLineHiss(); S.playRotSting(); S.playRecordArp(); S.playFlaskSplat(); S.playReliefChime(); });
@@ -295,6 +310,14 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
       ok('a seam ping during a six-layer dig is admitted by stealing grow layers, not dropped', fits(r.seamInDig) && r.seamInDig.ore === 1 && r.seamInDig.stolen >= 1 && r.seamInDig.dropped === 0, JSON.stringify(r.seamInDig));
       ok('the ending (record arpeggio, then the landfall chord) and the eight finale notes drop nothing', fits(r.ending) && r.ending.runEnd === 1 && r.ending.dropped === 0 && fits(r.finale) && r.finale.finale === 8 && r.finale.dropped === 0,
          `ending ${JSON.stringify(r.ending)}, finale ${JSON.stringify(r.finale)}`);
+      ok("the page's first cue plays at its own level (the output chain is built and settled before any cue)",
+         r.first.dB > -60 && Math.abs(r.first.dB - r.again.dB) <= 1, `first thud ${r.first.dB} dBFS, the same thud again ${r.again.dB}`);
+      ok('the payout ping is at least as loud as the refused-dig thud', r.seam.dB >= r.thud.dB,
+         `seam ${r.seam.dB} dBFS, thud ${r.thud.dB}`);
+      ok('the thud, the heartbeat and the gong carry energy a phone speaker plays (300 Hz highpass within 6 dB of full range)',
+         ['thud', 'heart', 'gong'].every((k) => r[k].phone >= r[k].dB - 6),
+         ['thud', 'heart', 'gong'].map((k) => `${k} ${r[k].dB} / phone ${r[k].phone}`).join(', '));
+      ok('the reach tick climbs 880 -> 1320 Hz with the band', JSON.stringify(r.reachHz) === JSON.stringify([880, 1007, 1320]), JSON.stringify(r.reachHz));
       ok('no page errors', b.errs.length === 0, b.errs.slice(0, 2).join(' | ') || 'clean');
       await b.ctx.close();
       // NEGATIVE CONTROLS: the meter sees a violation when the guard is off
