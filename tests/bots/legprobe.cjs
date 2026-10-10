@@ -807,8 +807,12 @@ async function kitWater(page, leg, seed, kit, o = {}) {
   return out;
 }
 
+// THE JOURNEY A PICK IS FOR (M13): `--journey J` boots '#leg,J,<l>' so the journey's rules (and from
+// VII its islands two chunks east) shape what is measured. Journey I unless set.
+let LP_JOURNEY = 1;
+function setJourney(j) { LP_JOURNEY = Math.max(1, j | 0); }
 async function playLeg(page, leg, seed) {
-  await page.evaluate(([l, sd]) => window.__game.mine.playLeg(1, l, sd), [leg, seed || 0]);
+  await page.evaluate(([j, l, sd]) => window.__game.mine.playLeg(j, l, sd), [LP_JOURNEY, leg, seed || 0]);
   await page.waitForFunction(([l, sd]) => {
     const g = window.__game, s = g && g.state, L = g && g.mine.leg();
     return !!(L && L.leg === l && (!sd || L.seed === sd) && s.substrate && s.substrate._fineSolid && s.substrate.mineJourney);
@@ -820,7 +824,7 @@ async function openLeg(E, leg, seed, vw = 390, vh = 844, file, o = {}) {
   // what a phone's backing store renders at: 780x1688 for a 390x844 viewport).
   const opts = file ? { file } : {};
   if (o.dsf) opts.ctx = await E.browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: o.dsf });
-  const b = await E.boot('#leg,1,' + leg + (seed ? ',' + seed : ''), vw, vh, opts);
+  const b = await E.boot('#leg,' + LP_JOURNEY + ',' + leg + (seed ? ',' + seed : ''), vw, vh, opts);
   if (opts.ctx) b.ctx = opts.ctx;
   await b.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.leg
     && window.__game.mine.leg() && window.__game.state.substrate._fineSolid), { timeout: 40000 });
@@ -964,7 +968,7 @@ async function censusRead(page, ms, o = {}) {
   });
 }
 
-module.exports = { measure, world, follow, navigate, playLeg, openLeg, kitWater, perfState, censusInstall, censusRead, censusRemove, KIT, BARE, PASS, WPASS, PILLAR_OK, KIT_OK };
+module.exports = { measure, world, follow, navigate, playLeg, openLeg, setJourney, kitWater, perfState, censusInstall, censusRead, censusRemove, KIT, BARE, PASS, WPASS, PILLAR_OK, KIT_OK };
 
 if (require.main === module) (async () => {
   const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
@@ -972,6 +976,7 @@ if (require.main === module) (async () => {
   const pick = +arg('--pick', 0), seedArg = +arg('--seed', 0), check = process.argv.includes('--check');
   const doFollow = process.argv.includes('--follow');
   const doKit = process.argv.includes('--kit');       // M9: navigator water with the arrival and bare kits
+  setJourney(+arg('--journey', 1));
   const file = arg('--file', null);     // e.g. a snapshot of index.html under the repo root
   const E = await H.start();
   let bad = 0; const badLegs = new Set();
@@ -1030,7 +1035,8 @@ if (require.main === module) (async () => {
         const good = [];
         const from = +arg('--from', 0);
         for (let k = from; k < from + pick; k++) {
-          const sd = ((leg * 7919 + k * 104729 + 12345) % 2147483000) + 1;
+          // Journey I's candidate list is unchanged; a later journey's is offset so its seeds are fresh.
+          const sd = ((leg * 7919 + k * 104729 + 12345 + (LP_JOURNEY - 1) * 7777777) % 2147483000) + 1;
           // A FRESH PAGE EVERY 6 CANDIDATES, and after any failure: one page replaying world after world
           // was killed mid-pick ("Target page ... has been closed") and took the whole pick with it.
           if (k > from && k % 6 === 0) { await b.ctx.close().catch(() => {}); b = await openLeg(E, leg, 0, 390, 844, file); }

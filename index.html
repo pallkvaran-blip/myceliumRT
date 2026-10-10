@@ -22598,14 +22598,40 @@ function mineIslandReached(state) {
 // — on the leg's CURATED seed unless `seed` pins another (legprobe's candidates). Journeys past the
 // first reuse Journey I's table until they have their own. Everything the generator and the renderer
 // need travels on `layout`; buildLevel copies it onto the substrate (`sub.mineJourney`).
-function mineLegRow(config, leg) {
+// `journey` (M13): the row AS JOURNEY `journey` PLAYS IT — its own curated seed (Journeys II-IV have
+// tables of their own, `journey.tables`; V and on cycle them) and, from Journey VII (Far), the island two
+// chunks further east (capped at chunk `farMaxChunk`, 19). Omitted or 1 = Journey I's row, unchanged. A
+// config clone whose rows were already rewritten for a journey (`configForLevel`) carries `_j` on each
+// row, so asking again for the same journey cannot shift the island a second time.
+function mineLegRow(config, leg, journey) {
   const J = mineCfg(config).journey;
   if (!J || !J.legs || !J.legs.length) return null;
   const l = Math.max(1, Math.min(J.legs.length, leg | 0 || 1));
-  return J.legs[l - 1];
+  const row = J.legs[l - 1];
+  return (journey | 0) >= 2 ? mineJourneyRowFor(config, row, journey | 0) : row;
+}
+// Which curated table journey `j` plays: II, III and IV their own, then V -> II, VI -> III, VII -> IV ...
+function mineJourneyTable(j) { return (j | 0) >= 2 ? 2 + (((j | 0) - 2) % 3) : 1; }
+// Journey VII (Far) and every journey after it: islands two chunks further east.
+function mineJourneyFar(j) { return (j | 0) >= 7; }
+function mineJourneyRowFor(config, row, j) {
+  if (!row || !((j | 0) >= 2) || row._j === (j | 0)) return row;
+  const M = mineCfg(config), J = M.journey || {};
+  const t = (J.tables || {})[mineJourneyTable(j)];
+  const ent = t && t[(row.leg | 0) - 1];
+  const out = Object.assign({}, row, { _j: j | 0 });
+  const far = mineJourneyFar(j);
+  if (ent) out.seed = (far && ent.far) || ent.seed || row.seed;
+  if (far) {
+    const maxE = Math.max(1, (J.farMaxChunk | 0 || 19) - (J.homeChunk | 0));
+    const E = Math.min(maxE, (row.E | 0) + (J.farChunks | 0 || 2));
+    out.eastM = (row.eastM | 0) + (E - (row.E | 0)) * (M.chunkCols | 0);
+    out.E = E;
+  }
+  return out;
 }
 function mineJourneyLayout(config, journey, leg) {
-  const M = mineCfg(config), J = M.journey, row = mineLegRow(config, leg);
+  const M = mineCfg(config), J = M.journey, row = mineLegRow(config, leg, journey);
   if (!J || !row) return null;
   const cw = M.chunkCols | 0;
   const homeCol = (J.homeChunk | 0) * cw + (cw >> 1);
@@ -22624,7 +22650,7 @@ function mineLevelDef(config, seed, opts) {
   const box = mineWorldBox(config);
   const jl = opts && opts.layout === 'journey' ? mineJourneyLayout(config, opts.journey, opts.leg) : null;
   if (jl) {
-    const row = mineLegRow(config, jl.leg);
+    const row = mineLegRow(config, jl.leg, jl.journey);
     if (!(seed > 0)) seed = (row && row.seed) || 1;
   }
   const lay = { mine: true, startCols: 2, goalCols: 0, summerCols: 0, clearChannels: false };
@@ -25613,7 +25639,7 @@ function mineEndRun(state, cause) {
   return state.runResult;
 }
 
-  return { mineAgg, mineAggInvalidate, mineNodePass, MINE_ROCKS, mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
+  return { mineAgg, mineAggInvalidate, mineNodePass, MINE_ROCKS, mineLevelDef, mineLegRow, mineJourneyTable, mineJourneyFar, mineJourneyLayout, mineWorldBox, mineRows, mineBands, mineBandAt, mineDepthM,
            mineDepthReached, mineEastReached, mineIslandReached, mineTaprootXY, mineEnsureChunks, mineGenStep, mineFrameWorkNote, mineFrameSliceMs, MINE_STARVE_MS, mineChunkCount, mineHomeChunk, mineChunkOfCol,
            mineChunkRange, mineOreRewards, mineWaterPickups, mineGrowCost,
            mineDigCost, mineCheapestCost, mineNextHeatLine, mineHeatLines,
@@ -36268,7 +36294,7 @@ const __m_main = (function () {
   const { CONFIG, MODE_TUNING, OFFER_REALTIME, OFFER_SURVIVAL, OFFER_MINE, OFFER_CAMPAIGN, isRealtime, setMode, setGame, isCampaignGame, isMineGame, timeify, roundsToTime, devUI } = __m_config;
   const { createState, createPuzzleState, createLevelState, seedLevelThreats } = __m_engine_state;
   const { isLevel, CORE_BOX_DEPTH, CORE_LINE_DEPTH, CORE_TOTAL_DEPTH, stampFood, stampReservoir } = __m_engine_level;
-  const { mineAgg, mineAggInvalidate, mineNodePass, mineLevelDef, mineLegRow, mineJourneyLayout, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks, mineGenStep, mineFrameWorkNote, mineFrameSliceMs, MINE_STARVE_MS,
+  const { mineAgg, mineAggInvalidate, mineNodePass, mineLevelDef, mineLegRow, mineJourneyTable, mineJourneyFar, mineJourneyLayout, mineWorldBox, mineBands, mineBandAt, mineDepthM, mineDepthReached, mineEnsureChunks, mineGenStep, mineFrameWorkNote, mineFrameSliceMs, MINE_STARVE_MS,
           mineEastReached, mineIslandReached, mineTaprootXY,
           mineChunkCount, mineHomeChunk, mineChunkOfCol, mineChunkRange,
           mineOreRewards, mineWaterPickups, mineGrowCost, mineDigCost, mineCheapestCost, mineNextHeatLine,
@@ -36658,6 +36684,13 @@ function configForLevel(level) {
     // anywhere. 'dry' (leg 3): no water pocket above 42 m (`reservoirsPerBand` becomes per band).
     // 'standard' (leg 2) changes nothing: worms from 42 m, mould from 84 m.
     if (mineLeg) {
+      // THE JOURNEY'S ROWS (M13): this clone's leg table is rewritten for the journey the run is ON (its
+      // curated seeds; Far's islands two chunks east), so everything that reads `state.config` — the
+      // generator, the taproot, the HUD's east, the records — agrees with what was built.
+      const JN = Math.max(1, mineLeg.journey | 0);
+      if (JN >= 2 && cfg.mine.journey && Array.isArray(cfg.mine.journey.legs)) {
+        cfg.mine.journey.legs = cfg.mine.journey.legs.map((r) => mineLegRow(cfg, r.leg, JN));
+      }
       const row = mineLegRow(cfg, mineLeg.leg);
       const rule = row && row.rule;
       // THE ISLAND BONUS (M8), decided HERE off the save because the engine cannot read it: the leg's
@@ -36677,8 +36710,40 @@ function configForLevel(level) {
         const n = Array.isArray(cfg.mine.reservoirsPerBand) ? cfg.mine.reservoirsPerBand : cfg.mine.bands.map(() => cfg.mine.reservoirsPerBand | 0);
         cfg.mine.reservoirsPerBand = n.map((v, i) => (i === 0 ? 0 : v | 0));
       }
+      mineApplyJourneyRules(cfg, JN, rule);
     }
   }
+  return cfg;
+}
+// THE NEW JOURNEY RULES (M13). Journey J keeps the store and STACKS one rule per journey past the first
+// (Slay the Spire's Ascension shape — "one stacking rule each"): Journey III is Hotter AND Thirsty, and
+// Journey VIII and on carry every rule. Each is the existing knob it overrides, applied AFTER the leg's
+// own rule so the two compose (leg 6's 36 m line becomes 26 m on Journey II). Far (VII) is not here: it
+// moves the island, which is the leg row's business (`mineLegRow(…, journey)`).
+const MINE_JOURNEY_RULES = [
+  { j: 2, id: 'hotter',  name: 'Hotter',  line: 'Price lines 10 m shallower' },
+  { j: 3, id: 'thirsty', name: 'Thirsty', line: 'Start with 12 less water' },
+  { j: 4, id: 'hungry',  name: 'Hungry',  line: 'Twice the worms, drinking 0.3/s' },
+  { j: 5, id: 'rotten',  name: 'Rotten',  line: 'Mould from 42 m, a 15 s rot clock' },
+  { j: 6, id: 'stingy',  name: 'Stingy',  line: 'Water pockets give +7' },
+  { j: 7, id: 'far',     name: 'Far',     line: 'Every island two chunks further east' },
+];
+function mineJourneyRules(J) { return MINE_JOURNEY_RULES.filter((r) => (J | 0) >= r.j); }
+function mineApplyJourneyRules(cfg, J, legRule) {
+  const M = cfg.mine;
+  if ((J | 0) >= 2) M.heat = Object.assign({}, M.heat, { safeDepth: Math.max(0, ((M.heat && M.heat.safeDepth) | 0) - 10) });
+  if ((J | 0) >= 3) M.startWater = Math.max(1, (M.startWater | 0) - 12);
+  if ((J | 0) >= 4) {
+    M.threatBands = M.threatBands.map((b) => Object.assign({}, b, { worms: (b.worms | 0) * 2 }));
+    M.worms = Object.assign({}, M.worms, { waterPerSec: 0.3 });
+  }
+  if ((J | 0) >= 5) {
+    // A CALM LEG STAYS CALM: leg 1's banner promises no threats, and its knot is at 24 m anyway.
+    if (legRule !== 'calm') M.threatBands = M.threatBands.map((b, i) => (i >= 1 ? Object.assign({}, b, { clouds: Math.max(1, b.clouds | 0) }) : b));
+    M.infectionMs = 15000; M.firstInfectionMs = 15000;
+  }
+  if ((J | 0) >= 6) M.reservoirWater = 7;
+  M.journeyRules = mineJourneyRules(J).map((r) => r.id);
   return cfg;
 }
 // Level-editor PLAYTEST: `#level` boots straight into whatever map is open in
@@ -36984,7 +37049,7 @@ function mineRunPrep(seed, opts) {
       if (!(j > 0)) j = (mj && mj.journey) | 0 || 1;
       if (!(l > 0)) l = (mj && mj.leg) | 0 || 1;
     }
-    const row = mineLegRow(CONFIG, l);
+    const row = mineLegRow(CONFIG, l, j);
     if (row) {
       mineLeg = { journey: j, leg: row.leg };
       if (!(seed > 0)) seed = row.seed;
