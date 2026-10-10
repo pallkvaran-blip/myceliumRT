@@ -189,8 +189,21 @@ const scout = argv.includes('--scout');
 // this leg's route has not been paying (0 of it earned on the last run here) is spent DIVING for it: lib.cjs's
 // free bot (`Q.step`, ore and pockets in sight, deepest frontier), capped one band below the material's own.
 // `--no-dives` turns it off.
+// `--avoid F` (M14, default 4): the route costs F times as much inside a live cloud's sight (worms half that),
+// so the sensible player routes round the green washes as the plan says a player does. 1 = the cheapest route.
+const avoid = +arg('--avoid', 4);
+// `--oh plan|<number>` (M14, default 'plan'): THE HUMAN OVERHEAD. The bot replays a known cheapest route; the
+// plan's numbers model assumes a human spends 2.0x the navigator's digs on a leg's first attempt, 0.15 less
+// each attempt after, floor 1.4, and 0.08 less per island-compass rung (floor 1.3). Emulated by taxing every
+// accepted dig (oh - 1) x its price in WATER (whole units, the fraction carried) — the water a human spends on
+// the digs that go nowhere — and counting (oh - 1) WASTED digs for the human-time clock. `--oh 1` is the pure bot.
+const ohArg = arg('--oh', 'plan');
+const ohFor = (att, ic) => ohArg === 'plan' ? Math.max(1.3, Math.max(1.4, 2.0 - 0.15 * att) - 0.08 * Math.min(2, ic | 0)) : +ohArg;
+// `--from <log.json>:<run>` (M14): start from the SAVE a career had after that run (each row carries it), so a
+// late leg can be measured without replaying the journey before it.
+const fromArg = arg('--from', null);
 const dives = !argv.includes('--no-dives') && !naive && !scout;
-const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean === 'east' ? '' : lean + '-')) : '') + (scout ? 'scout-' : '') + (islandCompass ? 'icompass-' : '') + (strat !== 'cheapest' ? strat + '-' : '') + (dives ? '' : 'nodive-') + label;
+const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean === 'east' ? '' : lean + '-')) : '') + (scout ? 'scout-' : '') + (islandCompass ? 'icompass-' : '') + (strat !== 'cheapest' ? strat + '-' : '') + (dives ? '' : 'nodive-') + (ohArg === 'plan' ? 'h-' : ohArg === '1' ? '' : 'oh' + ohArg + '-') + label;
 
 (async () => {
   const env = await launch();
@@ -199,10 +212,17 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
   const errs = [];
   page.on('pageerror', (e) => errs.push(String(e && e.message)));
   await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+  if (fromArg) {
+    const [fp, fr] = fromArg.split(':'); const src = JSON.parse(fs.readFileSync(fp, 'utf8')).find((r) => r.run === +fr);
+    if (!src || !src.save) throw new Error('no save at ' + fromArg);
+    await page.addInitScript((sv) => { try { if (!sessionStorage.getItem('jbSeeded')) { localStorage.setItem('mycelium.progress.v2', sv); sessionStorage.setItem('jbSeeded', '1'); } } catch (_) {} }, src.save);
+  }
   // A FRESH SAVE ON THE PLAIN URL: the gate tap goes straight into Leg 1, run 1 (M4 + M8).
   await page.goto(env.base + '/index.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('#loadscreen.ld-ready', { timeout: 60000 }).catch(() => {});
   await page.click('#loadscreen', { timeout: 5000 }).catch(() => {});
+  if (fromArg) { await page.waitForSelector('#tsNewMine, #titleScreen', { timeout: 20000 }).catch(() => {}); await sleep(2500);
+    await page.evaluate(() => { const b = document.getElementById('tsNewMine') || Array.from(document.querySelectorAll('#titleScreen .ts-btn')).find((x) => /dig|continue|begin/i.test(x.textContent)); if (b) b.click(); }); }
   const waitRun = async () => {
     await page.waitForFunction(() => { const s = window.__game && window.__game.state;
       return !!(s && s.substrate && s.substrate.mine && s.substrate.mineJourney && !s.runOver && s.substrate._fineSolid && !document.getElementById('speciesSelect')); }, { timeout: 60000 });
@@ -219,6 +239,20 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     // every run, so the per-strand refusal count does not.
     await page.evaluate((leg) => { const Q = window.__qa; Q.bad = new Map(); Q._glowUsed = new Set(); Q._knew = false; Q._nref = new Map();
       if (Q._deadLeg !== leg) { Q._dead = new Set(); Q._deadLeg = leg; } }, leg0);
+    const attNow = log.filter((r) => r.leg === leg0 && !/island|promised/.test(r.cause)).length;
+    const icNow = await page.evaluate(() => window.__game.store.level('compassIsland') | 0);
+    const oh = ohFor(attNow, icNow);
+    await page.evaluate((oh) => {
+      const W = window, g = W.__game;
+      W.__ohTax = { oh, debt: 0, wasted: 0 };
+      if (!g.mine.__ohWrapped) {
+        const orig = g.mine.growFrom; g.mine.__ohWrapped = true;
+        g.mine.growFrom = function () { const r = orig.apply(this, arguments); const T = W.__ohTax, net = g.state.active;
+          if (r && r.ok && T && T.oh > 1 && net && !g.state.runOver) { T.debt += (T.oh - 1) * (r.cost || 0); T.wasted += T.oh - 1;
+            const k = Math.floor(T.debt); if (k > 0) { net.water = Math.max(0, net.water - k); T.debt -= k; } }
+          return r; };
+      }
+    }, oh);
     let res, mode = 'leg';
     if (dives) {
       const att = log.filter((r) => r.leg === leg0 && !/island|promised/.test(r.cause)).length;
@@ -249,7 +283,7 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     else {
       // The route is planned on a snapshot of the leg's own world (every chunk to the island generated,
       // which is order-independent), then dug in THIS run with its real tank.
-      const m = await LP.measure(page, { route: true });
+      const m = await LP.measure(page, { route: true, avoid });
       res = await followRun(page, m.route, paceMs);
     }
     // The ROOTED celebration plays ~5 s before the end screen.
@@ -258,7 +292,7 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     const jn = await page.evaluate(() => window.__game.mine.journey());
     if (rr.cause === 'island' || rr.cause === 'promised') landAt.push({ leg: leg0, run });
     // The Promised Land shows its finale (no Store button): the journey is over, so is the career.
-    if (rr.cause === 'promised') { log.push({ run, leg: leg0, cause: rr.cause, depth: rr.depth, east: rr.east, ore: rr.ore, bonus: rr.bonus, digs: res.digs, seconds: res.seconds, gameMs: rr.ms, start: res.start.water, drained: rr.drained, mats: rr.mats, mode, bought: [], store: await page.evaluate(() => { const S = window.__game.store; let n = 0, b = 0; for (const id of S.ids('mine')) { n += S.costs(id, 'mine').length; b += S.level(id); } return { n, b, P: S.balance(), mats: S.mats() }; }) });
+    if (rr.cause === 'promised') { log.push({ run, leg: leg0, cause: rr.cause, depth: rr.depth, east: rr.east, ore: rr.ore, bonus: rr.bonus, digs: res.digs, seconds: res.seconds, gameMs: rr.ms, start: res.start.water, drained: rr.drained, mats: rr.mats, mode, bought: [], oh, wasted: await page.evaluate(() => +((window.__ohTax || {}).wasted || 0).toFixed(1)), store: await page.evaluate(() => { const S = window.__game.store; let n = 0, b = 0; for (const id of S.ids('mine')) { n += S.costs(id, 'mine').length; b += S.level(id); } return { n, b, P: S.balance(), mats: S.mats() }; }) });
       console.log(`R${run} leg ${leg0} PROMISED ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, +${rr.ore} P (bonus ${rr.bonus})`);
       fs.writeFileSync(`${OUT}/${tag}.json`, JSON.stringify(log, null, 1)); break; }
     await page.click('#ssMineDone').catch(() => {});
@@ -309,11 +343,14 @@ const tag = 'journey-' + (naive ? (compass ? 'naive-compass-' : 'naive-' + (lean
     }, { strat, islandCompass, buyAll });
     const store = await page.evaluate(() => { const S = window.__game.store; let n = 0, b = 0; const lv = {};
       for (const id of S.ids('mine')) { n += S.costs(id, 'mine').length; b += S.level(id); lv[id] = S.level(id); } return { n, b, P: S.balance(), mats: S.mats(), lv }; });
+    if (run === 1) store.costs = await page.evaluate(() => { const S = window.__game.store, o = {}; for (const id of S.ids('mine')) o[id] = S.costs(id, 'mine'); return o; });
     const row = { run, leg: leg0, cause: rr.cause, depth: rr.depth, east: rr.east, ore: rr.ore, bonus: rr.bonus, digs: res.digs,
                   seconds: res.seconds, gameMs: rr.ms, start: res.start.water, islands: jn.islands, nextLeg: jn.leg, bought, mode,
-                  drained: rr.drained, mats: rr.mats, seams: rr.seams, reach: rr.reach, kit: res.kit || null, store };
+                  drained: rr.drained, mats: rr.mats, seams: rr.seams, reach: rr.reach, kit: res.kit || null, store,
+                  oh, wasted: await page.evaluate(() => +((window.__ohTax || {}).wasted || 0).toFixed(1)),
+                  save: await page.evaluate(() => localStorage.getItem('mycelium.progress.v2')) };
     log.push(row);
-    console.log(`R${run} leg ${leg0}${mode !== 'leg' ? ' [' + res.mode + ']' : ''} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''}${Object.keys(rr.mats).length ? ' ' + JSON.stringify(rr.mats) : ''} drain ${rr.drained} | wallet ${store.P} P ${JSON.stringify(store.mats)} store ${store.b}/${store.n} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}${res.kit ? ` | kit: flask x${res.kit.flask}, cut x${res.kit.cut}${res.kit.cutMsgs.length ? ' [' + res.kit.cutMsgs.join(' / ') + ']' : ''}, most rot ${res.kit.rotSeen}` : ''}${res.reached ? ` | route ${res.reached.frac} to ${res.reached.east} m east / ${res.reached.down} m, ended in ${res.mode}` : ''}${scout ? ' | ' + res.mode : ''}`);
+    console.log(`R${run} oh${oh.toFixed(2)} leg ${leg0}${mode !== 'leg' ? ' [' + res.mode + ']' : ''} ${rr.cause} ${rr.depth} m / ${rr.east} m east, ${res.digs} digs, ${res.seconds}s, start ${res.start.water}W, +${rr.ore} P${rr.bonus ? ' (bonus ' + rr.bonus + ')' : ''}${Object.keys(rr.mats).length ? ' ' + JSON.stringify(rr.mats) : ''} drain ${rr.drained} | wallet ${store.P} P ${JSON.stringify(store.mats)} store ${store.b}/${store.n} | islands ${jn.islands}, next leg ${jn.leg} | bought ${bought.join(',') || '-'}${res.kit ? ` | kit: flask x${res.kit.flask}, cut x${res.kit.cut}${res.kit.cutMsgs.length ? ' [' + res.kit.cutMsgs.join(' / ') + ']' : ''}, most rot ${res.kit.rotSeen}` : ''}${res.reached ? ` | route ${res.reached.frac} to ${res.reached.east} m east / ${res.reached.down} m, ended in ${res.mode}` : ''}${scout ? ' | ' + res.mode : ''}`);
     fs.writeFileSync(`${OUT}/${tag}.json`, JSON.stringify(log, null, 1));
     if (landAt.length >= legsWanted) break;
     await page.click('#ssDescend').catch(() => {});

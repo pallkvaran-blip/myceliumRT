@@ -217,7 +217,20 @@ async function measure(page, opts) {
     const ratioOf = (r) => (r.goal >= 0 ? r.cost / straight : Infinity);
     // `gFactor` (M9's kit gates): a longer grow covers more route per dig — the plan's measured
     // (grow / 2)^0.8, not grow / 2 (a long dig spends more of its reach dodging).
-    const wPrice = (x, y) => priceAt[Math.max(0, Math.floor(y / K))] / (reach * (+(opts && opts.gFactor) || 1));
+    const wPrice0 = (x, y) => priceAt[Math.max(0, Math.floor(y / K))] / (reach * (+(opts && opts.gFactor) || 1));
+    // `avoid` (M14): a PLAYER routes round the green sensing washes ("you also route to stay out of the green
+    // sensing washes" — plan, a dig). Cost inside a live cloud's / worm's sight is multiplied by `avoid`
+    // (clouds) and by 1 + (avoid - 1) / 2 (worms: a flask answers them). Default off = the cheapest route.
+    let wPrice = wPrice0;
+    if (opts && opts.avoid > 1) {
+      const pen = new Float32Array(W * Hh).fill(1), sight = s.config.mine.sightRadius || 300;
+      const stamp = (wx, wy, r, f) => { const c0 = Math.max(0, Math.floor((wx - r) / fsz)), c1 = Math.min(W - 1, Math.floor((wx + r) / fsz));
+        const r0 = Math.max(0, Math.floor((wy - sub.surfaceY - r) / fsz)), r1 = Math.min(Hh - 1, Math.floor((wy - sub.surfaceY + r) / fsz));
+        for (let y = r0; y <= r1; y++) for (let x = c0; x <= c1; x++) if (Math.hypot(cxW(x) - wx, cyW(y) - wy) <= r) pen[y * W + x] = Math.max(pen[y * W + x], f); };
+      for (const c of (s.clouds || [])) if (!c.spent) stamp(c.cx, c.cy, sight * 0.8, opts.avoid);
+      for (const w of (s.nematodes || [])) stamp(w.x, w.y, sight * 0.6, 1 + (opts.avoid - 1) / 2);
+      wPrice = (x, y) => wPrice0(x, y) * pen[y * W + x];
+    }
     const shares = (path) => {
       let east = 0, e42 = 0, e84 = 0;
       for (let k = 1; k < path.length; k++) {
