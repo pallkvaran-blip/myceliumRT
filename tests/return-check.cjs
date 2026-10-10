@@ -24,10 +24,19 @@
  *            journey strain owned); buying Amber debits 150 P and the next descent wears it; on that run a
  *            sampled strand pixel's hue moves >= 30 degrees from the cream render.
  *   title    the returning title at 390x844: Continue · Leg N, Daily dig, Store, the records line and the
- *            near-goal line, all on screen and none overlapping (screenshot m13-title-390.png).
+ *            near-goal line, all on screen and none overlapping (screenshot m13-title-390.png); on a COLD
+ *            boot the near goal quotes the store's own Water tank price and the Phosphorus wallet (7 P ready,
+ *            3 P short); the fullest returning save (badge, daily, gap, goal, a closed tab's banked note) fits
+ *            above Credits at 390x844, 1280x720, 360x640, 320x568, 640x360 and 844x390 with the banked note
+ *            and the Daily dig button kept.
+ *   tabs     (M13 verify) two tabs start the day's paid run, one banks it, the other's closed-tab record banks
+ *            0 at the next boot; a paid run partly banked by another page's boot stays paid and banks the
+ *            rest; a run from an older UTC day leaves the newer day's record alone.
+ *   journey  also: V Rotten measured on leg 2 against Journey I (and leg 1 stays calm); Journey III's Thirsty
+ *            in the store note and the Water tile.
  *
- * Screens: tests/.artifacts/m13-{title,daily-end,strains,fossil,practice}-390.png.
- * `RETURN_ONLY=fossil,seed,payout,board,journey,strains,title` runs a subset.
+ * Screens: tests/.artifacts/m13-{title,daily-end,strains,fossil,practice}-390.png, m13-title-{1280x720,640x360}.png.
+ * `RETURN_ONLY=fossil,seed,payout,board,journey,strains,title,tabs` runs a subset.
  */
 const path = require('path'), fs = require('fs');
 const H = require('./mine-harness.cjs');
@@ -122,7 +131,22 @@ const endRun = async (page) => {
       const rr = await p.evaluate(() => (window.__game.state.runResult || {}).cause);
       ok('a landfall on the leg clears its fossil', rr === 'island' && sv2.mineJourney.legs[2] && sv2.mineJourney.legs[2].landed && !('fossil' in sv2.mineJourney.legs[2]),
          JSON.stringify({ cause: rr, rec: sv2.mineJourney.legs[2] && Object.keys(sv2.mineJourney.legs[2]) }));
-      ok('no page errors (fossil)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+      // A TAB CLOSED MID-ATTEMPT LEAVES A FOSSIL TOO (M13 verify): the pending record carries it and the
+      // next boot's bank puts it on the leg (it used to keep the previous attempt's, or none).
+      await p.evaluate(() => window.__game.mine.playLeg(1, 3));
+      await waitRun(p, 'window.__game.mine.leg() && window.__game.mine.leg().leg === 3');
+      await digDown(p, 20);
+      const pf = await p.evaluate(() => { window.__game.mine.pendingWrite(); const sv = JSON.parse(localStorage.getItem('mycelium.progress.v2'));
+        const r = Object.values(sv.minePending || {})[0] || {}; return { leg: r.leg, fossil: typeof r.fossil === 'string' ? r.fossil.length : 0, had: !!(sv.mineJourney.legs[3] && sv.mineJourney.legs[3].fossil) }; });
+      await p.close();
+      const b2 = await E.boot('', 390, 844, { ctx: b.ctx, before: prep({ save: LANDED }) });
+      await b2.page.waitForSelector('#tsNewMine', { timeout: 20000 }).catch(() => {});
+      const sv3 = await save(b2.page);
+      const f3 = sv3.mineJourney.legs[3] && sv3.mineJourney.legs[3].fossil;
+      ok('a tab closed mid-attempt leaves its fossil on the leg (via the pending record and the boot bank)',
+         pf.leg === 3 && pf.fossil > 0 && !pf.had && typeof f3 === 'string' && f3.length === pf.fossil && !sv3.minePending,
+         JSON.stringify({ pf, saved: f3 ? f3.length : 0 }));
+      ok('no page errors (fossil)', !b.errs.length && !b2.errs.length, b.errs.concat(b2.errs).slice(0, 2).join(' | '));
       await b.ctx.close();
     }
 
@@ -334,17 +358,37 @@ const endRun = async (page) => {
       ok('...and at 32 + 14 = 46 m with one tolerance rung', first1 === 46, JSON.stringify(first1));
       // The stacking rules, journey by journey, on the run's config.
       const rules = {};
-      for (const [j, l] of [[1, 2], [3, 2], [4, 2], [5, 4], [6, 3], [7, 8]]) {
+      // V is measured on LEG 2 (M13 verify): leg 4's own row already has mould in bands 1-3, so on leg 4 the
+      // cloud half of Rotten held whether or not the rule existed. Leg 2's band 1 has none under Journey I.
+      // '5c' is V on leg 1, whose 'calm' rule keeps it clear of creatures.
+      for (const [j, l, k] of [[1, 2], [3, 2], [4, 2], [5, 2], [5, 1, '5c'], [6, 3], [7, 8]]) {
         await p.evaluate(([j, l]) => { const s = JSON.parse(localStorage.getItem('mycelium.progress.v2')); s.mineUpgrades = {}; localStorage.setItem('mycelium.progress.v2', JSON.stringify(s)); window.__game.mine.playLeg(j, l); }, [j, l]);
         await waitRun(p, `window.__game.mine.leg() && window.__game.mine.leg().journey === ${j} && window.__game.mine.leg().leg === ${l}`);
-        rules[j] = await p.evaluate(() => { const g = window.__game, s = g.state, M = s.config.mine, L = g.mine.leg();
+        rules[k || j] = await p.evaluate(() => { const g = window.__game, s = g.state, M = s.config.mine, L = g.mine.leg();
           return { sw: M.startWater, wps: M.worms.waterPerSec, tb: M.threatBands.map((b) => [b.worms, b.clouds]), inf: M.infectionMs, rw: M.reservoirWater,
                    ids: M.journeyRules, c0: L.layout.islandC0, col: L.layout.taproot.col, chunk: Math.floor(L.layout.taproot.col / M.chunkCols), seed: L.seed }; });
       }
       ok('III Thirsty: start water 60 - 12 = 48', rules[3].sw === 48 && rules[1].sw === 60, JSON.stringify([rules[1].sw, rules[3].sw]));
       ok('IV Hungry: worms x2 (leg 2: 0/2/2/4 against 0/1/1/2) at 0.3/s', JSON.stringify(rules[4].tb.map((x) => x[0])) === JSON.stringify(rules[1].tb.map((x) => x[0] * 2)) && rules[4].wps === 0.3 && rules[1].wps === 0.2,
          JSON.stringify({ J1: rules[1].tb, J4: rules[4].tb, wps: rules[4].wps }));
-      ok('V Rotten: mould in every band from 42 m, a 15 s rot clock', rules[5].tb.slice(1).every((x) => x[1] >= 1) && rules[5].inf === 15000, JSON.stringify({ tb: rules[5].tb, inf: rules[5].inf }));
+      ok('V Rotten: mould in every band from 42 m (leg 2\'s band 1 goes 0 -> 1 against Journey I), a 15 s rot clock',
+         rules[1].tb[1][1] === 0 && rules[5].tb[1][1] >= 1 && rules[5].tb.slice(1).every((x) => x[1] >= 1) && rules[5].inf === 15000,
+         JSON.stringify({ J1: rules[1].tb, J5: rules[5].tb, inf: rules[5].inf }));
+      ok('...and leg 1 stays calm under V (no creature in any band)', rules['5c'].tb.every((x) => x[0] === 0 && x[1] === 0), JSON.stringify(rules['5c'].tb));
+      // THIRSTY IN THE STORE (M13 verify): a Journey III save with Water II — the note and the Water tile quote
+      // what the next descent actually starts with (60 + 24 - 12 = 72), not 84.
+      await p.evaluate(() => { const s = JSON.parse(localStorage.getItem('mycelium.progress.v2'));
+        s.mineJourney = { journey: 3, leg: 2, done: [1, 2], past: s.mineJourney.past || {}, legs: { 1: { runs: 1, landed: true } } }; s.mineUpgrades = { water: 2 };
+        localStorage.setItem('mycelium.progress.v2', JSON.stringify(s)); window.__game.mine.playJourney(); });
+      await waitRun(p, 'window.__game.mine.leg() && window.__game.mine.leg().journey === 3');
+      const sw3 = await p.evaluate(() => window.__game.state.config.mine.startWater);
+      await p.evaluate(() => { window.__cfg.game = 'mine'; window.__game.showPicker(); });
+      await p.waitForSelector('#ssMineNote', { timeout: 8000 }).catch(() => {});
+      const st3 = await p.evaluate(() => { const n = document.getElementById('ssMineNote'); const t = document.querySelector('[data-upg="water"]');
+        const tile = t && t.closest('.ss-upg'); const now = tile && tile.querySelector('.ss-upg-now');
+        return { note: n && n.textContent, now: now && now.textContent }; });
+      ok("Journey III's Thirsty in the store: the note and the Water tile quote the descent's own start water",
+         sw3 === 72 && new RegExp('(^|· )' + sw3 + ' water').test(st3.note || '') && String(st3.now || '').indexOf(String(sw3)) >= 0, JSON.stringify({ run: sw3, st3 }));
       ok('VI Stingy: a pocket gives +7', rules[6].rw === 7, JSON.stringify(rules[6].rw));
       ok('VII Far: leg 8\'s island two chunks east (chunk 18, at most 19), on the J4 table\'s seed', rules[7].chunk === 18 && rules[7].ids.length === 6,
          JSON.stringify({ col: rules[7].col, chunk: rules[7].chunk, ids: rules[7].ids, seed: rules[7].seed }));
@@ -423,34 +467,154 @@ const endRun = async (page) => {
       console.log('--- the returning title');
       const SV = Object.assign({}, LANDED, { minerals: 7, mineDaily: { date: '20260925', best: 64, streak: 2, lastDate: '20260925', paid: '20260925' },
         mineJourney: { journey: 1, leg: 2, legs: { 1: { runs: 2, bestDepth: 30, bestEast: 96, landed: true }, 2: { runs: 3, bestDepth: 60, bestEast: 80 } } } });
-      const b = await E.boot('', 390, 844, { before: prep({ clock: D25, save: SV }) });
-      const p = b.page;
-      await p.waitForSelector('#tsDaily', { timeout: 20000 }).catch(() => {});
-      await sleep(3000);
-      const T = await p.evaluate(() => {
-        const ids = ['tsJourneyCap', 'tsNewMine', 'tsDaily', 'tsDailySub', 'tsStore', 'tsRecords', 'tsGap', 'tsGoal'];
+      const IDS = ['tsJourneyCap', 'tsNewMine', 'tsDaily', 'tsDailySub', 'tsStore', 'tsRecords', 'tsJourneyBadge', 'tsGap', 'tsGoal', 'tsBanked', 'tsCredits'];
+      const readTitle = (p) => p.evaluate((ids) => {
         const out = {};
         for (const id of ids) { const e = document.getElementById(id); if (!e) { out[id] = null; continue; } const r = e.getBoundingClientRect();
-          out[id] = { t: e.textContent, x0: Math.round(r.left), x1: Math.round(r.right), y0: Math.round(r.top), y1: Math.round(r.bottom) }; }
-        const strip = document.querySelector('#titleScreen .mj-strip'); if (strip) { const r = strip.getBoundingClientRect(); out.strip = { x0: r.left, x1: r.right, y0: r.top, y1: r.bottom }; }
+          out[id] = { t: e.textContent, vis: r.height > 0, x0: Math.round(r.left), x1: Math.round(r.right), y0: Math.round(r.top), y1: Math.round(r.bottom) }; }
+        const strip = document.querySelector('#titleScreen .mj-strip'); if (strip) { const r = strip.getBoundingClientRect(); out.strip = { vis: r.height > 0, x0: r.left, x1: r.right, y0: r.top, y1: r.bottom }; }
         return out;
-      });
-      const all = Object.entries(T);
-      ok('the returning title carries Continue · Leg N, Daily dig, Store, the records line and the near-goal line',
-         T.tsJourneyCap && /^Continue · Leg 2 of 8/.test(T.tsJourneyCap.t) && T.tsDaily && T.tsDaily.t === 'Daily dig · 25 Sep' && T.tsStore && T.tsStore.t === 'Store'
-         && T.tsRecords && /deepest descent 40 m/.test(T.tsRecords.t) && T.tsGoal && /^Next: /.test(T.tsGoal.t) && T.tsDailySub && /best 64 m · streak 2/.test(T.tsDailySub.t),
-         JSON.stringify(Object.fromEntries(all.map(([k, v]) => [k, v && v.t]))));
-      const onScreen = all.every(([, v]) => !v || (v.x0 >= 0 && v.x1 <= 390 && v.y0 >= 0 && v.y1 <= 844));
-      let overlap = null;
-      const boxes = all.filter(([k, v]) => v && !['tsNewMine', 'tsJourneyCap'].includes(k));
-      for (let i = 0; i < boxes.length && !overlap; i++) for (let j = i + 1; j < boxes.length; j++) {
-        const [ka, a] = boxes[i], [kb, c] = boxes[j];
-        if (a.x0 < c.x1 - 1 && c.x0 < a.x1 - 1 && a.y0 < c.y1 - 1 && c.y0 < a.y1 - 1) { overlap = [ka, kb]; break; }
+      }, IDS);
+      // Laid out: every row that is shown is on screen, and no two (Credits included) overlap.
+      const layout = (T, w, h) => {
+        const all = Object.entries(T).filter(([, v]) => v && v.vis);
+        const off = all.filter(([, v]) => !(v.x0 >= 0 && v.x1 <= w && v.y0 >= 0 && v.y1 <= h)).map(([k]) => k);
+        let overlap = null;
+        const boxes = all.filter(([k]) => !['tsNewMine', 'tsJourneyCap'].includes(k));
+        for (let i = 0; i < boxes.length && !overlap; i++) for (let j = i + 1; j < boxes.length; j++) {
+          const [ka, a] = boxes[i], [kb, c] = boxes[j];
+          if (a.x0 < c.x1 - 1 && c.x0 < a.x1 - 1 && a.y0 < c.y1 - 1 && c.y0 < a.y1 - 1) { overlap = [ka, kb]; break; }
+        }
+        return { off, overlap };
+      };
+      // 1. 390x844, a Journey I save: every line, and the near goal PRICED IN THE MINE'S ECONOMY on a cold boot
+      //    (M13 verify: it read the card game's ladder and wallet — '25 P, 25 P short' over 7 P). Read against
+      //    the store's own Water tank tile and wallet, with 7 P (ready) and 3 P (2 short).
+      for (const P of [7, 3]) {
+        const b = await E.boot('', 390, 844, { before: prep({ clock: D25, save: Object.assign({}, SV, { minerals: P }) }) });
+        const p = b.page;
+        await p.waitForSelector('#tsDaily', { timeout: 20000 }).catch(() => {});
+        await sleep(3000);
+        const T = await readTitle(p);
+        if (P === 7) {
+          ok('the returning title carries Continue · Leg N, Daily dig, Store, the records line and the near-goal line',
+             T.tsJourneyCap && /^Continue · Leg 2 of 8/.test(T.tsJourneyCap.t) && T.tsDaily && T.tsDaily.t === 'Daily dig · 25 Sep' && T.tsStore && T.tsStore.t === 'Store'
+             && T.tsRecords && /deepest descent 40 m/.test(T.tsRecords.t) && T.tsGoal && /^Next: /.test(T.tsGoal.t) && T.tsDailySub && /best 64 m · streak 2/.test(T.tsDailySub.t),
+             JSON.stringify(Object.fromEntries(Object.entries(T).map(([k, v]) => [k, v && v.t]))));
+          const L = layout(T, 390, 844);
+          ok('...all on screen at 390x844 and none overlapping', !L.off.length && !L.overlap, JSON.stringify(L));
+          await shot(p, 'm13-title-390.png');
+        }
+        const goal = T.tsGoal && T.tsGoal.t;
+        await p.click('#tsStore');
+        await p.waitForSelector('[data-upg="water"]', { timeout: 10000 }).catch(() => {});
+        await sleep(400);
+        const st = await p.evaluate(() => { const bt = document.querySelector('[data-upg="water"]'), w = document.querySelector('#ssWallet');
+          return { price: bt ? +(bt.querySelector('.ss-buyn') || {}).textContent : null, wallet: w ? parseInt(w.textContent.replace(/[^0-9]/g, ''), 10) : null }; });
+        const want = st.price != null && st.wallet != null
+          ? 'Next: Water tank \u2014 ' + st.price + ' P, ' + (st.wallet >= st.price ? 'ready to buy' : (st.price - st.wallet) + ' P short') : null;
+        ok(`a cold-boot title's near goal quotes the store's price and the Phosphorus wallet (${P} P)`, want && goal === want && st.wallet === P,
+           JSON.stringify({ title: goal, want, store: st }));
+        ok(`no page errors (title, ${P} P)`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
+        await b.ctx.close();
       }
-      ok('...all on screen at 390x844 and none overlapping', onScreen && !overlap, JSON.stringify({ onScreen, overlap }));
-      await shot(p, 'm13-title-390.png');
-      ok('no page errors (title)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
-      await b.ctx.close();
+      // 2. Every size a store embeds or a phone holds, on the FULLEST returning save: a finished journey's
+      //    badge, the daily played, the gap, the goal and a closed tab's banked note. The bottom block fits
+      //    above Credits by tightening and then dropping its lowest rows; the banked note and the Daily Dig
+      //    button are never dropped (M13 verify: at 1280x720 the goal printed under CREDITS, at 360x640 /
+      //    320x568 the banked note did, and at 640x360 everything from the strip down was below the fold).
+      const FULL = Object.assign({}, SV, { runsDone: 9, mineRuns: 9, mineBest: 70,
+        mineJourney: { journey: 2, leg: 2, done: [1], past: { 1: { runs: 14, legs: {} } }, legs: { 1: { runs: 2, bestDepth: 30, bestEast: 96, landed: true }, 2: { runs: 3, bestDepth: 60, bestEast: 80 } } },
+        minePending: { k1: { P: 13, mats: { anthracite: 2 }, depth: 30, digs: 5, at: D25 } } });
+      for (const [w, h] of [[390, 844], [1280, 720], [360, 640], [320, 568], [640, 360], [844, 390]]) {
+        const b = await E.boot('', w, h, { before: prep({ clock: D25, save: FULL }) });
+        const p = b.page;
+        await p.waitForSelector('#tsDaily', { timeout: 20000 }).catch(() => {});
+        await sleep(2600);
+        const T = await readTitle(p);
+        const L = layout(T, w, h);
+        const kept = T.tsBanked && T.tsBanked.vis && /spored \+13 P/.test(T.tsBanked.t) && T.tsDaily && T.tsDaily.vis && T.tsCredits && T.tsCredits.vis && T.tsJourneyBadge;
+        ok(`${w}x${h}: the fullest returning title fits — nothing off screen, nothing overlapping (Credits included), banked note and Daily dig kept`,
+           kept && !L.off.length && !L.overlap,
+           JSON.stringify({ off: L.off, overlap: L.overlap, shown: Object.keys(T).filter((k) => T[k] && T[k].vis), banked: T.tsBanked && [T.tsBanked.y0, T.tsBanked.y1], credits: T.tsCredits && [T.tsCredits.y0, T.tsCredits.y1] }));
+        if (w === 1280 || w === 640) await shot(p, `m13-title-${w}x${h}.png`);
+        ok(`no page errors (title ${w}x${h})`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
+        await b.ctx.close();
+      }
+    }
+
+    // ------------------------------------------------------------------ tabs
+    // THE DAILY DIG ACROSS TABS (M13 verify), one context = one profile.
+    //  (a) two tabs both start the 25th's paid run; A banks it; B goes hidden (its pending record says P > 0)
+    //      and is closed; the next boot banks B's record as PRACTICE — 0 P (it paid 2 on the M13 build).
+    //  (b) a paid run partly banked by another page's boot keeps the rest of its pay and stays paid.
+    //  (c) a run from an older UTC day that banks after the next day's paid run leaves today's record alone.
+    if (want('tabs')) {
+      console.log('--- the Daily Dig across tabs');
+      const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 } });
+      const open = async (opts) => {
+        const b = await E.boot('', 390, 844, Object.assign({ ctx, before: prep({ clock: D25, save: LANDED }) }, opts || {}));
+        await b.page.waitForSelector('#tsDaily', { timeout: 20000 }).catch(() => {});
+        await sleep(2200);
+        return b;
+      };
+      const startDaily = async (p) => { await p.click('#tsDaily'); return waitRun(p, 's.config.mine.daily'); };
+      // (a)
+      const A = await open(), B = await open();
+      await startDaily(A.page); await startDaily(B.page);
+      const pr = await Promise.all([A.page, B.page].map((p) => p.evaluate(() => window.__game.state.config.mine.daily.practice)));
+      await digDown(A.page, 24);
+      const rA = await endRun(A.page);
+      const s1 = await save(A.page);
+      await digDown(B.page, 24);
+      const pendB = await B.page.evaluate(() => { window.__game.mine.pendingWrite(); const sv = JSON.parse(localStorage.getItem('mycelium.progress.v2'));
+        return Object.values(sv.minePending || {}).map((r) => ({ P: r.P, daily: r.daily })); });
+      await B.page.close();
+      const C = await open();
+      const s2 = await save(C.page);
+      const note = await C.page.evaluate(() => (document.getElementById('tsBanked') || {}).textContent || '');
+      ok('(a) both tabs started the paid run, A banked it, and B\'s closed-tab record (P > 0) banks 0 at the next boot',
+         pr[0] === false && pr[1] === false && rA.daily && !rA.daily.practice && pendB.length === 1 && pendB[0].P > 0 && !pendB[0].daily.practice
+         && (s2.minerals | 0) === (s1.minerals | 0) && !s2.minePending && s2.mineDaily.paid === '20260925' && !/spored \+\d+ P/.test(note),
+         JSON.stringify({ practiceAtStart: pr, A: rA.ore, minerals: [s1.minerals, s2.minerals], pendB, note, daily: s2.mineDaily }));
+      await A.page.close(); await C.page.close();
+      // (b) a fresh day (the 26th) on the same profile: A starts the paid run and digs; its pending record is
+      //     banked by a boot elsewhere (setting the day's paid flag); A digs on and ends — still paid, paid the rest.
+      await ctx.addInitScript(() => { window.__dayOff = 86400000; });
+      const A2 = await open();
+      await startDaily(A2.page);
+      const day2 = await A2.page.evaluate(() => window.__game.state.config.mine.daily);
+      await digDown(A2.page, 20);
+      const pend2 = await A2.page.evaluate(() => { window.__game.mine.pendingWrite(); const sv = JSON.parse(localStorage.getItem('mycelium.progress.v2'));
+        return { min: sv.minerals | 0, recs: Object.values(sv.minePending || {}).map((r) => r.P) }; });
+      const B2 = await open();
+      const sB = await save(B2.page);
+      await B2.page.close();
+      await digDown(A2.page, 44);
+      const rA2 = await endRun(A2.page);
+      const sA = await save(A2.page);
+      ok('(b) a paid daily partly banked by another page\'s boot stays paid and banks the rest (the boot\'s share + the rest = its ore)',
+         day2 && day2.date === '20260926' && !day2.practice && sB.mineDaily.paid === '20260926' && rA2.daily && !rA2.daily.practice
+         && (sA.minerals | 0) - pend2.min === (rA2.ore | 0) && (rA2.ore | 0) > (pend2.recs[0] | 0) && (pend2.recs[0] | 0) > 0,
+         JSON.stringify({ day2, bootBanked: (sB.minerals | 0) - pend2.min, ore: rA2.ore, total: (sA.minerals | 0) - pend2.min, practice: rA2.daily && rA2.daily.practice }));
+      await A2.page.close();
+      // (c) the record only moves forward: a 25th run ending after the 26th's paid run leaves the 26th alone.
+      await ctx.addInitScript(() => { window.__dayOff = 0; });
+      const A3 = await open();
+      await A3.page.evaluate(() => { window.__dayOff = 0; });
+      const before = await save(A3.page);
+      await startDaily(A3.page);
+      const d3 = await A3.page.evaluate(() => window.__game.state.config.mine.daily);
+      await digDown(A3.page, 20);
+      const rA3 = await endRun(A3.page);
+      const after = await save(A3.page);
+      const m0 = before.mineDaily, m1 = after.mineDaily;
+      ok('(c) a run from an older day leaves the newer day\'s best, streak, lastDate and paid flag alone',
+         d3 && d3.date === '20260925' && m0.lastDate === '20260926' && m1.date === m0.date && m1.best === m0.best && m1.streak === m0.streak
+         && m1.lastDate === '20260926' && m1.paid === '20260926' && rA3.daily,
+         JSON.stringify({ d3, before: m0, after: m1 }));
+      ok('no page errors (tabs)', ![A, B, C, A2, B2, A3].some((x) => x.errs.length), [A, B, C, A2, B2, A3].map((x) => x.errs).flat().slice(0, 2).join(' | '));
+      await ctx.close();
     }
   } catch (e) { fail++; console.log('  FAIL  harness error: ' + (e && e.stack || e)); }
   await E.close();
