@@ -26,7 +26,10 @@
  *           a seam ping during a six-layer dig is ADMITTED by stealing grow layers; the ending (record then
  *           landfall chord) and the Promised Land's eight notes drop nothing. Negative controls: with the
  *           limiter off (MYCELIUM_NO_SFX_CEILING) ten gongs peak above -12; with the cap lifted
- *           (MYCELIUM_SFX_VOICES 99) the meter sees more than 6 sources.
+ *           (MYCELIUM_SFX_VOICES 99) the meter sees more than 6 sources. M12 minors: the page's FIRST cue plays at
+ *           its own level (the output chain's compressors started clamped: -39.6 vs -13.9); the seam ping is at
+ *           least as loud as the refusal thud; the thud, heartbeat and gong reach a phone speaker (300 Hz
+ *           highpass within 6 dB of full range); the reach tick is 880 / 1007 / 1320 Hz by band.
  *   verify  the M12 verify round's fixes: 'N left' in row 2 and nothing off a 360 / 320 px HUD with the
  *           chip low; Reduced motion seeded from the OS setting (and a stored choice winning); no
  *           Vibration item without navigator.vibrate; a new run's first frame carries no price pulse; the

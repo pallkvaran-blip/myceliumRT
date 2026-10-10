@@ -5,6 +5,10 @@
  * [start, stop) on the audio clock), reporting each scenario's PEAK in dBFS. Scenarios: every cue alone; ten band gongs fired at once; six
  * DIFFERENT cues at once; a real-shaped dig across a line (grow sample + gong + hiss); and the voice
  * budget's own counters (scheduled / dropped / high-water mark).
+ * Each row also carries `phone`: the peak through sfx-meter's 300 Hz highpass (a phone-speaker proxy).
+ * The meter is awaited (`__meterReady`) before the first scenario. M12 minors: the first scenario used to
+ * read ~14-30 dB low — not the meter but the game, whose output chain was built by its first sound with
+ * its compressors fully clamped (fixed in initSfx).
  * Written for the M12 verify round: the plan asks for "at most 6 voices, peaking at -12 dBFS", and the
  * first build counted CUES (a gong is 3 oscillators), let six identical gongs stack to +1.6 dBFS, and left
  * the dig sample out.
