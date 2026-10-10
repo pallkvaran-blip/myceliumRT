@@ -3928,7 +3928,7 @@ const CONFIG = {
     trych: {
       rotLifeTurns: 100000,
       spreadDepthPerTurn: 0.35,
-      moveSpeed: 0.5,
+      moveSpeed: 0.4,
       firstTouchRings: 2,
       firstTouchRadius: 0,
       freshGrowthRings: 0,
@@ -3944,7 +3944,7 @@ const CONFIG = {
     // clean strand. The campaign's 3-hit, 80-unit version saved 0.1 water on the first purchase a
     // bitten player makes (probe_counter: 2.0 drained before, 1.9 after, the worm still attached).
     excreteKillHits: 1,
-    excreteRange: 160,
+    excreteRange: 300,
     // THE CUTTING ENZYME (M6): the tap must land within `cutReach` of rot; the dose removes the
     // whole connected rotten patch nearest it.
     cutReach: 300,
@@ -14872,7 +14872,7 @@ const STORE_UPGRADES = [
   { id: 'growSteps', name: 'Grow strength', icon: 'climb', accent: 'mint', step: 1, base: 2, unit: 'steps', unit1: 'step',
     mineOnly: true,
     effect: 'Every dig reaches <b>one step further</b>, for the same water.',
-    costs: [12, 35, { m: 'anthracite', n: 20 }, { m: 'garnet', n: 24 }] },
+    costs: [12, 50, { m: 'anthracite', n: 30 }, { m: 'garnet', n: 30 }] },
   // THE TWO WEAPONS, sold as HOW MANY YOU CARRY rather than as charges that deplete across runs.
   // A capacity track restocks at the start of every descent (`stockRun`), which is the same shape as
   // Retries and needs no new persistence. NOTHING IS GIVEN: Amputate is bought (owner), which is only
@@ -14880,11 +14880,11 @@ const STORE_UPGRADES = [
   { id: 'excreteCharges', name: 'Mucus flasks', icon: 'worm', accent: 'water', step: 1, unit: 'flasks', unit1: 'flask',
     mineOnly: true,
     effect: 'Kills every worm on or near the colony. Carry <b>one more</b> flask per descent.',
-    costs: [10, 40, { m: 'anthracite', n: 14 }] },
+    costs: [10, 60, { m: 'anthracite', n: 21 }] },
   { id: 'amputateCharges', name: 'Cutting enzyme', icon: 'spore', accent: 'mint', step: 1, unit: 'doses', unit1: 'dose',
     mineOnly: true,
     effect: 'Tap the rot: one dose cuts out one whole patch of rot, and only the rot. Carry <b>one more</b> dose per descent.',
-    costs: [15, 50, { m: 'garnet', n: 14 }] },
+    costs: [15, 70, { m: 'garnet', n: 18 }] },
   // THE OXALIC VIAL (finishing plan M11): THE BOUGHT WAY THROUGH ROCK, and the only one. Rock is a wall
   // for everyone who has not bought one: a vial lets ONE dig pass through at most 108 units (3 cells) of
   // rock, and only where the far side is open ground, so it turns a stranded seam or one stubborn wall
@@ -14892,7 +14892,7 @@ const STORE_UPGRADES = [
   { id: 'oxalicVial', name: 'Oxalic vial', icon: 'vial', accent: 'gold', step: 1, unit: 'vials', unit1: 'vial',
     mineOnly: true,
     effect: 'Arm it, then dig: the acid eats through <b>up to 3 cells</b> of rock to open ground. Carry <b>one more</b> vial per descent.',
-    costs: [50, { m: 'garnet', n: 12 }, { m: 'hematite', n: 12 }] },
+    costs: [80, { m: 'garnet', n: 16 }, { m: 'hematite', n: 12 }] },
   // DEPTH GATING, sold as tolerance: it moves where the price starts climbing rather than removing
   // the climb. 18 m a rung over 4 rungs (v1 was 25 m over 6, which deleted heat from the shaft), so
   // at the top the lines sit at 114 / 156 m and the x4 and x8 prices always exist.
@@ -14903,7 +14903,7 @@ const STORE_UPGRADES = [
   { id: 'heatTolerance', name: 'Heat tolerance', icon: 'climb', accent: 'gold', step: 18, unit: 'metres', unit1: 'metre',
     mineOnly: true,
     effect: 'Push the first price line <b>18 m deeper</b>.',
-    costs: [15, { m: 'anthracite', n: 14 }, { m: 'anthracite', n: 24 }, { m: 'garnet', n: 20 }] },
+    costs: [15, { m: 'anthracite', n: 18 }, { m: 'anthracite', n: 36 }, { m: 'garnet', n: 26 }] },
   // THE COMPASSES (finishing plan M10): KNOWLEDGE, not power. A needle at the screen's edge points on
   // the STRAIGHT bearing from the focus strand to its target, through rock — a bearing, never a route,
   // so the maze still has to be solved. The island compass points at the leg's taproot (the leg def
@@ -14911,7 +14911,7 @@ const STORE_UPGRADES = [
   { id: 'compassIsland', name: 'Island compass', icon: 'compass', accent: 'mint', step: 1, unit: 'rungs', unit1: 'rung',
     mineOnly: true,
     effect: 'A needle at the screen edge points <b>through rock</b> at the island\'s root. Rung 2 adds the distance.',
-    costs: [12, 40] },
+    costs: [12, 60] },
   // ...and one per DEEP MATERIAL, generated from CONFIG.mine.materials so a fifth material is one CONFIG
   // entry. Phosphorus (band 0) has none: it is the shallow band's and the whole band is two digs wide.
   // Prices are the plan's table, which is exactly 20·band, 60 + 40·(band − 1), then 12 of the material:
@@ -14920,7 +14920,7 @@ const STORE_UPGRADES = [
     id: 'compass_' + m.id, name: m.name + ' compass', icon: 'compass', accent: 'phos', step: 1, unit: 'rungs', unit1: 'rung',
     mineOnly: true, compassMat: m.id,
     effect: 'A needle points <b>through rock</b> at the nearest ' + m.name + ' seam. Rung 2 adds the distance; rung 3 picks the richest within 90 m.',
-    costs: [20 * (m.band | 0), 60 + 40 * ((m.band | 0) - 1), { m: m.id, n: 12 }] })),
+    costs: [30 * (m.band | 0), 90 + 60 * ((m.band | 0) - 1), { m: m.id, n: m.band === 3 ? 12 : 18 }] })),
 ];
 // The compass track ids, in material order (island first).
 const MINE_COMPASS_IDS = STORE_UPGRADES.filter((u) => u.id === 'compassIsland' || u.compassMat).map((u) => u.id);
@@ -14935,7 +14935,7 @@ const MINE_UPGRADE_IDS = ['water', 'growSteps', 'heatTolerance', 'excreteCharges
 // The mine's price for a shared track. `water` is a Spores ladder upstairs (25, 50, 100 …) and
 // the mine's whole currency runs an order of magnitude smaller, so a shared track needs its own
 // ladder or its first rung is unreachable.
-const MINE_COSTS = { water: [5, 12, 25, 45, 80, { m: 'anthracite', n: 30 }, { m: 'garnet', n: 24 }, { m: 'hematite', n: 16 }] };
+const MINE_COSTS = { water: [5, 12, 25, 60, 110, { m: 'anthracite', n: 45 }, { m: 'garnet', n: 30 }, { m: 'hematite', n: 16 }] };
 // ...and its STEP (M5): the mine's tank rises +12 a rung (60 -> 156), the campaign's keeps +5. Read
 // through `upgradeStep`, which is what `upgradeValue` (and so `storeBonuses`) uses.
 // M14: +12 -> +15 (60 -> 180). The late legs' crossings could not be paid inside the plan's 70% rule out
