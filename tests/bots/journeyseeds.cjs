@@ -10,8 +10,7 @@
  * Journey J's own rules are in force while it measures ('#leg,J,<l>').
  *
  * `--far`: the E+2 variant. Journeys VII and on play the table of `mineJourneyTable(J)` with every island
- * two chunks further east, so for table T the Far journey is T + 5 (VII plays IV's table, VIII II's, IX
- * III's). It first checks the table's own seed under that journey (`--seeds`-style: same gates, same
+ * two chunks further east, so table T is first played Far by journey VII (T = IV), VIII (II) or IX (III). It first checks the table's own seed under that journey (`--seeds`-style: same gates, same
  * follow); only if it fails does it walk candidates for a `far` seed of its own.
  *   --seed-of L=S,...  the table seeds to check (from a previous run's output)
  */
@@ -24,8 +23,9 @@ const LP = require('./legprobe.cjs');
   const legs = arg('--legs', '1,2,3,4,5,6,7,8').split(',').map(Number);
   const max = +arg('--max', 80), from = +arg('--from', 0);
   const seedOf = {}; for (const kv of String(arg('--seed-of', '')).split(',').filter(Boolean)) { const [l, s] = kv.split('='); seedOf[+l] = +s; }
-  // The journey that is MEASURED: the table's own, or its Far twin.
-  const JM = far ? J + 5 : J;
+  // The journey that is MEASURED: the table's own, or the first Far journey that plays it (mineJourneyTable:
+  // VII plays IV's table, VIII II's, IX III's).
+  const JM = far ? 7 + ((J - 4 + 3) % 3) : J;
   LP.setJourney(JM);
   const E = await H.start();
   const out = {};

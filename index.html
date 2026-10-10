@@ -29906,7 +29906,7 @@ const __m_render_ui = (function () {
   const { cardDeckAdditions, actionUsable, cardBlockedReason } = __m_engine_cards;
   const { toggleMusic, isMusicMuted } = __m_render_music;
   const { toggleSfx, isSfxMuted, playCardSelect, playCardDeselect, juicePrefs, setJuicePref, vibOffered } = __m_render_sfx;
-  const { mineCostHere, mineStuckState, mineMatTag, mineReachRaw, mineBankable } = __m_engine_mine;
+  const { mineCostHere, mineStuckState, mineMatTag, mineReachRaw, mineBankable, mineDailyOf } = __m_engine_mine;
 // =============================================================================
 // UI — HUD, action buttons, event log, dev tools, "what we're testing" panel.
 //
@@ -31034,6 +31034,8 @@ class UI {
   // FRUIT NOW pill shows the banked figure.
   _mineHudP() {
     const s = this.state;
+    // THE DAILY DIG (M13) counts what it will bank: half the reach plus the seams, 0 on practice.
+    if (mineDailyOf(s)) return mineBankable(s);
     return Math.max(0, Math.round(s.mineOre || 0)) + mineReachRaw(s);
   }
   _syncMineRows() {
@@ -36571,7 +36573,7 @@ const __m_main = (function () {
           mineGrowSegments, mineGrowReach, mineGrow,
           mineCanGrow, mineFuelCheck, mineEndRun,
           mineCostHere, mineStuckCheck, mineStuckState, mineRunDepth, mineAtNodeCap,
-          mineReachRaw, mineReachPay, mineBankable,
+          mineReachRaw, mineReachPay, mineBankable, mineDailyOf,
           mineInfectionCheck, mineInfectionLeft,
           mineItemCount, mineUseExcrete, mineUseAmputate } = __m_engine_mine;
   const { levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
@@ -38101,8 +38103,8 @@ function presentMineEnd(r) {
     ...(() => {
       if (!(paid.leg > 0)) return { leg: 0, east: 0, bonus: 0 };
       const jn = mineJourneyNow();
-      const nx = paid.leg + 1, nrow = mineLegRow(CONFIG, nx);
-      const row = mineLegRow(CONFIG, paid.leg);
+      const nx = paid.leg + 1, nrow = mineLegRow(CONFIG, nx, r.journey | 0);
+      const row = mineLegRow(CONFIG, paid.leg, r.journey | 0);     // the run's journey: Far moves the island (M13)
       // THE RECORD LINE'S BASELINE IS THE LEG'S RECORD AS THE RUN BEGAN (`state._mineJ.lines`, the same
       // numbers the in-world record lines and the NEW FARTHEST beat use) — not `was` off the save at
       // bank time (M8 verify): a boot in another tab can have written this run's own east into the
@@ -39214,7 +39216,7 @@ function showMainMenu(opts) {
     // 'Continue · Journey II · Leg N of 8 · <name>'; every finished journey is a badge ('Journey I').
     const later = jn.journey >= 2;
     const begun = later ? (jn.runs > 0 || jn.islands > 0 || jn.saveLeg > 1) : (mineRunsBanked(p) > 0 || jn.islands > 0 || jn.saveLeg > 1);
-    const row = mineLegRow(CONFIG, jn.leg);
+    const row = mineLegRow(CONFIG, jn.leg, jn.journey);
     const best = jn.rec ? jn.rec.bestEast | 0 : 0;
     return {
       caption: later && !begun ? 'Begin Journey ' + mineRoman(jn.journey)
@@ -44002,6 +44004,8 @@ function mineReachFeedback() {
   state._mineReachShown = raw;
   if (raw <= was) return;
   uiDirty = true;
+  const dly = mineDailyOf(state);
+  if (dly && dly.practice) return;      // a practice run pays nothing, so no '+1 P' (M13)
   const A = mineAgg(state);
   const tip = A ? A.deep : null;
   if (tip) addEnergyFloater(tip.x, tip.y - state.substrate.cellSize * 0.5, raw - was,

@@ -232,8 +232,8 @@ const endRun = async (page) => {
       await digDown(p, 42);
       const r3 = await endRun(p);
       const m3 = await save(p);
-      ok('a deeper run moves the best (still practice, still unpaid)', (r3.depth | 0) > best1 && m3.mineDaily.best === (r3.depth | 0) && (m3.minerals | 0) === (m1.minerals | 0),
-         JSON.stringify({ best: m3.mineDaily.best, run: r3.depth, P: m3.minerals }));
+      ok('a deeper run moves the best (still practice, still unpaid)', (r3.depth | 0) > best1 && m3.mineDaily.best === (r3.depth | 0) && (m3.minerals | 0) === (m1.minerals | 0)
+         && JSON.stringify(m3.mats || {}) === mats1, JSON.stringify({ best: m3.mineDaily.best, run: r3.depth, P: m3.minerals, mats: m3.mats, dug: r3.seamCount }));
       // The streak across mocked days: 26th -> 2, 27th -> 3, then the 29th (a gap) -> 1.
       const streaks = [];
       for (const off of [1, 2, 4]) {
