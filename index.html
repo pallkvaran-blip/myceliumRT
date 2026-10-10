@@ -247,10 +247,16 @@
     #hud-waterleft .rk { color: #f0b04a; opacity: 0.85; }
     #hud-waterleft[hidden] { display: none; }
     @keyframes digpulse { 0% { transform: scale(1); } 30% { transform: scale(1.28); filter: brightness(1.5); } 100% { transform: scale(1); } }
-    @keyframes kitthreat { 0%, 100% { box-shadow: 0 0 0 0 rgba(240,176,74,0); } 50% { box-shadow: 0 0 0 4px rgba(240,176,74,0.55); border-color: #f0b04a; } }
+    /* THE KIT'S THREAT PULSE IS AN OPACITY ANIMATION OF A STATIC RING ON ::after (M12 minors), not an
+       animated box-shadow on the button. A box-shadow animation repaints the button on the main thread
+       every frame for as long as the threat lasts; opacity on its own layer runs on the compositor.
+       Measured (CDP main-thread task time per frame, 12 paired windows, the game's draw parked, 390x844
+       dsf 2): the box-shadow version 1.76 ms a frame (pairs 1.43-2.03), this one 0.15 (0.10-0.57). The
+       first juice-check perf gate timed only the canvas and could not see either. */
+    @keyframes kitthreat { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
     #hud-digcost.pulse { animation: digpulse 0.6s ease-out 1; }
-    .kitbtn.threat:not(:disabled) { animation: kitthreat 1.1s ease-in-out infinite; }
-    body.rmotion #hud-digcost.pulse, body.rmotion .kitbtn.threat { animation: none; }
+    .kitbtn.threat:not(:disabled)::after { animation: kitthreat 1.1s ease-in-out infinite; will-change: opacity; }
+    body.rmotion #hud-digcost.pulse, body.rmotion .kitbtn.threat::after { animation: none; }
     /* THE BEAT GOES UNDER AN OPEN SETTINGS MENU (M12 verify): the menu grew two rows (Vibration,
        Reduced motion) and now reaches the band the leg banner prints in, so at a descent's start —
        exactly when a player opens it to flip those — 'Leg 1 / FIRST LIGHT' sat over 'Exit to title'. */
@@ -362,11 +368,13 @@
       left: calc(var(--pf-l, 0px) + var(--pf-w, 100vw) / 2);
       bottom: calc(100vh - var(--pf-t, 0px) - var(--pf-h, 100vh) + 22px); }
     .minekit.hidden { display: none; }
-    .kitbtn { display: flex; align-items: center; gap: 6px; padding: 9px 14px 9px 11px;
+    .kitbtn { position: relative; display: flex; align-items: center; gap: 6px; padding: 9px 14px 9px 11px;
       border-radius: 999px; border: 1px solid rgba(150,190,120,0.35);
       background: rgba(14,20,12,0.82); color: #cfe3b4; cursor: pointer;
       font: 600 15px/1 ui-sans-serif, system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
     .kitbtn .ri { width: 17px; height: 17px; }
+    .kitbtn::after { content: ''; position: absolute; inset: -1px; border-radius: inherit; border: 1px solid #f0b04a;
+      box-shadow: 0 0 0 4px rgba(240,176,74,0.55); opacity: 0; pointer-events: none; }
     .kitbtn .kitn { font-variant-numeric: tabular-nums; opacity: 0.95; }
     .kitbtn:disabled { opacity: 0.35; cursor: default; }
     /* ARMED is a state the player must be able to see — the next tap does something irreversible. */

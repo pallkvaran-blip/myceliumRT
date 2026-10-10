@@ -32,9 +32,12 @@
  *           Vibration item without navigator.vibrate; a new run's first frame carries no price pulse; the
  *           beat hidden under the open settings menu; the landfall's chord and vibration on the frame the
  *           run ends, seconds before the end screen.
- *   perf    acceptance 5: 16 worms on the colony, frames timed with juice on and off INTERLEAVED frame
- *           by frame (mineFrame + renderFrame + a 1 px readback to force the raster; a shake asked
- *           every 8th frame on the 'on' side): p95(on) - p95(off) <= 1.0 ms.
+ *   perf    acceptance 5: 16 worms on the colony, the kit stocked (the flask breathing) and the water chip
+ *           low; frames timed with juice on and off INTERLEAVED frame by frame (mineFrame + renderFrame +
+ *           a 1 px readback to force the raster; a shake asked every 8th frame on the 'on' side), five
+ *           blocks of 300 a side: the MEDIAN of the five p95(on) - p95(off) <= 1.0 ms. Then the CSS in the
+ *           real frame loop: CDP TaskDuration per rAF frame, pulses on vs off in 12 paired windows (order
+ *           alternated), median difference <= 1.0 ms, with the same pairs off vs off printed as the A/A control.
  */
 const path = require('path');
 const H = require('./mine-harness.cjs');
@@ -384,7 +387,7 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
           // the HUD pulses' computed animation (M12 minors): the price chip pulsing, a kit button with a threat
           const pc = document.getElementById('hud-digcost'), kb = document.getElementById('kit-excrete');
           pc.classList.add('pulse'); kb.disabled = false; kb.classList.add('threat');
-          const anim = { price: getComputedStyle(pc).animationName, kit: getComputedStyle(kb).animationName };
+          const anim = { price: getComputedStyle(pc).animationName, kit: getComputedStyle(kb, '::after').animationName };
           pc.classList.remove('pulse'); kb.classList.remove('threat');
           return { rm: window.__game.mine.juicePrefs().reducedMotion, body: document.body.classList.contains('rmotion'), anim };
         }));
@@ -676,7 +679,7 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
         s.active.water = 5000;
         const btn = (id) => document.getElementById(id);
         const cls = () => ({ fl: btn('kit-excrete').classList.contains('threat'), en: btn('kit-amputate').classList.contains('threat'),
-          anim: getComputedStyle(btn('kit-excrete')).animationName });
+          anim: getComputedStyle(btn('kit-excrete'), '::after').animationName });
         s.mineItems.excrete = 1; s.mineItems.amputate = 1;
         await new Promise((x) => setTimeout(x, 700));
         out.calm = cls();
@@ -708,16 +711,34 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
       const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
       const b = await E.bootMine(4242, 390, 844, { ctx, before: SAVE });
       await quiet(b.page); await helpers(b.page);
-      const r = await b.page.evaluate(async () => {
+      // THE HUD JUICE IS IN THE STATE (M12 minors): the kit stocked so the flask BREATHES (a worm attached,
+      // a flask carried) and the tank under 4 digs so the water chip is low. The first version's save carried
+      // no kit, so the one infinite CSS animation never ran in the measurement.
+      const st = await b.page.evaluate(async () => {
         const g = window.__game, s = g.state;
         s.active.water = 5000;
         await window.__navDig({ targetM: 30, maxIters: 120 });
         await window.__wait(() => !g.mine.revealing(), 4000);
         let tip = null; for (const n of s.active.nodes) if (!n.infected && (!tip || n.y > tip.y)) tip = n;
         for (let i = 0; i < 16; i++) g.mine.spawnWorm(tip.x + ((i % 8) - 4) * 30, tip.y - 20 - (i > 7 ? 40 : 0));
+        s.mineItems.excrete = 2; s.mineItems.amputate = 1;
         await new Promise((x) => setTimeout(x, 1500));
+        s.active.water = g.mine.costHere() * 3;   // '3 left': low, and not stuck
+        await new Promise((x) => setTimeout(x, 600));
+        const kb = document.getElementById('kit-excrete'), wc = document.getElementById('hud-waterchip');
+        return { worms: s.nematodes.length, attached: g.mine.attached(), kit: getComputedStyle(kb, '::after').animationName,
+                 kitShown: kb.getBoundingClientRect().width > 0, low: wc.classList.contains('low') };
+      });
+      ok('the perf state carries the HUD juice: the flask breathing on screen and the water chip low', st.worms >= 16 && st.attached > 0 && st.kit === 'kitthreat' && st.kitShown && st.low,
+         JSON.stringify(st));
+      // (1) THE DRAW, juice on vs off INTERLEAVED frame by frame, FIVE blocks of 300 frames a side (the order
+      // flipped each block): the gate is the MEDIAN of the five blocks' p95 deltas, the pooled 1500 against
+      // 1500 printed beside it. On this host one block's delta swings -2.4..+2.8 ms (a block whose p95 was
+      // 56 ms against 18 typical: a stall), so one block — or three, whose median once read 1.50 — decides
+      // nothing; the median of five survives two stalled blocks.
+      const r = await b.page.evaluate(async () => {
+        const g = window.__game, s = g.state;
         const cv = document.getElementById('game'), c = cv.getContext('2d');
-        const on = [], off = [];
         let t = performance.now();
         const frame = (juice, i) => {
           window.MYCELIUM_NO_JUICE = !juice;
@@ -727,16 +748,87 @@ const counts = (page) => page.evaluate(() => Object.assign({}, window.__sfx.coun
           g.mine.frameStep(t, 16.7); g.renderFrame(t, 1); c.getImageData(0, 0, 1, 1);
           return performance.now() - a;
         };
-        for (let i = 0; i < 20; i++) frame(i & 1, i);            // warm
-        for (let i = 0; i < 400; i++) { if (i & 1) on.push(frame(true, i >> 1)); else off.push(frame(false, i >> 1)); }
-        window.MYCELIUM_NO_JUICE = false;
         const q = (a, p) => { a = a.slice().sort((x, y) => x - y); return a[Math.min(a.length - 1, Math.floor(a.length * p))]; };
-        return { worms: s.nematodes.length, attached: g.mine.attached(), n: on.length,
-                 on: { med: q(on, 0.5), p95: q(on, 0.95) }, off: { med: q(off, 0.5), p95: q(off, 0.95) }, shakes: g.mine.shake().n };
+        for (let i = 0; i < 20; i++) frame(i & 1, i);            // warm
+        const blocks = [], ON = [], OFF = [];
+        for (let k = 0; k < 5; k++) {
+          const on = [], off = [];
+          // the order flips every block, so neither side is always the frame that follows the other
+          for (let i = 0; i < 600; i++) { if ((i & 1) ^ (k & 1)) on.push(frame(true, i >> 1)); else off.push(frame(false, i >> 1)); }
+          blocks.push({ on: { med: q(on, 0.5), p95: q(on, 0.95) }, off: { med: q(off, 0.5), p95: q(off, 0.95) }, d: q(on, 0.95) - q(off, 0.95) });
+          ON.push(...on); OFF.push(...off);
+          await new Promise((x) => setTimeout(x, 50));
+        }
+        window.MYCELIUM_NO_JUICE = false;
+        return { blocks, n: ON.length, on: { med: q(ON, 0.5), p95: q(ON, 0.95) }, off: { med: q(OFF, 0.5), p95: q(OFF, 0.95) }, shakes: g.mine.shake().n };
       });
-      const dp = r.on.p95 - r.off.p95;
-      ok('frame p95 with the juice on regresses by 1.0 ms or less (16 worms)', r.worms >= 16 && dp <= 1.0,
-         `worms ${r.worms} (attached ${r.attached}), ${r.n} frames each, on med ${r.on.med.toFixed(2)} / p95 ${r.on.p95.toFixed(2)} ms, off med ${r.off.med.toFixed(2)} / p95 ${r.off.p95.toFixed(2)} ms, delta p95 ${dp.toFixed(2)} ms, shakes ${r.shakes}`);
+      const dp = r.on.p95 - r.off.p95, ds = r.blocks.map((x) => x.d).sort((x, y) => x - y), dMed = ds[2];
+      ok('frame p95 with the juice on regresses by 1.0 ms or less (16 worms; median of five interleaved blocks of 300 frames a side)', r.n >= 1500 && dMed <= 1.0,
+         `median block delta ${dMed.toFixed(2)} ms; pooled on med ${r.on.med.toFixed(2)} / p95 ${r.on.p95.toFixed(2)}, off med ${r.off.med.toFixed(2)} / p95 ${r.off.p95.toFixed(2)}, delta ${dp.toFixed(2)}; blocks `
+         + r.blocks.map((x) => `d ${x.d.toFixed(2)} (on ${x.on.p95.toFixed(1)} off ${x.off.p95.toFixed(1)})`).join(', ') + `; shakes ${r.shakes}`);
+      // (2) THE CSS, in the browser's own frames (M12 minors): the pulses paint (or composite) in the
+      // browser's frame, outside anything the synchronous loop above can time. Main-thread task time per
+      // frame (CDP Performance TaskDuration over a page rAF count) in short PAIRED windows: pulses ON
+      // (Reduced motion off) against OFF, the order flipped every pair, the median of the pair differences
+      // is the cost. THE GAME'S OWN DRAW IS STOOD DOWN for it (a hidden #loadoutSelect parks the frame loop,
+      // as any menu does): with it running, a frame is ~14 ms of game and the pulses are lost in it —
+      // 1.5 s blocks read 13.6-17.6 ms a frame with the pulses OFF throughout, and 12 paired windows gave
+      // an on-off median of 0.1-1.0 against an off-off one of 0.0-0.7. The same pairs OFF against OFF are
+      // printed as the A/A control, and a heavy full-screen animation must read as a cost.
+      const cdp = await b.page.context().newCDPSession(b.page);
+      await cdp.send('Performance.enable');
+      const task = async () => { const m = (await cdp.send('Performance.getMetrics')).metrics; return (m.find((x) => x.name === 'TaskDuration') || {}).value || 0; };
+      await b.page.evaluate(() => {
+        window.__rafN = 0; const f = () => { window.__rafN++; requestAnimationFrame(f); }; requestAnimationFrame(f);
+        const park = document.createElement('div'); park.id = 'loadoutSelect'; park.hidden = true; document.body.appendChild(park);
+      });
+      // the instrument's own control: a deliberately heavy full-screen CSS animation (an animated blurred
+      // inset shadow) must read as a cost, or a pass above says nothing
+      await b.page.evaluate(() => {
+        const st = document.createElement('style');
+        st.textContent = '@keyframes perfheavy { 0%, 100% { box-shadow: inset 0 0 40px 20px rgba(255,0,0,.25); } 50% { box-shadow: inset 0 0 160px 80px rgba(0,255,0,.25); } }'
+          + ' #perfHeavy { position: fixed; inset: 0; pointer-events: none; z-index: 5; display: none; } body.perfheavy #perfHeavy { display: block; animation: perfheavy 0.5s linear infinite; }';
+        document.head.appendChild(st);
+        const d = document.createElement('div'); d.id = 'perfHeavy'; document.body.appendChild(d);
+      });
+      const win = async (pulses, heavy) => {
+        const anim = await b.page.evaluate(async ({ on, heavy }) => {
+          document.body.classList.toggle('perfheavy', !!heavy);
+          window.__game.mine.setJuice('reducedMotion', !on);
+          // the kit's class follows on the HUD's next refresh (2 Hz): wait for it, then a settle frame
+          const want = on ? 'kitthreat' : 'none', el = document.getElementById('kit-excrete');
+          for (let i = 0; i < 40 && getComputedStyle(el, '::after').animationName !== want; i++) await new Promise((x) => setTimeout(x, 50));
+          await new Promise((x) => setTimeout(x, 150));
+          return getComputedStyle(el, '::after').animationName;
+        }, { on: pulses, heavy });
+        const t0 = await task(), f0 = await b.page.evaluate(() => window.__rafN);
+        await sleep(600);
+        const t1 = await task(), f1 = await b.page.evaluate(() => window.__rafN);
+        return { anim, frames: f1 - f0, ms: f1 > f0 ? ((t1 - t0) * 1000) / (f1 - f0) : NaN };
+      };
+      const paired = async (x, y, n, heavy) => {
+        const d = [], seen = [];
+        for (let k = 0; k < n; k++) {
+          const first = k & 1 ? y : x, second = k & 1 ? x : y;
+          const w1 = await win(first, heavy && first === x), w2 = await win(second, heavy && second === x);
+          const wx = k & 1 ? w2 : w1, wy = k & 1 ? w1 : w2;
+          seen.push(wx, wy); d.push(wx.ms - wy.ms);
+        }
+        return { d, seen };
+      };
+      const ab = await paired(true, false, 12), aa = await paired(false, false, 12), hv = await paired(true, false, 8, true);
+      await b.page.evaluate(() => { document.body.classList.remove('perfheavy'); window.__game.mine.setJuice('reducedMotion', false);
+        const park = document.getElementById('loadoutSelect'); if (park) park.remove(); });
+      const med = (a) => { a = a.filter((v) => isFinite(v)).sort((x, y) => x - y); return a.length ? a[Math.floor(a.length / 2)] : NaN; };
+      const abMed = med(ab.d), aaMed = med(aa.d);
+      const animsOk = ab.seen.every((w, i) => w.anim === (i % 2 === 0 ? 'kitthreat' : 'none')) && aa.seen.every((w) => w.anim === 'none');
+      ok("the HUD pulses cost 1.0 ms of main-thread task time a frame or less in the browser's frames (median of 12 paired windows, order alternated)",
+         animsOk && ab.seen.concat(aa.seen).every((w) => w.frames >= 8 && isFinite(w.ms)) && abMed <= 1.0,
+         `on-off median ${abMed.toFixed(2)} ms/frame (pairs ${ab.d.map((v) => v.toFixed(1)).join(' ')}); A/A off-off median ${aaMed.toFixed(2)} (pairs ${aa.d.map((v) => v.toFixed(1)).join(' ')}); `
+         + `frames/window ${Math.min(...ab.seen.map((w) => w.frames))}-${Math.max(...ab.seen.map((w) => w.frames))}, animations ${animsOk ? 'as asked' : 'WRONG'}`);
+      const hvMed = med(hv.d);
+      ok('...and the same instrument sees a heavy full-screen CSS animation (control: an animated blurred inset shadow costs more than 1.0 ms a frame)',
+         hvMed > 1.0, `heavy-off median ${hvMed.toFixed(2)} ms/frame (pairs ${hv.d.map((v) => v.toFixed(1)).join(' ')})`);
       await b.ctx.close();
     }
   } catch (e) {
