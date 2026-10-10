@@ -78,7 +78,15 @@
     #titleScreen .ts-foot-btn:hover { opacity: 1; text-decoration: underline; }
     /* M13 verify 2: on a phone the title's text links (Store, Credits, High Scores) are 44 px tap targets
        like the Daily Dig button — they were 22 px tall. Height only: the type and the look are unchanged. */
-    @media (pointer: coarse) { #titleScreen .ts-foot-btn { min-height:44px; display:inline-flex; align-items:center; } }
+    @media (pointer: coarse) and (min-height: 421px) { #titleScreen .ts-foot-btn { min-height:44px; display:inline-flex; align-items:center; } }
+    /* ...but on a landscape phone (<= 420 px tall) a 44 px Credits pushed the footer into the Daily Dig button
+       (640x360). There the box keeps its 22 px and the TAP AREA grows toward the screen edge instead (~36 px):
+       the header's links upward, the footer's downward, so neither reaches the controls beside them. */
+    @media (pointer: coarse) and (max-height: 420px) {
+      #titleScreen .ts-foot-btn { position:relative; }
+      #titleScreen .ts-header .ts-foot-btn::after { content:''; position:absolute; left:-4px; right:-4px; top:-12px; bottom:-2px; }
+      #titleScreen .ts-footer .ts-foot-btn::after { content:''; position:absolute; left:-4px; right:-4px; top:-2px; bottom:-12px; }
+    }
     /* Credits popup — reuses the B&W .hs-card shell; left-aligned credit rows with linked names. */
     .cr-card { text-align: left; }
     .cr-title { text-align: center; margin: 0 0 4px; }
@@ -34990,6 +34998,11 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
     if (!botB) return;
     botB.classList.remove('ts-tight');
     for (const sel of MINE_FIT_DROP) { const e = botB.querySelector(sel); if (e) e.style.display = ''; }
+    const dBtn = botB.querySelector('#tsDaily'), dSub = botB.querySelector('#tsDailySub');
+    if (dBtn) { if (dBtn.dataset.label == null) dBtn.dataset.label = dBtn.textContent; dBtn.textContent = dBtn.dataset.label; }
+    // A DROPPED SUB-LINE HANDS ITS DECISION TO THE BUTTON (M13 verify 2): 'practice now' is the one thing on it
+    // that changes what pressing Daily dig does, so a landscape phone that loses the line reads it on the button.
+    const keepPractice = () => { if (dBtn && dSub && dSub.style.display === 'none' && /practice/.test(dSub.textContent)) dBtn.textContent = dBtn.dataset.label + ' \u00b7 practice'; };
     const foot = root.querySelector('.ts-footer');
     const rootTop = root.getBoundingClientRect().top;
     const limit = (foot ? foot.getBoundingClientRect().top : rootTop + (root.clientHeight || window.innerHeight)) - 8;
@@ -34997,6 +35010,7 @@ function showTitleScreen({ onNew, onContinue, onDevTutorial, onHighScores, onSto
     if (!over()) return;
     botB.classList.add('ts-tight');
     for (const sel of MINE_FIT_DROP) { if (!over()) break; const e = botB.querySelector(sel); if (e) e.style.display = 'none'; }
+    keepPractice();
   }
 
   // True when there's saved unlock progress from an old run — which "New" (Survival) wipes

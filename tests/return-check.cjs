@@ -550,6 +550,30 @@ const endRun = async (page) => {
         ok(`no page errors (title ${w}x${h})`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
         await b.ctx.close();
       }
+      // 3. A PHONE (touch, coarse pointer), M13 verify 2: the title's text links are 44 px tap targets (a 44 px box
+      //    where the screen is tall; on a landscape phone a tap area grown toward the screen edge, hit-tested 10 px
+      //    outside the box), nothing overlaps, and a dropped daily sub-line hands 'practice' to the button.
+      for (const [w, h] of [[390, 844], [640, 360], [844, 390]]) {
+        const ctx = await E.browser.newContext({ viewport: { width: w, height: h }, hasTouch: true, isMobile: true });
+        const b = await E.boot('', w, h, { ctx, before: prep({ clock: D25, save: FULL }) });
+        const p = b.page;
+        await p.waitForSelector('#tsDaily', { timeout: 20000 }).catch(() => {});
+        await sleep(2600);
+        const T = await readTitle(p);
+        const L = layout(T, w, h);
+        const tap = await p.evaluate(() => { const hit = (id, dy) => { const e = document.getElementById(id); const r = e.getBoundingClientRect();
+            const x = (r.left + r.right) / 2, y = dy < 0 ? r.top + dy : r.bottom + dy; const q = document.elementFromPoint(x, y); return { h: Math.round(r.height), hit: !!(q && (q === e || e.contains(q))) }; };
+          return { store: hit('tsStore', -10), credits: hit('tsCredits', 10) }; });
+        const tall = h > 420;
+        const tapOk = tall ? tap.store.h >= 44 && tap.credits.h >= 44 : tap.store.hit && tap.credits.hit;
+        const subGone = !(T.tsDailySub && T.tsDailySub.vis);
+        const practiceOk = subGone ? /practice/.test(T.tsDaily && T.tsDaily.t) : !/practice/.test(T.tsDaily && T.tsDaily.t);
+        ok(`${w}x${h} touch: Store and Credits are 44 px tap targets, nothing overlaps, and the 'practice' word survives the fit`,
+           tapOk && !L.off.length && !L.overlap && practiceOk && T.tsDaily && T.tsDaily.vis,
+           JSON.stringify({ tap, off: L.off, overlap: L.overlap, subGone, daily: T.tsDaily && T.tsDaily.t }));
+        ok(`no page errors (title ${w}x${h} touch)`, !b.errs.length, b.errs.slice(0, 2).join(' | '));
+        await ctx.close();
+      }
     }
 
     // ------------------------------------------------------------------ tabs
