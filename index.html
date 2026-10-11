@@ -28254,6 +28254,12 @@ function initSfx() {
   // against -31.9). Built here, they settle in the first moments the context runs, long before the first
   // payout. Nothing sounds through them until a cue does.
   try { master(); } catch (_) {}
+  // ...AND THE PERIODIC WAVES (M15). The first thud / heartbeat / gong of a page built its PeriodicWave
+  // between computing its start time (`_ct`: currentTime + 3 ms) and starting — and the first
+  // createPeriodicWave is slow (band-limited tables), more so under load. The cue then started with its
+  // envelope already part-way through: the first refusal thud of a page measured -27.7 or -18.9 dBFS
+  // against -20.1 every time after (juice-check's 'first cue' flake, reproduced 3 of 5 under 3 CPU hogs).
+  try { for (const k of Object.keys(WAVE_PARTIALS)) _wave(a, k); } catch (_) {}
   fetch('assets/sfx/grow.wav').then((r) => r.arrayBuffer()).then((b) => a.decodeAudioData(b))
     .then((buf) => { BUF = buf; ready = true; }).catch(() => {});
   // The card click. Its own buffer rather than a manifest entry, exactly like the grow sample —
@@ -28388,6 +28394,9 @@ const SFX_LAST = { ore: null, pocket: null };
 try { window.__sfx = { counts: SFX_COUNTS, last: SFX_LAST, ctxState: () => (AC ? AC.state : null), muted: () => muted }; } catch (_) {}
 const SEAM_ROOT_HZ = { phosphorus: 660, anthracite: 440, garnet: 587, hematite: 740 };
 function _tone(a, t, f0, f1, dur, gain, type) {
+  // NEVER SCHEDULE IN THE PAST (M15): an envelope whose start has already gone plays from part-way down
+  // its ramps. `t` is computed a few ms ahead (`_ct`); anything slow between that and here used to clip it.
+  t = Math.max(t, a.currentTime);
   const o = a.createOscillator(), g = a.createGain();
   if (type && typeof type === 'object') o.setPeriodicWave(type); else o.type = type || 'sine';
   o.frequency.setValueAtTime(f0, t);
@@ -28401,6 +28410,7 @@ function _tone(a, t, f0, f1, dur, gain, type) {
 // A note that strikes at `peak`, settles to `hold` by `settleS`, and dies away by `durS` (the landfall's
 // arpeggio-into-chord: one oscillator each).
 function _held(a, t, f, peak, hold, settleS, durS) {
+  t = Math.max(t, a.currentTime);   // see _tone
   const o = a.createOscillator(), g = a.createGain();
   o.type = 'sine'; o.frequency.setValueAtTime(f, t);
   g.gain.setValueAtTime(0.0001, t);
@@ -28547,7 +28557,12 @@ function _voiceTake(a, n, durS, pri) {
 }
 let _cueT = 0;
 // The start time of the cue just admitted (a cue that stole starts after what it stole has faded).
-function _ct(a, x) { return Math.max(a.currentTime + (x || 0.005), _cueT); }
+// THE LEAD IS AT LEAST CUE_LEAD (M15). A start 3-5 ms ahead of `currentTime` is less than one render
+// quantum plus the hop to the audio thread, so the cue's envelope began part-way through its attack by
+// a varying amount: the same thud measured -20.1 dBFS at a 3 ms lead (and -18.9 or -27.7 when the page was
+// busy) against a steady -19.3 at 30 ms. 20 ms is well under what a tap-to-sound delay can be heard as.
+const CUE_LEAD = 0.02;
+function _ct(a, x) { return Math.max(a.currentTime + Math.max(x || 0.005, CUE_LEAD), _cueT); }
 // `retry` (M12 minors): a threat onset re-asked by the frame loop after the cap refused it. Only its FIRST
 // refusal counts in `dropped` — a 500 ms retry asks every frame, and counting each one read 23 drops for
 // one click that was heard. Whether a retried cue was heard late or lost is `late` / `lost`.
@@ -28630,7 +28645,8 @@ function playBandGong() {
 // 7 dB over the seam ping it should sit under — negative feedback louder than the reward.
 function playRefuseThud() {
   const a = _cue('refuse', 0.06, 1); if (!a) return false;
-  _tone(a, _ct(a, 0.003), 90, 60, 0.06, 0.12, _wave(a, 'thud'));
+  const w = _wave(a, 'thud');   // BEFORE the start time is taken (M15): see initSfx
+  _tone(a, _ct(a, 0.003), 90, 60, 0.06, 0.12, w);
   return true;
 }
 // A WORM ATTACHES: two 1.2 kHz clicks of 25 ms.
