@@ -353,6 +353,35 @@ const ok = (n, c, x) => { c ? (pass++, console.log('  PASS  ' + n + (x ? '  — 
     // missing one only ever shows up in the artefact.
     ok('0 page errors or failed requests in the whole run', errs.length === 0,
        errs.slice(0, 4).join(' | ') || 'none');
+    // THE MASK TABLE AGAINST THE ZIP'S OWN SPRITES (M15 verify). Collision is stamped from
+    // assets/mine-masks.json before the art arrives, and the build RE-ENCODES every sprite (webp q85) — so the
+    // table must equal, bit for bit, the mask computed live from the bytes that will actually be uploaded
+    // (alpha is lossless at any webp quality; this is where that claim is checked on the artefact).
+    {
+      const tabFile = path.join(dir, 'assets', 'mine-masks.json');
+      const inUse = await page.evaluate(() => window.__mineMasks && window.__mineMasks.tableSize()).catch(() => 0);
+      let tab = null; try { tab = JSON.parse(fs.readFileSync(tabFile, 'utf8')); } catch (_) {}
+      const decode = (e) => { const [mw, mh, b64] = e; const b = Buffer.from(b64, 'base64'); let i = 0, bit = 0, out = '';
+        while (i < b.length) { let run = 0, sh = 0, x; do { x = b[i++]; run |= (x & 127) << sh; sh += 7; } while (x & 128); out += (bit ? '1' : '0').repeat(run); bit ^= 1; }
+        return { mw, mh, bits: out }; };
+      const mp = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      await mp.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; window.MYCELIUM_NO_MASK_TABLE = true;
+        try { localStorage.setItem('mycelium.progress.v2', JSON.stringify({ runsDone: 1, mineRuns: 1, mineBest: 5, migratedMineShelfV2: true })); } catch (_) {} });
+      await mp.goto(base + '/', { waitUntil: 'domcontentloaded' });
+      await mp.waitForFunction(() => window.__mineMasks && window.__mineMasks.keys().length > 0, null, { timeout: 30000 }).catch(() => {});
+      await mp.evaluate(() => window.__mineMasks.load()).catch(() => {});
+      const keys = await mp.evaluate(() => window.__mineMasks.keys()).catch(() => []);
+      let same = 0; const diff = [];
+      for (const k of keys) {
+        const live = await mp.evaluate((key) => window.__mineMasks.live(key), k).catch(() => null);
+        const t = tab && tab.masks && tab.masks[k] ? decode(tab.masks[k]) : null;
+        if (live && t && live.mw === t.mw && live.mh === t.mh && live.bits === t.bits) same++; else diff.push(k);
+      }
+      await mp.close();
+      ok('the zip carries the mine mask table, in use, and it matches every re-encoded band sprite bit for bit',
+         !!tab && inUse === keys.length && keys.length === 126 && same === keys.length,
+         `table ${tab ? 'present' : 'MISSING'} (${tab ? Object.keys(tab.masks).length : 0} entries, ${inUse} in use); ${same} of ${keys.length} masks identical${diff.length ? '; differ: ' + diff.slice(0, 4).join(', ') : ''}`);
+    }
     // ...AND, ON THE CRAZYGAMES BUILD, THAT IT SURVIVED THE SDK BEING UNREACHABLE. Everything
     // above — booting, a descent, the store — happened with the SDK script failing to load
     // outright, which is the strongest available evidence that the guards hold. It is also a real

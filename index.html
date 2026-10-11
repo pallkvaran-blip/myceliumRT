@@ -25190,7 +25190,10 @@ function mineGrowInner(state, ctx) {
   // mask does not exist and a strand grows straight through drawn rock. Refused before the price, so
   // nothing is charged; the reveal holds the curtain for this (`mineRevealHeld`), so a player only
   // meets it on a link slow enough to outlast `revealHoldMaxMs`.
-  if (sub && !sub._rockSolidified) return { ok: false, settling: true, message: 'The ground is settling…' };
+  // ...AND NOT WHILE THE CURTAIN WAITS FOR THE ART IN VIEW (M15 verify): with the precomputed mask table
+  // the rock is solid before its sprites have arrived, and `mineRevealHeld` then holds the curtain for the
+  // VISIBLE art instead (`sub._mineArtHold`), so the same refusal covers that hold.
+  if (sub && (!sub._rockSolidified || sub._mineArtHold)) return { ok: false, settling: true, message: 'The ground is settling…' };
   // THE REFUSAL NAMES THE WAY OUT (M1): when the tank cannot pay here, FRUIT NOW is on screen, so
   // the toast says what it banks rather than leaving the player to find it.
   if (net.water < cost) {
@@ -26724,7 +26727,10 @@ const KEY_LOADS = new Map();
 function loadKey(basePath, a) { if (!KEY_LOADS.has(a.key)) KEY_LOADS.set(a.key, loadOne(basePath, a)); return KEY_LOADS.get(a.key); }
 function loadLevelAssets(id, basePath = 'assets/', onStep, only) {
   if (!id) return Promise.resolve();
-  const ck = only ? id + '|' + only.size : id;
+  // A FILTERED LOAD IS CACHED ON ITS KEYS, not on their count (M15 verify): `id + '|' + only.size` handed a
+  // second call with a different set of the same size the first call's promise, and its own keys were never
+  // requested — a never-requested key has no REG entry, so nothing would ever repair it.
+  const ck = only ? id + '|' + [...only].sort().join(',') : id;
   if (LEVEL_LOADS.has(ck)) return LEVEL_LOADS.get(ck);
   let mine = DEFERRED.filter((a) => a.file && a.file.split('/')[0] === id);
   if (only) mine = mine.filter((a) => only.has(a.key));
@@ -26759,6 +26765,9 @@ function loadOne(basePath, a, attempt = 0) {
   return new Promise((resolve) => {
     if (!a || !a.key || !a.file) return resolve();
     const img = new Image();
+    // Which manifest key this is (M15 verify): `_alphaMask` caches by `img.src`, which a retry or a repair
+    // changes (it carries a nonce), so the precomputed mine-mask table is looked up by KEY instead.
+    img._akey = a.key;
     // KEEP THE HISTORY ON SUCCESS. Filing a fresh entry dropped `tries`/`repairs`, so an asset
     // that failed twice and then landed was indistinguishable from one that loaded first
     // time — which is exactly the thing worth being able to see after a report like this.
@@ -39615,6 +39624,16 @@ function inMineEconomy(fn) {
   CONFIG.game = 'mine';
   try { return fn(); } finally { CONFIG.game = g; }
 }
+// THE GUTTER'S GOAL LINE (M15 verify): the title's, worded for the MIDDLE OF A RUN — nothing can be bought
+// until the descent ends (the haul is banked then), so 'ready to buy' becomes 'buy it after this descent'.
+function mineGutterGoal(p) {
+  try {
+    const g = inMineEconomy(() => mineNextGoal(p || loadProgress()));
+    if (!g || g.done || !g.cost) return '';
+    const price = g.cost.n + ' ' + (g.cost.m === 'phosphorus' ? 'P' : matName(g.cost.m));
+    return g.name + ' \u2014 ' + price + (g.afford ? ' \u00b7 buy it after this descent' : g.cost.m === 'phosphorus' ? ' \u00b7 ' + g.short + ' P short before this haul' : ' \u00b7 you have ' + g.have);
+  } catch (_) { return ''; }
+}
 function mineTitleGoal(p) {
   try {
     const g = inMineEconomy(() => mineNextGoal(p || loadProgress()));
@@ -43118,6 +43137,12 @@ const gutEsc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(
 function mineGutterWanted() {
   const W = window.innerWidth, H = window.innerHeight;
   if (!(state && state.substrate && state.substrate.mine) || state.runOver) return null;
+  // NOT ON THE SAVE'S FIRST DESCENT (M15 verify): the first minute is kept to the map and its one hint
+  // (M4; M8 holds the leg banner back for the same reason), and a 'Next goal: Water tank — 5 P' panel for a
+  // store the player has never seen is the opposite. The title shows its goal only once a run is banked;
+  // the gutters follow it.
+  if (state._mineGutBanked == null) { try { state._mineGutBanked = mineRunsBanked(loadProgress()); } catch (_) { state._mineGutBanked = 1; } }
+  if (state._mineGutBanked < 1 && !mineDaily) return null;      // read once per run: the save only moves at its end
   if (!(W / H > 0.75) || H < 500) return null;
   const r = playSurfaceRect(), band = r.x;
   if (band < 200) return null;
@@ -43160,8 +43185,8 @@ function mineGutterTick() {
   // RIGHT: the next goal and today's daily.
   let rh = '';
   try {
-    const g = mineTitleGoal(p);
-    rh += '<div class="mg-sec"><h3>Next goal</h3><div class="mg-big">' + gutEsc(g ? g.replace(/^Next: /, '') : 'Dig deeper, then east') + '</div></div>';
+    const g = mineGutterGoal(p);
+    rh += '<div class="mg-sec"><h3>Next goal</h3><div class="mg-big">' + gutEsc(g || 'Dig deeper, then east') + '</div></div>';
     if (mineDailyUnlocked(p)) {
       const v = mineDailyView(p);
       rh += '<div class="mg-sec"><h3>Daily dig \u00b7 ' + gutEsc(v.label) + '</h3><div>'
@@ -45018,14 +45043,34 @@ function renderFrameInner(time, dtFrames = 1) {
 // paused meanwhile (`simPaused`), and the curtain's own 4 s safety is re-armed every held frame so
 // it cannot lift early. Past the cap the map shows and `mineGrow` keeps refusing until the mask
 // lands ('The ground is settling…'). `_mineRevealWaitAt` is declared beside `_revealPending`.
+// WITH THE MASK TABLE (M15 verify) the rock is solid before its art has arrived, so `_rockSolidified` no
+// longer implies the map can be SEEN — the band art now loads after the gate opens. The curtain therefore
+// also waits for every sprite in VIEW to have its art (`mineViewArtMissing`), under the same cap; past it,
+// a sprite still missing is drawn as its mask's silhouette (`_drawRockSilhouette`), so what blocks is
+// always what is drawn. `sub._mineArtHold` makes `mineGrow` refuse for the length of that hold too.
+function mineViewArtMissing(sub) {
+  const sp = sub.levelSprites || [], z = camera.zoom;
+  const x0 = camera.x - camera.viewW / 2 / z, x1 = camera.x + camera.viewW / 2 / z;
+  const y0 = camera.y - camera.viewH / 2 / z, y1 = camera.y + camera.viewH / 2 / z;
+  let n = 0;
+  for (let i = 0; i < sp.length; i++) {
+    const s = sp[i], b = Math.hypot(s.w, s.h) / 2;
+    if (s.x + b < x0 || s.x - b > x1 || s.y + b < y0 || s.y - b > y1 || s.y + b < sub.surfaceY) continue;
+    if (!asset(s.key)) n++;
+  }
+  return n;
+}
 function mineRevealHeld() {
   const sub = state && state.substrate;
-  if (!sub || !sub.mine || sub._rockSolidified) { _mineRevealWaitAt = 0; mineSettleNote(false); return false; }
+  const artWait = !!(sub && sub.mine && sub._rockSolidified && _revealPending && mineViewArtMissing(sub) > 0);
+  if (sub && sub.mine) sub._mineArtHold = false;
+  if (!sub || !sub.mine || (sub._rockSolidified && !artWait)) { _mineRevealWaitAt = 0; mineSettleNote(false); return false; }
   const now = performance.now();
   if (!_mineRevealWaitAt) _mineRevealWaitAt = now;
   const m = (state.config && state.config.mine) || {};
   const max = m.revealHoldMaxMs != null ? m.revealHoldMaxMs : 15000;
   if (now - _mineRevealWaitAt >= max) { _mineRevealWaitAt = 0; mineSettleNote(false); return false; }
+  if (artWait) sub._mineArtHold = true;
   armHandoffSafety();
   if (now - _mineRevealWaitAt >= 600) mineSettleNote(true);
   return true;
@@ -46501,10 +46546,74 @@ function mineNoteBox(sub, i, key) {
   (sub._solidBoxKeys || (sub._solidBoxKeys = new Set())).add(key);
   sub._solidForced = sub._solidBoxes.length;
 }
+// THE MINE'S PRECOMPUTED ALPHA MASKS (M15 verify). Building `_alphaMask` for the 126 band sprites — one
+// main-thread decode + getImageData each — was ~1.1 s of a first visit's 1.6 s boot (the files themselves
+// had all arrived by ~0.5 s), and it gated both the boot and the first collision stamp on every band file.
+// `assets/mine-masks.json` (GENERATED: `node scripts/gen-mine-masks.cjs`) carries each band sprite's mask
+// as computed by THIS function in Chromium, reduced to what collision reads — alpha >= 128, the only test
+// `markCoverGrid` makes — as run-length-coded bits. So a mask is available before its art is: collision
+// can be stamped the moment a chunk exists, and the band art can arrive after the gate opens.
+//   - BYTE IDENTITY IS GATED: release-check computes every mask live (table off) and compares bit for bit,
+//     and itchzip-check does the same against the zip's re-encoded sprites (alpha is lossless at any webp
+//     quality). `gen-mine-masks.cjs --check` fails when a band file's bytes no longer match its entry.
+//   - VALID ONLY FOR ITS `__ASSET_VER`: re-tracing a sprite in place requires an `__ASSET_VER` bump (the
+//     cache-bust rule), which retires the table until it is regenerated — collision falls back to the
+//     live path below and is never stamped from a stale silhouette.
+//   - Off with `window.MYCELIUM_NO_MASK_TABLE = true` (the M2 art-gated machinery's own checks use it).
+let MASK_TABLE = null;              // key -> { mw, mh, data } (alpha 255 where the bit is set)
+function maskTableAccept(j) {
+  try {
+    if (!j || j.v !== 1 || !j.masks) return 0;
+    if (typeof window !== 'undefined' && (window.MYCELIUM_NO_MASK_TABLE === true || j.ver !== window.__ASSET_VER)) return 0;
+    const T = new Map();
+    for (const k of Object.keys(j.masks)) {
+      const [mw, mh, b64] = j.masks[k];
+      const bin = atob(b64), data = new Uint8ClampedArray(mw * mh * 4);
+      let p = 0, i = 0, bit = 0;
+      while (i < bin.length) {
+        let run = 0, sh = 0, b;
+        do { b = bin.charCodeAt(i++); run |= (b & 127) << sh; sh += 7; } while (b & 128);
+        if (bit) for (let q = 0; q < run; q++) data[(p + q) * 4 + 3] = 255;
+        p += run; bit ^= 1;
+      }
+      if (p !== mw * mh) return 0;     // a malformed entry retires the whole table
+      T.set(k, { mw, mh, data });
+    }
+    MASK_TABLE = T;
+    return T.size;
+  } catch (_) { return 0; }
+}
+// The mask a sprite's COLLISION reads when its art has not arrived: a stand-in `img` whose mask comes
+// from the table (null without one). `markCoverGrid` needs nothing of an image but its mask.
+const _maskStandIns = new Map();
+function maskStandIn(key) {
+  if (!MASK_TABLE || !MASK_TABLE.has(key)) return null;
+  let s = _maskStandIns.get(key);
+  if (!s) { const m = MASK_TABLE.get(key); s = { src: 'masktab:' + key, _akey: key, width: m.mw, height: m.mh }; _maskStandIns.set(key, s); }
+  return s;
+}
+// A level sprite's mask source: its art when loaded, else (the mine) the table's stand-in.
+function rockMaskImg(sub, key) { return asset(key) || (sub && sub.mine ? maskStandIn(key) : null); }
+// The bits collision reads, live (table bypassed) — what gen-mine-masks writes and the gates compare.
+function _alphaMaskLive(img) {
+  const m = _alphaMaskCompute(img);
+  if (!m) return null;
+  const bits = new Uint8Array(m.mw * m.mh);
+  for (let i = 0; i < bits.length; i++) bits[i] = m.data[i * 4 + 3] >= 128 ? 1 : 0;
+  return { mw: m.mw, mh: m.mh, bits };
+}
 function _alphaMask(img) {
   const key = img.src || img;
   let m = _alphaMaskCache.get(key);
   if (m) return m;
+  if (MASK_TABLE && img._akey && MASK_TABLE.has(img._akey)) { m = MASK_TABLE.get(img._akey); _alphaMaskCache.set(key, m); return m; }
+  if (typeof key === 'string' && key.startsWith('masktab:')) return null;
+  m = _alphaMaskCompute(img);
+  if (m) _alphaMaskCache.set(key, m);
+  return m;
+}
+// The pixels-to-mask step itself, uncached — `_alphaMask` and the table's generator/gates share it.
+function _alphaMaskCompute(img) {
   const mw = Math.min(160, Math.max(16, img.width | 0));
   const mh = Math.min(160, Math.max(16, Math.round(mw * img.height / img.width)));
   if (!_solidBuf) _solidBuf = document.createElement('canvas');
@@ -46514,9 +46623,7 @@ function _alphaMask(img) {
   mctx.drawImage(img, 0, 0, mw, mh);
   let data;
   try { data = mctx.getImageData(0, 0, mw, mh).data; } catch (e) { return null; }
-  m = { mw, mh, data };
-  _alphaMaskCache.set(key, m);
-  return m;
+  return { mw, mh, data };
 }
 
 // Mark (into `mask`, a gCols×gRows grid of `gSize`-px cells whose rows start at the
@@ -46602,7 +46709,7 @@ function solidifyRock() {
   const lsp = sub.levelSprites || [];
   for (let i = 0; i < lsp.length; i++) {
     const s = lsp[i];
-    const img = asset(s.key);
+    const img = rockMaskImg(sub, s.key);
     if (img && stamp(img, s.x, s.y, s.w, s.h, s.rot)) continue;
     if (mineSolidBoxNow(sub, s.key, sub._solidWait0)) { stamp(SOLID_SPRITE, s.x, s.y, s.w, s.h, s.rot); boxed.push(i); continue; }
     ready = false;
@@ -46757,7 +46864,7 @@ function solidifyMineRock(budgetMs) {
   // at run start and nothing is ever boxed here.
   while (from < sprites.length) {
     const s = sprites[from];
-    let img = asset(s.key);
+    let img = rockMaskImg(sub, s.key);
     if (!img || !_alphaMask(img)) { img = SOLID_SPRITE; mineNoteBox(sub, from, s.key); }
     markCoverGrid(sub, img, s.x, s.y, s.w, s.h, s.rot, cover, sub.cols, sub.rows, cs);
     markCoverGrid(sub, img, s.x, s.y, s.w, s.h, s.rot, fine, fCols, fRows, fSize);
@@ -46844,7 +46951,7 @@ function mineRestampBox(sub, box, still) {
   for (let j = 0; j < n; j++) {
     const s = sprites[j], x = ext(s);
     if (s.x + x.hw < X0 || s.x - x.hw > X1 || s.y + x.hh < Y0 || s.y - x.hh > Y1) continue;
-    const img = still.has(j) ? SOLID_SPRITE : asset(s.key);
+    const img = still.has(j) ? SOLID_SPRITE : rockMaskImg(sub, s.key);
     if (!img) continue;          // cannot happen for a stamped sprite; if it did, AND-with-old keeps it safe
     markCoverGrid(sub, img, s.x, s.y, s.w, s.h, s.rot, cover, sub.cols, sub.rows, cs, cclip);
     markCoverGrid(sub, img, s.x, s.y, s.w, s.h, s.rot, fine, fCols, fRows, fSize, fclip);
@@ -46983,7 +47090,7 @@ function _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered) {
   for (const s of sprites) {
     if (layered && (pass === 0) !== !!s.under) continue;
     const img = asset(s.key);
-    if (!img) continue;
+    if (!img) { if (sub.mine) _drawRockSilhouette(s, z); continue; }
     const sw = s.w * z, sh = s.h * z;
     const c = camera.worldToScreen(s.x, s.y);
     const bound = Math.hypot(sw, sh) / 2;                    // covers any rotation
@@ -47002,6 +47109,30 @@ function _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered) {
   }
   ctx.restore();   // clip + filter
 }
+// A MINE SPRITE WHOSE ART HAS NOT ARRIVED (M15 verify) is drawn as its precomputed mask — a dark rock
+// silhouette, the same alpha >= 128 shape collision stamped — so a wall is never invisible while its
+// sprite is still loading (the band art loads after the gate opens now). Cached per key; nothing is
+// drawn without a table entry (collision then waits or boxes, exactly as before).
+const _silhouettes = new Map();
+function _drawRockSilhouette(s, z) {
+  if (!MASK_TABLE || !MASK_TABLE.has(s.key)) return;
+  let cv = _silhouettes.get(s.key);
+  if (!cv) {
+    const m = MASK_TABLE.get(s.key);
+    cv = document.createElement('canvas'); cv.width = m.mw; cv.height = m.mh;
+    const g = cv.getContext('2d'), id = g.createImageData(m.mw, m.mh);
+    for (let i = 0; i < m.mw * m.mh; i++) if (m.data[i * 4 + 3]) { id.data[i * 4] = 46; id.data[i * 4 + 1] = 41; id.data[i * 4 + 2] = 38; id.data[i * 4 + 3] = 255; }
+    g.putImageData(id, 0, 0);
+    _silhouettes.set(s.key, cv);
+  }
+  const sw = s.w * z, sh = s.h * z, c = camera.worldToScreen(s.x, s.y), bound = Math.hypot(sw, sh) / 2;
+  if (c.x < -bound || c.x > camera.viewW + bound || c.y < -bound || c.y > camera.viewH + bound) return;
+  ctx.save(); ctx.translate(c.x, c.y); if (s.rot) ctx.rotate(s.rot);
+  ctx.drawImage(cv, -sw / 2, -sh / 2, sw, sh);
+  ctx.restore();
+  _silhouetteDraws++;
+}
+let _silhouetteDraws = 0;
 function _drawLevelRockMarkers(sprites, sub, z, cs) {
   // A SELECTED threat's sight range, before its markers are drawn so the rings sit under them.
   // Placing a threat is a decision about what it can reach, and until now that was invisible
@@ -48727,6 +48858,7 @@ function _bootProgress() {
   // the % to ~89 in the first 350 ms; the real denominator then pulled it back, which the monotonic
   // counter shows as a freeze (measured 1.1-1.4 s at 89-90%).
   if (!_aKnown) return;
+  if (_bandBlocking && !_gateBands) return;      // the band bill is not known until the mask table answers
   const tot = _aTot + _iTot + _mTot, dn = _aDone + _iDone + _mDone;
   _load.setProgress(tot ? (dn / tot) * 100 : 0);
 }
@@ -48784,6 +48916,7 @@ function _bootReady() {
   // other half of the same question on a phone.
   logEvent('boot', { ms: Date.now() - _sessionStart });
   _load.ready(() => { initMusic(); initSfx(); _load.destroy(); enterGame(); });
+  _startBandRest();
   // 'Reduced motion' (M12) is a body class as well as a setting: the HUD's CSS pulses read it.
   try { document.body.classList.toggle('rmotion', !!juicePrefs().reducedMotion); } catch (_) {}
   // A first visit's leg-1 world is built now, while the gate waits for the tap (see _minePre). On the
@@ -48807,27 +48940,57 @@ const _bandOnly = OFFER_MINE ? new Set([].concat(...((CONFIG.mine && CONFIG.mine
 // `!devUI()` (verifier minor): a fresh ?dev=1 save goes to the TITLE (enterGame), so it must not wait
 // behind the band preload either — the two predicates agree.
 const _bandBlocking = OFFER_MINE && mineFirstVisit() && !devUI() && window.MYCELIUM_NO_BAND_PRELOAD !== true;
+// THE MASK TABLE (M15 verify; see `maskTableAccept`): one small request, fetched with the manifest. When it
+// is valid, collision needs no band art at all, so a FIRST VISIT holds the gate only for the art the first
+// view shows — band 0's folder (`_gateBands`; the first view is the hill and the top ~30 m) — and the other
+// three bands start loading the moment the gate turns ready. Measured: 150 requests / ~1.6 s to ready ->
+// ~50 / ~0.4 s. Without a valid table it falls back to holding the gate for every band and its masks, as
+// before. The curtain still waits for every sprite IN VIEW to have its art (`mineRevealHeld`).
+const _maskTableP = OFFER_MINE ? fetch(assetUrl('assets/mine-masks.json')).then((r) => (r.ok ? r.json() : null))
+  .then((j) => maskTableAccept(j)).catch(() => 0) : Promise.resolve(0);
+const _band0 = OFFER_MINE ? (((CONFIG.mine && CONFIG.mine.bands) || [])[0] || null) : null;
+const _band0Only = _band0 ? new Set((MINE_ROCKS[_band0.theme] || []).map((r) => r.k)) : null;
+// The bands the gate waits for, decided once the table has answered: band 0 with a table, all without.
+let _gateBands = null;
 let _mReserved = false;
 function _reserveBandBill() {
-  if (_mReserved || !_bandBlocking) return;
-  let n = 0; for (const f of _bandFolders) n += levelAssetKeys(f, _bandOnly).length;
+  if (_mReserved || !_bandBlocking || !_gateBands) return;
+  let n = 0; for (const g of _gateBands) n += levelAssetKeys(g.f, g.only).length;
   if (!n) return;
   _mReserved = true; _mTot += 2 * n;            // one step per file, one per mask
 }
 // Band files + their alpha masks. `sliceMs`/`gapMs`: the blocking boot builds masks in 40 ms slices
 // back to back; behind the title it takes 12 ms slices with a frame between, so the wordmark's
-// growth does not stutter.
-function _preloadBands(sliceMs, gapMs, count) {
-  return Promise.all(_bandFolders.map((f) => loadLevelAssets(f, 'assets/', (d, t) => {
+// growth does not stutter. `sets` = [{f: folder, only: Set of keys}] (every band when omitted). With a
+// valid table the "mask" step is a table lookup, so the loop costs nothing.
+function _allBandSets() { return _bandFolders.map((f) => ({ f, only: _bandOnly })); }
+// THE TABLE'S TOOL HOOK (boot-time, like `__menu`: `window.__game` does not exist before a run). What
+// scripts/gen-mine-masks.cjs writes from and what release-check / itchzip-check compare against: every band
+// key, a load of all band art, and one key's mask computed LIVE (table bypassed) as run-length bits.
+try {
+  window.__mineMasks = {
+    keys: () => _bandFolders.flatMap((f) => levelAssetKeys(f, _bandOnly)),
+    load: () => Promise.all(_allBandSets().map((g) => loadLevelAssets(g.f, 'assets/', null, g.only))),
+    tableSize: () => (MASK_TABLE ? MASK_TABLE.size : 0),
+    // The table's bits for a key (from the decoded table), for a byte-for-byte compare against `live`.
+    table: (k) => { const m = MASK_TABLE && MASK_TABLE.get(k); if (!m) return null; const b = []; for (let i = 0; i < m.mw * m.mh; i++) b.push(m.data[i * 4 + 3] ? 1 : 0); return { mw: m.mw, mh: m.mh, bits: b.join('') }; },
+    live: (k) => { const img = asset(k); if (!img) return null; const m = _alphaMaskLive(img); return { mw: m.mw, mh: m.mh, bits: Array.prototype.join.call(m.bits, '') }; },
+    silhouettes: () => _silhouetteDraws,
+    hasArt: (k) => !!asset(k),        // asks through asset(), so a missing key's on-demand repair runs
+  };
+} catch (_) {}
+function _preloadBands(sliceMs, gapMs, count, sets) {
+  sets = sets || _allBandSets();
+  return Promise.all(sets.map((g) => loadLevelAssets(g.f, 'assets/', (d, t) => {
     if (!count) return;
     _mDone += d; if (!_mReserved) _mTot += t; _bootProgress();
-  }, _bandOnly))).then(() => {
+  }, g.only))).then(() => {
     // ...AND THEIR ALPHA MASKS ARE BUILT HERE TOO. The first `solidifyRock` spent ~1.4 s in
     // `_alphaMask`'s getImageData (the first draw of each sprite decodes it) — measured as the
     // whole gap between the tap and the curtain lifting. The masks are cached by image source,
     // so building them now makes the first stamp cheap. In small batches, so the counter moves.
     const keys = [];
-    for (const f of _bandFolders) for (const k of levelAssetKeys(f, _bandOnly)) keys.push(k);
+    for (const g of sets) for (const k of levelAssetKeys(g.f, g.only)) keys.push(k);
     if (count && !_mReserved) { _mTot += keys.length; _bootProgress(); }
     return new Promise((res) => {
       let i = 0;
@@ -48850,11 +49013,29 @@ function _preloadBands(sliceMs, gapMs, count) {
 // TEST KNOB: `window.MYCELIUM_NO_BAND_PRELOAD = true` (an init script) skips it entirely, so a check
 // can put a descent in front of art that has not arrived — the case the M2 collision gate exists for
 // (a slow link where the 12 s safety net lets the player in first). ship-check's gate block.
+// THE REST OF THE BAND ART LOADS AFTER THE GATE TURNS READY (M15 verify): a returning boot's whole band
+// preload, and a first visit's bands 1-3 when the table let the gate wait for band 0 alone. Started from
+// `_bootReady`, so none of it is in flight before the gate opens (the request bound counts what STARTED
+// before ready; it used to begin as the base assets resolved and put 44-68 requests in front of a
+// returning player's gate).
+let _bandRest = null;
+function _startBandRest() {
+  const f = _bandRest; _bandRest = null;
+  if (f) setTimeout(f, 0);
+}
+// The table and the manifest are fetched side by side; the band bill is reserved once both have answered
+// (the counter stays hidden until then — see `_bootProgress`).
+const _gateBandsP = _maskTableP.then((n) => {
+  _gateBands = (n && _band0 && _band0Only && _band0Only.size) ? [{ f: _band0.assetsFrom, only: _band0Only }] : _allBandSets();
+  _reserveBandBill(); _bootProgress();
+});
 Promise.all([
-  loadAssets('assets/', (d, t) => { _aKnown = true; _reserveBandBill(); _aDone = d; _aTot = t; _bootProgress(); }, _mineDiet ? { skip: _mineDietSkip } : null).then(() => {
+  Promise.all([_gateBandsP, loadAssets('assets/', (d, t) => { _aKnown = true; _reserveBandBill(); _aDone = d; _aTot = t; _bootProgress(); }, _mineDiet ? { skip: _mineDietSkip } : null)]).then(() => {
     if (!OFFER_MINE || window.MYCELIUM_NO_BAND_PRELOAD === true) return;
-    if (!_bandBlocking) { _preloadBands(12, 16, false); return; }
-    return _preloadBands(40, 0, true);
+    if (!_bandBlocking) { _bandRest = () => _preloadBands(12, 16, false); return; }
+    const gateAll = _gateBands.length === _bandFolders.length && _gateBands.every((g) => g.only === _bandOnly);
+    if (!gateAll) _bandRest = () => _preloadBands(12, 16, false);
+    return _preloadBands(40, 0, true, _gateBands);
   }),
   preloadImages(_bootImgs, (d, t) => { _iDone = d; _iTot = t; _bootProgress(); }),
 ]).then(_bootReady);

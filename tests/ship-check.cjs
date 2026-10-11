@@ -314,8 +314,12 @@ const openStore = async (page) => {
       // M4 PRELOADS THE BAND ART BEHIND THE GATE, so a delayed band held the % counter instead and
       // every run began on a solid mask (0 samples). The knob skips that preload: this block is about
       // a descent that starts before its art (the loader's 12 s safety net on a slow link).
+      // AND THE MASK TABLE IS OFF FOR THIS BLOCK (M15 verify): with `assets/mine-masks.json` the rock is
+      // solid before its art arrives, so none of the art-gated machinery below would ever run. It is the
+      // path a stale or missing table takes, so it keeps its own coverage; the table's path is the
+      // 'masktab' block after this one.
       const delay = (ms) => async (page) => {
-        await page.addInitScript(() => { window.MYCELIUM_NO_BAND_PRELOAD = true; });
+        await page.addInitScript(() => { window.MYCELIUM_NO_BAND_PRELOAD = true; window.MYCELIUM_NO_MASK_TABLE = true; });
         await page.route((u) => BAND.test(u.pathname), async (route) => { await sleep(ms); route.continue().catch(() => {}); });
       };
       const b = await E.boot('#mine,4242', 390, 844, { before: delay(3000) });
@@ -458,6 +462,7 @@ const openStore = async (page) => {
       const HEM = /\/assets\/hematite-c24\//;
       let healed = false;
       const dd = await E.boot('#mine,4242', 390, 844, { before: async (page) => {
+        await page.addInitScript(() => { window.MYCELIUM_NO_MASK_TABLE = true; });
         await page.route((u) => HEM.test(u.pathname), (route) => (healed ? route.continue()
           : route.fulfill({ status: 404, body: 'nf' })).catch(() => {}));
       } });
@@ -554,6 +559,115 @@ const openStore = async (page) => {
       ok('...leaving the mask a full re-stamp builds (0 cells differ), no living node inside rock', heal.rebuilt && heal.diff === 0 && heal.inRock === 0,
          `${heal.diff} fine cells differ from the full re-stamp; ${heal.inRock} living node(s) in rock`);
       await dd.ctx.close();
+    }
+
+    // =======================================================================================
+    // 5b. THE MASK TABLE (M15 verify) — collision before the art, the curtain for the art in view
+    // =======================================================================================
+    if (want('masktab')) {
+      console.log('--- the precomputed mask table: collision before the art, the curtain waits for what is in view');
+      const BAND = /\/assets\/(magnetite|anthracite|garnet|hematite)-c24\//;
+      const HEM = /\/assets\/hematite-c24\//;
+      // (a) ALL band art 3 s late (the preload skipped, as a slow link past the loader's safety net):
+      // the mask is the table's on the first frame — no box, no waiting — and the curtain holds, the sim
+      // paused and every dig refused as settling, until the art IN VIEW has arrived.
+      const a = await E.boot('#mine,4242', 390, 844, { before: async (page) => {
+        await page.addInitScript(() => { window.MYCELIUM_NO_BAND_PRELOAD = true; });
+        await page.route((u) => BAND.test(u.pathname), async (route) => { await sleep(3000); route.continue().catch(() => {}); });
+      } });
+      await a.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.state && window.__game.state.substrate
+        && window.__game.state.substrate.mine && window.__game.mine.seed() === 4242), { timeout: 40000 });
+      const A = await a.page.evaluate(async () => {
+        const g = window.__game, s = g.state, sub = s.substrate, t0 = performance.now();
+        for (let i = 0; i < 40 && !sub._rockSolidified; i++) await new Promise((r) => requestAnimationFrame(() => r()));
+        const solidAt = performance.now() - t0, boxes = (sub._solidBoxes || []).length;
+        let held = 0, paused = 0, refused = 0, tries = 0, msg = null;
+        while (document.body.classList.contains('handoff') && performance.now() - t0 < 12000) {
+          held++; if (g.simPaused()) paused++;
+          const root = s.active.nodes[0]; s.active.water = Math.max(s.active.water, 50);
+          const r = g.mine.growFrom(root.x, root.y, root.x, root.y + 300); tries++;
+          if (r && !r.ok && r.settling) refused++; else msg = r && r.message;
+          await new Promise((r2) => setTimeout(r2, 150));
+        }
+        const liftAt = performance.now() - t0;
+        await new Promise((r) => setTimeout(r, 600));
+        const root = s.active.nodes[0]; s.active.water = Math.max(s.active.water, 50);
+        const dug = g.mine.growFrom(root.x, root.y, root.x, root.y + 300);
+        await new Promise((r) => setTimeout(r, 1500));
+        const F = sub._fineSize, W = sub._fineCols, fs = sub._fineSolid;
+        let inRock = 0; for (const n of s.active.nodes) { if (n.infected) continue; const fc = Math.floor(n.x / F), fr = Math.floor((n.y - sub.surfaceY) / F); if (fr >= 0 && fs[fr * W + fc] === 1) inRock++; }
+        return { solidAt, boxes, table: window.__mineMasks.tableSize(), held, paused, refused, tries, msg, liftAt, dugOk: dug.ok, dugMsg: dug.message, nodes: s.active.nodes.length, inRock };
+      });
+      ok('with the table, the mask lands on the first frames with the art still in flight (no box)', A.table === 126 && A.solidAt < 3000 && A.boxes === 0,
+         `table ${A.table}; solid after ${A.solidAt.toFixed(0)} ms; ${A.boxes} box(es)`);
+      ok('...the curtain holds for the art in view, the sim paused, every dig refused as settling', A.held >= 8 && A.paused === A.held && A.tries > 0 && A.refused === A.tries,
+         `${A.held} held samples (${A.paused} paused); ${A.refused} of ${A.tries} digs refused${A.msg ? ' — one read ' + A.msg : ''}`);
+      ok('...and lifts once the art has arrived; a dig then lands and no living node is inside rock', A.liftAt >= 2800 && A.liftAt < 9000 && A.dugOk && A.inRock === 0,
+         `lifted at ${(A.liftAt / 1000).toFixed(1)} s; dig: ${A.dugMsg}; ${A.inRock} of ${A.nodes} nodes in rock`);
+      await a.ctx.close();
+      // (b) A BAND THAT 404s FOR GOOD: its sprites collide from the table — the published fine mask is BIT
+      // FOR BIT the mask of the same world with every image present — and draw as their silhouettes.
+      const fineOf = async (b) => b.page.evaluate(async () => {
+        const g = window.__game, sub = g.state.substrate, t0 = performance.now();
+        while (!sub._rockSolidified && performance.now() - t0 < 30000) await new Promise((r) => setTimeout(r, 100));
+        let h = 0; const fs = sub._fineSolid || [];
+        for (let i = 0; i < fs.length; i++) h = (h * 31 + fs[i] * (i % 9973 + 1)) | 0;
+        return { at: performance.now() - t0, solid: !!sub._rockSolidified, boxes: (sub._solidBoxes || []).length, chunks: g.mine.chunks().slice().sort((x, y) => x - y).join(','), h, n: fs.length,
+          ones: Array.prototype.reduce.call(fs, (q, v) => q + v, 0) };
+      });
+      const noLook = (page) => page.addInitScript(() => { window.MYCELIUM_NO_LOOKAHEAD = true; window.MYCELIUM_NO_IDLE_LOOKAHEAD = true; });
+      const ref = await E.boot('#mine,4242', 390, 844, { before: noLook });
+      await ref.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.seed() === 4242), { timeout: 40000 });
+      const R = await fineOf(ref);
+      await ref.ctx.close();
+      let healed = false;
+      const d = await E.boot('#mine,4242', 390, 844, { before: async (page) => {
+        await noLook(page);
+        await page.route((u) => HEM.test(u.pathname), (route) => (healed ? route.continue() : route.fulfill({ status: 404, body: 'nf' })).catch(() => {}));
+      } });
+      await d.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.seed() === 4242), { timeout: 40000 });
+      const D = await fineOf(d);
+      ok('a band that 404s for good: the mask is published at once from the table, no box', D.solid && D.at < 3000 && D.boxes === 0,
+         `published after ${D.at.toFixed(0)} ms, ${D.boxes} box(es)`);
+      ok('...and it is BIT FOR BIT the mask the same world builds with every image present', R.solid && D.chunks === R.chunks && D.n === R.n && D.h === R.h && D.ones === R.ones,
+         `chunks [${D.chunks}] vs [${R.chunks}]; ${D.ones} vs ${R.ones} solid fine cells; hash ${D.h} vs ${R.h}`);
+      // The hematite band is the deepest: frame it and draw — its missing sprites are silhouettes.
+      const sil = await d.page.evaluate(async () => {
+        const g = window.__game, s = g.state, sub = s.substrate, cam = g.camera;
+        const hem = sub.levelSprites.filter((sp) => /hematite/.test(sp.key));
+        const sp = hem.sort((p, q) => q.w * q.h - p.w * p.h)[0];
+        cam.zoom = 0.9; g.mine.lookAt(sp.x, sp.y);       // releases the follow camera
+        const n0 = window.__mineMasks.silhouettes();
+        for (let i = 0; i < 6; i++) await new Promise((r) => requestAnimationFrame(() => r()));
+        g.renderFrame(performance.now());
+        const n1 = window.__mineMasks.silhouettes();
+        // Is the sprite's own solid point drawn darker than bare soil nearby? Sample the fine mask for a solid
+        // cell inside it, and the screen pixel there.
+        const F = sub._fineSize, W = sub._fineCols, fs = sub._fineSolid;
+        let wx = null, wy = null;
+        for (let k = 0; k < 400 && wx == null; k++) { const x = sp.x + (Math.random() - 0.5) * sp.w * 0.6, y = sp.y + (Math.random() - 0.5) * sp.h * 0.6;
+          const fc = Math.floor(x / F), fr = Math.floor((y - sub.surfaceY) / F); if (fs[fr * W + fc] === 1) { wx = x; wy = y; } }
+        const cv = document.querySelector('#game'), c2 = cv.getContext('2d');
+        const p = cam.worldToScreen(wx, wy), dpr = cv.width / cam.viewW;
+        const px = c2.getImageData(Math.round(p.x * dpr), Math.round(p.y * dpr), 1, 1).data;
+        return { hem: hem.length, n0, n1, lum: (px[0] + px[1] + px[2]) / 3, px: [px[0], px[1], px[2]] };
+      });
+      await d.page.screenshot({ path: path.join(ART, 'm15-silhouette-390.png'), timeout: 8000, animations: 'disabled' }).catch(() => {});
+      ok('...its missing sprites draw as silhouettes where they block (dark, not bare soil)', sil.hem > 0 && sil.n1 > sil.n0 && sil.lum < 60,
+         `${sil.hem} hematite sprites; ${sil.n1 - sil.n0} silhouette draws in the framed view; pixel on a solid cell ${JSON.stringify(sil.px)}`);
+      healed = true;
+      const back = await d.page.evaluate(async () => {
+        const g = window.__game, s = g.state, sub = s.substrate, t0 = performance.now();
+        const hem = sub.levelSprites.filter((sp) => /hematite/.test(sp.key));
+        const M = window.__mineMasks;
+        while (performance.now() - t0 < 20000 && hem.some((sp) => !M.hasArt(sp.key))) await new Promise((r) => setTimeout(r, 300));
+        for (let i = 0; i < 4; i++) await new Promise((r) => requestAnimationFrame(() => r()));
+        const n0 = window.__mineMasks.silhouettes(); g.renderFrame(performance.now()); const n1 = window.__mineMasks.silhouettes();
+        return { left: hem.filter((sp) => !M.hasArt(sp.key)).length, draws: n1 - n0, api: true };
+      });
+      ok('...and once the art arrives the real sprites replace them (0 silhouette draws)', back.api && back.left === 0 && back.draws === 0,
+         `${back.left} hematite keys still missing; ${back.draws} silhouette draws in a fresh frame`);
+      await d.ctx.close();
     }
 
     // =======================================================================================

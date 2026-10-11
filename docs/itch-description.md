@@ -25,8 +25,9 @@ slabs, and the only way across it is the way you find.
 
 * Eight legs, one island each, from First Light to the Promised Land. Reach the island's taproot and
   your colony takes root there; the next descent starts from it.
-* Going east means going down. The shallow galleries are sealed further along every leg, and the
-  crossings run deeper — 18 m under the first island, 128 m under the last.
+* Going east means going down. From the second leg on, the shallow galleries are walled off at more and
+  more of their crossings, and the islands' roots run deeper — 18 m under the first island, 128 m under
+  the last.
 * Four bands of rock on the way down — magnetite, anthracite, garnet, hematite — each with its own
   colour of soil and its own seam to find: Phosphorus, Anthracite, Garnet and Hematite.
 * Your last failed attempt stays on the map as a faint fossil, so a dead end is something you know.
@@ -51,8 +52,8 @@ slabs, and the only way across it is the way you find.
 * A store with ten tracks: a bigger water tank, a longer dig, heat tolerance that pushes the price
   lines deeper, flasks, enzyme, the oxalic vial that eats through up to three cells of rock, and
   compasses that point through the rock at the island and at the nearest seam of each material.
-* Every descent pays: at least 5 Phosphorus, plus 1 for every 5 m of depth and every 10 m east, plus
-  the seams, plus a bonus the first time you root each island.
+* A descent that runs its course pays at least 5 Phosphorus; every descent pays 1 for every 5 m of
+  depth and every 10 m east, plus the seams, plus a bonus the first time you root each island.
 
 **Come back tomorrow**
 
@@ -60,7 +61,8 @@ slabs, and the only way across it is the way you find.
   rungs of heat tolerance, one flask, one dose. One paid run a day, practice after; a streak.
 * Finish the journey and Journey II begins, with a new rule stacked on every later one: Hotter,
   Thirsty, Hungry, Rotten, Stingy, Far.
-* Colony strains to grow in: four for sale, and one more for each journey you finish.
+* Finish your first journey and colony strains open: four for sale, and one more for each journey you
+  finish.
 
 Plays in portrait on a phone and in a phone-shaped column on a desktop, with your journey and your
 next goal beside it.
@@ -90,9 +92,12 @@ Every figure above, and the constant in `index.html` that sets it. Re-read these
 | the vial: up to three cells of rock | `CONFIG.mine.vialRockBudget` (108 units, 36 a cell) | 108 |
 | ten store tracks | `MINE_UPGRADE_IDS` | water, growSteps, heatTolerance, excreteCharges, amputateCharges, compassIsland, compass_anthracite, compass_garnet, compass_hematite, oxalicVial |
 | pay: min 5, 1 per 5 m deep, 1 per 10 m east | `CONFIG.mine.reach` | `minPay` 5, `mPerP` 5, `eastMPerP` 10 |
+| ...the 5 only for a descent that "runs its course" | `mineFloorEarned`, `MINE_FLOORLESS_CAUSES` | needs a dig, and not `abandon` (End descent) / `quit` (Exit to title) / `pending` (a closed tab); a Daily Dig has no floor (half the reach on the paid run, 0 on practice) |
+| shallow galleries walled "from the second leg on" | `CONFIG.mine.journey.legs[].sealByBand[0]` | leg 1 0.12 (the free carve's own rate — M8 re-picked it for a shallow road), legs 2-8 0.55 → 0.75 |
 | the Daily Dig's kit | `CONFIG.mine.dailyKit` | water 108, grow 4, tolerance 2, flask 1, dose 1 |
 | the journey rules | `MINE_JOURNEY_RULES` | II Hotter, III Thirsty, IV Hungry, V Rotten, VI Stingy, VII Far |
 | strains: four for sale, one per journey | `CONFIG.mine.strains` | amber, violet, ghost, coal (cost); gold … prism (journey 1-8) |
+| ...open only after a finished journey | `mineStrainsOpen` | `p.mineJourney.done` non-empty — the shelf is not in the store before the Promised Land |
 | the fossil | `mineFossilEncode` / `mineLegApply` | the last failed attempt on a leg, cleared by its landfall |
 | phone-shaped column on desktop, panels beside it | `playSurfaceRect` (`frameAspect` 390/844), `mineGutterTick` | aspect > 0.75 and a band >= 200 px |
 
