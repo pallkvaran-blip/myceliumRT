@@ -110,6 +110,16 @@ the `body.handoff` drop, with `--profile` for a CDP self-time table. It is how o
 was found to be reading the NEXT frame (an 8 ms poll is starved until after it). **`fixture-chunks.cjs`**
 (tool) regenerates econ-check's chunk-record fixture from a named commit's index.html.
 
+**`slowlink-probe.cjs`** (tool, M15 verify round 2) times a fresh first visit on a THROTTLED link (CDP:
+`--mbps 1.5 --lat 150` by default) end to end — navigation -> gate -> tap -> curtain -> a dig accepted —
+with the bytes on the wire before each, `--gzip` to serve text compressed as itch's Cloudflare does,
+`--root <unpacked zip>` to time the release artefact, `--index <html>` for a before/after.
+**`perf-burst-probe.cjs`** (tool) rebuilds release-check's perf state and traces timed frames against GC
+events, CPU samples on every thread, a fixed clock (`--fixed-t`) and a CPU control loop (`--ctl`); it is how
+the perf gate's 40-90 ms bursts were shown to be VM steal rather than the game. **`silhouette-shot.cjs`**
+(tool) frames every band with all band art 404'd, so the mask-table silhouettes can be LOOKED at on each
+soil. `mine-harness.cjs` takes `MINE_INDEX=<path>` to serve another index.html (assets from the tree).
+
 **`ending-check.cjs` ('ending', in `--mine`) is how a descent ENDS** (the finishing plan's M1): the
 6 s stuck rule, FRUIT NOW, End descent / Exit to title banking, the running-maximum depth on an
 infected ending, the node cap, the closed-tab pending payout and the end screen at 390x844. It

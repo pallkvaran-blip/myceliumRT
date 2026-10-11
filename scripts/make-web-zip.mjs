@@ -5,6 +5,12 @@
  *   node scripts/make-web-zip.mjs --keep-dev                (diagnostic only; never upload this)
  *   node scripts/make-web-zip.mjs --dry-run                 list the map folders that would ship, build nothing
  *   node scripts/make-web-zip.mjs --out /tmp/x.zip          build to that path instead of dist/
+ *   node scripts/make-web-zip.mjs --keep-comments            ship the page's comments (the build strips them)
+ *
+ * TWO THINGS THE BUILD CHANGES FOR A SLOW LINK (M15 verify round 2), both measured on 1.5 Mbps / 150 ms: the
+ * inline script's full-line comments are stripped (step 1c), and the mine boot's six truecolour PNGs become
+ * webp (step 2c, `--to-webp`; alpha bit-identical). Together a first visit downloads 2.22 MB before it can
+ * play instead of 4.22, 14.4 s instead of 26.0 on a gzip host like itch's.
  *
  * TWO TARGETS, AND THE ONLY DIFFERENCE IS THE SDK. CrazyGames measures a game's initial download
  * as the bytes between load start and the first `gameplayStart` event and rejects a submission
