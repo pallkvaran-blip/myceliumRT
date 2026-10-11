@@ -16,6 +16,10 @@ const DSF = +arg('--dsf', 2), TRACE = !process.argv.includes('--no-trace');
 // is the raster or the host, not anything the frame draws differently. `--ctl`: a fixed CPU workload timed between
 // frames (a host-contention control: if it slows in the same frames, the machine did).
 const FIXED = process.argv.includes('--fixed-t'), CTL = process.argv.includes('--ctl');
+// `--passes`: the frame's cost BY PASS (the game's own `MYCELIUM_RF_PROFILE`: a 1 px readback at every pass mark,
+// so each pass's raster is charged to it), averaged per frame over all blocks. Forcing a raster per pass inflates
+// the total; read it for the SHARES.
+const PASSES = process.argv.includes('--passes');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const pct = (a, p) => { const s = a.slice().sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(s.length * p))] : NaN; };
 
@@ -42,6 +46,9 @@ const pct = (a, p) => { const s = a.slice().sort((x, y) => x - y); return s.leng
   });
   console.log('state', JSON.stringify(W));
   await sleep(1500);
+  if (PASSES) await b.page.evaluate(() => { window.MYCELIUM_RF_PROFILE = true; window.__rfProfile = {}; });
+  // `--no-sight`: the always-on sensing washes off (`config.mine.showSight`), to price them.
+  if (process.argv.includes('--no-sight')) await b.page.evaluate(() => { window.__game.state.config.mine.showSight = false; });
   if (TRACE) await E.browser.startTracing(b.page, { categories: ['devtools.timeline', 'blink.user_timing', 'v8', 'disabled-by-default-v8.gc',
     'disabled-by-default-v8.cpu_profiler', 'disabled-by-default-devtools.timeline'] });
   const blocks = [];
@@ -68,6 +75,8 @@ const pct = (a, p) => { const s = a.slice().sort((x, y) => x - y); return s.leng
   }
   // `--epoch <file>`: every timed frame as [epoch ms, ms], to line up against a host sampler (tests' /proc/stat).
   if (arg('--epoch', null)) fs.writeFileSync(arg('--epoch'), JSON.stringify(await b.page.evaluate(() => window.__fe || [])));
+  if (PASSES) { const P = await b.page.evaluate(() => window.__rfProfile || {}); const n = BLOCKS * 104, tot = Object.values(P).reduce((a, v) => a + v, 0);
+    console.log('by pass, ms per frame (forced raster per pass): ' + Object.entries(P).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${(v / n).toFixed(2)} (${(100 * v / tot).toFixed(0)}%)`).join(' | ')); }
   let trace = null;
   if (TRACE) { const buf = await E.browser.stopTracing(); trace = JSON.parse(buf.toString()); }
   // per block
