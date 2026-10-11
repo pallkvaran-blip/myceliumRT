@@ -419,6 +419,21 @@
     @media (prefers-reduced-motion: reduce) { .minebeat { transition: none; } }
     /* THE JOURNEY STRIP (M8): eight islands in a row, the rooted ones lit mint, the leg being played
        ringed. One builder (main.js mineJourneyStripHTML) for the title, the end screen and the store. */
+    /* THE DESKTOP GUTTERS (M15). On a wide screen the phone-shaped play surface leaves two bands of void;
+       the left one carries the journey (strip, leg, records), the right one the next goal and today's daily.
+       Fixed in the BANDS (never over `--pf-*`), pointer-transparent, and absent on phones / portrait
+       (`mineGutterTick` decides; see there). */
+    .minegut { position: fixed; z-index: 1; pointer-events: none; box-sizing: border-box; padding: 18px 20px;
+      color: #cfe8d6; font: 500 14px/1.45 "Segoe UI", system-ui, sans-serif; text-align: left;
+      border: 1px solid rgba(159,224,189,0.12); border-radius: 14px; background: rgba(10,16,24,0.55); }
+    .minegut[hidden] { display: none; }
+    .minegut h3 { margin: 0 0 6px; font: 700 11px/1.2 "Segoe UI", system-ui, sans-serif; letter-spacing: .16em;
+      text-transform: uppercase; color: #8fb8a0; }
+    .minegut .mg-big { font-size: 19px; font-weight: 700; color: #f2ece0; line-height: 1.25; }
+    .minegut .mg-sub { color: #9fb5a8; font-size: 13px; }
+    .minegut .mj-strip { justify-content: flex-start; margin: 10px 0 2px; }
+    .minegut .mg-sec + .mg-sec { margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(159,224,189,0.10); }
+    .minegut b { color: #f2ece0; }
     .mj-strip { display: flex; gap: 9px; justify-content: center; align-items: center; margin: 10px auto 0; }
     .mj-dot { width: 11px; height: 11px; border-radius: 50%; box-sizing: border-box;
       background: rgba(215,230,220,0.14); border: 1px solid rgba(215,230,220,0.34); }
@@ -22931,6 +22946,9 @@ function mineLevelDef(config, seed, opts) {
     // than the single `assetsFrom` an authored map carries.
     assetsFrom: M.bands[0].assetsFrom,
     assetsFromAll: M.bands.map((b) => b.assetsFrom),
+    // ...AND ONLY THE SPRITES THE BANDS' LIBRARIES USE (M15 boot diet): the owner's curated exports keep
+    // 126 of the four folders' 153 files, so the other 27 (694 KB) are never fetched.
+    assetsOnly: [].concat(...M.bands.map((b) => (MINE_ROCKS[b.theme] || []).map((r) => r.k))),
     world: { width: box.width, height: box.height, surfaceY: box.surfaceY, cellSize: box.cellSize,
              bottomBuffer: M.bottomBuffer, coreDepthFrac: 1 },
     layout: lay,
@@ -26659,7 +26677,7 @@ const VER = (typeof globalThis !== 'undefined' && globalThis.__ASSET_VER) ? '?v=
 // Fetch the manifest and preload every listed image. Resolves once all images
 // have settled (loaded OR failed) so a missing file never blocks boot. Optional
 // onProgress(done, total) fires as each image settles (for the boot loading %).
-function loadAssets(basePath = 'assets/', onProgress) {
+function loadAssets(basePath = 'assets/', onProgress, opts) {
   return fetch(basePath + 'manifest.json' + VER)
     .then((r) => (r.ok ? r.json() : { assets: [] }))
     .catch(() => ({ assets: [] }))
@@ -26674,7 +26692,11 @@ function loadAssets(basePath = 'assets/', onProgress) {
       // files, and the UI draws it before any level exists.
       DEFERRED = all.filter((a) => a && a.kind === 'level');
       KNOWN = new Set(all.filter((a) => a && a.key && a.file).map((a) => a.key));
-      const list = all.filter((a) => !a || a.kind !== 'level');
+      let list = all.filter((a) => !a || a.kind !== 'level');
+      // `opts.skip` (M15 boot diet): a predicate over manifest entries; what it accepts is not fetched
+      // at all this session (a mine-only boot skips the art only the card game and the procedural map
+      // draw — see `_mineDietSkip`). Still listed in KNOWN, so `assetFailed` never calls one failed.
+      if (opts && typeof opts.skip === 'function') list = list.filter((a) => !(a && a.key && opts.skip(a)));
       const total = list.length; let done = 0;
       if (!total) { onProgress && onProgress(0, 0); return; }
       const bump = () => { onProgress && onProgress(++done, total); };
@@ -26695,13 +26717,20 @@ const LEVEL_LOADS = new Map();
 // anyway, for a caller that wants to hold a loading screen up.
 // `onStep(doneDelta, totalDelta)` (optional) reports progress for the boot counter (M4): the
 // total once up front, then 1 per settled file. A cached load reports nothing.
-function loadLevelAssets(id, basePath = 'assets/', onStep) {
+// `only` (M15, optional): a Set of keys — load just those of the folder (the mine's bands use 126 of
+// their 153 files). Each file is loaded once whatever mix of calls asks for it (`KEY_LOADS`), and a
+// filtered call is not cached under the folder's id, so a later whole-folder call still loads the rest.
+const KEY_LOADS = new Map();
+function loadKey(basePath, a) { if (!KEY_LOADS.has(a.key)) KEY_LOADS.set(a.key, loadOne(basePath, a)); return KEY_LOADS.get(a.key); }
+function loadLevelAssets(id, basePath = 'assets/', onStep, only) {
   if (!id) return Promise.resolve();
-  if (LEVEL_LOADS.has(id)) return LEVEL_LOADS.get(id);
-  const mine = DEFERRED.filter((a) => a.file && a.file.split('/')[0] === id);
+  const ck = only ? id + '|' + only.size : id;
+  if (LEVEL_LOADS.has(ck)) return LEVEL_LOADS.get(ck);
+  let mine = DEFERRED.filter((a) => a.file && a.file.split('/')[0] === id);
+  if (only) mine = mine.filter((a) => only.has(a.key));
   if (onStep) onStep(0, mine.length);
-  const p = Promise.all(mine.map((a) => loadOne(basePath, a).then(() => { if (onStep) onStep(1, 0); }))).then(() => mine.length);
-  LEVEL_LOADS.set(id, p);
+  const p = Promise.all(mine.map((a) => loadKey(basePath, a).then(() => { if (onStep) onStep(1, 0); }))).then(() => mine.length);
+  LEVEL_LOADS.set(ck, p);
   return p;
 }
 
@@ -26733,11 +26762,12 @@ function loadOne(basePath, a, attempt = 0) {
     // KEEP THE HISTORY ON SUCCESS. Filing a fresh entry dropped `tries`/`repairs`, so an asset
     // that failed twice and then landed was indistinguishable from one that loaded first
     // time — which is exactly the thing worth being able to see after a report like this.
-    img.onload = () => { const prev = REG[a.key] || {};
+    const landed = () => { const prev = REG[a.key] || {};
       REG[a.key] = { img, ready: true, meta: a, base: basePath,
                      tries: prev.tries | 0, repairs: prev.repairs | 0 };
       READY_GEN++;
       resolve(); };
+    img.onload = landed;
     img.onerror = () => {
       // Keep `meta` and `base` on the failed entry: they are what a later repair needs to try
       // again, and the old shape threw them away for every key but the one being loaded.
@@ -26783,8 +26813,11 @@ function assetFailed(key) {
   return !!KNOWN && !KNOWN.has(key);
 }
 
-function hasAsset(key) { const e = REG[key]; if (e && !e.ready) repairAsset(key); return !!(e && e.ready); }
-function asset(key) { const e = REG[key]; if (e && !e.ready) repairAsset(key); return e && e.ready ? e.img : null; }
+// `window.__assetAsked` (a Set, from an init script) records every key a draw asks for — how the
+// mine's boot set was measured (M15). Read once at load; nothing is recorded otherwise.
+const ASKED = (typeof window !== 'undefined' && window.__assetAsked && window.__assetAsked.add) ? window.__assetAsked : null;
+function hasAsset(key) { if (ASKED) ASKED.add(key); const e = REG[key]; if (e && !e.ready) repairAsset(key); return !!(e && e.ready); }
+function asset(key) { if (ASKED) ASKED.add(key); const e = REG[key]; if (e && !e.ready) repairAsset(key); return e && e.ready ? e.img : null; }
 // HOW MANY IMAGES HAVE LANDED, EVER (M9 verify 3): a counter that moves each time an image becomes ready,
 // so a cache that depends on "which of these sprites have their art" can tell nothing has changed
 // without asking every sprite again (the mine's rock memo asked all of a leg's thousands, every frame).
@@ -26828,7 +26861,7 @@ function pattern(ctx, key) {
   const assetState = (key) => { const e = REG[key];
     return e ? { ready: !!e.ready, tries: e.tries | 0, repairs: e.repairs | 0 } : null; };
   // The manifest keys filed under `assets/<id>/` (M4: the boot warms the mine bands' alpha masks).
-  function levelAssetKeys(id) { return DEFERRED.filter((a) => a.file && a.file.split('/')[0] === id).map((a) => a.key); }
+  function levelAssetKeys(id, only) { return DEFERRED.filter((a) => a.file && a.file.split('/')[0] === id && (!only || only.has(a.key))).map((a) => a.key); }
   return { loadAssets, loadLevelAssets, levelAssetKeys, assetUrl, preloadImages, hasAsset, asset, assetFailed, assetMeta, pattern, assetState, assetReadyGen };
 })();
 
@@ -36725,7 +36758,7 @@ const __m_main = (function () {
           mineCostHere, mineStuckCheck, mineStuckState, mineRunDepth, mineAtNodeCap,
           mineReachRaw, mineReachPay, mineBankable, mineDailyOf,
           mineInfectionCheck, mineInfectionLeft,
-          mineItemCount, mineUseExcrete, mineUseAmputate } = __m_engine_mine;
+          mineItemCount, mineUseExcrete, mineUseAmputate, MINE_ROCKS } = __m_engine_mine;
   const { levelForNumber, allLevels, loadSavedLevels, saveLevelAs, renameSavedLevel, deleteSavedLevel } = __m_levels_data;
   const { performAction, devSpawnTrichoderma, ACTIONS } = __m_engine_actions;
   const { spawnNematodeAt } = __m_engine_nematodes;
@@ -37351,7 +37384,7 @@ function start(seed) {
   // sprites are its own) and one folder short of what a four-band shaft needs — the deeper
   // three would render nothing and, worse, `solidifyRock` waits for `ready` before stamping
   // collision, so they would be rock you can grow straight through.
-  if (def && def.assetsFromAll) for (const f of def.assetsFromAll) loadLevelAssets(f);
+  if (def && def.assetsFromAll) { const only = def.assetsOnly ? new Set(def.assetsOnly) : null; for (const f of def.assetsFromAll) loadLevelAssets(f, 'assets/', null, only); }
   else if (def && (def.assetsFrom || def.id)) loadLevelAssets(def.assetsFrom || def.id);
   // A PREBUILT FIRST LEG (M8 verify 3, `minePrebuildFirstLeg`): the same world, built while the gate
   // said "Tap to dig" instead of inside the tap. Taken only if it is provably the one this call would
@@ -38120,7 +38153,7 @@ function mineEndCue(r, paid) {
     const east = Math.max(0, ((paid && paid.east) != null ? paid.east : r.east) | 0);
     let bestNew = false;
     if (r._minePaid) bestNew = !!(r._mineBest && r._mineBest.isNew);
-    else if ((r.digs != null ? r.digs | 0 : (state && state.mineDigs) | 0) > 0) {
+    else if (!r.daily && (r.digs != null ? r.digs | 0 : (state && state.mineDigs) | 0) > 0) {
       try { const p = loadProgress(); const was = (typeof p.mineBest === 'number' && isFinite(p.mineBest)) ? p.mineBest : 0;
             bestNew = was > 0 && depth > was; } catch (_) {}
     }
@@ -38240,7 +38273,10 @@ function mineBank(r) {
     // save's first-visit skip and its 'Your first descent' line on nothing. And one a boot elsewhere
     // already counted is not counted again (`runsDone` doubled there before this).
     r._mineCountRun = digs > 0 && !bootCounted;
-    r._mineBest = digs > 0 ? mineRecordDepth(depth) : mineBestNow();
+    // A DAILY DIG IS NOT A JOURNEY DESCENT (M15, lead's call): its fixed boosted kit (108 water, grow 4,
+    // tolerance 2) would set `p.mineBest` — the title's 'deepest descent' and every 'New deepest' — out of
+    // the journey's reach. The daily keeps its own best in `p.mineDaily`.
+    r._mineBest = digs > 0 && !r.daily ? mineRecordDepth(depth) : mineBestNow();
     // The payout is banked, so a closed tab has nothing left to recover.
     minePendingClear(key);
     _sessionRuns++;
@@ -38703,7 +38739,7 @@ function minePendingBankAtBoot() {
       // landfall (a landfall is banked on the frame it happens), so this cannot move the journey on.
       if (dug && (pend.leg | 0) > 0) mineLegApply(p, { leg: pend.leg | 0, journey: pend.journey | 0, cause: 'pending', digs: pend.digs | 0 || 1, depth: d, east: pend.east | 0,
                                                      fossil: typeof pend.fossil === 'string' ? pend.fossil : undefined }, !already);
-      if (dug && !(p.mineBest >= d)) p.mineBest = d;
+      if (dug && !(pend.daily && pend.daily.date) && !(p.mineBest >= d)) p.mineBest = d;   // a daily keeps its own best (M15)
       // A DAILY DIG left in a hidden tab (M13): its day's record. A run decided 'paid' ALWAYS claims the day
       // here (M13 verify 2) — a repeat for the same run only moves the day's best up (the streak and the
       // paid flag are already set), so it is safe on a second boot and it never leaves a paid marker behind
@@ -41504,6 +41540,9 @@ function begin(newState) {
       journeySave: () => { try { return JSON.parse(JSON.stringify(loadProgress().mineJourney || null)); } catch (_) { return null; } },
       // M9: the scripted landfall — a clean strand placed inside landfall range of the knot, parented to
       // the colony's nearest strand, for probes that test the ENDING rather than the navigation.
+      // M15: the desktop gutter panels — their rects, the play surface's, and whether they are shown.
+      gutters: () => { const r = playSurfaceRect(), rc = (el) => { if (!el || el.hidden) return null; const b = el.getBoundingClientRect(); return { x: b.left, y: b.top, w: b.width, h: b.height, pe: getComputedStyle(el).pointerEvents, text: el.textContent }; };
+        return { surface: r, L: _mineGut && rc(_mineGut.L), R: _mineGut && rc(_mineGut.R) }; },
       plantAtTaproot: () => {
         const t = state && mineTaprootXY(state.substrate), net = state && state.active;
         if (!t || !net) return false;
@@ -43041,6 +43080,80 @@ function playSurfaceRect() {
   let w = Math.min(W, H * a), h = w / a;
   if (h > H) { h = H; w = h * a; }
   return { x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w: Math.round(w), h: Math.round(h) };
+}
+// ===================== THE DESKTOP GUTTERS (finishing plan M15) =====================
+// When the window is wide (aspect above 0.75) the phone-shaped play surface leaves two bands of void on
+// either side. 81% of itch traffic is desktop, and an empty two-thirds of the screen reads unfinished, so
+// the bands carry what the title would: LEFT the journey (strip, leg, this leg's bests, the deepest
+// descent), RIGHT the next goal and today's Daily Dig. Three rules, all asserted by release-check:
+//   - never over the play surface (each panel sits inside its band with a 16 px margin);
+//   - never a pointer target (`pointer-events: none`, and they are siblings of #game, not children);
+//   - never on a phone: aspect <= 0.75 (portrait), a band under 200 px, or a window under 500 px tall
+//     (a landscape phone is ~390) shows none.
+// Driven from the frame loop off a SIGNATURE (run, size, run over), so it rebuilds on a resize or a new
+// run and costs one string compare otherwise. Hidden whenever the run is over (the end screen, the store
+// and the title fill the window). Hook: `__game.mine.gutters()`.
+let _mineGut = null;
+const gutEsc = (x) => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function mineGutterWanted() {
+  const W = window.innerWidth, H = window.innerHeight;
+  if (!(state && state.substrate && state.substrate.mine) || state.runOver) return null;
+  if (!(W / H > 0.75) || H < 500) return null;
+  const r = playSurfaceRect(), band = r.x;
+  if (band < 200) return null;
+  return { W, H, r, band };
+}
+function mineGutterTick() {
+  const want = mineGutterWanted();
+  const sig = want ? [want.W, want.H, state.seed, state._mineRunNo | 0, (state.runResult ? 1 : 0), mineLeg ? mineLeg.leg : 0, mineDaily ? 1 : 0].join(',') : '';
+  if (_mineGut && _mineGut.sig === sig) return;
+  if (!_mineGut) {
+    const mk = (id) => { const d = document.createElement('div'); d.id = id; d.className = 'minegut'; d.hidden = true; d.setAttribute('aria-hidden', 'true'); document.body.appendChild(d); return d; };
+    _mineGut = { L: mk('mineGutL'), R: mk('mineGutR'), sig: null };
+  }
+  _mineGut.sig = sig;
+  const { L, R } = _mineGut;
+  if (!want) { L.hidden = true; R.hidden = true; return; }
+  const p = loadProgress();
+  const pw = Math.min(300, want.band - 32), top = want.r.y + Math.max(24, want.r.h * 0.12);
+  for (const [el, x] of [[L, want.band - 16 - pw], [R, want.r.x + want.r.w + 16]]) {
+    el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(top) + 'px'; el.style.width = Math.round(pw) + 'px';
+    el.style.maxHeight = Math.max(120, Math.round(want.r.h - (top - want.r.y) - 24)) + 'px'; el.style.overflow = 'hidden';
+  }
+  // LEFT: the journey.
+  let lh = '';
+  try {
+    const j = mineJourneyNow(p);
+    const daily = !!mineDaily;
+    lh += '<div class="mg-sec"><h3>Journey ' + mineRoman(j.journey) + '</h3>'
+      + '<div class="mg-big">' + (daily ? 'Daily dig' : 'Leg ' + j.leg + ' of ' + j.total) + '</div>'
+      + '<div class="mg-sub">' + (daily ? 'today\u2019s fixed kit' : gutEsc(j.name || '')) + '</div>'
+      + mineJourneyStripHTML(j) + '<div class="mg-sub">' + j.islands + ' of ' + j.total + ' islands rooted</div></div>';
+    const rec = j.rec;
+    if (!daily && rec && ((rec.runs | 0) > 0 || (rec.bestDepth | 0) > 0)) {
+      lh += '<div class="mg-sec"><h3>This leg \u00b7 ' + (rec.runs | 0) + ' run' + ((rec.runs | 0) === 1 ? '' : 's') + '</h3>'
+        + '<div>deepest <b>' + (rec.bestDepth | 0) + ' m</b></div><div>farthest <b>' + (rec.bestEast | 0) + ' m</b> east</div></div>';
+    }
+    const recs = mineTitleRecords(p);
+    if (recs) lh += '<div class="mg-sec"><h3>Records</h3><div>' + recs + '</div></div>';
+  } catch (_) {}
+  // RIGHT: the next goal and today's daily.
+  let rh = '';
+  try {
+    const g = mineTitleGoal(p);
+    rh += '<div class="mg-sec"><h3>Next goal</h3><div class="mg-big">' + gutEsc(g ? g.replace(/^Next: /, '') : 'Dig deeper, then east') + '</div></div>';
+    if (mineDailyUnlocked(p)) {
+      const v = mineDailyView(p);
+      rh += '<div class="mg-sec"><h3>Daily dig \u00b7 ' + gutEsc(v.label) + '</h3><div>'
+        + (v.playedToday ? 'today\u2019s best <b>' + v.best + ' m</b>' : 'not dug yet today')
+        + (v.streak ? ' \u00b7 streak <b>' + v.streak + '</b>' : '') + '</div><div class="mg-sub">'
+        + (v.paidToday ? 'paid run banked \u2014 practice from here' : 'one paid run waiting') + '</div></div>';
+    } else {
+      rh += '<div class="mg-sec"><h3>Daily dig</h3><div class="mg-sub">opens when you root your first island</div></div>';
+    }
+  } catch (_) {}
+  L.innerHTML = lh; R.innerHTML = rh;
+  L.hidden = !lh; R.hidden = !rh;
 }
 function resize() {
   const dpr = renderScale();
@@ -44663,6 +44776,7 @@ function frame(time) {
   if (state.substrate && state.substrate.mine) { if (state._minePassArmed) mineFilePasses(); state._minePassN = 0; state._minePassArmed = true; }
   advanceSim(time);
   syncBusyCursor();
+  try { mineGutterTick(); } catch (_) {}   // M15: the desktop gutters (a signature compare when nothing moved)
   syncCrazyGameplay();   // no-op without the SDK; edge-triggered, so this is two comparisons
   // A full-screen menu (title / species picker / loadout / death-carry) fully covers the
   // canvas. Don't render the (possibly finished) run behind it: it's invisible anyway, and
@@ -48461,6 +48575,7 @@ window.__cfg = CONFIG;
 // A check can now gate its title-shape block on the door being open and keep driving the GAME behind
 // it through the boot hashes, which is what `OFFER_REALTIME` has always been tested through.
 window.__offers = { realtime: OFFER_REALTIME, survival: OFFER_SURVIVAL, mine: OFFER_MINE, campaign: OFFER_CAMPAIGN };
+window.__bootDiet = () => _mineDiet;   // M15: did this boot take the diet (see `_mineDiet`)
 // The two per-mode tuning tables, so a check can assert "this mode loaded ITS OWN table"
 // against the table itself instead of re-pinning the numbers. Three separate checks had
 // hard-coded copies of these rates, which meant a retune broke two of them with assertion
@@ -48556,7 +48671,22 @@ function mineFirstVisit() {
 // unlocks audio autoplay. URLs use the SAME cache-bust query the UI requests (assetUrl), so
 // the decoded copy is the one actually used — the spore icon has no query, matching SPORE_ICON.
 const _load = showLoading();
-const _bootImgs = [].concat(
+// THE BOOT DIET (M15). With the Deep Mine the only game offered (OFFER_CAMPAIGN / OFFER_SURVIVAL both
+// off), a plain-URL or '#mine' / '#leg' boot fetches nothing the mine never shows: no card faces (71),
+// no species portraits (17), no threat portraits or spore icon (the level card and the Spores wallet),
+// and none of the manifest's eager art that only the procedural map and the card game draw (boulders,
+// formations, cities, house, ant colonies, the nut caches (player-dropped food only), the yellow duff leaves
+// (a seam is 'cache' or 'cache-engine') and the surface lakes (a mine has pockets, no lakes); and of the
+// band folders only the 126 sprites the libraries use. Measured on a first visit: 309 requests / 19.3 MB
+// before the gate -> 150 / 11.1 MB; a returning boot 193 / 15.3 MB -> 29-40 / ~6 MB (0.33-0.41 s to ready). GATED: re-offer either game, boot a '#dev' / '#level' sandbox, or
+// set `window.MYCELIUM_FULL_BOOT = true` and the boot is the full one, byte for byte. The skip list is
+// MEASURED, not guessed — a frame of the mine with and without it is pixel-identical (tests/boot-probe).
+const _mineDiet = OFFER_MINE && !OFFER_CAMPAIGN && !OFFER_SURVIVAL && !devUI()
+  && window.MYCELIUM_FULL_BOOT !== true && /^(#(mine|leg)(,.*)?)?$/.test(location.hash || '');
+const MINE_DIET_SKIP = (typeof window.MYCELIUM_DIET_SKIP === 'string') ? new RegExp(window.MYCELIUM_DIET_SKIP)
+  : /^(rockform\d+|troll|rock(Basalt|Mossy|River|Slate|Veined)|skyline\d+|house|antColony[AB]|acorn|chestnut|pinecone|leafYellow\w+|lake\d)$/;
+function _mineDietSkip(a) { return MINE_DIET_SKIP.test(a.key); }
+const _bootImgs = _mineDiet ? [] : [].concat(
   CARD_DATA.map((c) => assetUrl('assets/cards/' + cardSlug(c.name) + '.jpg')),
   SPECIES.map((s) => assetUrl('assets/species/' + s.img + '.jpg')),
   // animated-portrait plates (species.artAnim): static base + one animated layer per gnome
@@ -48652,13 +48782,15 @@ CRAZY.init().then((ok) => { if (ok) CRAZY.loadingStart(); });
 // RETURNING PLAYERS DO NOT WAIT FOR IT: they get the title, not a descent, so the gate opens on the
 // base assets and the band art (and its masks, in small slices) loads behind the title instead.
 const _bandFolders = OFFER_MINE ? [...new Set(((CONFIG.mine && CONFIG.mine.bands) || []).map((b) => b.assetsFrom).filter(Boolean))] : [];
+// Only the sprites the bands' libraries draw (the level def's `assetsOnly`, the same list).
+const _bandOnly = OFFER_MINE ? new Set([].concat(...((CONFIG.mine && CONFIG.mine.bands) || []).map((b) => (MINE_ROCKS[b.theme] || []).map((r) => r.k)))) : null;
 // `!devUI()` (verifier minor): a fresh ?dev=1 save goes to the TITLE (enterGame), so it must not wait
 // behind the band preload either — the two predicates agree.
 const _bandBlocking = OFFER_MINE && mineFirstVisit() && !devUI() && window.MYCELIUM_NO_BAND_PRELOAD !== true;
 let _mReserved = false;
 function _reserveBandBill() {
   if (_mReserved || !_bandBlocking) return;
-  let n = 0; for (const f of _bandFolders) n += levelAssetKeys(f).length;
+  let n = 0; for (const f of _bandFolders) n += levelAssetKeys(f, _bandOnly).length;
   if (!n) return;
   _mReserved = true; _mTot += 2 * n;            // one step per file, one per mask
 }
@@ -48669,13 +48801,13 @@ function _preloadBands(sliceMs, gapMs, count) {
   return Promise.all(_bandFolders.map((f) => loadLevelAssets(f, 'assets/', (d, t) => {
     if (!count) return;
     _mDone += d; if (!_mReserved) _mTot += t; _bootProgress();
-  }))).then(() => {
+  }, _bandOnly))).then(() => {
     // ...AND THEIR ALPHA MASKS ARE BUILT HERE TOO. The first `solidifyRock` spent ~1.4 s in
     // `_alphaMask`'s getImageData (the first draw of each sprite decodes it) — measured as the
     // whole gap between the tap and the curtain lifting. The masks are cached by image source,
     // so building them now makes the first stamp cheap. In small batches, so the counter moves.
     const keys = [];
-    for (const f of _bandFolders) for (const k of levelAssetKeys(f)) keys.push(k);
+    for (const f of _bandFolders) for (const k of levelAssetKeys(f, _bandOnly)) keys.push(k);
     if (count && !_mReserved) { _mTot += keys.length; _bootProgress(); }
     return new Promise((res) => {
       let i = 0;
@@ -48699,7 +48831,7 @@ function _preloadBands(sliceMs, gapMs, count) {
 // can put a descent in front of art that has not arrived — the case the M2 collision gate exists for
 // (a slow link where the 12 s safety net lets the player in first). ship-check's gate block.
 Promise.all([
-  loadAssets('assets/', (d, t) => { _aKnown = true; _reserveBandBill(); _aDone = d; _aTot = t; _bootProgress(); }).then(() => {
+  loadAssets('assets/', (d, t) => { _aKnown = true; _reserveBandBill(); _aDone = d; _aTot = t; _bootProgress(); }, _mineDiet ? { skip: _mineDietSkip } : null).then(() => {
     if (!OFFER_MINE || window.MYCELIUM_NO_BAND_PRELOAD === true) return;
     if (!_bandBlocking) { _preloadBands(12, 16, false); return; }
     return _preloadBands(40, 0, true);

@@ -36,7 +36,7 @@
  *            in the store note and the Water tile.
  *
  * Screens: tests/.artifacts/m13-{title,daily-end,strains,fossil,practice}-390.png, m13-title-{1280x720,640x360}.png.
- * `RETURN_ONLY=fossil,seed,payout,board,journey,strains,title,tabs` runs a subset.
+ * `RETURN_ONLY=fossil,seed,payout,best,board,journey,strains,title,tabs` runs a subset.
  */
 const path = require('path'), fs = require('fs');
 const H = require('./mine-harness.cjs');
@@ -286,6 +286,46 @@ const endRun = async (page) => {
       ok("one 'daily' event per banked run, naming paid / practice and the streak",
          ev.join(',') === '20260925:paid:s1,20260925:practice:s1,20260925:practice:s1,20260926:paid:s2,20260927:paid:s3,20260929:paid:s1', JSON.stringify(ev));
       ok('no page errors (payout)', !b.errs.length, b.errs.slice(0, 2).join(' | '));
+      await b.ctx.close();
+    }
+
+    // ------------------------------------------------------------------ best (M15)
+    // A DAILY'S DEPTH DOES NOT FEED THE JOURNEY'S RECORD. The daily's fixed boosted kit (108 water, grow 4,
+    // tolerance 2) would set `p.mineBest` — the title's 'deepest descent' and every 'New deepest' — out of
+    // the journey's reach. Teeth: the daily digs past the save's best (10 m). Control: a journey descent on
+    // the same save to the same depth DOES move it, so the record path itself is alive.
+    if (want('best')) {
+      console.log("--- a daily's depth is not the journey's record");
+      const b = await E.boot('', 390, 844, { before: prep({ clock: D25, save: Object.assign({}, LANDED, { mineBest: 10 }) }) });
+      const p = b.page;
+      await p.waitForSelector('#tsDaily', { timeout: 20000 }).catch(() => {});
+      await sleep(2400);
+      await p.click('#tsDaily');
+      await waitRun(p, 's.config.mine.daily');
+      await digDown(p, 24);
+      const r1 = await endRun(p);
+      const s1 = await save(p);
+      const cue = await p.evaluate(() => !!(window.__game.state.runResult && window.__game.state.runResult._mineBest && window.__game.state.runResult._mineBest.isNew));
+      ok("a daily dug past the journey's best (10 m) leaves p.mineBest at 10, keeps its own best, and is no 'new deepest'",
+         (r1.depth | 0) > 10 && s1.mineBest === 10 && (s1.mineDaily && (s1.mineDaily.best | 0) === (r1.depth | 0)) && !cue,
+         JSON.stringify({ depth: r1.depth, mineBest: s1.mineBest, dailyBest: s1.mineDaily && s1.mineDaily.best, cue }));
+      // ...and the title's record line says so.
+      await p.evaluate(() => window.__game.showTitle && window.__game.showTitle());
+      await p.waitForSelector('#tsRecords', { timeout: 15000 }).catch(() => {});
+      await sleep(600);
+      const rec = await p.evaluate(() => (document.getElementById('tsRecords') || {}).textContent || '');
+      ok("...and the title's record line still reads the journey's 10 m", /deepest descent 10 m/.test(rec), JSON.stringify(rec));
+      // CONTROL: a journey descent to the same depth moves the record.
+      await p.evaluate(() => window.__game.mine.playLeg(1, 2));
+      await waitRun(p, '!s.config.mine.daily && s.substrate.mineJourney');
+      // The daily's end screen is still in the DOM, so wait for THIS run's bank rather than for #ssMineEnd.
+      const r2 = await (async () => { await digDown(p, 24); await endRun(p);
+        await p.waitForFunction(() => { const r = window.__game.state.runResult; return !!(r && r._minePaid); }, { timeout: 20000 }).catch(() => {});
+        return p.evaluate(() => Object.assign({}, window.__game.state.runResult || {})); })();
+      const s2 = await save(p);
+      ok("CONTROL: a journey descent past 10 m does move p.mineBest", (r2.depth | 0) > 10 && s2.mineBest === (r2.depth | 0),
+         JSON.stringify({ depth: r2.depth, mineBest: s2.mineBest, daily: r2.daily, digs: r2.digs, cause: r2.cause, paid: r2._minePaid, leg: r2.leg, best: r2._mineBest }));
+      ok('...no page errors', b.errs.length === 0, b.errs.join(' | '));
       await b.ctx.close();
     }
 
