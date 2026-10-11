@@ -21,8 +21,9 @@
  *            raster forced per frame (a 1 px readback: a synchronous renderFrame only records), dsf 2 (a
  *            phone's capped backing store) and dsf 1.
  *
- *            Three blocks of 100 frames, gated on the median block's p95 (one 60-frame block was host noise);
- *            a panning camera and human-paced digging are PRINTED alongside. Needs an idle host.
+ *            Five blocks of 100 frames, gated on the POOLED p95 of all 500 (each block's p95, the pooled p99 and the
+ *            longest run over 25 ms are printed); a panning camera and human-paced digging are PRINTED alongside.
+ *            Needs an idle host — the bursts it can see are VM steal (tests/perf-burst-probe.cjs).
  *
  *   slow     A SLOW OR STALLED BOOT: a mask table answering late (the % moves first, the gate stops waiting at
  *            MASK_TABLE_WAIT_MS, the late table is still taken up), a table that never answers, and a manifest held
@@ -344,11 +345,16 @@ const seedSave = (sv) => (p) => p.addInitScript((sv) => { try { if (sv) localSto
           return { ok: true, inView: inView.length, worms: s.nematodes.length, nodes: net.nodes.length };
         });
         await sleep(1500);
-        // THREE BLOCKS OF 100 FRAMES, GATED ON THE MEDIAN BLOCK'S p95 (M15 verify): one 60-frame window read
-        // 14.4 ms on an idle host and 25-73 ms with another test job on the CPUs — every pass slowed by the same
-        // factor, i.e. contention, not the game. The bound is unchanged; the sample is bigger and one stalled
-        // block no longer decides it. THE GATE STILL WANTS AN IDLE HOST: run it alone, or in the --mine sweep
-        // (which runs one check at a time).
+        // FIVE BLOCKS OF 100 FRAMES, GATED ON THE POOLED p95 OF ALL 500 (M15 verify round 2). The first verify round
+        // gated on the MEDIAN BLOCK'S p95, which threw away a worst block that read 55.5 ms — a statistic that cannot
+        // see a burst. Bursts of ~5-14 consecutive 40-90 ms frames were then measured (tests/perf-burst-probe.cjs) and
+        // they are THE HOST, not the game: they survive drawing the identical picture every frame (a fixed clock), a
+        // pure-JS control loop timed beside each frame slows 1.4-2.6x in exactly those frames, the CPU profile is the
+        // same shape (~91% the raster flush inside getImageData; GC ~0.02 ms a frame; no memo builds), and the VM's
+        // steal time reads 6.5% in the slow frames' windows against 1.9% in the rest. So the gate keeps the bound
+        // (25 ms) on the pooled p95, prints each block's p95, the pooled p99 and the longest run over 25 ms, and takes
+        // five blocks so that one steal burst (~3% of 500 frames) cannot decide the 95th percentile alone.
+        // THE GATE STILL WANTS AN IDLE HOST: run it alone, or in the --mine sweep (which runs one check at a time).
         const block = () => b.page.evaluate(() => {
           const g = window.__game, c = document.getElementById('game').getContext('2d'), out = [];
           if (g.state.nematodes.length > 16) g.state.nematodes.length = 16;   // the placed 16 are first
@@ -359,9 +365,12 @@ const seedSave = (sv) => (p) => p.addInitScript((sv) => { try { if (sv) localSto
                    wormsOnScreen: s.nematodes.filter((w) => Math.abs(w.x - cam.x) < halfW && Math.abs(w.y - cam.y) < halfH).length };
         });
         const blocks = [];
-        for (let k = 0; k < 3; k++) { blocks.push(await block()); await sleep(300); }
+        for (let k = 0; k < 5; k++) { blocks.push(await block()); await sleep(300); }
         const p95s = blocks.map((x) => pct(x.ms, 0.95));
-        const r = blocks.slice().sort((x, y) => pct(x.ms, 0.95) - pct(y.ms, 0.95))[1];
+        const pooled = [].concat(...blocks.map((x) => x.ms));
+        let longest = 0; for (const B of blocks) { let run = 0; for (const v of B.ms) { run = v > 25 ? run + 1 : 0; longest = Math.max(longest, run); } }
+        const r = { ms: pooled, nodes: Math.min(...blocks.map((x) => x.nodes)), worms: Math.max(...blocks.map((x) => x.worms)),
+                    wormsOnScreen: Math.min(...blocks.map((x) => x.wormsOnScreen)) };
         // PRINTED, NOT GATED: the camera MOVING (a still camera is the case every memo hits) — 2 px a frame for
         // 100 frames — and human-paced play (a dig every 90 frames, i.e. ~1.5 s, with the camera following).
         const moving = await b.page.evaluate(() => {
@@ -377,9 +386,10 @@ const seedSave = (sv) => (p) => p.addInitScript((sv) => { try { if (sv) localSto
         const pr = (a) => `median ${med(a).toFixed(1)} / p95 ${pct(a, 0.95).toFixed(1)} ms`;
         console.log(`  (printed, not gated) dsf ${dsf} camera panning 2 px a frame: ${pr(moving.pan)}; a dig every ~1.5 s: ${pr(moving.dig)}`);
         await b.page.screenshot({ path: path.join(ART, `m15-perf-3000-dsf${dsf}-390.png`), timeout: 8000, animations: 'disabled' }).catch(() => {});
-        ok(`renderFrame p95 <= 25 ms at 3,000 strands and 16 worms, 390x844 dsf ${dsf}, raster forced per frame`,
+        ok(`renderFrame p95 <= 25 ms at 3,000 strands and 16 worms, 390x844 dsf ${dsf}, raster forced per frame (pooled over every timed frame)`,
            W.ok && r.nodes >= 3000 && r.worms === 16 && r.wormsOnScreen >= 12 && pct(r.ms, 0.95) <= 25,
-           `median block: median ${med(r.ms).toFixed(2)} ms, p95 ${pct(r.ms, 0.95).toFixed(2)}, max ${Math.max(...r.ms).toFixed(2)} over ${r.ms.length} frames (block p95s ${p95s.map((x) => x.toFixed(1)).join(' / ')}); ${r.nodes} strands, ${r.worms} worms (${r.wormsOnScreen} on screen); fill ${JSON.stringify(st.fill)}`);
+           `pooled over ${r.ms.length} frames: median ${med(r.ms).toFixed(2)} ms, p95 ${pct(r.ms, 0.95).toFixed(2)}, p99 ${pct(r.ms, 0.99).toFixed(2)}, max ${Math.max(...r.ms).toFixed(2)}; `
+           + `${r.ms.filter((v) => v > 25).length} frames over 25 ms, longest run ${longest} (block p95s ${p95s.map((x) => x.toFixed(1)).join(' / ')}); ${r.nodes} strands, ${r.worms} worms (${r.wormsOnScreen} on screen); fill ${JSON.stringify(st.fill)}`);
         ok(`...no page errors (dsf ${dsf})`, b.errs.length === 0, b.errs.join(' | '));
         await b.ctx.close();
       }

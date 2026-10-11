@@ -198,12 +198,21 @@ await p.evaluate(() => {
     // config; whole-number rings (2x, 3x, 4x) put every candidate past sight and the finder
     // returned null for every map.
     const sight = Math.max(sub.cellSize * 4, s.config.nematodes.sightRadius || 500);
-    for (const mult of [1.15, 1.3, 1.5, 1.7, 1.15, 1.4]) {
+    // A WIDER SEARCH WHEN THE NARROW ONE FINDS NOTHING (M15 verify round 2): the twelve deepest strands, sixteen
+    // bearings and six rings came up empty on about one map in five (THREAT_CLOCK=1717171717171: 'no clear spot
+    // to measure a crawl from' and '...a creep from'). The narrow pass runs first and unchanged, so every map
+    // it served is measured from the same spot as before; only a map it fails falls through to every strand
+    // (up to ~240, spread over the colony), 32 bearings and rings every 0.1 of a step out to the sight radius.
+    const all = net.nodes.length > 240 ? net.nodes.filter((_, i) => i % Math.ceil(net.nodes.length / 240) === 0) : net.nodes;
+    const wide = [1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9];
+    const passes = [[[1.15, 1.3, 1.5, 1.7, 1.15, 1.4], 16, deep], [wide, 32, all]];
+    for (const [mults, nAng, cands] of passes)
+    for (const mult of mults) {
       const D = step * mult;
       if (D >= sight) continue;                                   // nothing would be in sight
-      for (let k = 0; k < 16; k++) {
-        const ang = k * Math.PI / 8;
-        for (const T of deep) {
+      for (let k = 0; k < nAng; k++) {
+        const ang = k * 2 * Math.PI / nAng;
+        for (const T of cands) {
           const x = T.x + Math.cos(ang) * D, y = T.y + Math.sin(ang) * D;
           if (!inB(x, y) || sub.solidAtWorld(x, y)) continue;
           let best = null, bd = Infinity;
@@ -225,6 +234,42 @@ await p.evaluate(() => {
           return { x, y, gap: bd / cs, heading: Math.atan2(best.y - y, best.x - x) };
         }
       }
+    }
+    // ...AND WHEN NO SUCH SPOT EXISTS, MAKE ONE (M15 verify round 2). THREAT_CLOCK=1717171717171 rolls a map whose
+    // ten-grow colony sits against the left edge walled in on every side: from every open point 1.1-1.9 steps out,
+    // rock blocks the line to the nearest strand (31,501 candidates out of bounds, 4,270 with no line of sight, 0
+    // usable) — so no search, however wide, can find one, and the crawl and creep assertions failed on a question
+    // about the MAP. The probe is about how far a creature moves in one step, so it carves the geometry it needs:
+    // a corridor one cell either side from the deepest strand straight down (then fanning out) 1.4 steps, clearing
+    // both masks the movers and the sight test read (`cell.rock`, and `_fineSolid` for `segmentClear`), then asks
+    // the same questions of the carved spot. The result says `carved` so the detail line shows which kind it was.
+    const F = sub._fineSize, FW = sub._fineCols, fsol = sub._fineSolid;
+    const carve = (x0, y0, x1, y1, rad) => {
+      const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0) / (cs * 0.25)));
+      for (let i = 0; i <= n; i++) {
+        const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n;
+        for (let c = sub.colAtX(x - rad); c <= sub.colAtX(x + rad); c++) for (let r = sub.rowAtY(y - rad); r <= sub.rowAtY(y + rad); r++) {
+          if (!sub.inBounds(c, r)) continue; const cell = sub.cells[sub.index(c, r)]; cell.rock = 0; cell.hazard = 0;
+        }
+        if (fsol) for (let fc = Math.floor((x - rad) / F); fc <= Math.floor((x + rad) / F); fc++) for (let fr = Math.floor((y - rad - sub.surfaceY) / F); fr <= Math.floor((y + rad - sub.surfaceY) / F); fr++) {
+          if (fc >= 0 && fr >= 0 && fc < FW && fr < sub._fineRows && fsol[fr * FW + fc] === 1) fsol[fr * FW + fc] = 0;
+        }
+      }
+    };
+    const T = deep[0];
+    if (T) for (const da of [0, 0.35, -0.35, 0.7, -0.7, 1.05, -1.05]) {
+      const ang = Math.PI / 2 + da, D = step * 1.4;
+      const x = T.x + Math.cos(ang) * D, y = T.y + Math.sin(ang) * D;
+      if (!inB(x, y) || D >= sight) continue;
+      carve(T.x, T.y, x, y, cs * 1.5);
+      let best = null, bd = Infinity;
+      for (const nd of net.nodes) { const d = Math.hypot(nd.x - x, nd.y - y); if (d < bd) { bd = d; best = nd; } }
+      if (!best || bd <= step * 1.05 || bd >= sight) continue;
+      carve(x, y, best.x, best.y, cs * 1.5);
+      if (!sub.segmentClear(x, y, best.x, best.y)) continue;
+      const ux = (best.x - x) / bd, uy = (best.y - y) / bd;
+      if (!pathOk(x, y, x + ux * step, y + uy * step)) continue;
+      return { x, y, gap: bd / cs, heading: Math.atan2(best.y - y, best.x - x), carved: true };
     }
     return null;
   };
@@ -255,11 +300,11 @@ const crawl=await p.evaluate(()=>{
   // promise about which one it is.
   const w2=s.nematodes.includes(w) ? w : null;
   if (!w2) return {err:'the measured worm was removed during the step'};
-  return { moved:Math.hypot(w2.x-x0, w2.y-y0)/cs, want, saw:!!w2.sees, gap:spot.gap };
+  return { moved:Math.hypot(w2.x-x0, w2.y-y0)/cs, want, saw:!!w2.sees, gap:spot.gap, carved:!!spot.carved };
 });
 ok('the worm could see the colony, from beyond one step',
    !crawl.err && crawl.saw===true && crawl.gap > crawl.want,
-   crawl.err || `nearest strand ${crawl.gap.toFixed(1)} cells, one step is ${crawl.want}`);
+   crawl.err || `nearest strand ${crawl.gap.toFixed(1)} cells, one step is ${crawl.want}${crawl.carved ? ' (a carved spot: this map has none)' : ''}`);
 ok('a worm crawls crawlSpeed cells in one action',
    !crawl.err && Math.abs(crawl.moved-crawl.want)<0.05,
    crawl.err || `moved ${crawl.moved.toFixed(3)} cells, table says ${crawl.want}`);
@@ -438,11 +483,11 @@ const creep=await p.evaluate(()=>{
   const x0=spot.x, y0=spot.y;
   G.tickWorld(s);
   const c=s.clouds[0];
-  return { moved:c?Math.hypot(c.cx-x0,c.cy-y0)/cs:-1, want, saw:!!(c&&c.sees), gap:spot.gap };
+  return { moved:c?Math.hypot(c.cx-x0,c.cy-y0)/cs:-1, want, saw:!!(c&&c.sees), gap:spot.gap, carved:!!spot.carved };
 });
 ok('the cloud could see the colony, from beyond one step',
    !creep.err && creep.saw===true && creep.gap > creep.want,
-   creep.err || `nearest strand ${creep.gap.toFixed(1)} cells, one step is ${creep.want}`);
+   creep.err || `nearest strand ${creep.gap.toFixed(1)} cells, one step is ${creep.want}${creep.carved ? ' (a carved spot: this map has none)' : ''}`);
 ok('a mould cloud creeps moveSpeed cells in one action',
    !creep.err && Math.abs(creep.moved-creep.want)<0.05,
    creep.err || `moved ${creep.moved.toFixed(3)} cells, table says ${creep.want}`);
