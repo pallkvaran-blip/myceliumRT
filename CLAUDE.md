@@ -6678,6 +6678,65 @@ what it was measured against. NUMBERS ONLY — no mechanic changed.
   leg 8 cannot grow. The plan's model put leg 7-8 runs at 140-161 s with ~82 human digs from a 144 tank, i.e. digs
   at ~1.75 water; the navigator's leg-7 crossing branches to ~142 m and prices most digs at 2-4.
 
+### M15 — Release hygiene: boot, desktop, perf gate, analytics, docs, final cut (DONE; acceptance 1 first-visit half short)
+
+- **BOOT DIET** (`_mineDiet` in main's boot; `loadAssets(..., {skip})`; `MINE_DIET_SKIP`; `window.__bootDiet()`):
+  a plain-URL / '#mine' / '#leg' boot with OFFER_CAMPAIGN and OFFER_SURVIVAL off and no `devUI()` preloads no card
+  faces (71), species portraits (17), threat portraits, spore icon, and none of the manifest's procedural /
+  card-game sprites (rockform*, troll, rock*, skyline*, house, antColony*, acorn/chestnut/pinecone, leafYellow*,
+  lake1-3). Anything else (`#dev`, `#level`, a re-offered game, `window.MYCELIUM_FULL_BOOT`) is the full boot.
+  Band folders: only the 126 sprites the libraries use (`def.assetsOnly`, `loadLevelAssets(id, base, onStep, only)`,
+  `levelAssetKeys(id, only)`; one load per key across calls via `KEY_LOADS`), not 153 (-694 KB).
+  - **THE SKIP LIST IS MEASURED** — `node tests/boot-probe.cjs ab`: the same leg-1 world, diet vs full boot, five
+    views (hill/sky, island, seam, pocket, deep), one frame at a fixed clock. Diet: 0 diffs except a band at the
+    soil line that the full-vs-full control (`ab control`) shows too. Positive control: skipping mountains/moon/tree
+    reads 909 big diffs. GOTCHA: `hasAsset` is asked in `filter` predicates for every procedural key (formationGroups,
+    rockGroups, drawMountains, drawCities) — "asked" is not "drawn"; `window.__assetAsked` (a Set, init script) records
+    asks, the A/B decides. The troll rockface's manifest key is `troll`, not `rockface`.
+  - **Measured** (`tests/boot-probe.cjs first|returning`): returning boot 193 req / 15.3 MB / 0.75 s -> **29-40 / ~6 MB /
+    0.33-0.41 s** to `ld-ready`. First visit 309 / 19.3 MB / 2.2-2.5 s -> **150 / 11.1 MB / 1.8-2.2 s**.
+  - **DEVIATION (acceptance 1, first visit):** the first visit's band bill (126 files + their alpha masks) stays behind
+    the gate on purpose — M4's tap->map curtain (<= 600 ms) waits for every band sprite. Every file has landed by
+    ~0.5 s; the other ~1.3 s is `_alphaMask` (a 160 px downscale of each sprite on the main thread, i.e. its decode).
+    Tried and reverted: `img.decode()` before a level sprite counts as landed (2.7-2.8 s: worse). Atlas packing
+    rejected: same bytes (requests are cheap over HTTP/2; bytes are what a slow link pays), a decode RAM spike, and
+    the mask-identity risk. So acceptance 1 passes for a returning boot and is short for a first visit.
+- **DAILY DEPTH IS NOT THE JOURNEY'S RECORD** (lead's call): `mineBank`, the boot bank and `mineEndCue` skip
+  `p.mineBest` for a daily; the daily keeps `p.mineDaily.best`. return-check `best` (4) with a negative control (the
+  fix reverted: 2 fail). GOTCHA in the control: after a daily the old `#ssMineEnd` is still in the DOM, so waiting for
+  it does not wait for the next run's bank — wait for `runResult._minePaid`.
+- **DESKTOP GUTTERS** (`mineGutterTick`, from `frame()`, signature-driven; `#mineGutL` / `#mineGutR`, `.minegut`;
+  hook `mine.gutters()`): left = journey (leg, name, strip, islands, this leg's runs/bests, records); right = next goal
+  (`mineTitleGoal`) and today's daily (or when it opens). Shown when W/H > 0.75, H >= 500 and a band >= 200 px;
+  `pointer-events: none`; inside the bands with a 16 px margin; hidden once the run is over. Screens
+  `tests/.artifacts/m15-gutters-{1280x720,1366x768,1920x1080,390x844,844x390}.png`.
+- **PERF GATE** (release-check `perf`): leg 4, `perfState` to 3,000 strands, exactly 16 worms moved onto clean strands
+  in view, 60 timed frames closed with a 1 px readback. dsf 2: median 13.1 / **p95 14.4 ms**; dsf 1: 6.5 / 9.8.
+- **ANALYTICS** (`scripts/gen-analytics.mjs`, `MINE_SECTION`): a Deep Mine section (`.panel[data-game="mine"]`): KPIs,
+  a 10 m depth histogram, a per-leg table (descents off run_end `L<leg>`, rooted players off `island`), causes, the
+  Daily Dig (paid / practice), a first-session funnel by tip id. The D1/D3/D7 cohort table already existed. "How far
+  people get" defaults to campaign + survival and says the mine has legs under Game=mine. analytics-check gains a
+  mine fixture (6 players x 6 days; its upgrade is `growSteps` because the campaign's sold-step assertion pins
+  `water`'s count) and 10 assertions incl. a Game=campaign control: 89 -> 99. In `--mine` now.
+- **THE FIRST-CUE FLAKE WAS A GAME DEFECT** (juice 'first cue at its own level'): reproduced with
+  `tests/firstcue-probe.cjs` under 3 CPU hogs — first thud -27.7/-27.7/-20.1/-20.1/-18.9 dBFS, compressors at ~0.
+  (1) thud/heartbeat/gong built their PeriodicWave AFTER `_ct` took the start time and the first createPeriodicWave
+  is slow: built in `initSfx` now, and `_tone`/`_held` clamp a past start. (2) a 3-5 ms lead is under one render quantum
+  plus the thread hop, so every attack was clipped by a varying amount (thud -20.1 at 3 ms, -19.3 at 30 ms):
+  `CUE_LEAD` 20 ms. After: 7/7 boots under load -22.4/-22.4. Levels moved: thud -20.1 -> -22.4, seam -17.8 -> -18.1,
+  ten gongs -12.7 -> -12.8 (gate -12). Tolerance unchanged.
+- **DOCS**: `docs/itch-description.md` rewritten for the mine alone, with a table naming the index.html constant behind
+  every number; tags re-cut (`roguelite, mining, maze, casual, mushroom, ...`; card-game tags out). `docs/mine-plan.html`
+  records where the build stands and answers its three open questions.
+- **THE FINAL CUT** (local, nothing uploaded, no CI): `pip install --target <scratch> Pillow imageio-ffmpeg`, then
+  `PYTHONPATH=<scratch> node scripts/make-web-zip.mjs --platform itch|crazygames`. Build stamp **2026-10-11-38a2ac5**.
+  Both **31.8 MB (33,310,4xx bytes), 549 entries** (caps 1000 / 1500), manifest 2277 -> 441, webp 17.13 -> 13.56 MB,
+  mp3 11.7 -> 9.0 MB. `itchzip-check` **24/24** (itch), **25/25** (crazygames, SDK loaded and the build played with the
+  SDK unreachable). The card/species art is still IN the zip (not fetched by a mine boot) — the archived-art lesson
+  says prune it only with every face-rendering screen checked.
+- **CHECKS**: `tests/release-check.cjs` (`release`, in `--mine`, 25: boot 6, gutters 15, perf 4 — counted in the full
+  run); tools `tests/boot-probe.cjs`, `tests/firstcue-probe.cjs`.
+
 ## Two games on the title screen: Survival and Campaign
 
 **SURVIVAL IS OFFERED AGAIN — `OFFER_SURVIVAL = true` (owner: *"let's add survival back, but put
