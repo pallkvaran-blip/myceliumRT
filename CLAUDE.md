@@ -3576,7 +3576,10 @@ sessions and a session that only reads CLAUDE.md must still be able to work. **N
 owner's, not suggestions.**
 
 **PROGRESS — keep this line honest, it is how the next session knows where to start:**
-`PHASES 1 AND 2 COMPLETE. Phase 3: (07) green islands and the journey east — next.`
+`PHASES 1-4 BUILT. Phases 3 and 4 (the journey east, compasses, pricing) were built through the finishing
+plan's M7-M14; THE PROGRESS LINE UNDER "THE FINISHING PLAN (claude/deep-mine-finish)" IS THE SOURCE OF TRUTH
+from here on — read it, not this one.` (Updated in M15's second verify round; it read "Phase 3 — next" for
+the whole of M7-M15.)
 
 #### The premises (settled, do not re-litigate)
 

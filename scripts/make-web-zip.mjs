@@ -222,6 +222,20 @@ if (process.argv.includes('--dry-run')) {
   process.exit(0);
 }
 
+// ---- 1c. the inline script's full-line comments, stripped (M15 verify round 2) -----------------------------
+// ~1.03 MB of index.html's ~2.9 MB is full-line `//` comments — the repo's own documentation, which a player's
+// browser downloads first and never runs. On itch (gzip via Cloudflare) the page goes ~910 -> ~470 KB on the
+// wire, ~2.4 s at 1.5 Mbps; uncompressed, ~5.8 s. AFTER every anchored patch above (the dev flag's anchor is a
+// comment). Lexed, verified and parse-checked by scripts/strip-js-comments.mjs, which THROWS rather than
+// guess — a throw fails the build. `--keep-comments` ships the page as it is in the repo.
+if (!process.argv.includes('--keep-comments')) {
+  const { stripHtmlScript } = await import('./strip-js-comments.mjs');
+  const before = html.length;
+  const r = stripHtmlScript(html);
+  html = r.html;
+  say(`comments: ${r.lines} full-line comments stripped from the script (${mb(before)} -> ${mb(html.length)})`);
+}
+
 fs.rmSync(STAGE, { recursive: true, force: true });
 fs.mkdirSync(path.join(STAGE, 'assets'), { recursive: true });
 fs.writeFileSync(path.join(STAGE, 'index.html'), html);
@@ -328,8 +342,17 @@ if (!process.argv.includes('--no-shrink')) {
     process.exit(2);
   }
   say('re-encoding at high quality (a few minutes — libwebp method=6):');
+  // THE MINE BOOT'S SIX TRUECOLOUR PNGs BECOME WEBP (M15 verify round 2): 1.85 -> ~0.23 MB of what a first visit
+  // downloads before it can play, alpha bit-identical — see `convert_to_webp` in shrink-assets.py. Reached only
+  // through the manifest by key; the build FAILS if the staged page names one of their files.
+  const BOOT_WEBP = ['goalhill', 'goalbush', 'moon', 'reservoir1', 'reservoir2', 'reservoir3'];
+  for (const k of BOOT_WEBP) {
+    const ent = (mf.assets || []).find((a) => a && a.key === k);
+    if (!ent || !/\.png$/.test(ent.file)) die(`--to-webp: manifest key ${k} is missing or not a png`);
+    if (html.includes(ent.file)) die(`--to-webp: the staged index.html names ${ent.file}; it must be reached through the manifest`);
+  }
   execFileSync('python3', [path.join(ROOT, 'scripts', 'shrink-assets.py'), path.join(STAGE, 'assets'),
-    '--rock', '85', '--card', '85', '--species', '85', '--png', '0'], { stdio: 'inherit' });
+    '--rock', '85', '--card', '85', '--species', '85', '--png', '0', '--to-webp', BOOT_WEBP.join(',')], { stdio: 'inherit' });
   let ff = null;
   try { ff = execFileSync('python3', ['-c', 'import imageio_ffmpeg;print(imageio_ffmpeg.get_ffmpeg_exe())'], { encoding: 'utf8' }).trim(); }
   catch (e) { say('  ! no ffmpeg (pip install imageio-ffmpeg) — music left at full bitrate'); }

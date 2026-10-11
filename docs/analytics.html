@@ -250,13 +250,19 @@ function inFilterCrossRelease(r) {
 // the Deep Mine became the only game: every mine session fell outside the pin and the release row read
 // 0 players (M15 verify). RELEASE_GAME is read off the latest stamped build’s own run_starts (see
 // releaseGame), stated in words under the heading; every other chip (source, device, mode) applies.
-var RELEASE_GAME = "campaign";
-function releaseGame(latest) {
-  if (!latest) return "campaign";
-  var n = {};
-  ROWS.forEach(function (r) { if (r.kind === "run_start" && r.game && buildOf(r) === latest) n[r.game] = (n[r.game] || 0) + 1; });
-  var best = null; Object.keys(n).forEach(function (g) { if (best == null || n[g] > n[best]) best = g; });
-  return best || "campaign";
+var RELEASE_GAME = "campaign", RELEASE_GAME_FROM = null;
+// RIGHT AFTER AN UPLOAD THE NEWEST BUILD HAS ONLY BOUNCES (M15 verify round 2): no run_start yet, so the game
+// came out "campaign" by default and the section said "Campaign only" about a mine release, exactly in the
+// hours it is read most. It falls back to the newest stamped build that HAS run_starts, then to the commonest
+// run_start game in the table, and only then to campaign. `stamps` is newest first.
+function releaseGame(stamps) {
+  var byBuild = {}, all = {};
+  ROWS.forEach(function (r) { if (r.kind !== "run_start" || !r.game) return; var b = buildOf(r);
+    var m = byBuild[b] = byBuild[b] || {}; m[r.game] = (m[r.game] || 0) + 1; all[r.game] = (all[r.game] || 0) + 1; });
+  var top = function (n) { var best = null; Object.keys(n).forEach(function (g) { if (best == null || n[g] > n[best]) best = g; }); return best; };
+  RELEASE_GAME_FROM = null;
+  for (var i = 0; i < (stamps || []).length; i++) if (byBuild[stamps[i]]) { RELEASE_GAME_FROM = i ? stamps[i] : null; return top(byBuild[stamps[i]]); }
+  return top(all) || "campaign";
 }
 // WHO PLAYED, not who loaded: a session that started a LEVEL (campaign, survival) or a DESCENT (the
 // mine, which has no levels and never sends level_start). One predicate, read by the release table,
@@ -837,7 +843,7 @@ function render() {
   section("Before and after the last release");
   var pcmp = panel(); pcmp.dataset.release = "1";
   var STAMP_RE0 = /^\d{4}-\d{2}-\d{2}-/;
-  RELEASE_GAME = releaseGame(uniq(ROWS.map(buildOf).filter(function (b) { return b !== BUILD_NONE && STAMP_RE0.test(b); })).sort().reverse()[0] || null);
+  RELEASE_GAME = releaseGame(uniq(ROWS.map(buildOf).filter(function (b) { return b !== BUILD_NONE && STAMP_RE0.test(b); })).sort().reverse());
   pcmp.dataset.relgame = RELEASE_GAME;   // NOT data-game: that is the level tables’ hook (the check finds them by it)
   var MINEREL = RELEASE_GAME === "mine";
   var cross = ROWS.filter(inFilterRelease);
@@ -893,7 +899,8 @@ function render() {
   // WHAT THIS SECTION IS SCOPED TO, IN WORDS, read off the live filter rather than described —
   // a sentence that says "CrazyGames" while the chip says itch is worse than no sentence.
   pcmp.appendChild(el("p", "empty", (GAME_LABEL[RELEASE_GAME] || RELEASE_GAME) + " only \u2014 pinned, whatever the Game chip says, to the"
-    + " game the latest build offers (read off its own sessions), so both sides hold the same game."
+    + (RELEASE_GAME_FROM ? " game the latest build offers (it has no started run yet, so read off " + RELEASE_GAME_FROM + ", the newest build that has),"
+       : " game the latest build offers (read off its own sessions),") + " so both sides hold the same game."
     + "  Source: " + (FILTER.source === SRC_NONE ? "untagged" : (FILTER.source || "all"))
     + (FILTER.device ? "  \u00b7  device: " + FILTER.device : "")
     + (FILTER.mode ? "  \u00b7  mode: " + FILTER.mode : "")

@@ -12,18 +12,25 @@ const ROOT = path.resolve(__dirname, '..');
   for (let r = 0; r < runs; r++) {
     const ctx = await S.browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await ctx.newPage();
+    // REQUESTS STARTED, against the moment the page's own MutationObserver reports `ld-ready` (M15 verify round 2):
+    // this probe used to count `requestfinished` against a waitForSelector poll, which read 29-40 where 44-68
+    // requests had started — the same mistake release-check's boot gate made and fixed.
     const reqs = []; let readyAt = null;
-    page.on('requestfinished', (rq) => {
+    await page.exposeFunction('__bpReady', () => { if (readyAt == null) readyAt = Date.now(); });
+    page.on('request', (rq) => {
       const u = new URL(rq.url()); const p = decodeURIComponent(u.pathname);
       let sz = 0; try { sz = fs.statSync(path.join(ROOT, p === '/' ? 'index.html' : p)).size; } catch (_) {}
-      reqs.push({ p, sz, t: Date.now(), ready: readyAt != null });
+      reqs.push({ p, sz, t: Date.now() });
     });
     if (kind === 'returning') await page.addInitScript(() => { try { if (!localStorage.getItem('mycelium.progress.v2')) localStorage.setItem('mycelium.progress.v2', JSON.stringify({ runsDone: 1, mineBest: 20 })); } catch (_) {} });
-    await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; });
+    await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' };
+      new MutationObserver(() => { const l = document.getElementById('loadscreen'); if (l && l.classList.contains('ld-ready') && !window.__bpSent) { window.__bpSent = 1; window.__bpReady(); } })
+        .observe(document, { subtree: true, attributes: true, attributeFilter: ['class'] }); });
     const t0 = Date.now();
     await page.goto(S.base + '/index.html', { waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 });
-    readyAt = Date.now();
+    for (let i = 0; i < 50 && readyAt == null; i++) await new Promise((res) => setTimeout(res, 20));
+    if (readyAt == null) { console.log(`run ${r + 1}: the ld-ready observer never reported — no measurement`); await ctx.close(); continue; }
     const navT = await page.evaluate(() => { const n = performance.getEntriesByType('navigation')[0]; return n ? n.responseEnd : 0; });
     await new Promise((res) => setTimeout(res, 3000));
     const before = reqs.filter((x) => x.t <= readyAt), after = reqs.filter((x) => x.t > readyAt);
@@ -31,7 +38,7 @@ const ROOT = path.resolve(__dirname, '..');
     const mb = (L) => (L.reduce((a, x) => a + x.sz, 0) / 1048576).toFixed(2);
     const lastBefore = before.length ? Math.max(...before.map((x) => x.t)) - t0 : 0;
     const lastBase = Math.max(0, ...before.filter((x) => !/-c\d+\//.test(x.p)).map((x) => x.t)) - t0;
-    console.log(`run ${r + 1} [${kind}] goto->ready ${readyAt - t0} ms (html responseEnd ${navT.toFixed(0)} ms; last base file ${lastBase} ms, last file ${lastBefore} ms)`);
+    console.log(`run ${r + 1} [${kind}] goto->ready ${readyAt - t0} ms (requests counted as STARTED) (html responseEnd ${navT.toFixed(0)} ms; last base file ${lastBase} ms, last file ${lastBefore} ms)`);
     console.log(`  before ready: ${before.length} requests, ${mb(before)} MB :: ${by(before)}`);
     console.log(`  after ready (3 s): ${after.length} requests, ${mb(after)} MB :: ${by(after)}`);
     await ctx.close();
@@ -49,7 +56,6 @@ async function frames(S, full) {
   await new Promise((r) => setTimeout(r, 6000));   // the root's reveal and the leg banner settle first
   const out = await page.evaluate(async () => {
     const g = window.__game, s = g.state, sub = s.substrate, cam = g.camera;
-    s._mineCamFree = true;
     const J = sub.mineJourney, cs = sub.cellSize;
     const seam = sub.foodPiles.find((p) => p.cells && p.cells.length) || null;
     const seamXY = seam ? { x: (seam.cells[0] % sub.cols + 0.5) * cs, y: sub.surfaceY + (Math.floor(seam.cells[0] / sub.cols) + 0.5) * cs } : null;
@@ -63,7 +69,8 @@ async function frames(S, full) {
     const cv = document.getElementById('game');
     const r = {};
     for (const [n, x, y, z] of spots) {
-      cam.x = x; cam.y = y; cam.zoom = z; if (cam.clamp) cam.clamp();
+      // `g.mine.lookAt` releases the follow camera (a module variable — `state._mineCamFree` was a no-op here).
+      cam.zoom = z; g.mine.lookAt(x, y);
       for (let i = 0; i < 4; i++) g.renderFrame(123456, 0);
       const c2 = cv.getContext('2d'); const d = c2.getImageData(0, 0, cv.width, cv.height).data;
       r[n] = Array.from(d.filter((_, i) => i % 4 !== 3 && (i % 64) < 8));

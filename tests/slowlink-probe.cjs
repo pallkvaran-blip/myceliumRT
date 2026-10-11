@@ -5,12 +5,14 @@
  * art hold). Bytes on the wire (encoded) are summed before each moment.
  *
  *   node tests/slowlink-probe.cjs [runs] [--mbps 1.5] [--lat 150] [--gzip] [--index <path to an index.html>]
- *                                 [--route-masks <ms>] [--fail-band <folder>]
+ *                                 [--route-masks <ms>] [--fail-band <folder>] [--root <unpacked zip dir>]
  *
  * `--gzip` serves text (html/json/js) gzip-encoded, as a CDN would; without it the server sends raw bytes,
  * the worst case (the M15 verifier's measurement: ld-ready ~28 s through the 12 s safety net). `--index`
  * serves a different index.html (e.g. an older build kept in the scratchpad) for a before/after. `--route-masks`
  * holds assets/mine-masks.json back that many ms (a stalled table); `--fail-band` answers a band folder 404.
+ * `--root` serves an UNPACKED release zip instead of the tree (its index.html is already the release page: the dev
+ * flag patched, comments stripped, the boot PNGs as webp) — the artefact a player downloads.
  */
 const http = require('http'), fs = require('fs'), path = require('path'), zlib = require('zlib');
 const { chromium } = require('playwright');
@@ -21,6 +23,7 @@ const RUNS = +(process.argv[2] && !process.argv[2].startsWith('--') ? process.ar
 const MBPS = +arg('--mbps', 1.5), LAT = +arg('--lat', 150), GZ = has('--gzip');
 const INDEX = arg('--index', path.join(ROOT, 'index.html'));
 const MASK_DELAY = +arg('--route-masks', 0), FAIL_BAND = arg('--fail-band', null);
+const SROOT = arg('--root', null) ? path.resolve(arg('--root')) : ROOT;
 const T = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
   '.webp': 'image/webp', '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.svg': 'image/svg+xml', '.css': 'text/css' };
 const A = '// itch zip, and confirm with scratchpad/verify-nodev.mjs.\n    enabled: true,';
@@ -30,14 +33,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const srv = await new Promise((res) => { const s = http.createServer(async (rq, rs) => {
     let p = decodeURIComponent(rq.url.split('?')[0].split('#')[0]); if (p === '/') p = '/index.html';
     let body = null, type = null;
-    if (p === '/index-nodev.html') {
+    if (p === '/index-nodev.html' && SROOT !== ROOT) { body = fs.readFileSync(path.join(SROOT, 'index.html')); type = 'text/html'; }
+    else if (p === '/index-nodev.html') {
       const html = fs.readFileSync(INDEX, 'utf8');
       if (!html.includes(A)) { rs.writeHead(500); rs.end('dev anchor moved'); return; }
       body = Buffer.from(html.replace(A, A.replace('enabled: true,', 'enabled: false,'))); type = 'text/html';
     } else {
       if (FAIL_BAND && p.startsWith('/assets/' + FAIL_BAND + '/')) { rs.writeHead(404); rs.end('nf'); return; }
-      const fp = path.join(ROOT, p);
-      if (!fp.startsWith(ROOT) || !fs.existsSync(fp) || fs.statSync(fp).isDirectory()) { rs.writeHead(404); rs.end('nf'); return; }
+      const fp = path.join(SROOT, p);
+      if (!fp.startsWith(SROOT) || !fs.existsSync(fp) || fs.statSync(fp).isDirectory()) { rs.writeHead(404); rs.end('nf'); return; }
       if (MASK_DELAY && /mine-masks\.json$/.test(p)) await sleep(MASK_DELAY);
       body = fs.readFileSync(fp); type = T[path.extname(fp)] || 'application/octet-stream';
     }
@@ -49,7 +53,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const base = 'http://localhost:' + srv.address().port;
   const browser = await chromium.launch({ headless: true, executablePath: '/opt/pw-browsers/chromium' });
   console.log(`slow link: ${MBPS} Mbps down, ${LAT} ms latency, ${GZ ? 'gzip' : 'raw (no compression)'}; index ${path.relative(ROOT, INDEX) || INDEX}`
-    + (MASK_DELAY ? `; mask table held ${MASK_DELAY} ms` : '') + (FAIL_BAND ? `; ${FAIL_BAND} answers 404` : ''));
+    + (SROOT !== ROOT ? `; serving the unpacked zip ${SROOT}` : '') + (MASK_DELAY ? `; mask table held ${MASK_DELAY} ms` : '') + (FAIL_BAND ? `; ${FAIL_BAND} answers 404` : ''));
   for (let r = 0; r < RUNS; r++) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
     const page = await ctx.newPage();

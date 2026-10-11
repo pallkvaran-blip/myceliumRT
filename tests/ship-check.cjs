@@ -657,11 +657,24 @@ const openStore = async (page) => {
         const cv = document.querySelector('#game'), c2 = cv.getContext('2d');
         const p = cam.worldToScreen(wx, wy), dpr = cv.width / cam.viewW;
         const px = c2.getImageData(Math.round(p.x * dpr), Math.round(p.y * dpr), 1, 1).data;
-        return { hem: hem.length, n0, n1, lum: (px[0] + px[1] + px[2]) / 3, px: [px[0], px[1], px[2]] };
+        // ...and bare soil in the same view (an open fine cell), to compare against: the hematite band's soil is
+        // red, the deepest band's.
+        let soil = null;
+        for (let k = 0; k < 4000 && !soil; k++) { const sx = 20 + Math.random() * (cam.viewW - 40), sy = 160 + Math.random() * (cam.viewH - 260);
+          const w = cam.screenToWorld(sx, sy), fc = Math.floor(w.x / F), fr = Math.floor((w.y - sub.surfaceY) / F);
+          let open = fr >= 2; for (let dy = -2; open && dy <= 2; dy++) for (let dx = -2; open && dx <= 2; dx++) if (fs[(fr + dy) * W + fc + dx] !== 0) open = false;
+          if (open) { const q = c2.getImageData(Math.round(sx * dpr), Math.round(sy * dpr), 1, 1).data; soil = [q[0], q[1], q[2]]; } }
+        const lum = (c) => 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2];
+        return { hem: hem.length, n0, n1, px: [px[0], px[1], px[2]], soil, sat: Math.max(px[0], px[1], px[2]) - Math.min(px[0], px[1], px[2]),
+                 dLum: soil ? lum([px[0], px[1], px[2]]) - lum(soil) : null };
       });
       await d.page.screenshot({ path: path.join(ART, 'm15-silhouette-390.png'), timeout: 8000, animations: 'disabled' }).catch(() => {});
-      ok('...its missing sprites draw as silhouettes where they block (dark, not bare soil)', sil.hem > 0 && sil.n1 > sil.n0 && sil.lum < 60,
-         `${sil.hem} hematite sprites; ${sil.n1 - sil.n0} silhouette draws in the framed view; pixel on a solid cell ${JSON.stringify(sil.px)}`);
+      // A STONE GREY THAT READS ON THE SOIL (M15 verify round 2): the silhouette was dark rock brown, rgb(46,41,38), which
+      // the old assertion pinned as "dark, not bare soil" — and which was nearly invisible on the near-black and red
+      // bands. Now asserted as what it has to be: grey (not the soil's hue) and clearly lighter than the soil beside it.
+      ok('...its missing sprites draw as silhouettes where they block (stone grey, clearly lighter than the red soil beside them)',
+         sil.hem > 0 && sil.n1 > sil.n0 && sil.soil && sil.sat < 30 && sil.dLum >= 25,
+         `${sil.hem} hematite sprites; ${sil.n1 - sil.n0} silhouette draws in the framed view; pixel on a solid cell ${JSON.stringify(sil.px)} (spread ${sil.sat}) against soil ${JSON.stringify(sil.soil)}: ${sil.dLum == null ? '-' : '+' + sil.dLum.toFixed(0)} luminance`);
       healed = true;
       const back = await d.page.evaluate(async () => {
         const g = window.__game, s = g.state, sub = s.substrate, t0 = performance.now();

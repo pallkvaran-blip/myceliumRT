@@ -47117,19 +47117,31 @@ function _drawLevelRockPass(sprites, sub, z, cs, soil, rf, filtered) {
   }
   ctx.restore();   // clip + filter
 }
-// A MINE SPRITE WHOSE ART HAS NOT ARRIVED (M15 verify) is drawn as its precomputed mask — a dark rock
+// A MINE SPRITE WHOSE ART HAS NOT ARRIVED (M15 verify) is drawn as its precomputed mask — a rock
 // silhouette, the same alpha >= 128 shape collision stamped — so a wall is never invisible while its
 // sprite is still loading (the band art loads after the gate opens now). Cached per key; nothing is
 // drawn without a table entry (collision then waits or boxes, exactly as before).
+// IT HAS TO READ ON EVERY BAND'S SOIL (M15 verify round 2): it was a dark rock brown, rgb(46,41,38), and the
+// soil darkens with depth to near-black (band 1) and then red (band 3), so on exactly the bands whose art
+// streams in last the walls were faint blobs. Now a mid stone grey with a pale rim one mask pixel wide (the
+// silhouette's edge, i.e. the edge collision uses): grey against brown, black and red alike, and the rim
+// draws the outline on the darkest soil. `SIL_FILL` / `SIL_RIM`.
+const SIL_FILL = [96, 92, 88], SIL_RIM = [168, 160, 148];
 const _silhouettes = new Map();
 function _drawRockSilhouette(s, z) {
   if (!MASK_TABLE || !MASK_TABLE.has(s.key)) return;
   let cv = _silhouettes.get(s.key);
   if (!cv) {
-    const m = MASK_TABLE.get(s.key);
-    cv = document.createElement('canvas'); cv.width = m.mw; cv.height = m.mh;
-    const g = cv.getContext('2d'), id = g.createImageData(m.mw, m.mh);
-    for (let i = 0; i < m.mw * m.mh; i++) if (m.data[i * 4 + 3]) { id.data[i * 4] = 46; id.data[i * 4 + 1] = 41; id.data[i * 4 + 2] = 38; id.data[i * 4 + 3] = 255; }
+    const m = MASK_TABLE.get(s.key), W = m.mw, H = m.mh;
+    cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const g = cv.getContext('2d'), id = g.createImageData(W, H);
+    const on = (x, y) => x >= 0 && y >= 0 && x < W && y < H && m.data[(y * W + x) * 4 + 3];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      if (!on(x, y)) continue;
+      const rim = !on(x - 1, y) || !on(x + 1, y) || !on(x, y - 1) || !on(x, y + 1);
+      const c = rim ? SIL_RIM : SIL_FILL, i = (y * W + x) * 4;
+      id.data[i] = c[0]; id.data[i + 1] = c[1]; id.data[i + 2] = c[2]; id.data[i + 3] = 255;
+    }
     g.putImageData(id, 0, 0);
     _silhouettes.set(s.key, cv);
   }

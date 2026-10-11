@@ -1126,6 +1126,30 @@ function fixture() {
     ok('...and Game=mine keeps the mine section and says the level tables do not apply', minePicked.on && minePicked.mine && minePicked.msg, JSON.stringify(minePicked));
     ok('no page errors on a Deep Mine release', rerrs2.length === 0, rerrs2.slice(0, 2).join(' | '));
     await rp2.close();
+    // RIGHT AFTER AN UPLOAD (M15 verify round 2): a NEWER stamp whose sessions are all bounces (boots, no run_start).
+    // The latest build then has no game of its own; the pin must come from the newest build that has one (the
+    // mine), not fall back to a hard-coded campaign. Control: the generator before the fix reads 'campaign' here.
+    const rows3 = rows.slice();
+    const t3 = now - 0.2 * DAY;
+    rows3.push({ id: 90001, created_at: new Date(t3).toISOString(), client_id: 'q1', session_id: 'sq1', kind: 'boot', source: 'crazygames', mode: 'realtime', device: 'phone', ms: 800, detail: '2026-10-11-mnext01', game: null });
+    rows3.push({ id: 90002, created_at: new Date(t3 + 9000).toISOString(), client_id: 'q1', session_id: 'sq1', kind: 'session_end', source: 'crazygames', mode: 'realtime', device: 'phone', ms: 9000, n: 0, game: null });
+    const rp3 = await ctx.newPage();
+    const rerrs3 = []; rp3.on('pageerror', (e) => rerrs3.push(String(e && e.message)));
+    await rp3.route('**/rest/v1/events*', async (route) => {
+      const rg = route.request().headers()['range'] || '0-999';
+      const [a, z] = rg.split('-').map(Number);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows3.slice(a, z + 1)) });
+    });
+    await rp3.goto(base + '/docs/analytics.html', { waitUntil: 'domcontentloaded' });
+    await rp3.waitForFunction(() => !/Loading/.test(document.getElementById('sub').textContent), { timeout: 25000 });
+    await sleep(400);
+    const rel3 = await rp3.evaluate(() => { const pan = document.querySelector('.panel[data-release]'); if (!pan) return null;
+      return { game: pan.dataset.relgame, note: [...pan.querySelectorAll('.empty, .lead')].map((p) => p.textContent).join(' ') }; });
+    ok('right after an upload (the newest build has boots only) the release stays pinned to the mine, read off the newest build that has a run',
+       !!rel3 && rel3.game === 'mine' && /Cut at 2026-10-11-mnext01/.test(rel3.note) && /The Deep Mine only/.test(rel3.note) && /2026-10-10-mnew001, the newest build that has/.test(rel3.note),
+       rel3 && (rel3.game + ' :: ' + rel3.note.slice(0, 260)));
+    ok('no page errors right after an upload', rerrs3.length === 0, rerrs3.slice(0, 2).join(' | '));
+    await rp3.close();
   }
 
   // ---- THE DEEP MINE (M15) ----------------------------------------------------

@@ -31,6 +31,7 @@ FASTOCTREE, the only Pillow quantiser that keeps an alpha channel.
 """
 import argparse
 import io
+import json
 import os
 import sys
 
@@ -72,6 +73,49 @@ def enc_png(path, colors):
     return buf.getvalue()
 
 
+def convert_to_webp(root, keys, q):
+    """THE ONE RENAME, AND WHY IT IS SAFE (M15 verify round 2, the slow-link boot). The six truecolour PNGs a
+    Deep Mine boot fetches before its gate (the hill, its bushes, the moon, the three pocket arts) were 1.85 MB
+    of the ~4.5 MB a first visit downloads before it can play — ~10 s at 1.5 Mbps. As webp at q90 they are
+    ~0.23 MB, alpha BIT-IDENTICAL (asserted below: the hill's alpha is what `hillTopProfile` reads, the pockets'
+    is what RESERVOIR_OPAQUE was measured from). The rule above exists because a renamed file must be chased
+    through index.html and the manifest; these keys are reached ONLY through the manifest (make-web-zip fails
+    the build if the staged index.html names any of their files), so the staged manifest is the one place the
+    new name has to land. Done AFTER the quality pass so the webp is encoded once."""
+    mf_path = os.path.join(root, "manifest.json")
+    with open(mf_path, encoding="utf-8") as fh:
+        mf = json.load(fh)
+    want, done, o_tot, a_tot = set(keys), set(), 0, 0
+    for a in mf.get("assets", []):
+        k = a.get("key") if isinstance(a, dict) else None
+        if k not in want:
+            continue
+        rel = a.get("file", "")
+        if not rel.endswith(".png"):
+            sys.exit(f"shrink-assets: --to-webp key {k} is not a png ({rel})")
+        src = os.path.join(root, rel)
+        im = Image.open(src)
+        im.load()
+        if im.mode != "RGBA":
+            im = im.convert("RGBA")
+        out = src[:-4] + ".webp"
+        im.save(out, "WEBP", quality=q, method=6)
+        back = Image.open(out)
+        back.load()
+        if back.convert("RGBA").getchannel("A").tobytes() != im.getchannel("A").tobytes():
+            sys.exit(f"shrink-assets: {rel} -> webp changed its ALPHA; refusing")
+        o_tot += os.path.getsize(src)
+        a_tot += os.path.getsize(out)
+        os.remove(src)
+        a["file"] = rel[:-4] + ".webp"
+        done.add(k)
+    if want - done:
+        sys.exit(f"shrink-assets: --to-webp keys not in the manifest: {sorted(want - done)}")
+    with open(mf_path, "w", encoding="utf-8") as fh:
+        json.dump(mf, fh, indent=2, ensure_ascii=False)
+    print(f"  png->webp {len(done)} files (q{q}, alpha exact)  {o_tot / 1048576:6.2f} -> {a_tot / 1048576:6.2f} MB")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("stage", help="staged assets/ directory, edited IN PLACE")
@@ -79,6 +123,9 @@ def main():
     ap.add_argument("--card", type=int, default=60, help="jpeg quality for card art")
     ap.add_argument("--species", type=int, default=70, help="jpeg quality for species art")
     ap.add_argument("--png", type=int, default=256, help="palette size for loose png art; 0 leaves png alone")
+    ap.add_argument("--to-webp", default="", help="comma-separated manifest KEYS whose .png becomes a .webp "
+                    "(the one exception to NOTHING IS RENAMED — see convert_to_webp)")
+    ap.add_argument("--to-webp-q", type=int, default=90, help="webp quality for --to-webp")
     args = ap.parse_args()
 
     root = os.path.abspath(args.stage)
@@ -122,6 +169,9 @@ def main():
             c[0] += 1
             c[1] += size
             c[2] += min(len(out), size)
+
+    if args.to_webp:
+        convert_to_webp(root, [k for k in args.to_webp.split(",") if k], args.to_webp_q)
 
     mb = lambda n: n / 1048576
     for kind, (n, o, a) in sorted(counts.items()):
