@@ -3,67 +3,67 @@
 The text to paste into the itch project page. Kept here so the next revision starts from what is
 actually up rather than from memory.
 
-**Every number in it is checked against the build** — see the notes at the foot. Three claims in
-earlier versions had gone wrong as the game changed, which is the reason this file exists:
-"procedurally generated levels" (the maps are hand-drawn now), "12 playable species" (the table
-has 14, but only **6** can be reached on a fresh save), and **Survival**, which was withdrawn
-from the build and left advertised on the store page for a release.
+**Every number in it is checked against the build** — see the table at the foot, which names the
+constant in `index.html` each one comes from. Earlier versions went wrong as the game changed
+("procedurally generated levels", "12 playable species", a Survival mode withdrawn from the build and
+left advertised), which is the reason this file exists. **The shipped game is now THE DEEP MINE
+alone** (`OFFER_CAMPAIGN` and `OFFER_SURVIVAL` both false; the title offers one door), so the card
+game's copy that used to live here is gone — it describes nothing a player can reach.
 
 ---
 
 Like Mycelium? Please [rate it](https://pallkvaran.itch.io/myceliumc1/rate?source=game) on itch!
 
-Mycelium is a side-on roguelike engine-builder where you get to experience what life is like as
-mycelium. You are a living, pulsating, semi-autonomous mycelial network. Your job is to shape your
-growth: laying down bait to the network, cutting off strands that wander into danger, walling
-yourself off against invaders or fighting them directly. Your goal is to reach the green fields to
-the east so you can fruit and throw spores.
+**Mycelium: The Deep Mine** is a real-time maze-runner about a fungal colony digging its way east
+through the dark. Drag from your mycelium to grow; every dig costs water, and when the water runs out
+the colony fruits, spores, and banks what it found.
 
-Inspired by the interlocking-engine feel of games like Terraforming Mars and the run-to-run pull of
-modern deckbuilders, but built around the tension between growing fast now and building something
-that survives the onslaught of ever increasing natural threats.
+Rock is a wall, not a material — mycelium does not eat stone. The ground is a maze of corridors and
+slabs, and the only way across it is the way you find.
 
-**Chapter One**
+**The journey**
 
-Nine hand-built levels with a beginning and an end. The world got warm and the ground went dry, and
-there is nothing left where you are. To the east, the rain still comes and the land is green. Nine
-geologies stand between.
+* Eight legs, one island each, from First Light to the Promised Land. Reach the island's taproot and
+  your colony takes root there; the next descent starts from it.
+* Going east means going down. The shallow galleries are sealed further along every leg, and the
+  crossings run deeper — 18 m under the first island, 128 m under the last.
+* Four bands of rock on the way down — magnetite, anthracite, garnet, hematite — each with its own
+  colour of soil and its own seam to find: Phosphorus, Anthracite, Garnet and Hematite.
+* Your last failed attempt stays on the map as a faint fossil, so a dead end is something you know.
 
-Turn-based: nothing moves until you do, and the enemies take their turn after yours — you watch
-them come.
+**The clock is water**
 
-**Life**
+* You start with 60 water and every dig costs 2 — until the price lines. Past 42 m a dig costs 4,
+  past 84 m it costs 8, and so on, doubling at each line.
+* Water pockets give +10, once each. Seams pay the material of their band.
+* When no dig you can afford is left, the colony fruits after six seconds — or press Fruit now and
+  bank it immediately. Closing the tab banks it too.
 
-* Grow toward nature. Drive runners and fans through soil and around rock, aiming your growth
-  toward the east — and away from what's hunting you.
-* Build an engine, drafting cards from the food you digest — passive producers, on-demand actions,
-  one-shot events. Get your Energy, Water, and Phosphorus compounding before it's too late.
-* Hold the line. Wall off the colony, snare predators, and amputate infected strands before rot
-  spreads through your whole body.
-* Fruit and spore. Break through to the woodlands, spore, and carry your deck into the next level.
+**What lives down there**
 
-**Threats**
+* Nematodes latch on and drink your water. A Mucus flask kills every worm on or near the colony.
+* Trichoderma: one touch of the mould and a rot clock starts — 30 seconds the first time you meet it,
+  20 after. Cut the rot out with the Cutting enzyme before it runs out, or the colony fruits where it
+  stands.
 
-* Trichoderma — green mould that creeps toward you and infects on contact, spreading fast.
-* Nematodes — predatory worms that hunt through the soil and multiply.
-* Ant colonies — rivals that race you for every scrap.
+**Between descents**
 
-**Between runs**
+* A store with ten tracks: a bigger water tank, a longer dig, heat tolerance that pushes the price
+  lines deeper, flasks, enzyme, the oxalic vial that eats through up to three cells of rock, and
+  compasses that point through the rock at the island and at the nearest seam of each material.
+* Every descent pays: at least 5 Phosphorus, plus 1 for every 5 m of depth and every 10 m east, plus
+  the seams, plus a bonus the first time you root each island.
 
-* Keep what you played. Every run ends on a screen where you choose which cards to carry into the
-  next one — anything you drafted, anything you started with, anything you brought in.
-* Spend Spores on new colonies, on deeper starting reserves, on a bigger deck, and on retries that
-  put you back at the start of the level you died on.
-* Six colonies, each a real fungus with accurate biology and its own economy and opening deck: the
-  Oyster Mushroom you start with, the near-indestructible Split Gill, the weeping Bleeding Tooth,
-  the Fly Agaric, the Blue Bonnet, and the Magic Mushroom.
+**Come back tomorrow**
 
-**Current build**
+* The Daily Dig: the same shaft for everyone that day, with a fixed kit — 108 water, grow 4, two
+  rungs of heat tolerance, one flask, one dose. One paid run a day, practice after; a streak.
+* Finish the journey and Journey II begins, with a new rule stacked on every later one: Hotter,
+  Thirsty, Hungry, Rotten, Stingy, Far.
+* Colony strains to grow in: four for sale, and one more for each journey you finish.
 
-* Nine hand-drawn underground maps, one per level, the same nine every run.
-* 71 unique cards across basics, events, passive engines, and installed actions.
-* Three currencies to juggle — Energy for cards and actions, Water for growth, Phosphorus for
-  digestion and defense.
+Plays in portrait on a phone and in a phone-shaped column on a desktop, with your journey and your
+next goal beside it.
 
 Music credits: [Sascha Ende](https://ende.app/en)
 
@@ -71,22 +71,34 @@ Music credits: [Sascha Ende](https://ende.app/en)
 
 ## Where each number comes from
 
-| claim | source | checked |
-|---|---|---|
-| Campaign is 9 levels | `CAMPAIGN_LEVELS` | 9 |
-| ...on hand-built maps | `campaignLevel` in `docs/levels/*.json` | slots 1–9, all named for their rock |
-| turn-based only | `OFFER_REALTIME` | false — no real-time door on the title |
-| Survival is offered | `OFFER_SURVIVAL` | **true again** — its own New/Old row under the wordmark |
-| 71 cards | `CARD_DATA` | 71 (20 basic, 17 event, 9 engine, 21 action, 4 extender) |
-| **6** colonies | `STARTER_SPECIES_IDS` + `STORE_SPECIES_IDS` | pleurotus + schizophyllum, hydnellum, amanita, pruinomycena, psilocybe |
-| three currencies | `startingResources` | energy / water / phosphorus |
+Every figure above, and the constant in `index.html` that sets it. Re-read these before an upload.
 
-**The species number is the one to watch.** `SPECIES` has **14** entries, but `isObtainable` only
-admits a starter, a store entry, or something already owned — so on a fresh save the other eight
-(the Fairy Ring Champignon, the Honey Fungus, the Artist's Conk, Slippery Jack, Wine Cap, Violet
-Webcap, Dry Rot, Earthball) **cannot be reached at all**. The previous description name-dropped four
-of them. If they are meant to be playable, adding them to `STORE_SPECIES_IDS` is a one-line change
-and this copy should go back up to match.
+| claim | source in `index.html` | value |
+|---|---|---|
+| the Deep Mine is the only game offered | `OFFER_MINE` / `OFFER_CAMPAIGN` / `OFFER_SURVIVAL` | true / false / false |
+| real time | `setGame('mine')` calls `setMode('realtime')` | always |
+| eight legs | `MINE_JOURNEY_LEGS`; `CONFIG.mine.journey.legs` | 8 rows, leg 1 'First Light' … leg 8 'The Promised Land' |
+| 18 m under the first island, 128 m under the last | `journey.legs[0].depthM`, `journey.legs[7].depthM` | 18, 128 |
+| four bands, their names | `CONFIG.mine.bands[].name` | Magnetite, Anthracite, Garnet, Hematite |
+| one material per band | `CONFIG.mine.materials` | Phosphorus (band 0), Anthracite, Garnet, Hematite |
+| start with 60 water | `CONFIG.mine.startWater` | 60 |
+| a dig costs 2 | `CONFIG.mine.growWaterCost` | 2 |
+| lines at 42 m, then every 42 m, doubling | `CONFIG.mine.heat.safeDepth` / `lineEvery` / `maxMult` | 42 / 42 / 8 (so 2 · 4 · 8 · 16) |
+| pockets +10, once each | `CONFIG.mine.reservoirWater` | 10 |
+| fruits after six seconds when stuck | `CONFIG.mine.stuckFruitMs` | 6000 |
+| rot clock 30 s first, 20 s after | `CONFIG.mine.firstInfectionMs` / `infectionMs` | 30000 / 20000 |
+| the vial: up to three cells of rock | `CONFIG.mine.vialRockBudget` (108 units, 36 a cell) | 108 |
+| ten store tracks | `MINE_UPGRADE_IDS` | water, growSteps, heatTolerance, excreteCharges, amputateCharges, compassIsland, compass_anthracite, compass_garnet, compass_hematite, oxalicVial |
+| pay: min 5, 1 per 5 m deep, 1 per 10 m east | `CONFIG.mine.reach` | `minPay` 5, `mPerP` 5, `eastMPerP` 10 |
+| the Daily Dig's kit | `CONFIG.mine.dailyKit` | water 108, grow 4, tolerance 2, flask 1, dose 1 |
+| the journey rules | `MINE_JOURNEY_RULES` | II Hotter, III Thirsty, IV Hungry, V Rotten, VI Stingy, VII Far |
+| strains: four for sale, one per journey | `CONFIG.mine.strains` | amber, violet, ghost, coal (cost); gold … prism (journey 1-8) |
+| the fossil | `mineFossilEncode` / `mineLegApply` | the last failed attempt on a leg, cleared by its landfall |
+| phone-shaped column on desktop, panels beside it | `playSurfaceRect` (`frameAspect` 390/844), `mineGutterTick` | aspect > 0.75 and a band >= 200 px |
+
+**What is NOT claimed, on purpose:** a number of rungs per track (they are tuned, and change), any
+run length (an output of the tuning), and the eight colonies and 71 cards of the card game (still in
+the file, unreachable from the title).
 
 ---
 
@@ -99,34 +111,21 @@ own vocabulary.
 **In priority order — take as many as the field allows:**
 
 ```
-roguelike, deckbuilder, strategy, survival, cards, mushroom,
-nature, underground, turn-based, engine-builder
+roguelite, mining, maze, casual, mushroom,
+underground, upgrades, singleplayer, nature, real-time
 ```
 
-- The first five are the DISCOVERY terms — how someone who wants this game searches, and all
-  established tags with real traffic on every store.
-- The next four are what make it findable by the RIGHT people. Nothing else on any of these stores
-  is a mycelium sim, and "mushroom" is the word a player remembers it by.
-- `engine-builder` is last because it is the most accurate description of the actual play and the
-  least likely to exist in a store's vocabulary already. **A store's own autocomplete beats this
-  list** — a tag nobody else uses is a tag nobody browses.
+- The first five are the DISCOVERY terms for the game that ships now — a real-time descent with an
+  upgrade loop between runs (`roguelite`, not `roguelike`: progress carries over). `mushroom` is the
+  word a player remembers it by.
+- **`deckbuilder`, `cards`, `turn-based`, `strategy` and `survival` are OUT** (M15): they described the
+  card game, which is no longer reachable from the title. A tag a player cannot find in the build is
+  the same defect this file exists to prevent.
+- **`real-time` is IN** for the same reason it was out before: `setGame('mine')` forces real time.
+- **A store's own autocomplete beats this list** — a tag nobody else uses is a tag nobody browses.
 
-Two judgement calls, recorded so they are not re-litigated blind:
-
-- **`deckbuilder` is a slight stretch and is kept anyway.** Cards are DRAFTED from digested food and
-  a deck carries between runs, but there is no shuffle-and-cycle. It is the single best discovery
-  term the game has; `cards` alongside it covers the expectation gap.
-- **`real-time` is OUT; `survival` IS A MODE NAME AGAIN.** `OFFER_REALTIME` is still false, so
-  `real-time` would be a false claim however live the variant is underneath. `OFFER_SURVIVAL` is
-  true again (owner: *"let's add survival back"*), so `survival` has stopped being the genre
-  stretch it was reduced to — the tag reads as the name of a mode once more, which is the stronger
-  claim and the true one. **The body text above still describes the campaign alone**: it was
-  rewritten while survival was withheld, and a mode with a door on the title screen and no mention
-  on the store page is the same defect that put this file here in the first place, in the other
-  direction. Worth a paragraph before the next upload.
-
-Spares, for a store with a larger cap: `management`, `atmospheric`, `singleplayer`, `upgrades`,
-`biology`, `fungus`.
+Spares, for a store with a larger cap: `atmospheric`, `exploration`, `idle-friendly`, `biology`,
+`fungus`, `procedural`.
 
 ---
 
