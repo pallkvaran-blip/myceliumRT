@@ -69,6 +69,118 @@ for (const m of html.matchAll(/id: '([a-z]+)', vibe:[\s\S]*?\bname: (?:'([^']*)'
 // `displayCategory`: the latter is the DRAFT POOL a card is offered from and the two disagree per
 // card — Cord Capillary is an engine offered from the event pool, Rhizomorph Lance the mirror.
 // What "which engines do people take" means is the badge on the card's face, which is `type`.
+// THE DEEP MINE (finishing plan M15) — the shipped game, and the section the owner reads first. Its rows
+// carry `game: 'mine'`. `run_end`: `level` the depth in metres, `n` the P banked, `ms` the run's length,
+// `detail` 'L<leg>:<cause>:e<east m>' (L0 = the free layout / Daily Dig). `island`: `level` the leg, `n` the
+// runs that leg took, `detail` 'L<n>:first|again[:promised]'. `daily`: `level` the depth, `n` the payout,
+// `detail` 'YYYYMMDD:paid|practice:s<streak>'. `tutorial`: `detail` the one-shot tip id. Written as plain
+// lines and spliced into the page's script, so it is the same ES5 the rest of the page is.
+const MINE_LEGS = +grab(/const MINE_JOURNEY_LEGS = (\d+)/, 'MINE_JOURNEY_LEGS');
+const MINE_SECTION = String.raw`
+  // ---- THE DEEP MINE ---------------------------------------------------------------------------
+  var mrows = rows.filter(function (r) { return r.game === "mine"; });
+  var mPanel = null;
+  if (mrows.length) {
+    section("The Deep Mine");
+    mPanel = panel(); mPanel.dataset.game = "mine";
+    var mends = mrows.filter(function (r) { return r.kind === "run_end"; });
+    var mstarts = mrows.filter(function (r) { return r.kind === "run_start"; });
+    var parseEnd = function (r) { var m = /^L(\d+):([a-z]+):e(\d+)/.exec(r.detail || ""); return m ? { leg: +m[1], cause: m[2], east: +m[3] } : { leg: null, cause: r.cause || "?", east: null }; };
+    var mk = el("div", "cards"); mPanel.appendChild(mk);
+    var mPlayers = uniq(mrows.map(function (r) { return r.client_id; }));
+    var depths = mends.map(function (r) { return r.level; }).filter(function (v) { return v != null; });
+    var lens = mends.map(function (r) { return r.ms; }).filter(function (v) { return v != null; });
+    var lands = mrows.filter(function (r) { return r.kind === "island"; });
+    kpi(mk, String(mPlayers.length), "mine players", "distinct devices");
+    kpi(mk, String(mends.length), "descents ended", mstarts.length + " started");
+    kpi(mk, depths.length ? median(depths) + " m" : "–", "median depth", depths.length + " descents");
+    kpi(mk, fmtMs(median(lens)), "median descent", "run_end.ms");
+    kpi(mk, String(lands.length), "landfalls", uniq(lands.map(function (r) { return r.client_id; })).length + " players rooted an island");
+    kpi(mk, String(lands.filter(function (r) { return /promised/.test(r.detail || ""); }).length), "Promised Land", "journeys finished");
+    // HOW DEEP: one bar per 10 m, a share of the descents that ended.
+    var dp = el("div", "panel"); dp.dataset.mine = "depth"; mPanel.appendChild(dp);
+    dp.appendChild(el("h2", "", "How deep descents end")).style.margin = "0 0 8px";
+    if (!depths.length) dp.appendChild(el("p", "empty", "No descent has ended yet."));
+    else {
+      var dmax = Math.min(170, Math.max.apply(null, depths));
+      var dt = table(dp, ["depth", "descents (share of all that ended)"]);
+      for (var b0 = 0; b0 <= dmax; b0 += 10) {
+        var nb = depths.filter(function (d) { return d >= b0 && (b0 + 10 > 170 ? true : d < b0 + 10); }).length;
+        barRow(dt, b0 + "–" + (b0 + 9) + " m", nb, depths.length, "", 1);
+      }
+    }
+    // WHICH LEG: descents, players, landfalls and the median depth per leg (L0 = free layout / daily).
+    var lp = el("div", "panel"); lp.dataset.mine = "legs"; mPanel.appendChild(lp);
+    lp.appendChild(el("h2", "", "The journey, leg by leg")).style.margin = "0 0 8px";
+    var lt2 = table(lp, ["leg", { t: "players", n: 1 }, { t: "descents", n: 1 }, { t: "median depth", n: 1 }, { t: "rooted", n: 1 }, "landfalls (share of that leg's descents)"]);
+    for (var L2 = 0; L2 <= MINE_LEGS; L2++) {
+      var le = mends.filter(function (r) { return parseEnd(r).leg === L2; });
+      var ll = lands.filter(function (r) { return r.level === L2; });
+      if (L2 === 0 && !le.length) continue;
+      var tr2 = el("tr"); tr2.dataset.leg = String(L2);
+      tr2.appendChild(el("td", "", L2 === 0 ? "free / daily" : "Leg " + L2));
+      tr2.appendChild(el("td", "n", String(uniq(le.map(function (r) { return r.client_id; })).length)));
+      tr2.appendChild(el("td", "n", String(le.length)));
+      var ld = le.map(function (r) { return r.level; }).filter(function (v) { return v != null; });
+      tr2.appendChild(el("td", "n", ld.length ? median(ld) + " m" : "–"));
+      tr2.appendChild(el("td", "n", String(uniq(ll.map(function (r) { return r.client_id; })).length)));
+      var td2 = el("td"); td2.style.width = "40%";
+      var tk2 = el("div", "track"); var f2 = el("div", "fill"); f2.style.width = (le.length ? Math.min(100, ll.length / le.length * 100) : 0) + "%";
+      tk2.appendChild(f2); tk2.appendChild(el("span", "", ll.length + " of " + le.length + (le.length ? " (" + pct(ll.length, le.length) + "%)" : "")));
+      td2.appendChild(tk2); tr2.appendChild(td2); lt2.appendChild(tr2);
+    }
+    // HOW DESCENTS END: the cause, off detail.
+    var cp = el("div", "panel"); cp.dataset.mine = "causes"; mPanel.appendChild(cp);
+    cp.appendChild(el("h2", "", "How descents end")).style.margin = "0 0 8px";
+    var mc = {}; mends.forEach(function (r) { var c = parseEnd(r).cause; mc[c] = (mc[c] || 0) + 1; });
+    var mck = Object.keys(mc).sort(function (a, b) { return mc[b] - mc[a]; });
+    if (!mck.length) cp.appendChild(el("p", "empty", "No descent has ended yet."));
+    else { var ct2 = table(cp, ["cause", "descents"]); mck.forEach(function (k) { barRow(ct2, k, mc[k], mends.length, k === "island" || k === "promised" ? "" : (k === "abandon" || k === "quit" ? "warn" : ""), 1); }); }
+    // THE DAILY DIG: paid runs and practice, and the depth reached on a paid run.
+    var dly = mrows.filter(function (r) { return r.kind === "daily"; });
+    var dpn = el("div", "panel"); dpn.dataset.mine = "daily"; mPanel.appendChild(dpn);
+    dpn.appendChild(el("h2", "", "The Daily Dig")).style.margin = "0 0 8px";
+    if (!dly.length) dpn.appendChild(el("p", "empty", "Nobody has dug a daily yet (it opens after the first landfall)."));
+    else {
+      var paid = dly.filter(function (r) { return /:paid:/.test(r.detail || ""); }), prac = dly.filter(function (r) { return /:practice:/.test(r.detail || ""); });
+      var pd2 = paid.map(function (r) { return r.level; }).filter(function (v) { return v != null; });
+      var dc = el("div", "cards"); dpn.appendChild(dc);
+      kpi(dc, String(uniq(dly.map(function (r) { return r.client_id; })).length), "daily players", uniq(dly.map(function (r) { return (r.detail || "").slice(0, 8); })).length + " days played");
+      kpi(dc, String(paid.length), "paid runs", pd2.length ? "median " + median(pd2) + " m" : "");
+      kpi(dc, String(prac.length), "practice runs", paid.length ? (prac.length / paid.length).toFixed(1) + " per paid run" : "");
+    }
+    // THE FIRST SESSION, step by step: each player's FIRST session (by its earliest event), and how far
+    // into the first minute it got. The tip ids are recorded when the tip is SHOWN (M4), so 'dig' is the
+    // first dig landing and 'first_line' the first heat line crossed.
+    var fp = el("div", "panel"); fp.dataset.mine = "first"; mPanel.appendChild(fp);
+    fp.appendChild(el("h2", "", "A player's first session")).style.margin = "0 0 8px";
+    var firstS = {}, firstT = {};
+    mrows.forEach(function (r) { var t = new Date(r.created_at).getTime(); if (!r.client_id || !r.session_id) return; if (firstT[r.client_id] == null || t < firstT[r.client_id]) { firstT[r.client_id] = t; firstS[r.client_id] = r.session_id; } });
+    var fsess = {}; Object.keys(firstS).forEach(function (c) { fsess[firstS[c]] = { boot: 0, start: 0, tips: {}, end: 0, upg: 0, island: 0 }; });
+    ROWS.forEach(function (r) {
+      var e = fsess[r.session_id]; if (!e) return;
+      if (r.kind === "boot") e.boot = 1;
+      else if (r.kind === "run_start") e.start++;
+      else if (r.kind === "tutorial") e.tips[r.detail] = 1;
+      else if (r.kind === "run_end") e.end++;
+      else if (r.kind === "upgrade" && (r.n | 0) > 0) e.upg = 1;
+      else if (r.kind === "island") e.island = 1;
+    });
+    var fk = Object.keys(fsess), fN = fk.length;
+    var stage = function (f) { return fk.filter(function (k) { return f(fsess[k]); }).length; };
+    var ftb = table(fp, ["step", "first sessions (share of all first sessions)"]);
+    [["started a descent", function (e) { return e.start > 0; }],
+     ["dug once", function (e) { return e.tips.dig; }],
+     ["saw a seam", function (e) { return e.tips.first_ore; }],
+     ["saw a water pocket", function (e) { return e.tips.first_pocket; }],
+     ["neared the first heat line", function (e) { return e.tips.first_line; }],
+     ["ended a descent", function (e) { return e.end > 0; }],
+     ["started a second descent", function (e) { return e.start > 1; }],
+     ["bought an upgrade", function (e) { return e.upg; }],
+     ["rooted an island", function (e) { return e.island; }]].forEach(function (st) { barRow(ftb, st[0], stage(st[1]), fN || 1, "", 1); });
+    fp.appendChild(el("p", "empty", fN + " players' first sessions. A step is counted when its event is in that session, so the rows need not shrink in order (a pocket can come before a seam)."));
+  }
+`.split('\n');
 const CARD_TYPES = {};
 {
   const block = html.match(/const CARD_DATA = (\[[\s\S]*?\n\]);/);
@@ -163,6 +275,7 @@ const page = [
 'var SUPABASE_URL = ' + JSON.stringify(SUPABASE_URL) + ';',
 'var SUPABASE_KEY = ' + JSON.stringify(SUPABASE_KEY) + ';',
 'var CAMPAIGN_LEVELS = ' + CAMPAIGN_LEVELS + ';',
+'var MINE_LEGS = ' + MINE_LEGS + ';',
 'var SPECIES_NAMES = ' + JSON.stringify(SPECIES_NAMES) + ';',
 'var CARD_TYPES = ' + JSON.stringify(CARD_TYPES) + ';',
 '// The colony the PLAYER saw. Telemetry stores the roster key (Latin, lowercased) because that is',
@@ -640,6 +753,7 @@ const page = [
 '  // against 120 real ones by 72 players. The chip is a SESSION filter and a level_start knows',
 '  // which game it belongs to itself, so the split here is per row and the chip only decides which',
 '  // tables are worth drawing.',
+...MINE_SECTION,
 '  section("How far people get");',
 '  var lvlGames = FILTER.game && FILTER.game !== GAME_NONE ? [FILTER.game] : ["campaign", "survival"];',
 '  var drewLevels = 0;',
@@ -698,7 +812,7 @@ const page = [
 '        + ". A level whose clear rate is under 35% is red, under 60% amber."));',
 '    }',
 '  });',
-'  if (!drewLevels) panel().appendChild(el("p", "empty", "No levels started in this window."));',
+'  if (!drewLevels) panel().appendChild(el("p", "empty", "No levels started in this window." + (FILTER.game === "mine" ? " The Deep Mine has legs, not levels \u2014 see The Deep Mine above." : "")));',
 '',
 '  // ---- deaths ---------------------------------------------------------------',
 '  var p2 = el("div", "row2"); document.getElementById("body").appendChild(p2);',

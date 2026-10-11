@@ -174,6 +174,48 @@ function fixture() {
     }
   }
 
+  // THE DEEP MINE (M15): six players over six days, the shipped game's rows. Known shape, so the mine
+  // section's numbers are arithmetic: depths 10 + 7p + d, legs 1 + p % 3, a second descent on even p, the
+  // first-session tips thinning out (dig 6, seam 4, pocket 2, line 1), two landfalls (legs 1 and 2) and one
+  // player's Daily Dig (two paid days, one practice run). `game: 'mine'`, the default source.
+  const M = { ends: [], lands: 0, paid: 0, practice: 0, players: new Set(), leg: {}, rooted: {} };
+  for (let d = 6; d >= 1; d--) {
+    for (let p = 0; p < 6; p++) {
+      const cid = 'mn' + p, sid = 'mn' + d + '-' + p;
+      const t = now - d * day - Math.round(rnd() * day * 0.3);
+      const base = { client_id: cid, session_id: sid, device: p % 2 ? 'phone' : 'desktop', game: 'mine', mode: 'realtime' };
+      M.players.add(cid);
+      push(t, Object.assign({ kind: 'boot', ms: 2000 }, base, { game: null, mode: null }));
+      const descents = p % 2 === 0 ? 2 : 1;
+      for (let k = 0; k < descents; k++) {
+        const depth = 10 + 7 * p + d + k, leg = 1 + (p % 3);
+        push(t + 1000 + k * 60000, Object.assign({ kind: 'run_start', level: 0, cause: 'new' }, base));
+        if (d === 6 && k === 0) {
+          push(t + 2000, Object.assign({ kind: 'tutorial', detail: 'dig', ms: 1300 }, base));
+          if (p < 4) push(t + 3000, Object.assign({ kind: 'tutorial', detail: 'first_ore', ms: 4300 }, base));
+          if (p < 2) push(t + 3500, Object.assign({ kind: 'tutorial', detail: 'first_pocket', ms: 4600 }, base));
+          if (p === 0) push(t + 4000, Object.assign({ kind: 'tutorial', detail: 'first_line', ms: 30000 }, base));
+        }
+        push(t + 50000 + k * 60000, Object.assign({ kind: 'run_end', level: depth, cause: 'dry', n: 9, ms: 48000, detail: 'L' + leg + ':dry:e' + (4 * p) }, base));
+        M.ends.push(depth); M.leg[leg] = (M.leg[leg] || 0) + 1;
+      }
+      // `growSteps`, not `water`: the campaign's "a sold step does not count" assertion pins water's count.
+      if (d === 6 && p < 3) push(t + 130000, Object.assign({ kind: 'upgrade', detail: 'growSteps', level: 1, n: 12 }, base));
+      if ((p === 0 && d === 3) || (p === 1 && d === 2)) {
+        const L = p + 1;
+        push(t + 140000, Object.assign({ kind: 'island', level: L, n: 3, detail: 'L' + L + ':first', ms: 90000 }, base));
+        M.lands++; M.rooted[L] = (M.rooted[L] || 0) + 1;
+      }
+      if (p === 0 && d <= 2) {
+        const date = new Date(t).toISOString().slice(0, 10).replace(/-/g, '');
+        push(t + 150000, Object.assign({ kind: 'daily', level: 40 + d, n: 6, ms: 70000, detail: date + ':paid:s' + (3 - d) }, base)); M.paid++;
+        if (d === 2) { push(t + 160000, Object.assign({ kind: 'daily', level: 20, n: 0, ms: 50000, detail: date + ':practice:s1' }, base)); M.practice++; }
+      }
+      push(t + 170000, Object.assign({ kind: 'session_end', ms: 170000, n: descents }, base, { game: null, mode: null }));
+    }
+  }
+  const mineFix = { players: M.players.size, ends: M.ends.slice(), lands: M.lands, paid: M.paid, practice: M.practice, leg: M.leg, rooted: M.rooted };
+
   rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
   // Counted, not assumed: the first version of this hard-coded 40 because that is the modulus in
   // the id, and the loop only ever produces 27 of them.
@@ -184,7 +226,7 @@ function fixture() {
   const startsCG = cg.filter((r) => r.kind === 'run_start').length;
   return { rows, boots, starts, clears1, devices, oldSessions, campStarts, campClears1, untagged,
     survStarts, survClears1, survL2, survRuns, survPlayers: survPlayers.size, campPlayers,
-    itchSessions, devicesCG, startsCG };
+    itchSessions, devicesCG, startsCG, mineFix };
 }
 
 (async () => {
@@ -1007,6 +1049,72 @@ function fixture() {
 
     ok('no page errors in the release comparison', serrs.length === 0, serrs.slice(0, 2).join(' | '));
     await sp.close();
+  }
+
+  // ---- THE DEEP MINE (M15) ----------------------------------------------------
+  // A fresh page on the default filters, the same fixture. Every number is arithmetic on `mineFix`.
+  {
+    console.log('\n-- the Deep Mine section --');
+    const mp = await ctx.newPage();
+    const merrs = []; mp.on('pageerror', (e) => merrs.push(String(e && e.message)));
+    await mp.route('**/rest/v1/events*', async (route) => {
+      const rg = route.request().headers()['range'] || '0-999';
+      const [a, z] = rg.split('-').map(Number);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(F.rows.slice(a, z + 1)) });
+    });
+    await mp.goto(base + '/docs/analytics.html', { waitUntil: 'domcontentloaded' });
+    await mp.waitForFunction(() => !/Loading/.test(document.getElementById('sub').textContent), { timeout: 25000 });
+    await sleep(400);
+    const MF = F.mineFix;
+    const mine = await mp.evaluate(() => {
+      const P = document.querySelector('.panel[data-game="mine"]');
+      if (!P) return null;
+      const kp = {}; P.querySelectorAll(':scope > .cards .kpi').forEach((k) => { kp[k.querySelector('.k').textContent] = k.querySelector('.v').textContent; });
+      const tab = (k) => { const q = P.querySelector('[data-mine="' + k + '"] table'); return q ? [...q.tBodies[0].rows].map((r) => [...r.children].map((td) => td.textContent.trim())) : null; };
+      const dk = {}; const dp = P.querySelector('[data-mine="daily"]'); if (dp) dp.querySelectorAll('.kpi').forEach((k) => { dk[k.querySelector('.k').textContent] = k.querySelector('.v').textContent; });
+      return { kp, depth: tab('depth'), legs: tab('legs'), causes: tab('causes'), first: tab('first'), daily: dk };
+    });
+    const sorted = MF.ends.slice().sort((a, b) => a - b), mid = sorted.length >> 1;
+    const medD = sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    ok('the Deep Mine has a section of its own (data-game="mine"), with its players, descents and median depth',
+       mine && mine.kp['mine players'] === String(MF.players) && mine.kp['descents ended'] === String(MF.ends.length) && mine.kp['median depth'] === medD + ' m',
+       JSON.stringify(mine && mine.kp));
+    ok('...and its landfalls', mine && mine.kp['landfalls'] === String(MF.lands), mine && mine.kp['landfalls']);
+    // THE DEPTH HISTOGRAM: one row per 10 m, every descent in exactly one row.
+    const bucket = (lo) => MF.ends.filter((d) => d >= lo && d < lo + 10).length;
+    const dsum = mine && mine.depth ? mine.depth.reduce((a, r) => a + (+(/^(\d+)/.exec(r[1]) || [0, 0])[1]), 0) : -1;
+    const r20 = mine && mine.depth && mine.depth.find((r) => /^20/.test(r[0]));
+    ok('the depth histogram puts every descent in one 10 m row', dsum === MF.ends.length && r20 && new RegExp('^' + bucket(20) + '\\b').test(r20[1]),
+       `rows sum ${dsum} of ${MF.ends.length}; 20-29 m ${r20 && r20[1]} (want ${bucket(20)})`);
+    // THE LEG TABLE: descents per leg off run_end's detail, rooted players off 'island'.
+    const legRow = (L) => mine && mine.legs && mine.legs.find((r) => r[0] === 'Leg ' + L);
+    ok('the leg table counts descents per leg (detail L<n>) and the players who rooted each island',
+       legRow(1) && legRow(1)[2] === String(MF.leg[1]) && legRow(2)[2] === String(MF.leg[2]) && legRow(3)[2] === String(MF.leg[3])
+         && legRow(1)[4] === String(MF.rooted[1] || 0) && legRow(2)[4] === String(MF.rooted[2] || 0) && legRow(3)[4] === '0'
+         && mine.legs.filter((r) => /^Leg /.test(r[0])).length === 8,
+       JSON.stringify(mine && mine.legs && mine.legs.slice(0, 3)));
+    ok('...and the causes, off the same detail', mine && mine.causes && mine.causes.length === 1 && mine.causes[0][0] === 'dry',
+       JSON.stringify(mine && mine.causes));
+    ok('the Daily Dig panel counts paid and practice runs', mine && mine.daily['paid runs'] === String(MF.paid) && mine.daily['practice runs'] === String(MF.practice),
+       JSON.stringify(mine && mine.daily));
+    // THE FIRST-SESSION FUNNEL, by tip id.
+    const step = (label) => { const r = mine && mine.first && mine.first.find((x) => x[0] === label); return r ? +(/^(\d+)/.exec(r[1]) || [0, -1])[1] : -1; };
+    ok('the first-session funnel reads the tip ids: started 6, dug 6, seam 4, pocket 2, line 1, a second descent 3, upgraded 3, rooted 0',
+       step('started a descent') === 6 && step('dug once') === 6 && step('saw a seam') === 4 && step('saw a water pocket') === 2
+         && step('neared the first heat line') === 1 && step('ended a descent') === 6 && step('started a second descent') === 3
+         && step('bought an upgrade') === 3 && step('rooted an island') === 0,
+       JSON.stringify(mine && mine.first));
+    // D1/D7: the cohort table covers the mine's players too (it is per device, game-agnostic).
+    const coh = await mp.evaluate(() => { const h = [...document.querySelectorAll('h2')].find((x) => /By the day they arrived/.test(x.textContent));
+      const t = h && h.parentElement.querySelector('table'); return t ? t.tHead.textContent : null; });
+    ok('...and the cohort table reports day 1 and day 7 returns', !!coh && /day 1/.test(coh) && /day 7/.test(coh), coh);
+    // CONTROL: Game=campaign drops the mine section (the chip is a session filter).
+    const hasChip = await mp.$('.chip[data-f="game"][data-v="campaign"]');
+    if (hasChip) { await mp.click('.chip[data-f="game"][data-v="campaign"]'); await sleep(300); }
+    const gone = await mp.evaluate(() => !document.querySelector('.panel[data-game="mine"]'));
+    ok('CONTROL: Game=campaign drops the Deep Mine section', !!hasChip && gone, `chip ${!!hasChip}, gone ${gone}`);
+    ok('no page errors in the Deep Mine section', merrs.length === 0, merrs.slice(0, 2).join(' | '));
+    await mp.close();
   }
 
   console.log(`\n==== ${pass} passed, ${fail} failed ====`);
