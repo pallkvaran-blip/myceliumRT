@@ -66,9 +66,24 @@ const WORM_REACH = 1.4;       // cells
 // would imply it does something. The two tables are still kept in step by hand, and the
 // config comment says why.
 
+// ONE MAP PER BOOT, EVERY RUN (M15 verify). `startRun()` seeds a '#dev' world from Date.now(), so every
+// boot rolled a fresh procedural map — and the probes that need a particular geometry (a 7x7 patch of
+// open ground for the 5-cell pile, an out-of-reach spot within one crawl for move-and-eat, a clear
+// line for the creep) failed whenever the roll had none: 'no open ground', 'ate 1, want 4', about one
+// full sweep in three, each time green on a re-run. Those were bets about the map, not findings about
+// the threat rules, so the clock is frozen over each '#dev' boot (the perf-probe idiom) and released as
+// soon as the run exists. `THREAT_CLOCK=<ms>` picks a different map; `THREAT_CLOCK=free` rolls fresh.
+// Chosen by running the whole check on candidate clocks: 1717171717171 (perf-probe's) has no clear
+// crawl spot (4 deterministic fails); 1700000000000, 1710000000123, 1720000000777, 1730000000555 116/116.
+const PIN_CLOCK = process.env.THREAT_CLOCK === 'free' ? null : (+process.env.THREAT_CLOCK || 1710000000123);
 const boot = async (ctx, url) => {
   const p=await ctx.newPage();
   p.on('pageerror',e=>console.log('PAGEERROR:',String(e.stack||e).slice(0,300)));
+  if (PIN_CLOCK && /#dev/.test(url)) await p.addInitScript((t)=>{
+    const realNow=Date.now; Date.now=()=>t;
+    const free=()=>{ if (window.__game&&window.__game.state&&window.__game.state.active) { Date.now=realNow; return; } setTimeout(free,10); };
+    setTimeout(free,10);
+  }, PIN_CLOCK);
   await p.goto(url,{waitUntil:'domcontentloaded'});
   await p.waitForSelector('#loadscreen.ld-ready',{timeout:60000}).catch(()=>{});
   await p.click('#loadscreen',{timeout:5000}).catch(()=>{});

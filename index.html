@@ -38310,9 +38310,13 @@ function mineBank(r) {
     r._legRec = r.leg > 0 && digs > 0
       ? mineRecordLeg({ leg: r.leg, journey: r.journey | 0, cause: r.cause, digs, depth, east, countRun: !bootCounted, fossil }) : null;
     // `detail` is 'L<leg>:<cause>:e<east m>' (M8; L0 is the free layout), so the funnel can tell a
-    // leg-2 soft lock from a leg-1 choice and read how far east the run got.
+    // leg-2 soft lock from a leg-1 choice and read how far east the run got. A LATER JOURNEY prefixes
+    // 'J<j>' ('J2L1:dry:e40', M15 verify): Journey II's leg 1 is a different world from Journey I's, and
+    // without it the dashboard filed both under one row. Journey I keeps the bare form, so every row
+    // already in the table still reads as what it was.
+    const jTag = (r.journey | 0) > 1 ? 'J' + (r.journey | 0) : '';
     logEvent('run_end', { level: depth, cause: r.cause || 'dry', turns: state && state.turn, n: ore,
-                          ms, detail: 'L' + (r.leg | 0) + ':' + (r.cause || 'dry') + ':e' + east });
+                          ms, detail: jTag + 'L' + (r.leg | 0) + ':' + (r.cause || 'dry') + ':e' + east });
     // THE DAILY'S RECORD (M13): the day's best, the streak, and the paid flag — one save, and one 'daily'
     // event (`level` the depth, `n` what it paid, `detail` 'YYYYMMDD:paid|practice:s<streak>'). The paid
     // run goes to the global board too, when there is one (`submitMineDaily` probes first; local otherwise).
@@ -38328,7 +38332,7 @@ function mineBank(r) {
     }
     // ONE 'island' EVENT PER LANDFALL, `n` = the runs this leg took (this one included).
     if (mineLandfall(r.cause) && r.leg > 0) logEvent('island', { level: r.leg | 0, n: (r._legRec && r._legRec.runs) | 0,
-      detail: 'L' + (r.leg | 0) + (r._legRec && r._legRec.firstLand ? ':first' : ':again') + (r.cause === 'promised' ? ':promised' : ''), ms });
+      detail: jTag + 'L' + (r.leg | 0) + (r._legRec && r._legRec.firstLand ? ':first' : ':again') + (r.cause === 'promised' ? ':promised' : ''), ms });
   }
   const seamCount = r.seamCount || (state && state.mineSeams) || {};
   return { depth, ore, seams, reach, reachRaw, mats, seamCount, best: r._mineBest || mineBestNow(),

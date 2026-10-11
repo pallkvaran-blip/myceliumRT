@@ -1051,6 +1051,83 @@ function fixture() {
     await sp.close();
   }
 
+  // ---- THE RELEASE COMPARISON ON A MINE BUILD (M15 verify) -------------------------------------
+  // The section was hard-pinned to CAMPAIGN and counted "played" off level_start, which the mine never
+  // sends — so on the build being shipped the release row read 0 players and '–' play time, the KPI the
+  // page labels "what a store reports" read '–', and the Game chip had no 'mine' at all. Stamped mine
+  // rows on BOTH sides of a release, worked out by hand:
+  //   BEFORE (2026-09-30-mold001): m1, m2 play (60 s, 100 s), mb bounces (loads, never starts a descent)
+  //   AFTER  (2026-10-10-mnew001): n1, n2, n3 play 200 s / 300 s / 400 s -> median "5m", mean "5m";
+  //                                n1 roots an island; n3 buys an upgrade; nb bounces.
+  {
+    console.log('\n-- the release comparison on a Deep Mine build --');
+    const DAY = 86400000, now = Date.now();
+    const rows = []; let id = 0;
+    const r0 = (cid, sid, t, kind, extra) => rows.push(Object.assign({ id: ++id, created_at: new Date(t).toISOString(),
+      client_id: cid, session_id: sid, kind, source: 'crazygames', mode: 'realtime', device: 'phone' }, extra || {}));
+    const visit = (cid, sid, t, build, ms, played, more) => {
+      r0(cid, sid, t, 'boot', { ms: 900, detail: build, game: null });
+      if (played) {
+        r0(cid, sid, t + 1000, 'run_start', { game: 'mine', detail: 'new' });
+        r0(cid, sid, t + 2000, 'run_end', { game: 'mine', level: 40, n: 12, ms: ms - 5000, detail: 'L1:dry:e20' });
+      }
+      if (more) more(cid, sid, t);
+      r0(cid, sid, t + 3000, 'session_end', { game: played ? 'mine' : null, ms, n: played ? 1 : 0 });
+    };
+    visit('m1', 'sm1', now - 6 * DAY, '2026-09-30-mold001', 60000, true);
+    visit('m2', 'sm2', now - 6 * DAY, '2026-09-30-mold001', 100000, true);
+    visit('mb', 'smb', now - 6 * DAY, '2026-09-30-mold001', 15000, false);
+    visit('n1', 'sn1', now - 2 * DAY, '2026-10-10-mnew001', 200000, true, (c, sid, t) => r0(c, sid, t + 2500, 'island', { game: 'mine', level: 1, n: 1, detail: 'L1:first' }));
+    visit('n2', 'sn2', now - 2 * DAY, '2026-10-10-mnew001', 300000, true);
+    visit('n3', 'sn3', now - 2 * DAY, '2026-10-10-mnew001', 400000, true, (c, sid, t) => r0(c, sid, t + 2500, 'upgrade', { game: 'mine', n: 5, detail: 'water' }));
+    visit('nb', 'snb', now - 2 * DAY, '2026-10-10-mnew001', 12000, false);
+    // A Journey II leg-1 descent: it must get a row of its own in the leg table, not share Journey I's.
+    r0('n2', 'sn2', now - 2 * DAY + 2600, 'run_end', { game: 'mine', level: 30, n: 8, ms: 50000, detail: 'J2L1:dry:e15' });
+    const rp2 = await ctx.newPage();
+    const rerrs2 = []; rp2.on('pageerror', (e) => rerrs2.push(String(e && e.message)));
+    await rp2.route('**/rest/v1/events*', async (route) => {
+      const rg = route.request().headers()['range'] || '0-999';
+      const [a, z] = rg.split('-').map(Number);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(rows.slice(a, z + 1)) });
+    });
+    await rp2.goto(base + '/docs/analytics.html', { waitUntil: 'domcontentloaded' });
+    await rp2.waitForFunction(() => !/Loading/.test(document.getElementById('sub').textContent), { timeout: 25000 });
+    await sleep(400);
+    const rel = await rp2.evaluate(() => {
+      const pan = document.querySelector('.panel[data-release]');
+      if (!pan) return null;
+      const t = pan.querySelector('table');
+      const kp = {}; document.querySelectorAll('.kpi').forEach((k) => { const q = k.querySelector('.k'); if (q) kp[q.textContent] = k.querySelector('.v').textContent; });
+      const legs = [...document.querySelectorAll('[data-mine="legs"] tbody tr')].map((tr) => tr.children[0].textContent.trim() + '|' + tr.children[2].textContent.trim());
+      return { game: pan.dataset.relgame, rows: t ? [...t.tBodies[0].rows].map((tr) => [...tr.children].map((td) => td.textContent.trim())) : [],
+               head: t && t.tHead ? t.tHead.textContent : '', note: [...pan.querySelectorAll('.empty, .lead')].map((p) => p.textContent).join(' '),
+               chip: !!document.querySelector('.chip[data-f="game"][data-v="mine"]'), kp, legs };
+    });
+    const relA = rel && rel.rows.find((r) => /mnew001/.test(r[0])), relB = rel && rel.rows.find((r) => /everything before/i.test(r[0]));
+    ok('a Deep Mine release is compared on the Deep Mine (pinned to the latest build\u2019s own game, not to campaign)',
+       !!rel && rel.game === 'mine' && /The Deep Mine only/.test(rel.note) && !/Campaign only/.test(rel.note), rel && (rel.game + ' :: ' + rel.note.slice(0, 120)));
+    ok('...the release row counts the mine players who started a descent, and their play time (median 5m, avg 5m)',
+       !!relA && relA[1] === '3' && relA[2] === '3' && /^5m\b/.test(relA[4]) && /^5m\b/.test(relA[3]), JSON.stringify(relA));
+    ok('...and the baseline its own (2 players, median 1m 20s), with the bouncers named on both sides',
+       !!relB && relB[1] === '2' && relB[2] === '2' && /^1m 20s/.test(relB[4]) && /never started a descent/.test(rel.note)
+         && /mnew001 1 of 4 visits/.test(rel.note) && /before it 1 of 3 visits/.test(rel.note),
+       JSON.stringify(relB) + ' :: ' + (/Bouncers excluded[^.]*\./.exec(rel && rel.note || '') || [''])[0]);
+    ok('...with islands rooted where a campaign build counts levels, and the store spend',
+       !!relA && /islands rooted/.test(rel.head) && relA[5].startsWith('0.3') && /^1 /.test(relA[6]) && /^1 /.test(relA[8]),
+       JSON.stringify(relA && relA.slice(5)) + ' :: ' + (rel && rel.head));
+    ok('"mean PLAYED visit" (what a store reports) counts mine visits — not \u2013', !!rel && rel.kp['mean PLAYED visit'] && rel.kp['mean PLAYED visit'] !== '\u2013',
+       rel && rel.kp['mean PLAYED visit']);
+    ok('the Game chip offers the Deep Mine', !!rel && rel.chip, String(rel && rel.chip));
+    ok('the leg table gives a later journey\u2019s leg its own row (J2L1 is not Journey I\u2019s Leg 1)',
+       !!rel && rel.legs.includes('Journey I · Leg 1|5') && rel.legs.includes('Journey II · Leg 1|1'), JSON.stringify(rel && rel.legs.slice(0, 4)));
+    await rp2.click('.chip[data-f="game"][data-v="mine"]').catch(() => {}); await sleep(300);
+    const minePicked = await rp2.evaluate(() => ({ mine: !!document.querySelector('.panel[data-game="mine"]'), msg: [...document.querySelectorAll('.panel .empty')].some((e) => /The Deep Mine has legs, not levels/.test(e.textContent)),
+      on: !!document.querySelector('.chip.on[data-f="game"][data-v="mine"]') }));   // NOT body.textContent: it holds the page's own script
+    ok('...and Game=mine keeps the mine section and says the level tables do not apply', minePicked.on && minePicked.mine && minePicked.msg, JSON.stringify(minePicked));
+    ok('no page errors on a Deep Mine release', rerrs2.length === 0, rerrs2.slice(0, 2).join(' | '));
+    await rp2.close();
+  }
+
   // ---- THE DEEP MINE (M15) ----------------------------------------------------
   // A fresh page on the default filters, the same fixture. Every number is arithmetic on `mineFix`.
   {

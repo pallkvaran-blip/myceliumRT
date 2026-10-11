@@ -85,7 +85,9 @@ const MINE_SECTION = String.raw`
     mPanel = panel(); mPanel.dataset.game = "mine";
     var mends = mrows.filter(function (r) { return r.kind === "run_end"; });
     var mstarts = mrows.filter(function (r) { return r.kind === "run_start"; });
-    var parseEnd = function (r) { var m = /^L(\d+):([a-z]+):e(\d+)/.exec(r.detail || ""); return m ? { leg: +m[1], cause: m[2], east: +m[3] } : { leg: null, cause: r.cause || "?", east: null }; };
+    // 'J<j>' prefixes a later journey's detail (M15 verify); a bare 'L<n>' is Journey I (every older row).
+    var parseEnd = function (r) { var m = /^(?:J(\d+))?L(\d+):([a-z]+):e(\d+)/.exec(r.detail || ""); return m ? { j: m[1] ? +m[1] : 1, leg: +m[2], cause: m[3], east: +m[4] } : { j: 1, leg: null, cause: r.cause || "?", east: null }; };
+    var islandJ = function (r) { var m = /^J(\d+)L/.exec(r.detail || ""); return m ? +m[1] : 1; };
     var mk = el("div", "cards"); mPanel.appendChild(mk);
     var mPlayers = uniq(mrows.map(function (r) { return r.client_id; }));
     var depths = mends.map(function (r) { return r.level; }).filter(function (v) { return v != null; });
@@ -113,12 +115,20 @@ const MINE_SECTION = String.raw`
     var lp = el("div", "panel"); lp.dataset.mine = "legs"; mPanel.appendChild(lp);
     lp.appendChild(el("h2", "", "The journey, leg by leg")).style.margin = "0 0 8px";
     var lt2 = table(lp, ["leg", { t: "players", n: 1 }, { t: "descents", n: 1 }, { t: "median depth", n: 1 }, { t: "rooted", n: 1 }, "landfalls (share of that leg's descents)"]);
+    // ONE BLOCK OF ROWS PER JOURNEY once more than one has been played: Journey II's leg 1 is another world
+    // (its own seed table and rules), so merging it into Journey I's row would average two different legs.
+    var journeys = uniq(mends.map(function (r) { return parseEnd(r).j; }).concat(lands.map(islandJ))).sort(function (a, b) { return a - b; });
+    if (!journeys.length) journeys = [1];
+    var multiJ = journeys.length > 1;
+    var ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"];
+    journeys.forEach(function (J2) {
     for (var L2 = 0; L2 <= MINE_LEGS; L2++) {
-      var le = mends.filter(function (r) { return parseEnd(r).leg === L2; });
-      var ll = lands.filter(function (r) { return r.level === L2; });
+      if (L2 === 0 && J2 !== journeys[0]) continue;
+      var le = mends.filter(function (r) { var e = parseEnd(r); return e.leg === L2 && (L2 === 0 || e.j === J2); });
+      var ll = lands.filter(function (r) { return r.level === L2 && islandJ(r) === J2; });
       if (L2 === 0 && !le.length) continue;
-      var tr2 = el("tr"); tr2.dataset.leg = String(L2);
-      tr2.appendChild(el("td", "", L2 === 0 ? "free / daily" : "Leg " + L2));
+      var tr2 = el("tr"); tr2.dataset.leg = String(L2); tr2.dataset.journey = String(J2);
+      tr2.appendChild(el("td", "", L2 === 0 ? "free / daily" : (multiJ ? "Journey " + (ROMAN[J2] || J2) + " · " : "") + "Leg " + L2));
       tr2.appendChild(el("td", "n", String(uniq(le.map(function (r) { return r.client_id; })).length)));
       tr2.appendChild(el("td", "n", String(le.length)));
       var ld = le.map(function (r) { return r.level; }).filter(function (v) { return v != null; });
@@ -129,6 +139,7 @@ const MINE_SECTION = String.raw`
       tk2.appendChild(f2); tk2.appendChild(el("span", "", ll.length + " of " + le.length + (le.length ? " (" + pct(ll.length, le.length) + "%)" : "")));
       td2.appendChild(tk2); tr2.appendChild(td2); lt2.appendChild(tr2);
     }
+    });
     // HOW DESCENTS END: the cause, off detail.
     var cp = el("div", "panel"); cp.dataset.mine = "causes"; mPanel.appendChild(cp);
     cp.appendChild(el("h2", "", "How descents end")).style.margin = "0 0 8px";
@@ -155,8 +166,14 @@ const MINE_SECTION = String.raw`
     var fp = el("div", "panel"); fp.dataset.mine = "first"; mPanel.appendChild(fp);
     fp.appendChild(el("h2", "", "A player's first session")).style.margin = "0 0 8px";
     var firstS = {}, firstT = {};
-    mrows.forEach(function (r) { var t = new Date(r.created_at).getTime(); if (!r.client_id || !r.session_id) return; if (firstT[r.client_id] == null || t < firstT[r.client_id]) { firstT[r.client_id] = t; firstS[r.client_id] = r.session_id; } });
-    var fsess = {}; Object.keys(firstS).forEach(function (c) { fsess[firstS[c]] = { boot: 0, start: 0, tips: {}, end: 0, upg: 0, island: 0 }; });
+    // FIRST EVER, NOT FIRST IN THE WINDOW (M15 verify): each player's first session is read off the WHOLE
+    // history under the other filters (inFilterNoDays, as retention does), and kept only if it falls in the
+    // window. Picked inside the window, a player whose real first visit predates it had a later session
+    // counted as "first", which inflates every late step (bought an upgrade, rooted an island).
+    var winC = {}; mrows.forEach(function (r) { if (r.client_id) winC[r.client_id] = 1; });
+    ROWS.forEach(function (r) { if (r.game !== "mine" || !winC[r.client_id] || !r.session_id || !inFilterNoDays(r)) return; var t = new Date(r.created_at).getTime(); if (firstT[r.client_id] == null || t < firstT[r.client_id]) { firstT[r.client_id] = t; firstS[r.client_id] = r.session_id; } });
+    var inWin = {}; mrows.forEach(function (r) { inWin[r.session_id] = 1; });
+    var fsess = {}; Object.keys(firstS).forEach(function (c) { if (inWin[firstS[c]]) fsess[firstS[c]] = { boot: 0, start: 0, tips: {}, end: 0, upg: 0, island: 0 }; });
     ROWS.forEach(function (r) {
       var e = fsess[r.session_id]; if (!e) return;
       if (r.kind === "boot") e.boot = 1;
@@ -447,16 +464,31 @@ const page = [
 '  return k;',
 '}',
 '',
-'// ...AND IT PINS THE GAME TO CAMPAIGN, WHATEVER THE CHIP SAYS. This is the one place on the page',
-'// that compares two builds, and survival was WITHDRAWN in the current one — so a baseline that',
-'// includes survival is not like for like: survival visits were the longest in the table (3m 27s',
-'// against campaign’s 2m 43s), which inflates the "before" side with sessions the new build',
-'// cannot have. The page used to say "pick Game = campaign before reading this", which is a',
-'// manual step that is forgotten exactly when it matters. It is pinned here and stated in words',
-'// under the heading; every other chip (source, device, mode) still applies.',
+'// ...AND IT PINS THE GAME TO THE ONE THE LATEST BUILD OFFERS, WHATEVER THE CHIP SAYS. This is the one',
+'// place on the page that compares two builds, and a baseline holding a game the release does not',
+'// offer is not like for like (survival visits were the longest in the table when survival was',
+'// withdrawn). It was hard-wired to CAMPAIGN, which was right for that release and wrong the moment',
+'// the Deep Mine became the only game: every mine session fell outside the pin and the release row read',
+'// 0 players (M15 verify). RELEASE_GAME is read off the latest stamped build\u2019s own run_starts (see',
+'// releaseGame), stated in words under the heading; every other chip (source, device, mode) applies.',
+'var RELEASE_GAME = "campaign";',
+'function releaseGame(latest) {',
+'  if (!latest) return "campaign";',
+'  var n = {};',
+'  ROWS.forEach(function (r) { if (r.kind === "run_start" && r.game && buildOf(r) === latest) n[r.game] = (n[r.game] || 0) + 1; });',
+'  var best = null; Object.keys(n).forEach(function (g) { if (best == null || n[g] > n[best]) best = g; });',
+'  return best || "campaign";',
+'}',
+'// WHO PLAYED, not who loaded: a session that started a LEVEL (campaign, survival) or a DESCENT (the',
+'// mine, which has no levels and never sends level_start). One predicate, read by the release table,',
+'// the "mean PLAYED visit" KPI and the bouncer count, so the three cannot disagree about a mine visit.',
+'function playedRow(r) { return r.kind === "level_start" || (r.kind === "run_start" && r.game === "mine"); }',
+'// A level cleared, or (the mine\u2019s equivalent) an island rooted.',
+'function clearRow(r) { return r.kind === "level_clear" || r.kind === "island"; }',
+'var GAME_LABEL = { campaign: "Campaign", survival: "Survival", mine: "The Deep Mine" };',
 'function inFilterRelease(r) {',
 '  var g = FILTER.game;',
-'  FILTER.game = "campaign";',
+'  FILTER.game = RELEASE_GAME;',
 '  var k = inFilterCrossRelease(r);',
 '  FILTER.game = g;',
 '  return k;',
@@ -572,7 +604,7 @@ const page = [
 '  // moves the all-time mean by minutes. A mean answers "how long do people play"; a median is the',
 '  // only one of the two that can be compared between two releases without the tail deciding it.',
 '  var playedS = {};',
-'  of("level_start").forEach(function (r) { playedS[r.session_id] = 1; });',
+'  rows.filter(playedRow).forEach(function (r) { playedS[r.session_id] = 1; });',
 '  var sessP = of("session_end").filter(function (r) { return r.ms != null && playedS[r.session_id]; })',
 '                               .map(function (r) { return r.ms; });',
 '  kpi(kc, fmtMs(mean(sessP)), "mean PLAYED visit", "what a store reports · " + sessP.length + " measured");',
@@ -593,7 +625,8 @@ const page = [
 '  barRow(ft, bootSessions < sessions.length ? "sessions" : "loaded and playable", funnelBase, funnelBase, "", 1);',
 '  barRow(ft, "opened the species screen", pickers.length, funnelBase, "", 1);',
 '  barRow(ft, "started a run", uniq(starts.map(function (r) { return r.session_id; })).length, funnelBase, "", 1);',
-'  barRow(ft, "cleared a level", uniq(of("level_clear").map(function (r) { return r.session_id; })).length, funnelBase, "", 1);',
+'  barRow(ft, "started a descent (the Deep Mine)", uniq(starts.filter(function (r) { return r.game === "mine"; }).map(function (r) { return r.session_id; })).length, funnelBase, "", 1);',
+'  barRow(ft, "cleared a level / rooted an island", uniq(rows.filter(clearRow).map(function (r) { return r.session_id; })).length, funnelBase, "", 1);',
 '',
 '  // ---- COMING BACK (does anyone play twice?) ------------------------------',
 '  // A VISIT, NOT A SESSION. Reloading the page mints a new `session_id`, so counting sessions',
@@ -902,7 +935,11 @@ const page = [
 '  // this page cannot read what was actually uploaded. Reading it off the rows means the cut moves',
 '  // to a new release on its own, the first time anybody plays one.',
 '  section("Before and after the last release");',
-'  var pcmp = panel();',
+'  var pcmp = panel(); pcmp.dataset.release = "1";',
+'  var STAMP_RE0 = /^\\d{4}-\\d{2}-\\d{2}-/;',
+'  RELEASE_GAME = releaseGame(uniq(ROWS.map(buildOf).filter(function (b) { return b !== BUILD_NONE && STAMP_RE0.test(b); })).sort().reverse()[0] || null);',
+'  pcmp.dataset.relgame = RELEASE_GAME;   // NOT data-game: that is the level tables\u2019 hook (the check finds them by it)',
+'  var MINEREL = RELEASE_GAME === "mine";',
 '  var cross = ROWS.filter(inFilterRelease);',
 '  // THE CUT POINT COMES FROM *ALL* ROWS, NOT FROM THE FILTERED ONES — and this is the bug the',
 '  // owner caught: "I still see 13 players today doing survival after the update". Taken from',
@@ -955,8 +992,8 @@ const page = [
 '    + ". Everything before it is one baseline — the previous build and every older session together."));',
 '  // WHAT THIS SECTION IS SCOPED TO, IN WORDS, read off the live filter rather than described —',
 '  // a sentence that says "CrazyGames" while the chip says itch is worse than no sentence.',
-'  pcmp.appendChild(el("p", "empty", "Campaign only \\u2014 pinned, whatever the Game chip says, because"',
-'    + " survival was withdrawn in this release and a baseline containing it is not like for like."',
+'  pcmp.appendChild(el("p", "empty", (GAME_LABEL[RELEASE_GAME] || RELEASE_GAME) + " only \\u2014 pinned, whatever the Game chip says, to the"',
+'    + " game the latest build offers (read off its own sessions), so both sides hold the same game."',
 '    + "  Source: " + (FILTER.source === SRC_NONE ? "untagged" : (FILTER.source || "all"))',
 '    + (FILTER.device ? "  \\u00b7  device: " + FILTER.device : "")',
 '    + (FILTER.mode ? "  \\u00b7  mode: " + FILTER.mode : "")',
@@ -990,9 +1027,9 @@ const page = [
 '  // so. Two adjacent percentages over different bases is exactly the trap the level table fell into',
 '  // ("it says only 1 person started lvl 1").',
 '  var ct2 = table(pcmp, ["release", { t: "players who played", n: 1 }, { t: "played visits", n: 1 },',
-'    { t: "avg play time", n: 1 }, { t: "median play time", n: 1 }, { t: "levels cleared / player", n: 1 },',
-'    { t: "cleared \\u2265 1 level (players)", n: 1 }, { t: "came back (players)", n: 1 },',
-'    { t: "spent spores (players)", n: 1 }]);',
+'    { t: "avg play time", n: 1 }, { t: "median play time", n: 1 }, { t: MINEREL ? "islands rooted / player" : "levels cleared / player", n: 1 },',
+'    { t: MINEREL ? "rooted \\u2265 1 island (players)" : "cleared \\u2265 1 level (players)", n: 1 }, { t: "came back (players)", n: 1 },',
+'    { t: MINEREL ? "spent in the store (players)" : "spent spores (players)", n: 1 }]);',
 '',
 '  // CAME BACK IS A COHORT, AND IT HAS TO BE COHORTED ON THE FIRST VISIT. A player is counted on the',
 '  // side their FIRST EVER visit falls on — attribute by "has a session on this build" instead and',
@@ -1041,13 +1078,13 @@ const page = [
 '    // WHO PLAYED, not who loaded. `level_start` is the line between the two, and it is the same',
 '    // line the funnel above draws.',
 '    var played = {}, playedBy = {};',
-'    rs.forEach(function (r) { if (r.kind === "level_start") { played[r.session_id] = 1; playedBy[r.client_id] = 1; } });',
+'    rs.forEach(function (r) { if (playedRow(r)) { played[r.session_id] = 1; playedBy[r.client_id] = 1; } });',
 '    var players = Object.keys(playedBy).length;',
 '    var anyRs = anyByBuild[b] || [];',
 '    var anySess = {}, anyPlayed = {};',
 '    anyRs.forEach(function (r) {',
 '      anySess[r.session_id] = 1;',
-'      if (r.kind === "level_start") anyPlayed[r.session_id] = 1;',
+'      if (playedRow(r)) anyPlayed[r.session_id] = 1;',
 '    });',
 '    var mins = rs.filter(function (r) { return r.kind === "session_end" && r.ms != null && played[r.session_id]; })',
 '                 .map(function (r) { return r.ms; });',
@@ -1057,8 +1094,8 @@ const page = [
 '    // CLEARS PER PLAYER, which is the progress measure — the share who cleared ANYTHING says how',
 '    // many got off the ground, and this says how far they then got. A campaign built to stop a new',
 '    // player on level 3 or 4 moves in this column long before it moves in the one beside it.',
-'    var clears = rs.filter(function (r) { return r.kind === "level_clear"; }).length;',
-'    var clearedBy = uniq(rs.filter(function (r) { return r.kind === "level_clear"; })',
+'    var clears = rs.filter(clearRow).length;',
+'    var clearedBy = uniq(rs.filter(clearRow)',
 '                           .map(function (r) { return r.client_id; })).length;',
 '    // SHARE OF PLAYERS WHO SPENT ANYTHING AT ALL, not total spores: one player who buys ten',
 '    // upgrades is one person who engaged with the store, and a total lets them carry the row.',
@@ -1097,7 +1134,7 @@ const page = [
 '    + order.map(function (b) {',
 '        var x = bounced[b] || { skipped: 0, of: 0 };',
 '        return (b === LATEST ? latest : "before it") + " " + x.skipped + " of " + x.of + " visits";',
-'      }).join(", ") + " never started a level."));',
+'      }).join(", ") + (MINEREL ? " never started a descent." : " never started a level.")));',
 '  // A SMALL SAMPLE IS THE NORMAL STATE OF THIS TABLE for a day or two after a release, and the',
 '  // page has to say so — otherwise the first reading of a new build is a dozen sessions presented',
 '  // with the same confidence as a month of them.',
@@ -1117,7 +1154,7 @@ const page = [
 '        return b + " (" + n + " session" + (n === 1 ? "" : "s") + ")";',
 '      }).join(", ") + ", plus every session from before builds stamped themselves."));',
 '  pcmp.appendChild(el("p", "empty", "A visit is `boot` to `session_end`, and only visits that"',
-'    + " reached a level are counted here. The AVERAGE is what a store publishes and the MEDIAN is"',
+'    + (MINEREL ? " started a descent" : " reached a level") + " are counted here. The AVERAGE is what a store publishes and the MEDIAN is"',
 '    + " the one to compare two builds on: play time is savagely skewed, and on this table the"',
 '    + " longest tenth of visits has held about half of all the time played, so a mean follows"',
 '    + " whoever left a tab open. “Levels cleared / player” counts every clear (the total is in"',
@@ -1401,7 +1438,9 @@ const page = [
 '  var srcOpts = [{ t: "all", v: "" }].concat(srcs.map(function (s) { return { t: s, v: s }; }));',
 '  if (ROWS.some(function (r) { return r.source == null; })) srcOpts.push({ t: "untagged", v: SRC_NONE });',
 '  group("Source", "source", srcOpts);',
-'  var gameOpts = [{ t: "both", v: "" }, { t: "campaign", v: "campaign" }, { t: "survival", v: "survival" }];',
+'  // THE DEEP MINE IS A GAME ON THE CHIP (M15 verify): it is the only game the build offers, and a chip',
+'  // group without it could not narrow the page to the one game anybody is playing.',
+'  var gameOpts = [{ t: "all", v: "" }, { t: "the Deep Mine", v: "mine" }, { t: "campaign", v: "campaign" }, { t: "survival", v: "survival" }];',
 '  // The bucket that used to hide inside "survival". Only offered when there are any, so a clean',
 '  // dataset does not carry a chip that selects nothing.',
 '  if (ROWS.some(function (r) { return gameOf(r) === GAME_NONE; })) gameOpts.push({ t: "started nothing", v: GAME_NONE });',
