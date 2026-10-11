@@ -242,6 +242,16 @@ if (!process.argv.includes('--keep-comments')) {
   say(`comments: ${r.lines} full-line comments stripped from the script (${mb(before)} -> ${mb(html.length)})`);
 }
 
+// The dev flag's anchor comment does not survive the strip, so re-confirm the flag on the CONFIG block
+// itself — the same test CI's "Confirm the dev buttons are off" step runs against the archive.
+{
+  const devBlocks = html.match(/^  dev: \{\n    enabled: (true|false),/gm) || [];
+  if (devBlocks.length !== 1 || !devBlocks[0].endsWith('enabled: false,')) {
+    console.error('FAILED: could not confirm CONFIG.dev.enabled is false in the staged index.html.');
+    process.exit(1);
+  }
+}
+
 fs.rmSync(STAGE, { recursive: true, force: true });
 fs.mkdirSync(path.join(STAGE, 'assets'), { recursive: true });
 fs.writeFileSync(path.join(STAGE, 'index.html'), html);

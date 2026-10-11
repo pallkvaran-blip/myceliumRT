@@ -70,8 +70,10 @@ jobs:
         run: |
           set -euo pipefail
           unzip -p dist/mycelium-${{ inputs.platform }}.zip index.html > /tmp/built.html
-          if grep -q 'itch zip, and confirm with scratchpad/verify-nodev.mjs' /tmp/built.html \
-             && grep -A1 'itch zip, and confirm with scratchpad/verify-nodev.mjs' /tmp/built.html | grep -q 'enabled: false,'; then
+          # The build strips the page's full-line comments AFTER patching the flag, so the anchor
+          # comment the patch keys on is gone from the archive: check the CONFIG block itself.
+          if [ "$(grep -c '^  dev: {$' /tmp/built.html)" = "1" ] \
+             && grep -A1 '^  dev: {$' /tmp/built.html | tail -1 | grep -qx '    enabled: false,'; then
             echo "dev.enabled is false in the archive"
           else
             echo "REFUSING: could not confirm dev.enabled is false in the built index.html" >&2
