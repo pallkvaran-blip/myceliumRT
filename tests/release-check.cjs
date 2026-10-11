@@ -24,7 +24,11 @@
  *            Three blocks of 100 frames, gated on the median block's p95 (one 60-frame block was host noise);
  *            a panning camera and human-paced digging are PRINTED alongside. Needs an idle host.
  *
- * `RELEASE_ONLY=boot,masks,diet,gutters,perf` runs a subset.
+ *   slow     A SLOW OR STALLED BOOT: a mask table answering late (the % moves first, the gate stops waiting at
+ *            MASK_TABLE_WAIT_MS, the late table is still taken up), a table that never answers, and a manifest held
+ *            past the stall-watching safety net (the band preload behind the title still starts when it lands).
+ *
+ * `RELEASE_ONLY=boot,slow,masks,diet,gutters,perf` runs a subset.
  */
 const path = require('path'), fs = require('fs');
 const H = require('./mine-harness.cjs');
@@ -74,9 +78,9 @@ const seedSave = (sv) => (p) => p.addInitScript((sv) => { try { if (sv) localSto
         await page.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 });
         for (let i = 0; i < 50 && readyAt == null; i++) await sleep(20);
         const diet = await page.evaluate(() => window.__bootDiet && window.__bootDiet());
-        const before = reqs.filter((x) => x.t <= readyAt);
+        const before = readyAt == null ? [] : reqs.filter((x) => x.t <= readyAt);
         await ctx.close();
-        return { ms: Math.round(readyPage), n: before.length, mb: before.reduce((a, x) => a + x.sz, 0) / 1048576, before, diet, failed };
+        return { ms: Math.round(readyPage || 0), readyAt, n: before.length, mb: before.reduce((a, x) => a + x.sz, 0) / 1048576, before, diet, failed };
       };
       const NON_MINE = /^\/assets\/(cards|species|tutorial|spores)\/|^\/assets\/(rockform\d+|rock(Basalt|Mossy|River|Slate|Veined)|skyline\d+|house|antColony[AB]|acorn|chestnut|pinecone|leafYellow\w+|lake\d)\.png|^\/assets\/rockface\//;
       const ret = [];
@@ -97,6 +101,11 @@ const seedSave = (sv) => (p) => p.addInitScript((sv) => { try { if (sv) localSto
       ok('...and reaches the gate in <= 1.0 s (median of 3, local server)', med(fms) <= 1000, `navigation -> ready ${fms.join(' / ')} ms`);
       ok('...fetching nothing the mine never draws', fvs.every((r) => !r.before.some((x) => NON_MINE.test(x.p))),
          fvs.map((r) => r.before.filter((x) => NON_MINE.test(x.p)).map((x) => x.p).join(',') || 0).join(' / ') + ' non-mine files');
+      // EVERY BOOT ABOVE MEASURED SOMETHING (M15 verify round 2): a binding that never fired left `readyAt` null,
+      // the request cut empty and the time 0 — a returning boot would then pass on 0 requests in 0 ms.
+      const real = (r) => r.readyAt != null && r.ms > 0 && r.before.some((x) => /^\/index\.html$/.test(x.p)) && r.before.some((x) => /\/assets\/manifest\.json$/.test(x.p));
+      ok('...and every one of those six boots measured something (the gate observed, index.html and the manifest among the counted requests)',
+         ret.every(real) && fvs.every(real), [...ret, ...fvs].map((r) => `${r.readyAt != null ? 'ready' : 'NO READY'} ${r.ms} ms ${r.n} req`).join(' / '));
       const full = await bootOnce(RETURNING, { MYCELIUM_FULL_BOOT: true });
       const cards = full.before.filter((x) => /^\/assets\/cards\//.test(x.p)).length;
       ok('CONTROL: the full boot (a re-offered campaign, a #dev sandbox) still fetches the card faces and the rest',
@@ -104,6 +113,84 @@ const seedSave = (sv) => (p) => p.addInitScript((sv) => { try { if (sv) localSto
       // A '#dev' sandbox boot takes the full boot too (the engine checks boot it and draw procedural rock).
       const dv = await (async () => { const b = await E.boot('#dev', 390, 844); const d = await b.page.evaluate(() => window.__bootDiet && window.__bootDiet()); await b.ctx.close(); return d; })();
       ok("...and so does a '#dev' boot", dv === false, String(dv));
+    }
+
+    // ------------------------------------------------------------------ slow
+    // A SLOW OR STALLED LINK MUST NOT HOLD THE BOOT (M15 verify round 2), three ways:
+    //   (a) a mask table that answers LATE: the counter moves before it answers, the gate stops waiting for it
+    //       after MASK_TABLE_WAIT_MS (gating every band, the no-table path), and the late table is still used;
+    //   (b) a mask table that NEVER answers: same, and the gate opens long before any safety net;
+    //   (c) a manifest held past the safety net (it watches for a stall now, ~10 s): on a returning save the band
+    //       preload behind the title starts the moment the manifest arrives — it used to be dropped for good,
+    //       because `_bandRest` was assigned after `_bootReady` had already consumed it.
+    if (want('slow')) {
+      console.log('--- a slow or stalled boot');
+      const gateRun = async (save, route, opts = {}) => {
+        const ctx = await E.browser.newContext({ viewport: { width: 390, height: 844 } });
+        const page = await ctx.newPage();
+        const t0 = Date.now(), reqs = [];
+        let readyAt = null;
+        await page.exposeFunction('__relReady', () => { if (readyAt == null) readyAt = Date.now() - t0; });
+        page.on('request', (rq) => reqs.push({ p: decodeURIComponent(new URL(rq.url()).pathname), t: Date.now() - t0 }));
+        if (route) await route(page);
+        await seedSave(save)(page);
+        await page.addInitScript(() => { window.MYCELIUM_SUPABASE = { url: '', anonKey: '' }; window.__pctLog = [];
+          new MutationObserver(() => {
+            const l = document.getElementById('loadscreen'), p = document.getElementById('ldPct');
+            if (p) { const v = p.textContent; const L = window.__pctLog; if (!L.length || L[L.length - 1].v !== v) L.push({ v, t: performance.now() }); }
+            if (l && l.classList.contains('ld-ready') && !window.__relSent) { window.__relSent = 1; window.__relReady(); }
+          }).observe(document, { subtree: true, attributes: true, childList: true, characterData: true, attributeFilter: ['class'] });
+        });
+        await page.goto(E.base + '/index.html', { waitUntil: 'domcontentloaded' });
+        await page.waitForSelector('#loadscreen.ld-ready', { timeout: 40000 }).catch(() => {});
+        for (let i = 0; i < 50 && readyAt == null; i++) await sleep(20);
+        if (opts.after) await opts.after(page);
+        const pct = await page.evaluate(() => window.__pctLog.slice());
+        const out = { readyAt, reqs: reqs.slice(), pct, page, ctx, t0 };
+        return out;
+      };
+      const band = (L, re) => L.filter((x) => re.test(x.p));
+      const B0 = /\/assets\/magnetite-c24\//, B123 = /\/assets\/(anthracite|garnet|hematite)-c24\//;
+      // (a) the table 6 s late, a first visit
+      {
+        let tableAt = null;
+        const r = await gateRun(null, (page) => page.route(/mine-masks\.json/, async (rt) => { await sleep(6000); tableAt = Date.now(); rt.continue().catch(() => {}); }), {
+          after: async (page) => { await page.waitForFunction(() => window.__mineMasks && window.__mineMasks.tableSize() > 0, { timeout: 15000 }).catch(() => {}); } });
+        const live = await r.page.evaluate(() => { const M = window.__mineMasks, k = M.keys()[0]; const t = M.table(k); return { size: M.tableSize(), bits: t ? t.bits.length : 0 }; });
+        const pctEarly = r.pct.filter((x) => x.t < 2400 && /^\d+%$/.test(x.v) && parseInt(x.v, 10) > 0);
+        ok('a mask table answering 6 s late: the % moves before it answers (it used to read 0% until the table)', pctEarly.length > 0,
+           `first moving reading ${pctEarly.length ? pctEarly[0].v + ' at ' + Math.round(pctEarly[0].t) + ' ms' : 'none before 2.4 s'} (${r.pct.length} distinct readings)`);
+        const b123 = band(r.reqs, B123).filter((x) => x.t <= r.readyAt).length;
+        ok('...the gate stops waiting for it (opens before the table, with bands 1-3 gated: the no-table path)',
+           r.readyAt != null && r.readyAt < 6000 && r.readyAt > 2000 && b123 >= 90,
+           `ready at ${r.readyAt} ms; ${band(r.reqs, B0).filter((x) => x.t <= r.readyAt).length} band-0 and ${b123} band 1-3 files requested before it`);
+        ok('...and the late table is still taken up when it lands (MASK_TABLE set, its masks readable)', live.size === 126 && live.bits > 0,
+           `tableSize ${live.size}, first key ${live.bits} bits`);
+        await r.ctx.close();
+      }
+      // (b) the table never answers
+      {
+        const r = await gateRun(null, (page) => page.route(/mine-masks\.json/, () => {}));   // never continued: hangs
+        const b123 = band(r.reqs, B123).filter((x) => x.t <= r.readyAt).length;
+        ok('a mask table that never answers: the gate opens on the no-table path (every band gated) well before any safety net',
+           r.readyAt != null && r.readyAt < 7000 && b123 >= 90, `ready at ${r.readyAt} ms; ${b123} band 1-3 files requested before it`);
+        await r.ctx.close();
+      }
+      // (c) the manifest held 12 s, a returning save
+      {
+        let mfAt = null;
+        const r = await gateRun(RETURNING, (page) => page.route(/\/assets\/manifest\.json/, async (rt) => { await sleep(12000); mfAt = Date.now(); rt.continue().catch(() => {}); }), {
+          after: async (page) => { await page.click('#loadscreen', { timeout: 5000 }).catch(() => {}); await sleep(14000); } });
+        const mfT = mfAt ? mfAt - r.t0 : null;
+        const bandAfter = band(r.reqs, /-c24\//).filter((x) => mfT != null && x.t >= mfT);
+        const onTitle = await r.page.evaluate(() => !!document.getElementById('titleScreen') && !(window.__game && window.__game.state));
+        ok('a manifest held past the safety net: the net opens the gate on a stall, not a clock (it waits ~10 s for one)',
+           r.readyAt != null && r.readyAt >= 9000 && r.readyAt < 12000, `ready at ${r.readyAt} ms; manifest served at ${mfT} ms`);
+        ok('...and the band preload behind the title starts the moment the manifest lands (it was dropped for good before)',
+           onTitle && bandAfter.length >= 100 && bandAfter[0].t - mfT < 3000,
+           `${bandAfter.length} band files requested after the manifest (first ${bandAfter.length ? bandAfter[0].t - mfT : '-'} ms after it); still on the title ${onTitle}`);
+        await r.ctx.close();
+      }
     }
 
     // ------------------------------------------------------------------ masks

@@ -11,13 +11,19 @@ const T = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'applicatio
   '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg', '.css': 'text/css' };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// `MINE_INDEX=<path>` (M15 verify round 2) serves another index.html as '/index.html' and '/index-nodev.html'
+// (assets still from the tree) — a before/after of a boot change against a build kept in the scratchpad.
+const INDEX = process.env.MINE_INDEX ? path.resolve(process.env.MINE_INDEX) : path.join(ROOT, 'index.html');
 async function start() {
   const srv = await new Promise((res) => { const s = http.createServer((rq, rs) => {
     let p = decodeURIComponent(rq.url.split('?')[0].split('#')[0]); if (p === '/') p = '/index.html';
+    if (p === '/index.html' && process.env.MINE_INDEX) {
+      rs.writeHead(200, { 'Content-Type': 'text/html' }); fs.createReadStream(INDEX).pipe(rs); return;
+    }
     // THE RELEASE BUILD'S FLAG, WITHOUT BUILDING A ZIP (M2): `/index-nodev.html` is index.html with
     // `CONFIG.dev.enabled` patched false through the SAME anchor make-web-zip.mjs uses.
     if (p === '/index-nodev.html') {
-      const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+      const html = fs.readFileSync(INDEX, 'utf8');
       const A = '// itch zip, and confirm with scratchpad/verify-nodev.mjs.\n    enabled: true,';
       if (!html.includes(A)) { rs.writeHead(500); rs.end('dev anchor moved'); return; }
       rs.writeHead(200, { 'Content-Type': 'text/html' });

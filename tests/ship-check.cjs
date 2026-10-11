@@ -581,6 +581,11 @@ const openStore = async (page) => {
         const g = window.__game, s = g.state, sub = s.substrate, t0 = performance.now();
         for (let i = 0; i < 40 && !sub._rockSolidified; i++) await new Promise((r) => requestAnimationFrame(() => r()));
         const solidAt = performance.now() - t0, boxes = (sub._solidBoxes || []).length;
+        // THE MASK LANDED, AND BEFORE THE ART (M15 verify round 2): `solidAt` alone cannot tell — 40 frames is ~0.7 s,
+        // well under the 3 s the art is held, so an art-gated mask that had not landed yet passed as well.
+        const solid = !!sub._rockSolidified;
+        const bandKeys = [...new Set(sub.levelSprites.map((sp) => sp.key))];
+        const artMissing = bandKeys.filter((k) => !window.__mineMasks.hasArt(k)).length;
         let held = 0, paused = 0, refused = 0, tries = 0, msg = null;
         while (document.body.classList.contains('handoff') && performance.now() - t0 < 12000) {
           held++; if (g.simPaused()) paused++;
@@ -596,10 +601,10 @@ const openStore = async (page) => {
         await new Promise((r) => setTimeout(r, 1500));
         const F = sub._fineSize, W = sub._fineCols, fs = sub._fineSolid;
         let inRock = 0; for (const n of s.active.nodes) { if (n.infected) continue; const fc = Math.floor(n.x / F), fr = Math.floor((n.y - sub.surfaceY) / F); if (fr >= 0 && fs[fr * W + fc] === 1) inRock++; }
-        return { solidAt, boxes, table: window.__mineMasks.tableSize(), held, paused, refused, tries, msg, liftAt, dugOk: dug.ok, dugMsg: dug.message, nodes: s.active.nodes.length, inRock };
+        return { solidAt, solid, artMissing, bandKeys: bandKeys.length, boxes, table: window.__mineMasks.tableSize(), held, paused, refused, tries, msg, liftAt, dugOk: dug.ok, dugMsg: dug.message, nodes: s.active.nodes.length, inRock };
       });
-      ok('with the table, the mask lands on the first frames with the art still in flight (no box)', A.table === 126 && A.solidAt < 3000 && A.boxes === 0,
-         `table ${A.table}; solid after ${A.solidAt.toFixed(0)} ms; ${A.boxes} box(es)`);
+      ok('with the table, the mask lands on the first frames with the art still in flight (no box)', A.table === 126 && A.solid && A.artMissing > 0 && A.solidAt < 3000 && A.boxes === 0,
+         `table ${A.table}; mask landed ${A.solid} after ${A.solidAt.toFixed(0)} ms with ${A.artMissing} of ${A.bandKeys} sprite keys still without art; ${A.boxes} box(es)`);
       ok('...the curtain holds for the art in view, the sim paused, every dig refused as settling', A.held >= 8 && A.paused === A.held && A.tries > 0 && A.refused === A.tries,
          `${A.held} held samples (${A.paused} paused); ${A.refused} of ${A.tries} digs refused${A.msg ? ' — one read ' + A.msg : ''}`);
       ok('...and lifts once the art has arrived; a dig then lands and no living node is inside rock', A.liftAt >= 2800 && A.liftAt < 9000 && A.dugOk && A.inRock === 0,
@@ -612,11 +617,13 @@ const openStore = async (page) => {
         while (!sub._rockSolidified && performance.now() - t0 < 30000) await new Promise((r) => setTimeout(r, 100));
         let h = 0; const fs = sub._fineSolid || [];
         for (let i = 0; i < fs.length; i++) h = (h * 31 + fs[i] * (i % 9973 + 1)) | 0;
-        return { at: performance.now() - t0, solid: !!sub._rockSolidified, boxes: (sub._solidBoxes || []).length, chunks: g.mine.chunks().slice().sort((x, y) => x - y).join(','), h, n: fs.length,
+        return { at: performance.now() - t0, solid: !!sub._rockSolidified, table: window.__mineMasks.tableSize(), boxes: (sub._solidBoxes || []).length, chunks: g.mine.chunks().slice().sort((x, y) => x - y).join(','), h, n: fs.length,
           ones: Array.prototype.reduce.call(fs, (q, v) => q + v, 0) };
       });
       const noLook = (page) => page.addInitScript(() => { window.MYCELIUM_NO_LOOKAHEAD = true; window.MYCELIUM_NO_IDLE_LOOKAHEAD = true; });
-      const ref = await E.boot('#mine,4242', 390, 844, { before: noLook });
+      // THE REFERENCE STAMPS FROM THE ART, NOT THE TABLE (M15 verify round 2): `_alphaMask` prefers the table even for a
+      // loaded image, so without the knob both worlds read the table and this compared the table with itself.
+      const ref = await E.boot('#mine,4242', 390, 844, { before: async (page) => { await noLook(page); await page.addInitScript(() => { window.MYCELIUM_NO_MASK_TABLE = true; }); } });
       await ref.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.mine.seed() === 4242), { timeout: 40000 });
       const R = await fineOf(ref);
       await ref.ctx.close();
@@ -629,8 +636,8 @@ const openStore = async (page) => {
       const D = await fineOf(d);
       ok('a band that 404s for good: the mask is published at once from the table, no box', D.solid && D.at < 3000 && D.boxes === 0,
          `published after ${D.at.toFixed(0)} ms, ${D.boxes} box(es)`);
-      ok('...and it is BIT FOR BIT the mask the same world builds with every image present', R.solid && D.chunks === R.chunks && D.n === R.n && D.h === R.h && D.ones === R.ones,
-         `chunks [${D.chunks}] vs [${R.chunks}]; ${D.ones} vs ${R.ones} solid fine cells; hash ${D.h} vs ${R.h}`);
+      ok('...and it is BIT FOR BIT the mask the same world stamps from its live art (every image present, the table off)', R.solid && R.table === 0 && D.chunks === R.chunks && D.n === R.n && D.h === R.h && D.ones === R.ones,
+         `reference table ${R.table} (off); chunks [${D.chunks}] vs [${R.chunks}]; ${D.ones} vs ${R.ones} solid fine cells; hash ${D.h} vs ${R.h}`);
       // The hematite band is the deepest: frame it and draw — its missing sprites are silhouettes.
       const sil = await d.page.evaluate(async () => {
         const g = window.__game, s = g.state, sub = s.substrate, cam = g.camera;
@@ -668,6 +675,39 @@ const openStore = async (page) => {
       ok('...and once the art arrives the real sprites replace them (0 silhouette draws)', back.api && back.left === 0 && back.draws === 0,
          `${back.left} hematite keys still missing; ${back.draws} silhouette draws in a fresh frame`);
       await d.ctx.close();
+      // (c) THE BAND IN VIEW 404s FOR GOOD (M15 verify round 2): with the table its sprites collide and draw as
+      // silhouettes, so the curtain must NOT wait the 15 s cap for art that will never come — it used to hold
+      // every descent that long and refuse every dig as settling. Magnetite is band 0, i.e. the first view; the
+      // gate's band-0 preload runs its retry ladder at boot, so by the run its art has failed (not merely late).
+      const m = await E.boot('#mine,4242', 390, 844, { before: async (page) => {
+        await page.route((u) => /\/assets\/magnetite-c24\//.test(u.pathname), (route) => route.fulfill({ status: 404, body: 'nf' }).catch(() => {}));
+      } });
+      await m.page.waitForFunction(() => !!(window.__game && window.__game.mine && window.__game.state && window.__game.state.substrate
+        && window.__game.state.substrate.mine && window.__game.mine.seed() === 4242), { timeout: 40000 });
+      const MV = await m.page.evaluate(async () => {
+        const g = window.__game, s = g.state, sub = s.substrate, M = window.__mineMasks, t0 = performance.now();
+        const mag = sub.levelSprites.filter((sp) => /magnetite/.test(sp.key));
+        const failedAtStart = typeof M.failed === 'function' ? (mag.length > 0 && mag.every((sp) => M.failed(sp.key))) : null;
+        let refused = 0, tries = 0;
+        while (document.body.classList.contains('handoff') && performance.now() - t0 < 16000) {
+          const root = s.active.nodes[0]; s.active.water = Math.max(s.active.water, 50);
+          const r = g.mine.growFrom(root.x, root.y, root.x, root.y + 300); tries++; if (r && !r.ok && r.settling) refused++;
+          await new Promise((q) => setTimeout(q, 150));
+        }
+        const liftAt = performance.now() - t0;
+        await new Promise((q) => setTimeout(q, 400));
+        // Counted since the page began (the rock layer is memoised, so a still frame blits rather than redraws).
+        const sil = M.silhouettes();
+        const root = s.active.nodes[0]; s.active.water = Math.max(s.active.water, 50);
+        const dug = g.mine.growFrom(root.x, root.y, root.x, root.y + 300);
+        return { mag: mag.length, failedAtStart, liftAt, refused, tries, sil, boxes: (sub._solidBoxes || []).length, dugOk: !!dug.ok, dugMsg: dug.message };
+      });
+      ok('the band in view 404s for good: its art has failed by the run, and the curtain does not wait the 15 s cap for it',
+         MV.mag > 0 && MV.failedAtStart === true && MV.liftAt < 3000, `${MV.mag} magnetite sprites, failed at the run's start ${MV.failedAtStart}; curtain lifted after ${(MV.liftAt / 1000).toFixed(1)} s (${MV.refused} of ${MV.tries} digs refused meanwhile)`);
+      ok('...they draw as silhouettes, nothing is boxed, and a dig lands', MV.sil > 0 && MV.boxes === 0 && MV.dugOk,
+         `${MV.sil} silhouette draws since the run began; ${MV.boxes} box(es); dig: ${MV.dugMsg}`);
+      ok('...no page errors (404 band)', m.errs.length === 0, m.errs.join(' | '));
+      await m.ctx.close();
     }
 
     // =======================================================================================

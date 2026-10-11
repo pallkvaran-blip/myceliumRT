@@ -26701,7 +26701,11 @@ function loadAssets(basePath = 'assets/', onProgress, opts) {
       // draw — see `_mineDietSkip`). Still listed in KNOWN, so `assetFailed` never calls one failed.
       if (opts && typeof opts.skip === 'function') list = list.filter((a) => !(a && a.key && opts.skip(a)));
       const total = list.length; let done = 0;
-      if (!total) { onProgress && onProgress(0, 0); return; }
+      // THE MANIFEST'S ARRIVAL IS ITS OWN FIRST STEP (M15 verify round 2): (0, total) before any file has
+      // settled, so the boot knows its denominator — and can start the band files the gate waits for — at
+      // once rather than on the first file to land (seconds later on a slow link).
+      onProgress && onProgress(0, total);
+      if (!total) return;
       const bump = () => { onProgress && onProgress(++done, total); };
       return Promise.all(list.map((a) => loadOne(basePath, a).then(bump)));
     })
@@ -45048,6 +45052,10 @@ function renderFrameInner(time, dtFrames = 1) {
 // also waits for every sprite in VIEW to have its art (`mineViewArtMissing`), under the same cap; past it,
 // a sprite still missing is drawn as its mask's silhouette (`_drawRockSilhouette`), so what blocks is
 // always what is drawn. `sub._mineArtHold` makes `mineGrow` refuse for the length of that hold too.
+// ART THAT HAS FAILED FOR GOOD IS NOT WAITED FOR (M15 verify round 2) when the table has its mask: collision
+// already comes from the table and `_drawRockSilhouette` draws the sprite, so holding the curtain gains
+// nothing — a 404'd band held every descent the full 15 s cap, refusing every dig. Art still IN FLIGHT is
+// waited for as before (`assetFailed` tells the two apart: the retry ladder spent, ~5 s, or not listed).
 function mineViewArtMissing(sub) {
   const sp = sub.levelSprites || [], z = camera.zoom;
   const x0 = camera.x - camera.viewW / 2 / z, x1 = camera.x + camera.viewW / 2 / z;
@@ -45056,7 +45064,7 @@ function mineViewArtMissing(sub) {
   for (let i = 0; i < sp.length; i++) {
     const s = sp[i], b = Math.hypot(s.w, s.h) / 2;
     if (s.x + b < x0 || s.x - b > x1 || s.y + b < y0 || s.y - b > y1 || s.y + b < sub.surfaceY) continue;
-    if (!asset(s.key)) n++;
+    if (!asset(s.key) && !(MASK_TABLE && MASK_TABLE.has(s.key) && assetFailed(s.key))) n++;
   }
   return n;
 }
@@ -48850,16 +48858,27 @@ const _bootImgs = _mineDiet ? [] : [].concat(
   ['ant', 'trichoderma', 'nematode'].map((s) => assetUrl('assets/tutorial/' + s + '.jpg')),
   ['assets/spores/spore-print.png'],
 );
-let _aDone = 0, _aTot = 0, _iDone = 0, _iTot = _bootImgs.length, _mDone = 0, _mTot = 0, _bootEntered = false;
+let _aDone = 0, _aTot = 0, _iDone = 0, _iTot = _bootImgs.length, _bootEntered = false;
 let _aKnown = false;
+// THE GATE'S BAND GROUPS (M15 verify round 2): each `{sets, done, tot, live}` — a set of band folders the
+// first visit's gate waits for, its files AND their masks (one counter step each). Band 0 is reserved the
+// moment the manifest is read, so the % moves before the mask table answers; bands 1-3 join only when the
+// table has not answered in time, and leave again (`live = false`) if it arrives while the gate is still up.
+const _gateGroups = [];
+// THE SAFETY NET'S CLOCK (M15 verify round 2): stamped whenever anything the gate waits for settles.
+let _bootLastStep = performance.now();
+function _bootStep() { _bootLastStep = performance.now(); }
 function _bootProgress() {
   // NOT BEFORE THE MANIFEST IS READ (verifier fix): until `loadAssets` reports its first step the
   // asset total — and the band bill reserved with it — is unknown, and the DOM images alone drove
   // the % to ~89 in the first 350 ms; the real denominator then pulled it back, which the monotonic
   // counter shows as a freeze (measured 1.1-1.4 s at 89-90%).
   if (!_aKnown) return;
-  if (_bandBlocking && !_gateBands) return;      // the band bill is not known until the mask table answers
-  const tot = _aTot + _iTot + _mTot, dn = _aDone + _iDone + _mDone;
+  // The band bill is the live gate groups' (band 0 from the manifest on; bands 1-3 only while the gate holds
+  // for them), so the counter no longer waits for the mask table to answer (M15 verify round 2).
+  let mT = 0, mD = 0;
+  for (const G of _gateGroups) if (G.live) { mT += G.tot; mD += Math.min(G.done, G.tot); }
+  const tot = _aTot + _iTot + mT, dn = _aDone + _iDone + mD;
   _load.setProgress(tot ? (dn / tot) * 100 : 0);
 }
 // Everything decoded (or the safety net fired): rebuild the asset-gated caches, then show
@@ -48928,10 +48947,10 @@ function _bootReady() {
 // calls simply no-op until it resolves, which is the same behaviour as having no SDK at all.
 CRAZY.init().then((ok) => { if (ok) CRAZY.loadingStart(); });
 // THE COUNTER'S DENOMINATOR IS KNOWN UP FRONT (verifier fix). The band files and their masks were
-// added to `_mTot` only once the base assets had resolved, so the total grew mid-load and — since
+// added to the total only once the base assets had resolved, so the total grew mid-load and — since
 // `setProgress` never moves backwards — the % sat frozen while ~150 band files and their masks
-// loaded. `DEFERRED` is filled from the manifest before `loadAssets` reports its first step, so the
-// whole band bill (files + masks) is reserved on that first step.
+// loaded. `DEFERRED` is filled from the manifest, which `loadAssets` reports as its first step (0, total)
+// before any file settles, so band 0's bill (files + masks) is reserved on that first step.
 // RETURNING PLAYERS DO NOT WAIT FOR IT: they get the title, not a descent, so the gate opens on the
 // base assets and the band art (and its masks, in small slices) loads behind the title instead.
 const _bandFolders = OFFER_MINE ? [...new Set(((CONFIG.mine && CONFIG.mine.bands) || []).map((b) => b.assetsFrom).filter(Boolean))] : [];
@@ -48942,27 +48961,40 @@ const _bandOnly = OFFER_MINE ? new Set([].concat(...((CONFIG.mine && CONFIG.mine
 const _bandBlocking = OFFER_MINE && mineFirstVisit() && !devUI() && window.MYCELIUM_NO_BAND_PRELOAD !== true;
 // THE MASK TABLE (M15 verify; see `maskTableAccept`): one small request, fetched with the manifest. When it
 // is valid, collision needs no band art at all, so a FIRST VISIT holds the gate only for the art the first
-// view shows — band 0's folder (`_gateBands`; the first view is the hill and the top ~30 m) — and the other
-// three bands start loading the moment the gate turns ready. Measured: 150 requests / ~1.6 s to ready ->
-// ~50 / ~0.4 s. Without a valid table it falls back to holding the gate for every band and its masks, as
-// before. The curtain still waits for every sprite IN VIEW to have its art (`mineRevealHeld`).
+// view shows — band 0's folder (the first view is the hill and the top ~30 m) — and the other three bands
+// start loading the moment the gate turns ready. Measured: 150 requests / ~1.6 s to ready -> ~50 / ~0.4 s.
+// Without a valid table it falls back to holding the gate for every band and its masks, as before. The
+// curtain still waits for every sprite IN VIEW to have its art (`mineRevealHeld`).
+// A SLOW OR STALLED TABLE MUST NOT HOLD THE BOOT (M15 verify round 2): it used to gate the counter and the
+// gate until it answered — a hung fetch until the 12 s net. Now band 0 is gated from the manifest on
+// regardless, and if the table has not answered within `MASK_TABLE_WAIT_MS` the gate holds for bands 1-3 as
+// well (the no-table path). A table that lands after that is still used — `maskTableAccept` sets
+// `MASK_TABLE` whenever it resolves and `rockMaskImg` / `_alphaMask` read it live — and if it lands while the
+// gate is still up, bands 1-3 stop gating (their loads carry on behind).
+const MASK_TABLE_WAIT_MS = 2500;
 const _maskTableP = OFFER_MINE ? fetch(assetUrl('assets/mine-masks.json')).then((r) => (r.ok ? r.json() : null))
   .then((j) => maskTableAccept(j)).catch(() => 0) : Promise.resolve(0);
+// n > 0 the table, 0 no valid table, -1 no answer within MASK_TABLE_WAIT_MS.
+const _maskTableSoon = new Promise((res) => { _maskTableP.then(res); setTimeout(() => res(-1), MASK_TABLE_WAIT_MS); });
 const _band0 = OFFER_MINE ? (((CONFIG.mine && CONFIG.mine.bands) || [])[0] || null) : null;
 const _band0Only = _band0 ? new Set((MINE_ROCKS[_band0.theme] || []).map((r) => r.k)) : null;
-// The bands the gate waits for, decided once the table has answered: band 0 with a table, all without.
-let _gateBands = null;
-let _mReserved = false;
-function _reserveBandBill() {
-  if (_mReserved || !_bandBlocking || !_gateBands) return;
-  let n = 0; for (const g of _gateBands) n += levelAssetKeys(g.f, g.only).length;
-  if (!n) return;
-  _mReserved = true; _mTot += 2 * n;            // one step per file, one per mask
+const _band0Sets = (_band0 && _band0Only && _band0Only.size) ? [{ f: _band0.assetsFrom, only: _band0Only }] : null;
+// Bands 1-3: every band folder, the libraries' keys less band 0's (so no key is billed twice).
+function _restSets() {
+  const only = _band0Sets ? new Set([..._bandOnly].filter((k) => !_band0Only.has(k))) : _bandOnly;
+  return _bandFolders.map((f) => ({ f, only })).filter((g) => levelAssetKeys(g.f, g.only).length);
+}
+function _gateGroup(sets) {
+  const G = { sets, done: 0, tot: 0, live: true };
+  for (const g of sets) G.tot += 2 * levelAssetKeys(g.f, g.only).length;   // one step per file, one per mask
+  _gateGroups.push(G); _bootProgress();
+  return G;
 }
 // Band files + their alpha masks. `sliceMs`/`gapMs`: the blocking boot builds masks in 40 ms slices
 // back to back; behind the title it takes 12 ms slices with a frame between, so the wordmark's
-// growth does not stutter. `sets` = [{f: folder, only: Set of keys}] (every band when omitted). With a
-// valid table the "mask" step is a table lookup, so the loop costs nothing.
+// growth does not stutter. `G` is the gate group to count into (null: not counted). `sets` = [{f: folder,
+// only: Set of keys}] (every band when omitted). With a valid table the "mask" step is a table lookup, so
+// the loop costs nothing.
 function _allBandSets() { return _bandFolders.map((f) => ({ f, only: _bandOnly })); }
 // THE TABLE'S TOOL HOOK (boot-time, like `__menu`: `window.__game` does not exist before a run). What
 // scripts/gen-mine-masks.cjs writes from and what release-check / itchzip-check compare against: every band
@@ -48977,13 +49009,14 @@ try {
     live: (k) => { const img = asset(k); if (!img) return null; const m = _alphaMaskLive(img); return { mw: m.mw, mh: m.mh, bits: Array.prototype.join.call(m.bits, '') }; },
     silhouettes: () => _silhouetteDraws,
     hasArt: (k) => !!asset(k),        // asks through asset(), so a missing key's on-demand repair runs
+    failed: (k) => assetFailed(k),    // the art has failed for good (the retry ladder spent), not merely late
   };
 } catch (_) {}
-function _preloadBands(sliceMs, gapMs, count, sets) {
+function _preloadBands(sliceMs, gapMs, G, sets) {
   sets = sets || _allBandSets();
-  return Promise.all(sets.map((g) => loadLevelAssets(g.f, 'assets/', (d, t) => {
-    if (!count) return;
-    _mDone += d; if (!_mReserved) _mTot += t; _bootProgress();
+  return Promise.all(sets.map((g) => loadLevelAssets(g.f, 'assets/', (d) => {
+    if (!G) return;
+    G.done += d; _bootStep(); _bootProgress();
   }, g.only))).then(() => {
     // ...AND THEIR ALPHA MASKS ARE BUILT HERE TOO. The first `solidifyRock` spent ~1.4 s in
     // `_alphaMask`'s getImageData (the first draw of each sprite decodes it) — measured as the
@@ -48991,16 +49024,15 @@ function _preloadBands(sliceMs, gapMs, count, sets) {
     // so building them now makes the first stamp cheap. In small batches, so the counter moves.
     const keys = [];
     for (const g of sets) for (const k of levelAssetKeys(g.f, g.only)) keys.push(k);
-    if (count && !_mReserved) { _mTot += keys.length; _bootProgress(); }
     return new Promise((res) => {
       let i = 0;
       const step = () => {
         const t0 = performance.now();
         while (i < keys.length && performance.now() - t0 < sliceMs) {
           try { const img = asset(keys[i]); if (img) _alphaMask(img); } catch (_) {}
-          i++; if (count) _mDone++;
+          i++; if (G) G.done++;
         }
-        if (count) _bootProgress();
+        if (G) { _bootStep(); _bootProgress(); }
         if (i < keys.length) setTimeout(step, gapMs); else res();
       };
       step();
@@ -49008,39 +49040,70 @@ function _preloadBands(sliceMs, gapMs, count, sets) {
   });
 }
 // THE MINE'S BAND ART IS PRELOADED BEHIND THE GATE (M4) — on a FIRST VISIT. It is `kind: 'level'`,
-// so `loadAssets` holds it back, and a descent's curtain waits for every band sprite before it lifts
-// (M2) — so without this the first descent sat behind a black curtain for ~5 s AFTER the tap.
+// so `loadAssets` holds it back, and a descent's curtain waits for the band sprites in view before it
+// lifts (M2) — so without this the first descent sat behind a black curtain for ~5 s AFTER the tap.
 // TEST KNOB: `window.MYCELIUM_NO_BAND_PRELOAD = true` (an init script) skips it entirely, so a check
 // can put a descent in front of art that has not arrived — the case the M2 collision gate exists for
-// (a slow link where the 12 s safety net lets the player in first). ship-check's gate block.
+// (a slow link where the safety net lets the player in first). ship-check's gate block.
+// BAND 0 STARTS WITH THE BASE ASSETS (M15 verify round 2), the moment the manifest is read — not after
+// every base asset has settled. On a 1.5 Mbps link the base set took longer than the old 12 s net, so the
+// gate opened with 0 of band 0's 25 files requested and the curtain then held ~12 s for them.
 // THE REST OF THE BAND ART LOADS AFTER THE GATE TURNS READY (M15 verify): a returning boot's whole band
 // preload, and a first visit's bands 1-3 when the table let the gate wait for band 0 alone. Started from
 // `_bootReady`, so none of it is in flight before the gate opens (the request bound counts what STARTED
 // before ready; it used to begin as the base assets resolved and put 44-68 requests in front of a
-// returning player's gate).
+// returning player's gate) — or, if the gate has already opened when it is decided, at once (M15 verify
+// round 2: the safety net could reach `_bootReady` first, and the preload was then never started).
 let _bandRest = null;
 function _startBandRest() {
+  if (!_bootEntered) return;
   const f = _bandRest; _bandRest = null;
   if (f) setTimeout(f, 0);
 }
-// The table and the manifest are fetched side by side; the band bill is reserved once both have answered
-// (the counter stays hidden until then — see `_bootProgress`).
-const _gateBandsP = _maskTableP.then((n) => {
-  _gateBands = (n && _band0 && _band0Only && _band0Only.size) ? [{ f: _band0.assetsFrom, only: _band0Only }] : _allBandSets();
-  _reserveBandBill(); _bootProgress();
-});
+function _setBandRest(f) { _bandRest = f; _startBandRest(); }
+let _manifestResolve = null;
+const _manifestP = new Promise((res) => { _manifestResolve = res; });
+let _b0P = Promise.resolve();
+function _onManifest() {
+  if (!OFFER_MINE || window.MYCELIUM_NO_BAND_PRELOAD === true) return;
+  if (!_bandBlocking) { _setBandRest(() => _preloadBands(12, 16, null)); return; }
+  const sets = _band0Sets || _allBandSets();
+  _b0P = _preloadBands(40, 0, _gateGroup(sets), sets);
+}
+// Bands 1-3 on a first visit: behind the gate with the table, gating it without.
+const _restGateP = _bandBlocking ? Promise.all([_maskTableSoon, _manifestP]).then(([n]) => {
+  if (!_band0Sets) return;                     // band 0's group already covers every band
+  if (n > 0) { _setBandRest(() => _preloadBands(12, 16, null, _restSets())); return; }
+  // No table (yet): collision needs every band's art, so the gate holds for bands 1-3 as well.
+  const sets = _restSets(), G = _gateGroup(sets);
+  const loadP = _preloadBands(40, 0, G, sets);
+  if (n === 0) return loadP;                   // the table failed for good
+  return new Promise((res) => {
+    loadP.then(res);
+    _maskTableP.then((m) => { if (m > 0 && !_bootEntered) { G.live = false; _bootStep(); _bootProgress(); res(); } });
+  });
+}) : Promise.resolve();
 Promise.all([
-  Promise.all([_gateBandsP, loadAssets('assets/', (d, t) => { _aKnown = true; _reserveBandBill(); _aDone = d; _aTot = t; _bootProgress(); }, _mineDiet ? { skip: _mineDietSkip } : null)]).then(() => {
-    if (!OFFER_MINE || window.MYCELIUM_NO_BAND_PRELOAD === true) return;
-    if (!_bandBlocking) { _bandRest = () => _preloadBands(12, 16, false); return; }
-    const gateAll = _gateBands.length === _bandFolders.length && _gateBands.every((g) => g.only === _bandOnly);
-    if (!gateAll) _bandRest = () => _preloadBands(12, 16, false);
-    return _preloadBands(40, 0, true, _gateBands);
-  }),
-  preloadImages(_bootImgs, (d, t) => { _iDone = d; _iTot = t; _bootProgress(); }),
+  loadAssets('assets/', (d, t) => {
+    if (!_aKnown) { _aKnown = true; _onManifest(); _manifestResolve(); }
+    _aDone = d; _aTot = t; _bootStep(); _bootProgress();
+  }, _mineDiet ? { skip: _mineDietSkip } : null),
+  _manifestP.then(() => _b0P),
+  _restGateP,
+  preloadImages(_bootImgs, (d, t) => { _iDone = d; _iTot = t; _bootStep(); _bootProgress(); }),
 ]).then(_bootReady);
-// Safety net: never trap the player on the loader if a fetch hangs.
-setTimeout(_bootReady, 12000);
+// SAFETY NET: never trap the player on the loader if a fetch hangs. IT WATCHES FOR A STALL, NOT THE CLOCK
+// (M15 verify round 2): a flat 12 s from script start opened the gate in the middle of a slow-but-moving
+// load (1.5 Mbps: the base set alone outlasted it), and the tap then met a black curtain held for the art
+// still arriving — with bands 1-3 now competing for the link. Now it opens the gate when nothing the gate
+// waits for has settled for BOOT_STALL_MS, or after BOOT_CAP_MS whatever is happening.
+const BOOT_STALL_MS = 10000, BOOT_CAP_MS = 60000, _bootT0 = performance.now();
+(function _bootNet() {
+  if (_bootEntered) return;
+  const t = performance.now();
+  if (t - _bootLastStep >= BOOT_STALL_MS || t - _bootT0 >= BOOT_CAP_MS) { _bootReady(); return; }
+  setTimeout(_bootNet, 250);
+})();
 requestAnimationFrame(frame);
 
   return {  };
