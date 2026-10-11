@@ -6678,7 +6678,7 @@ what it was measured against. NUMBERS ONLY — no mechanic changed.
   leg 8 cannot grow. The plan's model put leg 7-8 runs at 140-161 s with ~82 human digs from a 144 tank, i.e. digs
   at ~1.75 water; the navigator's leg-7 crossing branches to ~142 m and prices most digs at 2-4.
 
-### M15 — Release hygiene: boot, desktop, perf gate, analytics, docs, final cut (DONE; acceptance 1 first-visit half short)
+### M15 — Release hygiene: boot, desktop, perf gate, analytics, docs, final cut (BUILT; verify round below)
 
 - **BOOT DIET** (`_mineDiet` in main's boot; `loadAssets(..., {skip})`; `MINE_DIET_SKIP`; `window.__bootDiet()`):
   a plain-URL / '#mine' / '#leg' boot with OFFER_CAMPAIGN and OFFER_SURVIVAL off and no `devUI()` preloads no card
@@ -6695,7 +6695,7 @@ what it was measured against. NUMBERS ONLY — no mechanic changed.
     asks, the A/B decides. The troll rockface's manifest key is `troll`, not `rockface`.
   - **Measured** (`tests/boot-probe.cjs first|returning`): returning boot 193 req / 15.3 MB / 0.75 s -> **29-40 / ~6 MB /
     0.33-0.41 s** to `ld-ready`. First visit 309 / 19.3 MB / 2.2-2.5 s -> **150 / 11.1 MB / 1.8-2.2 s**.
-  - **DEVIATION (acceptance 1, first visit):** the first visit's band bill (126 files + their alpha masks) stays behind
+  - **SUPERSEDED BY THE VERIFY ROUND (precomputed masks, below).** The first build's deviation: the first visit's band bill (126 files + their alpha masks) stays behind
     the gate on purpose — M4's tap->map curtain (<= 600 ms) waits for every band sprite. Every file has landed by
     ~0.5 s; the other ~1.3 s is `_alphaMask` (a 160 px downscale of each sprite on the main thread, i.e. its decode).
     Tried and reverted: `img.decode()` before a level sprite counts as landed (2.7-2.8 s: worse). Atlas packing
@@ -6743,6 +6743,60 @@ what it was measured against. NUMBERS ONLY — no mechanic changed.
   a6049df 4 of 4 — too few to call a regression, nothing in M15 touches the slice machinery; recorded as a flake to watch.
 - **CHECKS**: `tests/release-check.cjs` (`release`, in `--mine`, 25: boot 6, gutters 15, perf 4 — counted in the full
   run); tools `tests/boot-probe.cjs`, `tests/firstcue-probe.cjs`.
+
+**M15 VERIFY ROUND** (two verifiers; each finding confirmed first)
+- **FIRST VISIT 150 -> 50 REQUESTS, ~1.6 s -> ~0.36 s: THE MINE'S MASKS ARE PRECOMPUTED.** Confirmed: band files all
+  landed by ~0.5 s, then ~1.1 s of `_alphaMask` (one main-thread decode + getImageData per sprite) held the gate, and
+  the gate had to wait because collision needed every sprite's ART. `assets/mine-masks.json` (GENERATED, 57 KB:
+  `node scripts/gen-mine-masks.cjs`; `--check` fails on a changed file sha1, an `__ASSET_VER` mismatch or any bit that
+  differs from a live recomputation) holds each band sprite's mask as `_alphaMaskCompute` makes it, cut to the one
+  test collision reads (alpha >= 128, `markCoverGrid`) and run-length coded.
+  - Runtime: `maskTableAccept` (ignored unless `ver === __ASSET_VER`; knob `MYCELIUM_NO_MASK_TABLE`); `_alphaMask`
+    takes a loaded image's mask from the table by KEY (`img._akey`, set in `loadOne` — `img.src` carries a retry
+    nonce); `rockMaskImg(sub, key)` gives collision a stand-in (`maskStandIn`) when the art is missing, used by
+    `solidifyRock`, `solidifyMineRock` and `mineRestampBox`. So the M2 boxes never happen for band keys with a table.
+  - Boot: table and manifest fetched side by side; a FIRST VISIT's gate waits for band 0's 25 files only
+    (`_gateBands`; the first view is the hill and the top ~30 m); bands 1-3 — and a RETURNING boot's whole band
+    preload — start in `_bootReady` (`_startBandRest`), so none is in flight before the gate. No table: all bands, as before.
+  - The curtain also holds while a sprite IN VIEW has no art (`mineViewArtMissing`, same 15 s cap, `sub._mineArtHold`
+    -> `mineGrow` refuses as settling). Past the cap, or mid-run, a missing sprite draws as its mask's silhouette
+    (`_drawRockSilhouette`, dark `rgb(46,41,38)`), so what blocks is always drawn. Hook `window.__mineMasks`
+    (`keys`, `load`, `live`, `table`, `tableSize`, `silhouettes`, `hasArt`) — boot-time, like `__menu`.
+  - Measured (release-check): first visit **50 requests started before ld-ready / 353-373 ms** (was 150 / 1465-1752);
+    returning **25 / 316-326 ms** (was 44-68 started); curtain **484 ms** (onboard, bound 600). A 404 band's mask is
+    BIT FOR BIT the art-present world's (86,133 solid fine cells, same hash); the zip's table matches all 126
+    re-encoded sprites. Alpha survives webp q85 exactly, so one table serves tree and zip.
+  - **GOTCHA: `state._mineCamFree` IS NOT THE FLAG** — `_mineCamFree` is a module variable; a probe that sets it on
+    the state is snapped back by the follow camera. Use `__game.mine.lookAt(x, y)` (releases it). boot-probe's `ab`
+    gets away with it only because it renders synchronously.
+  - **GOTCHA: the ghost finger animates on the wall clock** — two IDENTICAL full boots differed by ~2,800 channels in
+    the hill view on a runs-1-2 save. Pixel A/Bs seed a later save.
+- **THREAT'S MAP-ROLL FLAKE IS GONE: every '#dev' boot in threat-check freezes Date.now** (perf-probe's idiom) until the
+  run exists, so it is one procedural map every run. Clock **1710000000123**; 1717171717171 fails 4 assertions
+  deterministically (no clear crawl spot), 1700000000000 / 1720000000777 / 1730000000555 are also 116/116.
+  `THREAT_CLOCK=<ms>|free`. 116/116 on 4 consecutive runs of the chosen clock.
+- **ANALYTICS COUNTS THE MINE.** The release comparison was pinned to campaign and "played" was `level_start`, which a
+  mine run never sends (chosenSpecies is null): on a mine build the release row read 0 players. Now: `releaseGame`
+  pins to the game of the latest stamped build's own run_starts; `playedRow` = level_start OR a mine run_start (release
+  table, bouncer count, "mean PLAYED visit"); `clearRow` = level_clear OR island; mine labels (islands rooted, spent in
+  the store); funnel rows 'started a descent' and 'cleared a level / rooted an island'; Game chip 'the Deep Mine'
+  ('both' -> 'all'); the mine's first session read off the whole history (`inFilterNoDays`); the leg table splits by
+  journey. The game's run_end / island `detail` carries `J<j>` for Journey II+ ('J2L1:dry:e40'; Journey I unchanged).
+  GOTCHA: the release panel's game is `data-relgame`, not `data-game` (the level tables' hook). analytics 99 -> 108;
+  7 of the 9 new assertions fail on the previous generator.
+- **GUTTERS: none on the save's first descent** (the title shows its goal only once a run is banked; read once per run,
+  `state._mineGutBanked`); the goal line is worded for mid-run (`mineGutterGoal`: 'buy it after this descent', never
+  'ready to buy').
+- **PERF GATE:** 3 blocks of 100 frames, gated on the median block's p95 (bound unchanged); worms pinned at 16 —
+  breeding off and `respawnChance` 0 — because a block read 20 worms after the real loop ticked between blocks; a
+  panning camera and a dig every ~1.5 s are PRINTED. Still wants an idle host. Measured: dsf 2 median-block p95
+  16.8-20.0 ms (block p95s 15.7-20.7), dsf 1 9.9; panning dsf 2 p95 21.8-24.1, digging 18.5-19.8.
+- **itch description:** the 5 P floor only for a descent that runs its course (`mineFloorEarned`,
+  `MINE_FLOORLESS_CAUSES`), strains only after a finished journey (`mineStrainsOpen`), shallow walls from leg 2 on
+  (`sealByBand[0]`) — all in the source table.
+- Checks: release 25 -> 31 (boot 8: first visit gated; masks 1; diet 2 — diet vs full within the full-vs-full noise
+  floor (+5), positive control hill 5,379 / island 4,611; gutters 16); ship 58 -> 65 ('gate' runs with
+  `MYCELIUM_NO_MASK_TABLE`; new 'masktab' 7); zip 24 -> 25; analytics 99 -> 108.
 
 ## Two games on the title screen: Survival and Campaign
 

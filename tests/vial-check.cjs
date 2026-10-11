@@ -112,7 +112,9 @@ const PXS = (a) => {
     const p = c.worldToScreen(a.wall0 + d, a.ty);
     const q = cx.getImageData(Math.round(p.x * dpr), Math.round(p.y * dpr), 1, 1).data;
     n++; px.push(q[0] + ',' + q[1] + ',' + q[2]);
-    if (q[0] > 170 && q[1] > 110 && q[2] < 110 && q[0] > q[2] + 60) amber++;
+    // AMBER IS RED OVER GREEN (the layer reads ~220,164,61). Without `r > g + 20` a yellow-green ROT pixel
+    // (171,200,105 in one full sweep) matched too and was counted amber AND green at once (M15 verify).
+    if (q[0] > 170 && q[1] > 110 && q[2] < 110 && q[0] > q[2] + 60 && q[0] > q[1] + 20) amber++;
     // GREEN-OVER-RED: the rot's mould green (a pale, partly blue mint here, 116-205 red against 141-231 green)
     // over soil and rock that are red-dominant, and over the amber layer (green < red by ~50).
     if (q[1] > q[0] + 10) green++;
@@ -478,7 +480,7 @@ const FSHASH = () => {
         const pts = []; for (let d = 12; d <= 90; d += 12) pts.push(c.worldToScreen(a.wall0 + d, a.ty));
         const dpr = cv.width / cv.getBoundingClientRect().width;
         const count = () => { let amber = 0;
-          for (const p of pts) { const d = cx.getImageData(Math.round(p.x * dpr), Math.round(p.y * dpr), 1, 1).data; if (d[0] > 170 && d[1] > 110 && d[2] < 110 && d[0] > d[2] + 60) amber++; }
+          for (const p of pts) { const d = cx.getImageData(Math.round(p.x * dpr), Math.round(p.y * dpr), 1, 1).data; if (d[0] > 170 && d[1] > 110 && d[2] < 110 && d[0] > d[2] + 60 && d[0] > d[1] + 20) amber++; }
           return amber; };
         g.renderFrame(performance.now());
         const amber = count();
