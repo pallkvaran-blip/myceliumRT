@@ -29,7 +29,10 @@
  *            MASK_TABLE_WAIT_MS, the late table is still taken up), a table that never answers, and a manifest held
  *            past the stall-watching safety net (the band preload behind the title still starts when it lands).
  *
- * `RELEASE_ONLY=boot,slow,masks,diet,gutters,perf` runs a subset.
+ *   strip    THE BUILD'S COMMENT STRIP: the itch page and the CrazyGames page (SDK tag injected) both strip, and the
+ *            result equals a naive removal of every //-led line.
+ *
+ * `RELEASE_ONLY=boot,slow,strip,masks,diet,gutters,perf` runs a subset.
  */
 const path = require('path'), fs = require('fs');
 const H = require('./mine-harness.cjs');
@@ -192,6 +195,28 @@ const seedSave = (sv) => (p) => p.addInitScript((sv) => { try { if (sv) localSto
            `${bandAfter.length} band files requested after the manifest (first ${bandAfter.length ? bandAfter[0].t - mfT : '-'} ms after it); still on the title ${onTitle}`);
         await r.ctx.close();
       }
+    }
+
+    // ------------------------------------------------------------------ strip
+    // THE RELEASE BUILD'S COMMENT STRIP (M15 verify round 2) on the page as each platform stages it: it must succeed,
+    // agree with a naive removal of every `//`-led line (an independent cross-check of the lexer on today's file), and
+    // survive the CrazyGames page — whose injected SDK <script src> before </head> once made it lex the markup between
+    // the two scripts (it refused, as designed, and the CrazyGames build failed).
+    if (want('strip')) {
+      console.log('--- the release build strips the page’s comments');
+      const { pathToFileURL } = require('url');
+      const SC = await import(pathToFileURL(path.join(ROOT, 'scripts', 'strip-js-comments.mjs')).href);
+      const page = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+      const a = page.indexOf('<script>\n') + '<script>\n'.length, z = page.indexOf('</script>', a);
+      const naive = page.slice(0, a) + page.slice(a, z).split(/(?<=\n)/).filter((l) => !l.trim().startsWith('//')).join('') + page.slice(z);
+      let r = null, err = null; try { r = SC.stripHtmlScript(page); } catch (e) { err = String(e.message || e); }
+      ok('the itch page strips (lexed, verified, parse-checked) and equals a naive removal of every //-led line',
+         !!r && r.lines > 10000 && r.html === naive, err || `${r.lines} lines, ${(page.length / 1048576).toFixed(2)} -> ${(r.html.length / 1048576).toFixed(2)} MB; naive ${r.html === naive ? 'identical' : 'DIFFERS'}`);
+      const TAG = '<script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>';
+      const cg = page.replace('</head>', '  ' + TAG + '\n</head>');
+      let r2 = null, err2 = null; try { r2 = SC.stripHtmlScript(cg); } catch (e) { err2 = String(e.message || e); }
+      ok('...and so does the CrazyGames page (the SDK tag injected before </head>), keeping the tag',
+         !!r2 && !!r && r2.html === r.html.replace('</head>', '  ' + TAG + '\n</head>'), err2 || 'stripped; differs from the itch strip only by the tag');
     }
 
     // ------------------------------------------------------------------ masks

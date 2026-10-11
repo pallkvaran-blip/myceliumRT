@@ -105,7 +105,10 @@ export function verifyStripped(js) {
 export function stripHtmlScript(html) {
   const open = html.search(/<script>\s*\n/);
   if (open < 0) throw new Error('no inline <script> found');
-  const start = html.indexOf('\n', open) + 1, end = html.lastIndexOf('</script>');
+  // The FIRST `</script>` after it — an inline script cannot contain that string (the HTML parser would end it there),
+  // and the CrazyGames build injects an SDK <script src> before </head>, i.e. AFTER this one: `lastIndexOf` found
+  // that tag's close and lexed the markup between (the lexer refused, as designed).
+  const start = html.indexOf('\n', open) + 1, end = html.indexOf('</script>', start);
   if (end < start) throw new Error('no closing </script>');
   const js = html.slice(start, end);
   const r = stripFullLineComments(js);
