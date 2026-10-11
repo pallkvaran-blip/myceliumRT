@@ -199,6 +199,11 @@ means either committing a change that breaks the suite or remembering to flip it
 remembering is the step that gets skipped. The patch is anchored on the comment above the flag and
 the build **fails** if that anchor moves, rather than quietly shipping the buttons. The invisible
 `window.__game` / `window.__cfg` hooks stay in a public build on purpose.
+- **THE ZIP STRIPS THE PAGE'S COMMENTS AFTER THAT PATCH (M15), SO THE ANCHOR IS NOT IN THE ARCHIVE.**
+  CI's "Confirm the dev buttons are off" step grepped for the anchor comment and would have refused
+  every zip cut after the strip landed (caught before the first CI run, 4a75842). Both CI and
+  `make-web-zip` now test the one `  dev: {` block's first line for `enabled: false,`. Any new check
+  against the built page must not key on a comment.
 
 **ITCH CAPS AN HTML5 ZIP AT 1,000 ENTRIES, AND COUNTS DIRECTORIES.** Rejected on upload with
 *"Too many files in zip (2450 > 1000)"* — the full `assets/` tree is 2,383 files across 65 folders.
